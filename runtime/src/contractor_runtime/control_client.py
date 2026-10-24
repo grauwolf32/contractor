@@ -26,6 +26,7 @@ from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.mtls import verify_control_plane_peer
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
+from contractor_runtime.threads import consume_task_exception
 
 logger = logging.getLogger(__name__)
 
@@ -328,7 +329,7 @@ class ControlClient:
             self._reconciliation_task = asyncio.create_task(
                 self._run_reconciliation(), name="runtime-control-reconciliation"
             )
-            self._reconciliation_task.add_done_callback(_consume_background_task)
+            self._reconciliation_task.add_done_callback(consume_task_exception)
 
     async def _run_reconciliation(self) -> None:
         if not (self._reconciliation is not None):
@@ -409,12 +410,6 @@ class ControlClient:
 
     def _backoff(self, failures: int) -> float:
         return bounded_backoff(failures, CONTROL_RETRY_BACKOFF_CEILING_SECONDS, self._jitter)
-
-
-def _consume_background_task(task: asyncio.Task[Any]) -> None:
-    if task.cancelled():
-        return
-    task.exception()
 
 
 def _response_json(raw: Mapping[str, Any] | bytes) -> bytes:

@@ -23,6 +23,7 @@ from contractor_runtime.adapters.otlp_http import (
     OTLPDeliveryError,
     OTLPHTTPAdapterFactory,
     OTLPInstrumentation,
+    _truncate_utf8,
 )
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -38,6 +39,7 @@ from contractor_runtime.factories import (
     RunArtifactsToolsetFactory,
 )
 from contractor_runtime.state import ProcessState, RuntimeState
+from contractor_runtime.telemetry import metrics as telemetry_metrics
 from contractor_runtime.workspace import LocalWorkdirFactory
 
 MAX_PENDING_BYTES = SERVER_EXPORT.max_pending_bytes
@@ -488,6 +490,27 @@ def _attribute_value(value: Any) -> Any:
     if selected == "array_value":
         return [_attribute_value(item) for item in value.array_value.values]
     return getattr(value, selected)
+
+
+def test_span_text_bound_and_metric_text_bound_keep_distinct_policies() -> None:
+    lone_surrogate = "\ud800"
+    # OTLP span names and attributes: strict UTF-8, unchanged within the
+    # limit, cut on a character boundary without a marker.
+    assert _truncate_utf8("abc", 3) == "abc"
+    assert _truncate_utf8("abcd", 3) == "abc"
+    assert _truncate_utf8("aé", 2) == "a"
+    with pytest.raises(UnicodeEncodeError):
+        _truncate_utf8(lone_surrogate, 8)
+    # Metric text: malformed text is replaced, and an ellipsis inside the limit
+    # marks a cut.
+    metric = telemetry_metrics._truncate_utf8
+    assert metric("abc", 3) == "abc"
+    assert metric("abcd", 4) == "abcd"
+    assert metric("abcde", 4) == "a…"
+    assert metric("éé…", 7) == "éé…"
+    assert metric("ééé", 5) == "é…"
+    assert metric("ééé", 4) == "…"
+    assert metric(lone_surrogate, 8) == "?"
 
 
 def _metrics() -> Any:

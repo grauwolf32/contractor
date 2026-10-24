@@ -68,6 +68,7 @@ SKILL_SYSTEM_INSTRUCTION = (
 )
 
 _FORBIDDEN_ADK_SURFACE = ("run_skill_script", "search_skills")
+_PROBE_SCRIPT_SOURCE = "throw new Error('source disclosure must not execute');\n"
 _PORTABLE_COMPONENT = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 
 
@@ -570,21 +571,12 @@ async def probe_native_agent_skills() -> bool:
 
     if any(value in SKILL_SYSTEM_INSTRUCTION for value in _FORBIDDEN_ADK_SURFACE):
         return False
-    with tempfile.TemporaryDirectory(prefix="contractor-skill-probe-") as temporary:
-        directory = Path(temporary) / "probe-skill"
-        directory.mkdir(mode=0o700)
-        (directory / "SKILL.md").write_text(
-            "---\nname: probe-skill\ndescription: Probe native Agent Skills support.\n---\n"
-            "Follow the supplied task.\n",
-            encoding="utf-8",
-        )
-        (directory / "scripts").mkdir()
-        source = "throw new Error('source disclosure must not execute');\n"
-        (directory / "scripts" / "check.cjs").write_text(source, encoding="utf-8")
-        skill = load_skill_from_dir(directory)
+    directory = _ProbeSkillDirectory()
+    try:
+        skill = await to_thread_until_done(directory.load, name="agent-skill-probe")
         if set(skill.resources.scripts) != {"check.cjs"}:
             return False
-        if skill.resources.scripts["check.cjs"].src != source:
+        if skill.resources.scripts["check.cjs"].src != _PROBE_SCRIPT_SOURCE:
             return False
         skill._uri = None
         native = SkillToolset(
@@ -607,7 +599,35 @@ async def probe_native_agent_skills() -> bool:
                 return False
         finally:
             await native.close()
+    finally:
+        # A cancelled load has already joined its thread, so whatever it wrote
+        # is visible here and removed off the event loop.
+        await to_thread_until_done(directory.cleanup, name="agent-skill-probe")
     return True
+
+
+class _ProbeSkillDirectory:
+    """The startup probe's temporary Skill, written and removed in worker threads."""
+
+    def __init__(self) -> None:
+        self._temporary: tempfile.TemporaryDirectory[str] | None = None
+
+    def load(self) -> Skill:
+        self._temporary = tempfile.TemporaryDirectory(prefix="contractor-skill-probe-")
+        directory = Path(self._temporary.name) / "probe-skill"
+        directory.mkdir(mode=0o700)
+        (directory / "SKILL.md").write_text(
+            "---\nname: probe-skill\ndescription: Probe native Agent Skills support.\n---\n"
+            "Follow the supplied task.\n",
+            encoding="utf-8",
+        )
+        (directory / "scripts").mkdir()
+        (directory / "scripts" / "check.cjs").write_text(_PROBE_SCRIPT_SOURCE, encoding="utf-8")
+        return load_skill_from_dir(directory)
+
+    def cleanup(self) -> None:
+        if self._temporary is not None:
+            self._temporary.cleanup()
 
 
 def _build_disclosure_plan(

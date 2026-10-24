@@ -22,6 +22,7 @@ from contractor_runtime.contracts import (
     RuntimeSettings,
     TelemetrySettings,
 )
+from contractor_runtime.threads import consume_task_exception
 
 UINT64_MAX = 2**64 - 1
 SAFE_ERROR_CODES = frozenset(
@@ -321,12 +322,12 @@ class AllocationAdapterHost:
                     done, _ = await asyncio.wait({create_task}, timeout=remaining)
                 except asyncio.CancelledError:
                     create_task.cancel()
-                    create_task.add_done_callback(_consume_background_task)
+                    create_task.add_done_callback(consume_task_exception)
                     construction_unconfirmed = True
                     raise
                 if not done:
                     create_task.cancel()
-                    create_task.add_done_callback(_consume_background_task)
+                    create_task.add_done_callback(consume_task_exception)
                     construction_unconfirmed = True
                     raise AdapterFactoryError(retryable=True)
                 flush_timeout = (
@@ -585,19 +586,19 @@ async def _bounded_call(operation: Awaitable[None], *, timeout: float) -> str:
         done, _ = await asyncio.wait({task}, timeout=timeout)
     except asyncio.CancelledError:
         task.cancel()
-        task.add_done_callback(_consume_background_task)
+        task.add_done_callback(consume_task_exception)
         raise
     if not done:
         task.cancel()
         try:
             cancelled, _ = await asyncio.wait({task}, timeout=timeout)
         except asyncio.CancelledError:
-            task.add_done_callback(_consume_background_task)
+            task.add_done_callback(consume_task_exception)
             raise
         if not cancelled:
-            task.add_done_callback(_consume_background_task)
+            task.add_done_callback(consume_task_exception)
             return "cancel_unconfirmed"
-        _consume_background_task(task)
+        consume_task_exception(task)
         return "timeout"
     try:
         await task
@@ -606,11 +607,6 @@ async def _bounded_call(operation: Awaitable[None], *, timeout: float) -> str:
     except Exception:
         return "failed"
     return "succeeded"
-
-
-def _consume_background_task(task: asyncio.Task[Any]) -> None:
-    if not task.cancelled():
-        task.exception()
 
 
 def _saturating_increment(value: int) -> int:

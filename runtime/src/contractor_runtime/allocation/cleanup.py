@@ -5,11 +5,11 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping, MutableMapping
 from datetime import datetime
-from typing import Any
 
 from contractor_runtime.factories import (
     ToolInstance,
 )
+from contractor_runtime.threads import consume_task_exception
 
 
 async def _close_tools(tools: Mapping[str, ToolInstance]) -> None:
@@ -33,16 +33,10 @@ async def _await_before_deadline(
         done, _ = await asyncio.wait({task}, timeout=remaining)
     except asyncio.CancelledError:
         task.cancel()
-        task.add_done_callback(_consume_background_task)
+        task.add_done_callback(consume_task_exception)
         raise
     if not done:
         task.cancel()
-        task.add_done_callback(_consume_background_task)
+        task.add_done_callback(consume_task_exception)
         raise TimeoutError
     await task
-
-
-def _consume_background_task(task: asyncio.Task[Any]) -> None:
-    if task.cancelled():
-        return
-    task.exception()

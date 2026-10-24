@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-84 open tasks: 4 in progress, 55 pending, 25 deferred. 1034 finished: 1030 completed, 4 archived.
+84 open tasks: 5 in progress, 54 pending, 25 deferred. 1034 finished: 1030 completed, 4 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V407-012](v407-012-runtime-core-duplicates.yml) | planner-worker | chore | P3 | Consolidate equivalent Runtime helpers and offload prepare filesystem work |
 
 ## Pending
 
@@ -34,7 +35,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-004](v371-004-worker-completion-exact-integers.yml) | defect | P3 | — | Bound WorkerCompletion integers to the range A2A carries exactly |
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
-| [V407-012](v407-012-runtime-core-duplicates.yml) | chore | P3 | — | Consolidate equivalent Runtime helpers and offload prepare filesystem work |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 

@@ -21,7 +21,11 @@ from pydantic import PrivateAttr
 
 from contractor_runtime.adapters.content import capture_span_content, model_request_content
 from contractor_runtime.adapters.genai import usage_attributes
-from contractor_runtime.adapters.instrumentation import RuntimeInstrumentation
+from contractor_runtime.adapters.instrumentation import (
+    RuntimeInstrumentation,
+    end_isolated_span,
+    start_isolated_span,
+)
 from contractor_runtime.contracts import (
     ResolvedModelPolicy,
     StageContentRequest,
@@ -214,13 +218,13 @@ class TerminalSummarizer:
 
         def before_model(callback_context: Any, llm_request: LlmRequest) -> None:
             nonlocal span
+            span = start_isolated_span(
+                self._instrumentation,
+                "contractor.worker.model",
+                {"operation.kind": "model", "model.alias": self._policy.model},
+            )
             with contextlib.suppress(Exception):
-                if self._instrumentation is not None:
-                    span = self._instrumentation.start_span(
-                        "contractor.worker.model",
-                        attributes={"operation.kind": "model", "model.alias": self._policy.model},
-                    )
-                    capture_span_content(span, input=lambda: model_request_content(llm_request))
+                capture_span_content(span, input=lambda: model_request_content(llm_request))
 
         def after_model(callback_context: Any, llm_response: LlmResponse) -> None:
             capture_span_content(span, output=lambda: llm_response.content)
@@ -274,9 +278,7 @@ class TerminalSummarizer:
                 outcome = "succeeded"
                 return candidate
             finally:
-                with contextlib.suppress(Exception):
-                    if span is not None:
-                        span.end(outcome=outcome, attributes=self._model.telemetry_usage)
+                end_isolated_span(span, outcome=outcome, attributes=self._model.telemetry_usage)
 
 
 def build_summarizer_prompt(
@@ -496,18 +498,13 @@ def _usage_projection(usage: Any | None) -> SummarizerUsage:
 
 
 def _document_size(payload: Mapping[str, Any]) -> int:
-    return len(_DOCUMENT_PREAMBLE.encode("utf-8")) + len(
-        json.dumps(
-            payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-            allow_nan=False,
-        ).encode("utf-8")
-    )
+    return len(_DOCUMENT_PREAMBLE.encode("utf-8")) + _json_size(payload)
 
 
 def _json_size(value: Any) -> int:
+    # Deliberately strict, unlike the telemetry measure: a value the summary
+    # document cannot encode (NaN, an unsupported type, mixed key types or a
+    # lone surrogate) raises instead of being counted.
     return len(
         json.dumps(
             value,

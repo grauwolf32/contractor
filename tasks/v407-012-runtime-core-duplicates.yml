@@ -5,7 +5,7 @@ milestone: server-runtime-review-2026-10
 epic: planner-worker
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - python
@@ -46,6 +46,39 @@ scope:
   - Changing JSON/truncation semantics or model-visible diagnostics.
   - Introducing a preparing flag, removing lease/drain safeguards or changing allocation locking and endpoint
     availability.
+decisions:
+- 'One production definition per equivalent algorithm: the exception-chain walk is worker/runtime.py
+  _chained_error (it replaces the budget, summarization-request, finalizer and Gateway walkers); failure-isolated
+  span start and end are adapters/instrumentation.py start_isolated_span and end_isolated_span (used by
+  worker/runtime.py, worker/instrumentation.py and the terminal summarizer''s inline copy); the span error.type
+  rule is worker/instrumentation.py span_error_type over telemetry SAFE_ERROR_CODE (runtime.py''s copy
+  and its duplicate SAFE_TOOL_ERROR_CODE regex are gone); retrieving the exception of a deliberately
+  unawaited task is threads.consume_task_exception (allocation cleanup and service, adapter host, control
+  client, project workspace operation guard, Podman I/O, HTTP cookie checkpoint and to_thread_until_done);
+  telemetry/invocations.py keys tools with telemetry/metrics.py _metric_identifier; the summarizer''s
+  _document_size reuses its own strict _json_size.'
+- 'Distinct policies stay separate and unshared, so no common primitive was introduced: telemetry/metrics.py
+  _json_size (default=str, 0 on failure) and _truncate_utf8 (replacement, ellipsis inside the limit),
+  adapters/otlp_http.py _truncate_utf8 (strict, unchanged within the limit, no marker), worker/summarizer.py
+  _json_size and _bound_text (strict, [TRUNCATED] after the limit), contracts json_byte_size (wire measure),
+  agent_skills _json_bytes (default=str, raises) and the OpenAPI toolset _encoded_size (admits NaN).
+  metrics.py is not edited; V407-020 owns its JSON measure, so its private _json_size is not pinned by
+  a test here.'
+- 'control_client.py receives only the consumer replacement (one import, one callback); its transports
+  and shutdown belong to V407-013.'
+- 'Prepare/probe filesystem work runs in one joined worker thread per step. On cancellation the owner
+  waits for the thread, then removes what it created in another joined thread before re-raising: the
+  scratch directory keeps marker-before-directory creation and marker-last removal, and a failed rollback
+  is suppressed (OSError) so the cancellation propagates while the kept marker lets startup cleanup reclaim
+  the directory; the project workspace reuses its previous best-effort discard; the Skill probe removes
+  its TemporaryDirectory. Allocation prepare locking, lease fencing and drain ordering are unchanged.'
+- 'Ruled-out siblings (unchanged, outside the three named prepare/probe paths): PreparedAgentSkills.close
+  and _cleanup_failed_preparation still await asyncio.to_thread on release and rollback, capabilities._probe_podman
+  creates run_workdir with asyncio.to_thread, and the Podman engine/probe/lifecycle and trailmark host
+  keep their own thread use; reopen as a cancellation-ownership task if a joined-removal guarantee is
+  required there. projectfs SAFE_EXPORT_CAUSE shares the identifier grammar but names export causes,
+  and the uint64 saturating constants in telemetry, Worker State and the adapter host are not part of
+  this finding.'
 acceptance_criteria:
 - id: A1
   text: Each consolidated algorithm has one production definition; deliberately distinct JSON-size and

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
 from contractor_runtime.llm.usage import project_token_usage
+from contractor_runtime.telemetry.metrics import _metric_identifier
 
 _MAX_UINT64 = 2**64 - 1
 _MAX_INVOCATION_TOOL_NAMES = 256
@@ -53,6 +53,7 @@ class InvocationMetricsReducer:
         self.tool_calls = _saturating_add(self.tool_calls, 1)
         if failed:
             self.tool_errors = _saturating_add(self.tool_errors, 1)
+        # The allocation metrics key the same tool by the same identifier.
         identifier = _metric_identifier(name)
         aggregate = self.tools.get(identifier)
         if aggregate is None:
@@ -80,11 +81,6 @@ class InvocationMetricsReducer:
             "tools": {name: dict(values) for name, values in sorted(self.tools.items())},
             "truncated": self.truncated,
         }
-
-
-def _metric_identifier(value: str) -> str:
-    normalized = re.sub(r"[^a-z0-9_]+", "_", value.lower()).strip("_")
-    return normalized[:64] or "unknown"
 
 
 def _saturating_add(current: int, increment: int) -> int:

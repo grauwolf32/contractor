@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import threading
+from typing import Any
 
 import pytest
 
-from contractor_runtime.threads import to_thread_until_done
+from contractor_runtime.threads import consume_task_exception, to_thread_until_done
 
 
 def test_returns_result_and_propagates_thread_errors() -> None:
@@ -58,3 +60,29 @@ def test_repeated_cancellation_waits_for_thread(cancellations: int, thread_fails
         assert not lock.locked()
 
     asyncio.run(scenario())
+
+
+def test_consumed_task_exception_is_never_reported_as_unretrieved() -> None:
+    reports: list[dict[str, Any]] = []
+
+    async def fail() -> None:
+        raise OSError("private detail")
+
+    async def scenario() -> None:
+        asyncio.get_running_loop().set_exception_handler(
+            lambda _loop, context: reports.append(context)
+        )
+        consumed = asyncio.create_task(fail())
+        consumed.add_done_callback(consume_task_exception)
+        cancelled = asyncio.create_task(asyncio.Event().wait())
+        cancelled.add_done_callback(consume_task_exception)
+        cancelled.cancel()
+        # The control proves that an unconsumed failure would be reported.
+        abandoned = asyncio.create_task(fail())
+        await asyncio.wait({consumed, cancelled, abandoned})
+        del consumed, cancelled, abandoned
+        gc.collect()
+
+    asyncio.run(scenario())
+
+    assert [context["message"] for context in reports] == ["Task exception was never retrieved"]

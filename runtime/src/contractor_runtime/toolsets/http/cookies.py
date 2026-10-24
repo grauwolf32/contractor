@@ -210,8 +210,7 @@ async def _joined[T](operation: Awaitable[T]) -> T:
     if cancelled:
         # Retrieve a possible exception without leaking its content. The inner
         # operation records unconfirmed state before its bounded task ends.
-        if not task.cancelled():
-            task.exception()
+        threads.consume_task_exception(task)
         raise asyncio.CancelledError
     return task.result()
 
