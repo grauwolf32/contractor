@@ -320,9 +320,9 @@ func (s *Service) FindingCandidates(ctx context.Context, p FindingCandidatesPara
 	for i, m := range matches {
 		ids[i] = m.record.FindingID
 	}
-	if len(window)+len(ids)+3 > auditstore.FindingComparisonWorkRows {
-		return out, auditstore.ErrInvalid
-	}
+	// The work budget holds by construction: the window SQL is limited to
+	// FindingCandidateWindowRows, ids to the validated p.Limit, and the two
+	// together with three source rows equal FindingComparisonWorkRows.
 	previews, err := s.reads().ComparisonPreviews(ctx, p.OwnerID, source.ProjectID, ids)
 	if err := s.finishCorrelationRead(ctx, p.OwnerID, out.Fence, err); err != nil {
 		return out, err
@@ -587,6 +587,8 @@ func (s *Service) FindingGroupMembers(ctx context.Context, p FindingMembersParam
 		ids[i] = member.FindingID
 	}
 	previews, err := s.reads().ComparisonPreviews(ctx, p.OwnerID, p.ProjectID, ids)
+	// The preview batch is the last store read: this one fence check covers
+	// every read above, and a stale fence takes precedence over its error.
 	if err := s.finishCorrelationRead(ctx, p.OwnerID, out.Fence, err); err != nil {
 		return out, err
 	}
@@ -620,7 +622,7 @@ func (s *Service) FindingGroupMembers(ctx context.Context, p FindingMembersParam
 		out.Next = correlationPosition(out.Fence, 1, out.Items[len(out.Items)-1].FindingID, "")
 	}
 	out.Page.HasMore = out.Next != nil
-	return out, s.finishCorrelationRead(ctx, p.OwnerID, out.Fence, nil)
+	return out, nil
 }
 
 func setComparisonRole(value *auditstore.FindingComparisonPreview, representative auditdomain.FindingCorrelationReference) {

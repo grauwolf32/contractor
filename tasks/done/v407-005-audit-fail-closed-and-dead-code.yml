@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V62-002
 priority: P3
-status: pending
+status: completed
 depends_on: []
 languages:
 - go
@@ -86,3 +86,60 @@ tests:
   - A2
   - A3
   - A4
+implementation_commit: 623cec9ebccf0e0d69c65d208a874de2592963eb
+verification:
+  date: '2026-10-23'
+  environment: macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local); PostgreSQL 17.11 database contractor_test_a with
+    disposable per-test schemas; branch claude/rv-a on base 95165bbd.
+  commands:
+  - test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/runservice/...
+    ./internal/auditimport/... ./internal/auditservice/... ./internal/findingintake/... passed (runservice,
+    auditimport, auditservice including the million-row comparison scale test, findingintake all ok).
+  - make lint passed (after make tasks-backlog and make docs-dependencies).
+  - go vet with and without -tags=integration of the four touched packages passed; go test ./internal/archtest/...
+    passed; go test -tags=integration -run 'Correlation|Comparison|Members' ./internal/httpapi/public/ passed.
+  - The new tests run with -v report PASS and no SKIP; both fail on the base code (temporary local revert,
+    restored).
+  database_tests_configured: true
+  evidence:
+  - 'A1: auditimport collectSucceededRole kept the first source assignment, which runs for every output before the
+    preparation/Round branch; the second one (base importer.go:277-280) was unreachable with source == nil and is
+    removed. retainCheckResults no longer rechecks evidence ownership (base check_results.go:352-355): every
+    evidence record already has exactly one owner, because DecodeCheckResultPackage rejects uncited evidence
+    (result_package.go:58-60) and cited IDs without a record; collectSucceeded admits exactly len(members) results
+    whose item keys ValidateResultSet makes distinct; prepareCheckResults matches each member to its result and
+    rejects an ID claimed twice; and the members of one execution are distinct Items of one Round
+    (audit_execution_items_execution_member, the execution and item FKs, audit_items_round_key), so the match is a
+    bijection. FindingCandidates no longer checks len(window)+len(ids)+3 > FindingComparisonWorkRows (base
+    finding_comparisons.go:323): the only reader is the PostgreSQL QueryStore whose window SQL is LIMIT
+    FindingCandidateWindowRows, ids are bounded by validCorrelationLimit, and FindingCandidateWindowRows is defined
+    as FindingComparisonWorkRows - FindingComparisonMaximumLimit - 3 (LIM-FND-44);
+    TestFindingComparisonMillionRowScopeUsesBoundedIndexedReads still examines exactly the window at 1,000,000
+    findings. Accepted/rejected result suites in auditimport pass unchanged.'
+  - 'A2: FindingGroupMembers drops its second fence recheck (base finding_comparisons.go:623), which followed no
+    store read; the recheck after the preview batch (the last read) remains and keeps stale precedence over that
+    read error. TestFindingGroupMembersRecheckFenceOnceAfterLastRead traces one reader connection: Project and
+    Audit scoped pages load the fence once, recheck it once and end with that recheck (the base code rechecks it
+    twice and fails); deleting a group member right after the preview batch makes both scopes stale; deleting a
+    selected member right before the preview batch returns ErrCorrelationStale although ComparisonPreviews alone
+    returns ErrNotFound for that selection. CompareFindings and FindingCandidates already recheck once.'
+  - 'A3: Submit builds one sync.OnceValues StageExecution loader per call (lazyPreparationStage) that both
+    prepareAnchors and prepareFingerprint use only after their early exits; it keeps the RunID check
+    (ErrAccessDenied) and storage errors, which still end Submit before the transaction. verifyTrustedExecution
+    still reads the Stage inside the intake transaction; the snapshot never feeds authorization and a new Submit
+    reads again. TestPostgresIntakePreparationSharesOneStageRead counts full Stage reads: both derivations read it
+    once before the transaction and twice in total (base: 2 and 3); fingerprint only 1 and 2; neither 0 and 1; a
+    grant of another Run is denied after one read and never reaches the transaction. The existing anchor,
+    fingerprint, quota, provenance-failure and Run-deletion suites pass.'
+  - 'A4: the preparation Workflow comparison in runservice validateAuditIntent is unchanged; a comment records why
+    its ignored json.Marshal errors cannot occur (both values are ResolvedWorkflow values produced by a successful
+    JSON decode; a reflection probe over the type found no custom marshaler, and decoded floats and interface
+    values always re-encode). No artificial Workflow value or Marshal-failure test was added. Research rows E13 and
+    E15 record auditpriority as unintegrated (no production caller, sorts by Priority then candidate ID,
+    Confidence only validated) with the V64 decision still deferred.'
+  - 'Spec: FND-R167 now states the shared pre-transaction Stage read and the separate transaction read; FND-R179
+    states one fence recheck after the last hydration read with stale precedence. No requirement ID, limit or error
+    code was added.'
+  declined:
+  - 'The transaction-local provenance read in verifyTrustedExecution is kept; it has its own authorization role
+    (scope.out).'

@@ -12,12 +12,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/controlplane"
-	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 // prepareAnchors runs before mutation locks and reads only the named selected
 // Stage input. The allocation caller is revalidated by the intake transaction.
-func (s *Service) prepareAnchors(ctx context.Context, grant controlplane.AllocationGrant, input Submission) (auditdomain.FindingAnchorProjection, error) {
+func (s *Service) prepareAnchors(ctx context.Context, grant controlplane.AllocationGrant, input Submission, readStage preparationStage) (auditdomain.FindingAnchorProjection, error) {
 	absent := auditdomain.UnavailableFindingAnchors
 	if len(input.DerivedAnchors) == 0 {
 		return absent("not_provided"), nil
@@ -39,12 +38,9 @@ func (s *Service) prepareAnchors(ctx context.Context, grant controlplane.Allocat
 	if !selected {
 		return auditdomain.FindingAnchorProjection{}, fmt.Errorf("%w: anchor source is not selected evidence", ErrInvalid)
 	}
-	stage, err := runstore.NewPostgresStore(s.pool).GetStageExecution(ctx, grant.StageExecutionID)
+	stage, err := readStage()
 	if err != nil {
 		return absent("asset_unavailable"), err
-	}
-	if stage.RunID != grant.RunID {
-		return absent("asset_unavailable"), ErrAccessDenied
 	}
 	pinned := false
 	for _, binding := range stage.StageContext.Artifacts {
