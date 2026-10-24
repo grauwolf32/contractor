@@ -483,3 +483,16 @@ def test_shared_report_trim_measures_a_fitting_report_once(monkeypatch) -> None:
     report = state.build_report(report_id="worker-small", duration_ms=1)
     assert counts == {"reports": 1, "records": 0}
     assert not report.truncated and len(report.tool_calls) == 1
+
+
+def test_shared_report_trim_rejects_inconsistent_size_accounting(monkeypatch) -> None:
+    report = ExecutionReport.model_validate_json(json.dumps(REPORT_TRIM_CASES[0]["report"]))
+    measure = metrics_module._report_size
+
+    def inflated(candidate: ExecutionReport) -> int:
+        partial = 0 < len(candidate.tool_calls) < len(report.tool_calls)
+        return measure(candidate) + (7 if partial else 0)
+
+    monkeypatch.setattr(metrics_module, "_report_size", inflated)
+    with pytest.raises(RuntimeError, match="not the computed"):
+        _trim(report, _report_bytes(report) - 1)

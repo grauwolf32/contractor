@@ -451,6 +451,24 @@ func TestReportNormalizationRejectsAnAggregateAboveItsBound(t *testing.T) {
 	}
 }
 
+// A measure that disagrees with the per-record arithmetic is an accounting
+// failure: trimDetail reports it instead of returning an unverified report.
+func TestReportTrimRejectsInconsistentSizeAccounting(t *testing.T) {
+	report := multibyteReport(6, 2)
+	full := encodedSize(report)
+	inflated := func(candidate reporting.ExecutionReport) int {
+		size := encodedSize(candidate)
+		if len(candidate.ToolCalls) > 0 && len(candidate.ToolCalls) < len(report.ToolCalls) {
+			size += 7
+		}
+		return size
+	}
+	got, fits, err := trimDetail(report, full-1, inflated)
+	if err == nil || fits || got.ReportID != "" || !strings.Contains(err.Error(), "not the computed") {
+		t.Fatalf("inconsistent accounting = (%q, %t, %v)", got.ReportID, fits, err)
+	}
+}
+
 func mustJSON(t *testing.T, value any) []byte {
 	t.Helper()
 	encoded, err := json.Marshal(value)
