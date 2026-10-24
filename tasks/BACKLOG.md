@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-133 open tasks: 5 in progress, 103 pending, 25 deferred. 1061 finished: 1053 completed, 8 archived.
+132 open tasks: 4 in progress, 103 pending, 25 deferred. 1062 finished: 1054 completed, 8 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
-| [V406-007](v406-007-web-scan-release-gate.yml) | scan-tools | chore | P2 | Gate the complete web scan and rule sweep journeys |
 
 ## Pending
 
@@ -252,7 +251,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 13 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 10 | 19 | 15 | 5 | 16 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 5 | 16 | 6 | 7 | 12 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 16 | 6 | 7 | 12 |
 | Findings tools and collections (`findings`) | 9 | 16 | 6 | 8 | 11 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 34 | 33 | 6 | 38 |
