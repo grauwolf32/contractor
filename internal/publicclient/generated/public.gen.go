@@ -31357,6 +31357,7 @@ type ImportGitArtifactResponse500Headers struct {
 
 // ImportGitArtifactResponse503Headers the declared response headers of an HTTP 503 response for ImportGitArtifact
 type ImportGitArtifactResponse503Headers struct {
+	RetryAfter *int
 	XRequestID RequestId
 }
 
@@ -31378,7 +31379,7 @@ type ImportGitArtifactResponse struct {
 	// JSON408 the response for an HTTP 408 `application/json` response
 	JSON408 *Error
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
+	JSON409 *ArtifactWriteConflict
 	// JSON413 the response for an HTTP 413 `application/json` response
 	JSON413 *PayloadTooLarge
 	// JSON422 the response for an HTTP 422 `application/json` response
@@ -31386,7 +31387,7 @@ type ImportGitArtifactResponse struct {
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *ArtifactUnavailable
+	JSON503 *ArtifactWriteUnavailable
 	// JSON504 the response for an HTTP 504 `application/json` response
 	JSON504 *Error
 	// Headers200 the parsed response headers for an HTTP 200 response
@@ -31449,7 +31450,7 @@ func (r ImportGitArtifactResponse) GetJSON408() *Error {
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r ImportGitArtifactResponse) GetJSON409() *Conflict {
+func (r ImportGitArtifactResponse) GetJSON409() *ArtifactWriteConflict {
 	return r.JSON409
 }
 
@@ -31469,7 +31470,7 @@ func (r ImportGitArtifactResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r ImportGitArtifactResponse) GetJSON503() *ArtifactUnavailable {
+func (r ImportGitArtifactResponse) GetJSON503() *ArtifactWriteUnavailable {
 	return r.JSON503
 }
 
@@ -45603,6 +45604,7 @@ type ImportProjectGitArtifactResponse500Headers struct {
 
 // ImportProjectGitArtifactResponse503Headers the declared response headers of an HTTP 503 response for ImportProjectGitArtifact
 type ImportProjectGitArtifactResponse503Headers struct {
+	RetryAfter *int
 	XRequestID RequestId
 }
 
@@ -45624,7 +45626,7 @@ type ImportProjectGitArtifactResponse struct {
 	// JSON408 the response for an HTTP 408 `application/json` response
 	JSON408 *Error
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
+	JSON409 *ArtifactWriteConflict
 	// JSON413 the response for an HTTP 413 `application/json` response
 	JSON413 *PayloadTooLarge
 	// JSON422 the response for an HTTP 422 `application/json` response
@@ -45632,7 +45634,7 @@ type ImportProjectGitArtifactResponse struct {
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *ArtifactUnavailable
+	JSON503 *ArtifactWriteUnavailable
 	// JSON504 the response for an HTTP 504 `application/json` response
 	JSON504 *Error
 	// Headers200 the parsed response headers for an HTTP 200 response
@@ -45695,7 +45697,7 @@ func (r ImportProjectGitArtifactResponse) GetJSON408() *Error {
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r ImportProjectGitArtifactResponse) GetJSON409() *Conflict {
+func (r ImportProjectGitArtifactResponse) GetJSON409() *ArtifactWriteConflict {
 	return r.JSON409
 }
 
@@ -45715,7 +45717,7 @@ func (r ImportProjectGitArtifactResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r ImportProjectGitArtifactResponse) GetJSON503() *ArtifactUnavailable {
+func (r ImportProjectGitArtifactResponse) GetJSON503() *ArtifactWriteUnavailable {
 	return r.JSON503
 }
 
@@ -55565,7 +55567,7 @@ func ParseImportGitArtifactResponse(rsp *http.Response) (*ImportGitArtifactRespo
 		response.JSON408 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
+		var dest ArtifactWriteConflict
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -55593,7 +55595,7 @@ func ParseImportGitArtifactResponse(rsp *http.Response) (*ImportGitArtifactRespo
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactUnavailable
+		var dest ArtifactWriteUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -55739,6 +55741,13 @@ func ParseImportGitArtifactResponse(rsp *http.Response) (*ImportGitArtifactRespo
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers ImportGitArtifactResponse503Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
@@ -73102,7 +73111,7 @@ func ParseImportProjectGitArtifactResponse(rsp *http.Response) (*ImportProjectGi
 		response.JSON408 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
+		var dest ArtifactWriteConflict
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -73130,7 +73139,7 @@ func ParseImportProjectGitArtifactResponse(rsp *http.Response) (*ImportProjectGi
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactUnavailable
+		var dest ArtifactWriteUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -73276,6 +73285,13 @@ func ParseImportProjectGitArtifactResponse(rsp *http.Response) (*ImportProjectGi
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers ImportProjectGitArtifactResponse503Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

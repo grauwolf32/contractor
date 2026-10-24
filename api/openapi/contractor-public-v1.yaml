@@ -3032,7 +3032,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
+        '409': {$ref: '#/components/responses/ArtifactWriteConflict'}
         '408':
           description: Import interrupted; inspect metadata before retrying
           content:
@@ -3046,7 +3046,7 @@ paths:
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '422': {$ref: '#/components/responses/Error422'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '503': {$ref: '#/components/responses/ArtifactWriteUnavailable'}
 
   /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import:
     parameters:
@@ -3083,7 +3083,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
+        '409': {$ref: '#/components/responses/ArtifactWriteConflict'}
         '408':
           description: Import interrupted; inspect metadata before retrying
           content:
@@ -3097,7 +3097,7 @@ paths:
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '422': {$ref: '#/components/responses/Error422'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '503': {$ref: '#/components/responses/ArtifactWriteUnavailable'}
 
   /v1/auth/login:
     post:

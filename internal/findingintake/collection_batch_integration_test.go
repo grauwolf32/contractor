@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 )
@@ -361,10 +362,22 @@ func writeLostFixtureEvidence(t *testing.T, f deletionImportFixture) ExactArtifa
 
 // loseFixtureEvidence removes a cited evidence revision. A receipt holds its
 // evidence (DEL-R65), so only a purge of the source Run's scope removes it in
-// production; the collection must still reject the receipt alone.
+// production, and the fixture deletes the row under that purge's setting;
+// the collection must still reject the receipt alone.
 func loseFixtureEvidence(t *testing.T, f deletionImportFixture, evidence ExactArtifact) {
 	t.Helper()
-	if err := artifactstest.LoseRunRevision(f.ctx, f.pool, f.request.RunID, evidence.Ref); err != nil {
+	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(f.ctx, `SELECT set_config('contractor.lifecycle_purge', 'run', true)`); err != nil {
+			return err
+		}
+		removed, err := tx.Exec(f.ctx, `DELETE FROM artifact_binding_revisions
+WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = $2 AND name = $3 AND revision = $4`,
+			f.request.RunID, evidence.Ref.Namespace, evidence.Ref.Name, *evidence.Ref.Revision)
+		if err == nil && removed.RowsAffected() != 1 {
+			err = errors.New("the evidence revision does not exist")
+		}
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
 }

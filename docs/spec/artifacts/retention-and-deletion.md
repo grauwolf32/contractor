@@ -123,9 +123,10 @@ equals, for the life of the Run; a Planner session's completed result and
 its scan plan, input and report references; a Run's selected Skill sources;
 an Audit's selected inputs and its baseline inputs and Skill sources, for
 the life of the Audit; and a finding proposal receipt's proposal and
-evidence while its source Run holds it. A reference to a binding that has only one revision for its whole
-life, such as a frozen Audit-managed binding, a finding proposal or a Run
-output, is protected as that binding's current revision.
+evidence while its source Run holds it. A reference to a binding that has
+only one revision for its whole life, such as a frozen Audit-managed
+binding, a finding proposal or a Run output, is protected as that binding's
+current revision.
 
 **DEL-R64.** These references do not protect the revision they name: Eval
 records and `eval_evidence_refs`, whose loss makes a comparison incomplete;

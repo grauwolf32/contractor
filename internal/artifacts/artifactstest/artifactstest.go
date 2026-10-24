@@ -12,9 +12,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // ForkInput forks source of the UserScope of userID into inputs/<slot> of
@@ -130,26 +127,4 @@ func WriteRunArtifact(
 		return contracts.ArtifactRef{}, err
 	}
 	return written.Ref, nil
-}
-
-// LoseRunRevision removes the exact revision ref of runID's RunScope while
-// holders may still name it, which in production only the controlled purge
-// of that scope does (DEL-R65): fixtures use it to model a cited revision
-// that is no longer stored. ref must not be the binding's current revision.
-func LoseRunRevision(ctx context.Context, pool *pgxpool.Pool, runID string, ref contracts.ArtifactRef) error {
-	if ref.Revision == nil {
-		return errors.New("lose a Run revision: the ref names no exact revision")
-	}
-	return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `SELECT set_config('contractor.lifecycle_purge', 'run', true)`); err != nil {
-			return err
-		}
-		removed, err := tx.Exec(ctx, `DELETE FROM artifact_binding_revisions
-WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = $2 AND name = $3 AND revision = $4`,
-			runID, ref.Namespace, ref.Name, *ref.Revision)
-		if err == nil && removed.RowsAffected() != 1 {
-			err = errors.New("lose a Run revision: the revision does not exist")
-		}
-		return err
-	})
 }

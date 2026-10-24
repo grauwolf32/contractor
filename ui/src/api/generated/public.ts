@@ -8642,11 +8642,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            409: components["responses"]["Conflict"];
+            409: components["responses"]["ArtifactWriteConflict"];
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["Error422"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["ArtifactUnavailable"];
+            503: components["responses"]["ArtifactWriteUnavailable"];
             /** @description Import deadline exceeded; inspect metadata before retrying */
             504: {
                 headers: {
@@ -8698,11 +8698,11 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
-            409: components["responses"]["Conflict"];
+            409: components["responses"]["ArtifactWriteConflict"];
             413: components["responses"]["PayloadTooLarge"];
             422: components["responses"]["Error422"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["ArtifactUnavailable"];
+            503: components["responses"]["ArtifactWriteUnavailable"];
             /** @description Import deadline exceeded; inspect metadata before retrying */
             504: {
                 headers: {

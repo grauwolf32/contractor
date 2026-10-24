@@ -21,11 +21,13 @@ import (
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -132,7 +134,17 @@ report_projection
 		t.Fatal(err)
 	}
 	if missingEvidence {
-		if err := artifactstest.LoseRunRevision(ctx, pool, runID, evidence.Ref); err != nil {
+		// Only the Run's purge removes a held revision; delete it under that
+		// purge's setting.
+		if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, `SELECT set_config('contractor.lifecycle_purge', 'run', true)`); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, `DELETE FROM artifact_binding_revisions
+WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = $2 AND name = $3 AND revision = $4`,
+				runID, evidence.Ref.Namespace, evidence.Ref.Name, *evidence.Ref.Revision)
+			return err
+		}); err != nil {
 			t.Fatal(err)
 		}
 	}
