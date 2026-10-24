@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-126 open tasks: 5 in progress, 96 pending, 25 deferred. 1072 finished: 1062 completed, 10 archived.
+126 open tasks: 10 in progress, 91 pending, 25 deferred. 1072 finished: 1062 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,11 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-010](v410-010-artifact-history-retention.yml) | projects-artifacts | feature | P1 | Apply automatic bounded history retention to every logical Artifact |
+| [V411-001](v411-001-target-credential-revisions.yml) | runtime-config | feature | P1 | Pin immutable target credential revisions in the existing encrypted store |
+| [V414-008](v414-008-stored-size-check-classification.yml) | persistence | defect | P2 | Classify stored-size CHECK rejections as invalid input at every store writer |
+| [V414-023](v414-023-go-telemetry-secret-matching.yml) | operations | defect | P2 | Match secrets at the Go telemetry boundary by the shared 16-byte rule, longest first |
+| [V414-026](v414-026-eval-summary-generic-plan.yml) | evals | defect | P2 | Bound Eval experiment summary pages by page size in generic plans |
+| [V414-029](v414-029-audit-deletion-next-run-probe.yml) | audits | defect | P2 | Find a deleting Audit's next live child Run without reading every execution and Run |
 
 ## Pending
 
@@ -44,7 +49,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | chore | P3 | — | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
-| [V411-001](v411-001-target-credential-revisions.yml) | feature | P1 | — | Pin immutable target credential revisions in the existing encrypted store |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -121,7 +125,6 @@ the epics are in [epics.yml](epics.yml).
 | [V414-018](v414-018-audit-detail-snapshot-read.yml) | defect | P2 | — | Read the Audit detail projection in one snapshot instead of answering an undeclared 409 |
 | [V414-019](v414-019-held-inbox-page-bound.yml) | defect | P2 | — | Bound the held Audit inbox page by the page, not by the Audit's holds |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
-| [V414-029](v414-029-audit-deletion-next-run-probe.yml) | defect | P2 | — | Find a deleting Audit's next live child Run without reading every execution and Run |
 
 ### Evaluations (`evals`)
 
@@ -132,7 +135,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate pentest quality against a frozen repeated-sample baseline |
 | [V414-002](v414-002-eval-token-budget-overflow.yml) | defect | P2 | — | Keep the Eval token budget and stage token summaries defined when token counters exceed int64 |
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | chore | P3 | — | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
-| [V414-026](v414-026-eval-summary-generic-plan.yml) | defect | P2 | — | Bound Eval experiment summary pages by page size in generic plans |
 
 ### Podman sandbox (`sandbox`)
 
@@ -152,7 +154,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V414-016](v414-016-otlp-transport-family.yml) | defect | P2 | — | Retry OTLP batches after TLS and OS transport failures |
-| [V414-023](v414-023-go-telemetry-secret-matching.yml) | defect | P2 | — | Match secrets at the Go telemetry boundary by the shared 16-byte rule, longest first |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
 
 ### Public API and wire contracts (`api-contracts`)
@@ -173,7 +174,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-008](v372-008-upward-table-reads.yml) | chore | P3 | — | Remove the table reads that point up the layer stack or name who owns each one |
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
-| [V414-008](v414-008-stored-size-check-classification.yml) | defect | P2 | — | Classify stored-size CHECK rejections as invalid input at every store writer |
 | [V414-012](v414-012-classify-closed-connection.yml) | defect | P2 | — | Classify a closed PostgreSQL connection, including a lost COMMIT reply, as unavailable |
 | [V414-021](v414-021-migration-file-deadline.yml) | defect | P3 | — | Decide the client deadline of a migration file: per statement or a migration budget of its own |
 | [V414-024](v414-024-plan-tests-exact-reads.yml) | chore | P3 | — | Measure the V407-025 drain and held-credential row budgets with explaintest Analysis.Reads |
