@@ -749,6 +749,10 @@ semantics, and keeps its draft across close and section navigation in the
 current tab (LIFE-UI-2). A Workflow input declaring `sourceScope: user`, such
 as the optional Nuclei rulepack, is selected, uploaded and previewed in the
 owner's Library even when the Run belongs to a Project (SCN-R238).
+Each input uses its own source scope for choices, pagination, uploads, previews
+and retained exact metadata. A Workflow may combine ordinary Project inputs
+with the owner rulepack; metadata for equal ArtifactRef keys in different
+scopes must not replace one another.
 
 **UI-R121.** Project Runs use pages of 25 (LIM-UI-9) and Server-backed
 lifecycle and state filters. Workflow, state, Audit origin and update time

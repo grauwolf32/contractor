@@ -187,17 +187,19 @@ describe("RunDraftMemoryStore", () => {
     });
     const first = store.acquire(
       { workflowName: "inspect", workflowVersion: "1", projectId: "p1" },
-      initialRunDraftState({ source: "sources/one@r1" }, [
-        metadata("one", "r1"),
-      ]),
+      initialRunDraftState(
+        { source: "sources/one@r1" },
+        { source: [metadata("one", "r1")] },
+      ),
     );
     if (first.kind !== "acquired") throw new Error("expected acquired draft");
 
     const refreshed = store.acquire(
       first.entry.identity,
-      initialRunDraftState({ source: "sources/two@r2" }, [
-        metadata("two", "r2"),
-      ]),
+      initialRunDraftState(
+        { source: "sources/two@r2" },
+        { source: [metadata("two", "r2")] },
+      ),
     );
     if (refreshed.kind !== "acquired") {
       throw new Error("expected refreshed draft");
@@ -213,9 +215,10 @@ describe("RunDraftMemoryStore", () => {
     store.replaceState(refreshed.entry, reviewed);
     const unchanged = store.acquire(
       refreshed.entry.identity,
-      initialRunDraftState({ source: "sources/two@r2" }, [
-        metadata("two", "r2"),
-      ]),
+      initialRunDraftState(
+        { source: "sources/two@r2" },
+        { source: [metadata("two", "r2")] },
+      ),
     );
     if (unchanged.kind !== "acquired") {
       throw new Error("expected unchanged draft");
@@ -224,9 +227,10 @@ describe("RunDraftMemoryStore", () => {
 
     const changedAgain = store.acquire(
       refreshed.entry.identity,
-      initialRunDraftState({ source: "sources/three@r3" }, [
-        metadata("three", "r3"),
-      ]),
+      initialRunDraftState(
+        { source: "sources/three@r3" },
+        { source: [metadata("three", "r3")] },
+      ),
     );
     if (changedAgain.kind !== "acquired") {
       throw new Error("expected changed draft");
@@ -236,7 +240,7 @@ describe("RunDraftMemoryStore", () => {
     );
     expect(changedAgain.entry.state.artifactReviews.source).toBeUndefined();
     expect(
-      changedAgain.entry.state.knownArtifacts.map(
+      changedAgain.entry.state.knownArtifacts.source!.map(
         (item) =>
           `${item.artifact.namespace}/${item.artifact.name}@${item.artifact.revision}`,
       ),
@@ -256,10 +260,13 @@ describe("RunDraftMemoryStore", () => {
     };
     const result = store.acquire(
       { workflowName: "inspect", workflowVersion: "1", projectId: "p1" },
-      initialRunDraftState({ source: "sources/one@r1" }, [metadata]),
+      initialRunDraftState(
+        { source: "sources/one@r1" },
+        { source: [metadata] },
+      ),
     );
     if (result.kind !== "acquired") throw new Error("expected acquired draft");
-    expect(result.entry.state.knownArtifacts).toEqual([metadata]);
+    expect(result.entry.state.knownArtifacts).toEqual({ source: [metadata] });
     expect(result.entry.meaningful).toBe(false);
 
     store.retain(result.entry);

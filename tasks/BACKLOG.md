@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-122 open tasks: 13 in progress, 84 pending, 25 deferred. 1081 finished: 1071 completed, 10 archived.
+123 open tasks: 14 in progress, 84 pending, 25 deferred. 1081 finished: 1071 completed, 10 archived.
 
 ## In progress
 
@@ -24,6 +24,7 @@ the epics are in [epics.yml](epics.yml).
 | [V414-030](v414-030-finding-correlation-fence-row.yml) | findings | defect | P2 | Move the Project finding correlation fence off the projects row into a row the findings store owns |
 | [V414-031](v414-031-lock-wait-query-truncation.yml) | quality | defect | P3 | Identify a waiting statement within the query prefix PostgreSQL records |
 | [V414-033](v414-033-pre-release-api-changes.yml) | api-contracts | chore | P3 | Allow incompatible /v1 changes until the first release |
+| [V415-003](v415-003-mixed-workflow-input-scopes.yml) | scan-tools | defect | P2 | Resolve each Workflow input in its declared source scope |
 
 ## Pending
 
@@ -236,14 +237,14 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 13 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 10 | 19 | 15 | 5 | 16 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 16 | 7 | 7 | 13 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 5 | 16 | 8 | 7 | 13 |
 | Findings tools and collections (`findings`) | 10 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 35 | 33 | 6 | 38 |
 | Audits (`audits`) | 26 | 60 | 78 | 23 | 101 |
 | Evaluations (`evals`) | 6 | 21 | 37 | 11 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
-| Web UI (`ui`) | 2 | 25 | 62 | 13 | 56 |
+| Web UI (`ui`) | 2 | 25 | 62 | 13 | 57 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 37 | 6 | 13 |
 | Public API and wire contracts (`api-contracts`) | 7 | 2 | 37 | 22 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 7 | 0 | 24 | 42 | 13 |

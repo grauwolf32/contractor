@@ -234,10 +234,7 @@ export function InputFields({
   projectId: string | undefined;
   draft: RunDraftState;
   errors: RunDraftErrors;
-  inventories: Pick<
-    RunFormInventories,
-    "artifactInventory" | "artifacts" | "artifactMap"
-  >;
+  inventories: Pick<RunFormInventories, "inputs" | "artifactInventories">;
   isCurrent: () => boolean;
   onSelect: (
     slot: string,
@@ -248,11 +245,13 @@ export function InputFields({
 }) {
   const [gitSlot, setGitSlot] = useState<string | null>(null);
   const [uploadSlot, setUploadSlot] = useState<string | null>(null);
-  const { artifactInventory, artifacts, artifactMap } = inventories;
   const { artifactSelections, artifactSuggestions, artifactReviews } = draft;
   // Artifacts are files in the Library and materials in a Project (§3).
-  const inputNoun = projectId === undefined ? "file" : "material";
   const inputNouns = projectId === undefined ? "files" : "materials";
+  const gitProjectId =
+    gitSlot === null ? undefined : inventories.inputs[gitSlot]?.projectId;
+  const uploadProjectId =
+    uploadSlot === null ? undefined : inventories.inputs[uploadSlot]?.projectId;
 
   function selectStored(slot: string, metadata: ArtifactMetadata): void {
     onSelect(slot, artifactOptionKey(metadata.artifact), metadata);
@@ -276,6 +275,16 @@ export function InputFields({
                 : 0) || left.localeCompare(right),
           )
           .map(([name, slot]) => {
+            const {
+              projectId: inputProjectId,
+              artifactInventory,
+              artifacts,
+              artifactMap,
+            } = inventories.inputs[name]!;
+            const inputNoun =
+              inputProjectId === undefined ? "file" : "material";
+            const inputNouns =
+              inputProjectId === undefined ? "files" : "materials";
             const compatible = artifacts.filter((metadata) =>
               artifactAccepts(slot.mediaTypes, metadata),
             );
@@ -332,7 +341,7 @@ export function InputFields({
                     metadata={selectedMetadata}
                     reviewed={artifactReviews[name] === selected}
                     suggested={artifactSuggestions[name] === selected}
-                    projectId={projectId}
+                    projectId={inputProjectId}
                     inputNoun={inputNoun}
                     onConfirm={() => onConfirm(name)}
                   />
@@ -358,9 +367,9 @@ export function InputFields({
                     No matching {inputNouns} found in the loaded list.{" "}
                     <Link
                       to={
-                        projectId === undefined
+                        inputProjectId === undefined
                           ? "/artifacts"
-                          : `/projects/${encodeURIComponent(projectId)}/artifacts`
+                          : `/projects/${encodeURIComponent(inputProjectId)}/artifacts`
                       }
                     >
                       Upload one
@@ -378,11 +387,17 @@ export function InputFields({
   return (
     <fieldset className="run-draft-section">
       <legend>
-        {projectId === undefined ? "Input files" : "Input materials"}
+        {inventories.artifactInventories.length > 1
+          ? "Input materials and files"
+          : projectId === undefined ||
+              (inventories.artifactInventories.length === 1 &&
+                inventories.artifactInventories[0]?.projectId === undefined)
+            ? "Input files"
+            : "Input materials"}
       </legend>
       {gitSlot === null ? null : (
         <GitImportDialog
-          {...(projectId === undefined ? {} : { projectId })}
+          {...(gitProjectId === undefined ? {} : { projectId: gitProjectId })}
           suggestedName={gitSlot}
           onClose={() => setGitSlot(null)}
           onImported={(result) => {
@@ -402,7 +417,9 @@ export function InputFields({
       )}
       {uploadSlot === null ? null : (
         <RunInputUploadDialog
-          {...(projectId === undefined ? {} : { projectId })}
+          {...(uploadProjectId === undefined
+            ? {}
+            : { projectId: uploadProjectId })}
           slotName={uploadSlot}
           mediaTypes={workflow.inputs[uploadSlot]?.mediaTypes ?? []}
           onClose={() => setUploadSlot(null)}
@@ -420,16 +437,27 @@ export function InputFields({
           }}
         />
       )}
-      {artifactInventory.error === null ? null : (
-        <ErrorNotice error={artifactInventory.error} />
+      {inventories.artifactInventories.map(
+        ({ projectId: scopeProjectId, query }) =>
+          query.error === null ? null : (
+            <ErrorNotice key={scopeProjectId ?? "user"} error={query.error} />
+          ),
       )}
       {slots}
-      <LoadMoreButton
-        size="sm"
-        query={artifactInventory}
-        label={`Load more ${inputNouns}`}
-        pendingLabel={`Loading ${inputNouns}…`}
-      />
+      {inventories.artifactInventories.map(
+        ({ projectId: scopeProjectId, query }) => {
+          const nouns = scopeProjectId === undefined ? "files" : "materials";
+          return (
+            <LoadMoreButton
+              key={scopeProjectId ?? "user"}
+              size="sm"
+              query={query}
+              label={`Load more ${nouns}`}
+              pendingLabel={`Loading ${nouns}…`}
+            />
+          );
+        },
+      )}
     </fieldset>
   );
 }
