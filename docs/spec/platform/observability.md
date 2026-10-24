@@ -421,7 +421,13 @@ contains them.
 checks and Worker results: a secret of at least 16 UTF-8 bytes (LIM-OBS-3)
 matches wherever it occurs, while a shorter one, such as a proxy username or a
 short header value, matches only a complete string, so it never garbles
-ordinary text. In metrics a match is replaced by `[REDACTED]`. How a Worker
+ordinary text. Long secrets are replaced longest first, so a short secret
+that prefixes a longer one cannot leave the longer one's remainder. The policy
+holds at the Server's telemetry persistence boundary and for Planner span
+attributes as well as in the Runtime; the Server and the Runtime each define it
+once and both read the cases in
+`api/testdata/v1alpha1/secret-matching-cases.json`. In metrics a match is
+replaced by `[REDACTED]`. How a Worker
 result that contains a secret is handled is specified in the Worker document
 ([WRK-R60](../execution/worker.md), [WRK-R61](../execution/worker.md)). How an
 allocation check applies it is specified in the Control Plane document

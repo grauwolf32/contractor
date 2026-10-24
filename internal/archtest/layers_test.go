@@ -45,6 +45,9 @@ var layers = []layerSpec{
 			"internal/publicclient/generated",
 			"internal/randomid",
 			"internal/requestid",
+			// The one secret-matching rule (OBS-R31, LIM-OBS-3) that telemetry,
+			// the Planner span filters and the Agent Card scan share.
+			"internal/secretmatch",
 			"internal/securefile",
 			"internal/sourcezip",
 			"internal/strictjson",
