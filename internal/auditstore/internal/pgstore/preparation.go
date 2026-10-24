@@ -274,7 +274,7 @@ func startPreparation(
 	if errors.Is(err, pgx.ErrNoRows) || persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 		return auditstore.Audit{}, auditstore.ErrPrecondition
 	}
-	return auditstore.Audit{}, fmt.Errorf("start Audit preparation: %w", err)
+	return auditstore.Audit{}, writeError("start Audit preparation", err)
 }
 
 // CompletePreparation advances only after every prepare role has an accepted

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -109,5 +108,5 @@ func (s *ClaimStore) AcceptInitialRound(ctx context.Context, p auditstore.Accept
 		}
 		return auditstore.Round{}, false, auditstore.ErrPrecondition
 	}
-	return auditstore.Round{}, false, fmt.Errorf("accept prepared initial Audit Round: %w", err)
+	return auditstore.Round{}, false, writeError("accept prepared initial Audit Round", err)
 }

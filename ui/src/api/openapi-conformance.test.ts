@@ -13,7 +13,7 @@ import {
 import { AUDIT_ID_PATTERN } from "./audits";
 import { PublicAPI } from "./client";
 import { stringRule } from "./contract";
-import { EVAL_STATES, isTerminalEvalState } from "./evals";
+import { isTerminalEvalState, type EvalExperiment } from "./evals";
 import { BUDGET_DURATION_PATTERN, isConfigurationKind } from "./operations";
 import { PROJECT_ID_PATTERN } from "./projects";
 import { QUEUE_MEMBERSHIPS, QUEUE_STATES } from "./queue";
@@ -171,30 +171,27 @@ describe("hand-written UI contracts match the public OpenAPI", () => {
     ["RUN_STATES", RUN_STATES, "WorkflowRunState"],
     ["QUEUE_STATES", QUEUE_STATES, "NonTerminalWorkflowRunState"],
     ["QUEUE_MEMBERSHIPS", QUEUE_MEMBERSHIPS, "RunQueueMembership"],
-    ["EVAL_STATES", EVAL_STATES, "EvalExperiment.properties.state"],
-    ["EVAL_STATES", EVAL_STATES, "EvalExperimentSummary.properties.state"],
-    ["EVAL_STATES", EVAL_STATES, "EvalExperimentReceipt.properties.state"],
   ])("%s lists every %s value", (_name, values, path) => {
     expect([...(values as readonly string[])].sort()).toEqual(
       [...(schemaAt(path as string).enum ?? [])].sort(),
     );
   });
 
-  it("EVAL_STATES lists every Eval list filter state", () => {
-    const filter = openapi.paths["/v1/eval-experiments"]?.[
-      "get"
-    ]?.parameters?.find((parameter) => parameter.name === "state");
-    expect([...EVAL_STATES].sort()).toEqual(
-      [...(filter?.schema?.enum ?? [])].sort(),
+  it.each([
+    "EvalExperiment.properties.state",
+    "EvalExperimentSummary.properties.state",
+    "EvalExperimentReceipt.properties.state",
+  ])("%s lists the shared Eval lifecycle states", (path) => {
+    expect([...(schemaAt(path).enum ?? [])].sort()).toEqual(
+      [...evalLifecycle.states].sort(),
     );
   });
 
-  it("Eval state sets match the shared lifecycle cases", () => {
-    expect([...EVAL_STATES].sort()).toEqual([...evalLifecycle.states].sort());
+  it("isTerminalEvalState matches the shared lifecycle cases", () => {
     expect(
       evalLifecycle.states
         .filter((state) =>
-          isTerminalEvalState(state as (typeof EVAL_STATES)[number]),
+          isTerminalEvalState(state as EvalExperiment["state"]),
         )
         .sort(),
     ).toEqual([...evalLifecycle.terminal].sort());

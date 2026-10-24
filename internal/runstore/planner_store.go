@@ -66,6 +66,9 @@ func (s *PostgresStore) AppendPlannerEvent(ctx context.Context, params AppendPla
 		if failure == persistencepostgres.ClassReferenceViolation || errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("append Planner event for session %q: %w", params.SessionID, ErrNotFound)
 		}
+		if plannerWriteRejected(err) {
+			return fmt.Errorf("append Planner event %q: %w: %w", params.RunEvent.EventID, ErrInvalid, err)
+		}
 		return fmt.Errorf("append Planner event %q: %w", params.RunEvent.EventID, err)
 	}
 	if !sessionExists {
@@ -103,4 +106,19 @@ WHERE session_id = $1`, sessionID).Scan(
 		return PlannerSession{}, err
 	}
 	return result, nil
+}
+
+// plannerWriteRejected reports a Planner session write that a named CHECK
+// constraint or a trigger's business rule refused: a deterministic
+// rejection of the submitted values, never an outage (PER-R13). The stored
+// size bounds planner_session_state_size and workflow_run_events_data_check
+// measure jsonb text, which re-serialisation can make longer than the
+// submitted JSON the pre-checks measure.
+func plannerWriteRejected(err error) bool {
+	switch persistencepostgres.Classify(err) {
+	case persistencepostgres.ClassInvalid, persistencepostgres.ClassRejected:
+		return true
+	default:
+		return false
+	}
 }

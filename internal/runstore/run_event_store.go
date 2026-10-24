@@ -21,7 +21,10 @@ const (
 	// the measure the page budget counts. The check at append is a pre-check
 	// on the submitted JSON bytes: jsonb re-serialises the value, adding a
 	// space after every ':' and ',', so data that passes it can still fail
-	// the CHECK, which rejects the whole append. The check at read counts
+	// the CHECK, which rejects the whole append; the Planner writers return
+	// that rejection as ErrInvalid, like the pre-check (PER-R13), and
+	// lifecycle data, whose closed schema holds only bounded identifiers,
+	// cannot reach it. The check at read counts
 	// the stored text. The constant also pre-checks the submitted Planner
 	// session state in StartPlanner and AppendPlannerEvent, which the
 	// planner_session_state_size CHECK bounds in storage; that is the 2 MiB

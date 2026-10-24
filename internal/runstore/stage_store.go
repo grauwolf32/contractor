@@ -260,6 +260,11 @@ func (s *PostgresStore) StartPlanner(ctx context.Context, params StartPlannerPar
 		return err
 	case persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate:
 		return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, ErrConflict)
+	case plannerWriteRejected(err):
+		// A stored bound, such as planner_session_state_size, measures the
+		// jsonb text, which can exceed the submitted JSON the pre-check
+		// measured; it is the same deterministic rejection (PER-R13).
+		return fmt.Errorf("start Planner for StageExecution %q: %w: %w", params.StageExecutionID, ErrInvalid, err)
 	default:
 		return fmt.Errorf("start Planner for StageExecution %q: %w", params.StageExecutionID, err)
 	}
