@@ -86,8 +86,8 @@ func (h *runtimeConfigurationHandlers) putRuntimeAgentLabels(w http.ResponseWrit
 		handleError(w, err)
 		return
 	}
-	if mediaType, err := requestMediaType(r); err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	id := r.PathValue("runtimeAgentId")

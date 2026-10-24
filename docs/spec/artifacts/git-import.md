@@ -529,7 +529,10 @@ connection or authoritative mutation lock; no long SQL lock is held during
 network transfer.
 
 **GIT-R72.** Server, client and proxy timeouts must be aligned with
-the whole-import deadline (LIM-GIT-6).
+the whole-import deadline (LIM-GIT-6). The import's JSON request body is read
+under the same deadline; a body that cannot be read completely, also when its
+read misses that deadline, is the client's `400 invalid_request` of
+[API-R112](../api/public-api.md), not the import timeout of FAIL-GIT-2.
 
 **GIT-R73.** On request cancellation or deadline expiry, the importer
 must cancel network transfer and decoding and release both admission slots

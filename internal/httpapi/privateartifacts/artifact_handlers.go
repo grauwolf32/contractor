@@ -204,6 +204,13 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
+	// The names are request syntax too: a malformed one is rejected before the
+	// allocation lookup and before a payload is buffered or prepared.
+	ref := contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")}
+	if contracts.ValidateArtifactName(ref.Namespace) != nil || contracts.ValidateArtifactName(ref.Name) != nil {
+		h.handleError(w, fmt.Errorf("%w: invalid Artifact namespace or name", errInvalidRequest))
+		return
+	}
 	// Reject unknown/fenced allocations before accepting a large payload. The
 	// second lookup below is the write authorization linearization point and
 	// catches a fence established while the request body was arriving.
@@ -211,7 +218,7 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	if artifactpolicy.IsRunSystemNamespace(r.PathValue("namespace")) {
+	if artifactpolicy.IsRunSystemNamespace(ref.Namespace) {
 		h.handleError(w, artifacts.ErrReservedNamespace)
 		return
 	}
@@ -249,12 +256,7 @@ func (h *handler) putArtifact(w http.ResponseWriter, r *http.Request) {
 			if storeErr != nil {
 				return storeErr
 			}
-			result, storeErr = store.Write(
-				ctx,
-				contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")},
-				preparedPayload,
-				expectedRevision,
-			)
+			result, storeErr = store.Write(ctx, ref, preparedPayload, expectedRevision)
 			return storeErr
 		},
 	)

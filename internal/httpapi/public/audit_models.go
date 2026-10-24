@@ -204,6 +204,8 @@ func firstTimeLimit(values []*int) *int {
 // and resume (LIM-AUD-28), which holds only deadlineSeconds.
 const maximumAuditTimeLimitBodyBytes int64 = 1024
 
+// readAuditTimeLimit reads that optional body. Its callers have already
+// checked the media type of an announced body (requireOptionalJSONMediaType).
 func readAuditTimeLimit(w http.ResponseWriter, r *http.Request) (*int, error) {
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maximumAuditTimeLimitBodyBytes))
 	if exceedsBodyLimit(err) {
@@ -214,10 +216,6 @@ func readAuditTimeLimit(w http.ResponseWriter, r *http.Request) (*int, error) {
 	}
 	if len(data) == 0 {
 		return nil, nil
-	}
-	media, err := requestMediaType(r)
-	if err != nil || media != "application/json" {
-		return nil, errInvalidRequest
 	}
 	var request struct {
 		DeadlineSeconds *int `json:"deadlineSeconds"`

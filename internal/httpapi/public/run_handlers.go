@@ -218,10 +218,18 @@ func runListCursorKindForProject(
 }
 
 func (h *runHandlers) createRun(w http.ResponseWriter, r *http.Request) {
-	h.createRunFromProject(w, r, nil)
+	if idempotencyKey, ok := runCreationKey(w, r); ok {
+		h.createRunFromProject(w, r, nil, idempotencyKey)
+	}
 }
 
+// createProjectRun checks the request metadata, then Project ownership, and
+// only then reads the body (API-R112).
 func (h *runHandlers) createProjectRun(w http.ResponseWriter, r *http.Request) {
+	idempotencyKey, ok := runCreationKey(w, r)
+	if !ok {
+		return
+	}
 	projectID := r.PathValue("projectId")
 	if _, err := h.Projects.Get(
 		r.Context(), principalUserID(r.Context()), projectID,
@@ -229,14 +237,31 @@ func (h *runHandlers) createProjectRun(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
-	h.createRunFromProject(w, r, &projectID)
+	h.createRunFromProject(w, r, &projectID, idempotencyKey)
 }
 
-func (h *runHandlers) createRunFromProject(w http.ResponseWriter, r *http.Request, projectID *string) {
+// runCreationKey checks the query and media type of a Run creation and
+// returns its Idempotency-Key before a Project or the body is read.
+func runCreationKey(w http.ResponseWriter, r *http.Request) (string, bool) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
-		return
+		return "", false
 	}
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
+		return "", false
+	}
+	idempotencyKey, err := requireIdempotencyKey(r)
+	if err != nil {
+		handleError(w, err)
+		return "", false
+	}
+	return idempotencyKey, true
+}
+
+func (h *runHandlers) createRunFromProject(
+	w http.ResponseWriter, r *http.Request, projectID *string, idempotencyKey string,
+) {
 	var request createRunRequest
 	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
@@ -248,11 +273,6 @@ func (h *runHandlers) createRunFromProject(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	metadataLabels, err := runstore.NormalizeRunMetadataLabels(request.Labels)
-	if err != nil {
-		handleError(w, err)
-		return
-	}
-	idempotencyKey, err := requireIdempotencyKey(r)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -306,6 +326,10 @@ func (h *runHandlers) cancelRun(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
+		return
+	}
 	var request *cancelRunRequest
 	if err := decodeJSON(w, r, &request); err != nil {
 		handleError(w, err)
@@ -351,6 +375,10 @@ func (h *runHandlers) cancelRun(w http.ResponseWriter, r *http.Request) {
 
 func (h *runHandlers) resumeRun(w http.ResponseWriter, r *http.Request) {
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
+		handleError(w, err)
+		return
+	}
+	if err := requireJSONMediaType(r); err != nil {
 		handleError(w, err)
 		return
 	}

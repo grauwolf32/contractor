@@ -39,9 +39,8 @@ func (h *artifactHandlers) importGitArtifact(w http.ResponseWriter, r *http.Requ
 		handleError(w, err)
 		return
 	}
-	mt, err := requestMediaType(r)
-	if err != nil || mt != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	expected, err := artifactWritePrecondition(r)

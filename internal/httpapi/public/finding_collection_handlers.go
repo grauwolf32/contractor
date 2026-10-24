@@ -17,9 +17,8 @@ func (h *findingHandlers) publishFindingCollection(w http.ResponseWriter, r *htt
 		handleError(w, err)
 		return
 	}
-	mediaType, err := requestMediaType(r)
-	if err != nil || mediaType != "application/json" {
-		handleError(w, errInvalidRequest)
+	if err := requireJSONMediaType(r); err != nil {
+		handleError(w, err)
 		return
 	}
 	var request findingintake.PublishCollectionRequest
