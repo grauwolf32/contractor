@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from contractor_runtime.contracts import (
+    MAX_REPORT_INTEGER,
     ExecutionError,
     ExecutionMetrics,
     ExecutionReport,
@@ -36,6 +37,8 @@ MAX_REPORT_JSON_BYTES = 1024 * 1024
 MAX_METRIC_ITEMS = 32
 MAX_METRIC_DEPTH = 4
 MAX_METRIC_TEXT_BYTES = 4096
+# Allocation counters saturate at the Worker State bound; their report
+# projection saturates at the lower report bound, MAX_REPORT_INTEGER (OBS-R111).
 MAX_METRIC_COUNTER = 2**64 - 1
 _ALLOCATION_ENVELOPE_RESERVE_BYTES = 4096
 SENSITIVE_METRIC_KEYS = frozenset(
@@ -166,8 +169,8 @@ class MetricsState:
             update={
                 "observed_model_calls": model_calls,
                 "observed_tool_calls": tool_calls,
-                "observed_total_tokens": total_tokens,
-                "token_usage_unavailable": token_usage_unavailable,
+                "observed_total_tokens": _report_integer(total_tokens),
+                "token_usage_unavailable": _report_integer(token_usage_unavailable),
             }
         )
 
@@ -218,30 +221,30 @@ class MetricsState:
         failure_codes = dict(current.failure_codes) if current is not None else {}
         if failure_code is not None:
             failure_codes[failure_code] = min(
-                MAX_METRIC_COUNTER, failure_codes.get(failure_code, 0) + 1
+                MAX_REPORT_INTEGER, failure_codes.get(failure_code, 0) + 1
             )
         self._summarizer = WorkerSummarizerMetrics(
-            attempts=min(MAX_METRIC_COUNTER, attempts),
-            succeeded=min(MAX_METRIC_COUNTER, succeeded_count),
-            failed=min(MAX_METRIC_COUNTER, failed_count),
+            attempts=min(MAX_REPORT_INTEGER, attempts),
+            succeeded=min(MAX_REPORT_INTEGER, succeeded_count),
+            failed=min(MAX_REPORT_INTEGER, failed_count),
             modelCalls=min(
-                MAX_METRIC_COUNTER,
+                MAX_REPORT_INTEGER,
                 (current.model_calls if current is not None else 0) + model_calls,
             ),
             inputTokens=min(
-                MAX_METRIC_COUNTER,
+                MAX_REPORT_INTEGER,
                 (current.input_tokens if current is not None else 0) + input_tokens,
             ),
             outputTokens=min(
-                MAX_METRIC_COUNTER,
+                MAX_REPORT_INTEGER,
                 (current.output_tokens if current is not None else 0) + output_tokens,
             ),
             totalTokens=min(
-                MAX_METRIC_COUNTER,
+                MAX_REPORT_INTEGER,
                 (current.total_tokens if current is not None else 0) + total_tokens,
             ),
             tokenUsageUnavailable=min(
-                MAX_METRIC_COUNTER,
+                MAX_REPORT_INTEGER,
                 (current.token_usage_unavailable if current is not None else 0)
                 + token_usage_unavailable,
             ),
@@ -496,22 +499,22 @@ class MetricsState:
 
         tools = {
             name: ToolMetrics(
-                calls=values["calls"],
-                succeeded=values["succeeded"],
-                failed=values["failed"],
+                calls=_report_integer(values["calls"]),
+                succeeded=_report_integer(values["succeeded"]),
+                failed=_report_integer(values["failed"]),
             )
             for name, values in sorted(self._tool_metrics.items())
         }
         optional_metrics = {
-            "inputTokens": self.counters.get("input_tokens"),
-            "outputTokens": self.counters.get("output_tokens"),
-            "totalTokens": self.counters.get("total_tokens"),
+            "inputTokens": self._report_counter("input_tokens"),
+            "outputTokens": self._report_counter("output_tokens"),
+            "totalTokens": self._report_counter("total_tokens"),
             "workerBudget": self._worker_budget,
             "summarizer": self._summarizer,
         }
         metrics = ExecutionMetrics(
-            durationMs=max(0, duration_ms),
-            modelCalls=self.counters.get("llm_calls", 0),
+            durationMs=_report_integer(max(0, duration_ms)),
+            modelCalls=self._report_counter("llm_calls") or 0,
             tools=tools,
             **{key: value for key, value in optional_metrics.items() if value is not None},
         )
@@ -530,6 +533,10 @@ class MetricsState:
             tool_call_projections=self._tool_call_projections,
             error_projections=error_projections,
         )
+
+    def _report_counter(self, name: str) -> int | None:
+        value = self.counters.get(name)
+        return _report_integer(value) if value is not None else None
 
     def _increment(self, name: str, value: int = 1) -> None:
         if type(value) is not int or value < 0:
@@ -553,6 +560,12 @@ class MetricsState:
             self.truncated = True
         self._errors.append(error)
         self._error_projections.append(projection)
+
+
+def _report_integer(value: int) -> int:
+    """Saturate an allocation counter at the execution report bound (OBS-R111)."""
+
+    return min(MAX_REPORT_INTEGER, value)
 
 
 def trim_report_detail(

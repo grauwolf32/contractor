@@ -148,6 +148,8 @@ func (r *MemberRecovery) LockMember(ctx context.Context) error {
 // ObserveTokens retains a per-member and experiment high-water mark. Unknown
 // usage is not a public zero; this is only the known lower bound used by the
 // optional observed-token stop policy. Updated timestamps rotate bounded polls.
+// The experiment adds each member's increase saturating at the bigint maximum,
+// which reaches every token limit (EVM-R248); a replayed mark adds nothing.
 func (r *MemberRecovery) ObserveTokens(ctx context.Context, tokens int64) error {
 	s, id, member := r.store, r.id, r.member
 	if tokens < 0 {
@@ -167,7 +169,7 @@ func (r *MemberRecovery) ObserveTokens(ctx context.Context, tokens int64) error 
 		return err
 	}
 	if tokens > prior {
-		_, err := s.db.Exec(ctx, `UPDATE eval_experiments SET observed_tokens=observed_tokens+$2,`+observe+` WHERE experiment_id=$1`, id, tokens-prior)
+		_, err := s.db.Exec(ctx, `UPDATE eval_experiments SET observed_tokens=LEAST(observed_tokens::numeric+$2,9223372036854775807)::bigint,`+observe+` WHERE experiment_id=$1`, id, tokens-prior)
 		return err
 	}
 	return nil

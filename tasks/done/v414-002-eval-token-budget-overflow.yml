@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V38-004
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python, sql]
 goal: >-
@@ -131,6 +131,66 @@ acceptance_criteria:
     when: "the regression tests run"
     then: "the Summarize test sees a negative total and the PostgreSQL driver test fails with a
       scan error or 22003"
+decisions:
+  - >-
+    Counter bound: every integer of ExecutionMetrics, with its tools,
+    workerBudget and summarizer members (durationMs included, so the rule has
+    no exception), is between 0 and 2^53-1, reusing reporting.MaxResourceInteger
+    and the performance schema's resourceInteger (OBS-R111, LIM-OBS-17). The
+    Runtime defines it once as contracts.MAX_REPORT_INTEGER, which its resource
+    sampler now reuses instead of a second 2^53-1. Alternatives: int64 would
+    keep the stage sums able to wrap after two reports and is not exact in
+    TypeScript; uint64 (the summarizer's former bound) did not even fit the
+    Go int64 fields. With 2^53-1 a Stage of 1,000 Workers and its Planner sums
+    to at most 9,016,206,453,995,731,991, below 2^63-1. Reversal: a provider
+    whose honest usage per allocation approaches 9e15 tokens.
+  - >-
+    Producers saturate instead of failing: the Runtime keeps its allocation
+    counters at the Worker State bound (2^64-1) and projects them into the
+    report as at most 2^53-1 (build_report, the Worker budget's observed
+    tokens and missing-usage count, the summarizer aggregate). The budget's
+    model_copy skips validation, so without that projection the Runtime would
+    have sent a report the Server rejects. Go Planners need no change: usage
+    arrives as int32 counts per response and the streamline Planner stops at
+    its ModelPolicy ceilings, so its counters stay below about 4.4e9.
+  - >-
+    Outcome of a received report above the bound (state it, failure
+    outcomes): it violates the contract like any other invalid lifecycle
+    response, FinalizeAll/AbortAll drop it, and persistReports records the
+    incomplete allocation_report_unavailable placeholder (FAIL-OBS-1); an
+    invalid Planner report is not recorded (RecordPlannerReport returns
+    ErrInvalid and the Scheduler logs it). Report delivery stays idempotent by
+    report_id (OBS-R9).
+  - >-
+    Summary overflow: telemetry.Summarize saturates every counter at
+    math.MaxInt64 rather than marking it unavailable, so the public
+    MetricsSummary keeps its required integer fields and minimum 0 and needs
+    no API change (OBS-R112). The Operations allocation totals
+    (controlplane.summarizeAllocationReport) were a second sum of the same
+    counters that rejected an overflowing valid report with
+    ErrInvalidRequest; they now are telemetry.Summarize of that one
+    allocation (controlplane may import telemetry by the layer table), so one
+    rule adds report counters.
+  - >-
+    Eval lower bound: knownTokensSQL caps the numeric sum with
+    LEAST(..., 9223372036854775807)::bigint and ObserveTokens adds the member
+    delta as LEAST(observed_tokens::numeric + $2, max)::bigint, so a bound past
+    int64 is the maximum, which reaches every maxObservedTotalTokens (bigint)
+    and stops new work (EVM-R248, FAIL-EVM-4 permanent). The per-member
+    high-water mark is unchanged, so a replay adds no second delta.
+  - >-
+    Siblings ruled out: Store.Transition (commands.go) writes back the
+    observed_tokens its callers read under the same claim and never adds;
+    submissions.go and service.go only compare observed_tokens with the
+    limit; the Eval usage read model already marks an overflowing counter
+    unavailable (EVM-R240); Worker State counters (agent-state, uint64) are
+    the State contract and not execution report counters. Found but out of
+    scope: evalservice.attemptMetrics decodes stored StageMetrics with plain
+    json.Unmarshal, tolerates negative contributions and keeps an "older
+    passthrough@1 reports" path that fills missing Planner counters; stored
+    reports are validated on write, so that tolerance is a lenient legacy
+    reader that the no-backward-compatibility rule would remove in a
+    separate task.
 tests:
   - command: "go test -count=1 ./internal/telemetry/... ./internal/contracts/reporting/..."
     covers: [A1, A3, A4]
@@ -143,3 +203,69 @@ tests:
     covers: [A3]
   - command: make lint
     covers: [A1, A2, A3, A4]
+implementation_commit: e1ecccdafb6cc1e95dd60f468e6c5682279980ef
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), the locked Runtime venv
+    (Python 3.13); local PostgreSQL 17.11 database contractor_test_v414_evals
+    with per-test schemas; branch claude/v414-evals with main 0f5bed13 merged
+    (4f66b157).
+  commands:
+    - >-
+      go test -count=1 ./internal/telemetry/... ./internal/contracts/reporting/...
+      passed (telemetry 11 s with TestSummarizeSaturatesCountersInsteadOfWrapping:
+      A1 exact sum below the range, every counter math.MaxInt64 for the
+      Planner and 1,024 Workers at 2^53-1).
+    - >-
+      go test -tags=integration -count=1 ./internal/evalstore/...
+      ./internal/evalservice/... ./internal/telemetry/... with
+      CONTRACTOR_TEST_DATABASE_URL passed (evalstore 100 s, evalservice 118 s,
+      telemetry 15 s), including
+      TestSharedPostgresEvalTokenLowerBoundSaturatesPastInt64 (A2: two
+      accepted members, each Run with two stages of the largest valid summary,
+      9,016,206,453,995,731,991 tokens; both member marks and the experiment
+      observed_tokens are 9223372036854775807, a limit of
+      9223372036854775807 moves the experiment to cancelling, and after the
+      Runs drain it is cancelled with no accepted member) and
+      TestMetricsPostgresStageSummaryKeepsTokenCountersInRange (A1 on the
+      store: a Planner report with totalTokens 2^63-1 is ErrInvalid; one at
+      2^53-1 plus a Worker report of 7 rebuilds and stores 2^53+6).
+    - >-
+      go test -tags=integration -count=1 ./internal/contracts/...
+      ./internal/controlplane/... ./internal/archtest/... passed, including
+      TestSharedExecutionMetricIntegerBounds (A3: 24 cases, the schema and the
+      Go decoder accept exactly the valid ones) and the Operations aggregate
+      test (a report above the bound is ErrInvalidRequest; 1,025 tools at
+      2^53-1 saturate at math.MaxInt64). The generated required-member and
+      mutation cases were regenerated for the new valid fixture.
+    - >-
+      cd runtime && uv run --locked pytest -q tests -k "report or usage or
+      telemetry": every selected test passed except
+      test_podman_capabilities.py::test_failed_probe_create_reports_supervisor_unavailable_after_cleanup,
+      which fails identically with the unchanged Runtime sources (macOS has no
+      AF_UNIX SOCK_SEQPACKET); without it 184 passed and 1 skipped (live
+      Gateway). test_shared_execution_metric_integer_bounds (A3) and
+      test_shared_report_counters_saturate_at_the_report_integer_bound passed.
+    - >-
+      Full Runtime suite (pytest -W error tests): 105 failures, all in podman,
+      projectfs, tool_process, scan_katana and trailmark tests, the same 105
+      as with the unchanged Runtime sources on this macOS host; two more
+      projectfs tests failed once and passed on rerun.
+    - make test-wire-cross-language passed (267 fixtures, 309 Go and 206 Python shared tests).
+    - make lint passed (regenerated docs/spec/audit-workflow-dependencies.html).
+    - >-
+      Can-fail checks (A4; temporary edits, reverted): without the KnownTokens
+      cap the driver test failed with "can't scan into dest[0]:
+      18032412907991463982 is out of range for int64"; without the
+      ObserveTokens cap it failed with bigint out of range (SQLSTATE 22003);
+      without saturation in Summarize every counter read
+      -9214364837600035841; with the Go bound removed 17 shared cases were
+      accepted and the Planner report of 2^63-1 was stored; with the Runtime
+      model bound widened the shared Python test accepted durationMs above
+      the bound; without the Runtime projection build_report raised a
+      ValidationError.
+    - >-
+      After merging main 0f5bed13: go build ./..., the Go suites above,
+      make test-wire-cross-language, the Runtime selection and make lint
+      passed again.

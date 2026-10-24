@@ -194,7 +194,7 @@ class StageMetrics(BaseModel):
 `ExecutionMetrics` also carries the optional summarizer aggregate specified in
 [WRK-R155](../execution/worker.md). The Worker Runtime report of an
 `otlp-http@1` adapter adds the optional `droppedSpans` counters
-(OBS-R81).
+(OBS-R81). Every integer of `ExecutionMetrics` is bounded (OBS-R111).
 
 ### Report flow
 
@@ -560,6 +560,34 @@ report of every logical Agent of the Stage at once, encodes them into the
 StageMetrics document and decodes that again; Run detail decodes that
 document, and the replay identity lookup (OBS-R9) decodes one stored report.
 Their memory grows by at most that factor over the received bounds.
+
+**OBS-R111.** Every integer of an execution report's `metrics`, with its
+`tools`, `worker_budget` and summarizer members, lies between 0 and
+2^53-1 (LIM-OBS-17), the largest integer every JSON consumer, TypeScript
+included, reads exactly. The allocation schema, the Server's report validation
+and the Runtime model apply the same bound, and the shared
+`execution-metric-integer-cases.json` fixture pins it on both sides of the
+bound for each member. A producer saturates at the bound: the Runtime keeps
+its allocation counters at the Worker State bound and projects each one into
+the report as at most 2^53-1, so a Gateway that reports an absurd token count
+yields a valid report. A Planner cannot reach the bound: its usage arrives as
+32-bit counts per response and it stops at its ModelPolicy ceilings
+(LIM-TPL-3, LIM-TPL-6). A received report with an integer above the bound
+violates the contract and takes the outcome of a participant that produced no
+report: the Scheduler records the incomplete `allocation_report_unavailable`
+placeholder for that allocation, and a Planner report is not recorded
+(FAIL-OBS-1). The bound also keeps every sum the Server builds from reports
+exact for any realistic Stage: a Stage of 1,000 Workers and its Planner, every
+counter at the bound, sums to 9,016,206,453,995,731,991, below 2^63-1.
+
+**OBS-R112.** A Stage summary (`StageMetrics.summary`, the public
+`MetricsSummary`) adds its reports' counters with saturation: a sum beyond
+2^63-1 is 2^63-1, never a wrapped negative value. The Operations totals of
+one allocation report are that allocation's Stage summary and follow the same
+rule. The Eval token lower bound that adds Stage summaries saturates the same
+way ([EVM-R248](../evals/managed-evals.md)); the Eval usage read model instead
+marks an overflowing counter unavailable
+([EVM-R240](../evals/managed-evals.md)).
 
 **OBS-R43.** Durable telemetry expires after 30 days (LIM-OBS-8). Cleanup
 is batch-bounded and may delete only telemetry that belongs to a terminal
@@ -960,6 +988,8 @@ Limits ([registry](limits.md)):
   (OBS-R99).
 - LIM-OBS-16 — each tool argument number zero or with a leading-digit and
   written decimal exponent between -7 and 19 (OBS-R42, OBS-R110).
+- LIM-OBS-17 — each integer of an execution report's metrics between 0 and
+  2^53-1 (OBS-R111).
 - The Worker export settings and their ranges belong to
   [Runtime configuration](../configuration/runtime-config.md); the
   `AttemptDiagnostics` bounds to [Runs](../execution/runs.md)
@@ -969,7 +999,7 @@ Failure outcomes ([failure model](failure-model.md)):
 
 - FAIL-OBS-1 — delivery and collection of execution reports
   (OBS-R9, OBS-R36, OBS-R37,
-  OBS-R38, OBS-R39).
+  OBS-R38, OBS-R39, OBS-R111).
 - FAIL-OBS-2 — an LLM call rejected by a Gateway quota (OBS-R17).
 - FAIL-OBS-3 — a started tool call that is cancelled or fails (OBS-R23,
   OBS-R24, OBS-R32).

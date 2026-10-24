@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"sort"
 	"strings"
@@ -39,6 +40,8 @@ var (
 
 // Summary is the aggregate telemetry projection exposed through the public API.
 // It contains no arguments, error messages, participant IDs, or provider URLs.
+// Each counter is the saturating sum of its reports' counters: at most
+// math.MaxInt64, never wrapped negative (OBS-R112).
 type Summary struct {
 	ReportsComplete bool  `json:"reportsComplete"`
 	ModelCalls      int64 `json:"modelCalls"`
@@ -176,12 +179,21 @@ func addExecutionReport(summary *Summary, report reporting.ExecutionReport) {
 		addOptional(&summary.ToolCalls, tool.Calls)
 		addOptional(&summary.ToolFailures, tool.Failed)
 	}
-	summary.ErrorCount += int64(len(report.Errors))
+	summary.ErrorCount = saturatingAdd(summary.ErrorCount, int64(len(report.Errors)))
 	summary.Truncated = summary.Truncated || report.Truncated
 }
 
 func addOptional(target *int64, value *int64) {
 	if value != nil {
-		*target += *value
+		*target = saturatingAdd(*target, *value)
 	}
+}
+
+// saturatingAdd adds two non-negative counters, which validated reports
+// guarantee, and returns math.MaxInt64 for a sum beyond it (OBS-R112).
+func saturatingAdd(total, value int64) int64 {
+	if value > math.MaxInt64-total {
+		return math.MaxInt64
+	}
+	return total + value
 }

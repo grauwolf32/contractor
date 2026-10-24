@@ -17,7 +17,6 @@ from pydantic import (
 
 from contractor_runtime.contracts.base import (
     _RUNTIME_ADAPTER_ERROR_CODES,
-    MAX_UINT64,
     WORKER_FAILURE_CODE_PATTERN,
     RuntimeAdapterRef,
     VersionedWireModel,
@@ -27,6 +26,13 @@ from contractor_runtime.contracts.base import (
     _require_text,
     _require_tool_arguments,
 )
+
+# The largest integer every JSON consumer, TypeScript included, reads exactly.
+# Every integer of RuntimeResources and of ExecutionMetrics, with its tools,
+# workerBudget and summarizer members, lies between 0 and this bound
+# (OBS-R111, LIM-OBS-17), as reporting.MaxResourceInteger does on the Server.
+MAX_REPORT_INTEGER = 2**53 - 1
+ReportInteger = Annotated[int, Field(ge=0, le=MAX_REPORT_INTEGER)]
 
 
 class ExecutionError(WireModel):
@@ -42,19 +48,19 @@ class ExecutionError(WireModel):
 
 
 class ToolMetrics(WireModel):
-    calls: int | None = Field(default=None, ge=0)
-    succeeded: int | None = Field(default=None, ge=0)
-    failed: int | None = Field(default=None, ge=0)
+    calls: ReportInteger | None = None
+    succeeded: ReportInteger | None = None
+    failed: ReportInteger | None = None
 
 
 class WorkerBudgetMetrics(WireModel):
     max_model_calls: int = Field(gt=0, le=1000)
     max_tool_calls: int = Field(gt=0, le=10_000)
     max_total_tokens: int = Field(gt=0, le=100_000_000)
-    observed_model_calls: int = Field(ge=0)
-    observed_tool_calls: int = Field(ge=0)
-    observed_total_tokens: int = Field(ge=0)
-    token_usage_unavailable: int = Field(ge=0)
+    observed_model_calls: ReportInteger
+    observed_tool_calls: ReportInteger
+    observed_total_tokens: ReportInteger
+    token_usage_unavailable: ReportInteger
     exhausted: Literal["model_calls", "tool_calls", "total_tokens"] | None = None
 
     @model_validator(mode="after")
@@ -73,14 +79,14 @@ class WorkerBudgetMetrics(WireModel):
 
 
 class WorkerSummarizerMetrics(WireModel):
-    attempts: int = Field(gt=0, le=MAX_UINT64)
-    succeeded: int = Field(ge=0, le=MAX_UINT64)
-    failed: int = Field(ge=0, le=MAX_UINT64)
-    model_calls: int = Field(ge=0, le=MAX_UINT64)
-    input_tokens: int = Field(ge=0, le=MAX_UINT64)
-    output_tokens: int = Field(ge=0, le=MAX_UINT64)
-    total_tokens: int = Field(ge=0, le=MAX_UINT64)
-    token_usage_unavailable: int = Field(ge=0, le=MAX_UINT64)
+    attempts: int = Field(gt=0, le=MAX_REPORT_INTEGER)
+    succeeded: ReportInteger
+    failed: ReportInteger
+    model_calls: ReportInteger
+    input_tokens: ReportInteger
+    output_tokens: ReportInteger
+    total_tokens: ReportInteger
+    token_usage_unavailable: ReportInteger
     failure_codes: dict[str, int] = Field(max_length=64)
 
     @model_validator(mode="after")
@@ -134,7 +140,6 @@ ResourceReason = Literal[
     "unsupported_platform", "read_failed", "sampling_gap", "counter_reset", "invalid_report"
 ]
 ResourceNumber = Annotated[float, Field(ge=0, allow_inf_nan=False)]
-ResourceInteger = Annotated[int, Field(ge=0, le=2**53 - 1)]
 
 
 class PerformanceMetricsRequest(WireModel):
@@ -193,11 +198,11 @@ class RuntimeAdapterMetrics(WireModel):
 
 
 class ExecutionMetrics(WireModel):
-    duration_ms: int | None = Field(default=None, ge=0)
-    model_calls: int | None = Field(default=None, ge=0)
-    input_tokens: int | None = Field(default=None, ge=0)
-    output_tokens: int | None = Field(default=None, ge=0)
-    total_tokens: int | None = Field(default=None, ge=0)
+    duration_ms: ReportInteger | None = None
+    model_calls: ReportInteger | None = None
+    input_tokens: ReportInteger | None = None
+    output_tokens: ReportInteger | None = None
+    total_tokens: ReportInteger | None = None
     tools: dict[str, ToolMetrics]
     worker_budget: WorkerBudgetMetrics | None = None
     summarizer: WorkerSummarizerMetrics | None = None
@@ -248,10 +253,10 @@ class RuntimeResources(WireModel):
     duration_seconds: ResourceNumber | None = None
     cpu_user_seconds: ResourceNumber | None = None
     cpu_system_seconds: ResourceNumber | None = None
-    rss_start_bytes: ResourceInteger | None = None
-    rss_end_bytes: ResourceInteger | None = None
-    rss_peak_observed_bytes: ResourceInteger | None = None
-    rss_sample_count: ResourceInteger | None = None
+    rss_start_bytes: ReportInteger | None = None
+    rss_end_bytes: ReportInteger | None = None
+    rss_peak_observed_bytes: ReportInteger | None = None
+    rss_sample_count: ReportInteger | None = None
     max_sample_gap_seconds: ResourceNumber | None = None
 
     @model_validator(mode="before")

@@ -13,7 +13,7 @@ import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
-from contractor_runtime.contracts import ResourceReason, RuntimeResources
+from contractor_runtime.contracts import MAX_REPORT_INTEGER, ResourceReason, RuntimeResources
 
 try:
     import psutil
@@ -23,7 +23,6 @@ except NotImplementedError:
 
 SUPPORTED_PERFORMANCE_METRICS_VERSIONS = (1,)
 INTERVAL_SECONDS = 15
-MAX_INTEGER = 2**53 - 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,7 +195,7 @@ class ResourceCollector:
                 if not _number(system):
                     system = None
                     self._mark("read_failed")
-            if type(rss) is not int or not 0 <= rss <= MAX_INTEGER:
+            if type(rss) is not int or not 0 <= rss <= MAX_REPORT_INTEGER:
                 rss = None
                 self._mark("read_failed")
             else:

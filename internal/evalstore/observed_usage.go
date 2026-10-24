@@ -11,7 +11,9 @@ const maxObservedUsageRows = 10_000
 
 // KnownTokens is a bounded lower bound for budget enforcement. Each stage row
 // contributes once across all owned Audit roles; no parent aggregate is added.
-// Complete public usage and provenance belong to the collection read model.
+// A sum beyond the int64 range is math.MaxInt64, which reaches every token
+// limit (EVM-R248). Complete public usage and provenance belong to the
+// collection read model.
 func (s *Store) KnownTokens(ctx context.Context, owner, kind string, executionID *string) (int64, error) {
 	if executionID == nil {
 		return 0, nil

@@ -108,6 +108,7 @@ from contractor_runtime.contracts.registration import (
     RuntimeCompletionCapabilities as RuntimeCompletionCapabilities,
 )
 from contractor_runtime.contracts.registration import ToolsetCapability as ToolsetCapability
+from contractor_runtime.contracts.reports import MAX_REPORT_INTEGER as MAX_REPORT_INTEGER
 from contractor_runtime.contracts.reports import AllocationFinalReport as AllocationFinalReport
 from contractor_runtime.contracts.reports import AllocationFinalResponse as AllocationFinalResponse
 from contractor_runtime.contracts.reports import DroppedSpanCounts as DroppedSpanCounts
@@ -117,7 +118,6 @@ from contractor_runtime.contracts.reports import ExecutionReport as ExecutionRep
 from contractor_runtime.contracts.reports import (
     PerformanceMetricsRequest as PerformanceMetricsRequest,
 )
-from contractor_runtime.contracts.reports import ResourceInteger as ResourceInteger
 from contractor_runtime.contracts.reports import ResourceNumber as ResourceNumber
 from contractor_runtime.contracts.reports import ResourceReason as ResourceReason
 from contractor_runtime.contracts.reports import RuntimeAdapterMetrics as RuntimeAdapterMetrics
