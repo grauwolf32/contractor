@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V367-009
 priority: P2
 status: completed
-implementation_commit: 171779df52610c823e9b7f477a39204069fb9fc6
+implementation_commit: 02e84782d344d3603e79114d9d8bfe24c19a452b
 depends_on: []
 languages: [go, sql]
 goal: "Optimize evidenced Audit item/inventory read costs and remove test-only production reads without changing counts, cursor semantics, lifecycle authority or reconciliation order."
@@ -156,13 +156,14 @@ tests:
   - command: make lint
     covers: [A5]
 verification:
-  date: '2026-10-23'
+  date: '2026-10-24'
   environment: >-
     macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20 with the pnpm UI
     install and the locked Runtime venv for make lint; local PostgreSQL
-    17.11 database contractor_test_b3 with per-test schemas and all 35
-    migrations (base 5edff8f7, then merged with claude/review-v407-v409
-    c1501bf8 in 4a28d78f).
+    17.11 database contractor_test_b3 with per-test schemas and all 36
+    migrations (base 5edff8f7, merged with claude/review-v407-v409
+    c1501bf8 in 4a28d78f and b17035de in 963253de; review fixes in
+    02e84782).
   database_tests_configured: true
   commands:
     - >-
@@ -170,11 +171,23 @@ verification:
       -tags=integration -count=1 ./internal/auditstore/...
       ./internal/auditservice/... ./internal/auditcontroller/...
       ./internal/evalstore/... ./internal/httpapi/public/...
-      ./internal/persistence/postgres/... passed (auditstore/internal/pgstore 131.5s, auditservice 218.7s, auditcontroller 114.1s, evalstore 48.3s, httpapi/public 127.1s, httpapi/public/events 6.9s, persistence/postgres 41.3s) on the merged tree. The
-      new database tests ran: TestPostgresItemPagesBoundCandidatesPerRound,
-      TestPostgresControllerReadsAtItemScale, TestPostgresAuditReadsAtFindingScale,
-      TestPostgresExecutionReadsRejectHistoricalRunProvenance and
-      TestPostgresInventoryChildPagesProbeTheExecutionIDRange.
+      ./internal/persistence/postgres/... passed on the review-fix tree
+      (auditstore/internal/pgstore 100.2s, auditservice 170.3s,
+      auditcontroller 81.4s, evalstore 46.3s, httpapi/public 99.2s,
+      httpapi/public/events 5.5s, persistence/postgres 43.7s). Run with -v,
+      TestPostgresItemPagesBoundCandidatesPerRound,
+      TestPostgresControllerReadsAtItemScale,
+      TestPostgresAuditReadsAtFindingScale,
+      TestPostgresInventoryChildPagesProbeTheExecutionIDRange and all ten
+      item and run cases of
+      TestAuditReadsRejectHistoricalProvenanceWithoutRewritingIt passed.
+    - >-
+      go test -tags=integration -count=1 ./internal/persistence/explaintest/...
+      ./internal/findingintake/... ./internal/projectlifecycle/...
+      ./internal/artifacts/... ./internal/runstore/... passed against
+      contractor_test_b3 (the shared helper and every Explain consumer),
+      including TestPostgresExplainPreparedCountsTheRowsOfEachPlan and
+      TestPostgresAuditInboxRowBudgetIgnoresUnrelatedReceipts.
     - make verify-public-api passed (public responses, totals, cursors and errors unchanged).
     - make verify-public-api-postgres passed (TestPublicAuditPaginationBoundary with -race).
     - >-
@@ -185,10 +198,11 @@ verification:
       and make docs-dependencies left its page unchanged.
     - >-
       go test -count=1 ./internal/archtest ./internal/persistence: archtest
-      passed; internal/persistence fails only the pre-existing
-      TestSQLAccessFollowsTableOwnership finding at
-      internal/cli/scan_sweep_remote.go:196 (documented on the base in the
-      brief), not a table this task touches.
+      passed; TestKeyedMutationsUseTheSharedHelpers passed (fixed on the
+      integration branch by f7ccfcd6, merged here); internal/persistence
+      fails only TestSQLAccessFollowsTableOwnership at
+      internal/cli/scan_sweep_remote.go:196, which fails identically on a
+      clean worktree of b17035de and is not a table this task touches.
     - >-
       Can-fail checks, each reverted after the run: the original item page
       statement failed every changed case (generic plan 100,002-100,004
@@ -200,11 +214,19 @@ verification:
       findings, the owner-wide finding filter 12,001 in generic plans, the
       state <> 'collected' gate 20,004 executions, and the renewal search
       without audit_review_requests_item_subject_idx 58,290 review requests.
+      Without the OFFSET 0 fence of auditHeldInboxKeysSQL the inbox budget
+      test fails under the shared count (two Audits: held inbox 1,231-1,253
+      receipts against 320 in the small population and 20,134-20,136 in
+      generic plans of the large one; inbox 1,258-1,279 and
+      20,158-20,164 against 710). A generic plan in ExplainPrepared's test
+      read 10 rows instead of 1,000 when the mode was not applied.
   row_budget_evidence: >-
-    plantest prepares each statement, runs EXPLAIN ANALYZE EXECUTE under
-    plan_cache_mode force_custom_plan and force_generic_plan in a rolled-back
-    transaction, and counts rows read from pg_stat_get_xact_tuples_returned
-    of the table and its indexes (exact, never time). Budgets add 8 entries
+    explaintest.ExplainPrepared prepares each statement, runs EXPLAIN ANALYZE
+    EXECUTE under plan_cache_mode force_custom_plan and force_generic_plan in
+    a rolled-back transaction, and Analysis.Reads counts the rows read from
+    pg_stat_get_xact_tuples_returned of the table and its indexes (exact,
+    never time); it is the package's one count of rows read, also used by
+    findingintake's inbox budget through CountReads. Budgets add 8 entries
     for row versions the fixtures' store writes superseded, which VACUUM
     cannot always remove while other transactions run in the cluster.
     Fixtures: (1) one Audit at the item limits, 32 Rounds x 3,125 = 100,000
@@ -229,6 +251,11 @@ verification:
     2,000 empty Audits: workspace 4,002 findings and 4,000 review requests;
     finding counts 4,002 in both plans; finding pages 202/201 custom, 4,002
     generic; review count 4,000, review page 201; uncollected gate 0.
+    (4) findingintake's inbox under the shared count: N=255, H=135, L=21;
+    budgets N + 3H + 2L + 8 = 710 (inbox) and 2H + 2L + 8 = 320 (held),
+    because holding a receipt rewrites its retention state and an index may
+    return the superseded version's entry; measured at most 313 and 198 over
+    two runs.
   decisions: >-
     Changed: item pages (per-Round LATERAL keyset; unsettled state through
     audit_items_dispatch_idx), the inventory child keyset, the three
@@ -266,17 +293,25 @@ verification:
     deleted and missing child Runs, signed cursors, stale-revision 409).
   relocations: >-
     QueryStore.ListExecutions left production for auditstoretest.ListExecutions
-    (its 31 test callers in auditcontroller and auditservice); the
-    zero-limit listItems branch left for pgstore's export_test.go ListItems;
-    production keeps listReconcileItems with MaxReconcileRows+1 and the same
-    order. The historical Run provenance cases of
-    TestAuditReadsRejectHistoricalProvenanceWithoutRewritingIt read through
-    the test-only ListExecutions; they moved to pgstore's
-    TestPostgresExecutionReadsRejectHistoricalRunProvenance, which reads
-    through the store's own execution read (getExecution, scanExecution),
-    and the auditservice test keeps the item-origin cases.
+    (its 31 test callers in auditcontroller and auditservice), which selects
+    pgstore.ExecutionColumns and decodes each row with pgstore.ScanExecution,
+    the store's own strict decoder (both have production callers in
+    pgstore); the zero-limit listItems branch left for pgstore's
+    export_test.go ListItems; production keeps listReconcileItems with
+    MaxReconcileRows+1 and the same order.
+    TestAuditReadsRejectHistoricalProvenanceWithoutRewritingIt keeps its
+    item and run cases unchanged. plantest was folded into explaintest
+    (ExplainPrepared, Analysis.Reads, CountReads, Node.Nodes and IndexCond)
+    and removed with its layer classification.
   declined: >-
     No new limit, error or requirement ID: the 32-Round bound is
     auditprofile.MaxAuditRounds and audits_max_rounds_check. No index for
     subject-filtered item pages or for review counts by state: neither had a
-    measured case that the write cost would repay.
+    measured case that the write cost would repay. Node.Examined stays in
+    explaintest as a plan-shape view (EXPLAIN's rounded per-loop rows of
+    table scans), documented as distinct from rows read: V407-025's
+    held-credential and drain tests assert heap rows with it, and under the
+    exact count their claims change (the drain check's BitmapAnd returns 214
+    owner/project and 112 runtime-credential entries of workflow_runs, and a
+    rolled-back insert leaves a dead GIN entry under llm-10 and runtime-10),
+    so moving them is a decision for V407-025's owner, not this review fix.
