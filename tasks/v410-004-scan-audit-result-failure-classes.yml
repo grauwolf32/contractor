@@ -1,0 +1,138 @@
+schema_version: "1.0"
+id: V410-004
+title: "Classify Audit scan result building failures by cause instead of as invalid input"
+milestone: review-v407-v409-followups-2026-10
+epic: scan-tools
+kind: defect
+introduced_by: V62-009
+priority: P2
+status: pending
+depends_on: []
+languages: [go, markdown]
+goal: >-
+  An Audit scan Stage fails non-retryably with audit_scan_result_invalid only
+  when auditscan.BuildResult reports auditscan.ErrInvalid; a transient artifact
+  read, an expired result-building budget or cancellation ends in a classified
+  retryable failure (or is retried inside the invocation), and every scan-plan@1
+  Planner code has a registered retryability.
+context:
+  review: >-
+    tasks/done/v407-001-audit-collection-failure-classes.yml, verification.declined
+    ("planner/scan finishAudit still maps every BuildResult error, transient reads
+    included, to the non-retryable audit_scan_result_invalid Stage failure; that
+    Planner classification belongs to V407-008"); tasks/done/v407-008-planner-result-verification-classes.yml
+    ruled planner/scan out of its scope, so neither task owns it.
+  specification:
+    - docs/spec/audits/scans.md#ASC-R137
+    - docs/spec/audits/scans.md#ASC-R138
+    - docs/spec/audits/scans.md#ASC-R139
+    - docs/spec/audits/scans.md#ASC-R141
+    - docs/spec/tools/scanners.md#SCN-R202
+    - docs/spec/tools/scanners.md#SCN-R208
+    - docs/spec/tools/scanners.md#SCN-R210
+    - docs/spec/platform/persistence.md#PER-R13
+    - docs/spec/platform/errors.md
+  severity: low
+  finding: >-
+    internal/planner/scan/audit_result.go:20-26 passes every auditscan.BuildResult
+    error to scanError("audit_scan_result_invalid", err), and
+    internal/planner/scan/factory.go:92-94 builds every scanError with
+    retryable=false. auditscan.BuildResult (internal/auditscan/result.go:66-104)
+    returns artifact read errors and cancellation unchanged and wraps only
+    deterministic failures in auditscan.ErrInvalid (result.go:29-34), so the cause
+    is available. Reproduced on 19f7477f with a temporary test in
+    internal/planner/scan using newAuditFactoryHarness: the artifact reader
+    returns *pgconn.PgError{Code: "40001"} for reads after the scanner job was
+    invoked; Run returns audit_scan_result_invalid with Retryable=false while
+    persistencepostgres.IsTransientFailure(err) is true. The Scheduler
+    (internal/scheduler/planner_invocation.go:101-103) records the failure as
+    non-retryable, so Workflow retries are disabled for a transient read
+    (contrary to ASC-R138) and the Run reports "invalid" input. Audit collection
+    later recovers the evidence from the journal (internal/auditimport/scan_recovery.go:85-93
+    already distinguishes auditscan.ErrInvalid), so coverage is retained, but the
+    Run fails with a misleading permanent code. None of the scan-plan@1 Planner
+    codes (audit_scan_*, scan_*_unavailable, scan_*_write_failed and the other
+    31 scanError codes) has a row in docs/spec/platform/errors.md, so their
+    retryability is unspecified.
+  siblings: >-
+    In scope (same scanError rule, Audit path, where ReadAuditScanHistory makes a
+    fresh StageExecution reuse prior attempts instead of rescanning, as
+    TestAuditExecutorRetryUsesOutcomeInsteadOfStageIdentity shows):
+    audit_inputs.go:31 audit_scan_source_unavailable, :35
+    audit_scan_settings_unavailable, :61 audit_scan_task_unavailable, :85
+    audit_scan_manifest_unavailable, :136 audit_scan_preparation_write_failed,
+    :144 scan_history_unavailable; audit_result.go:31 audit_scan_result_write_failed
+    (create-only binding, a lost acknowledgement recovers by identical bytes,
+    SCN-R202) and :42 scan_completion_write_failed (already retried inside the
+    invocation by planner.CompleteScanSession, V295-001). Ordinary scan-plan@1
+    paths in run.go and report.go (scan_session_unavailable, scan_source_unavailable,
+    scan_job_claim_unavailable, scan_job_result_unavailable, scan_plan_write_failed,
+    scan_input_write_failed, scan_plan_record_failed, scan_report_write_failed):
+    a fresh StageExecution has a new session and re-dispatches jobs (SCN-R210),
+    so a failure after any job dispatch must stay non-retryable to avoid an
+    unrequested rescan; a failure that provably precedes the first dispatch may be
+    retryable (ASC-R139). The task decides each code under that rule and records
+    it. auditimport collectScanRecovery is already correct (ErrInvalid permanent,
+    other errors retryable). Passthrough and Streamline classification is owned
+    by V407-008 and is not changed here.
+  provenance: >-
+    git blame on audit_result.go:20-26 attributes the BuildResult call and the
+    audit_scan_result_invalid mapping to 22fcba08211b83bb109c34c706ce5696602b699d
+    ("candidate OpenAPI scan task dispatch/result recovery"), the checkpoint_commit
+    of V62-009 (Audit OpenAPI scan profile), which owns the Audit scan executor;
+    the same commit is the implementation_commit of V62-001 and V63-001, which
+    landed with it. ab46d91e only moved the type. scanError's fixed
+    retryable=false dates from e6f6c3a2 (V55-008), which V295-001 already noted
+    without changing it.
+scope:
+  in:
+    - "finishAudit maps auditscan.ErrInvalid to non-retryable audit_scan_result_invalid and every other BuildResult error to a distinct classified code (for example audit_scan_result_unavailable): retryable for persistencepostgres transient classes, artifact unavailability, an expired result-building budget and cancellation; non-retryable for permanent artifact rejections (artifacts.IsExactReferenceRejection) other than ErrInvalid. Optionally retry a transient read inside the invocation within the existing result-building budget, as writeCompletion does."
+    - "The Audit-path sibling codes listed in context.siblings follow the same cause-based rule; scanError stops hard-coding retryable=false for causes that a fresh StageExecution can outlast without rescanning."
+    - "Ordinary scan-plan@1 codes: keep post-dispatch failures non-retryable, make pre-dispatch transient failures retryable or record why not; the decision and its reversal condition go into docs/spec/tools/scanners.md."
+    - "Register every scan-plan@1 Planner code with its retryability in docs/spec/tools/scanners.md and the assembled registry in docs/spec/platform/errors.md, and add the failure outcome of Audit scan result building to docs/spec/platform/failure-model.md."
+    - "A test that every code constructed by scanError appears in the registry, so a new unregistered code fails."
+  out:
+    - "Passthrough, Streamline and Router session-write classification (V410-006)."
+    - "Audit collection and scan recovery in internal/auditimport, which already classify auditscan.ErrInvalid."
+    - "Scanner job outcome vocabulary (SCN-R215, worker-error-codes.json) and the unknown-outcome rule (ASC-R141, SCN-R207)."
+failure_outcomes:
+  - operation: "Artifact reads inside auditscan.BuildResult (plan and per-job reports)"
+    permanent: "auditscan.ErrInvalid (changed or invalid retained bytes, oversized content, invalid assignment) -> audit_scan_result_invalid, retryable false"
+    retryable: "transient PostgreSQL class, artifact service unavailability -> classified retryable code; at most one in-invocation retry loop within journalIOTimeout if chosen"
+    ambiguous: "none: reads have no side effect"
+    cancelled: "caller cancellation or lease loss ends the build; the result is retryable and never reported as invalid input"
+    timeout: "the result-building budget (journalIOTimeout) owns it; expiry is retryable"
+  - operation: "Create-only report artifact write (audit_scan_result_write_failed)"
+    permanent: "conflicting immutable content (SCN-R202) stays non-retryable"
+    retryable: "transient store failure becomes retryable; a fresh StageExecution writes under a new Stage-execution binding"
+    ambiguous: "a lost acknowledgement is recovered only when the existing bytes match (SCN-R202)"
+    cancelled: "not retried inside the invocation once the caller is cancelled"
+    timeout: "shares the result-building budget"
+acceptance_criteria:
+  - id: A1
+    given: "an Audit scan Stage whose scanner job completed"
+    when: "an artifact read inside BuildResult fails with a PostgreSQL transient class (40001, 55P03, 08006) or the result-building budget expires"
+    then: "Run returns the classified retryable code, not audit_scan_result_invalid, and the Scheduler records a retryable failure; a fresh StageExecution reuses the recorded attempt without a second scanner call"
+  - id: A2
+    given: "retained scan content that auditscan rejects (changed plan bytes, oversized report, assignment mismatch)"
+    when: "finishAudit builds the result"
+    then: "it still fails with non-retryable audit_scan_result_invalid"
+  - id: A3
+    given: "each sibling code in context.siblings"
+    when: "its store call fails with a transient, a permanent and an ambiguous cause"
+    then: "the outcome matches the recorded rule; an ordinary scan-plan@1 failure after a job dispatch stays non-retryable and never causes a rescan"
+  - id: A4
+    given: "the registry gate"
+    when: "a scanError code is constructed that has no row in docs/spec/platform/errors.md"
+    then: "the test fails; every current scan-plan@1 code passes"
+  - id: A5
+    given: "the unfixed code at 19f7477f"
+    when: "the A1 regression runs"
+    then: "it fails (audit_scan_result_invalid, retryable false)"
+tests:
+  - command: "go test -count=1 ./internal/planner/scan/... ./internal/auditscan/... ./internal/auditimport/..."
+    covers: [A1, A2, A3, A4, A5]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=\"${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}\" go test -tags=integration -count=1 ./internal/planner/... ./internal/auditimport/... ./internal/scheduler/..."
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A3, A4]
