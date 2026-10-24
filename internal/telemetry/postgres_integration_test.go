@@ -168,7 +168,7 @@ WHERE stage_execution_id = $1`, extraStage); err != nil {
 
 // TestMetricsPostgresReplayComparesNumbersAsStored replays both report kinds
 // with argument numbers as the Runtime writes them. jsonb stores 5e-05 as
-// 0.00005, 1e+16, 1e+300 and the float64 bounds of LIM-OBS-16 as their
+// 0.00005, 1e-07 and the large exponents at the edge of LIM-OBS-16 as their
 // decimal expansion and -0.0 as 0.0, and keeps 2^53+1 exactly, so a replay of
 // the same report must stay idempotent (OBS-R42), while a report with another
 // number still conflicts.
@@ -181,7 +181,7 @@ func TestMetricsPostgresReplayComparesNumbersAsStored(t *testing.T) {
 	createTelemetryRun(t, ctx, runs)
 	receivedAt := time.Now().UTC()
 	for index, literal := range []string{
-		"5e-05", "1e+16", "1e+300", "-0.0", "9007199254740993", "5e-324", "-1.7976931348623157e+308",
+		"5e-05", "1e-07", "1e+16", "1e+19", "-0.0", "9007199254740993", "-9.999999999999998e+19",
 	} {
 		allocationID := fmt.Sprintf("allocation-number-%d", index)
 		sessionID := fmt.Sprintf("session-number-%d", index)
@@ -227,42 +227,62 @@ func TestMetricsPostgresReplayComparesNumbersAsStored(t *testing.T) {
 
 	// A number outside LIM-OBS-16 never reaches the column, where 1e-20000
 	// would fail the insert and 0e-16383 would read back as 16 KB of digits.
-	for _, literal := range []string{"1e-20000", "0e-16383", "1e999999"} {
+	// Receipt rejects such a Runtime report; persistence, which also normalizes
+	// the Server's own Planner reports, stores the marker the Runtime writes.
+	for index, literal := range []string{"1e-20000", "0e-16383", "1e999999", "1e-08", "1e+20"} {
+		allocationID := fmt.Sprintf("allocation-range-%d", index)
 		stage := createTelemetryStage(
-			t, ctx, runs, "stage-range-"+literal, "allocation-range-"+literal, "session-range-"+literal,
+			t, ctx, runs, fmt.Sprintf("stage-range-%d", index), allocationID,
+			fmt.Sprintf("session-range-%d", index),
 		)
-		allocation := allocationEnvelope(stage, "allocation-range-"+literal, receivedAt, true)
+		allocation := allocationEnvelope(stage, allocationID, receivedAt, true)
 		allocation.Report.Worker.ToolCalls[0].Arguments = runtimeArguments(t, literal)
-		if err := reports.RecordAllocationReport(ctx, allocation); !errors.Is(err, telemetry.ErrInvalid) {
-			t.Fatalf("%s: allocation report error = %v, want invalid", literal, err)
+		if err := reports.RecordAllocationReport(ctx, allocation); err != nil {
+			t.Fatalf("%s: allocation report: %v", literal, err)
+		}
+		var stored string
+		var truncated bool
+		if err := pool.QueryRow(ctx, `
+SELECT report->'worker'->'toolCalls'->0->'arguments'->>'value',
+       (report->'worker'->'toolCalls'->0->>'argumentsTruncated')::boolean
+FROM allocation_execution_reports WHERE stage_execution_id = $1`, stage).Scan(&stored, &truncated); err != nil {
+			t.Fatal(err)
+		}
+		if stored != reporting.ArgumentNumberMarker || !truncated {
+			t.Fatalf("%s: stored %q (truncated %t), want the marker", literal, stored, truncated)
 		}
 	}
 }
 
-// TestMetricsPostgresReadsReportsTrimmedToTheByteBound stores reports that the
-// Server trimmed to their 1 MiB bound and reads them back. jsonb renders a
-// stored report with a space after each separator and every number expanded,
-// so its text exceeds the bound the received report met: short strings add a
-// quarter, 1e308 elements about fifty times (OBS-R110). Every reader of a
-// stored report (ListAllocationReports, RebuildStageMetrics and the replay
-// identity lookup of both kinds) must still decode it. The 1e308 case decodes
-// about 50 MB per stored report, which takes about a minute under -race.
+// TestMetricsPostgresReadsReportsTrimmedToTheByteBound stores reports whose
+// rendering exceeds the 1 MiB bound the received report met and reads them
+// back: jsonb renders a stored report with a space after each separator and
+// every number expanded (OBS-R110). Short strings in 280 calls trimmed to the
+// bound add about a tenth; 1e19, the widest expansion LIM-OBS-16 allows, needs
+// only 60 calls of 4096-byte summaries to pass 1 MiB. Every reader of a stored
+// report (ListAllocationReports, RebuildStageMetrics and the replay identity
+// lookup of both kinds) must still decode it.
 func TestMetricsPostgresReadsReportsTrimmedToTheByteBound(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	pool := isolatedTelemetryPool(t, ctx)
 	runs := runstore.NewPostgresStore(pool)
 	reports := telemetry.NewRepository(pool)
 	createTelemetryRun(t, ctx, runs)
 	receivedAt := time.Now().UTC()
-	for index, element := range []string{`"a"`, "1e308"} {
+	for index, test := range []struct {
+		element string
+		calls   int
+		trimmed bool
+	}{{`"abcdefgh"`, 280, true}, {"1e19", 60, false}} {
+		element := test.element
 		allocationID := fmt.Sprintf("allocation-bound-%d", index)
 		sessionID := fmt.Sprintf("session-bound-%d", index)
 		stage := createTelemetryStage(
 			t, ctx, runs, fmt.Sprintf("stage-bound-%d", index), allocationID, sessionID,
 		)
 		arguments := runtimeArgumentsJSON(t, boundedArgumentSummary(element))
-		calls := make([]reporting.ToolCallRecord, 1000)
+		calls := make([]reporting.ToolCallRecord, test.calls)
 		for call := range calls {
 			calls[call] = reporting.ToolCallRecord{
 				CallID: fmt.Sprintf("call-%04d", call), Tool: "probe",
@@ -293,14 +313,14 @@ SELECT coalesce(report->'worker', report)->>'truncated' = 'true', octet_length(r
 FROM `+table+` WHERE stage_execution_id = $1`, stage).Scan(&truncated, &rendered); err != nil {
 				t.Fatal(err)
 			}
-			if !truncated || rendered <= telemetry.MaxReportJSONBytes {
-				t.Fatalf("%s: %s truncated=%t renders %d bytes, want a trimmed report beyond 1 MiB",
-					element, table, truncated, rendered)
+			if truncated != test.trimmed || rendered <= telemetry.MaxReportJSONBytes {
+				t.Fatalf("%s: %s truncated=%t renders %d bytes, want truncated=%t beyond 1 MiB",
+					element, table, truncated, rendered, test.trimmed)
 			}
 		}
 		stored, err := reports.ListAllocationReports(ctx, stage)
-		if err != nil || len(stored) != 1 || !stored[0].Report.Worker.Truncated {
-			t.Fatalf("%s: stored allocation reports = %d (%v), want one truncated report", element, len(stored), err)
+		if err != nil || len(stored) != 1 || stored[0].Report.Worker.Truncated != test.trimmed {
+			t.Fatalf("%s: stored allocation reports = %d (%v), want one report", element, len(stored), err)
 		}
 		metrics, err := reports.RebuildStageMetrics(ctx, stage, contracts.APIVersion)
 		if err != nil {

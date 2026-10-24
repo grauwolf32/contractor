@@ -89,24 +89,28 @@ func (a *ToolArguments) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Tool argument numbers (LIM-OBS-16) keep only a small decimal exponent:
+// PostgreSQL stores a jsonb number as its full decimal expansion, so a stored
+// number renders at most 20 integer digits and 7 decimal places beyond its own
+// fraction digits. -7 keeps probabilities to one in ten million and float32
+// epsilon; 19 keeps every 64-bit integer, which includes millisecond and
+// nanosecond timestamps, counts and sizes.
+const (
+	minArgumentNumberExponent = -7
+	maxArgumentNumberExponent = 19
+	// ArgumentNumberMarker replaces a number a summary cannot keep: one
+	// outside LIM-OBS-16, NaN or an infinity.
+	ArgumentNumberMarker = "[NUMBER_OUT_OF_RANGE]"
+)
+
 // numbersInRange reports whether every number in the summary stays within
 // LIM-OBS-16.
 func (a ToolArguments) numbersInRange() bool {
 	return argumentNumbersInRange(map[string]any(a))
 }
 
-// argumentNumbersInRange reports whether every decoded number literal in an
-// argument summary is finite as a float64 and writes an exponent between -324
-// and 308 (LIM-OBS-16), the range of the shortest round-trip form the Runtime
-// writes; the Server's own values are finite float64 or integer values.
-// PostgreSQL stores the exact decimal expansion of a jsonb number, so the
-// bound keeps each stored number within the numeric type and within 330
-// characters of its literal, where an unbounded exponent (1e999999, 0e-16383,
-// 1e-20000) would either fail the insert or expand a few bytes to megabytes.
 func argumentNumbersInRange(value any) bool {
 	switch typed := value.(type) {
-	case json.Number:
-		return argumentNumberInRange(string(typed))
 	case map[string]any:
 		for _, item := range typed {
 			if !argumentNumbersInRange(item) {
@@ -119,26 +123,67 @@ func argumentNumbersInRange(value any) bool {
 				return false
 			}
 		}
+	default:
+		return !ArgumentNumberOutOfRange(value)
 	}
 	return true
 }
 
-func argumentNumberInRange(literal string) bool {
-	if index := strings.IndexAny(literal, "eE"); index >= 0 {
-		exponent := literal[index+1:]
-		negative := strings.HasPrefix(exponent, "-")
-		digits := strings.TrimLeft(strings.TrimLeft(exponent, "+-"), "0")
-		if len(digits) > 3 {
+// ArgumentNumberOutOfRange reports whether value is a number that a tool
+// argument summary cannot keep (LIM-OBS-16), judged by the JSON it is written
+// as: the literal a producer wrote (json.Number) or encoding/json's text for a
+// number the Server built. A number is kept when it is zero or the decimal
+// exponent of its leading digit lies between minArgumentNumberExponent and
+// maxArgumentNumberExponent, and it writes no exponent outside that range.
+// Any other value is no number and reports false.
+func ArgumentNumberOutOfRange(value any) bool {
+	var literal string
+	switch typed := value.(type) {
+	case json.Number:
+		literal = string(typed)
+	case float64, float32, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		encoded, err := json.Marshal(typed)
+		if err != nil { // NaN or an infinity
+			return true
+		}
+		literal = string(encoded)
+	default:
+		return false
+	}
+	return !argumentLiteralInRange(literal)
+}
+
+func argumentLiteralInRange(literal string) bool {
+	mantissa, exponentText, hasExponent := strings.Cut(strings.ToLower(literal), "e")
+	exponent := 0
+	if hasExponent {
+		negative := strings.HasPrefix(exponentText, "-")
+		digits := strings.TrimLeft(strings.TrimLeft(exponentText, "+-"), "0")
+		if len(digits) > 2 {
 			return false
 		}
-		magnitude, _ := strconv.Atoi("0" + digits)
-		if negative && magnitude > 324 || !negative && magnitude > 308 {
+		exponent, _ = strconv.Atoi("0" + digits)
+		if negative {
+			exponent = -exponent
+		}
+		if exponent < minArgumentNumberExponent || exponent > maxArgumentNumberExponent {
 			return false
 		}
 	}
-	// strconv reports a range error only on overflow to ±Inf.
-	_, err := strconv.ParseFloat(literal, 64)
-	return err == nil
+	integer, fraction, _ := strings.Cut(strings.TrimPrefix(mantissa, "-"), ".")
+	lead := 0
+	if index := strings.IndexFunc(integer, isNonZeroDigit); index >= 0 {
+		lead = len(integer) - 1 - index
+	} else if index := strings.IndexFunc(fraction, isNonZeroDigit); index >= 0 {
+		lead = -(index + 1)
+	} else {
+		return true // zero, whose written exponent is already in range
+	}
+	return lead+exponent >= minArgumentNumberExponent && lead+exponent <= maxArgumentNumberExponent
+}
+
+func isNonZeroDigit(r rune) bool {
+	return r >= '1' && r <= '9'
 }
 
 type ToolCallRecord struct {
@@ -364,7 +409,7 @@ func (r ExecutionReport) validate(received bool) error {
 		}
 		if call.Arguments != nil {
 			if !call.Arguments.numbersInRange() {
-				return contracts.Invalidf("tool call %d arguments hold a number outside the float64 range", index)
+				return contracts.Invalidf("tool call %d arguments hold a number outside their range", index)
 			}
 			if size, err := contracts.ResultJSONSize(call.Arguments); err != nil || received && size > 4096 {
 				return contracts.Invalidf("tool call %d arguments exceed 4096 bytes", index)

@@ -14,6 +14,11 @@ from contractor_runtime.contracts import (
     ToolCallRecord,
     WorkerCompletionDiagnostics,
 )
+from contractor_runtime.contracts.base import (
+    ARGUMENT_NUMBER_MARKER,
+    MAX_ARGUMENT_NUMBER_EXPONENT,
+    MIN_ARGUMENT_NUMBER_EXPONENT,
+)
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.telemetry import metrics as metrics_module
 from contractor_runtime.telemetry.metrics import (
@@ -248,37 +253,42 @@ def test_shared_argument_summary_redacts_nested_secrets_urls_and_artifact_bytes(
     assert SECRET not in encoded
 
 
-def test_shared_argument_summary_keeps_numbers_within_the_float64_range() -> None:
-    # LIM-OBS-16: the Server rejects a number that overflows a float64, so the
-    # Runtime marks such an integer instead of writing it, and the record model
-    # rejects one written anyway, as the shared invalid fixtures pin.
-    state = MetricsState()
-    state.record_tool_call(
-        "rank",
-        arguments={
-            "fits": 2**70,
-            "edge": 10**308,
-            "beyond": [1, 10**309],
-            "content_bytes": 10**309,
-            "small": 5e-324,
-        },
+def test_shared_argument_numbers_agree_with_the_server() -> None:
+    # LIM-OBS-16 as the shared fixture pins it: a kept number stays as the
+    # Runtime writes it; any other number, NaN and infinities become the one
+    # marker in a summary the Runtime builds, and the record model rejects one
+    # written anyway, as the Server does on receipt.
+    numbers = REPORT_TRIM_FIXTURE["argumentNumbers"]
+    assert numbers["minExponent"] == MIN_ARGUMENT_NUMBER_EXPONENT
+    assert numbers["maxExponent"] == MAX_ARGUMENT_NUMBER_EXPONENT
+    assert numbers["marker"] == ARGUMENT_NUMBER_MARKER
+    record = (
+        '{"callId":"tool-1","tool":"rank","arguments":{"value":%s},'
+        '"argumentsTruncated":false,"outcome":"succeeded"}'
     )
-
-    call = state.build_report(report_id="worker-allocation-3", duration_ms=1).tool_calls[0]
-
-    assert call.arguments == {
-        "fits": 2**70,
-        "edge": 10**308,
-        "beyond": [1, "[NON_FINITE]"],
-        "content_bytes": {"redacted": True, "size": None},
-        "small": 5e-324,
-    }
-    assert call.arguments_truncated is True
-    record = {"callId": "tool-1", "tool": "rank", "argumentsTruncated": False}
-    with pytest.raises(ValidationError):
-        ToolCallRecord.model_validate(
-            {**record, "outcome": "succeeded", "arguments": {"window": [1, 10**309]}}
-        )
+    values = [(literal, True) for literal in numbers["kept"]]
+    values += [(literal, False) for literal in numbers["replaced"]]
+    for literal, kept in values:
+        value = json.loads(literal)
+        assert json.dumps(value) == literal, literal
+        state = MetricsState()
+        state.record_tool_call("rank", arguments={"value": value})
+        call = state.build_report(report_id="worker-numbers", duration_ms=1).tool_calls[0]
+        assert call.arguments == {"value": value if kept else ARGUMENT_NUMBER_MARKER}, literal
+        assert call.arguments_truncated is not kept, literal
+        if kept:
+            ToolCallRecord.model_validate_json(record % literal)
+        else:
+            with pytest.raises(ValidationError):
+                ToolCallRecord.model_validate_json(record % literal)
+    for value in (float("nan"), float("inf"), float("-inf")):
+        state = MetricsState()
+        state.record_tool_call("rank", arguments={"value": value, "content_bytes": 10**20})
+        call = state.build_report(report_id="worker-numbers", duration_ms=1).tool_calls[0]
+        assert call.arguments == {
+            "value": ARGUMENT_NUMBER_MARKER,
+            "content_bytes": {"redacted": True, "size": None},
+        }
 
 
 def test_shared_argument_redaction_leaves_redacted_arguments_unchanged() -> None:

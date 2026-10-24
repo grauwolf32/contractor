@@ -493,11 +493,21 @@ empty tool `arguments` object counts as absent, as both sides encode it, and a
 number in tool arguments counts as the literal its producer wrote: the Server
 keeps that literal instead of re-formatting it, so it measures and bounds the
 bytes the Runtime measured, and an integer beyond 2^53 keeps its value. Such a
-number must be finite as a float64 and write an exponent between -324 and 308
-(LIM-OBS-16), the range of the shortest round-trip form the Runtime writes; the
-Server rejects a report with any other number. The Runtime writes an integer
-beyond the float64 range as `"[NON_FINITE]"` and marks the arguments truncated,
-as it does a non-finite float.
+number is zero or the decimal exponent of its leading digit lies between -7 and
+19, and any exponent it writes lies in that range too (LIM-OBS-16); the Server
+rejects a received report with any other number. The range keeps probabilities
+down to one in ten million, float32 epsilon and every 64-bit integer, so ports,
+counts, sizes and timestamps in seconds, milliseconds or nanoseconds stay as
+written; it is no wider because PostgreSQL stores a number as its full decimal
+expansion (OBS-R110). Both sides judge a number as written, the Runtime by
+Python's `repr` of a float, which switches to exponent form below 1e-4 and at
+1e16. The Runtime writes any other number, NaN and infinities as
+`"[NUMBER_OUT_OF_RANGE]"` and marks the arguments truncated; the Server writes
+the same marker for such a number in a summary it builds itself, such as a
+Planner tool call. The shared `telemetry-report-trim-cases.json` fixture pins
+the range, the marker and the numbers on each side of both edges, and the
+private allocation fixtures hold a report with numbers just inside both edges
+and reports each with one just outside.
 
 **OBS-R110.** A report over its byte bound loses detail in one order: the
 oldest tool-call record first, the oldest error only after no tool-call record
@@ -531,23 +541,19 @@ decodes it (LIM-OBS-7). PostgreSQL stores each number as its exact decimal
 expansion and renders a stored document with a space after each separator, so
 a stored report reads back as longer text and its decoded numbers keep that
 expansion. A stored report is decoded as strictly as a received one and passes
-every rule of a received one except the byte bounds; LIM-OBS-16 keeps each
-number at most 330 characters longer than its literal. Measured on PostgreSQL
-17 with 1,000 tool calls trimmed to the 1 MiB bound, a stored report read back
-as 1.24 times that bound with arrays of one-character strings and 49.7 times
-(52 MB) with arrays of `1e308`; with the Runtime's own `1e+308` and `5e-324`
-forms it read back as 43.3 and 45.6 times, and its stored jsonb stayed under
-100 KB. The StageMetrics rebuild decodes the Planner's report and the report of
-every logical Agent of the Stage at once, encodes them into the StageMetrics
-document and decodes that again; Run detail decodes that document, and the
-replay identity lookup (OBS-R9) decodes one stored report. Their memory
-therefore grows by up to that factor. The Server accepts this cost: the received
-bounds and LIM-OBS-16 cap it, and the Server's process readings of RSS and
-Go heap bytes
-([OPS-R110](../operations/operations.md)) show it. Reopen it when a rebuild must fit a memory budget or a stored
-tool call becomes readable through an API; then either bound the expanded digit
-count of a number on both sides, in the Runtime's summary and the Server's
-decoding, or have the readers select only the counters they need.
+every rule of a received one except the byte bounds. LIM-OBS-16 bounds the
+expansion: a kept number has at most 20 integer digits, and at most 7 more
+fraction digits than its literal, so no element expands more than `1e19,` does
+into `10000000000000000000, `, 4.4 times, and a stored report reads back as at
+most 4.4 times its 1 MiB bound. Measured on PostgreSQL 17 with 1 MiB reports of
+250 tool calls, arrays of `1e19` read back as 4.27 times the bound, the
+Runtime's `1e+19` as 3.57 times, `1e-07` as 1.81 times, one-character strings
+as 1.24 times, and a mix of ports, counts, timestamps, fractions and paths as
+1.09 times. The StageMetrics rebuild decodes the Planner's report and the
+report of every logical Agent of the Stage at once, encodes them into the
+StageMetrics document and decodes that again; Run detail decodes that
+document, and the replay identity lookup (OBS-R9) decodes one stored report.
+Their memory grows by at most that factor over the received bounds.
 
 **OBS-R43.** Durable telemetry expires after 30 days (LIM-OBS-8). Cleanup
 is batch-bounded and may delete only telemetry that belongs to a terminal
@@ -938,8 +944,8 @@ Limits ([registry](limits.md)):
   (OBS-R83).
 - LIM-OBS-15 — at most one OTLP request after a Planner returns
   (OBS-R99).
-- LIM-OBS-16 — each tool argument number finite as a float64 with an
-  exponent between -324 and 308 (OBS-R42, OBS-R110).
+- LIM-OBS-16 — each tool argument number zero or with a leading-digit and
+  written decimal exponent between -7 and 19 (OBS-R42, OBS-R110).
 - The Worker export settings and their ranges belong to
   [Runtime configuration](../configuration/runtime-config.md); the
   `AttemptDiagnostics` bounds to [Runs](../execution/runs.md)
@@ -1054,9 +1060,9 @@ These properties follow from the cited requirements, which are authoritative.
    `test_drop_counters_saturate_and_reports_are_detached` in
    [`runtime/tests/test_otlp_retries.py`](../../../runtime/tests/test_otlp_retries.py).
 7. Repeated report delivery is idempotent, persisted reports are redacted,
-   every reader decodes a report stored at its byte bound, and durable
-   telemetry expires in bounded batches (OBS-R9, OBS-R27, OBS-R43, OBS-R44,
-   OBS-R110); tests
+   every reader decodes a stored report whose rendering exceeds its byte
+   bound, and durable telemetry expires in bounded batches (OBS-R9, OBS-R27,
+   OBS-R43, OBS-R44, OBS-R110); tests
    `TestMetricsPostgresIdempotencyRedactionAggregationAndRetention`,
    `TestMetricsPostgresReplayComparesNumbersAsStored` and
    `TestMetricsPostgresReadsReportsTrimmedToTheByteBound` in
@@ -1070,17 +1076,20 @@ These properties follow from the cited requirements, which are authoritative.
    most three times per bound; they measure a record the Runtime built at the
    same size, and the Server's redaction leaves it unchanged unless it holds a
    secret the record contains or treats a `://` text as credential-bearing;
-   both reject an argument number outside the float64 range
+   both reject an argument number outside LIM-OBS-16 on receipt and write the
+   same marker for one in a summary they build
    (OBS-R27, OBS-R41, OBS-R42, OBS-R110); tests
-   `TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary` and
+   `TestSharedReportTrimKeepsTheSharedSuffixAtEveryBoundary`,
+   `TestSharedArgumentNumbersAgreeWithTheRuntime`,
+   `TestPolicyMarksNumbersTheServerBuiltOutsideTheirRange` and
    `TestReportTrimMeasuresTheCompleteReportAtMostThreeTimes` in
    [`internal/telemetry/trim_test.go`](../../../internal/telemetry/trim_test.go),
    `TestToolArgumentsKeepTheRuntimeNumberLiterals` and
-   `TestToolArgumentsRejectNumbersOutsideTheFloat64Range` in
+   `TestToolArgumentsRejectNumbersOutsideTheirRange` in
    [`internal/contracts/reporting/telemetry_test.go`](../../../internal/contracts/reporting/telemetry_test.go),
    and `test_shared_report_trim_keeps_the_shared_suffix_at_every_boundary`,
    `test_shared_argument_redaction_leaves_redacted_arguments_unchanged`,
-   `test_shared_argument_summary_keeps_numbers_within_the_float64_range` and
+   `test_shared_argument_numbers_agree_with_the_server` and
    `test_shared_report_trim_measures_the_complete_report_at_most_three_times`
    in [`runtime/tests/test_metrics.py`](../../../runtime/tests/test_metrics.py).
 

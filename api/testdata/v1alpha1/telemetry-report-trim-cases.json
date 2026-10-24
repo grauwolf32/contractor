@@ -1,5 +1,5 @@
 {
-  "description": "Bounded execution-report trimming (OBS-R41, OBS-R110): when a report's compact UTF-8 JSON (OBS-R42) exceeds maximumBytes, the oldest tool-call record is removed first, the oldest error only after no tool-call record remains, and truncated becomes true; the result is the first report of that sequence that fits. bytes is the size of the untrimmed report; each limit gives the retained suffixes (toolCallsFrom, errorsFrom), truncated and the retained size, or aggregateTooLarge when even the report without detail exceeds the limit. The limits are every size of the removal sequence, that size minus one byte and the untrimmed size plus one. Go checks telemetry Policy.NormalizeExecutionReport, Python telemetry.metrics.trim_report_detail. Both sides measure every report at bytes: an empty arguments object counts as absent and a number counts as the literal the Runtime wrote. Go also checks that its own normalization (OBS-R27) leaves every record unchanged. The case with runtimeInputs holds the records the Runtime's MetricsState builds from those tool calls, which Python rebuilds and compares: redaction placeholders, derived sizes, sensitive names, depth, list, map and text bounds, an argument summary, a failure and numbers of every exponent range. redaction.sensitiveNames holds every name the Server's rule treats as sensitive (each exact name, each fragment inside a name, each suffix); the Runtime must treat each as sensitive too, so the Server never redacts what the Runtime kept. redaction.safeDerivedSizeNames is the list of derived size names both sides keep a non-negative integer under (OBS-R27).",
+  "description": "Bounded execution-report trimming (OBS-R41, OBS-R110): when a report's compact UTF-8 JSON (OBS-R42) exceeds maximumBytes, the oldest tool-call record is removed first, the oldest error only after no tool-call record remains, and truncated becomes true; the result is the first report of that sequence that fits. bytes is the size of the untrimmed report; each limit gives the retained suffixes (toolCallsFrom, errorsFrom), truncated and the retained size, or aggregateTooLarge when even the report without detail exceeds the limit. The limits are every size of the removal sequence, that size minus one byte and the untrimmed size plus one. Go checks telemetry Policy.NormalizeExecutionReport, Python telemetry.metrics.trim_report_detail. Both sides measure every report at bytes: an empty arguments object counts as absent and a number counts as the literal the Runtime wrote. Go also checks that its own normalization (OBS-R27) leaves every record unchanged. The case with runtimeInputs holds the records the Runtime's MetricsState builds from those tool calls, which Python rebuilds and compares: redaction placeholders, derived sizes, sensitive names, depth, list, map and text bounds, an argument summary, a failure and numbers of every exponent range. redaction.sensitiveNames holds every name the Server's rule treats as sensitive (each exact name, each fragment inside a name, each suffix); the Runtime must treat each as sensitive too, so the Server never redacts what the Runtime kept. redaction.safeDerivedSizeNames is the list of derived size names both sides keep a non-negative integer under (OBS-R27). argumentNumbers pins LIM-OBS-16 in the form the Runtime writes: kept numbers stay as written, every replaced number (and NaN or an infinity) becomes the marker in a summary the Runtime builds, and the Server rejects it when received.",
   "redaction": {
     "sensitiveNames": [
       "apikey",
@@ -35,6 +35,37 @@
       "description_bytes",
       "result_content_bytes",
       "result_description_bytes"
+    ]
+  },
+  "argumentNumbers": {
+    "minExponent": -7,
+    "maxExponent": 19,
+    "marker": "[NUMBER_OUT_OF_RANGE]",
+    "kept": [
+      "0",
+      "0.0",
+      "-0.0",
+      "1e-07",
+      "-1e-07",
+      "0.0001",
+      "65535",
+      "1700000000000",
+      "9007199254740993",
+      "1e+16",
+      "1.5e+19",
+      "9.999999999999998e+19",
+      "99999999999999999999",
+      "-99999999999999999999"
+    ],
+    "replaced": [
+      "1e-08",
+      "-1e-08",
+      "1e+20",
+      "-1e+20",
+      "100000000000000000000",
+      "-100000000000000000000",
+      "5e-324",
+      "1.7976931348623157e+308"
     ]
   },
   "cases": [
@@ -606,7 +637,7 @@
     },
     {
       "name": "records the Runtime built",
-      "bytes": 8042,
+      "bytes": 8074,
       "runtimeInputs": {
         "reportId": "worker-runtime-built",
         "durationMs": 21,
@@ -903,18 +934,18 @@
               "smallExponent": 5e-05,
               "tinyExponent": 1e-07,
               "largeExponent": 1e+16,
-              "hugeExponent": 1e+21,
+              "hugeExponent": "[NUMBER_OUT_OF_RANGE]",
               "negativeZero": -0.0,
               "integralFloat": 1.0,
               "integralLargeFloat": 1000000000000000.0,
-              "negativeTiny": -1.5e-300,
-              "largestFloat": 1.7976931348623157e+308,
+              "negativeTiny": "[NUMBER_OUT_OF_RANGE]",
+              "largestFloat": "[NUMBER_OUT_OF_RANGE]",
               "fraction": 0.1,
               "integerAbove2To53": 9007199254740993,
-              "integerBeyondFloat": 1180591620717411303424,
+              "integerBeyondFloat": "[NUMBER_OUT_OF_RANGE]",
               "negativeInteger": -42
             },
-            "argumentsTruncated": false,
+            "argumentsTruncated": true,
             "outcome": "succeeded"
           },
           {
@@ -1315,45 +1346,45 @@
           "bytes": 7482
         },
         {
-          "maximumBytes": 7944,
+          "maximumBytes": 7976,
           "toolCallsFrom": 2,
           "errorsFrom": 0,
           "truncated": true,
           "bytes": 7482
         },
         {
-          "maximumBytes": 7945,
+          "maximumBytes": 7977,
           "toolCallsFrom": 1,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 7945
+          "bytes": 7977
         },
         {
-          "maximumBytes": 8041,
+          "maximumBytes": 8073,
           "toolCallsFrom": 1,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 7945
+          "bytes": 7977
         },
         {
-          "maximumBytes": 8042,
+          "maximumBytes": 8074,
           "toolCallsFrom": 0,
           "errorsFrom": 0,
           "truncated": false,
-          "bytes": 8042
+          "bytes": 8074
         },
         {
-          "maximumBytes": 8043,
+          "maximumBytes": 8075,
           "toolCallsFrom": 0,
           "errorsFrom": 0,
           "truncated": false,
-          "bytes": 8042
+          "bytes": 8074
         }
       ]
     },
     {
       "name": "numbers and an empty arguments object as received",
-      "bytes": 838,
+      "bytes": 837,
       "report": {
         "reportId": "worker-numbers",
         "complete": true,
@@ -1384,7 +1415,7 @@
               "largeExponent": 1e+16,
               "negativeZero": -0.0,
               "integralFloat": 3.0,
-              "integerBeyondFloat": 1180591620717411303424
+              "integerAtUpperBound": 99999999999999999999
             }
           },
           {
@@ -1474,39 +1505,39 @@
           "bytes": 510
         },
         {
-          "maximumBytes": 746,
+          "maximumBytes": 745,
           "toolCallsFrom": 2,
           "errorsFrom": 0,
           "truncated": true,
           "bytes": 510
         },
         {
-          "maximumBytes": 747,
+          "maximumBytes": 746,
           "toolCallsFrom": 1,
           "errorsFrom": 0,
           "truncated": true,
-          "bytes": 747
+          "bytes": 746
+        },
+        {
+          "maximumBytes": 836,
+          "toolCallsFrom": 1,
+          "errorsFrom": 0,
+          "truncated": true,
+          "bytes": 746
         },
         {
           "maximumBytes": 837,
-          "toolCallsFrom": 1,
+          "toolCallsFrom": 0,
           "errorsFrom": 0,
-          "truncated": true,
-          "bytes": 747
+          "truncated": false,
+          "bytes": 837
         },
         {
           "maximumBytes": 838,
           "toolCallsFrom": 0,
           "errorsFrom": 0,
           "truncated": false,
-          "bytes": 838
-        },
-        {
-          "maximumBytes": 839,
-          "toolCallsFrom": 0,
-          "errorsFrom": 0,
-          "truncated": false,
-          "bytes": 838
+          "bytes": 837
         }
       ]
     },

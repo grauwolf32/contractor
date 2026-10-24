@@ -36,6 +36,13 @@ type reportTrimFixture struct {
 		SensitiveNames       []string `json:"sensitiveNames"`
 		SafeDerivedSizeNames []string `json:"safeDerivedSizeNames"`
 	} `json:"redaction"`
+	ArgumentNumbers struct {
+		MinExponent int      `json:"minExponent"`
+		MaxExponent int      `json:"maxExponent"`
+		Marker      string   `json:"marker"`
+		Kept        []string `json:"kept"`
+		Replaced    []string `json:"replaced"`
+	} `json:"argumentNumbers"`
 	Cases []reportTrimCase `json:"cases"`
 }
 
@@ -47,6 +54,87 @@ func readReportTrimFixture(t *testing.T) reportTrimFixture {
 		t.Fatalf("decode trim cases: %v (%d cases)", err, len(fixture.Cases))
 	}
 	return fixture
+}
+
+// TestSharedArgumentNumbersAgreeWithTheRuntime checks LIM-OBS-16 on the
+// numbers the Runtime writes: a kept literal passes receipt and the Server's
+// sanitizer unchanged; a replaced one fails receipt and becomes the shared
+// marker wherever the Server builds a summary itself.
+func TestSharedArgumentNumbersAgreeWithTheRuntime(t *testing.T) {
+	numbers := readReportTrimFixture(t).ArgumentNumbers
+	if numbers.Marker != reporting.ArgumentNumberMarker || len(numbers.Kept) == 0 || len(numbers.Replaced) == 0 {
+		t.Fatalf("shared argument numbers = %+v, marker %q", numbers, reporting.ArgumentNumberMarker)
+	}
+	for exponent, want := range map[int]bool{
+		numbers.MinExponent - 1: true, numbers.MinExponent: false,
+		numbers.MaxExponent: false, numbers.MaxExponent + 1: true,
+	} {
+		if got := reporting.ArgumentNumberOutOfRange(json.Number(fmt.Sprintf("1e%d", exponent))); got != want {
+			t.Fatalf("1e%d out of range = %t, want %t", exponent, got, want)
+		}
+	}
+	policy := NewPolicy()
+	check := func(literal string, kept bool) {
+		t.Helper()
+		value := json.Number(literal)
+		sanitized, changed := policy.sanitizeValue(value, 1)
+		// Receipt decodes the record as a Runtime sends it.
+		_, err := contracts.DecodePrivateStrict[reporting.ExecutionReport]([]byte(
+			`{"reportId":"worker-numbers","complete":true,"metrics":{"tools":{}},"toolCalls":[` +
+				`{"callId":"call-1","tool":"rank","arguments":{"value":` + literal + `},` +
+				`"argumentsTruncated":false,"outcome":"succeeded"}],"errors":[],"truncated":false}`))
+		if kept && (changed || sanitized != value || err != nil) {
+			t.Fatalf("kept %s became %v (changed %t, validation %v)", literal, sanitized, changed, err)
+		}
+		if !kept && (!changed || sanitized != reporting.ArgumentNumberMarker || err == nil) {
+			t.Fatalf("replaced %s became %v (changed %t, validation %v)", literal, sanitized, changed, err)
+		}
+	}
+	for _, literal := range numbers.Kept {
+		check(literal, true)
+	}
+	for _, literal := range numbers.Replaced {
+		check(literal, false)
+	}
+}
+
+// TestPolicyMarksNumbersTheServerBuiltOutsideTheirRange covers a Planner
+// summary, whose numbers are Go values judged by the JSON encoding/json writes
+// for them: the Server writes the marker the Runtime writes and the report
+// stays valid instead of being lost.
+func TestPolicyMarksNumbersTheServerBuiltOutsideTheirRange(t *testing.T) {
+	report := reporting.ExecutionReport{
+		ReportID: "planner-numbers", Complete: true,
+		Metrics: reporting.ExecutionMetrics{Tools: map[string]reporting.ToolMetrics{}},
+		ToolCalls: []reporting.ToolCallRecord{{
+			CallID: "call-1", Tool: "rank", Outcome: reporting.ToolCallSucceeded,
+			Arguments: map[string]any{
+				"kept": []any{1e-7, 65535.0, int64(math.MaxInt64), uint64(math.MaxUint64), 9.999999999999998e19},
+				"tiny": 1e-9, "huge": 1e20, "nan": math.NaN(), "infinite": math.Inf(-1),
+				"content_bytes": json.Number("100000000000000000000"),
+			},
+		}},
+		Errors: []reporting.ExecutionError{},
+	}
+	normalized, err := NewPolicy().NormalizeExecutionReport(report, MaxReportJSONBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	call := normalized.ToolCalls[0]
+	if !call.ArgumentsTruncated {
+		t.Fatal("a replaced number did not mark the arguments truncated")
+	}
+	for _, key := range []string{"tiny", "huge", "nan", "infinite"} {
+		if call.Arguments[key] != reporting.ArgumentNumberMarker {
+			t.Fatalf("%s = %#v, want the marker", key, call.Arguments[key])
+		}
+	}
+	if kept := fmt.Sprint(call.Arguments["kept"]); kept != fmt.Sprint(report.ToolCalls[0].Arguments["kept"]) {
+		t.Fatalf("in-range numbers became %s", kept)
+	}
+	if placeholder, ok := call.Arguments["content_bytes"].(map[string]any); !ok || placeholder["redacted"] != true {
+		t.Fatalf("an out-of-range derived size = %#v, want the redaction placeholder", call.Arguments["content_bytes"])
+	}
 }
 
 // The Runtime checks that it treats every listed name as sensitive, so the

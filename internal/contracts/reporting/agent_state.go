@@ -270,7 +270,7 @@ func validateStateToolCall(call WorkerStateToolCall) error {
 	}
 	if call.Arguments != nil {
 		if !call.Arguments.numbersInRange() {
-			return contracts.Invalidf("Worker State tool arguments hold a number outside the float64 range")
+			return contracts.Invalidf("Worker State tool arguments hold a number outside their range")
 		}
 		size, err := contracts.ResultJSONSize(call.Arguments)
 		if err != nil || size > 4096 {

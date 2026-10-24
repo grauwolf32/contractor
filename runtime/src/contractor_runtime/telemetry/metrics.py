@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import math
 import re
 from collections.abc import Mapping, Sequence
 from contextvars import ContextVar, Token
@@ -23,7 +22,7 @@ from contractor_runtime.contracts import (
     WorkerCompletionDiagnostics,
     WorkerSummarizerMetrics,
 )
-from contractor_runtime.contracts.base import fits_float64
+from contractor_runtime.contracts.base import ARGUMENT_NUMBER_MARKER, argument_number_in_range
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.llm.errors import GatewayFailure
 from contractor_runtime.llm.usage import project_token_usage
@@ -649,7 +648,7 @@ def _sanitize_metric_value(
         and _metric_identifier(key) in SAFE_DERIVED_SIZE_METRIC_KEYS
         and type(value) is int
         and value >= 0
-        and fits_float64(value)
+        and argument_number_in_range(value)
     ):
         return value, False
     if key is not None and _is_sensitive_metric_key(key):
@@ -667,11 +666,11 @@ def _sanitize_metric_value(
         return bounded, bounded != value
     if value is None or isinstance(value, bool):
         return value, False
-    if isinstance(value, int):
-        # The Server rejects a number beyond the float64 range (LIM-OBS-16).
-        return (value, False) if fits_float64(value) else ("[NON_FINITE]", True)
-    if isinstance(value, float):
-        return (value, False) if math.isfinite(value) else ("[NON_FINITE]", True)
+    if isinstance(value, int | float):
+        # The Server rejects a number outside LIM-OBS-16, NaN and infinities.
+        if argument_number_in_range(value):
+            return value, False
+        return ARGUMENT_NUMBER_MARKER, True
     if isinstance(value, Mapping):
         result: dict[str, Any] = {}
         truncated = False

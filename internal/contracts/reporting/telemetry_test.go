@@ -116,21 +116,23 @@ func TestSharedMalformedRuntimeAdapterMetricsBecomeIncompleteInsteadOfBlockingRe
 // number as Python does (1e+16, 5e-05, -0.0, 1.0); the Server keeps those
 // literals, so a summary at the 4096-byte bound stays within it and integers
 // beyond 2^53 keep their value (OBS-R42).
-// TestToolArgumentsRejectNumbersOutsideTheFloat64Range pins LIM-OBS-16: a
-// number is finite as a float64 and writes an exponent between -324 and 308,
-// at any depth of the summary and in both message types that carry one.
-func TestToolArgumentsRejectNumbersOutsideTheFloat64Range(t *testing.T) {
+// TestToolArgumentsRejectNumbersOutsideTheirRange pins LIM-OBS-16 on the
+// literal as received, in both message types that carry a summary: a number is
+// zero or its leading digit's decimal exponent lies between -7 and 19, and it
+// writes no exponent outside that range. The written-exponent rule is the
+// Server's alone, since the Runtime never writes such a form.
+func TestToolArgumentsRejectNumbersOutsideTheirRange(t *testing.T) {
 	t.Parallel()
 
 	accepted := []string{
-		"5e-324", "-5e-324", "0e-324", "1e308", "1E+0308", "0e308", "-0.0",
-		"1.7976931348623157e+308", "1180591620717411303424", "1" + strings.Repeat("0", 308),
-		`[1,{"nested":2.5e-300}]`,
+		"0", "-0.0", "0e-7", "0E+19", "1e-7", "-1e-07", "1E+0019", "0.0000001", "1.0e-7",
+		"9.999999999999998e+19", "99999999999999999999", "-99999999999999999999",
+		"0.00012e3", "0.00000000000001e7", "123456789012345678.9", `[1,{"nested":2.5e-7}]`,
 	}
 	rejected := []string{
-		"1e999999", "-1e400", "1.7976931348623159e308", "1" + strings.Repeat("0", 309),
-		"0e-325", "1e-400", "1e-20000", "0e-16383", "0e309", "0e2147483648",
-		`[1,{"nested":1e999999}]`,
+		"1e-8", "-1e-08", "0.00000001", "1e+20", "100000000000000000000", "10e19",
+		"0e-8", "0e20", "1e-400", "0e-16383", "1e999999", "5e-324", "1.7976931348623157e+308",
+		"0.000000000000001e7", `[1,{"nested":1e+20}]`,
 	}
 	validate := func(literal string) []error {
 		record := `{"callId":"tool-1","tool":"rank","arguments":{"value":` + literal +

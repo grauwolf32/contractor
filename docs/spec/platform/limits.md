@@ -509,7 +509,7 @@ its owning requirement.
 | `LIM-OBS-13` | at most 256 KiB of UTF-8 per field | each captured input or output content field | otlp-http@1 Planner and Worker exporters | [OBS-R60](observability.md) |
 | `LIM-OBS-14` | uint64 maximum (2^64-1), saturating | adapters["otlp-http@1"].droppedSpans counters | Worker otlp-http@1 exporter | [OBS-R83](observability.md) |
 | `LIM-OBS-15` | at most 1 OTLP request per Planner invocation | Planner telemetry export after the Planner returns | Server Planner telemetry exporter | [OBS-R99](observability.md) |
-| `LIM-OBS-16` | finite as a float64, exponent between -324 and 308 | each number in a tool argument summary of an execution report or Worker State | Server report decoding; Runtime argument summary, which writes an integer beyond the float64 range as "[NON_FINITE]" | [OBS-R42](observability.md) |
+| `LIM-OBS-16` | zero, or leading-digit and written decimal exponent between -7 and 19 | each number in a tool argument summary of an execution report or Worker State | Server report validation on receipt; Runtime and Server argument summaries, which write any other number, NaN and infinities as "[NUMBER_OUT_OF_RANGE]" | [OBS-R42](observability.md), [OBS-R110](observability.md) |
 | `LIM-OPS-1` | 15 s sampling interval | Server process, HTTP snapshot and pgx pool sampling; NVIDIA GPU sampling | Server performance samplers | [OPS-R86](../operations/operations.md) |
 | `LIM-OPS-2` | 60 minutes | In-memory fine history of Server process/HTTP/pool and GPU frames | Server performance sampler buffers | [OPS-R86](../operations/operations.md) |
 | `LIM-OPS-3` | 60 s | PostgreSQL activity and cumulative statistics collection | Server PostgreSQL performance collector | [OPS-R86](../operations/operations.md) |

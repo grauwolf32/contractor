@@ -248,7 +248,7 @@ func isRedactionPlaceholder(value any) bool {
 
 func isSafeDerivedSize(key string, value any) bool {
 	_, safe := safeDerivedSizeKeys[metricIdentifier(key)]
-	return safe && isNonNegativeInteger(value)
+	return safe && isNonNegativeInteger(value) && !reporting.ArgumentNumberOutOfRange(value)
 }
 
 // isNonNegativeInteger accepts a decoded literal of digits only, which JSON
@@ -280,8 +280,15 @@ func (p Policy) sanitizeValue(source any, depth int) (any, bool) {
 		return truncatedValue, true
 	}
 	switch value := source.(type) {
-	case nil, bool, json.Number, float64, float32, int, int8, int16, int32, int64,
+	case nil, bool:
+		return value, false
+	case json.Number, float64, float32, int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64:
+		// A number the summary cannot keep becomes the marker the Runtime
+		// writes for it (LIM-OBS-16); a Runtime number is already in range.
+		if reporting.ArgumentNumberOutOfRange(value) {
+			return reporting.ArgumentNumberMarker, true
+		}
 		return value, false
 	case string:
 		result := p.redactText(value)
