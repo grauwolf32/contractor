@@ -28,7 +28,7 @@ func (c *Controller) closeInvalidNextRound(
 		Code:    "next_round_invalid",
 		Message: "The next Audit Round failed deterministic proposal or item validation.",
 	}
-	return reconciliationDone(c.closeForRoleFailure(ctx, claim, audit, reason))
+	return reconciliationDone(c.closeActiveAudit(ctx, claim, audit, reason))
 }
 
 // closeInconsistentNextRound stops an Audit whose retained state cannot form
@@ -44,7 +44,7 @@ func (c *Controller) closeInconsistentNextRound(
 		Code:    "next_round_contract_invalid",
 		Message: "The next Audit Round cannot be prepared because " + inconsistent.Diagnostic + ".",
 	}
-	return reconciliationDone(c.closeForRoleFailure(ctx, claim, audit, reason))
+	return reconciliationDone(c.closeActiveAudit(ctx, claim, audit, reason))
 }
 
 func (c *Controller) progressRound(ctx context.Context, claim auditstore.ControllerClaim, snapshot auditstore.ReconcileSnapshot) *reconcileResult {
@@ -59,7 +59,7 @@ func (c *Controller) progressRound(ctx context.Context, claim auditstore.Control
 				return reconciliationDone(changed, err)
 			}
 			if reason != nil {
-				return reconciliationDone(c.closeForRoleFailure(ctx, claim, audit, reason))
+				return reconciliationDone(c.closeActiveAudit(ctx, claim, audit, reason))
 			}
 			if complete {
 				_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
@@ -96,7 +96,7 @@ func (c *Controller) progressRound(ctx context.Context, claim auditstore.Control
 				return reconciliationDone(changed, err)
 			}
 			if reason != nil {
-				return reconciliationDone(c.closeForRoleFailure(ctx, claim, audit, reason))
+				return reconciliationDone(c.closeActiveAudit(ctx, claim, audit, reason))
 			}
 			if complete {
 				_, err := c.store.TransitionRound(ctx, auditstore.RoundTransitionParams{
@@ -126,7 +126,7 @@ func (c *Controller) progressRound(ctx context.Context, claim auditstore.Control
 						if errors.Is(acceptErr, auditstore.ErrPrecondition) {
 							return reconciliationDone(false, nil)
 						}
-						if nextRoundValidationError(acceptErr) {
+						if c.refusedWrite(audit, "accept next Round", acceptErr) {
 							return c.closeInvalidNextRound(ctx, claim, audit)
 						}
 						return reconciliationDone(acceptErr == nil, acceptErr)
@@ -138,12 +138,7 @@ func (c *Controller) progressRound(ctx context.Context, claim auditstore.Control
 						Code: "round_complete", Message: "The immutable Audit round reached its settlement barrier.",
 					}
 				}
-				_, err := c.store.TransitionClaimed(ctx, auditstore.ClaimedTransitionParams{
-					Claim: claim, ExpectedRevision: audit.Revision,
-					ExpectedState: auditstore.AuditActive, TargetState: auditstore.AuditFinalizing,
-					Reason: reason,
-				})
-				return reconciliationDone(err == nil, err)
+				return reconciliationDone(c.closeActiveAudit(ctx, claim, audit, reason))
 			}
 		}
 	}

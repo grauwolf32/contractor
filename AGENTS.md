@@ -371,7 +371,8 @@ Run commands from the repository root. Pick checks by the boundary you changed
 Notes:
 
 - Database tests need a disposable database whose user can create and drop
-  schemas:
+  schemas and databases (`CREATEDB`; read-budget tests measure in a database
+  of their own, see `docs/testing/README.md`):
   `export CONTRACTOR_TEST_DATABASE_URL='postgres://…/contractor_test?sslmode=disable'`.
   Parallel agents use separate databases or schemas.
 - Build tags: `integration` marks PostgreSQL-only integration tests (picked up

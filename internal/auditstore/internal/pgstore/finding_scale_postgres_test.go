@@ -25,7 +25,8 @@ import (
 // probe reads only uncollected executions where it read every collected one
 // (20,001). Kept statements have their measured budgets: an exact count reads
 // each row it counts, and a review page reads one fetch. Every result equals
-// an independent read of the fixture. Each budget adds supersededEntries.
+// an independent read of the fixture, which has a database of its own, so
+// the budgets count live rows only. Each budget adds planningEntries.
 func TestPostgresAuditReadsAtFindingScale(t *testing.T) {
 	f := newFindingScaleFixture(t)
 	owner, auditID := f.audit.OwnerID, f.audit.AuditID
@@ -72,7 +73,7 @@ SELECT (SELECT count(*) FROM audit_findings WHERE audit_id = $1),
 		t.Helper()
 		plan := explainPrepared(t, f.ctx, f.pool, mode, statement, args...)
 		for table, rows := range budgets {
-			budget, read := rows+supersededEntries, plan.Reads.Of(table)
+			budget, read := rows+planningEntries, plan.Reads.Of(table)
 			if read > budget {
 				t.Fatalf("%s: read %d %s rows, budget %d\n%s", mode, read, table, budget, plan.Plan)
 			}
@@ -216,7 +217,7 @@ func requireUncollectedProbe(t *testing.T, ctx context.Context, pool *pgxpool.Po
 	t.Helper()
 	for _, mode := range explaintest.Modes {
 		plan := explainPrepared(t, ctx, pool, mode, uncollectedProbeSQL, auditID)
-		if read := plan.Reads.Of("audit_executions"); read > supersededEntries {
+		if read := plan.Reads.Of("audit_executions"); read > planningEntries {
 			t.Fatalf("%s: the probe read %d executions of an Audit without uncollected ones\n%s", mode, read, plan.Plan)
 		}
 	}

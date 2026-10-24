@@ -31,8 +31,9 @@ const (
 // unreviewed findings, findingScaleFindings pending triage reviews of which
 // half are past their expiry without anything having stored it,
 // findingScaleExecutions + 1 collected executions, and background and empty
-// Audits of the same owner. The copies are read-model fixtures: they satisfy
-// the schema, not every store rule.
+// Audits of the same owner, in a database of its own and vacuumed, so its
+// reads visit no superseded version of what the store wrote. The copies are
+// read-model fixtures: they satisfy the schema, not every store rule.
 type findingScaleFixture struct {
 	collectingAuditFixture
 	findingID string
@@ -40,7 +41,7 @@ type findingScaleFixture struct {
 
 func newFindingScaleFixture(t *testing.T) findingScaleFixture {
 	t.Helper()
-	f := newCollectingAuditFixture(t, "finding-scale", 1<<20)
+	f := newCollectingAuditFixture(t, "finding-scale", 1<<20, collectingAuditFixtureOptions{ownDatabase: true})
 	// The copies and the reads outlast the collecting fixture's deadline.
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	t.Cleanup(cancel)
@@ -121,7 +122,7 @@ SELECT 'review-' || finding_id, audit_id, finding_id, 'finding', finding_id, 'fi
 		t.Fatal(err)
 	}
 	for _, table := range []string{"audit_findings", "audit_review_requests", "audit_executions", "audits", "finding_proposal_receipts"} {
-		if _, err := f.pool.Exec(f.ctx, `ANALYZE `+pgx.Identifier{table}.Sanitize()); err != nil {
+		if _, err := f.pool.Exec(f.ctx, `VACUUM (INDEX_CLEANUP ON, ANALYZE) `+pgx.Identifier{table}.Sanitize()); err != nil {
 			t.Fatal(err)
 		}
 	}

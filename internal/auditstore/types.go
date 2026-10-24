@@ -28,7 +28,10 @@ const (
 	MaxRetainedRefsBytes           = 8 << 20
 	MaxAttemptProjection           = pagelimit.MaxRows * 10
 	MaxAuditRoleExecutionsPerRound = 256
-	ItemOriginSchema               = "contractor.audit.item-origin.v1"
+	// MaxStopReasonMessageBytes bounds a stop reason message, as the
+	// audits_stop_reason_message_check constraint does.
+	MaxStopReasonMessageBytes = 4 << 10
+	ItemOriginSchema          = "contractor.audit.item-origin.v1"
 )
 
 type AuditState string
