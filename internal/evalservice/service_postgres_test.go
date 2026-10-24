@@ -976,8 +976,18 @@ func TestSharedPostgresProjectDeletionWaitsForUncertainRunAndFencesRemainingMemb
 	if err != nil || !blocked {
 		t.Fatal("uncertain creation did not block purge", err)
 	}
-	if err = h.service.tx(t.Context(), func(s *evalstore.Store) error { return s.Purge(t.Context(), h.scope, e.ID) }); !errors.Is(err, evalstore.ErrDrain) {
+	claims, err := store.Claim(t.Context(), "drain-check", time.Minute, 1)
+	if err != nil || len(claims) != 1 || claims[0].ExperimentID != e.ID {
+		t.Fatalf("claim the deleting experiment = %+v, %v", claims, err)
+	}
+	if err = h.service.tx(t.Context(), func(s *evalstore.Store) error {
+		_, err := s.Purge(t.Context(), h.scope, e.ID, claims[0])
+		return err
+	}); !errors.Is(err, evalstore.ErrDrain) {
 		t.Fatal("uncertain work purged", err)
+	}
+	if err = store.ReleaseClaim(t.Context(), claims[0]); err != nil {
+		t.Fatal(err)
 	}
 	tick(t, c)
 	h.finishRuns(t)

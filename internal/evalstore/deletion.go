@@ -2,10 +2,34 @@ package evalstore
 
 import (
 	"context"
+	"errors"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
 )
+
+// purgeBatchBytes is the stored-row-byte budget of one Eval purge pass
+// (LIM-EVM-19). It holds the largest row a validated write can store, about
+// 10.8 MiB, so a fresh pass always fits the next row; the row budget is the
+// shared CleanupBatchRows.
+const purgeBatchBytes = 16 << 20
+
+// PurgeProgress reports one bounded Eval purge pass (EVM-R242): the rows it
+// deleted or rewrote, counting the rows its triggers and cascades wrote, their
+// stored bytes, and whether nothing of the purged scope is left.
+type PurgeProgress struct {
+	Rows, Bytes int64
+	Done        bool
+}
+
+func newPurgeBudget() pg.CleanupBudget {
+	return pg.CleanupBudget{RowLimit: pg.CleanupBatchRows, ByteLimit: purgeBatchBytes}
+}
+
+func purgeProgress(budget pg.CleanupBudget, done bool) PurgeProgress {
+	return PurgeProgress{Rows: budget.Rows, Bytes: budget.Bytes, Done: done}
+}
 
 func (s *Store) BeginDeletion(ctx context.Context, scope Scope, id string, mutation evaldomain.MutationIdentity) (Receipt, error) {
 	return mutate(ctx, s, scope, id, "delete", mutation, func() (ExperimentReceipt, error) {
@@ -33,95 +57,189 @@ SELECT EXISTS(SELECT 1 FROM eval_experiments e WHERE e.owner_id=$1 AND e.project
 	return blocked, err
 }
 
-// Purge removes only private eval records. Execution deletion belongs to the
-// ordinary services and every owned Audit workspace must already have drained.
-func (s *Store) Purge(ctx context.Context, scope Scope, id string) error {
+// Purge runs one bounded pass of an experiment's purge under the Eval
+// controller's claim (EVM-R242). It removes only private eval records:
+// execution deletion belongs to the ordinary services, and every owned Audit
+// workspace must already have drained. Nothing is removed unless the
+// experiment is fenced and drained. The experiment's mutation receipts stay
+// until Project purge, so retries replay instead of recreating effects
+// (EVM-R226). A pass commits on its own; the caller starts the next one in a
+// later transaction until Done.
+func (s *Store) Purge(ctx context.Context, scope Scope, id string, claim Claim) (PurgeProgress, error) {
 	if err := s.requireTx(); err != nil {
-		return err
+		return PurgeProgress{}, err
 	}
 	if _, err := s.project(ctx, scope, true); err != nil {
-		return err
+		return PurgeProgress{}, err
 	}
 	e, err := s.locked(ctx, scope, id)
 	if err != nil {
-		return err
+		return PurgeProgress{}, err
+	}
+	if err = s.checkClaim(ctx, id, claim); err != nil {
+		return PurgeProgress{}, err
 	}
 	if e.DeletionRequestedAt == nil || e.Outstanding != 0 {
-		return ErrDrain
+		return PurgeProgress{}, ErrDrain
 	}
 	var blocked bool
-	err = s.db.QueryRow(ctx, `
-SELECT EXISTS(SELECT 1
-    FROM eval_suboperations
-    WHERE experiment_id=$1
-        AND state='intent') OR EXISTS(SELECT 1
-    FROM eval_submissions s
-    JOIN projects p ON p.project_id=s.execution_project_id
-    WHERE s.experiment_id=$1)
-`, id).Scan(&blocked)
-	if err != nil {
-		return err
+	if err = s.db.QueryRow(ctx, purgeBlockedSQL, id).Scan(&blocked); err != nil {
+		return PurgeProgress{}, err
 	}
 	if blocked {
-		return ErrDrain
+		return PurgeProgress{}, ErrDrain
 	}
-	if _, err = s.db.Exec(ctx, `SELECT set_config('contractor.eval_purge','on',true)`); err != nil {
-		return err
+	if err = s.allowPurge(ctx); err != nil {
+		return PurgeProgress{}, err
 	}
-	if _, err = s.db.Exec(ctx, `DELETE FROM eval_selections WHERE experiment_id=$1`, id); err != nil {
-		return err
-	}
-	// Keep mutation receipts until Project purge: retries must not recreate effects.
-	_, err = s.db.Exec(ctx, `DELETE FROM eval_experiments WHERE experiment_id=$1 AND owner_id=$2`, id, scope.OwnerID)
-	return err
+	budget := newPurgeBudget()
+	done, err := s.purgeExperiment(ctx, e, &budget)
+	return purgeProgress(budget, done), err
 }
 
-func (s *Store) PurgeProject(ctx context.Context, scope Scope) error {
+// PurgeProject runs one bounded pass of the private Eval data purge of a
+// deleting Project (EVM-R242, DEL-R60). It runs in the Project controller's
+// transaction, after its row lock and the ordinary Run and Audit purge, when
+// every experiment is fenced. Its experiments, in identifier order, then its
+// dataset revisions, its collection row and its Eval mutation receipts share
+// one budget. Done reports that no Eval data of the Project is left.
+func (s *Store) PurgeProject(ctx context.Context, scope Scope) (PurgeProgress, error) {
 	if err := s.requireTx(); err != nil {
-		return err
+		return PurgeProgress{}, err
 	}
 	var lifecycle string
 	err := s.db.QueryRow(ctx, `SELECT lifecycle_state FROM projects WHERE owner_id=$1 AND project_id=$2 FOR SHARE`, scope.OwnerID, scope.ProjectID).Scan(&lifecycle)
 	if err != nil {
-		return normalize(err)
+		return PurgeProgress{}, normalize(err)
 	}
 	if lifecycle != "deleting" {
-		return evaldomain.Failure("eval_not_ready")
+		return PurgeProgress{}, evaldomain.Failure("eval_not_ready")
 	}
 	blocked, err := s.ProjectBlocked(ctx, scope.OwnerID, scope.ProjectID)
 	if err != nil {
-		return err
+		return PurgeProgress{}, err
 	}
 	if blocked {
-		return ErrDrain
+		return PurgeProgress{}, ErrDrain
 	}
-	// Final purge is invoked in the Project controller's transaction, after its
-	// row lock and ordinary Run/Audit drain. All experiments are already fenced.
 	var unsafe bool
-	err = s.db.QueryRow(ctx, purgeProjectSQL, scope.OwnerID, scope.ProjectID).Scan(&unsafe)
-	if err != nil {
-		return err
+	if err = s.db.QueryRow(ctx, purgeProjectSQL, scope.OwnerID, scope.ProjectID).Scan(&unsafe); err != nil {
+		return PurgeProgress{}, err
 	}
 	if unsafe {
-		return ErrDrain
+		return PurgeProgress{}, ErrDrain
 	}
-	if _, err = s.db.Exec(ctx, `SELECT set_config('contractor.eval_purge','on',true)`); err != nil {
-		return err
+	if err = s.allowPurge(ctx); err != nil {
+		return PurgeProgress{}, err
 	}
-	if _, err = s.db.Exec(ctx, `
-DELETE
-FROM eval_selections
-WHERE experiment_id IN (SELECT experiment_id
-    FROM eval_experiments
-    WHERE owner_id=$1
-        AND project_id=$2)
-`, scope.OwnerID, scope.ProjectID); err != nil {
-		return err
-	}
-	for _, table := range []string{"eval_experiments", "eval_dataset_revisions", "eval_collections"} {
-		if _, err = s.db.Exec(ctx, `DELETE FROM `+table+` WHERE owner_id=$1 AND project_id=$2`, scope.OwnerID, scope.ProjectID); err != nil {
-			return err
+	budget := newPurgeBudget()
+	for {
+		var id string
+		err = s.db.QueryRow(ctx, nextPurgedExperimentSQL, scope.OwnerID, scope.ProjectID).Scan(&id)
+		if errors.Is(err, pgx.ErrNoRows) {
+			break
+		}
+		if err != nil {
+			return PurgeProgress{}, err
+		}
+		e, err := s.locked(ctx, scope, id)
+		if evaldomain.IsCode(err, "eval_not_found") {
+			continue // An experiment purge finished it concurrently.
+		}
+		if err != nil {
+			return PurgeProgress{}, err
+		}
+		if gone, err := s.purgeExperiment(ctx, e, &budget); err != nil || !gone {
+			return purgeProgress(budget, false), err
 		}
 	}
-	return pg.PurgeEvalReceipts(ctx, s.db, scope.OwnerID, scope.ProjectID)
+	// Every experiment is gone, so no dataset revision is still referenced.
+	steps := []func() (bool, error){
+		func() (bool, error) {
+			return pg.DeleteWithinBudget(ctx, s.db, &budget, "eval_dataset_revisions",
+				purgeRowBytes["eval_dataset_revisions"]+" + "+collectionPairBytes,
+				"owner_id = $5 AND project_id = $6", 3, scope.OwnerID, scope.ProjectID)
+		},
+		func() (bool, error) {
+			return pg.DeleteWithinBudget(ctx, s.db, &budget, "eval_collections", purgeRowBytes["eval_collections"],
+				"owner_id = $5 AND project_id = $6", 1, scope.OwnerID, scope.ProjectID)
+		},
+		func() (bool, error) {
+			return pg.DeleteEvalReceiptsWithinBudget(ctx, s.db, &budget, scope.OwnerID, scope.ProjectID)
+		},
+	}
+	for _, step := range steps {
+		if gone, err := step(); err != nil || !gone {
+			return purgeProgress(budget, false), err
+		}
+	}
+	return purgeProgress(budget, true), nil
+}
+
+// Purging reports whether a purge may already have removed rows that the
+// experiment's member-level reads need: its deletion is requested and it has
+// no selected view, which the first purge pass removes before anything else
+// (EVM-R243). Such reads answer eval_project_deleting instead of a partial
+// result.
+func (s *Store) Purging(ctx context.Context, owner, id string) (bool, error) {
+	var purging bool
+	err := s.db.QueryRow(ctx, `
+SELECT e.deletion_requested_at IS NOT NULL AND NOT EXISTS(SELECT 1
+    FROM eval_projection_queue q
+    WHERE q.experiment_id = e.experiment_id AND q.generation IS NOT NULL)
+FROM eval_experiments e
+WHERE e.owner_id = $1 AND e.experiment_id = $2`, owner, id).Scan(&purging)
+	return purging, normalize(err)
+}
+
+// allowPurge lets this transaction delete the immutable Eval rows and Eval
+// receipts; nothing else may.
+func (s *Store) allowPurge(ctx context.Context) error {
+	_, err := s.db.Exec(ctx, `SELECT set_config('contractor.eval_purge','on',true)`)
+	return err
+}
+
+// purgeExperiment spends budget on one fenced, drained experiment that the
+// caller has locked, leaf first, and reports whether the experiment is gone.
+// It stops at the first table the budget cannot empty: no parent is deleted
+// while a child row is left, so no cascade removes uncounted rows. The first
+// pass removes the selected view pointer before deleting a row of that view.
+// The experiment row lock and the projection queue row lock keep every writer
+// of a dependent row out of the pass, and the experiment row, with its frozen
+// plan, queue and claim, goes last.
+func (s *Store) purgeExperiment(ctx context.Context, e Experiment, budget *pg.CleanupBudget) (bool, error) {
+	var selected bool
+	var queueBytes int64
+	err := s.db.QueryRow(ctx, lockPurgedQueueSQL, e.ID).Scan(&selected, &queueBytes)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+	case err != nil:
+		return false, err
+	case selected:
+		if !budget.Fits(1, queueBytes) {
+			return false, nil
+		}
+		if _, err = s.db.Exec(ctx, invalidatePurgedViewSQL, e.ID); err != nil {
+			return false, err
+		}
+		budget.Charge(1, queueBytes)
+	}
+	for _, table := range experimentPurgePhases {
+		gone, err := pg.DeleteWithinBudget(ctx, s.db, budget, table, purgeRowBytes[table], "experiment_id = $5", 1, e.ID)
+		if err != nil || !gone {
+			return false, err
+		}
+	}
+	var rows, bytes int64
+	if err = s.db.QueryRow(ctx, finalPurgeUnitSQL, e.ID).Scan(&rows, &bytes); err != nil {
+		return false, err
+	}
+	if !budget.Fits(rows, bytes) {
+		return false, nil
+	}
+	if _, err = s.db.Exec(ctx, `DELETE FROM eval_experiments WHERE experiment_id=$1 AND owner_id=$2`, e.ID, e.OwnerID); err != nil {
+		return false, err
+	}
+	budget.Charge(rows, bytes)
+	return true, nil
 }

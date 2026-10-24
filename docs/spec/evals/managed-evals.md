@@ -1164,9 +1164,10 @@ those experiments are purged (LIFE-EVM-3).
 
 **EVM-R223.** Experiment DELETE records a durable deletion fence, blocks new
 submissions and assessments, cancels and drains accepted executions, then
-removes the experiment's private data and public views according to the
-existing artifact and Run retention rules ([Retention and
-deletion](../artifacts/retention-and-deletion.md)) (LIFE-EVM-5).
+removes the experiment's private data and public views in bounded passes
+(EVM-R242) according to the existing artifact and Run retention rules
+([Retention and deletion](../artifacts/retention-and-deletion.md))
+(LIFE-EVM-5).
 
 **EVM-R224.** Experiment deletion never deletes an unrelated Run merely sharing
 labels.
@@ -1177,6 +1178,49 @@ and invalidates the affected materialized views (LIFE-EVM-6).
 
 **EVM-R226.** Retained owner-scoped mutation receipts remain replayable after
 experiment purge until the owning Project is purged (LIFE-EVM-7).
+
+**EVM-R242.** An experiment's purge and the private eval purge of a deleting
+Project run in passes bounded by LIM-EVM-19 (FAIL-EVM-9). A pass is one
+transaction that holds the Project row, the experiment row and its
+projection queue row locked and proves its controller's claim: the Eval
+coordinator's claim for an experiment purge, the Project deletion claim for a
+Project purge. It commits on its own, and a controller commits at most one
+pass per tick, then yields and continues from the rows that are left. A pass
+removes nothing until every experiment it purges is fenced by its deletion
+request and drained: no outstanding work, no unresolved side-effect intent and
+no execution workspace that still exists; until then the controller waits.
+
+- The first pass removes the selected view pointer and its summary before it
+  deletes any row of that view.
+- It then empties the experiment's tables leaf first: view pairs and charts,
+  progress observations, selections, evidence references, suboperations,
+  submissions, records, execution tombstones, member projections, members,
+  plan resources and commands. The last unit is the experiment row with the
+  frozen plan, projection queue row and controller claim its deletion
+  cascades to.
+- No parent row is deleted while one of its children is left, so no cascade
+  removes a row the pass has not counted. The pass charges each row it deletes
+  or rewrites, including the collection rows its deletion triggers rewrite,
+  at its stored size, and stops at the first unit that does not fit.
+- The first unit of a pass always goes, so every pass with work left removes
+  at least one row. The byte bound exceeds the largest row a validated write
+  stores (about 10.8 MiB), so only a row that no validated write produces can
+  take a pass beyond it.
+- A Project pass spends one budget on the Project's experiments in identifier
+  order, then its dataset revisions, its collection row and, last, its eval
+  mutation receipts. The Project deletion controller commits a pass that
+  removed or left anything alone, before any finding receipt or Artifact
+  purge ([DEL-R60](../artifacts/retention-and-deletion.md)).
+- An experiment purge keeps the experiment's receipts (EVM-R226).
+
+**EVM-R243.** While an experiment is purged, that is, while its deletion is
+requested and it has no selected view, its detail and list reads keep its
+identity, state, plan digest, if it has a plan, and deletion request time,
+with freshness `pending` and no view snapshot or summary. Reads of its members, pairs,
+report, charts, review context and execution inventory return 409
+`eval_project_deleting` instead of a partial result or denominator. Once the
+pass that deletes the experiment row commits, the experiment is an
+owner-safe 404.
 
 Project deletion and its fence over eval operations are specified by
 [Retention and deletion](../artifacts/retention-and-deletion.md) (DEL-R41 to
@@ -1303,6 +1347,10 @@ Limits ([registry](../platform/limits.md)):
 - LIM-EVM-16 — one exact binding per arm (EVM-R53).
 - LIM-EVM-17 — one materialized summary read per managed Eval list, pair or
   chart request (EVM-R217).
+- LIM-EVM-18 — 1,000 rows and 4 MiB of stored bytes per plan or registration
+  freeze statement (EVM-R241).
+- LIM-EVM-19 — 1,000 row mutations and 16 MiB of stored row bytes per eval
+  purge pass (EVM-R242).
 - The portable format's document, nesting, case, variant, repetition and
   10,000-member limits, [LIM-EVF-3](../platform/limits.md) to
   [LIM-EVF-8](../platform/limits.md), belong to the [portable
@@ -1331,6 +1379,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-EVM-7 — read-model view publication (EVM-R165).
 - FAIL-EVM-8 — paginated reads over a changing view, collection or execution
   inventory (EVM-R186, EVM-R212, EVM-R215).
+- FAIL-EVM-9 — a bounded eval purge pass (EVM-R242).
 - An external producer returning after the Project deletion fence is
   [FAIL-DEL-5](../platform/failure-model.md).
 

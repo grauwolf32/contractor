@@ -381,7 +381,7 @@ func TestSharedPostgresEvalExternalFreezeAdmissionAndDeletionFence(t *testing.T)
 	if blocked, err := NewPostgresStore(pool).ProjectBlocked(ctx, scope.OwnerID, scope.ProjectID); err != nil || !blocked {
 		t.Fatal(blocked, err)
 	}
-	if err = transaction(pool, func(s *Store) error { return s.PurgeProject(ctx, scope) }); !errors.Is(err, ErrDrain) {
+	if err = transaction(pool, func(s *Store) error { _, err := s.PurgeProject(ctx, scope); return err }); !errors.Is(err, ErrDrain) {
 		t.Fatal(err)
 	}
 }
@@ -520,7 +520,9 @@ func TestSharedPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention(t *testing
 	}}); !code(err, "eval_view_changed") {
 		t.Fatal(err)
 	}
-	mustTx(t, pool, func(s *Store) error { return s.Purge(ctx, scope, "exp-00") })
+	if passes := purgeExperimentUntilDone(t, pool, scope, "exp-00"); len(passes) != 1 {
+		t.Fatalf("draft experiment purge passes = %+v, want one", passes)
+	}
 	mustTx(t, pool, func(s *Store) error {
 		r, err := s.BeginDeletion(ctx, scope, "exp-00", m)
 		if err == nil && !r.Replayed {
@@ -532,7 +534,7 @@ func TestSharedPostgresEvalBoundedPagesPinnedPurgeAndReceiptRetention(t *testing
 		t.Fatal("still-pinned revision removed", err)
 	}
 	beginProjectDeletion(t, pool, scope)
-	mustTx(t, pool, func(s *Store) error { return s.PurgeProject(ctx, scope) })
+	purgeProjectUntilDone(t, pool, scope)
 	for _, table := range []string{"eval_experiments", "eval_dataset_revisions", "mutation_receipts"} {
 		var n int
 		if err = pool.QueryRow(ctx, `SELECT count(*) FROM `+table+` WHERE project_id=$1`, scope.ProjectID).Scan(&n); err != nil || n != 0 {
@@ -718,7 +720,7 @@ UPDATE eval_experiments SET state=$2, revision=revision+1,
 			if err != nil || current.State != evaldomain.StateCancelling || current.DeletionRequestedAt == nil || current.Revision != before.Revision+1 {
 				t.Fatalf("own Project did not fence %s Eval: %+v (%v)", terminal, current, err)
 			}
-			mustTx(t, pool, func(s *Store) error { return s.PurgeProject(ctx, scope) })
+			purgeProjectUntilDone(t, pool, scope)
 			var remaining int
 			if err := pool.QueryRow(ctx, `SELECT count(*) FROM eval_experiments WHERE project_id=$1`, scope.ProjectID).Scan(&remaining); err != nil || remaining != 0 {
 				t.Fatalf("terminal Evals after Project purge = %d (%v)", remaining, err)

@@ -186,16 +186,25 @@ SELECT project_id
 	return projectID, true, nil
 }
 
-// PurgeEvalReceipts deletes the Eval receipts of the owner's Project in the
-// Project's purge, which runs with contractor.eval_purge set in tx; no other
-// deletion of a receipt is allowed (LIFE-EVM-7).
-func PurgeEvalReceipts(ctx context.Context, db DBTX, ownerID, projectID string) error {
-	if _, err := db.Exec(ctx, `
-DELETE FROM mutation_receipts
- WHERE owner_id = $1 AND project_id = $2 AND key_scope[1] = 'eval'`, ownerID, projectID); err != nil {
-		return WrapError("purge Eval mutation receipts", err)
+// receiptRowBytes is the stored size of one mutation_receipts row.
+const receiptRowBytes = `pg_column_size(key_scope) + pg_column_size(idempotency_key) + pg_column_size(operation)
+    + pg_column_size(request_digest) + pg_column_size(resource_id) + pg_column_size(response)
+    + COALESCE(pg_column_size(owner_id), 0) + COALESCE(pg_column_size(project_id), 0)
+    + COALESCE(pg_column_size(audit_id), 0) + pg_column_size(created_at)`
+
+// DeleteEvalReceiptsWithinBudget deletes the next Eval receipts of the
+// owner's Project that fit the Project purge pass's budget (EVM-R242). The
+// pass runs with contractor.eval_purge set in db; no other deletion of an
+// Eval receipt is allowed (LIFE-EVM-7). It reports whether none is left.
+func DeleteEvalReceiptsWithinBudget(
+	ctx context.Context, db DBTX, budget *CleanupBudget, ownerID, projectID string,
+) (bool, error) {
+	gone, err := DeleteWithinBudget(ctx, db, budget, "mutation_receipts", receiptRowBytes,
+		`owner_id = $5 AND project_id = $6 AND key_scope[1] = 'eval'`, 1, ownerID, projectID)
+	if err != nil {
+		return false, WrapError("purge Eval mutation receipts", err)
 	}
-	return nil
+	return gone, nil
 }
 
 func valueOrEmpty(value *string) string {

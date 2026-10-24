@@ -47,6 +47,9 @@ func (s *Service) Review(ctx context.Context, owner, id, member, resultDigest st
 		if err != nil {
 			return err
 		}
+		if err = refusePurging(ctx, st, owner, id); err != nil {
+			return err
+		}
 		out.Revision = e.Revision
 		if resultDigest == "" {
 			selected, err := st.Selected(ctx, owner, id, member)
