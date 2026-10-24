@@ -276,6 +276,10 @@ export function createEvalFixture(
         201,
       );
     } else if (path === "/v1/eval-experiments") {
+      // Like the Server, the list declares no filter but the workspace.
+      const declared = ["limit", "cursor", "projectId"];
+      if ([...url.searchParams.keys()].some((name) => !declared.includes(name)))
+        return error("eval_invalid", 422);
       return response({
         items: [
           {

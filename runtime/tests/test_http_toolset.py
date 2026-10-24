@@ -690,8 +690,8 @@ def test_shared_credential_field_values_are_sent_unchanged_by_h11() -> None:
     ] == []
 
 
-def loopback_tls_client(certificate: tuple[Path, Path], port: int) -> httpx.AsyncClient:
-    """A client whose pool connects target.example to a local server over real TLS."""
+def loopback_tls_transport(certificate: tuple[Path, Path], port: int) -> httpx.AsyncHTTPTransport:
+    """A transport whose pool connects target.example to a local server over real TLS."""
 
     transport = httpx.AsyncHTTPTransport(trust_env=False, retries=0)
     # As PolicyHTTPTransport does, replace httpx's private pool to choose
@@ -701,7 +701,13 @@ def loopback_tls_client(certificate: tuple[Path, Path], port: int) -> httpx.Asyn
         retries=0,
         network_backend=LoopbackBackend(port),
     )
-    return httpx.AsyncClient(transport=transport, trust_env=False)
+    return transport
+
+
+def loopback_tls_client(certificate: tuple[Path, Path], port: int) -> httpx.AsyncClient:
+    """A client whose pool connects target.example to a local server over real TLS."""
+
+    return httpx.AsyncClient(transport=loopback_tls_transport(certificate, port), trust_env=False)
 
 
 class RecordingTLSTarget:
@@ -838,6 +844,9 @@ class CorruptTLSRecordTarget:
 
     def client(self) -> httpx.AsyncClient:
         return loopback_tls_client(self.certificate, self.port)
+
+    def transport(self) -> httpx.AsyncHTTPTransport:
+        return loopback_tls_transport(self.certificate, self.port)
 
     def close(self) -> None:
         self._listener.close()

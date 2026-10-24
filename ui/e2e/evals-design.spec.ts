@@ -20,15 +20,16 @@ for (const width of [390, 1280]) {
     await expect(
       page.getByRole("link", { name: "New experiment", exact: true }),
     ).toBeVisible();
-    await expect(
-      page.getByLabel("Lifecycle", { exact: true }),
-    ).not.toBeVisible();
+    const workspace = page.getByLabel("Evaluation workspace", { exact: true });
+    await expect(workspace).not.toBeVisible();
     await page.getByText("Filter experiments", { exact: true }).click();
-    await page.getByLabel("Lifecycle", { exact: true }).selectOption("draft");
-    await expect(page).toHaveURL(/state=draft/);
-    await page
-      .getByRole("button", { name: "Clear filters", exact: true })
-      .click();
+    await workspace.selectOption("evaluation-1");
+    await expect(page).toHaveURL(/projectId=evaluation-1/);
+    await expect(
+      page.getByRole("link", { name: "Trace instructions", exact: true }),
+    ).toBeVisible();
+    await workspace.selectOption("");
+    await expect(page).not.toHaveURL(/projectId=/);
     await page.screenshot({
       path: info.outputPath(`list-${width}.png`),
       fullPage: true,
