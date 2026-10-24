@@ -12,7 +12,13 @@ import (
 	"google.golang.org/genai"
 )
 
+// maxReportErrors is the report's error bound (LIM-OBS-5). Rejected tool
+// selections leave its last two entries to the failure that ended the
+// invocation and the error the Planner returns, so the report always ends
+// with the returned error (PLN-R120).
 const maxReportErrors = 100
+
+const maxRejectionErrors = maxReportErrors - 2
 
 type executionState struct {
 	mu sync.Mutex
@@ -28,8 +34,10 @@ type executionState struct {
 
 	toolMetrics map[string]toolCounters
 	toolCalls   []reporting.ToolCallRecord
-	errors      []reporting.ExecutionError
-	nextCall    int64
+	// rejections holds the errors of rejected tool selections; failure is
+	// reported after them.
+	rejections []reporting.ExecutionError
+	nextCall   int64
 }
 
 type toolCounters struct {
@@ -102,11 +110,12 @@ func (s *executionState) afterModel(response *model.LLMResponse, allowed map[str
 	if functionCount <= 1 && !unknown {
 		return nil, nil
 	}
-	s.appendErrorLocked(
-		"planner_tool_selection_invalid",
-		"Planner model selected an unknown or concurrent tool call",
-		false,
-	)
+	if len(s.rejections) < maxRejectionErrors {
+		s.rejections = append(s.rejections, executionError(planner.Failure{
+			Code:    "planner_tool_selection_invalid",
+			Message: "Planner model selected an unknown or concurrent tool call",
+		}))
+	}
 	replacement := *response
 	replacement.Content = genai.NewContentFromText(
 		"The tool selection was rejected. Call exactly one of the declared tools, then continue.",
@@ -256,22 +265,22 @@ func (s *executionState) setExternalFailure(value *planner.Error) *planner.Error
 func (s *executionState) setFailureLocked(value *planner.Error) *planner.Error {
 	if s.failure == nil {
 		s.failure = value
-		s.appendErrorLocked(value.Code, value.Message, value.Retryable)
 	}
 	return s.failure
 }
 
-func (s *executionState) appendErrorLocked(code, message string, retryable bool) {
-	if len(s.errors) >= maxReportErrors {
-		return
-	}
-	retryableCopy := retryable
-	s.errors = append(s.errors, reporting.ExecutionError{
-		Code: code, Message: message, Retryable: &retryableCopy,
-	})
+func executionError(failure planner.Failure) reporting.ExecutionError {
+	retryable := failure.Retryable
+	return reporting.ExecutionError{Code: failure.Code, Message: failure.Message, Retryable: &retryable}
 }
 
-func (s *executionState) report(reportID string, duration time.Duration) reporting.ExecutionReport {
+// report builds the ExecutionReport of the invocation. Its errors are the
+// rejected tool selections, then the failure that ended the invocation, then
+// returned, the error the Planner returns, when that differs: a failed
+// session write after the Planner had its outcome (PLN-R106, PLN-R120).
+func (s *executionState) report(
+	reportID string, duration time.Duration, returned *planner.Failure,
+) reporting.ExecutionReport {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	modelCalls, inputTokens, outputTokens := s.modelCalls, s.inputTokens, s.outputTokens
@@ -292,7 +301,13 @@ func (s *executionState) report(reportID string, duration time.Duration) reporti
 			TotalTokens: &totalTokens, Tools: tools,
 		},
 		ToolCalls: append([]reporting.ToolCallRecord(nil), s.toolCalls...),
-		Errors:    append([]reporting.ExecutionError(nil), s.errors...),
+		Errors:    append([]reporting.ExecutionError(nil), s.rejections...),
+	}
+	if s.failure != nil {
+		report.Errors = append(report.Errors, executionError(s.failure.Failure))
+	}
+	if returned != nil && (s.failure == nil || s.failure.Failure != *returned) {
+		report.Errors = append(report.Errors, executionError(*returned))
 	}
 	return report
 }

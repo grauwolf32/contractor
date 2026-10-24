@@ -602,6 +602,17 @@ case the Planner returns `planner_session_unavailable` (PLN-R106) instead of
 the candidate or the rejection, and the call keeps its verdict, because the
 session write is not part of the invocation.
 
+**PLN-R120.** The Streamline and Router `ExecutionReport` lists the errors
+of the invocation in order: the rejected tool selections (PLN-R41), then the
+Planner failure that ended the invocation, then the error the Planner returns
+when that differs. Its last error is therefore always the error the Planner
+returns. When recording the outcome in the Planner session fails, that is
+`planner_session_unavailable` (PLN-R106); a Planner failure the Planner could
+not record precedes it, and a candidate it could not record stays visible as
+its accepted `finish` call. Rejected tool selections stop being listed two
+entries short of the report's error bound (LIM-OBS-5), so neither final error
+is ever dropped.
+
 **PLN-R73.** A successful `finish` requires at least one `succeeded`
 subtask, no `pending` or `running` subtask and no active dispatch.
 
@@ -795,14 +806,34 @@ database record commits.
 audit and completed-result recovery. A completed Planner session returns its
 recorded candidate or failure without invoking ADK, the Gateway or a Worker
 again (FAIL-PLN-8). A Planner whose session cannot be started or written
-returns `planner_session_unavailable` instead of a candidate. The error is
-retryable, except that a failed write of a Planner failure keeps the
-retryability of that failure.
+returns `planner_session_unavailable` instead of a candidate; Passthrough,
+Streamline and Router apply the same rule (FAIL-PLN-9). The error is
+retryable, except when the failed write records an outcome that another
+attempt cannot change: a non-retryable Planner failure, or a failed candidate
+whose error is non-retryable. Then `planner_session_unavailable` is
+non-retryable too, so a Stage retry never invokes again a Worker whose failure
+was final.
+
+A summarized Worker result is a failed candidate with the non-retryable
+`worker_summarized` error ([SCH-R171](scheduler.md)), so a failed write of it
+returns non-retryable `planner_session_unavailable`. The Scheduler records an
+interrupted StageTermination with `retryable: false`: a `retry` action under
+`on.interrupted` takes its `then` branch, and the summary continuation does
+not start, because it needs the recorded candidate
+([SCH-R174](scheduler.md)).
+
+Rationale: a retryable error would turn the summary into an ordinary Stage
+retry that dispatches the Worker again from the start, discarding its saved
+progress and bypassing the single `on.summarized` escalation. Reopen this if
+recording the completion and accepting the candidate become one durable step,
+so that a summarized candidate can reach its continuation after a session
+outage.
 
 **PLN-R107.** The record is not authority for resuming a partially
 completed model invocation: a session still running after process loss yields
-a stable retryable invocation-in-progress error, and Workflow policy decides
-whether a fresh StageExecution should retry (FAIL-PLN-8).
+the stable retryable error `planner_invocation_in_progress`, and Workflow
+policy decides whether a fresh StageExecution should retry (FAIL-PLN-8). The
+session span of the refused start carries that code.
 
 ### Saved summary continuation
 
@@ -886,6 +917,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   PLN-R62).
 - FAIL-PLN-8 — Planner Session after process loss (PLN-R106,
   PLN-R107).
+- FAIL-PLN-9 — Planner Session completion write after the Planner has its
+  outcome (PLN-R106).
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 
@@ -914,10 +947,10 @@ Errors ([registry](../platform/errors.md)):
   `finish_rejected` — a rejected `finish` call, retryable only when its
   candidate artifacts could not be verified (PLN-R72, PLN-R118).
 - `planner_session_unavailable` — the Planner session could not be started
-  or written; retryable, except that a failed write of a Planner failure keeps
-  that failure's retryability (PLN-R106, PLN-R119).
-- the invocation-in-progress error, which has no assigned code — retryable
-  (PLN-R107).
+  or written; retryable, except that a failed write of a non-retryable Planner
+  failure or failed candidate is non-retryable (PLN-R106, PLN-R119, PLN-R120).
+- `planner_invocation_in_progress` — retryable; the Planner session is still
+  running after process loss (PLN-R107).
 - `result_contract_violation` belongs to [Scheduler](scheduler.md); a
   Planner raises it, non-retryable, for a candidate that violates the Stage
   result contract, including a rejected result reference (PLN-R118).

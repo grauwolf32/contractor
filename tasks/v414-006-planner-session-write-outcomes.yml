@@ -132,3 +132,17 @@ tests:
     covers: [A3, A5]
   - command: make lint
     covers: [A4]
+progress: >-
+  Checkpoint 2026-10-24 (paused for shutdown). Done: CompletionWriteError(completion,
+  cause) used by Passthrough and Streamline for every completion write (failed
+  candidates, summarized results and non-retryable failures keep retryable=false);
+  Streamline report lists the unrecorded failure then the returned error last
+  (PLN-R120, rejections capped at 98); session spans carry the returned code
+  (EndSessionSpan); spec updated (PLN-R106 with the summary decision, PLN-R107
+  planner_invocation_in_progress, PLN-R120, FAIL-PLN-9, errors.md row,
+  scheduler.md); docs/spec/audit-workflow-dependencies.html regenerated. Tests
+  added in planner, streamline, router, planner/session (PostgreSQL) and scheduler
+  (unit and PostgreSQL); all fail at 19f7477f. Verified: go test with and without
+  -tags=integration for ./internal/planner/... ./internal/scheduler/... pass with
+  the database set (no skips); make lint exit 0. Next: review the diff, record
+  decisions and evidence in the task, merge main, rerun tests, close the task.
