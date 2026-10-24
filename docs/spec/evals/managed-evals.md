@@ -1187,6 +1187,30 @@ immutable creation time plus lookup ID, not by update time, which usage ticks
 move without a collection revision change. Members and pairs are ordered by
 frozen suite order, case order, sample and variant or member ID.
 
+**EVM-R247.** The experiment list returns the owner's newest experiments in
+every Project of the owner, or in the one Project that `projectId` selects, in
+the order of EVM-R213, and takes no other filter; each item still shows the
+experiment's state, dataset and control mode. A query parameter the list
+does not declare, such as `state`, `datasetId` or `controlMode`, is 422
+`eval_invalid` like on every managed Eval route. A page reads experiments in
+proportion to its rows in a custom and in a generic plan: each of the four
+statements (every Project or one, first page or after the cursor) holds only
+the predicates it needs, so the Project and the keyset cursor are index
+conditions of the created-order page indexes on (owner, creation time,
+lookup ID) and (owner, Project, creation time, lookup ID).
+
+Rationale: the list also filtered by state, dataset and control mode, with
+every filter and the cursor optional inside one statement. In a generic
+plan, which a pooled prepared statement may switch to after five executions,
+none of them could be an index condition, so a page read every experiment
+of the owner. No workflow needed those filters. Created-order indexes for
+the three filters were rejected, because each would be maintained on every
+experiment write for a filter nobody used; planning each execution with its
+values was rejected, because it keeps the bound only while no session forces
+generic plans and pays a plan per request. Bring back a filter only for a
+workflow that needs it, with its own (owner, column, creation time, lookup
+ID) index, so its pages stay bounded in both plan modes.
+
 **EVM-R214.** Filters cannot alter the unfiltered `experimentSummary`, and any
 `filteredCount` is labelled separately. Subsequent pages retain the same full
 summary.
@@ -1380,7 +1404,7 @@ expected membership, receipts and Project deletion fences.
 | `POST /v1/projects/{projectId}/eval-datasets` | `datasetId`, `name`, optional safe `source`, visible `cases`, private check/rubric partition; creates immutable revision |
 | `GET /v1/projects/{projectId}/eval-datasets/{datasetId}/revisions/{revision}/cases` | Bounded visible case projections for setup; never private expected data |
 | `POST /v1/projects/{projectId}/eval-experiments` | `name`, `controlMode`, native `draft` or external `registration`; allocates experiment lookup ID and draft/registration receipt |
-| `GET /v1/eval-experiments` | Owner-scoped paginated experiment summaries, filter `projectId`, `state`, `datasetId`, `controlMode` |
+| `GET /v1/eval-experiments` | Owner-scoped paginated experiment summaries, newest first, in every Project or in the one `projectId` selects; no other filter (EVM-R247) |
 | `GET /v1/eval-experiments/{id}` | Lifecycle, plan identity, control mode, capabilities, complete summary, selected view snapshot and ETag |
 | `PATCH /v1/eval-experiments/{id}` | Full replacement `name,draft` under CAS; only mutable native drafts |
 | `POST /v1/eval-experiments/{id}/commands` | `kind`, expected `planSha256` where frozen; kinds `prepare,start,pause,resume,cancel,finalize,duplicate`; 202 receipt or 201 new draft for duplicate |

@@ -81,11 +81,17 @@ func (s *Store) DatasetPage(ctx context.Context, scope Scope, afterID, afterRevi
 	return result, nil
 }
 
-// SummaryPageParams pages by the immutable (created_at, experiment_id) key;
+// SummaryPageParams selects a page of the owner's experiment list: every
+// Project of the owner, or ProjectID alone, newest first (EVM-R247). It pages
+// by the immutable (created_at, experiment_id) key AfterCreatedAt, AfterID;
 // updated_at moves on usage ticks that do not fence the collection revision.
+// Revision, when set, is the collection revision the cursor was read at.
 type SummaryPageParams struct {
-	ListParams
-	AfterCreatedAt *time.Time
+	OwnerID, ProjectID string
+	Limit              int
+	Revision           *int64
+	AfterCreatedAt     *time.Time
+	AfterID            string
 }
 
 type PublicSummary struct {
@@ -124,7 +130,8 @@ func (s *Store) SummaryPage(ctx context.Context, p SummaryPageParams) (SummaryPa
 	}
 	var result SummaryPage
 	var raw []byte
-	err := s.db.QueryRow(ctx, summaryPageSQL, p.OwnerID, p.ProjectID, p.State, p.DatasetID, p.ControlMode, p.AfterCreatedAt, p.AfterID, p.Limit+1).Scan(&result.Revision, &raw)
+	query, args := summaryPageQuery(p)
+	err := s.db.QueryRow(ctx, query, args...).Scan(&result.Revision, &raw)
 	if err != nil {
 		return result, err
 	}
@@ -151,4 +158,26 @@ func (s *Store) SummaryPage(ctx context.Context, p SummaryPageParams) (SummaryPa
 		result.LastCreatedAt = row.CreatedAt
 	}
 	return result, nil
+}
+
+// summaryPagePredicates marks where summaryPageQuery adds predicates to
+// summaryPageSQL.
+const summaryPagePredicates = " /* predicates */"
+
+// summaryPageQuery returns one of the four summary page statements and its
+// arguments: $1 is the owner, $2 the Project (empty for every Project; it
+// also names the collection revision), $3 the limit plus one, and $4, $5 the
+// keyset cursor when p has one. A statement holds only the predicates p
+// needs, so the Project and the cursor are index conditions of the
+// created-order page indexes in custom and generic plans alike (EVM-R247).
+func summaryPageQuery(p SummaryPageParams) (string, []any) {
+	predicates, args := "", []any{p.OwnerID, p.ProjectID, p.Limit + 1}
+	if p.ProjectID != "" {
+		predicates += " AND project_id = $2"
+	}
+	if p.AfterCreatedAt != nil {
+		predicates += " AND (created_at, experiment_id) < ($4, $5)"
+		args = append(args, *p.AfterCreatedAt, p.AfterID)
+	}
+	return strings.Replace(summaryPageSQL, summaryPagePredicates, predicates, 1), args
 }

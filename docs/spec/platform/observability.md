@@ -731,7 +731,15 @@ more spans or the final flush.
 
 **OBS-R74.** Worker delivery retries temporary transport failures
 and HTTP 429, 502, 503 and 504. Other HTTP errors, including 500, are terminal
-(FAIL-OBS-5).
+(FAIL-OBS-5). A temporary transport failure is any member of the Runtime's one
+HTTP transport failure family (httpx's errors and `OSError`, such as
+`ssl.SSLError` for a corrupt TLS record or a connection reset), raised while
+sending the batch or reading the acknowledgement, except an unsupported
+protocol and a local protocol error, which are terminal, and a body that fails
+content decoding, which is a malformed acknowledgement (OBS-R77). Any other
+exception is an implementation failure and terminal. The exporter applies its
+own retry budget, backoff and `Retry-After` rules (OBS-R75, OBS-R76) to this
+family.
 
 **OBS-R75.** A valid `Retry-After` header is honoured as seconds or as an
 HTTP date. Without it, exponential backoff starts at

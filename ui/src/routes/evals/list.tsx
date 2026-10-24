@@ -3,7 +3,6 @@ import { useId } from "react";
 import { Link, useNavigate, useSearchParams, type To } from "react-router";
 import { usePublicAPI } from "../../api/context";
 import {
-  EVAL_STATES,
   listEvalExperiments,
   type EvalExperiment,
   type EvalListQuery,
@@ -35,7 +34,6 @@ import { EvalDiagnostics } from "./diagnostics";
 import {
   controlModeLabel,
   EVAL_SECTIONS,
-  EVAL_STATE_LABELS,
   evalConclusionLabel,
   evalFreshnessText,
   evalStateLabel,
@@ -52,12 +50,12 @@ type EvalListItem = Awaited<
   ReturnType<typeof listEvalExperiments>
 >["items"][number];
 
-const FILTER_KEYS = ["state", "controlMode", "projectId", "datasetId"] as const;
-
 /**
- * The experiments list (V3B pane frame). Filters, the page cursor and the
- * selected experiment (`?experiment=`) live in the URL; the detail pane
- * previews the selected experiment and opens its pages.
+ * The experiments list (V3B pane frame): the newest experiments in every
+ * evaluation workspace, or in the one the workspace filter selects. The
+ * filter (`?projectId=`), the page cursor and the selected experiment
+ * (`?experiment=`) live in the URL; the detail pane previews the selected
+ * experiment and opens its pages.
  */
 export function EvalListRoute() {
   useDocumentTitle("Evals");
@@ -65,20 +63,12 @@ export function EvalListRoute() {
     projects = useEvalProjects(),
     navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const state = params.get("state"),
-    mode = params.get("controlMode"),
-    cursor = params.get("cursor"),
+  const cursor = params.get("cursor"),
     projectId = params.get("projectId"),
-    datasetId = params.get("datasetId"),
     selectedId = params.get("experiment") || undefined;
   const query: EvalListQuery = {
-    ...(EVAL_STATES.some((x) => x === state)
-      ? { state: state as NonNullable<EvalListQuery["state"]> }
-      : {}),
-    ...(mode === "server" || mode === "external" ? { controlMode: mode } : {}),
     ...(cursor ? { cursor } : {}),
     ...(projectId ? { projectId } : {}),
-    ...(datasetId ? { datasetId } : {}),
   };
   const list = useQuery({
     queryKey: queryKeys.evals.list(query),
@@ -87,7 +77,7 @@ export function EvalListRoute() {
     refetchInterval: cursor ? false : evalListPollInterval,
   });
   const items = list.data?.items ?? [];
-  const filtered = FILTER_KEYS.some((key) => params.get(key));
+  const filtered = !!projectId;
   const paged = !!cursor || !!list.data?.page.hasMore;
 
   function filter(key: string, value: string) {
@@ -144,37 +134,6 @@ export function EvalListRoute() {
               <span>Filter experiments{filtered ? " · active" : ""}</span>
             </summary>
             <div className="eval-filter-fields">
-              <Field label="Lifecycle">
-                {(control) => (
-                  <select
-                    {...control}
-                    value={state ?? ""}
-                    onChange={(e) => filter("state", e.target.value)}
-                  >
-                    <option value="">All states</option>
-                    {EVAL_STATES.map((s) => (
-                      <option key={s} value={s}>
-                        {EVAL_STATE_LABELS[s].label}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </Field>
-              <Field label="Control mode">
-                {(control) => (
-                  <select
-                    {...control}
-                    value={mode ?? ""}
-                    onChange={(e) => filter("controlMode", e.target.value)}
-                  >
-                    <option value="">All control modes</option>
-                    <option value="server">{controlModeLabel("server")}</option>
-                    <option value="external">
-                      {controlModeLabel("external")}
-                    </option>
-                  </select>
-                )}
-              </Field>
               <Field label="Evaluation workspace">
                 {(control) => (
                   <select
@@ -191,26 +150,7 @@ export function EvalListRoute() {
                   </select>
                 )}
               </Field>
-              <Field label="Dataset ID">
-                {(control) => (
-                  <input
-                    {...control}
-                    value={datasetId ?? ""}
-                    onChange={(e) => filter("datasetId", e.target.value)}
-                  />
-                )}
-              </Field>
             </div>
-            {filtered ? (
-              <Button
-                size="sm"
-                onClick={() =>
-                  setParams(selectedId ? { experiment: selectedId } : {})
-                }
-              >
-                Clear filters
-              </Button>
-            ) : null}
           </details>
         </div>
       }
@@ -267,10 +207,16 @@ export function EvalListRoute() {
         }}
         isEmpty={(data) => data.items.length === 0}
         empty={
-          <EmptyState title="No matching experiments">
+          <EmptyState
+            title={
+              filtered ? "No experiments in this workspace" : "No experiments"
+            }
+          >
             <p>
-              Create an experiment or change the filters. Earlier evaluation
-              workspaces remain in legacy history.
+              {filtered
+                ? "Create an experiment here or show all workspaces."
+                : "Create an experiment to compare two variants."}{" "}
+              Earlier evaluation workspaces remain in legacy history.
             </p>
           </EmptyState>
         }
