@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V367-009
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: "Optimize evidenced Audit item/inventory read costs and remove test-only production reads without changing counts, cursor semantics, lifecycle authority or reconciliation order."

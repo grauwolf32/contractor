@@ -107,14 +107,8 @@ func (s *QueryStore) ListItemsPage(
 	if err := validateListItems(params); err != nil {
 		return nil, err
 	}
-	var state *string
-	if params.State != nil {
-		value := string(*params.State)
-		state = &value
-	}
-	rows, err := s.db.Query(ctx, listItemsPageSQL, params.OwnerID, params.AuditID, params.RoundID, state,
-		params.SubjectKey, params.AfterRoundOrdinal, params.AfterItemOrdinal,
-		params.AfterItemID, params.Limit)
+	statement, args := itemPageQuery(params)
+	rows, err := s.db.Query(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list owner Audit items: %w", err)
 	}
@@ -138,19 +132,33 @@ func (s *QueryStore) ListItemsPage(
 	return result, nil
 }
 
-func (s *store) listItems(ctx context.Context, auditID string, limit int) ([]auditstore.Item, error) {
+// itemPageQuery returns the statement and arguments of one validated item
+// page: an unsettled state reads through the dispatch index
+// (listItemsStatePageSQL), every other filter through each round's items in
+// ordinal order (listItemsPageSQL).
+func itemPageQuery(params auditstore.ListItemsParams) (string, []any) {
+	statement := listItemsPageSQL
+	var state *string
+	if params.State != nil {
+		value := string(*params.State)
+		state = &value
+		if *params.State != auditstore.ItemSettled {
+			statement = listItemsStatePageSQL
+		}
+	}
+	return statement, []any{
+		params.OwnerID, params.AuditID, params.RoundID, state, params.SubjectKey,
+		params.AfterRoundOrdinal, params.AfterItemOrdinal, params.AfterItemID, params.Limit,
+	}
+}
+
+// listReconcileItems reads the first limit unsettled items of an Audit in
+// reconcile order (listReconcileItemsSQL).
+func (s *store) listReconcileItems(ctx context.Context, auditID string, limit int) ([]auditstore.Item, error) {
 	if err := validateID("auditID", auditID); err != nil {
 		return nil, err
 	}
-	rows, err := s.db.Query(ctx, `
-SELECT `+prefixedItemColumns("item")+`
-  FROM audit_items AS item
-  JOIN audit_rounds AS round USING (round_id, audit_id)
- WHERE item.audit_id = $1
-   AND ($2::integer = 0 OR item.state <> 'settled')
- ORDER BY ($2::integer <> 0 AND item.state = 'awaiting_review'),
-          round.ordinal, item.ordinal, item.item_id
- LIMIT CASE WHEN $2::integer = 0 THEN 100001 ELSE $2 END`, auditID, limit)
+	rows, err := s.db.Query(ctx, listReconcileItemsSQL, auditID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list Audit items: %w", err)
 	}
@@ -196,30 +204,6 @@ SELECT count(*), count(*) FILTER (WHERE state = 'awaiting_review')
 	return unsettled != 0 && unsettled == awaiting, nil
 }
 
-func (s *QueryStore) ListExecutions(ctx context.Context, auditID string) ([]auditstore.Execution, error) {
-	if err := validateID("auditID", auditID); err != nil {
-		return nil, err
-	}
-	rows, err := s.db.Query(ctx, `
-SELECT `+prefixedExecutionColumns("audit_executions")+` FROM audit_executions
- WHERE audit_id = $1
- ORDER BY created_at, execution_id
- LIMIT 1000001`, auditID)
-	if err != nil {
-		return nil, fmt.Errorf("list Audit executions: %w", err)
-	}
-	defer rows.Close()
-	result := make([]auditstore.Execution, 0)
-	for rows.Next() {
-		execution, scanErr := scanExecution(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan Audit execution: %w", scanErr)
-		}
-		result = append(result, execution)
-	}
-	return result, rows.Err()
-}
-
 // listWindowExecutions reads the reconcile window of unsettled executions,
 // one more than MaxReconcileRows so the caller can detect more, together with
 // the lifecycle state of each bound Run keyed by Run ID. The join replaces one
@@ -231,7 +215,7 @@ func (s *ClaimStore) listWindowExecutions(
 SELECT `+prefixedExecutionColumns("execution")+`, run.state
   FROM audit_executions AS execution
   LEFT JOIN workflow_runs AS run ON run.run_id = execution.run_id
- WHERE execution.audit_id = $1 AND execution.state IN ('intent', 'submitted', 'collecting')
+ WHERE execution.audit_id = $1 AND execution.state IN `+uncollectedExecutionStatesSQL+`
  ORDER BY execution.created_at, execution.execution_id
  LIMIT $2`, auditID, auditstore.MaxReconcileRows+1)
 	if err != nil {
@@ -622,7 +606,7 @@ SELECT `+prefixedAuditColumns("audit")+`
 		}
 		result.Round = &round
 	}
-	result.Items, err = s.listItems(ctx, audit.AuditID, auditstore.MaxReconcileRows+1)
+	result.Items, err = s.listReconcileItems(ctx, audit.AuditID, auditstore.MaxReconcileRows+1)
 	if err != nil {
 		return auditstore.ReconcileSnapshot{}, err
 	}

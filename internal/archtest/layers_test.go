@@ -67,6 +67,8 @@ var layers = []layerSpec{
 			"internal/persistence/postgres",
 			// Test support: holds the migrated schema's state sets to Go.
 			"internal/persistence/statesettest",
+			// Test support: measures prepared-statement plans and row reads.
+			"internal/persistence/plantest",
 		},
 	},
 	{

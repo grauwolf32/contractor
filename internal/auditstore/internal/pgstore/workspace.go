@@ -19,16 +19,21 @@ func (s *QueryStore) GetWorkspace(ctx context.Context, ownerID, auditID string) 
 		return auditstore.WorkspaceSummary{}, auditstore.ErrInvalid
 	}
 	var result auditstore.WorkspaceSummary
-	err := s.db.QueryRow(ctx, getWorkspaceSQL, ownerID, auditID,
-		auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketCompleted), auditdomain.CoverageIssueStatuses(),
-		auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketGap), auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketUnchecked),
-	).Scan(
+	err := s.db.QueryRow(ctx, getWorkspaceSQL, workspaceArgs(ownerID, auditID)...).Scan(
 		&result.AuditID, &result.AuditRevision, &result.AsOf, &result.RoundID, &result.ExecutionState, &result.OutstandingRuns,
 		&result.TotalChecks, &result.CompletedChecks, &result.Issues, &result.Gaps, &result.Unchecked, &result.Findings, &result.UnreviewedFindings, &result.PendingReviews)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auditstore.WorkspaceSummary{}, auditstore.ErrNotFound
 	}
 	return result, err
+}
+
+// workspaceArgs binds getWorkspaceSQL: owner, Audit and the coverage
+// statuses of each workspace bucket.
+func workspaceArgs(ownerID, auditID string) []any {
+	return []any{ownerID, auditID,
+		auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketCompleted), auditdomain.CoverageIssueStatuses(),
+		auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketGap), auditdomain.CoverageStatusesIn(auditdomain.CoverageBucketUnchecked)}
 }
 
 // ListEventsPage reads one page of an owner's Audit events, newest first,

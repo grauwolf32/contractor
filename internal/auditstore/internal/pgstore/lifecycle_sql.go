@@ -162,10 +162,7 @@ SELECT audit.project_id
        SELECT 1 FROM audit_items AS item
         WHERE item.audit_id = audit.audit_id AND item.state <> 'settled'
    )
-   AND NOT EXISTS (
-       SELECT 1 FROM audit_executions AS execution
-        WHERE execution.audit_id = audit.audit_id AND execution.state <> 'collected'
-   )
+   AND NOT ` + uncollectedExecutionSQL + `
    AND NOT EXISTS (
        SELECT 1
          FROM audit_executions AS execution
