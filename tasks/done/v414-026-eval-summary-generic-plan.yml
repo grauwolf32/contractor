@@ -6,11 +6,8 @@ epic: evals
 kind: defect
 introduced_by: V38-005
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V414-017]
-progress: >-
-  Resumed 2026-10-24 after the user's decision (context.decision): the
-  implementation is in place; the close commit records verification.
 languages: [go, sql, typescript, python]
 goal: >-
   The managed Eval experiment list returns the newest experiments in all of
@@ -226,3 +223,55 @@ tests:
     covers: [A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+implementation_commit: a3fd14805e5c207344a5b4334983ec7c32ca621a
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9 (GOTOOLCHAIN=local), Node 24.20.0 with pnpm and
+    Playwright Chromium, the locked Runtime venv; local PostgreSQL 17.11
+    database contractor_test_v414_evals with per-test schemas and all 40
+    migrations; branch claude/v414-evals with main c73ec319 merged (7a8bdcaf).
+  commands:
+    - >-
+      go test -count=1 ./internal/evalstore/... ./internal/evalservice/...
+      ./internal/httpapi/public/... with CONTRACTOR_TEST_DATABASE_URL passed
+      (evalstore 35 s, evalservice 35 s, httpapi/public 88 s, public/events
+      4 s), including TestPostgresEvalSummaryPagesReadPageSizedRows (A1, A2,
+      A3: 26 experiment reads for a page of 26 in all four shapes at the
+      first page and at a deep cursor, custom and generic plans; the replaced
+      statement read 3,000 at the deep cursor in the generic plan for both
+      shapes; every page of the owner's 3,000 and of one Project's 750
+      experiments returned the same revision and bytes as the replaced
+      statement, the same order as an independent read, and a stale revision
+      answered eval_view_changed), TestSummaryPageQueryHasFourShapes and
+      TestSharedEvalPostgresBoundedCollectionsRejectStaleAndForeignCursors
+      (A4: state, datasetId, controlMode, projectId with state, and an empty
+      projectId each answer 422 eval_invalid, not retryable).
+    - >-
+      go test -tags=integration -count=1 ./internal/evalstore/...
+      ./internal/evalservice/... ./internal/httpapi/public/...
+      ./internal/persistence/... ./internal/app/... passed (evalstore 56 s,
+      evalservice 60 s, httpapi/public 96 s, persistence/postgres 51 s with
+      TestSharedPostgresEvalExperimentListIndexesDropOnlyTheFilterIndexes and
+      TestSharedPostgresIndexConsolidationKeepsGuarantees, app 33 s).
+    - make verify-public-api passed.
+    - >-
+      make ui-verify passed: generate check, lint, typecheck, 196 test files
+      with 2,387 tests and 1 expected failure, 17 server tests, build.
+    - >-
+      make ui-browser-mocked passed: 91 browser tests across 23 specs,
+      evals-design at 390 and 1,280 px among them.
+    - make lint passed.
+    - >-
+      Can-fail checks (temporary edits, reverted): declaring state again in
+      the handler made the A4 case answer 200 and the test fail; forwarding
+      state from the URL in the UI list made "does not send the removed
+      filters of an older link" fail against the fixture's 422.
+    - >-
+      After merging main c73ec319 (task files only): go build ./..., the
+      summary page, handler and migration catalog tests above,
+      scripts/check_tasks.py and scripts/check_spec.py passed.
+    - >-
+      make docs-erd regenerated docs/spec/database-erd.html for migration
+      000040. make test-wire-cross-language was not run: no shared fixture
+      changed.
