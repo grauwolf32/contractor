@@ -21,11 +21,13 @@ import (
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -87,7 +89,16 @@ func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.P
 	}
 	evidence := findingintake.ExactArtifact{Ref: write.Ref, Digest: auditdomain.DigestBytes([]byte("same evidence")), MediaType: write.MediaType, SizeBytes: write.Size}
 	if missingEvidence {
-		evidence.Ref.Name = "missing"
+		// The receipt cites a revision that its Run's purge alone could
+		// remove (DEL-R65); it advances once and is lost after the insert.
+		lost, err := run.Write(ctx, contracts.ArtifactRef{Namespace: "evidence", Name: "lost"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("same evidence")}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := run.Write(ctx, contracts.ArtifactRef{Namespace: "evidence", Name: "lost"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("replacement")}, lost.Ref.Revision); err != nil {
+			t.Fatal(err)
+		}
+		evidence.Ref = lost.Ref
 	}
 	proposal := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: suffix, Title: suffix, Description: "A generic observation.",
@@ -121,6 +132,21 @@ report_projection
 		string(projection))
 	if err != nil {
 		t.Fatal(err)
+	}
+	if missingEvidence {
+		// Only the Run's purge removes a held revision; delete it under that
+		// purge's setting.
+		if err := persistencepostgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			if _, err := tx.Exec(ctx, `SELECT set_config('contractor.lifecycle_purge', 'run', true)`); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, `DELETE FROM artifact_binding_revisions
+WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = $2 AND name = $3 AND revision = $4`,
+				runID, evidence.Ref.Namespace, evidence.Ref.Name, *evidence.Ref.Revision)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

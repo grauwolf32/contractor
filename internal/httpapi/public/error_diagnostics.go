@@ -50,6 +50,10 @@ func diagnosticCause(err error) string {
 		return "artifact_integrity_failed"
 	case errors.Is(err, artifacts.ErrBlobMissing):
 		return "artifact_content_missing"
+	case errors.Is(err, artifacts.ErrHistoryProtected):
+		return "artifact_history_protected"
+	case errors.Is(err, artifacts.ErrHistoryMaintenancePending):
+		return "artifact_history_maintenance_pending"
 	case errors.Is(err, pgx.ErrTxClosed), errors.Is(err, pgx.ErrTxCommitRollback):
 		return "storage_transaction_failed"
 	}

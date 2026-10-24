@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass
 
 from contractor_runtime.artifacts import (
+    ARTIFACT_HISTORY_MAINTENANCE_PENDING,
     MAX_ARTIFACT_BYTES,
     ArtifactAPIError,
     ArtifactClient,
@@ -164,7 +165,12 @@ class WorkspaceAutoExporter:
                     expected_revision=expected_revision,
                 )
             except ArtifactAPIError as error:
-                if error.code != "artifact_conflict" or attempt + 1 == MAX_CAS_ATTEMPTS:
+                # A stale revision rereads; pending history maintenance stored
+                # nothing and committed a pass, so the next attempt continues.
+                if (
+                    error.code not in ("artifact_conflict", ARTIFACT_HISTORY_MAINTENANCE_PENDING)
+                    or attempt + 1 == MAX_CAS_ATTEMPTS
+                ):
                     raise
             else:
                 exact = written.artifact.require_exact()

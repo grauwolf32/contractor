@@ -22,3 +22,10 @@ func SetPurgeBatchSize(t testing.TB, size int) {
 	purgeBatchSize = size
 	t.Cleanup(func() { purgeBatchSize = previous })
 }
+
+// NewTestHistoryPolicy returns a retained-history policy below the
+// configurable floors, so that a test fills a binding's history with a few
+// small revisions.
+func NewTestHistoryPolicy(maxRevisions, maxBytes int64) HistoryPolicy {
+	return HistoryPolicy{maxRevisions: maxRevisions, maxBytes: maxBytes}
+}

@@ -162,6 +162,9 @@ without available filesystem storage use PostgreSQL. Existing blobs retain
 their own backend. Configure `artifactBlobPath` and `artifactBlobInlineMaxBytes`
 in ServerConfig, or force a new-write backend explicitly. S3 is not implemented. Storage, backup implications and
 offline cleanup are described in [artifact blob storage](operations/artifact-blob-storage.md).
+Each Artifact binding keeps at most 2,000 revisions and 1 GiB of history by
+default; `artifactHistoryMaxRevisions` and `artifactHistoryMaxBytes` raise or
+lower that limit ([retained history](operations/artifact-blob-storage.md#retained-history)).
 
 The Gateway endpoint and model aliases belong to immutable documents under
 `configs/llm-gateways` and `configs/model-policies`. The shipped catalog uses

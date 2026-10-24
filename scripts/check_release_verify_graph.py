@@ -24,6 +24,7 @@ MODULE = "github.com/grauwolf32/contractor/"
 EXPECTED_PROCESS_TESTS = {
     "TestNucleiWebWithDeterministicScannerAcrossProcesses",
     "TestAgentSkillsMVPProcesses",
+    "TestArtifactHistoryAcrossProductionProcesses",
     "TestAuditProgramCatalogReplacementRestartsServer",
     "TestAuditProgramsAcrossProductionProcesses",
     "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",

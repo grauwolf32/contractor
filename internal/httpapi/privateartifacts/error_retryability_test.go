@@ -16,8 +16,8 @@ import (
 
 // The private API keeps the retryability of the store's answer: a frozen
 // binding (ART-R59) and an exhausted Run revision limit (ART-R118) are
-// permanent, and a definite transaction conflict is the retryable 503 the
-// public API returns (FAIL-ART-1).
+// permanent, and a definite transaction conflict is
+// the retryable 503 the public API returns (FAIL-ART-1).
 func TestPrivateArtifactWriteErrorsReportRetryability(t *testing.T) {
 	for _, test := range []struct {
 		name      string

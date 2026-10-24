@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-122 open tasks: 5 in progress, 106 pending, 11 deferred. 1090 finished: 1080 completed, 10 archived.
+121 open tasks: 4 in progress, 106 pending, 11 deferred. 1091 finished: 1081 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V410-010](v410-010-artifact-history-retention.yml) | projects-artifacts | feature | P1 | Apply automatic bounded history retention to every logical Artifact |
 
 ## Pending
 
@@ -97,7 +96,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V410-001](v410-001-project-sitemap-store.yml) | feature | P1 | V410-010 | Publish a bounded Project sitemap through one authorized reducer |
+| [V410-001](v410-001-project-sitemap-store.yml) | feature | P1 | — | Publish a bounded Project sitemap through one authorized reducer |
 | [V410-002](v410-002-project-sitemap-toolset.yml) | feature | P1 | V410-001 | Expose authorized live sitemap tools to Project allocations |
 | [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | V410-002 | Reconcile exact OpenAPI declarations with live sitemap members |
 | [V413-001](v413-001-runtime-artifact-disk-cache.yml) | feature | P2 | — | Reuse authorized immutable archives in a bounded Runtime disk cache |
@@ -106,8 +105,8 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V62-005](v62-005-audit-round-result-snapshots.yml) | feature | P2 | V410-010 | Supply complete immutable settled-Round snapshots to declared consumers |
-| [V62-006](v62-006-audit-retained-dependencies.yml) | feature | P2 | V410-010 | Retain exact item dependencies across Audit rounds |
+| [V62-005](v62-005-audit-round-result-snapshots.yml) | feature | P2 | — | Supply complete immutable settled-Round snapshots to declared consumers |
+| [V62-006](v62-006-audit-retained-dependencies.yml) | feature | P2 | — | Retain exact item dependencies across Audit rounds |
 | [V62-007](v62-007-audit-check-routing.yml) | feature | P2 | V62-005, V62-006 | Route trusted typed check plans through explicit profile bindings |
 | [V62-013](v62-013-audit-iterative-composition-release.yml) | chore | P2 | V62-005, V62-006, V62-007 | Gate generic iterative Audit composition through real processes |
 | [V64-001](v64-001-audit-priority-contracts.yml) | feature | P2 | — | Specify optional Audit research contracts and deterministic bypass |
@@ -121,7 +120,7 @@ the epics are in [epics.yml](epics.yml).
 | [V64-009](v64-009-audit-priority-ui.yml) | feature | P2 | V64-008 | Show hypotheses, selection reasons and bounded lineage in the Audit UI |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P2 | V64-007, V64-008 | Publish opt-in guide and material research profiles with deterministic selection |
 | [V64-011](v64-011-audit-priority-release.yml) | chore | P2 | V64-009, V64-010, V64-015, V62-013 | Verify deterministic hypothesis search and unchanged direct execution end to end |
-| [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P2 | V64-001, V410-010 | Store Audit hypotheses and sparse provenance with trusted ingestion |
+| [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P2 | V64-001 | Store Audit hypotheses and sparse provenance with trusted ingestion |
 | [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P2 | V64-003, V64-004, V64-012 | Generate cold hypotheses and accept bounded concrete experiment plans |
 | [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P2 | V64-003, V64-004, V64-012, V64-006 | Import scoped research assessments and preserve conflicting contributions |
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-012, V64-014, V64-006 | Maintain indexed research readiness and bounded priority refresh |
@@ -239,7 +238,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 4 | 16 | 8 | 7 | 13 |
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 35 | 33 | 6 | 38 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 6 | 38 |
 | Audits (`audits`) | 32 | 65 | 78 | 26 | 101 |
 | Evaluations (`evals`) | 5 | 21 | 37 | 11 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |

@@ -79,5 +79,5 @@ WHERE b.scope_kind = 'user' AND b.scope_id = $1 AND b.namespace = $2 AND b.name 
 			return fmt.Errorf("purge sweep input: %w", err)
 		}
 	}
-	return p.collectUnreferencedVersions(ctx, []string{versionID})
+	return collectUnreferencedVersions(ctx, p.tx, []string{versionID})
 }

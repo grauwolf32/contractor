@@ -275,7 +275,10 @@ func TestPostgresResumeWaitsForAllocationRelease(t *testing.T) {
 }
 
 // Resume pins StageContext artifacts in name order, like every other pinning
-// site, so concurrent transactions take Artifact locks in one order.
+// site, so concurrent transactions take Artifact locks in one order. A
+// StageExecution holds every exact revision its context pins (DEL-R62), so a
+// context that names no stored revision is refused when the Stage is
+// created and never reaches a failed attempt to resume.
 func TestPostgresResumeRequiresExactStageContextArtifacts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
@@ -309,26 +312,35 @@ func TestPostgresResumeRequiresExactStageContextArtifacts(t *testing.T) {
 			stageContext["context-absent"] = PinnedContextArtifact{Required: true, Artifact: &ref}
 		}
 		stageID := runID + "-stage"
-		if _, err := store.CreateStageExecution(ctx, CreateStageExecutionParams{
+		_, err = store.CreateStageExecution(ctx, CreateStageExecutionParams{
 			LaneClass:        resolved.LaneClassModel,
 			StageExecutionID: stageID, RunID: runID, StageName: "build", Attempt: 1,
 			StageSpecSchemaVersion: contracts.APIVersion, StageSpecSnapshot: json.RawMessage(`{"objective":"build"}`),
 			StageContextSchemaVersion: contracts.APIVersion,
 			StageContext:              StageContextSnapshot{Parameters: run.Parameters, Artifacts: stageContext},
-		}); err != nil {
+		})
+		if missing {
+			if !errors.Is(err, ErrNotFound) {
+				t.Fatalf("create a Stage whose context names no stored revision: %v, want not found", err)
+			}
+			if _, err := store.GetStageExecution(ctx, stageID); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("refused Stage = %v, want not found", err)
+			}
+			continue
+		}
+		if err != nil {
 			t.Fatal(err)
 		}
 		failResumeStage(t, ctx, store, runID, stageID)
-		_, err = store.ResumeFailedRun(ctx, "user-1", runID, stageID, runID+"-resumed")
-		if missing != errors.Is(err, artifacts.ErrArtifactNotFound) || !missing && err != nil {
-			t.Fatalf("resume with missing context artifact %t: %v", missing, err)
+		if _, err := store.ResumeFailedRun(ctx, "user-1", runID, stageID, runID+"-resumed"); err != nil {
+			t.Fatalf("resume: %v", err)
 		}
 		stored, err := store.GetRun(ctx, runID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if want := map[bool]WorkflowRunState{true: RunFailed, false: RunPending}[missing]; stored.State != want {
-			t.Fatalf("Run after resume with missing context artifact %t = %s, want %s", missing, stored.State, want)
+		if stored.State != RunPending {
+			t.Fatalf("Run after resume = %s, want %s", stored.State, RunPending)
 		}
 	}
 }

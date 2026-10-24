@@ -55,8 +55,8 @@ INSERT INTO artifact_binding_revisions (scope_kind, scope_id, namespace, name, r
 SELECT 'project', $1, 'audit-' || encode(sha256(convert_to('audit ' || (i % 3), 'UTF8')), 'hex'),
        'item-' || i, 'rev-' || i, 'audit-version-' || i
 FROM generate_series(1, 6000) AS i`, `
-INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision)
-SELECT scope_kind, scope_id, namespace, name, revision
+INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision, retained_revisions, retained_bytes)
+SELECT scope_kind, scope_id, namespace, name, revision, 1, 0
 FROM artifact_binding_revisions
 WHERE scope_kind = 'project' AND scope_id = $1 AND namespace LIKE 'audit-%'`} {
 		var arguments []any
@@ -189,8 +189,8 @@ func TestPostgresIntegrationUserListingSkipsSweepSnapshotsByIndex(t *testing.T) 
 SELECT 'user','sweep-library-owner',$1,'scan-sweep.'||i||'.rulepack','rev-sweep-'||i,$2 FROM generate_series(1,6000) i`, artifactpolicy.RunSystemNamespace, version); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO artifact_bindings(scope_kind,scope_id,namespace,name,current_revision,frozen)
-SELECT scope_kind,scope_id,namespace,name,revision,true FROM artifact_binding_revisions WHERE scope_kind='user' AND scope_id='sweep-library-owner' AND namespace=$1`, artifactpolicy.RunSystemNamespace); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO artifact_bindings(scope_kind,scope_id,namespace,name,current_revision,frozen,retained_revisions,retained_bytes)
+SELECT scope_kind,scope_id,namespace,name,revision,true,1,0 FROM artifact_binding_revisions WHERE scope_kind='user' AND scope_id='sweep-library-owner' AND namespace=$1`, artifactpolicy.RunSystemNamespace); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `ANALYZE artifact_bindings`); err != nil {

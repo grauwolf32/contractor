@@ -170,8 +170,8 @@ func TestCatalogPostgresListRejectsAnOverfullCatalogWithABoundedRead(t *testing.
 	// Bindings beyond the package limit fail the listing before any of them
 	// is read or validated.
 	_, err = pool.Exec(ctx, `WITH bindings AS (
- INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision)
- SELECT 'user', 'catalog-owner', 'audit-standards', 'zz-extra-' || lpad(i::text, 4, '0'), 'bulk-rev'
+ INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision, retained_revisions, retained_bytes)
+ SELECT 'user', 'catalog-owner', 'audit-standards', 'zz-extra-' || lpad(i::text, 4, '0'), 'bulk-rev', 1, 0
  FROM generate_series(1, $1::int) AS i
  RETURNING scope_kind, scope_id, namespace, name, current_revision
 ) INSERT INTO artifact_binding_revisions (scope_kind, scope_id, namespace, name, revision, version_id)

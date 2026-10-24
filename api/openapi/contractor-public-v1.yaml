@@ -3032,7 +3032,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
+        '409': {$ref: '#/components/responses/ArtifactWriteConflict'}
         '408':
           description: Import interrupted; inspect metadata before retrying
           content:
@@ -3046,7 +3046,7 @@ paths:
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '422': {$ref: '#/components/responses/Error422'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '503': {$ref: '#/components/responses/ArtifactWriteUnavailable'}
 
   /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import:
     parameters:
@@ -3083,7 +3083,7 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
+        '409': {$ref: '#/components/responses/ArtifactWriteConflict'}
         '408':
           description: Import interrupted; inspect metadata before retrying
           content:
@@ -3097,7 +3097,7 @@ paths:
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '422': {$ref: '#/components/responses/Error422'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '503': {$ref: '#/components/responses/ArtifactWriteUnavailable'}
 
   /v1/auth/login:
     post:
@@ -3397,10 +3397,10 @@ paths:
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
+        '409': {$ref: '#/components/responses/ArtifactWriteConflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '503': {$ref: '#/components/responses/ArtifactWriteUnavailable'}
     get:
       operationId: downloadProjectArtifact
       tags: [Projects, Artifacts]
@@ -5151,10 +5151,10 @@ paths:
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
-        '409': {$ref: '#/components/responses/Conflict'}
+        '409': {$ref: '#/components/responses/ArtifactWriteConflict'}
         '413': {$ref: '#/components/responses/PayloadTooLarge'}
         '500': {$ref: '#/components/responses/InternalError'}
-        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+        '503': {$ref: '#/components/responses/ArtifactWriteUnavailable'}
     get:
       operationId: downloadArtifact
       tags: [Artifacts]
@@ -6959,6 +6959,27 @@ components:
     ArtifactUnavailable:
       description: Transfer capacity exhausted or a definite database transaction conflict exhausted retries (retryable), or stored content missing/corrupt (not automatically retryable).
       headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    ArtifactWriteConflict:
+      description: >-
+        A stale or already-consumed CAS precondition (`conflict`), a
+        frozen binding (`artifact_frozen`), or protected history that cannot
+        fit the binding's retained-history limit (`artifact_history_protected`,
+        not retryable).
+      headers: {X-Request-ID: {$ref: '#/components/headers/RequestId'}}
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    ArtifactWriteUnavailable:
+      description: >-
+        Transfer capacity exhausted, a definite database transaction conflict
+        exhausted retries, or history maintenance pending
+        (`artifact_history_maintenance_pending`, which carries Retry-After)
+        (retryable); or stored content missing/corrupt (not automatically
+        retryable).
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+        Retry-After:
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 60}
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     PayloadTooLarge: {$ref: '#/components/responses/Error413'}
     RateLimited:

@@ -1,0 +1,20 @@
+{
+  "description": "Retained Artifact history (ART-R122 to ART-R127, LIM-ART-9 to LIM-ART-11), shared by the Go Server (artifacts.HistoryPolicy and its constants, the private Artifact API and the Go MemoryTools adapter) and the Python Runtime (the MemoryTools adapter, CAS document writes and the workspace exporter). policy holds the per-binding defaults, the configurable floors and hard ceilings, the per-transaction work bounds, the per-pass reclamation bound and the Retry-After of pending maintenance. errors lists each private Artifact API answer a CAS write can get from history admission, beside the Run revision limit it must not be confused with: its HTTP status, retryability, whether it carries Retry-After, whether the write may be sent again unchanged (resend), and the model-facing Memory code both MemoryTools adapters return for it.",
+  "policy": {
+    "defaultMaxRevisions": 2000,
+    "defaultMaxBytes": 1073741824,
+    "maxRevisionsFloor": 2,
+    "maxBytesFloor": 134217728,
+    "maxRevisionsCeiling": 20000,
+    "maxBytesCeiling": 8589934592,
+    "maxCandidatesPerTransaction": 64,
+    "maxRemovalsPerTransaction": 64,
+    "maxReclaimBytesPerPass": 67108864,
+    "retryAfterSeconds": 1
+  },
+  "errors": [
+    {"code": "artifact_history_protected", "status": 409, "retryable": false, "retryAfter": false, "resend": false, "memoryCode": "memory_unavailable"},
+    {"code": "artifact_history_maintenance_pending", "status": 503, "retryable": true, "retryAfter": true, "resend": true, "memoryCode": "memory_unavailable"},
+    {"code": "artifact_limit_exceeded", "status": 409, "retryable": false, "retryAfter": false, "resend": false, "memoryCode": "memory_namespace_full"}
+  ]
+}

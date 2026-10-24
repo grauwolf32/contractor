@@ -36,11 +36,10 @@ func createStageInState(
 	if _, err := store.CreateStageExecution(ctx, testActiveStageParams(runID, stageID, stageID)); err != nil {
 		t.Fatal(err)
 	}
-	revision := "revision-" + stageID
 	candidate := stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "copied",
 		Artifacts: map[string]contracts.ArtifactRef{
-			"copied": {Namespace: "builder", Name: "result", Revision: &revision},
+			"copied": storeTestRunArtifact(t, ctx, store.db, runID, "builder", "result"),
 		},
 	}
 	if state == StagePreparing {

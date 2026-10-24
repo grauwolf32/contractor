@@ -63,6 +63,13 @@ class ArtifactResponseLimitError(ArtifactTransportError):
     """The response exceeded the caller's byte limit."""
 
 
+# A private Artifact API answer to a CAS write whose binding's retained
+# history needs more maintenance than one Server transaction may do. The write
+# stored nothing and the Server committed one maintenance pass before it
+# answered, so the same write may be sent again (ART-R127).
+ARTIFACT_HISTORY_MAINTENANCE_PENDING = "artifact_history_maintenance_pending"
+
+
 class ArtifactAPIError(ArtifactClientError):
     def __init__(
         self, status_code: int, code: str, retryable: bool, request_id: str | None = None

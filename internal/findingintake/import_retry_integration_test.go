@@ -283,9 +283,8 @@ func TestPostgresCollectionPageReplaysOnlyItsConflictedTransaction(t *testing.T)
 			f.ctx = ctx
 			const pageSize, invalidAt, evidencePerProposal = MaxAuditReceiptBatchSize, 20, 8
 			evidence := writeFixtureEvidence(t, f, evidencePerProposal)
-			missingRevision := "missing-revision"
 			missing := slices.Clone(evidence)
-			missing[evidencePerProposal-1].Ref.Revision = &missingRevision
+			missing[evidencePerProposal-1] = writeLostFixtureEvidence(t, f)
 			// The fixture's own receipt, without evidence, comes first.
 			var invalidReceipt string
 			for index := 1; index < pageSize; index++ {
@@ -298,6 +297,7 @@ func TestPostgresCollectionPageReplaysOnlyItsConflictedTransaction(t *testing.T)
 					invalidReceipt = receipt.ReceiptID
 				}
 			}
+			loseFixtureEvidence(t, f, missing[evidencePerProposal-1])
 			page, err := f.intake.ListAuditCollection(ctx, f.request.OwnerID, f.request.AuditID, f.request.RunID,
 				ListQuery{Limit: pageSize})
 			if err != nil || len(page) != pageSize || page[0].Receipt.ReceiptID != f.receiptID ||

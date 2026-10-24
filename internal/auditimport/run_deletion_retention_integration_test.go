@@ -4,8 +4,12 @@ package auditimport
 
 import (
 	"context"
-	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
+	"encoding/json"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -79,7 +83,13 @@ func TestImporterRunDeletionInvalidatesNativeReceiptAuditOnce(t *testing.T) {
 	f, snapshot := newReportDeletionFixture(t, completionPool(t), "automatic")
 	// Storage-boundary fixture: two native receipt tombstones belong to the
 	// same collected execution. No intake/publication behavior is simulated;
-	// those paths have separate real-service import/delete regressions.
+	// those paths have separate real-service import/delete regressions. A
+	// receipt holds its proposal, which must therefore be a stored revision.
+	candidate, err := artifactstest.WriteFindingProposal(f.ctx, f.artifacts, f.run.RunID, "candidate",
+		artifacts.Payload{MediaType: "application/json", Data: []byte("{}")})
+	mustCompletion(t, err)
+	proposalRef, err := json.Marshal(candidate.Ref)
+	mustCompletion(t, err)
 	for _, suffix := range []string{"one", "two"} {
 		id := f.id + "-" + suffix
 		_, err := f.pool.Exec(f.ctx, `
@@ -95,9 +105,9 @@ INSERT INTO finding_proposal_receipts (
     $1, $1, $1, 'runtime', 'instance', 'stage', 'worker', $1, $1,
     $1, $2, $3, 'owner', $4, $5, $4, 'check', 'workflow', '1',
     'contractor/v1alpha1', '{}', $2,
-    '{"namespace":"finding-proposals","name":"candidate","revision":"retained-source"}',
+    $6::jsonb,
     $2, 'application/json', 2, '[]', '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
-)`, id, completionDigest([]byte(id)), f.run.RunID, f.id, f.execution.ExecutionID)
+)`, id, completionDigest([]byte(id)), f.run.RunID, f.id, f.execution.ExecutionID, string(proposalRef))
 		mustCompletion(t, err)
 	}
 	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))

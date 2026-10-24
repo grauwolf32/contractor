@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -48,6 +49,15 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusConflict, "artifact_frozen", "artifact binding is frozen and cannot change", false)
 	case errors.Is(err, artifacts.ErrArtifactConflict):
 		h.writeError(w, http.StatusConflict, "artifact_conflict", "artifact revision precondition did not match", true)
+	case errors.Is(err, artifacts.ErrHistoryProtected):
+		// Only the release of a protecting reference changes the outcome
+		// (ART-R126).
+		h.writeError(w, http.StatusConflict, "artifact_history_protected",
+			"artifact history is protected and cannot fit its retention limit", false)
+	case errors.Is(err, artifacts.ErrHistoryMaintenancePending):
+		w.Header().Set("Retry-After", strconv.Itoa(int(artifacts.HistoryRetryAfter/time.Second)))
+		h.writeError(w, http.StatusServiceUnavailable, "artifact_history_maintenance_pending",
+			"artifact history maintenance is pending; retry shortly", true)
 	case errors.Is(err, artifacts.ErrRunRevisionLimit):
 		// The Run never regains revisions, so no retry can succeed (ART-R118).
 		h.writeError(w, http.StatusConflict, "artifact_limit_exceeded", "the Run has reached its artifact revision limit", false)

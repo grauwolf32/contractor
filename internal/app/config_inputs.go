@@ -35,6 +35,8 @@ type serveConfigInputs struct {
 	blobBackend                 string
 	blobPath                    string
 	blobInlineMaxBytes          string
+	historyMaxRevisions         string
+	historyMaxBytes             string
 	operatorConfigRoot          string
 	managedConfigRoot           string
 	publicBearerToken           contracts.SecretString
@@ -117,6 +119,14 @@ func loadServeConfigInputs(args []string, getenv func(string) string) (*serveCon
 	blobInlineMaxBytes := strconv.FormatInt(settings.artifactBlobInlineMaxBytes, 10)
 	if value := getenv("CONTRACTOR_ARTIFACT_BLOB_INLINE_MAX_BYTES"); value != "" {
 		blobInlineMaxBytes = value
+	}
+	historyMaxRevisions := strconv.FormatInt(settings.artifactHistoryMaxRevisions, 10)
+	if value := getenv("CONTRACTOR_ARTIFACT_HISTORY_MAX_REVISIONS"); value != "" {
+		historyMaxRevisions = value
+	}
+	historyMaxBytes := strconv.FormatInt(settings.artifactHistoryMaxBytes, 10)
+	if value := getenv("CONTRACTOR_ARTIFACT_HISTORY_MAX_BYTES"); value != "" {
+		historyMaxBytes = value
 	}
 	operatorConfigRoot := settings.operatorConfigRoot
 	if value := getenv("CONTRACTOR_OPERATOR_CONFIG_ROOT"); value != "" {
@@ -219,6 +229,8 @@ func loadServeConfigInputs(args []string, getenv func(string) string) (*serveCon
 		blobBackend:                 blobBackend,
 		blobPath:                    blobPath,
 		blobInlineMaxBytes:          blobInlineMaxBytes,
+		historyMaxRevisions:         historyMaxRevisions,
+		historyMaxBytes:             historyMaxBytes,
 		operatorConfigRoot:          operatorConfigRoot,
 		managedConfigRoot:           managedConfigRoot,
 		publicBearerToken:           publicBearerToken,

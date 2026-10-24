@@ -39,7 +39,7 @@ func TestPostgresArtifactSelectiveQueryPlans(t *testing.T) {
 		`INSERT INTO artifact_versions (version_id,blob_sha256,media_type) SELECT 'v-'||i,sha256(i::text::bytea),'text/plain' FROM generate_series(1,50000) i`,
 		`INSERT INTO artifact_binding_revisions (scope_kind,scope_id,namespace,name,revision,version_id,created_at)
 SELECT 'user','plan-owner','history','long','r-'||i,'v-'||i,'2026-01-01'::timestamptz + i*interval '1 second' FROM generate_series(1,50000) i`,
-		`INSERT INTO artifact_bindings (scope_kind,scope_id,namespace,name,current_revision) VALUES ('user','plan-owner','history','long','r-50000')`,
+		`INSERT INTO artifact_bindings (scope_kind,scope_id,namespace,name,current_revision,retained_revisions,retained_bytes) VALUES ('user','plan-owner','history','long','r-50000',1,0)`,
 		`ANALYZE artifact_blobs`, `ANALYZE artifact_versions`, `ANALYZE artifact_binding_revisions`, `ANALYZE artifact_bindings`,
 	} {
 		if _, err := pool.Exec(ctx, sql); err != nil {

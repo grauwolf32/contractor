@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/clone"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -70,24 +71,31 @@ func (r *PostgresRepository) write(
 		discardFreshCandidate()
 		return WriteResult{}, err
 	}
-	var storedRevision string
-	var mediaType string
-	var size int64
-	var bindingCreatedAt time.Time
-	var revisionCreatedAt time.Time
-	var storedObjectKey *string
-	err = r.db.QueryRow(ctx, writeSQL,
-		scope.kind, scope.id, target.Namespace, target.Name, revision, expectedRevision,
-		versionID, blob.Digest, blob.Inline, blob.Size, payload.MediaType, string(blob.Backend),
-		nullableBlobKey(blob.Key), reusableKey, frozen,
-	).Scan(&storedRevision, &mediaType, &size, &bindingCreatedAt, &revisionCreatedAt, &storedObjectKey)
+	write := writeStatement{
+		arguments: []any{
+			scope.kind, scope.id, target.Namespace, target.Name, revision, expectedRevision,
+			versionID, blob.Digest, blob.Inline, blob.Size, payload.MediaType, string(blob.Backend),
+			nullableBlobKey(blob.Key), reusableKey, frozen,
+		},
+		size:   blob.Size,
+		policy: historyPolicy(ctx),
+	}
+	stored, err := write.exec(ctx, r.db, 0, 0)
 	if errors.Is(err, pgx.ErrNoRows) {
-		discardFreshCandidate()
-		return WriteResult{}, r.writeConflict(ctx, scope, target, expectedRevision)
+		if expectedRevision == nil {
+			discardFreshCandidate()
+			return WriteResult{}, r.writeConflict(ctx, scope, target, expectedRevision)
+		}
+		// The binding is missing, moved or frozen, or this write would leave
+		// it over its retained-history limit; admission decides under the
+		// binding lock (ART-R124).
+		stored, err = r.advanceWithHistory(ctx, scope, target, *expectedRevision, write)
 	}
 	if err != nil {
-		err = storeError(fmt.Sprintf("write artifact %s/%s", target.Namespace, target.Name), err,
-			&ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)})
+		if !definiteRejection(err) {
+			err = storeError(fmt.Sprintf("write artifact %s/%s", target.Namespace, target.Name), err,
+				&ConflictError{Ref: target, ExpectedRevision: clone.Pointer(expectedRevision)})
+		}
 		// A definite rejection never published the fresh candidate; an
 		// unclassified statement failure may have.
 		if definiteRejection(err) {
@@ -95,23 +103,56 @@ func (r *PostgresRepository) write(
 		}
 		return WriteResult{}, err
 	}
-	if blob.Backend == BlobFilesystem && (storedObjectKey == nil || *storedObjectKey != blob.Key) {
+	if blob.Backend == BlobFilesystem && (stored.objectKey == nil || *stored.objectKey != blob.Key) {
 		discardUnusedBlob(ctx, r.db, blob)
 	}
 	return WriteResult{
-		Ref:               artifactExactRef(target.Namespace, target.Name, storedRevision),
-		MediaType:         mediaType,
-		Size:              size,
-		BindingCreatedAt:  bindingCreatedAt,
-		RevisionCreatedAt: revisionCreatedAt,
+		Ref:               artifactExactRef(target.Namespace, target.Name, stored.revision),
+		MediaType:         stored.mediaType,
+		Size:              stored.size,
+		BindingCreatedAt:  stored.bindingCreatedAt,
+		RevisionCreatedAt: stored.revisionCreatedAt,
 	}, nil
+}
+
+// writeStatement is one execution of writeSQL with its arguments.
+type writeStatement struct {
+	arguments []any
+	size      int64
+	policy    HistoryPolicy
+}
+
+// writeRow is what writeSQL returns for a stored revision.
+type writeRow struct {
+	revision          string
+	mediaType         string
+	size              int64
+	bindingCreatedAt  time.Time
+	revisionCreatedAt time.Time
+	objectKey         *string
+}
+
+// exec runs writeSQL on db, crediting removedRevisions and removedBytes that
+// the same transaction removes from the binding's retained history. No row
+// is pgx.ErrNoRows.
+func (w writeStatement) exec(
+	ctx context.Context, db persistencepostgres.DBTX, removedRevisions, removedBytes int64,
+) (writeRow, error) {
+	var row writeRow
+	arguments := append(append([]any(nil), w.arguments...),
+		w.policy.MaxRevisions(), w.policy.MaxBytes(), removedRevisions, removedBytes)
+	err := db.QueryRow(ctx, writeSQL, arguments...).Scan(
+		&row.revision, &row.mediaType, &row.size, &row.bindingCreatedAt, &row.revisionCreatedAt, &row.objectKey)
+	return row, err
 }
 
 // definiteRejection reports a write refusal that storeError classified, after
 // which the statement wrote nothing.
 func definiteRejection(err error) bool {
 	return errors.Is(err, ErrArtifactConflict) || errors.Is(err, ErrRunRevisionLimit) ||
-		errors.Is(err, ErrScopeDeleting) || errors.Is(err, ErrInvalidScope)
+		errors.Is(err, ErrScopeDeleting) || errors.Is(err, ErrInvalidScope) ||
+		errors.Is(err, ErrArtifactFrozen) || errors.Is(err, ErrHistoryProtected) ||
+		errors.Is(err, ErrHistoryMaintenancePending)
 }
 
 func (r *PostgresRepository) writeConflict(
