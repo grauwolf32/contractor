@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"sort"
 	"strings"
@@ -146,11 +147,19 @@ func NewHTTPOriginBearerCredential(token string) (RuntimeCredentialMaterial, err
 
 func (m RuntimeCredentialMaterial) Kind() RuntimeCredentialKind { return m.kind }
 
+// RuntimeCredentialMaterial formats and logs only as a redaction marker, for
+// every fmt verb and flag, and refuses JSON encoding (SEC-R88).
 func (m RuntimeCredentialMaterial) String() string { return "[REDACTED]" }
 
 func (m RuntimeCredentialMaterial) GoString() string {
 	return "credentials.RuntimeCredentialMaterial([REDACTED])"
 }
+
+func (m RuntimeCredentialMaterial) Format(state fmt.State, verb rune) {
+	formatRedacted(state, verb, m.String(), m.GoString())
+}
+
+func (m RuntimeCredentialMaterial) LogValue() slog.Value { return slog.StringValue(m.String()) }
 
 func (m RuntimeCredentialMaterial) MarshalJSON() ([]byte, error) {
 	return nil, errors.New("Runtime credential material cannot be serialized")
@@ -198,6 +207,9 @@ func (u RuntimeCredentialUser) MayUse(metadata RuntimeCredentialMetadata) bool {
 	return u.Operations || u.UserID != "" && metadata.CreatedBy == u.UserID
 }
 
+// RuntimeCredentialRecord formats and logs as its identity and kind with the
+// envelope elided, for every fmt verb and flag, and encodes only its metadata
+// (SEC-R88).
 type RuntimeCredentialRecord struct {
 	Metadata RuntimeCredentialMetadata `json:"metadata"`
 	Envelope EncryptedEnvelope         `json:"-"`
@@ -209,6 +221,21 @@ func (r RuntimeCredentialRecord) String() string {
 
 func (r RuntimeCredentialRecord) GoString() string { return r.String() }
 
+func (r RuntimeCredentialRecord) Format(state fmt.State, verb rune) {
+	formatRedacted(state, verb, r.String(), r.GoString())
+}
+
+func (r RuntimeCredentialRecord) LogValue() slog.Value { return slog.StringValue(r.String()) }
+
+func (r RuntimeCredentialRecord) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		Metadata RuntimeCredentialMetadata `json:"metadata"`
+	}{Metadata: r.Metadata})
+}
+
+// RuntimeCredentialCreation formats and logs only as a redaction marker, for
+// every fmt verb and flag, and refuses JSON encoding (SEC-R88): its request
+// MAC and idempotency digest identify the secret request.
 type RuntimeCredentialCreation struct {
 	IdempotencyKeyDigest string                `json:"-"`
 	RequestMAC           []byte                `json:"-"`
@@ -220,6 +247,10 @@ type RuntimeCredentialCreation struct {
 
 func (c RuntimeCredentialCreation) String() string   { return "RuntimeCredentialCreation([REDACTED])" }
 func (c RuntimeCredentialCreation) GoString() string { return c.String() }
+func (c RuntimeCredentialCreation) Format(state fmt.State, verb rune) {
+	formatRedacted(state, verb, c.String(), c.GoString())
+}
+func (c RuntimeCredentialCreation) LogValue() slog.Value { return slog.StringValue(c.String()) }
 func (c RuntimeCredentialCreation) MarshalJSON() ([]byte, error) {
 	return nil, errors.New("Runtime credential creation replay cannot be serialized")
 }

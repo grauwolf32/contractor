@@ -3,6 +3,8 @@ package credentials
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -23,6 +25,12 @@ type PreparedDeleteReader interface {
 type EncryptedProvider struct {
 	records RecordReader
 	cipher  *TokenCipher
+}
+
+// Format redacts the provider as a whole for every verb (SEC-R88): through
+// its unexported cipher field fmt would print the cipher's key bytes.
+func (p EncryptedProvider) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "credentials.EncryptedProvider([REDACTED])")
 }
 
 func NewEncryptedProvider(records RecordReader, cipher *TokenCipher) (*EncryptedProvider, error) {

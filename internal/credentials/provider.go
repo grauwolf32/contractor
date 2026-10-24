@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -35,6 +36,12 @@ type StaticEntry struct {
 type StaticProvider struct {
 	mu      sync.RWMutex
 	entries map[string]StaticEntry
+}
+
+// Format redacts the provider as a whole for every verb (SEC-R88): fmt cannot
+// call the tokens' own redaction through the unexported entries field.
+func (p *StaticProvider) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "credentials.StaticProvider([REDACTED])")
 }
 
 func NewStaticProvider(entries []StaticEntry) (*StaticProvider, error) {

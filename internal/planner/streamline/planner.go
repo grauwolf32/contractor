@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -51,6 +52,11 @@ type streamlinePlanner struct {
 	reportMu  sync.RWMutex
 	report    reporting.ExecutionReport
 	hasReport bool
+}
+
+// Format redacts the planner as a whole for every verb (SEC-R88): fmt cannot call the model access token's own redaction through the unexported invocation field.
+func (s *streamlinePlanner) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "streamline.streamlinePlanner([REDACTED])")
 }
 
 func (p *streamlinePlanner) Run(

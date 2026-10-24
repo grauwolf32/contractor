@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"iter"
 	"net/http"
 	"strings"
@@ -33,6 +34,11 @@ func NewOpenAICompatibleModel(settings GatewaySettings) (model.LLM, error) {
 
 type openAICompatibleModel struct {
 	settings GatewaySettings
+}
+
+// Format redacts the model as a whole for every verb (SEC-R88): fmt cannot call the Gateway token's own redaction through the unexported settings field.
+func (openAICompatibleModel) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "streamline.openAICompatibleModel([REDACTED])")
 }
 
 func (m *openAICompatibleModel) Name() string { return m.settings.Model }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -143,6 +144,12 @@ type Service struct {
 	fenceMu         sync.Mutex
 	uncertainDelete atomic.Pointer[uncertainDelete]
 	ready           atomic.Bool
+}
+
+// Format redacts the service as a whole for every verb (SEC-R88): through its
+// unexported cipher field fmt would print the cipher's key bytes.
+func (s *Service) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "credentials.Service([REDACTED])")
 }
 
 // uncertainDelete identifies a delete intent whose durable outcome is unknown.

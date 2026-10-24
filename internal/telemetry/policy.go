@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"regexp"
 	"strings"
@@ -56,6 +57,11 @@ type Policy struct {
 	// contracts.ResultJSONSize; a test builds a Policy with a measure that
 	// counts, so no package state changes and tests may run in parallel.
 	size func(any) (int, error)
+}
+
+// Format redacts the policy as a whole for every verb (SEC-R88): its secrets field holds secret values in plain text.
+func (Policy) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "telemetry.Policy([REDACTED])")
 }
 
 func NewPolicy(secrets ...string) Policy {

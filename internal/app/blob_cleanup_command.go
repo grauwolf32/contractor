@@ -19,6 +19,12 @@ type blobCleanupConfig struct {
 	apply             bool
 }
 
+// Format redacts the configuration as a whole for every verb (SEC-R88): the
+// database URL may carry a password.
+func (blobCleanupConfig) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "app.blobCleanupConfig([REDACTED])")
+}
+
 func parseBlobCleanupConfig(args []string, getenv func(string) string) (cfg blobCleanupConfig, err error) {
 	if err = commandGroupHelp(args, "blobs",
 		[2]string{"cleanup", "report or remove filesystem Artifact blobs that PostgreSQL no longer references"}); err != nil {

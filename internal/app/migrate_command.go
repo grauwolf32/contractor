@@ -44,6 +44,12 @@ type migrationInputs struct {
 	budgets     persistencepostgres.MigrationBudgets
 }
 
+// Format redacts the inputs as a whole for every verb (SEC-R88): the database
+// URL may carry a password.
+func (migrationInputs) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "app.migrationInputs([REDACTED])")
+}
+
 // Migration timeouts are deliberately separate from ServerConfig database
 // budgets: schema changes may legitimately run longer than request work.
 func parseMigrationInputs(args []string, getenv func(string) string) (migrationInputs, error) {

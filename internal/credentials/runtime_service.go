@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
 
@@ -37,6 +38,12 @@ type RuntimeCredentialService struct {
 	barrier    *LifecycleBarrier
 	now        func() time.Time
 	mu         sync.Mutex
+}
+
+// Format redacts the service as a whole for every verb (SEC-R88): through its
+// unexported cipher field fmt would print the cipher's key bytes.
+func (s *RuntimeCredentialService) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "credentials.RuntimeCredentialService([REDACTED])")
 }
 
 func NewRuntimeCredentialService(options RuntimeCredentialServiceOptions) (*RuntimeCredentialService, error) {

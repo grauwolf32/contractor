@@ -54,7 +54,7 @@ func configureHTTP(
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure Git importer: %w", err)
 	}
-	performanceDiagnostics := newPerformanceDiagnostics(cfg.PerformanceMetrics, cfg.DatabaseURL)
+	performanceDiagnostics := newPerformanceDiagnostics(cfg.PerformanceMetrics, cfg.DatabaseURL.Reveal())
 	var performanceCollector *performance.Collector
 	if cfg.PerformanceMetrics {
 		performanceCollector = performance.New(performance.Options{

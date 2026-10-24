@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
@@ -161,8 +162,17 @@ func (c *TokenCipher) KeyID() string {
 	return c.keyID
 }
 
-func (c *TokenCipher) String() string   { return "credentials.TokenCipher([REDACTED])" }
-func (c *TokenCipher) GoString() string { return c.String() }
+// TokenCipher redacts itself as a whole for every fmt verb and flag, for
+// log/slog and for JSON (SEC-R88): its fields hold the derived MAC key and,
+// behind the AEAD, the master key schedule. The methods have value receivers
+// so that a copied cipher redacts too.
+func (c TokenCipher) String() string   { return "credentials.TokenCipher([REDACTED])" }
+func (c TokenCipher) GoString() string { return c.String() }
+func (c TokenCipher) Format(state fmt.State, verb rune) {
+	formatRedacted(state, verb, c.String(), c.GoString())
+}
+func (c TokenCipher) LogValue() slog.Value         { return slog.StringValue(c.String()) }
+func (c TokenCipher) MarshalJSON() ([]byte, error) { return json.Marshal(c.String()) }
 
 func (c *TokenCipher) Seal(
 	credentialID string,

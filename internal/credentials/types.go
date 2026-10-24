@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"math"
 	"regexp"
 	"strings"
@@ -42,9 +44,9 @@ var (
 )
 
 // Token is a bounded secret returned by a Gateway credential manager. It is
-// deliberately not JSON serializable and formats only as a redaction marker.
-// The package converts it to contracts.SecretString only at the final execution
-// resolver boundary.
+// deliberately not JSON serializable and formats and logs only as a redaction
+// marker, for every fmt verb and flag (SEC-R88). The package converts it to
+// contracts.SecretString only at the final execution resolver boundary.
 type Token struct{ value string }
 
 func NewToken(value string) (Token, error) {
@@ -56,8 +58,27 @@ func NewToken(value string) (Token, error) {
 
 func (t Token) String() string   { return "[REDACTED]" }
 func (t Token) GoString() string { return "credentials.Token([REDACTED])" }
+
+// Format writes the GoString form for %#v and the redaction marker for every
+// other verb, width and flag.
+func (t Token) Format(state fmt.State, verb rune) {
+	formatRedacted(state, verb, t.String(), t.GoString())
+}
+
+func (t Token) LogValue() slog.Value { return slog.StringValue(t.String()) }
+
 func (t Token) MarshalJSON() ([]byte, error) {
 	return nil, errors.New("credential token cannot be serialized")
+}
+
+// formatRedacted implements fmt.Formatter for a type that redacts itself as a
+// whole (SEC-R88): it writes goString for %#v and text for every other verb,
+// ignoring width and flags.
+func formatRedacted(state fmt.State, verb rune, text, goString string) {
+	if verb == 'v' && state.Flag('#') {
+		text = goString
+	}
+	_, _ = io.WriteString(state, text)
 }
 
 type GatewayPolicy struct {

@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -112,7 +115,27 @@ type otlpHTTPPlannerTelemetry struct {
 	closed            bool
 }
 
+// The exporter redacts itself as a whole for every fmt verb, for log/slog and
+// for JSON (SEC-R88): fmt cannot call the header values' own redaction through
+// the unexported headers field, and secretValues holds them in plain text. It
+// holds mutexes, so the methods use the pointer.
+func (o *otlpHTTPPlannerTelemetry) String() string {
+	return "telemetry.otlpHTTPPlannerTelemetry([REDACTED])"
+}
+func (o *otlpHTTPPlannerTelemetry) GoString() string { return o.String() }
+func (o *otlpHTTPPlannerTelemetry) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, o.String())
+}
+func (o *otlpHTTPPlannerTelemetry) LogValue() slog.Value         { return slog.StringValue(o.String()) }
+func (o *otlpHTTPPlannerTelemetry) MarshalJSON() ([]byte, error) { return json.Marshal(o.String()) }
+
 type otlpPlannerInstrumentation struct{ owner *otlpHTTPPlannerTelemetry }
+
+// Format redacts the instrumentation as a whole for every verb (SEC-R88):
+// through the unexported owner field fmt would print the OTLP header values.
+func (otlpPlannerInstrumentation) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "telemetry.otlpPlannerInstrumentation([REDACTED])")
+}
 
 type otlpPlannerSpan struct {
 	owner      *otlpHTTPPlannerTelemetry
@@ -123,6 +146,11 @@ type otlpPlannerSpan struct {
 	contentMu  sync.Mutex
 	content    map[string]string
 	ended      bool
+}
+
+// Format redacts the span as a whole for every verb (SEC-R88): through the unexported owner field fmt would print the OTLP header values.
+func (o *otlpPlannerSpan) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "telemetry.otlpPlannerSpan([REDACTED])")
 }
 
 func (s *otlpPlannerSpan) capturesContent() bool { return s.owner.captureContent }

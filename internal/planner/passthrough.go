@@ -3,6 +3,7 @@ package planner
 import (
 	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -65,6 +66,11 @@ type passthroughPlanner struct {
 	reportMu   sync.RWMutex
 	report     reporting.ExecutionReport
 	hasReport  bool
+}
+
+// Format redacts the planner as a whole for every verb (SEC-R88): fmt cannot call the model access token's own redaction through the unexported invocation field.
+func (p *passthroughPlanner) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "planner.passthroughPlanner([REDACTED])")
 }
 
 func (p *passthroughPlanner) Run(

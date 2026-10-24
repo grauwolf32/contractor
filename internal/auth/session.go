@@ -5,9 +5,11 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"strings"
 	"sync"
@@ -66,10 +68,21 @@ type storedSession struct {
 	sequence          uint64
 }
 
+// Format redacts the stored session as a whole for every verb (SEC-R88).
+func (storedSession) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "auth.storedSession([REDACTED])")
+}
+
+// SessionHandle, Session, Login, Service and Bootstrap redact themselves for
+// every fmt verb and flag, for log/slog and for JSON (SEC-R88): fmt calls
+// String only for some verbs, and never through an unexported field.
 type SessionHandle struct{ digest [sha256.Size]byte }
 
-func (SessionHandle) String() string   { return "auth.SessionHandle([REDACTED])" }
-func (SessionHandle) GoString() string { return "auth.SessionHandle([REDACTED])" }
+func (SessionHandle) String() string                   { return "auth.SessionHandle([REDACTED])" }
+func (SessionHandle) GoString() string                 { return "auth.SessionHandle([REDACTED])" }
+func (h SessionHandle) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, h.String()) }
+func (h SessionHandle) LogValue() slog.Value           { return slog.StringValue(h.String()) }
+func (h SessionHandle) MarshalJSON() ([]byte, error)   { return json.Marshal(h.String()) }
 
 type Session struct {
 	Handle            SessionHandle
@@ -94,15 +107,26 @@ func (s Session) String() string {
 	)
 }
 
-func (s Session) GoString() string { return s.String() }
+func (s Session) GoString() string               { return s.String() }
+func (s Session) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, s.String()) }
+func (s Session) LogValue() slog.Value           { return slog.StringValue(s.String()) }
+func (s Session) MarshalJSON() ([]byte, error)   { return json.Marshal(s.String()) }
 
 func (l Login) String() string {
 	return "auth.Login{CookieValue:[REDACTED] Session:" + l.Session.String() + "}"
 }
-func (l Login) GoString() string { return l.String() }
+func (l Login) GoString() string               { return l.String() }
+func (l Login) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, l.String()) }
+func (l Login) LogValue() slog.Value           { return slog.StringValue(l.String()) }
+func (l Login) MarshalJSON() ([]byte, error)   { return json.Marshal(l.String()) }
 
-func (s *Service) String() string   { return "auth.Service{secrets:[REDACTED]}" }
-func (s *Service) GoString() string { return s.String() }
+// Service holds a mutex, so its methods use the pointer, which vet's copylocks
+// check keeps from being copied.
+func (s *Service) String() string                 { return "auth.Service{secrets:[REDACTED]}" }
+func (s *Service) GoString() string               { return s.String() }
+func (s *Service) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, s.String()) }
+func (s *Service) LogValue() slog.Value           { return slog.StringValue(s.String()) }
+func (s *Service) MarshalJSON() ([]byte, error)   { return json.Marshal(s.String()) }
 
 func NewService(bootstrap Bootstrap, options Options) (*Service, error) {
 	if !bootstrap.valid || bootstrap.Principal.UserID == "" {

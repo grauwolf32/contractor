@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -26,8 +27,13 @@ type AllocationReportEnvelope struct {
 	ReportSchemaVersion         string
 	Report                      reporting.AllocationFinalReport
 	PerformanceCollectionPolicy reporting.PerformanceCollectionPolicy
-	Secrets                     []string
+	Secrets                     []string `json:"-"`
 	ReceivedAt                  time.Time
+}
+
+// Format redacts the envelope as a whole for every verb (SEC-R88): Secrets holds secret values in plain text; StoredAllocationReport embeds it.
+func (AllocationReportEnvelope) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "telemetry.AllocationReportEnvelope([REDACTED])")
 }
 
 type PlannerReportEnvelope struct {
@@ -38,8 +44,13 @@ type PlannerReportEnvelope struct {
 	FinishedAt          time.Time
 	ReportSchemaVersion string
 	Report              reporting.ExecutionReport
-	Secrets             []string
+	Secrets             []string `json:"-"`
 	ReceivedAt          time.Time
+}
+
+// Format redacts the envelope as a whole for every verb (SEC-R88): Secrets holds secret values in plain text; StoredPlannerReport embeds it.
+func (PlannerReportEnvelope) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "telemetry.PlannerReportEnvelope([REDACTED])")
 }
 
 type StoredAllocationReport struct {

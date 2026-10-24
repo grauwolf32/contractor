@@ -38,6 +38,11 @@ type Scheduler struct {
 	preparedSecrets *preparedSecretCache
 }
 
+// Format redacts the Scheduler as a whole for every verb (SEC-R88): through the unexported options field fmt would print its telemetry secrets.
+func (s *Scheduler) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "scheduler.Scheduler([REDACTED])")
+}
+
 // New requires every dependency. The process budgets (poll and lease-scan
 // intervals, claim lease, operation, planner, finalization and abort
 // timeouts) have no package defaults: the resolved ServerConfig owns them
