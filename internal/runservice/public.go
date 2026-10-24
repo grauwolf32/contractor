@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
@@ -273,7 +274,7 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 	}
 	originalSources := make(map[string]runrepeat.InputSource, len(params.OriginalInputSources))
 	for slot, source := range params.OriginalInputSources {
-		if slot != "rulepack" || source.SourceScope != artifacts.ScopeUser || source.Artifact.ValidateExact() != nil || params.Inputs[slot].Namespace != "contractor-system" || params.PinnedWorkflow == nil {
+		if slot != "rulepack" || source.SourceScope != artifacts.ScopeUser || source.Artifact.ValidateExact() != nil || params.Inputs[slot].Namespace != artifactpolicy.RunSystemNamespace || params.PinnedWorkflow == nil {
 			return PublicCreateParams{}, ErrInvalid
 		}
 		source.Artifact = source.Artifact.Clone()

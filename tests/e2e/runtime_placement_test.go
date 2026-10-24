@@ -167,8 +167,7 @@ func startPlacementStack(t *testing.T) *placementProcessHarness {
 		}
 	})
 	databaseURL := isolatedDatabase(t, ctx, os.Getenv("CONTRACTOR_TEST_DATABASE_URL"))
-	serverBinary := filepath.Join(h.temporary, "contractor-server")
-	runChecked(t, h.root, nil, "go", "build", "-o", serverBinary, "./cmd/contractor-server")
+	serverBinary := sharedServerBinary(t)
 	runChecked(t, h.root, map[string]string{"CONTRACTOR_DATABASE_URL": databaseURL}, serverBinary, "migrate")
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {

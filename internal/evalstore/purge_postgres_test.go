@@ -287,11 +287,13 @@ func populatedExperiment(t *testing.T, pool *pgxpool.Pool, scope Scope, id, port
 	}
 	claim := claimExperiment(t, pool, e.ID)
 	op := Suboperation{Kind: "run-create", Key: admitted.SubmissionKey, Request: json.RawMessage(`{"workflow":"trace-a@1"}`)}
-	mustTx(t, pool, func(s *Store) error { return s.PutSuboperation(ctx, scope, e.ID, admitted.MemberID, claim, op) })
 	mustTx(t, pool, func(s *Store) error {
-		return s.ResolveSuboperation(ctx, scope, e.ID, admitted.MemberID, op.Kind, claim, []byte(`{"rejected":true}`), true)
+		return s.RecoverMember(scope, e.ID, admitted.MemberID, claim).PutSuboperation(ctx, op)
 	})
-	mustTx(t, pool, func(s *Store) error { return s.Settle(ctx, scope, e.ID, admitted.MemberID, claim) })
+	mustTx(t, pool, func(s *Store) error {
+		return s.RecoverMember(scope, e.ID, admitted.MemberID, claim).ResolveSuboperation(ctx, op.Kind, []byte(`{"rejected":true}`), true)
+	})
+	mustTx(t, pool, func(s *Store) error { return s.RecoverMember(scope, e.ID, admitted.MemberID, claim).Settle(ctx) })
 	if _, err := pool.Exec(ctx, `
 INSERT INTO eval_execution_tombstones(experiment_id, member_id, execution_kind, execution_id, terminal_state, never_started)
 VALUES ($1, $2, 'run', $3, 'failed', false)`, e.ID, admitted.MemberID, id+"-deleted-run"); err != nil {

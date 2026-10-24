@@ -19,7 +19,10 @@ import (
 // writes, for the table ownership check (PER-R23). It reads SQL the way the
 // repository writes it: statements in string literals and in package-level
 // constants and variables, joined with + to other literals, constants and
-// expressions. An operand it cannot resolve to text, such as a variable or a
+// expressions. Each semicolon-delimited candidate must start with a SQL
+// statement or clause word, ignoring leading parentheses and unknown operands;
+// named CTE fragments are recognized too. Ordinary prose before a SQL word is
+// not a statement. An operand it cannot resolve to text, such as a variable or a
 // call, stands for unknown SQL.
 //
 // A relation is written by INSERT INTO, UPDATE, DELETE FROM, MERGE INTO,
@@ -35,7 +38,10 @@ import (
 //
 // Limits: a relation name that reaches SQL only through a function argument
 // or a variable of another declaration is not seen, and neither is a lock
-// clause kept apart from its FROM clause, as in query += " FOR UPDATE".
+// clause kept apart from its FROM clause, as in query += " FOR UPDATE". A
+// fragment starting with a column name is inspected only when a containing
+// concatenation supplies its SQL prefix; extend candidate detection if another
+// production assembly form needs such fragments scanned independently.
 
 // sourceRoots are the module directories whose non-test Go files hold the
 // Server's SQL, as in internal/archtest.
@@ -514,7 +520,7 @@ type relationAlias struct{ relation, alias string }
 // it reads or writes, and an access with an empty relation for each statement
 // whose relation is unknown SQL.
 func sqlRelationAccesses(text string, relations map[string]bool) []relationAccess {
-	statement := &sqlStatement{tokens: lexSQL(text), relations: relations, ctes: map[string]bool{}}
+	statement := &sqlStatement{tokens: sqlCandidateTokens(lexSQL(text)), relations: relations, ctes: map[string]bool{}}
 	statement.collectCTEs()
 	statement.scopes = [][]relationAlias{nil}
 	tokens := statement.tokens
@@ -558,6 +564,42 @@ func sqlRelationAccesses(text string, relations map[string]bool) []relationAcces
 		}
 	}
 	return statement.found
+}
+
+// sqlCandidateTokens retains statements and clause fragments, rather than
+// treating relation words in CLI help and diagnostics as SQL. Split after lexing
+// so semicolons inside comments and quoted SQL values do not split a statement.
+func sqlCandidateTokens(tokens []sqlToken) []sqlToken {
+	var result []sqlToken
+	for start := 0; start < len(tokens); {
+		end := start
+		for end < len(tokens) && tokens[end] != (sqlToken{kind: sqlPunct, text: ";"}) {
+			end++
+		}
+		first := start
+		for first < end && (tokens[first].kind == sqlUnknown ||
+			(tokens[first].kind == sqlPunct && strings.Contains("()*,", tokens[first].text))) {
+			first++
+		}
+		candidate := first < end && (&sqlStatement{tokens: tokens[start:end]}).cteBody(first-start)
+		if first < end && tokens[first].kind == sqlWord {
+			switch tokens[first].text {
+			case "SELECT", "WITH", "INSERT", "UPDATE", "DELETE", "MERGE", "TRUNCATE", "LOCK", "COPY",
+				"CREATE", "ALTER", "DROP", "EXPLAIN", "VALUES", "TABLE",
+				"FROM", "JOIN", "USING", "FOR", "WHERE", "SET", "ON", "AND", "OR", "HAVING",
+				"RETURNING", "UNION", "INTERSECT", "EXCEPT", "LATERAL", "ONLY", "NOT", "EXISTS", "CASE", "WHEN":
+				candidate = true
+			}
+		}
+		if candidate {
+			result = append(result, tokens[start:end]...)
+			if end < len(tokens) {
+				result = append(result, tokens[end])
+			}
+		}
+		start = end + 1
+	}
+	return result
 }
 
 func (s *sqlStatement) word(index int, word string) bool {
@@ -724,27 +766,36 @@ func (s *sqlStatement) collectCTEs() {
 		if !s.wordIn(index-1, "WITH", "RECURSIVE") && !s.punct(index-1, ",") {
 			continue
 		}
-		next := index + 1
-		if s.punct(next, "(") {
-			for next < len(s.tokens) && !s.punct(next, ")") {
-				next++
-			}
-			next++
-		}
-		if !s.word(next, "AS") {
-			continue
-		}
-		next++
-		if s.word(next, "NOT") {
-			next++
-		}
-		if s.word(next, "MATERIALIZED") {
-			next++
-		}
-		if s.punct(next, "(") {
+		if s.cteBody(index) {
 			s.ctes[strings.ToLower(s.tokens[index].text)] = true
 		}
 	}
+}
+
+// cteBody recognizes a named CTE, including a standalone CTE fragment whose
+// caller supplies WITH. It is shared by candidate detection and CTE shadowing.
+func (s *sqlStatement) cteBody(index int) bool {
+	if index < 0 || index >= len(s.tokens) || (s.tokens[index].kind != sqlWord && s.tokens[index].kind != sqlQuoted) {
+		return false
+	}
+	next := index + 1
+	if s.punct(next, "(") {
+		for next < len(s.tokens) && !s.punct(next, ")") {
+			next++
+		}
+		next++
+	}
+	if !s.word(next, "AS") {
+		return false
+	}
+	next++
+	if s.word(next, "NOT") {
+		next++
+	}
+	if s.word(next, "MATERIALIZED") {
+		next++
+	}
+	return s.punct(next, "(")
 }
 
 // TestSQLAccessScanReadsStatementsAsTheRepositoryWritesThem checks the scanner
@@ -840,5 +891,37 @@ func TestSQLAccessScanReadsStatementsAsTheRepositoryWritesThem(t *testing.T) {
 	slices.Sort(want)
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("accesses =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+func TestSQLAccessScanDistinguishesProseFromSQL(t *testing.T) {
+	relations := map[string]bool{"projects": true, "runs": true}
+	cases := []struct {
+		name, text string
+		want       []relationAccess
+	}{
+		{name: "scan sweep help", text: "rule parameter key=value; targets come from Projects"},
+		{name: "diagnostic", text: "could not read results from projects using runs"},
+		{name: "parenthesized prose", text: "(results come from projects)"},
+		{name: "commented prose", text: "/* a diagnostic */ results come from projects"},
+		{name: "commented statement", text: "/* query */ SELECT project_id FROM projects", want: []relationAccess{{relation: "projects"}}},
+		{name: "named CTE fragment", text: "report_review AS MATERIALIZED (SELECT 1 FROM projects FOR UPDATE)", want: []relationAccess{{relation: "projects"}, {relation: "projects", write: true}}},
+		{name: "continued CTE fragment", text: unknownSQL + ", changed AS (DELETE FROM projects RETURNING id)", want: []relationAccess{{relation: "projects", write: true}}},
+		{name: "closing CTE fragment", text: "), changed(id) AS (DELETE FROM projects RETURNING id)", want: []relationAccess{{relation: "projects", write: true}}},
+		{name: "from fragment", text: " FROM projects p JOIN runs r ON p.id=r.project_id", want: []relationAccess{{relation: "projects"}, {relation: "runs"}}},
+		{name: "unknown prefix", text: unknownSQL + " FROM projects", want: []relationAccess{{relation: "projects"}}},
+		{name: "project visibility predicate", text: "NOT EXISTS (SELECT 1 FROM projects)", want: []relationAccess{{relation: "projects"}}},
+		{name: "nested query fragment", text: "WHERE EXISTS (SELECT 1 FROM projects)", want: []relationAccess{{relation: "projects"}}},
+		{name: "multiple statements", text: "SELECT 1 FROM projects; DELETE FROM runs", want: []relationAccess{{relation: "projects"}, {relation: "runs", write: true}}},
+		{name: "SQL after prose", text: "results come from projects; SELECT 1 FROM runs", want: []relationAccess{{relation: "runs"}}},
+		{name: "prose after SQL", text: "SELECT 1 FROM projects; results come from runs", want: []relationAccess{{relation: "projects"}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := sqlRelationAccesses(c.text, relations)
+			if !slices.Equal(got, c.want) {
+				t.Fatalf("accesses=%+v, want %+v", got, c.want)
+			}
+		})
 	}
 }

@@ -207,6 +207,7 @@ LIMIT $2
 		return nil, err
 	}
 	members := []evaldomain.SelectedMember{}
+	sides := map[string]selectedSide{}
 	dirty := false
 	for rows.Next() {
 		var ordinal int
@@ -228,6 +229,7 @@ LIMIT $2
 			return nil, err
 		}
 		members = append(members, evaldomain.SelectedMember{View: v, PairID: pair, CollectionComplete: complete})
+		sides[v.Member.ID] = selectedSide{ordinal: ordinal, complete: complete}
 	}
 	err = rows.Err()
 	rows.Close()
@@ -290,11 +292,7 @@ RETURNING generation, published_at
 	).Scan(&generation, &publishedAt); err != nil {
 		return nil, err
 	}
-	complete := make(map[string]bool, len(members))
-	for _, member := range members {
-		complete[member.View.Member.ID] = member.CollectionComplete
-	}
-	if err = s.projectComparison(ctx, id, generation, comparisonView, complete, pinsVerified); err != nil {
+	if err = s.projectComparison(ctx, id, generation, comparisonView, sides, pinsVerified); err != nil {
 		return nil, err
 	}
 	if e.StartedAt != nil {

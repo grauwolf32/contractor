@@ -113,8 +113,7 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 	defer cancel()
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
-	serverBinary := filepath.Join(temporaryRoot, "contractor-server")
-	runChecked(t, repositoryRoot, nil, "go", "build", "-o", serverBinary, "./cmd/contractor-server")
+	serverBinary := sharedServerBinary(t)
 	runChecked(t, repositoryRoot, map[string]string{
 		"CONTRACTOR_DATABASE_URL": isolateURL,
 	}, serverBinary, "migrate")

@@ -40,6 +40,12 @@ class SelectCIStagesTest(unittest.TestCase):
     def test_e2e_tests_select_process_shards(self):
         self.assertEqual(stages_for_paths(["tests/e2e/stack_test.go"]), [LINT, UNIT, PROCESS_A, PROCESS_B, PROCESS_C])
 
+    def test_shared_server_build_selects_every_consumer(self):
+        self.assertEqual(
+            stages_for_paths(["tests/internal/serverbuildtest/server.go"]),
+            [LINT, UNIT, BROWSER_A, BROWSER_B, PROCESS_A, PROCESS_B, PROCESS_C],
+        )
+
     def test_gate_and_docs_only_stay_fast(self):
         self.assertEqual(stages_for_paths([".github/workflows/ci.yml", "make/release.mk", "docs/testing/README.md"]), [LINT])
 

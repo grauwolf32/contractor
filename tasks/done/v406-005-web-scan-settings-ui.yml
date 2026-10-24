@@ -5,10 +5,11 @@ milestone: web-nuclei-rule-sweeps-2026-10
 epic: ui
 kind: feature
 priority: P2
-status: pending
+status: completed
 depends_on:
 - V406-003
 languages:
+- go
 - typescript
 - css
 goal: An operator starts a standalone or Project web scan using a form for target, rules and rate
@@ -24,6 +25,7 @@ context:
   - docs/spec/configuration/workflows.md
 scope:
   in:
+  - Register a bundled Workflow-specific widget with exact-version and contract compatibility checks; keep launch/lifecycle in shared hosts.
   - Add scan settings form and single-Run launch for nuclei-web@1 using published contracts and
     existing UI building blocks/theme tokens.
   - Page all UserScope rulepack and Project selectors; upload packs to UserScope and submit exact
@@ -88,7 +90,16 @@ tests:
   - A3
 - command: make ui-browser-mocked
   covers: *id001
-- command: make test-ui-stack
+- command: make test-web-scan-ui-stack
   covers: *id001
 - command: make lint
   covers: *id001
+implementation_commit: 7c565a4b19eed6548afd048140fbdfd4d20249bf
+verification:
+  date: '2026-10-23'
+  passed:
+  - make ui-verify; 193 test files, 2356 passing tests and one expected failure; production build passed.
+  - make ui-browser-mocked; 85 browser cases including owner rulepack upload at 390 px in light/dark/black.
+  - make test-web-scan-ui-stack; real Server/Runtime/Chromium launch and exact owner input passed in 13.38 seconds with zero model calls.
+  - make lint; includes nonempty CI selection and task/spec checks.
+  scope: Basic widgets have a focused process gate; Studio and managed Evals remain independent. The broader test-ui-stack attempt was not green (native Eval sample-link timeout and pre-existing operations assertions); full release-verify was not invoked.

@@ -977,8 +977,14 @@ the next start; it does not block initialization or later allocations
 relative to pinned directory descriptors, never follows links and removes the
 ownership marker last.
 
-**WSP-R168.** Potentially blocking local filesystem removal never
-runs on the Runtime Agent's asyncio event-loop thread.
+**WSP-R168.** Potentially blocking local filesystem creation and
+removal never runs on the Runtime Agent's asyncio event-loop thread. This
+covers the project workspace, the scratch SandboxProfile directory with its
+owner marker and the temporary Skill of the `adk@1` startup probe. A cancelled
+creation waits for its worker thread to return and removes what that thread
+created, also off the event loop, before the cancellation propagates; a
+scratch directory that cannot be removed keeps its owner marker for startup
+cleanup (RTA-R52).
 
 **WSP-R169.** Release owns one allocation-wide cleanup task covering
 Toolset close, project workspace disposal, scratch SandboxProfile cleanup and

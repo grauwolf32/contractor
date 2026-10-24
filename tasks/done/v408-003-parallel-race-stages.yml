@@ -70,3 +70,11 @@ verification:
   - "Full make lint passed; 120 script unit tests passed in the Runtime environment; release graph passed with default and serial override, retaining 98 race packages and 106 integration tests."
   - "Original three consecutive Linux CI race runs remain explicit acceptance in V408-007. CI was not run for this local change."
   - "Raw logs and measurement summaries remain outside git under /private/tmp/contractor-v408-*. An initial SQL_ASCII setup was discarded; a redundant third sweep was stopped after all six successful target runs."
+followup_disposition:
+  date: "2026-10-24"
+  authority: "User explicitly requested archiving all remaining V408 work and declined further measurement."
+  result: >-
+    V408-001, V408-002, V408-006 and V408-007 are archived. The three-run Linux
+    CI follow-up described above is no longer scheduled and was not performed.
+    Keep the implemented default and serial override; the existing requirement
+    for evidence before increasing parallelism remains in force.

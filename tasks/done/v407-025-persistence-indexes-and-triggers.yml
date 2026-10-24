@@ -101,7 +101,7 @@ verification:
       TestStageExecutionGuardsFireOnTheColumnsTheyCompare,
       TestWorkflowRunGuardsFireOnTheColumnsTheyCompare).
     - >-
-      Can-fail checks (A3): without migration 000033,
+      Can-fail checks (A3): without migration 000034,
       TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern fails on
       every UPDATE step (admission and output publication failure call the
       immutability, continuation and capture triggers; transitions call the
@@ -112,7 +112,7 @@ verification:
       drain and purge statements in place of the new ones fails every plan
       bound (112 workflow_runs rows for 30 unreleased allocations, no fewer
       blocks, whole-index purge walk, generic plans off the owner index).
-    - make docs-dependencies and make docs-erd (schema 000033) regenerated.
+    - make docs-dependencies and make docs-erd (schema 000034) regenerated.
     - >-
       make lint passed (layers, staticcheck U1000, testonlyexports, SQL
       placement, task and spec checks).
@@ -127,7 +127,7 @@ verification:
       the whole body instead of the UPDATE branch and disabling the pair
       detection each fail four fixtures. Dropping the Skill snapshot
       qualifier fails TestWorkflowRunGuardsFireOnTheColumnsTheyCompare on
-      NEW.state/OLD.state. Without migration 000033 the held-Audit test now
+      NEW.state/OLD.state. Without migration 000034 the held-Audit test now
       fails on the plan (no index use, 3000 Audits read for 20 matching,
       generic plans off the indexes). Reran the task command (only the
       pre-existing TestSQLAccessFollowsTableOwnership fails), go test
@@ -157,6 +157,7 @@ verification:
       production speedup is claimed.
   database_tests_configured: true
 notes:
+  - Migration numbers in this record were renumbered (+1) on 2026-10-24 when main's 000033_audit_snapshot_labels was merged into the integration branch.
   - >-
     Siblings ruled out: the other project_id-only predicates (audits by
     audits_project_state_idx and audits_project_deletion_intent_idx,

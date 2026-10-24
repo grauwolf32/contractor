@@ -36,7 +36,7 @@ func TestSharedPostgresEvalProjectionFollowsOnlyRunOutputChanges(t *testing.T) {
 	claim := oneClaim(t, pool)
 	operation := Suboperation{Kind: "run-create", Key: "run-create-key", Request: json.RawMessage(`{"workflow":"trace-a@1"}`)}
 	mustTx(t, pool, func(s *Store) error {
-		return s.PutSuboperation(ctx, scope, experiment.ID, member.MemberID, claim, operation)
+		return s.RecoverMember(scope, experiment.ID, member.MemberID, claim).PutSuboperation(ctx, operation)
 	})
 	const runID = "run-eval-outputs"
 	if _, err := pool.Exec(ctx, `
@@ -48,7 +48,7 @@ VALUES ($1, $2, $3, 'trace', '1', '1', '{}', '{}', $4, 'model', 'failed', 'test_
 		t.Fatal(err)
 	}
 	mustTx(t, pool, func(s *Store) error {
-		return s.BindExecution(ctx, scope, experiment.ID, member.MemberID, runID, claim)
+		return s.RecoverMember(scope, experiment.ID, member.MemberID, claim).BindExecution(ctx, runID)
 	})
 	revision := func(db pg.DBTX) int64 {
 		t.Helper()

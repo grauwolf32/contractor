@@ -1,4 +1,7 @@
-"""Run blocking work in a thread without abandoning it on cancellation."""
+"""Run blocking work in a thread without abandoning it on cancellation.
+
+The module also owns retrieval of the outcome of a task that nobody awaits.
+"""
 
 from __future__ import annotations
 
@@ -29,7 +32,19 @@ async def to_thread_until_done[T](function: Callable[..., T], *args: Any, name: 
         except asyncio.CancelledError:
             cancelled = True
     if cancelled:
-        if not task.cancelled():
-            task.exception()
+        consume_task_exception(task)
         raise asyncio.CancelledError
     return task.result()
+
+
+def consume_task_exception(task: asyncio.Future[Any]) -> None:
+    """Retrieve a done task's exception without raising or exposing it.
+
+    Use it as a done callback, or directly on a done task, whenever the
+    outcome is deliberately discarded: asyncio otherwise logs an exception
+    that was never retrieved, together with its content. A cancelled task has
+    no exception to retrieve.
+    """
+
+    if not task.cancelled():
+        task.exception()

@@ -5,7 +5,19 @@ milestone: test-gate-cost-2026-10
 epic: persistence
 kind: chore
 priority: P2
-status: pending
+status: archived
+archive:
+  date: "2026-10-24"
+  previous_status: pending
+  authority: "Explicit user request to archive the remaining V408 tasks; further measurements are not needed."
+  reason: >-
+    The user requested archiving the remaining V408 work after the simpler optimisations landed. A shared schema plus TRUNCATE would broadly redesign test isolation, and the proposed fifty-percent saving has not been established.
+  disposition: >-
+    Keep the existing isolated schemas and real PostgreSQL tests. No shared-schema/truncation implementation or migration-cost experiment is claimed.
+  reconsider_when: >-
+    The user explicitly reactivates this work, supported by a concrete slow
+    or failing gate that warrants the proposed scope. Existing release gates
+    remain the detection mechanism; no additional monitoring is scheduled.
 depends_on: [V408-001]
 languages: [go, sql]
 goal: "A PostgreSQL-backed Go test costs a truncate, not a schema plus 31 migrations, and the isolation helper has one definition."

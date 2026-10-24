@@ -18,11 +18,13 @@ make test-wire-cross-language runs this gate. It fails when
   undeclared side reads it, or it has one reader and no recorded reason.
 
 Usage: python3 scripts/shared_fixture_gate.py [--sources-only]
+       python3 scripts/shared_fixture_gate.py --go-report FILE --runtime-log FILE
 --sources-only runs only the source checks, as make lint does.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -293,36 +295,14 @@ def run(command: list[str], *, cwd: Path, env: Mapping[str, str]) -> subprocess.
     return subprocess.run(command, cwd=cwd, env=dict(env), capture_output=True, text=True, check=False)
 
 
-def main(argv: list[str]) -> int:
-    problems = go_source_problems()
-    if "--sources-only" in argv:
-        report(problems, "shared fixture sources")
-        return 1 if problems else 0
+def verify_reports(go_lines: Iterable[str], records: list[str], problems: list[str] | None = None) -> int:
+    """Verify canonical unit reports with the same executed-reader checks as the focused gate."""
+    problems = [*(problems or []), *go_source_problems()]
     manifest = load_manifest()
     go_tests = discover_go_tests()
     python_tests = discover_python_tests()
-    with tempfile.TemporaryDirectory(prefix="shared-fixtures-") as directory:
-        log = Path(directory) / "reads.log"
-        log.touch()
-        env = {**os.environ, LOG_ENV: str(log)}
-        packages = sorted({"./" + package for package, _ in go_tests})
-        go = run(["go", "test", "-json", "-count=1", "-run", "^TestShared", *packages], cwd=ROOT, env=env)
-        outcomes = go_outcomes(go.stdout.splitlines(), module_path())
-        if go.returncode != 0:
-            problems.append(f"Go: go test exited with {go.returncode}")
-            failed = [line for line in go.stdout.splitlines() if '"Action":"output"' in line]
-            sys.stdout.write("".join(json.loads(line)["Output"] for line in failed[-200:]))
-            sys.stdout.write(go.stderr)
-        problems.extend(check_go_outcomes(go_tests, outcomes))
-        python = run(
-            ["uv", "run", "pytest", "-p", "no:randomly", "tests"],
-            cwd=ROOT / "runtime",
-            env={**env, ONLY_ENV: "1"},
-        )
-        print(python.stdout[-4000:], python.stderr[-4000:], sep="\n")
-        if python.returncode != 0:
-            problems.append(f"Python: pytest exited with {python.returncode}")
-        records = log.read_text(encoding="utf-8").splitlines()
+    outcomes = {key: outcome for key, outcome in go_outcomes(go_lines, module_path()).items() if key in go_tests}
+    problems.extend(check_go_outcomes(go_tests, outcomes))
     problems.extend(check_python_outcomes(python_tests, records))
     go_passed = {key for key, outcome in outcomes.items() if outcome == "pass"}
     python_modules = {function.split("::")[0] for function in python_tests}
@@ -337,6 +317,48 @@ def main(argv: list[str]) -> int:
     )
     report(problems, "shared fixture gate")
     return 1 if problems else 0
+
+
+def main(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--sources-only", action="store_true")
+    parser.add_argument("--go-report", type=Path)
+    parser.add_argument("--runtime-log", type=Path)
+    args = parser.parse_args(argv)
+    if args.sources_only:
+        if args.go_report or args.runtime_log:
+            parser.error("source checks do not consume test reports")
+        problems = go_source_problems()
+        report(problems, "shared fixture sources")
+        return 1 if problems else 0
+    if args.go_report is not None or args.runtime_log is not None:
+        if args.go_report is None or args.runtime_log is None:
+            parser.error("both --go-report and --runtime-log are required")
+        with args.go_report.open() as go:
+            return verify_reports(go, args.runtime_log.read_text(encoding="utf-8").splitlines())
+    go_tests = discover_go_tests()
+    problems: list[str] = []
+    with tempfile.TemporaryDirectory(prefix="shared-fixtures-") as directory:
+        log = Path(directory) / "reads.log"
+        log.touch()
+        env = {**os.environ, LOG_ENV: str(log)}
+        packages = sorted({"./" + package for package, _ in go_tests})
+        go = run(["go", "test", "-json", "-count=1", "-run", "^TestShared", *packages], cwd=ROOT, env=env)
+        if go.returncode != 0:
+            problems.append(f"Go: go test exited with {go.returncode}")
+            failed = [line for line in go.stdout.splitlines() if '\"Action\":\"output\"' in line]
+            sys.stdout.write("".join(json.loads(line)["Output"] for line in failed[-200:]))
+            sys.stdout.write(go.stderr)
+        python = run(
+            ["uv", "run", "pytest", "-p", "no:randomly", "tests"],
+            cwd=ROOT / "runtime",
+            env={**env, ONLY_ENV: "1"},
+        )
+        print(python.stdout[-4000:], python.stderr[-4000:], sep="\n")
+        if python.returncode != 0:
+            problems.append(f"Python: pytest exited with {python.returncode}")
+        records = log.read_text(encoding="utf-8").splitlines()
+    return verify_reports(go.stdout.splitlines(), records, problems)
 
 
 def report(problems: list[str], name: str) -> None:

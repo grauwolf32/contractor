@@ -5,7 +5,19 @@ milestone: test-gate-cost-2026-10
 epic: quality
 kind: chore
 priority: P2
-status: pending
+status: archived
+archive:
+  date: "2026-10-24"
+  previous_status: pending
+  authority: "Explicit user request to archive the remaining V408 tasks; further measurements are not needed."
+  reason: >-
+    The user requested archiving the remaining V408 work and no longer wants a separate timing campaign. The implemented optimisations already retain their local evidence; a complete pre/post twelve-stage baseline is not required for current priorities.
+  disposition: >-
+    No baseline campaign or new duration-summary script is scheduled. The original plan and unfulfilled acceptance criteria below remain historical context.
+  reconsider_when: >-
+    The user explicitly reactivates this work, supported by a concrete slow
+    or failing gate that warrants the proposed scope. Existing release gates
+    remain the detection mechanism; no additional monitoring is scheduled.
 depends_on: []
 languages: [go, python]
 goal: "Each stage and each local target has a recorded wall-clock and per-package duration so the later tasks prove their savings against numbers, not impressions."

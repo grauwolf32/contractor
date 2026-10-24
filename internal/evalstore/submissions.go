@@ -120,42 +120,29 @@ last_producer_activity_at=CASE WHEN control_mode='external' THEN clock_timestamp
 	})
 }
 
-// Recovery locks accept a deleting workspace: accepted work must be reconciled.
-// A current claim is mandatory, including reconciliation of external submissions.
-func (s *Store) recovery(ctx context.Context, scope Scope, id string, claim Claim) (Experiment, error) {
-	if _, err := s.project(ctx, scope, true); err != nil {
-		return Experiment{}, err
-	}
-	e, err := s.locked(ctx, scope, id)
-	if err != nil {
-		return e, err
-	}
-	return e, s.checkClaim(ctx, id, claim)
-}
-
 // RegisterExecutionProject must compose with ordinary Project creation in the
 // same transaction. No arbitrary pre-existing workspace can be attached.
-func (s *Store) RegisterExecutionProject(ctx context.Context, scope Scope, id, member, projectID, creationKey string, claim Claim) error {
+func (r *MemberRecovery) RegisterExecutionProject(ctx context.Context, projectID, creationKey string) error {
+	s, scope, id, member := r.store, r.scope, r.id, r.member
 	// Lock both workspace rows before the experiment, matching Project deletion.
 	if err := s.requireTx(); err != nil {
 		return err
 	}
-	if _, err := s.project(ctx, scope, true); err != nil {
-		return err
+	if !r.held {
+		if _, err := s.project(ctx, scope, true); err != nil {
+			return err
+		}
 	}
 	var ok bool
 	err := s.db.QueryRow(ctx, registerExecutionProjectSQL, scope.OwnerID, projectID, creationKey, id, member).Scan(&ok)
 	if err != nil {
 		return normalize(err)
 	}
-	e, err := s.locked(ctx, scope, id)
+	fence, err := r.afterProjectLocks(ctx)
 	if err != nil {
 		return err
 	}
-	if err = s.checkClaim(ctx, id, claim); err != nil {
-		return err
-	}
-	if e.DeletionRequestedAt != nil {
+	if fence.deletionRequested {
 		return evaldomain.Failure("eval_project_deleting")
 	}
 	var key string
@@ -207,14 +194,16 @@ WHERE e.owner_id=$1
 	return out, normalize(err)
 }
 
-func (s *Store) PutSuboperation(ctx context.Context, scope Scope, id, member string, claim Claim, op Suboperation) error {
+// PutSuboperation journals the intent of an outbound call before the call.
+func (r *MemberRecovery) PutSuboperation(ctx context.Context, op Suboperation) error {
+	s, scope, id, member := r.store, r.scope, r.id, r.member
 	if _, err := evaldomain.StrictJSON(op.Request); err != nil {
 		return err
 	}
 	if !contracts.ValidResourceID(op.Key) {
 		return evaldomain.Failure("eval_invalid")
 	}
-	e, err := s.recovery(ctx, scope, id, claim)
+	fence, err := r.authority(ctx)
 	if err != nil {
 		return err
 	}
@@ -231,7 +220,7 @@ func (s *Store) PutSuboperation(ctx context.Context, scope Scope, id, member str
 	if !errors.As(err, &domain) || domain.Code != "eval_not_found" {
 		return err
 	}
-	if (e.DeletionRequestedAt != nil || e.State == evaldomain.StateCancelling) && op.Kind != "cancel" {
+	if (fence.deletionRequested || fence.state == evaldomain.StateCancelling) && op.Kind != "cancel" {
 		return evaldomain.Failure("eval_project_deleting")
 	}
 	var state SubmissionState
@@ -245,11 +234,14 @@ func (s *Store) PutSuboperation(ctx context.Context, scope Scope, id, member str
 	return normalize(err)
 }
 
-func (s *Store) ResolveSuboperation(ctx context.Context, scope Scope, id, member, kind string, claim Claim, response []byte, rejected bool) error {
+// ResolveSuboperation records the outcome of the member's suboperation kind
+// once; a repeated identical outcome replays.
+func (r *MemberRecovery) ResolveSuboperation(ctx context.Context, kind string, response []byte, rejected bool) error {
+	s, scope, id, member := r.store, r.scope, r.id, r.member
 	if _, err := evaldomain.StrictJSON(response); err != nil {
 		return err
 	}
-	if _, err := s.recovery(ctx, scope, id, claim); err != nil {
+	if _, err := r.authority(ctx); err != nil {
 		return err
 	}
 	op, err := s.Suboperation(ctx, scope.OwnerID, id, member, kind)
@@ -272,8 +264,9 @@ func (s *Store) ResolveSuboperation(ctx context.Context, scope Scope, id, member
 
 // BindExecution checks ordinary service authority, not a caller's labels. It
 // can recover an already accepted creation after an experiment is fenced.
-func (s *Store) BindExecution(ctx context.Context, scope Scope, id, member, executionID string, claim Claim) error {
-	if _, err := s.recovery(ctx, scope, id, claim); err != nil {
+func (r *MemberRecovery) BindExecution(ctx context.Context, executionID string) error {
+	s, scope, id, member := r.store, r.scope, r.id, r.member
+	if _, err := r.authority(ctx); err != nil {
 		return err
 	}
 	var kind, key, digest string
@@ -354,8 +347,9 @@ SELECT EXISTS(SELECT 1
 // Settle decreases outstanding once, only after an authoritative terminal
 // execution and all durable suboperations have resolved. A failed transport
 // cannot be turned into a rejected intent by this method.
-func (s *Store) Settle(ctx context.Context, scope Scope, id, member string, claim Claim) error {
-	e, err := s.recovery(ctx, scope, id, claim)
+func (r *MemberRecovery) Settle(ctx context.Context) error {
+	s, scope, id, member := r.store, r.scope, r.id, r.member
+	fence, err := r.authority(ctx)
 	if err != nil {
 		return err
 	}
@@ -414,7 +408,7 @@ WHERE owner_id=$1
 		state = SubmissionTerminal
 	} else {
 		var rejected bool
-		err = s.db.QueryRow(ctx, settleSubmissionSQL, id, member, e.State == evaldomain.StateCancelling).Scan(&rejected)
+		err = s.db.QueryRow(ctx, settleSubmissionSQL, id, member, fence.state == evaldomain.StateCancelling).Scan(&rejected)
 		if err != nil {
 			return err
 		}

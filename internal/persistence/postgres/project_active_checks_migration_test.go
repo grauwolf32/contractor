@@ -45,7 +45,7 @@ func TestPostgresProjectActiveChecksMigrationPreservesBaselines(t *testing.T) {
 		if err := json.Unmarshal(raw, &baseline); err != nil {
 			t.Fatal(err)
 		}
-		if string(baseline["activeChecks"]) != "\""+policy+"\"" || len(baseline) != 4 || string(baseline["scope"]) != `{"target": "https://target.example"}` {
+		if string(baseline["activeChecks"]) != "\""+policy+"\"" || len(baseline) != 6 || string(baseline["labels"]) != `{}` || string(baseline["requiredPlacementLabels"]) != `[]` || string(baseline["scope"]) != `{"target": "https://target.example"}` {
 			t.Fatalf("baseline changed: %s", raw)
 		}
 	}

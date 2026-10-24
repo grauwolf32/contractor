@@ -57,6 +57,8 @@ def stages_for_paths(paths: list[str]) -> list[str]:
                         selected.add(BROWSER_B)
             else:
                 selected.update((BROWSER_A, BROWSER_B))
+        elif path.startswith("tests/internal/serverbuildtest/"):
+            selected.update((UNIT, BROWSER_A, BROWSER_B, PROCESS_A, PROCESS_B, PROCESS_C))
         elif path.startswith("tests/ui-stack/"):
             selected.update((BROWSER_A, BROWSER_B))
         elif path.startswith("tests/e2e/"):

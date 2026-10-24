@@ -70,7 +70,10 @@ The selected evidence directory contains:
 - `native-evidence.json` and `external-evidence.json`: experiment IDs, frozen
   identity/timing and safe public reports;
 - `browser/native` and `browser/external`: Playwright traces and comparison
-  screenshots at both viewports.
+  screenshots at both viewports;
+- `browser/native-report.json` and `browser/external-report.json`: mandatory
+  Playwright execution reports checked by the shared nonempty-selection guard.
+  A skipped, flaky or unexpected journey fails even when Playwright exits zero.
 
 Artifacts are local test output, not committed secrets or a hosted report.
 

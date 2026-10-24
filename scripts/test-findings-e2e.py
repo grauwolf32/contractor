@@ -46,6 +46,12 @@ REQUIRED_TESTS = frozenset(
     )
 )
 # Minimum counts also protect parametrized writer/reader modes and malformed inputs.
+PYTHON_FILES = (
+    "tests/test_security_findings_toolset.py",
+    "tests/test_findings_reader_toolset.py",
+    "tests/test_finding_facades.py",
+    "tests/test_numbered_file_reads.py",
+)
 PYTHON_CASES = {
     "test_locations_match_go_contract": 32,
     "test_actual_provider_schema": 3,
@@ -136,10 +142,7 @@ def run(root: Path) -> None:
                 str(python),
                 "-m",
                 "pytest",
-                "tests/test_security_findings_toolset.py",
-                "tests/test_findings_reader_toolset.py",
-                "tests/test_finding_facades.py",
-                "tests/test_numbered_file_reads.py",
+                *PYTHON_FILES,
                 "--junitxml",
                 str(junit),
             ],

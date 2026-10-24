@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import shutil
 import stat
@@ -48,17 +49,21 @@ class LocalWorkdirFactory:
         return True
 
     async def prepare(self) -> AllocationWorkspace:
-        self._root.mkdir(mode=0o700, parents=True, exist_ok=True)
         path = self._root / f"{ALLOCATION_DIRECTORY_PREFIX}{uuid.uuid4().hex}"
         if path.parent != self._root:
             raise RuntimeError("generated allocation workspace escaped its root")
-        # Marker first: a crash in between leaves a removable marker, never an
-        # unowned directory that startup cleanup must not touch.
-        _write_owner_marker(self._root, path.name)
         try:
-            path.mkdir(mode=0o700)
-        except BaseException:
-            _remove_owner_marker(self._root, path.name)
+            await to_thread_until_done(
+                _create_owned_workdir, self._root, path.name, name="allocation-prepare"
+            )
+        except asyncio.CancelledError:
+            # The thread has returned, and nobody owns what it created yet. The
+            # fresh name cannot belong to anything else in this Runtime's root.
+            # A failed rollback keeps the marker, so startup cleanup removes it.
+            with suppress(OSError):
+                await to_thread_until_done(
+                    _remove_owned_workdir, self._root, path.name, name="allocation-prepare"
+                )
             raise
         return AllocationWorkspace(root=self._root, path=path)
 
@@ -99,6 +104,18 @@ def _is_allocation_name(name: str) -> bool:
         and len(token) == 32
         and all(character in "0123456789abcdef" for character in token)
     )
+
+
+def _create_owned_workdir(root: Path, name: str) -> None:
+    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # Marker first: a crash in between leaves a removable marker, never an
+    # unowned directory that startup cleanup must not touch.
+    _write_owner_marker(root, name)
+    try:
+        (root / name).mkdir(mode=0o700)
+    except BaseException:
+        _remove_owner_marker(root, name)
+        raise
 
 
 def _owner_contents(name: str) -> bytes:
