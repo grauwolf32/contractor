@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-132 open tasks: 11 in progress, 96 pending, 25 deferred. 1066 finished: 1056 completed, 10 archived.
+131 open tasks: 10 in progress, 96 pending, 25 deferred. 1067 finished: 1057 completed, 10 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V414-011](v414-011-secret-holders-all-verbs.yml) | operations | defect | P1 | Redact every Go secret holder for every fmt verb, slog and unexported-field nesting |
 | [V414-015](v414-015-credential-token-field-grammar.yml) | api-contracts | defect | P2 | Accept only sendable HTTP field values as Project target and infrastructure credential tokens |
 | [V414-017](v414-017-eval-json-nul-escape.yml) | evals | defect | P1 | Reject the NUL escape in Eval JSON so stored documents never break jsonb reads |
-| [V414-028](v414-028-audit-claim-reconcilable-candidates.yml) | audits | defect | P2 | Lease Audit controller claims from the reconcilable Audits instead of reading every claim row |
 
 ## Pending
 
@@ -199,7 +198,7 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-001, V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
-| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-002, V414-003, V414-004, V414-005, V414-006, V414-007, V414-008, V414-009, V414-010, V414-011, V414-012, V414-013, V414-014, V414-015, V414-016, V414-017, V414-018, V414-019, V414-020, V414-021, V414-022, V414-023, V414-024, V414-025, V414-026, V414-028, V414-029, V414-030 | Close the V407/V409 review follow-ups |
+| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-002, V414-003, V414-004, V414-005, V414-006, V414-007, V414-008, V414-009, V414-010, V414-011, V414-012, V414-013, V414-014, V414-015, V414-016, V414-017, V414-018, V414-019, V414-020, V414-021, V414-022, V414-023, V414-024, V414-025, V414-026, V414-029, V414-030 | Close the V407/V409 review follow-ups |
 
 ## Deferred
 
@@ -250,7 +249,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 10 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 35 | 33 | 6 | 38 |
-| Audits (`audits`) | 28 | 60 | 78 | 23 | 100 |
+| Audits (`audits`) | 27 | 60 | 78 | 23 | 100 |
 | Evaluations (`evals`) | 8 | 21 | 37 | 11 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 61 | 13 | 55 |
