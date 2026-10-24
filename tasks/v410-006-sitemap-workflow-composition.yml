@@ -1,0 +1,190 @@
+schema_version: '1.0'
+id: V410-006
+title: Ship ordinary sitemap discovery and reconciliation Workflows
+milestone: project-sitemap-2026-10
+epic: workflows
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V410-003
+- V410-004
+- V410-005
+- V55-003
+- V62-004
+languages:
+- go
+- python
+- yaml
+- markdown
+goal: Make the independent HTTP/OpenAPI sitemap slice runnable through ordinary Workflows and existing Audit preparation/round-discovery
+  mappings with exact accepted context.
+context:
+  authority: User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
+    this task records planned work, not implementation or verification evidence.
+  proposal: docs/proposals/0042-live-project-sitemap.md
+  proposal_sections: 'Sections 1-2, 5-6 and 12: independent first delivery and ordinary Workflow/Audit composition.'
+  specification:
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/projects.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/platform/persistence.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/configuration/workflows.md
+  - docs/spec/configuration/agent-templates.md
+  - docs/spec/configuration/catalog.md
+  - docs/spec/audits/scans.md
+  - docs/spec/audits/worker-completion.md
+  boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or deferred V61/V62/V64
+    work.
+  code:
+  - configs/workflows
+  - configs/agent-templates
+  - configs/audit-profiles
+  - internal/config
+  - internal/auditcontroller
+  - internal/auditimport
+  - internal/auditservice
+  - tests/e2e
+  - docs/guides
+scope:
+  in:
+  - Ship separately selectable ordinary discovery and sitemap-openapi-reconcile Workflows with precise Toolset selections,
+    declared artifact slots and model-free passthrough/tool computation where applicable.
+  - Provide Project examples for automatic HTTP discovery plus exact OpenAPI/report import, including a usable flow
+    without any selected schema.
+  - Compose reconciliation as preparation or same-round discovery through existing audit-input/prepare-output/retained-output
+    mappings; snapshot live map through the explicit adapter and record the exact selected revision.
+  - Keep normal HTTP ingestion on the current grouping policy without launching reconciliation for every request;
+    declared boundaries/policy changes alone start another pass.
+  - Validate shipped catalog and introduce test-only fixture copies and local process cases; document failure outcomes
+    and source-specific gaps.
+  out:
+  - Cross-round item artifacts, deferred V62-006/007 routing, autonomous pentest program/profile release, browser
+    requirements or generated OpenAPI prerequisites.
+  - Full HTTP capture, heuristic grouping, a new Audit semantic step kind or automatic target execution during import.
+requirements:
+- id: R1
+  text: Each Workflow has exact declared inputs/outputs, tool/capability closure and production callers; model-free
+    reconciliation has no hidden model requirement and its full map is not returned in a completion envelope.
+- id: R2
+  text: No-OpenAPI execution remains runnable; adding schema reconciliation is explicit. A missing browser or incremental
+    Caido history produces source-specific gaps, not failure of HTTP/OpenAPI availability.
+- id: R3
+  text: Preparation outputs use existing prepare-output semantics; same-round discovery uses retained-output. Fresh
+    live map reads use bounded allocation-owned materialized authorized snapshots, not history pins; replacement
+    or release expires their cursors. Exact selected inputs/outputs need real holds before acceptance, atomically
+    against eviction. Neither a cursor nor metadata refs imply previous-round lookup or mutate the Audit baseline.
+- id: R4
+  text: Catalog identity follows the current pre-production rules; validate actual shipped configurations explicitly,
+    while ordinary tests use testdata and never read live configs.
+- id: R5
+  text: Required collection/output failure is surfaced at the declared Workflow boundary and does not relabel target
+    responses; invalid input/policy leaves the shared map unchanged.
+failure_outcomes:
+- operation: Workflow input selection, model-free execution and output publication
+  permanent: Unknown/missing required input, capability or tool/output contract fails at existing validation/prepare/result
+    boundaries; unsupported source policy is not guessed. Evicted exact inputs remain unavailable; protected-history
+    capacity conflicts and generic Artifact admission rejection do not automatically retry.
+  retryable: Use ordinary Scheduler/Worker retry policy with exact held inputs; bounded ArtifactStore eviction
+    backpressure retries only publication and preserves receipts, never redispatching target discovery.
+  ambiguous: Reconcile existing output/Artifact receipts and source-generation intent; never repeat discovery target
+    calls to recover a lost output acknowledgement. Receipt replay after eviction confirms the old commit without
+    republishing; it does not make evicted exact bytes available.
+  cancelled: Existing Scheduler cancellation joins allocations and sitemap publishers before release.
+  timeout: Separate Run/task deadlines from collector drain and exact-output publication allowances.
+- operation: Audit mapping and accepted reconciliation collection
+  permanent: Invalid prepare/retained-output mapping or incompatible package is a permanent collection failure;
+    no fallback to latest Project data.
+  retryable: Reuse existing bounded Audit collection/recovery retries.
+  ambiguous: Existing Audit collection receipt and exact retained outputs reconcile duplicate/lost collection responses.
+  cancelled: Cancelled Audit uses existing child cancel/drain and retained evidence lifecycle.
+  timeout: Ordinary Audit preparation/round deadlines own these calls; no new controller clock or claim is introduced.
+cardinality:
+- collection: Workflow inputs/outputs and Audit mapped selections
+  expected: One exact map plus optional selected schema/report inputs
+  maximum: Existing Workflow/Audit package and mapping bounds plus proposal 0042 section 10 map limits; tighter
+    consumer limits win
+  bound: Use selected snapshots/projections and existing paged inventory; never fan out a Workflow per HTTP observation.
+- collection: Discovery requests/import work and reconciliations
+  expected: Bounded discovery Run and one reconciliation per selected boundary
+  maximum: Explicit Workflow request/time/depth, bounded collection operations and generic Artifact admission/retention limits
+  bound: Discovery/import deadlines and bounded coalescing/backpressure limit work; no custom aggregate Run
+    publication budget is added and missing surface remains a coverage gap.
+lifecycle:
+- entity: Workflow/Audit context snapshots and shared updates
+  delete: Ordinary Run/Audit/Project lifecycle authorities retain control.
+  cascade: Run deletion leaves committed shared metadata and accepted held context intact.
+  retention: Exact accepted inputs/outputs are protected by their existing real holds; unselected metadata refs,
+    CAS predecessors and research read snapshots do not pin history. Live map changes or eviction never rewrite
+    an accepted worklist or report.
+acceptance_criteria:
+- id: A1
+  given: A Project with HTTP access but no OpenAPI, browser or Caido history
+  when: The shipped first-slice discovery Workflow runs
+  then: It produces a usable bounded shared map and truthful source gaps without requiring those optional capabilities.
+- id: A2
+  given: An exact OpenAPI/map pair and the shipped reconciliation Workflow
+  when: A tool@1 Worker executes without an LLM
+  then: Declared outputs hold the canonical map/report and optional guarded publication records its actual revision.
+- id: A3
+  given: An Audit using prepare and same-round discovery fixtures with snapshot replacement and concurrent eviction
+  when: Fresh map snapshots are reconciled before inventory/checks
+  then: Existing exact mappings feed consumers and no baseline mutation or implicit cross-round artifact lookup
+    occurs; expired research cursors fail and selected context obtains its real hold before acceptance or fails
+    unavailable, never substituting latest.
+- id: A4
+  given: Invalid schema, quota/source conflict, cancellation and lost output/collection replies
+  when: The production composition hits each boundary
+  then: Existing accepted map/data survive, stable outcomes are retained and retries never resend target work to
+    recover publication.
+- id: A5
+  given: Shipped catalog and separate testdata fixtures
+  when: Configuration and composition gates run
+  then: All closures resolve, tests do not read live configs, generated clients/contracts remain consistent and
+    ordinary Audit regression flows pass.
+deliverables:
+- path: configs/workflows
+  description: Runnable discovery and model-free sitemap-openapi-reconcile Workflows, templates and exact output
+    contracts.
+- path: docs/guides
+  description: Independent Project workflow examples and optional existing Audit mapping walkthrough.
+- path: tests/e2e
+  description: Composition fixtures and real-process cases registered in the sitemap and existing Audit composition
+    gates.
+tests:
+- command: make test-config
+  covers:
+  - A1
+  - A2
+  - A5
+- command: make test-project-sitemap-tools-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-composition-e2e
+  covers:
+  - A3
+  - A4
+  - A5
+- command: go test ./internal/config/... ./internal/auditcontroller/... ./internal/auditimport/... ./internal/auditservice/...
+  covers:
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- Existing tool@1 and Audit prepare/round mapping implementations are reused, not recreated. Use disposable PostgreSQL,
+  local target/provider fixtures and scripted model responses; do not require paid/live models or deferred iterative
+  features.

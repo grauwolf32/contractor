@@ -9,61 +9,97 @@ priority: P3
 status: pending
 depends_on: []
 languages: [go, sql]
-goal: "The table ownership check sees relations that reach SQL through a helper argument, lock clauses appended apart from FROM, and the writes that migration triggers and functions make to another owner's tables."
+goal: "The table ownership check sees relations that reach SQL through a helper argument, lock clauses appended apart from FROM, the tables that migration functions called from Go SQL read, write or lock, and the writes that migration triggers make to another owner's tables."
 context:
   review: "Out-of-scope findings of the hub audit fix batch, wave 2 (group w2a: V369-001), recorded 2026-10-12; file:line verified on b2b09ea"
   specification: "docs/spec/platform/persistence.md#PER-R23"
+  revalidated: >-
+    2026-10-24 on b523ae77. Still holds and has grown. V369-008
+    (fab046292553d3ff4dff01af4a531b9168bbe05d) made the scan require a
+    statement or clause start before it reads relations (no more prose
+    false positives) and added a third documented limit (a fragment that
+    starts with a column name is inspected only inside a concatenation
+    that supplies its SQL prefix); the helper-argument and appended-lock
+    limits are unchanged (internal/persistence/sql_access_test.go:39-44).
+    PER-R23 still leaves migration triggers and functions outside the
+    rule. Since b2b09ea new migrations added cross-owner trigger writes
+    (000024 finding correlation, 000030 allocation report receipt) and
+    moved the Eval projection and tombstone definitions (000018, 000029,
+    000037). Found while revalidating: Go SQL also calls migration
+    functions that read or lock other owners' tables, which the scan
+    cannot see, including one exclusive row lock across owners. The
+    trigger inventory below came from a scratch schema migrated through
+    000039 on b523ae77 (pg_trigger joined to pg_proc bodies, following
+    calls between functions) compared with the [relations] owners.
   finding: >-
-    The SQL scan behind TestSQLAccessFollowsTableOwnership documents two
-    limits (internal/persistence/sql_access_test.go:35-37), and production
-    code uses both. auditEventsFrom
-    (internal/auditstore/internal/pgstore/event_allocation.go:50-59) takes the
-    relation it reads as a function argument (callers collection_sql.go:8,
-    lifecycle_sql.go:10 and report_review_sql.go:29 of the same package), and
-    two statements append their lock clause apart from FROM: Store.project
-    (internal/evalstore/store.go:114-119, query += FOR SHARE on projects) and
-    Repository.lockBindings (internal/runtimeconfig/repository.go:364-389,
-    which appends FOR SHARE or FOR UPDATE passed in as mode). None breaks the
-    rule today, but a foreign relation or an exclusive lock written in these
-    forms would pass unseen. Separately, PER-R23 leaves the triggers and
-    functions that migrations define outside the rule, and several write
-    across owners: contractor_admit_audit_finding
-    (internal/persistence/migrations/000001_baseline.sql:35, replaced in
-    000003_audit_event_allocator.sql:66-110),
-    fired by findingintake's insert into finding_proposal_audit_holds
-    (trigger at 000001_baseline.sql:3601), writes audit_findings,
-    audit_finding_contributions and audits, owned by
-    internal/auditstore/internal/pgstore, and calls
-    contractor_append_audit_events, which inserts into audit_events; the Eval
-    projection triggers on workflow_runs, stage_executions, stage_metrics,
-    artifact_bindings, artifact_binding_revisions, audits, audit_executions
-    and audit_artifact_links (000001_baseline.sql:2164, 2189, 2341, 2384,
-    2407, 2965, 3156 and 3388) write evalstore's eval_member_projections and
-    eval_projection_queue. The scan and its documented limits came with
-    V369-001 (404854167).
+    (1) Helper argument and appended locks. auditEventsFrom
+    (internal/auditstore/internal/pgstore/event_allocation.go:52-59) takes
+    the relation it reads as an argument (callers collection_sql.go:8,
+    lifecycle_sql.go:10 and report_review_sql.go:29 of the same package);
+    Store.project (internal/evalstore/store.go:110-122) appends FOR SHARE
+    to its projects read with query +=; Repository.lockBindings
+    (internal/runtimeconfig/repository.go:367-384) appends FOR SHARE or FOR
+    UPDATE passed in as mode. None breaks the rule today, but a foreign
+    relation or an exclusive lock written in these forms passes unseen.
+    (2) Functions called from Go SQL. findingintake calls
+    contractor_lock_finding_correlation_project
+    (internal/findingintake/postgres.go:480; defined in
+    internal/persistence/migrations/000024_finding_automatic_correlation.sql:147),
+    which takes FOR NO KEY UPDATE NOWAIT on projectstore's projects, an
+    exclusive row lock that PER-R23 forbids across owners when written in
+    Go SQL; telemetry's cleanupStageMetricsSQL
+    (internal/telemetry/repository_sql.go:58) calls
+    contractor_eval_run_members, which reads evalstore's eval_submissions
+    and auditstore's audit_executions with no [reads] grant; auditstore's
+    calls of contractor_require_active_audit_project (FOR SHARE on
+    projects, granted) and contractor_append_audit_events (its own
+    audit_events) stay within the rule. (3) Trigger writes across owners
+    (trigger table, owner -> written tables, owner): on workflow_runs,
+    stage_executions (runstore), stage_metrics (telemetry),
+    artifact_bindings, artifact_binding_revisions (artifacts), audits,
+    audit_executions and audit_artifact_links (auditstore) the Eval
+    projection triggers call contractor_eval_dirty
+    (000018_eval_projection_lock_order.sql:4), which writes evalstore's
+    eval_member_projections and eval_projection_queue; workflow_runs_eval_tombstone
+    and audits_eval_tombstone call contractor_eval_retain_deleted_execution
+    (000037_trigger_scope_for_unrelated_updates.sql:237), which writes
+    eval_execution_tombstones and eval_experiments; projects_eval_fence
+    (000001_baseline.sql:2616, function :353) writes eval_experiments;
+    finding_proposal_audit_holds_admit_finding (findingintake; trigger
+    000001_baseline.sql:3601, function
+    000003_audit_event_allocator.sql:66) writes auditstore's audit_findings,
+    audit_finding_contributions and audits and, through
+    contractor_append_audit_events, audit_events; the finding correlation
+    triggers on audit_findings and audit_finding_contributions (auditstore)
+    and finding_proposal_receipts (findingintake) call
+    contractor_advance_finding_correlation (000024:157), which writes and
+    locks projectstore's projects; allocation_execution_reports_mark_received
+    (telemetry; 000030_allocation_report_received.sql:26, function :28)
+    writes runstore's stage_allocations. The scan and its documented limits
+    came with V369-001 (404854167).
   siblings: >-
-    contractor_eval_retain_deleted_execution (redefined in
-    000013_mutation_receipts.sql:146-178), fired when a Run or an Audit is
-    deleted, inserts evalstore's eval_execution_tombstones and updates
-    eval_experiments; check every other trigger function that writes a table
-    of another owner than the one it is attached to. Other SQL builders that
-    take relation names or clauses as string arguments: the scan already
-    marks their operands as unknown SQL, so a list of such declarations is a
-    starting point. V371-012 changes the lock order of the Eval projection
-    triggers; this task only makes their writes visible to the check.
+    Other SQL builders that take relation names or clauses as string
+    arguments: the scan marks their operands as unknown SQL, so a list of
+    such declarations is a starting point. The inventory above matches
+    INSERT, UPDATE and DELETE in function bodies and follows calls; dynamic
+    EXECUTE and row locks in function bodies need the same treatment.
+    V371-012 (completed) changed the Eval projection lock order; this task
+    only makes their writes visible. Upward reads hidden in functions are
+    then classified by V372-008.
 scope:
   in:
     - "The scan resolves the relation arguments of package-level SQL helpers and lock clauses appended with += or passed as arguments, or a source check forbids those forms and the three sites are rewritten; the limits paragraph of sql_access_test.go shrinks to what is still unseen."
-    - "A registry section for cross-owner writes by migration triggers and functions, each with its reason, checked on PostgreSQL against the migrated schema's triggers and function bodies, and PER-R23 updated to cover them."
+    - "A registry section for migration functions called from Go SQL and for trigger functions, each with the tables it reads, writes or locks and its reason, checked on PostgreSQL against the migrated schema (triggers, function bodies and the functions Go SQL calls), and PER-R23 updated to cover them; the cross-owner exclusive lock of contractor_lock_finding_correlation_project and the correlation triggers' writes to projects are removed by V414-030, so the registry lists them only while V414-030 is open."
   out:
-    - "Moving the trigger writes behind the owners' Go APIs, and the Eval projection lock order (V371-012)."
+    - "Moving the trigger writes behind the owners' Go APIs, and the Eval projection lock order."
+    - "Deciding the upward reads (V372-008)."
 acceptance_criteria:
   - id: A1
     text: "A probe that writes another owner's table through a helper argument, or locks it with an appended FOR UPDATE, fails the ownership test."
   - id: A2
-    text: "A probe migration that adds a trigger writing another owner's table without a registry entry fails the PostgreSQL ownership test."
+    text: "A probe migration that adds a trigger, or a function called from Go SQL, writing or exclusively locking another owner's table without a registry entry fails the PostgreSQL ownership test."
   - id: A3
-    text: "The registry, with the new entries, passes on the current code and schema."
+    text: "The registry, with the new entries, passes on the current code and schema; both probes pass unnoticed on b523ae77."
 tests:
   - command: "go test ./internal/persistence"
     covers: [A1, A3]

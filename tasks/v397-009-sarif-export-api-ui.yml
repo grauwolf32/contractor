@@ -27,6 +27,12 @@ context:
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/limits.md
   - docs/spec/api/public-api.md
+  revalidated: >-
+    2026-10-24 on b523ae77: accurate; api/openapi/contractor-public-v1.yaml
+    has no /v1/finding-exports operation and neither the CLI nor the UI has
+    an export flow. Proposal 0028's #service-and-publication-contract is
+    unchanged and the dependency V397-008 is still pending. This task
+    remains the exit task of milestone finding-sarif-export-2026-10.
 scope:
   in:
   - POST /v1/finding-exports and shared CLI/UI explicit selection/download with generated clients and UI patch bump.

@@ -27,6 +27,12 @@ context:
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/limits.md
   - docs/spec/api/public-api.md
+  revalidated: >-
+    2026-10-24 on b523ae77: accurate; no SARIF renderer or pinned SARIF
+    2.1.0 schema exists in the tree (the V397-001 fingerprint adapter only
+    reads producer SARIF), proposal 0028's #rule-rating-and-sarif-mapping
+    and bounds (16 MiB snapshot and SARIF) are unchanged, and the
+    dependency V397-007 is still pending.
 scope:
   in:
   - Pure Go generic SARIF 2.1.0 renderer with locally pinned official schema and semantic validation, no export-time downloads.

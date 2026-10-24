@@ -10,81 +10,95 @@ depends_on: [V369-007]
 languages: [go]
 goal: "tools/testonlyexports/baseline.txt names no entry of this task: each identifier below has a production caller, lives in a test file or a test helper package, or is gone."
 context:
-  review: "V369-007 (tools/testonlyexports) and V370-008, 2026-10-12, on b2b09ea; positions as of that commit"
+  review: "V369-007 (tools/testonlyexports) and V370-008, 2026-10-12, on b2b09ea"
+  revalidated: >-
+    2026-10-24 on b523ae77. 42 of the original 44 entries remain (the
+    baseline has 46 lines; the four internal/auditpriority entries belong to
+    the deferred V64-005 and V64-006). Two are already resolved and dropped
+    from this task: pgstore QueryStore.ListExecutions, moved to
+    internal/auditstore/auditstoretest (reads.go:74-78) with its test callers
+    by V409-004 (171779df, completed in 02e84782); and artifacts Scope.Kind,
+    which gained a production caller (internal/runservice/public.go:205) in
+    188940fd. The Audit controller and service tests' full execution reads
+    went with ListExecutions. go -C tools/testonlyexports run . with the
+    baseline passes, so every remaining entry still has no production
+    reference. Positions and counts below are as of b523ae77.
   finding: >-
-    The test-only export check lists 48 exported identifiers that no
+    The test-only export check lists 46 exported identifiers that no
     production code references; V369-007 baselined them so that make lint
-    fails on new ones. 44 belong to this task (the four internal/auditpriority
-    functions wait for V64-005 and V64-006, which give that package its first
-    production importer). (1) Error kinds the registry defines but nothing
-    names: apierror AuditSchemaUnsupported, AuditLimitExceeded,
-    AuditPackageInvalid, AuditPackagePathInvalid, AuditPackageMemberForbidden,
-    AuditDigestMismatch, AuditReferenceInvalid, AuditRemoteReference,
-    AuditInventoryInvalid, AuditResultSetInvalid and the fifteen Eval kinds
-    from EvalLimitExceeded to EvalProjectDeleting
-    (internal/apierror/registry.go:349-428). The codes are in use, as
-    strings: evalstore and evalservice raise
-    evaldomain.Failure("eval_not_found") and the like, and auditdomain
-    repeats the Audit codes as its own constants (errors.go:13-23);
+    fails on new ones. 42 belong to this task. (1) Error kinds the registry
+    defines but nothing names: apierror AuditSchemaUnsupported,
+    AuditLimitExceeded, AuditPackageInvalid, AuditPackagePathInvalid,
+    AuditPackageMemberForbidden, AuditDigestMismatch, AuditReferenceInvalid,
+    AuditRemoteReference, AuditInventoryInvalid, AuditResultSetInvalid
+    (internal/apierror/registry.go:361-375) and the fifteen Eval kinds from
+    EvalLimitExceeded to EvalProjectDeleting (registry.go:392-441). The codes
+    are in use, as strings: evalstore, evalservice and their peers raise
+    evaldomain.Failure("eval_not_found") and the like (about 200 call
+    sites; Failure at internal/evaldomain/errors.go:63), and auditdomain
+    repeats the Audit codes as its own constants (errors.go:11-23);
     auditdomain.ValidationError and evaldomain.Error look their kind up with
     apierror.Lookup and fall back to audit_document_invalid or eval_invalid,
     so a misspelt code compiles and answers the fallback. (2) Accessors
-    that only in-memory test doubles read: artifacts Scope.Kind and
-    Scope.ID (internal/artifacts/types.go:42-44; the public, private Artifact,
-    agentskills, auditstandards, planner, scan and scheduler doubles key their
-    maps with them, and the public fake builds lineage edges from them),
-    credentials RuntimeCredentialMaterial.Kind (runtime_types.go:137) and
-    runtimeconfig PreparedPublication.Name and Version (normalize.go:145-146,
+    that only in-memory test doubles read: artifacts Scope.ID
+    (internal/artifacts/types.go:44; the doubles key their maps with it),
+    credentials RuntimeCredentialMaterial.Kind (runtime_types.go:147) and
+    runtimeconfig PreparedPublication.Name and Version (normalize.go:155-156,
     read by the public runtime configuration fake). V370-016 decision (4) and
-    V368-010 keep those doubles. (3) Audit store calls that only tests make:
-    pgstore QueryStore.ListExecutions (read.go:215), the Audit controller and
-    service tests' full read of an Audit's executions (25 call sites; with a
-    LIMIT 1000001 that bounds nothing a test needs), and
-    ReviewStore.AppendReviewEvents (seams.go:171), which seeds review events
-    in bulk where production appends them through review commands. (4)
-    Documents and rules the Runtime produces, built by Go tests:
+    V368-010 keep those doubles. (3) An Audit store write that only tests
+    make: pgstore ReviewStore.AppendReviewEvents
+    (internal/auditstore/internal/pgstore/seams.go:182), which seeds review
+    events in bulk where production appends them through review commands.
+    (4) Documents and rules the Runtime produces, built by Go tests:
     auditdomain EncodeDirectVerificationSet (codec.go:39) and
     FindingCollectionTargets (finding_collection.go:342), a Go copy of the
     Runtime's findings-<digest> Namespace rule
     (runtime/src/contractor_runtime/toolsets/security_findings/collection.py:118)
     that only tests/e2e/findings_boundaries_process_test.go reads. (5)
     Configuration loading the tests use instead of the production entry
-    points: configload.Load (configload.go:76, 78 references in 62 test
+    points: configload.Load (configload.go:76, 89 references in 73 test
     files; production calls LoadUnionReadOnly and NewManager),
     config Snapshot.AgentTemplate (snapshot.go:162) and the agentskills and
-    auditstandards SeedPlan.Packages (catalog.go:47, catalog.go:30). (6)
-    Planner construction the tests use instead of the composition's:
-    planner.NewRunArtifactInspector (artifact_inspector.go:49),
-    router.NewConfiguredFactory and streamline.NewConfiguredFactory
-    (production calls the WithMemory variants) and
-    planner.CloneWorkerCompletion (worker_result.go:64, one fake). (7)
+    auditstandards SeedPlan.Packages (agentskills/catalog.go:47,
+    auditstandards/catalog.go:31). (6) Planner construction the tests use
+    instead of the composition's: planner.NewRunArtifactInspector
+    (artifact_inspector.go:49), router.NewConfiguredFactory
+    (router/factory.go:22) and streamline.NewConfiguredFactory
+    (streamline/factory.go:62) (production calls the WithMemory variants,
+    internal/app/composition_execution.go:85 and :92) and
+    planner.CloneWorkerCompletion (worker_result.go:78, one fake). (7)
     Function adapters of runtimeconfig interfaces that only tests use:
-    TransactionLLMCredentialLookupFactoryFunc (credentials.go:70) and
+    TransactionLLMCredentialLookupFactoryFunc (credentials.go:71) and
     PlannerTelemetryAdapterCatalogFunc (publisher.go:33).
   decision: >-
     Open choices, to settle in this task: whether the error kinds become the
     typed values evaldomain and the Audit package errors raise (preferred,
     one definition) or registry rows without exported names; whether the
     doubles of (2) key by Scope value and keep a test-side record of each
-    scope's kind and ID, or move to PostgreSQL (reopens V368-010); whether
-    the tests of (3) read executions through a production read that a caller
-    needs anyway or through auditstoretest with the store's own scanner;
-    whether (4) becomes a shared fixture the Runtime and the e2e test both
-    read; and whether the adapters of (7) move to runtimeconfigtest.
+    scope's ID, or move to PostgreSQL (reopens V368-010); whether
+    AppendReviewEvents (3) moves to auditstoretest as V409-004 did with
+    ListExecutions, or the tests seed through review commands; whether (4)
+    becomes a shared fixture the Runtime and the e2e test both read
+    (V372-029 widens the shared fixture gate to such fixtures); and whether
+    the adapters of (7) move to runtimeconfigtest.
 scope:
   in:
     - "Every identifier the baseline lists under V372-030, its tests and its doubles."
     - "Deleting this task's baseline entries as each identifier is resolved."
   out:
     - "Production behaviour and the public API."
-    - "The internal/auditpriority functions, which V64-005 and V64-006 own."
+    - "The internal/auditpriority functions, which the deferred V64-005 and V64-006 own."
 acceptance_criteria:
   - id: A1
-    text: "tools/testonlyexports/baseline.txt has no V372-030 entry and make lint passes."
+    text: "tools/testonlyexports/baseline.txt has no V372-030 entry and make lint (the testonlyexports run with the baseline) passes."
   - id: A2
     text: "Existing tests pass; a test edited only follows a moved or removed symbol, or reads through a production path."
+  - id: A3
+    text: "No identifier is resolved by adding a production reference whose only purpose is to satisfy the check; each new production reference has a production caller."
 tests:
   - command: make lint
+    covers: [A1, A3]
+  - command: "go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt \"$PWD\""
     covers: [A1]
-  - command: "go test -tags integration ./internal/..."
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags integration ./internal/..."
     covers: [A2]

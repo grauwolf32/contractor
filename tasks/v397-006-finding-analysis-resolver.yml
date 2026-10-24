@@ -28,6 +28,20 @@ context:
   - docs/spec/platform/failure-model.md
   - docs/spec/platform/limits.md
   - docs/spec/api/public-api.md
+  revalidated: >-
+    2026-10-24 on b523ae77: accurate; nothing of this stage has landed. No
+    commit names V397-006..009, there is no typed analysis codec, export
+    snapshot, SARIF renderer or POST /v1/finding-exports in internal/, ui/src
+    or api/openapi (the only SARIF code is the pinned-sarif-native/v1
+    fingerprint input adapter of V397-001, which reads SARIF and does not
+    export it). Proposal 0028 still marks typed analysis, the resolver,
+    snapshots, SARIF rendering and the export endpoint as target design, and
+    every cited anchor (#compatible-typed-analysis-evidence,
+    #unchanged-worker-tool-contract) and spec document resolves. Both
+    dependencies, V397-001 (77a59b66) and V397-002 (d7095774), are
+    completed, so this task is eligible. The listed packages and make
+    targets exist. No V407, V409, V411 or V414 task overlaps it (V411-011
+    and V411-016 exclude SARIF explicitly).
 scope:
   in:
   - Closed typed analysis codec, deterministic exact-source/region/path/HTTP resolution and trusted versus producer-asserted evidence.

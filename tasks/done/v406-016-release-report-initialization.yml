@@ -1,0 +1,73 @@
+schema_version: '1.0'
+id: V406-016
+title: Initialize shared release evidence before either language writes it
+milestone: test-gate-cost-2026-10
+epic: quality
+kind: defect
+introduced_by: V408-005
+priority: P2
+status: completed
+depends_on: [V408-005]
+languages: [python]
+goal: Preserve both Go and Runtime fixture-read evidence in aggregate release and verify invocations.
+context:
+  specification:
+  - docs/testing/README.md
+  finding: >-
+    make/core.mk:22 expands its conditional test-release-reports prerequisite
+    while parsing, before the release target-specific RELEASE_CONSOLIDATED=1
+    exists. In the real Linux main release run every Go and Runtime test passed,
+    but Runtime's later report initialization erased the Go reads and the shared
+    fixture gate rejected every declared Go reader. Introduced by V408-005,
+    commit 0a2bb8e27b2b4c27c1f6b26ad5a3a96df7d11c88.
+  siblings: >-
+    release-verify, release-verify-unit and verify all inherit the flag at target
+    execution and share this prerequisite graph. Direct test-go and standalone
+    Runtime runs must initialize evidence safely too. Keep the existing strict
+    fixture inventory and no-skip validators unchanged.
+scope:
+  in:
+  - Declare the shared evidence initializer as an ordinary prerequisite before Go and Runtime recipes.
+  - Add a real make orchestration regression using the actual core prerequisites and bounded test-only writers for each language.
+  - Verify stale evidence is removed once and both language writes survive; cover standalone entry points.
+  out:
+  - Changes to fixture declarations, skip allowances, selected tests, product behavior or Runtime portability.
+failure_outcomes:
+- operation: Prepare shared release report files
+  permanent: An unwritable directory or failed initializer fails its dependents; missing language evidence continues to fail strict validation.
+  retryable: No implicit retries.
+  ambiguous: Reports belong to one invocation and are recreated before execution; old evidence never substitutes for new reads.
+  cancelled: Stop dependent test processes through the existing harness; retain diagnostic reports.
+  timeout: Keep existing gate deadlines.
+cardinality:
+- collection: Shared fixture-read report initialization
+  expected: One initialization before two language writers per make invocation
+  maximum: Existing bounded test fixture inventory
+  bound: No extra suite execution; the regression uses only short fixture records and temporary files.
+acceptance_criteria:
+- id: A1
+  text: A real make regression fails against the original dependency graph and passes with both language records retained after stale evidence is removed.
+- id: A2
+  text: Direct Go and standalone Runtime entry points initialize the report, and strict shared-fixture verification passes from the aggregate entry point without command-line flag workarounds.
+- id: A3
+  text: The complete scripts unittest suite, make lint and full Linux release-verify pass with unchanged inventory and no-skip validators.
+tests:
+- command: cd runtime && uv run python -m unittest discover -s ../scripts -p 'test_*.py'
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+- command: make release-verify
+  covers: [A2, A3]
+implementation_commit: df65dd8746e9ccf724db285d3543d64163f8829c
+verification:
+  date: '2026-10-24'
+  baseline: Two of three real-make orchestration cases fail on the original graph; aggregate evidence contains only the Python writer after initialization erased Go reads.
+  passed:
+  - The same three orchestration cases pass after the explicit prerequisite fix.
+  - The complete scripts unittest suite passes all 135 cases.
+  - make lint passes with the strict graph, task, spec and fixture validators unchanged.
+  - Full Linux main release-verify passed with exit 0 on a993c4d335266b79b98ff1cd54056f48dcfec936 in 6256.17 seconds; all 12 stages completed with unchanged inventory and no-skip validators.
+  - The aggregate command was make -k release-verify RACE_PACKAGE_PARALLELISM=1; no command-line RELEASE_CONSOLIDATED workaround was used. Shared inventory verified 249 fixtures, 231 Go and 184 Python tests.
+  evidence: reports/proposal-0041-release-20261024-a993c4d3/README.md
+  integration_note: A concurrent V407/V409 merge advanced main to b523ae77 after this verification. The user explicitly accepted closure against the green a993c4d3 run and assigned the newer main full run separately.
+  remaining: []

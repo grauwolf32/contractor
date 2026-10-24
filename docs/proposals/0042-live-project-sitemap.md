@@ -1,9 +1,9 @@
 # Live Project sitemap over ArtifactStore
 
 Proposal 0042 · Status: **Draft design; not implemented.** Recorded on
-2026-10-23. This document records the user's selected direction and proposed
-contracts for review. It creates no implementation tasks and does not reactivate
-deferred tasks or other proposals.
+2026-10-23; implementation task breakdown added on 2026-10-24. This document
+records the user's selected direction and proposed contracts. The pending tasks
+in section 12 do not establish implementation or reactivate deferred work.
 
 This complements the frozen surface and evidence contracts in
 [proposal 0033](0033-autonomous-pentest-audits.md). A live sitemap is shared
@@ -19,7 +19,8 @@ but every contributing Worker uses the same collection mechanism.
 | Decision | Direction |
 | --- | --- |
 | Sharing | The user selected a live Project map, visible to other running Workflows. |
-| Storage | Use ordinary ArtifactStore bindings, immutable revisions and CAS; do not introduce another sitemap database or event journal. |
+| Storage | Use ordinary ArtifactStore bindings, immutable revisions, CAS, admission and retention policy; the sitemap owns document semantics, not a separate storage budget, ledger or deletion mechanism. |
+| History retention | Apply the same policy automatically to every logical artifact in UserScope, ProjectScope and RunScope: default 1 GiB / 2,000 retained revisions per binding, evicting oldest unpinned history while protecting current and all live retention dependencies. |
 | Automatic input | HTTP tool traffic and selected Caido traffic contribute without a model writing the final map. |
 | Explicit input | Provide tools to add, annotate, remove and restore entries, and import structured scanner output. |
 | Additional sources | OpenAPI, ffuf, Katana and Playwright feed the same observation format. Dirsearch can use an explicit import adapter. |
@@ -38,6 +39,17 @@ evidence that a vulnerability was verified or an endpoint was tested fully.
   bindings, exact revisions, CAS, input forks and retention. Use a dedicated
   ordinary Project binding such as `sitemap/map`; do not change the create-only
   publication of `outputs/<slot>` or depend on proposal 0035.
+- Individual committed revisions are not currently evictable: DEL-R4/DEL-R5
+  allow only controlled scope purge. This proposal requires a shared trusted
+  ArtifactStore retention operation for every logical binding in UserScope,
+  ProjectScope and RunScope, delivered independently by V410-010 before the sitemap
+  service. There is no registration or opt-in by artifact kind. Accounting, pin
+  checks and eviction are common artifact responsibilities; they do not inspect
+  sitemap JSON, MIME type or hard-coded binding names. Reuse existing transfer
+  admission, caller-owned transactions, exact metadata reads, CAS, receipts and
+  reference-safe cleanup. Update the normative deletion exception and immutable
+  triggers through this trusted owner, after covering every exact-reference
+  lifecycle. The current implementation remains unchanged until that task.
 - Runtime Artifact access is currently allocation-bound to the current Run.
   A sitemap tool adapter needs a narrow server-authorized operation against
   this Run's owning Project sitemap. Existing tools do not already grant live
@@ -415,12 +427,26 @@ The HTTP-tools area owns this accepted metadata-collection limitation. Reopen
 if zero-loss collection becomes a user requirement; full-traffic archival is
 still a separate decision.
 
-Live map reads are research context. A finding or replay pins the exact entry
-revision, source document/report revisions and any retained evidence actually
-used. Do not imply that a running Audit's immutable input baseline changes when
-another Run updates the map. Record selected context revisions separately.
-At a Workflow/Audit boundary, export or retain an ordinary exact sitemap
-snapshot through the existing artifact mechanism.
+Live map reads are research context. A finding, accepted Stage context or
+replay acquires retention for the exact selected map/source revisions and
+needed evidence before accepting that dependency. Selection and hold acquisition
+must serialize with eviction: if the revision was already removed, return an
+explicit unavailable outcome, never substitute the current revision. Do not
+imply that a running Audit's immutable input baseline changes when another Run
+updates the map. At a Workflow/Audit boundary, export or retain an ordinary
+exact sitemap snapshot through the existing artifact mechanism; a provenance
+label alone is not a hold.
+
+Paging uses one fully materialized, authorized immutable view per allocation,
+with at most 32 MiB encoded content and 128 MiB total retained bytes including
+parsed/index state. Cursors bind its view identity, revision and filters. Later
+server-side history eviction does not invalidate pages already materialized;
+each page still checks current allocation access/fencing and Project lifecycle.
+Replacement, release or loss of the view returns `409 sitemap_cursor_expired`; never
+reload an evicted revision as latest or mix snapshots. This transient view
+creates no server-side pin. Selecting proof from it still requires the atomic
+retention check above; the view and Runtime disk cache cannot revive a deleted
+exact ref or grant offline access.
 
 Reading map metadata does not authorize reading arbitrary foreign-Run refs.
 The Server validates ownership and retention of referenced documents and exposes
@@ -446,49 +472,232 @@ only with the implementation. They are not current platform limits:
 | Read page | At most 100 entries and 256 KiB |
 | Import step | At most one bounded report page/batch before a checkpoint |
 | CAS retries | 3 within the owning operation deadline |
-| One Run's map publications | 256 accepted revisions or 256 MiB encoded published bytes, whichever comes first |
-| Project-lifetime map publications | Default 2,000 accepted revisions or 1 GiB encoded published bytes; configurable only up to hard ceilings of 20,000 revisions or 8 GiB |
+| Shared ArtifactStore history policy, per logical artifact in every scope | Default 2,000 currently retained revisions or 1 GiB logical encoded bytes; configurable only up to hard ceilings of 20,000 revisions or 8 GiB; includes current and pinned revisions |
+| History maintenance | At most 64 candidate rows examined and 64 revision records removed per transaction; indexed/keyset continuation, no payload reads for candidate selection |
+| Materialized reader view | One view per allocation, at most 32 MiB encoded content and 128 MiB total raw/parsed/index state |
 
-Use a parsed immutable snapshot/index per selected revision for paging; do not
-parse the full map again for every returned page. Cache lifetime and bytes are
-allocation-owned and bounded. Raw output parsing and map reduction run off the
-Runtime event loop. The proposed publication limits above apply independently
-of current-document size and must be checked against real workload measurements.
+Raw parsing, indexing and map reduction run off the Runtime event loop. Parse
+one selected view once, not the full map again for each returned page. Current
+map size and retained history are separate bounds. History/maintenance settings
+belong to the shared ArtifactStore policy and registry; the map applies domain
+limits to its JSON shape. There is no sitemap-specific cumulative byte or
+publication-count budget per Run.
 
-Reserve Project-lifetime quota, and Run quota for a Run-originated write,
-atomically with the accepted publication under the existing Project/Artifact
-mutation boundary. Charge the complete encoded bytes and one revision for every
-committed revision, even when content
-deduplication reuses identical bytes. A genuine no-op that creates no revision
-uses no quota; receipt replay creates no revision and charges nothing again.
-Failed CAS or rolled-back publication consumes no quota. Keep cumulative usage
-as trusted Project-owned accounting, outside the replaceable map document;
-starting another Run, suppressing entries, replacing/resetting the binding or
-partitioning cannot reset it. The quota follows the Project until its purge.
-The owning Project service enforces this policy for every publication to the
-dedicated sitemap binding, including public Project Artifact API mutations,
-forks and rebinding. Those paths must use the same authorized validation and
-accounting boundary or reject the mutation; raw generic Artifact writes cannot
-bypass it, including before the first sitemap revision exists. Removing/resetting
-an accounting marker is not a public operation; only complete Project purge
-clears usage. Storage remains ordinary ArtifactStore storage, with domain policy
-owned by the Project sitemap service.
+### Retained history and protected revisions
 
-Exhaustion preserves the last accepted map and returns a permanent collection
-limit outcome. Readers expose exhaustion from trusted accounting; the producer
-retains its gap in Run collection status/closure without requiring another map
-revision. Target responses remain valid. There is no implicit deletion of old
-revisions or reset to an empty map. Historical compaction/expiry would require
-a separate ArtifactStore retention contract
-that protects exact holds, not a silent implementation detail of this reducer.
+The history limit is the amount retained now for one logical artifact, identified
+by `(scope_kind, scope_id, namespace, name)`, not the sum of its publications over
+time. The user selected 1 GiB per artifact, not a shared 1-GiB Project/Run/User
+budget. ArtifactStore owns the common parameters and per-binding retained byte
+and revision counters in ordinary binding metadata. The policy automatically
+covers all bindings in UserScope, ProjectScope and RunScope, including existing
+ordinary writers; sitemap does not register a special family or maintain a
+parallel quota ledger. Eligibility never depends on filename, MIME type or
+payload. Frozen and reserved bindings follow the same protection rules and
+retain their existing mutation restrictions.
 
-Keep the first representation to one bounded artifact. ArtifactStore owners
-must measure publication amplification, retained revision bytes and CAS
-contention with 10,000 groups, ten writers, sequential Runs approaching the
-Project-lifetime quota and large imports. If the measured budgets cannot hold,
-partition the same artifact format before implementation is accepted; do not
-raise limits or introduce a second persistence subsystem
-to conceal failed scaling. Exact partitioning is deliberately undecided.
+Charge full encoded bytes and one count per retained binding revision even if
+blobs deduplicate. Replacing content, resetting a document or changing its
+producer Run does not reset that binding's retained counters. A genuinely new
+logical binding, including a fork, has its own independent history allowance;
+partitioning into N bindings means N allowances. This policy intentionally does
+not bound total Project storage, artifact count or physical database/filesystem
+occupancy. It removes historical revisions, never current artifacts merely to
+make the whole scope fit 1 GiB.
+
+When admission would exceed either retained-history bound, the trusted
+ArtifactStore operation removes the oldest eligible historical revisions in
+immutable revision-creation timestamp order, with a deterministic revision
+tie-breaker. It protects:
+
+- the resulting current revision of every binding;
+- explicit retention pins and exact Run inputs/Skills, StageContext snapshots
+  and continuation results, persisted completed Planner sessions and accepted
+  Worker results awaiting Scheduler, durable finalizing candidates, accepted
+  StageResults and published outputs that still require the revision;
+- Audit preparation/evidence/report and finding holds, retained Eval evidence,
+  frozen scan-sweep inputs and surviving fork/lineage dependencies.
+
+Pin/hold release follows its owning lifecycle, never quota pressure. Ordinary
+metadata references, mutation receipts and successive CAS publications do not
+create implicit pins or a predecessor lineage chain. An independently retained
+fork does not license severing its source lineage to reclaim space. A read
+projection or cache entry is not a durable retention dependency.
+
+Current SQL foreign keys alone do not cover all protected dependencies: exact
+Stage/Audit/Eval refs also occur in JSON. V410-010 must inventory and classify
+all authoritative owners before enabling eviction for any binding, and maintain
+transactional, indexed protection checks through their existing lifecycles. It
+cannot scan every Run/Audit JSON document per publication, ignore an unindexed
+dependency, or introduce a parallel generic hold/lease system
+without a demonstrated missing owner. Protection acquisition and release must
+participate in the same serialization as eviction; a racing acquisition either
+retains the exact revision or reports that it is unavailable.
+
+### Admission, accounting and failure outcomes
+
+Evaluate the post-publication state under the existing scope-bound Artifact CAS
+and transaction boundary, reusing keyed receipts where the operation already has
+them. Reserve the new revision, recheck retention dependencies,
+evict eligible history, advance current and update retained counters atomically.
+The former current may become eligible in this same transaction only if the new
+current commits and no other dependency protects the former one; the readable
+current is never deleted ahead of a successful replacement. A failed CAS or
+rolled-back publication changes neither current nor pins nor retained counters.
+A genuine no-op and receipt replay create no revision and charge nothing.
+
+Limit each transaction to the maintenance bounds above, including examined
+protected candidates. If enough eligible space may exist but one bounded pass
+cannot complete the work, use indexed continuation and bounded maintenance with
+an explicit retryable `503 artifact_history_maintenance_pending` outcome with
+bounded `Retry-After` and at most three caller attempts inside the original
+deadline. Bind continuation and any no-candidate conclusion to the current
+protection/eligibility generation, or use an index that preserves current
+oldest-eligible ordering. A hold release behind the cursor invalidates/reseeks
+that continuation before choosing a younger victim or declaring exhaustion.
+Revalidation/reseeking obeys the same scan/attempt bounds. Do not mistake an
+unfinished or invalidated scan for all history being pinned. Do not add a
+full-history rescan, unbounded transaction or new receipt/claim controller.
+Separately committed maintenance may already have removed eligible history even
+if a subsequent publication fails; it never removes current or holds, and the
+rejected publication itself is not charged.
+
+If the protected post-publication set alone exceeds the byte/count limit, or a
+completed bounded eligibility scan proves no sufficient candidates remain,
+return `409 artifact_history_protected` without automatic retry. Keep the current
+artifact and all holds. Progress then requires an authorized release of
+no-longer-needed holds or a permitted budget change; never silently unpin, exceed
+the cap or replace the artifact with empty content. Report the cause from trusted
+accounting without requiring another revision. For sitemap collectors, target
+responses remain valid and a collection retry never resends target traffic.
+
+Retained accounting belongs to ArtifactStore outside replaceable payload bytes
+and decreases only with committed eligible eviction or ordinary authorized scope
+purge. Shared admission applies automatically to every write, fork and rebinding,
+including public/private Artifact APIs, trusted Server writers and first creation.
+The sitemap service cannot bypass, replace or separately charge that accounting.
+Source/projection validation remains the domain service's responsibility. The
+policy adds no cumulative publication-byte/count allowance. The existing RunScope
+lifetime revision limit is separate, as described below. All affected public,
+private and trusted callers propagate the shared history errors with their
+permanent/retryable classification; no sitemap-only codes or receipt store are
+introduced. Writes and hold releases use bounded per-binding maintenance with
+indexed continuation; there is no unbounded sweep over every scope or payload.
+A mutation receipt remains evidence of its original commit after that revision
+is evicted: replay confirms that result without republishing or charging again.
+Ordinary raw Artifact CAS has no such receipt; preserve ART-R60's response-loss
+contract. An already evicted revision cannot prove that a lost-response write
+rolled back, and does not authorize an automatic repeat append/publication.
+An evicted unheld exact revision uses the existing not-found mapping
+(`artifact_not_found` on the private API, `not_found` on the public API). Receipt
+consumers cannot assume its payload remains readable or use latest. A missing
+physical blob for a still-retained revision remains the distinct existing
+content-missing/integrity outcome, not a successful eviction.
+
+Removal of binding history releases its logical quota; it does not promise
+immediate physical byte reclamation. Immutable versions/blobs are collected only
+when no surviving binding, version, hold or lineage needs them, under the existing
+ArtifactStore/blob-storage contracts. Payload cleanup has separately bounded
+batches (at most 64 version/blob candidates and 64 MiB encoded payload per pass),
+with transactional PostgreSQL deletion and post-commit filesystem unlink as
+specified there. Shared blobs remain; failed physical cleanup stays observable
+and follows existing recovery, without fabricating reclaimed disk space. This
+uses the same automatic history policy for all artifact types and scopes.
+Authorized Run/Project/Audit/sweep lifecycle purge keeps its existing gates and
+semantics; it is distinct from history eviction. In particular, history eviction
+must not reuse the scope purge's authority to sever surviving lineage or remove
+current/protected bindings.
+
+### Shared artifact mechanisms and scale verification
+
+There is no separate sitemap byte/count allowance accumulated by producer Run.
+Use ordinary ArtifactStore transfer admission, payload limits, scope ownership,
+CAS, transaction handling, retention policy, exact references and blob cleanup.
+RunScope writes retain ART-R118/LIM-ART-6's existing lifetime 50,000-revision
+contract outside `outputs`; history eviction does not refund that admission
+counter, which cannot be reconstructed by counting the remaining revisions.
+ProjectScope publications do not consume the RunScope limit merely because a
+Run produced them. Do not relocate the removed sitemap allowance into another
+counter, an Audit budget or a per-binding lifetime limit.
+
+Coalesce observations before publishing and bound each input batch, flush,
+parse/reduction, CAS attempt and maintenance pass by their existing row/byte
+and operation-deadline limits. Common artifact admission and retryable
+backpressure bound active transfer work; collectors do not introduce a second
+rate limiter or permanently stop after an arbitrary amount of accepted writes.
+Current map size and retained history limit occupancy, not cumulative write I/O.
+The generic 64-MiB Artifact payload limit still applies beneath the map's tighter
+32-MiB domain document limit. Use existing exact-description batching limits
+when checking references, rather than another sitemap metadata-read primitive.
+
+The scale gate must publish more than 256 MiB and more than 256 revisions from
+one Run into the Project while staying within the common artifact and retained
+history bounds; neither former threshold may reject the next write. Exercise
+the same automatic policy on ordinary non-sitemap bindings in UserScope,
+ProjectScope and RunScope, without policy-registration setup. Prove independent
+limits for different bindings, all writer/error adapters and protection lifecycles,
+reclamation after hold release, and the unchanged nonrefundable RunScope limit.
+The generic retention feature and its gate belong to V410-010; the sitemap gate
+verifies that its normal ArtifactStore calls preserve those guarantees.
+
+Keep the first representation to one bounded artifact. Measure publication
+amplification, retained/protected bytes, eviction work, transfer pressure and CAS
+contention with 10,000 groups, ten writers, large imports and sequential Runs
+publishing well beyond 1 GiB cumulatively. Eligible history must roll within its
+cap. If useful workloads fail the existing per-operation/storage budgets, keep
+the gate incomplete until a reviewed coalescing or representation remedy is
+implemented and verified. Partitioning the same artifact format is an option;
+do not add a second persistence subsystem or restore a sitemap-only cumulative
+quota to conceal failed scaling. Exact partitioning remains deliberately undecided.
+
+### Supporting Runtime artifact cache
+
+An independent optional optimization can reuse immutable encoded artifacts
+between allocations on the same Runtime. It is enabled only by the existing
+startup `--workspace-storage local` setting, uses a private directory beneath
+its locked `--workspace-work-root`, and creates no cache files in memory or
+disabled workspace modes. It adds no placement affinity or cache toggles. The
+first production callers are source/workspace ZIP hydration and selected Skill
+packages; extracted workspaces and Skill state remain fresh and allocation-owned.
+Cookies, Interactsh events, private evidence and arbitrary Artifact reads are
+outside this eligibility boundary. A safe sitemap projection may opt in later
+through its own explicit eligibility contract; the first cache value does not
+depend on the pending sitemap tool.
+
+Each cache lookup first checks the current allocation's access and exact ref
+through Server metadata. A separate private-only metadata DTO supplies a required
+opaque `contentCacheKey`, stable for the immutable version shared by fork
+bindings. The cache keys bytes by Server trust-domain plus this token; scoped
+aliases and provenance remain allocation-owned. This requires a narrow planned
+exception to ART-R9 and an ART-R116 update, with strict Go/Python fixtures, not
+exposure through public read/write DTOs, ArtifactRef or model tools. Equal bytes
+from independent versions may miss. The token grants no authority: missing,
+purged, denied or unconfirmed metadata never permits an offline hit. A successful
+hit records the consuming exact ref; selected Skills still verify their trusted
+package digest and manifest identity.
+
+Completed files and full in-flight reservations share a hard 1-GiB logical-byte
+budget per Runtime, with 1,024 entry slots and 4 MiB of metadata as independent
+ceilings. Filesystem block overhead is not an exact part of that accounting.
+Eviction chooses unused least-recently-used entries; cache pressure or local I/O
+failure falls back to the ordinary authorized exact fetch. Atomic staging,
+local integrity checks, bounded off-event-loop work and joined cancellation
+prevent partial files or unowned work from surviving release. The directory is
+outside allocation cleanup and every Worker/sandbox mount, with one Runtime
+owner under the existing root lock; it is not a distributed cache or a new lease.
+
+Reuse lasts only for one Runtime process lifetime, with a non-sliding 24-hour
+TTL and bounded expiry maintenance. Startup clears owned cache state before
+serving allocations; stopped or offline hosts cannot promise immediate remote
+erasure. Cached bytes create no server-side pin and cannot keep a deleted ref
+readable. This optimization reduces repeated downloads; it does not reduce
+Server artifact history, shared retention accounting, write amplification,
+or the existing whole-payload memory cost, and does not change workspace
+freshness or the retention policy above.
+
+[V413-001](../../tasks/v413-001-runtime-artifact-disk-cache.yml) records this
+independent pending implementation. It does not depend on or expand V407-035's
+allocation-local decoded-text cache work.
 
 ## 11. Failure outcomes, lifecycle and required tests
 
@@ -525,9 +734,19 @@ source, source-assisted to blackbox reads/snapshots, repeated identity labels
 across baselines, reversed concurrent schema replacements, regrouping after
 inventory overflow/discarded incoming members, suppression across split/merge,
 and every metadata bound.
-Quota tests cover concurrent last-slot reservations, identical-content new
-revisions, receipt replay after a lost acknowledgement, rollover to another
-Run, binding replacement/partitioning and exhaustion without losing the map.
+Shared artifact/retention tests cover concurrent last-slot admission, mixed and
+fully pinned history, current replacement, pin acquisition/release races,
+StageContext/StageResult JSON dependencies, fork/lineage and shared blobs,
+identical-content revisions, receipt replay after eviction/lost acknowledgement,
+reader cursors spanning eviction, and proof selection racing eviction. Verify
+bounded scans/maintenance and deletion, a hold released behind a continuation
+cursor, Run rollover and binding replacement without resetting that binding's
+counters, independent allowances for distinct bindings, and no repeated target
+request. Cumulative Project publication beyond 1 GiB must succeed with eligible victims while retained usage
+stays bounded. One Run must also pass both former cumulative thresholds without
+a sitemap-specific rejection. Keep existing generic RunScope limits on their
+actual scope; a Project write must not be charged as a RunScope revision. A cache
+hit must not authorize a new read of an evicted or denied exact ref.
 
 ## 12. Smallest useful delivery and findings context
 
@@ -556,7 +775,39 @@ copy of their state.
 Do not fold findings management, cross-round verification routing, a DOM graph,
 browser action replay, arbitrary stdout parsing or complete traffic capture
 into the sitemap's first implementation. Those capabilities retain their own
-contracts and deferred status.
+contracts outside this slice; existing deferred task records retain their status.
+
+### Implementation tasks recorded on 2026-10-24
+
+The generic ArtifactStore retention task V410-010 is independently useful and
+precedes the seven-task HTTP/OpenAPI sitemap slice. Caido history and managed
+browser collection are separately deliverable follow-ups. Each task owns its normative contract updates, production callers,
+failure/lifecycle/scale criteria and required checks; this proposal remains
+unimplemented until those records are completed with evidence.
+
+| Task | Outcome | Depends on |
+| --- | --- | --- |
+| [V410-010](../../tasks/v410-010-artifact-history-retention.yml) | Bound each artifact's history through automatic shared retention in every scope | None |
+| [V410-001](../../tasks/v410-001-project-sitemap-store.yml) | Publish a bounded Project sitemap through one authorized reducer | V410-010 |
+| [V410-002](../../tasks/v410-002-project-sitemap-toolset.yml) | Expose authorized live sitemap tools to Project allocations | V410-001 |
+| [V410-003](../../tasks/v410-003-http-sitemap-collection.yml) | Collect HTTP observations into the live Project sitemap | V410-002 |
+| [V410-004](../../tasks/v410-004-sitemap-structured-imports.yml) | Import bounded scanner and selected Caido observations | V410-002 |
+| [V410-005](../../tasks/v410-005-sitemap-openapi-reconciliation.yml) | Reconcile exact OpenAPI declarations with live sitemap members | V410-002, V55-007 |
+| [V410-006](../../tasks/v410-006-sitemap-workflow-composition.yml) | Ship ordinary sitemap discovery and reconciliation Workflows | V410-003, V410-004, V410-005, V55-003, V62-004 |
+| [V410-007](../../tasks/v410-007-sitemap-release-gate.yml) | Verify the first sitemap slice across scale and lifecycle boundaries | V410-006 |
+| [V410-008](../../tasks/v410-008-sitemap-caido-history.yml) | Import selected Caido history incrementally with durable checkpoints | V410-004, V410-007 |
+| [V410-009](../../tasks/v410-009-sitemap-browser-collection.yml) | Collect managed Playwright network observations into the sitemap | V410-002, V410-007, V412-001 |
+
+V410-007 is the first-slice milestone exit. V410-010 owns shared history admission,
+accounting, exact-reference protection, eviction and all ordinary production
+callers in every scope. V410-001 depends on that feature and uses it without a
+sitemap quota store or registration hook. The generic feature and the sitemap
+slice are independent of pentest implementation; they use completed ordinary
+Workflow and Audit contracts and do not depend on deferred V61/V62/V64 work.
+V410-008 and V410-009 each own their follow-up milestone exit.
+V410-009 consumes the managed browser adapter from V412-001, then V412-003
+can publish the combined browser program. This dependency does not feed back
+into the HTTP/OpenAPI sitemap gate.
 
 ## 13. Research and rationale
 
