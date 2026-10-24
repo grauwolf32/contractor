@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V1-004
 priority: P2
 status: completed
-implementation_commit: 138aca3dcdba5fd52f72cad6549494c776e85f59
+implementation_commit: 6cfc21ab75d09ddf61186b4b6ee7420db0e784e6
 depends_on: []
 languages:
 - go
@@ -89,7 +89,7 @@ tests:
   - A4
 verification:
   date: '2026-10-24'
-  revision: 138aca3dcdba5fd52f72cad6549494c776e85f59
+  revision: 6cfc21ab75d09ddf61186b4b6ee7420db0e784e6
   environment: Worktree contractor-wt/r1, branch claude/rv-r1 on base 33f73b27, macOS arm64 (Darwin),
     Go 1.26.9 (GOTOOLCHAIN=local), Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm, local
     PostgreSQL 17.11 with CONTRACTOR_TEST_DATABASE_URL=postgres://ruslan@localhost:5432/contractor_test_r1.
@@ -183,6 +183,44 @@ verification:
     2, projectfs_local_io 1, local_direct_faults socket 1, code_analysis_graph 1).'
   - 'make test-wire-cross-language: passed (253 fixtures, 191 Python shared tests). make lint: passed.
     make docs-dependencies: regenerated, no change.'
+  - 'Re-review follow-up (2026-10-24, commit 6cfc21ab), two regressions of keeping number literals. (1) Replay:
+    jsonb stores 5e-05 as 0.00005, 1e+16 and 1e+300 as digits and -0.0 as 0.0, so the Go byte comparison
+    (sameJSON) turned a replayed report into ErrConflict. RecordAllocationReport and RecordPlannerReport now
+    read report = $n::jsonb with the identity row and sameJSON is deleted; they were its only callers, and
+    no other replay compares documents holding tool arguments (stage_metrics holds aggregates, Worker State
+    is not persisted). TestMetricsPostgresReplayComparesNumbersAsStored replays both kinds with 5e-05, 1e+16,
+    1e+300, -0.0, 9007199254740993, 5e-324 and -1.7976931348623157e+308, and checks that another number
+    conflicts. On 990846cd it fails with a conflict for 5e-05, 1e+16, 1e+300 and -0.0, in both kinds (2^53+1
+    is stored exactly and passes there). (2) Range: a number in a tool argument summary must be finite as a
+    float64 and write an exponent between -324 and 308 (LIM-OBS-16). ToolCallRecord and Worker State
+    validation check it beside the 4096-byte bound, so the class is invariant on both sides. Python
+    _require_tool_arguments rejects an integer beyond the float64 range; floats were already rejected through
+    allow_nan=False. MetricsState writes such an integer as "[NON_FINITE]" with argumentsTruncated. The new
+    invalid fixtures allocation-final-response-argument-float-overflow.json (1e999999) and -integer-overflow.json
+    (a nested 310-digit integer) carry reason invariant and strict. Without the fix, Go accepts both fixtures
+    and TestToolArgumentsRejectNumbersOutsideTheFloat64Range fails; Python accepts the integer fixture. The
+    exponent bound is Server-side only: Python decoding cannot see a literal, and Python repr never writes an
+    exponent outside the range. The bound was needed because jsonb rejects 1e-20000 and 0e2147483648 as numeric
+    overflow and expands 0e-16383 to 16385 characters, all of which a float64 parse alone accepts. The
+    Postgres test checks that 1e-20000, 0e-16383 and 1e999999 are ErrInvalid before any insert.'
+  - 'Read-back measurement (PostgreSQL 17.11, scratch documents inserted into a temp jsonb column, not
+    committed): a report at the 1 MiB bound with 249 tool calls, each holding a 4096-byte summary
+    {"v":[...]} of one literal, measured as follows (pg_column_size / octet_length(report::text) / factor):
+    bare 1e308 1045683 B -> 82200 / 52766775 / 50.5x; the Runtime''s 1e+308 1046181 B -> 75911 / 45255192 /
+    43.3x; 5e-324 -> 76506 / 47727264 / 45.6x; -5e-324 -> 70997 / 41892447 / 40.0x; 0e-324 -> 68624 / 47727264
+    / 45.6x; plain 1 -> 152028 / 1557684 / 1.5x (jsonb text adds a space after each separator). The
+    theoretical maximum is about 51.8x (6-byte "1e308," to 311 characters). OBS-R110 states this factor,
+    who reads stored reports (the StageMetrics rebuild and the replay), and the reversal: bound the expanded
+    digit count in both the Runtime summary and the Server decoder.'
+  - 'After the re-review fix: go test -count=1 ./internal/telemetry/... ./internal/controlplane/... ./internal/contracts/...
+    with the database set: all ok; the new Postgres test ran (go test -v shows PASS, not SKIP). go test -count=1
+    -tags integration ./internal/telemetry/...: ok. go test -race on internal/telemetry and internal/contracts/reporting:
+    ok. internal/scheduler and internal/archtest: ok. internal/persistence fails only in TestKeyedMutationsUseTheSharedHelpers
+    and TestSQLAccessFollowsTableOwnership, the base failures recorded above. cd runtime && uv run --locked pytest -q
+    tests/test_metrics.py tests/test_allocation.py tests/test_contracts.py: all passed. Full Runtime suite: 4457
+    passed, 105 failed, 39 skipped; the failures are the same known macOS set plus the wall-clock parser test.
+    make test-wire-cross-language: passed (255 fixtures, 254 Go and 194 Python shared tests). make lint: passed.
+    make docs-dependencies: no change.'
   siblings: 'Fixed: the double argument-summary measure in Go (policy.go) and Python (_bound_arguments).
     Ruled out: runtime/src/contractor_runtime/worker/state.py _fit_snapshot already uses a binary search
     (logarithmic encodes) under its own WRK State rule; registry.go heartbeatOrder (128) and stageReservationTombstones
@@ -203,11 +241,26 @@ verification:
     records unchanged; it may still change a record that holds a deployment secret it alone matches or a
     text containing :// that its URL parser rejects, and only then removes more detail. Reopen if the Runtime
     starts writing number text the Server must normalize, or if a Server-only redaction rule is added.
+    Re-review: the replay compares as jsonb in SQL rather than copying PostgreSQL''s numeric normalization
+    into Go, so equality is exactly the column''s own equality; a replay that writes 5e-05 where the first
+    delivery wrote 0.00005 is equal too, which is harmless because both denote the same value. The number
+    range is checked in validation next to the size bound rather than in decoding, so a violation gets the
+    same invariant class in Go and Python and both sides pin it in the shared fixtures. The text read back
+    from a stored report is accepted at up to about 52 times its byte bound instead of bounding the
+    expanded digits, because a tighter bound would also change what the Runtime writes for values such as
+    1e+300. Reopen if a reader of stored reports must hold less memory per stage, or if stored tool calls
+    are exposed through an API.
     Out of scope, reported: the Go metrics policy replaces every configured secret wherever it occurs,
     while OBS-R31 limits secrets under 16 bytes to whole strings (controlplane/runtime_client.go has the
     OBS-R31 matcher).'
   new_spec_ids:
   - OBS-R110 (docs/spec/platform/observability.md) and observability invariant 9
+  - LIM-OBS-16 (docs/spec/platform/limits.md, tool argument numbers finite as a float64 with an exponent
+    between -324 and 308)
   amended_spec_ids:
+  - OBS-R9 (a replay matches when the documents are equal as jsonb)
   - OBS-R27 (placeholder shape, sensitive-name subset, idempotent second redaction)
-  - OBS-R42 (empty arguments absent, number literals kept)
+  - OBS-R42 (empty arguments absent, number literals kept, LIM-OBS-16 range, [NON_FINITE] integers)
+  - OBS-R110 (read-back factor of a stored report)
+  - FAIL-OBS-1 (ambiguous delivery outcome)
+  - observability invariants 7 and 9 (new tests)
