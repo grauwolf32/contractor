@@ -130,30 +130,40 @@ WITH live_claim AS MATERIALIZED (
 )
 SELECT `
 
-// nextLiveRunForDeletionSQL returns the child Run of the earliest execution
-// that still exists in workflow_runs, for deleting Audit $1 held by live claim
-// ($2, $3). No row means no child Run is left or the gate failed.
-// Executions whose Run is stamped deleted are skipped through
-// audit_executions_audit_run_cleanup_idx, which yields (created_at,
-// execution_id) order, so the probe stops at the first live Run instead of
-// reading every execution of the Audit (V414-029). The deferred
-// contractor_require_matching_audit_run check makes run_deleted_at IS NULL
-// exactly while the Run row exists when the stamp commits; the EXISTS probe
-// by primary key keeps the original "Run still exists" meaning.
-// Used by ClaimStore.NextLiveRunForDeletion.
-var nextLiveRunForDeletionSQL = `
-SELECT next.run_id
-  FROM audits AS audit
-  JOIN audit_controller_claims AS claim USING (audit_id)
-  CROSS JOIN LATERAL (
+// firstLiveChildRunSQL is the child Run of the earliest execution of the
+// Audit aliased audit whose Run still exists in workflow_runs, as a LATERAL
+// subquery. An execution whose Run is stamped deleted is skipped through
+// audit_executions_audit_run_cleanup_idx: run_deleted_at IS NULL selects the
+// index range of the unstamped executions, and run_deleted_at leads the
+// ORDER BY because an IS NULL condition does not make a column constant for
+// the planner, so only that order lets the index deliver (created_at,
+// execution_id) and the probe stop at the first live Run instead of reading
+// every execution of the Audit and every Run (V414-029). The stamp is set in
+// the transaction that deletes the Run (internal/rundeletion, the only Run
+// delete), and the deferred contractor_require_matching_audit_run check
+// rejects a stamp while the Run row exists; the EXISTS probe by primary key
+// keeps the meaning "the Run still exists" for an execution whose Run was
+// removed without its stamp. Used by nextLiveRunForDeletionSQL and
+// purgeClaimedAuditSQL.
+const firstLiveChildRunSQL = `(
       SELECT execution.run_id
         FROM audit_executions AS execution
        WHERE execution.audit_id = audit.audit_id
          AND execution.run_id IS NOT NULL AND execution.run_deleted_at IS NULL
          AND EXISTS (SELECT 1 FROM workflow_runs AS run WHERE run.run_id = execution.run_id)
-       ORDER BY execution.created_at, execution.execution_id
+       ORDER BY execution.run_deleted_at, execution.created_at, execution.execution_id
        LIMIT 1
-  ) AS next
+  )`
+
+// nextLiveRunForDeletionSQL returns the child Run of the earliest execution
+// that still exists in workflow_runs, for deleting Audit $1 held by live claim
+// ($2, $3). No row means no child Run is left or the gate failed.
+// Used by ClaimStore.NextLiveRunForDeletion.
+var nextLiveRunForDeletionSQL = `
+SELECT next.run_id
+  FROM audits AS audit
+  JOIN audit_controller_claims AS claim USING (audit_id)
+  CROSS JOIN LATERAL ` + firstLiveChildRunSQL + ` AS next
  WHERE audit.audit_id = $1 AND audit.state = 'deleting'
    AND ` + auditClaims.LiveCondition("claim", "$2", "$3")
 
@@ -175,10 +185,5 @@ SELECT audit.project_id
         WHERE item.audit_id = audit.audit_id AND item.state <> 'settled'
    )
    AND NOT ` + uncollectedExecutionSQL + `
-   AND NOT EXISTS (
-       SELECT 1
-         FROM audit_executions AS execution
-         JOIN workflow_runs AS run ON run.run_id = execution.run_id
-        WHERE execution.audit_id = audit.audit_id
-   )
+   AND NOT EXISTS (SELECT 1 FROM ` + firstLiveChildRunSQL + ` AS live)
  FOR UPDATE OF audit, claim`
