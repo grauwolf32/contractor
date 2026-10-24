@@ -97,19 +97,40 @@ def reset_tool_metric_correlation(token: Token[str | None]) -> None:
 
 @dataclass(slots=True)
 class MetricsState:
-    """Allocation-wide counters and bounded detail accumulated across A2A calls."""
+    """Allocation-wide counters and bounded detail accumulated across A2A calls.
+
+    Retained tool-call and error records change only through the recording
+    methods. Each admitted record is serialized once, there, into the JSON
+    projection that every later State snapshot reuses (WRK-R169).
+    """
 
     counters: dict[str, int] = field(default_factory=dict)
-    tool_calls: list[ToolCallRecord] = field(default_factory=list)
-    errors: list[ExecutionError] = field(default_factory=list)
     final_outcome: str | None = None
     truncated: bool = False
+    _tool_calls: list[ToolCallRecord] = field(default_factory=list)
+    _errors: list[ExecutionError] = field(default_factory=list)
+    # Index-aligned with the record lists and bounded by the same retention
+    # limits. The dictionaries are never mutated after admission.
+    _tool_call_projections: list[dict[str, Any]] = field(default_factory=list, repr=False)
+    _error_projections: list[dict[str, Any]] = field(default_factory=list, repr=False)
     _tool_metrics: dict[str, dict[str, int]] = field(default_factory=dict)
     _next_call_number: int = 1
     _worker_budget: WorkerBudgetMetrics | None = None
     _summarizer: WorkerSummarizerMetrics | None = None
     _completion: WorkerCompletionDiagnostics | None = None
     _tool_correlation_outcomes: dict[str, bool] = field(default_factory=dict, repr=False)
+
+    @property
+    def tool_calls(self) -> tuple[ToolCallRecord, ...]:
+        """Retained tool-call records, oldest first."""
+
+        return tuple(self._tool_calls)
+
+    @property
+    def errors(self) -> tuple[ExecutionError, ...]:
+        """Retained errors, oldest first."""
+
+        return tuple(self._errors)
 
     def record_completion(self, value: WorkerCompletionDiagnostics) -> None:
         self._completion = WorkerCompletionDiagnostics.model_validate(
@@ -423,18 +444,20 @@ class MetricsState:
         )
 
     def snapshot(self) -> dict[str, Any]:
-        """Return the ADK State projection; it intentionally contains no raw results."""
+        """Return the ADK State projection; it intentionally contains no raw results.
+
+        The returned dictionary and lists are new, but the retained record
+        projections inside them are shared with this reducer and with later
+        snapshots, so the caller must not mutate them. WorkerStateStore, the
+        only production caller, deep-copies every State that leaves it.
+        """
 
         result = {
             "counters": dict(sorted(self.counters.items())),
-            "toolCalls": [
-                call.model_dump(mode="json", by_alias=True, exclude_none=True)
-                for call in self.tool_calls
-            ],
-            "errors": [
-                error.model_dump(mode="json", by_alias=True, exclude_none=True)
-                for error in self.errors
-            ],
+            # Copies of the reference lists: linear in retained records, but
+            # no record is serialized again.
+            "toolCalls": list(self._tool_call_projections),
+            "errors": list(self._error_projections),
             "finalOutcome": self.final_outcome,
             "truncated": self.truncated,
         }
@@ -520,16 +543,22 @@ class MetricsState:
         self.counters[name] = min(MAX_METRIC_COUNTER, self.counters.get(name, 0) + value)
 
     def _append_tool_call(self, record: ToolCallRecord) -> None:
-        if len(self.tool_calls) >= MAX_METRIC_TOOL_CALLS:
-            self.tool_calls.pop(0)
+        projection = record.model_dump(mode="json", by_alias=True, exclude_none=True)
+        if len(self._tool_calls) >= MAX_METRIC_TOOL_CALLS:
+            self._tool_calls.pop(0)
+            self._tool_call_projections.pop(0)
             self.truncated = True
-        self.tool_calls.append(record)
+        self._tool_calls.append(record)
+        self._tool_call_projections.append(projection)
 
     def _append_error(self, error: ExecutionError) -> None:
-        if len(self.errors) >= MAX_METRIC_ERRORS:
-            self.errors.pop(0)
+        projection = error.model_dump(mode="json", by_alias=True, exclude_none=True)
+        if len(self._errors) >= MAX_METRIC_ERRORS:
+            self._errors.pop(0)
+            self._error_projections.pop(0)
             self.truncated = True
-        self.errors.append(error)
+        self._errors.append(error)
+        self._error_projections.append(projection)
 
 
 def _sanitize_metric_value(

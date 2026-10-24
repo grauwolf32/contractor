@@ -268,11 +268,16 @@ class WorkerStateStore:
             metrics_snapshot = self.metrics.snapshot()
             async with self._lock:
                 base_revision = int(self._state["stateRevision"])
-                candidate = copy.deepcopy(self._state)
+                # Every revision replaces the allocation metrics with a fresh
+                # projection, so only the sections a transform may change are
+                # copied (WRK-R169). The candidate is private to this call.
+                candidate = {
+                    key: metrics_snapshot if key == "metrics" else copy.deepcopy(value)
+                    for key, value in self._state.items()
+                }
 
             transform(candidate)
             candidate["stateRevision"] = base_revision + 1
-            candidate["metrics"] = metrics_snapshot
             candidate = await asyncio.to_thread(_fit_snapshot, candidate)
 
             async with self._lock:
@@ -412,10 +417,13 @@ def _workspace_observation_copy(value: Mapping[str, Any] | None) -> dict[str, An
         raise WorkerStateError("Worker workspace observation is invalid") from error
 
 
-def _fit_snapshot(state: dict[str, Any]) -> dict[str, Any]:
-    """Admit optional metric detail while preserving the fixed State envelope."""
+def _fit_snapshot(candidate: dict[str, Any]) -> dict[str, Any]:
+    """Admit optional metric detail while preserving the fixed State envelope.
 
-    candidate = copy.deepcopy(state)
+    The caller owns ``candidate``. Overflow admission edits its containers in
+    place and only re-slices the shared record projections, never mutating them.
+    """
+
     if _envelope_size(candidate) <= MAX_AGENT_STATE_SNAPSHOT_BYTES:
         return candidate
 
@@ -459,15 +467,20 @@ def _trim_workspace_detail(state: dict[str, Any]) -> None:
                 values = workspace.get(section)
                 if isinstance(values, list) and values:
                     choices.append(
-                        (len(values), -(invocation_order * 2 + section_order), workspace, section)
+                        (len(values), -(invocation_order * 2 + section_order), invocation, section)
                     )
         if not choices:
             return
-        _, _, workspace, section = max(choices, key=lambda item: (item[0], item[1]))
+        _, _, invocation, section = max(choices, key=lambda item: (item[0], item[1]))
+        workspace = invocation["workspace"]
         values = workspace[section]
-        next_length = len(values) // 2
-        workspace[section] = values[:next_length]
-        workspace["scopeComplete" if section == "scopePaths" else "detailComplete"] = False
+        # Replace the observation rather than edit it: a transform that a
+        # revision conflict runs again inserts the same validated observation.
+        invocation["workspace"] = {
+            **workspace,
+            section: values[: len(values) // 2],
+            "scopeComplete" if section == "scopePaths" else "detailComplete": False,
+        }
 
 
 def _largest_fitting_prefix(

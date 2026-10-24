@@ -639,8 +639,13 @@ class AdkWorkerRuntime:
                 "worker_draining", "Worker is no longer accepting A2A work", True
             ), False
         prompt = _task_prompt(request)
-        summary_secrets = _summarizer_secrets(self._context)
-        transcript = TranscriptRecorder(secrets=summary_secrets)
+        # Only an enabled terminal summarizer consumes the normal-loop
+        # transcript (WRK-R147); without one no transcript is built.
+        summary_secrets: tuple[str, ...] = ()
+        transcript: TranscriptRecorder | None = None
+        if self._context.summarizer is not None:
+            summary_secrets = _summarizer_secrets(self._context)
+            transcript = TranscriptRecorder(secrets=summary_secrets)
         self._invocation_observed_refs.clear()
         completion = self._completion
         # The Planner's deadline covers the whole logical invocation, ordinary
@@ -672,7 +677,8 @@ class AdkWorkerRuntime:
                             )
                         ) as events:
                             async for event in events:
-                                transcript.record(event)
+                                if transcript is not None:
+                                    transcript.record(event)
                                 if completion is not None:
                                     self._check_active()
                                 if output_limit_reached(event):
@@ -894,12 +900,12 @@ class AdkWorkerRuntime:
         *,
         request: StageContentRequest,
         invocation_id: str,
-        transcript: TranscriptRecorder,
+        transcript: TranscriptRecorder | None,
         observed_refs: tuple[ArtifactRef, ...],
         secrets: tuple[str, ...],
     ) -> tuple[WorkerResult | WorkerFailure, bool]:
         config = self._context.summarizer
-        if config is None:
+        if config is None or transcript is None:
             raise RuntimeError("Worker summarization was requested while disabled")
         usage = SummarizerUsage()
         retryable = True
