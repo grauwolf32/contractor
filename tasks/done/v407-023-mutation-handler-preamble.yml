@@ -111,6 +111,8 @@ verification:
     startAudit and resumeAudit; TestSharedRevisionIfMatchCasesGateEveryCounterPrecondition failed for the four Eval If-Match
     routes and TestSharedEvalPreconditionsUseTheCounterReader for "01" and "007"; TestMutationPrecedenceTable failed on
     its media-type rows. The payload interruption tests pass on both revisions: they pin the existing outcome.'
+  - 'After merging claude/review-v407-v409 at f7ccfcd6 (merge 162224ad): go test -count=1 ./internal/httpapi/... ./internal/evaldomain/...
+    with and without -tags=integration against contractor_test_g, make verify-public-api and make lint passed again.'
   - Process tests were not run; every tests/e2e request with a JSON body was checked to send Content-Type application/json,
     and an Audit start without a body needs none.
   database_tests_configured: true
