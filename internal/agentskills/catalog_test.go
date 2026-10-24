@@ -337,6 +337,8 @@ type memoryArtifactRepository struct {
 	failAfterSuccessfulWrites int
 	missingBarrier            *missingReadBarrier
 	readExistingErr           error
+	requireExactErr           error
+	forkErr                   error
 }
 
 func newMemoryArtifactRepository() *memoryArtifactRepository {
@@ -344,6 +346,14 @@ func newMemoryArtifactRepository() *memoryArtifactRepository {
 		bindings: make(map[string]memoryArtifact), history: make(map[string]map[string]memoryArtifact),
 		forkSources: make(map[string]artifacts.ArtifactRef), failAfterSuccessfulWrites: -1,
 	}
+}
+
+// removeRevision removes one historical revision of a binding, as history
+// retention does with a revision nothing holds.
+func (r *memoryArtifactRepository) removeRevision(scope artifacts.Scope, ref artifacts.ArtifactRef) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	delete(r.history[artifactKey(scope, ref)], *ref.Revision)
 }
 
 func artifactKey(scope artifacts.Scope, ref artifacts.ArtifactRef) string {
@@ -408,6 +418,9 @@ func (r *memoryArtifactRepository) Write(_ context.Context, scope artifacts.Scop
 func (r *memoryArtifactRepository) RequireExact(_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.requireExactErr != nil {
+		return r.requireExactErr
+	}
 	if ref.Revision == nil {
 		return artifacts.ErrExactRevisionRequired
 	}
@@ -439,6 +452,9 @@ func (r *memoryArtifactRepository) Metadata(_ context.Context, scope artifacts.S
 func (r *memoryArtifactRepository) Fork(_ context.Context, fork artifacts.Fork) (artifacts.ForkResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.forkErr != nil {
+		return artifacts.ForkResult{}, r.forkErr
+	}
 	sourceRef, name := fork.SourceRef, fork.TargetRef.Name
 	if sourceRef.Revision == nil {
 		return artifacts.ForkResult{}, artifacts.ErrExactRevisionRequired
