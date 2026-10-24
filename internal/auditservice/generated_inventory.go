@@ -23,23 +23,17 @@ type GeneratedInventoryProjection struct {
 	Gaps                     []string                            `json:"gaps"`
 }
 
-// GeneratedInventory reads one accepted link and one exact snapshot, independent
-// of item pagination. It deliberately never falls back to a current binding.
-func (s *Service) GeneratedInventory(ctx context.Context, ownerID, auditID string, revision uint64) (*GeneratedInventoryProjection, error) {
-	audit, err := s.reads().Get(ctx, ownerID, auditID)
-	if err != nil {
-		return nil, err
-	}
-	if audit.Revision != revision {
-		return nil, auditstore.ErrConflict
-	}
-	if audit.Phase != auditdomain.AuditPhaseRounds || audit.State == auditstore.AuditDeleting {
-		return nil, nil
-	}
-	link, err := s.reads().GetArtifactLink(ctx, auditID, auditstore.InitialInventoryLogicalKey)
-	if err != nil {
-		return nil, err
-	}
+// generatedInventory projects the committed initial-inventory link of audit
+// with its first Round, both read in the commit that audit was read from
+// (ASC-R146, ASC-R149). It reads the one exact snapshot the link names, by
+// its ref and digest, and checks it against that Round; it never falls back
+// to a current binding or reads item pages. The snapshot is immutable, so
+// reading it after that commit cannot mix in a later write: a payload that
+// fails exact verification is an integrity failure, and one that a purge
+// removed since is not found, as the Audit is.
+func (s *Service) generatedInventory(
+	ctx context.Context, audit auditstore.Audit, link auditstore.ArtifactLink, first auditstore.Round,
+) (*GeneratedInventoryProjection, error) {
 	project, err := artifacts.NewService(artifacts.NewPostgresRepository(s.pool)).Project(audit.ProjectID)
 	if err != nil {
 		return nil, err
@@ -64,15 +58,8 @@ func (s *Service) GeneratedInventory(ctx context.Context, ownerID, auditID strin
 	if source, ok := derived.Sources["source"]; !ok || source.Digest != derived.Inventory.SourceContentDigest {
 		return nil, artifacts.ErrArtifactIntegrity
 	}
-	round, err := s.reads().GetRound(ctx, auditID, auditdomain.DeterministicID("round", auditID, "1"))
-	if err != nil {
-		return nil, err
-	}
-	if !round.Manifest.Ref.SameExact(derived.Inventory.Worklist.Ref) || round.Manifest.Digest != derived.Inventory.Worklist.Digest || round.ExpectedItemCount != len(derived.Inventory.ExecutionManifest.Items) {
+	if !first.Manifest.Ref.SameExact(derived.Inventory.Worklist.Ref) || first.Manifest.Digest != derived.Inventory.Worklist.Digest || first.ExpectedItemCount != len(derived.Inventory.ExecutionManifest.Items) {
 		return nil, artifacts.ErrArtifactIntegrity
-	}
-	if err := s.checkPageRevision(ctx, ownerID, auditID, revision); err != nil {
-		return nil, err
 	}
 	return &GeneratedInventoryProjection{Snapshot: link.Artifact, Sources: derived.Sources,
 		SourceContentDigest: derived.Inventory.SourceContentDigest, CanonicalInventoryDigest: derived.Inventory.CanonicalInventoryDigest,

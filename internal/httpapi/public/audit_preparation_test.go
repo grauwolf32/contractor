@@ -26,7 +26,11 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
+// preparedHandlerAudit returns a preparing Audit of the prepared OpenAPI scan
+// profile, which pins the generate-api prepare role, and that role's
+// accepted preparation.
+func preparedHandlerAudit(t *testing.T) (auditstore.Audit, map[string]auditservice.PreparationRoleProjection) {
+	t.Helper()
 	root := configtest.CopyWithPolicies(t, "../../auditservice/testdata/catalog")
 	profileYAML := contractstest.ReadFile(t, "api", "testdata", "audit-composition", "prepared-openapi-scan.yaml")
 	if err := os.WriteFile(filepath.Join(root, "audit-profiles/prepared.yaml"), profileYAML, 0o600); err != nil {
@@ -55,15 +59,22 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 	audit := auditstore.Audit{AuditID: "prepared-audit", OwnerID: "user-1", ProjectID: "project-one",
 		Profile:         auditstore.ProfileIdentity{Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest},
 		ProfileSnapshot: raw, InputSelection: selection, BaselineSnapshot: baseline, State: auditstore.AuditActive, Phase: auditdomain.AuditPhasePreparing,
-		Revision: 2, Dispatch: auditstore.DispatchOpen, Hold: auditstore.HoldHeld, CreatedAt: now, UpdatedAt: now}
+		Revision: 2, Dispatch: auditstore.DispatchOpen, Hold: auditstore.HoldHeld, CreatedAt: now, UpdatedAt: now,
+		Limits: auditstore.Limits{MaxRounds: 1, BatchSize: 1, MaxItemsPerRound: 16, MaxItemsTotal: 16,
+			MaxSubmittedRuns: 50, MaxItemRunAttempts: 3, MaxEvidenceBytes: 64 << 20}}
 	revision, executionID, runID := "retained-output-r1", "prepare-execution", "prepare-run"
+	return audit, map[string]auditservice.PreparationRoleProjection{"generate-api": {
+		PreparationRole: auditstore.PreparationRole{WorkflowRole: "generate-api", Status: auditdomain.PreparationAccepted, Attempts: 1, MaxRunAttempts: 2, ExecutionID: &executionID},
+		RunID:           &runID, Outputs: map[string]auditstore.AcceptedPreparationOutput{"api": {ExecutionID: executionID, RunID: runID,
+			Output: auditstore.PreparationOutput{WorkflowOutput: "openapi", Retained: auditstore.ExactArtifact{
+				Ref: contracts.ArtifactRef{Namespace: "audit-managed", Name: "api", Revision: &revision}, Digest: auditHandlerDigest("api"), MediaType: "application/yaml", SizeBytes: 0}}}},
+	}}
+}
+
+func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
+	audit, preparation := preparedHandlerAudit(t)
 	management := &fakeAuditManagement{audit: audit, started: auditservice.StartedAudit{Audit: audit, Items: []auditstore.Item{}},
-		preparation: map[string]auditservice.PreparationRoleProjection{"generate-api": {
-			PreparationRole: auditstore.PreparationRole{WorkflowRole: "generate-api", Status: auditdomain.PreparationAccepted, Attempts: 1, MaxRunAttempts: 2, ExecutionID: &executionID},
-			RunID:           &runID, Outputs: map[string]auditstore.AcceptedPreparationOutput{"api": {ExecutionID: executionID, RunID: runID,
-				Output: auditstore.PreparationOutput{WorkflowOutput: "openapi", Retained: auditstore.ExactArtifact{
-					Ref: contracts.ArtifactRef{Namespace: "audit-managed", Name: "api", Revision: &revision}, Digest: auditHandlerDigest("api"), MediaType: "application/yaml", SizeBytes: 0}}}},
-		}}}
+		preparation: preparation}
 	h := auditTestHandler(management)
 	start := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/prepared-audit/start", nil)
 	start.SetPathValue("auditId", audit.AuditID)
@@ -150,5 +161,77 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 	h.getAudit(drafted, draft)
 	if drafted.Code != http.StatusOK || strings.Contains(drafted.Body.String(), `"preparation"`) {
 		t.Fatalf("draft falsely entered preparation: %d %s", drafted.Code, drafted.Body.String())
+	}
+}
+
+// TestSharedPublicAuditDetailSnapshotContracts serves the
+// detail and every mutation response built from it for a preparing Audit
+// whose detail snapshot is a later revision than the read or the mutation
+// returned, as when the Audit Controller commits in between, and validates
+// each answer against the public contract: one revision, ETag and
+// projection, never an undeclared or misleading conflict (ASC-R149,
+// V414-018).
+func TestSharedPublicAuditDetailSnapshotContracts(t *testing.T) {
+	audit, preparation := preparedHandlerAudit(t)
+	later := audit
+	later.Revision, later.UpdatedAt = audit.Revision+1, audit.UpdatedAt.Add(time.Second)
+	management := &fakeAuditManagement{audit: audit, started: auditservice.StartedAudit{Audit: audit, Items: []auditstore.Item{}},
+		preparation: preparation, snapshot: &later}
+	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
+		func(dependencies *testServices) { dependencies.Audits = management })
+	router := publicContractRouter(t)
+	for _, operation := range []struct {
+		name    string
+		request *http.Request
+		status  int
+	}{
+		{"getAudit", jsonContractRequest(http.MethodGet, "/v1/audits/prepared-audit", ""), http.StatusOK},
+		{"startAudit", jsonContractRequest(http.MethodPost, "/v1/audits/prepared-audit/start", "",
+			"Idempotency-Key", "start-later", "If-Match", `"1"`), http.StatusOK},
+		{"pauseAudit", jsonContractRequest(http.MethodPost, "/v1/audits/prepared-audit/pause", "",
+			"Idempotency-Key", "pause-later", "If-Match", `"2"`), http.StatusOK},
+		{"resumeAudit", jsonContractRequest(http.MethodPost, "/v1/audits/prepared-audit/resume", "",
+			"Idempotency-Key", "resume-later", "If-Match", `"2"`), http.StatusOK},
+		{"cancelAudit", jsonContractRequest(http.MethodPost, "/v1/audits/prepared-audit/cancel", "",
+			"Idempotency-Key", "cancel-later", "If-Match", `"2"`), http.StatusAccepted},
+		{"deleteAudit", jsonContractRequest(http.MethodDelete, "/v1/audits/prepared-audit", "",
+			"Idempotency-Key", "delete-later", "If-Match", `"2"`), http.StatusAccepted},
+	} {
+		t.Run(operation.name, func(t *testing.T) {
+			response := serveAndValidatePublicContract(t, router, fixture.handler, operation.request, true)
+			body := response.Body.Bytes()
+			if operation.name == "startAudit" {
+				var started struct {
+					Audit json.RawMessage `json:"audit"`
+				}
+				if err := json.Unmarshal(body, &started); err != nil {
+					t.Fatal(err)
+				}
+				body = started.Audit
+			}
+			var read struct {
+				Revision    uint64                    `json:"revision"`
+				Preparation *auditPreparationResponse `json:"preparation"`
+			}
+			if response.Code != operation.status || json.Unmarshal(body, &read) != nil || read.Revision != later.Revision ||
+				response.Header().Get("ETag") != `"3"` || read.Preparation == nil ||
+				read.Preparation.Roles["generate-api"].Status != auditdomain.PreparationAccepted {
+				t.Fatalf("%s = %d ETag %s: %s", operation.name, response.Code, response.Header().Get("ETag"), response.Body.String())
+			}
+		})
+	}
+	// A failed detail read keeps its class: a transaction conflict is the
+	// declared retryable 503, never the 409 of a lost race.
+	management.detailErr = fmt.Errorf("read Audit detail: %w", &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure})
+	for _, request := range []*http.Request{
+		jsonContractRequest(http.MethodGet, "/v1/audits/prepared-audit", ""),
+		jsonContractRequest(http.MethodPost, "/v1/audits/prepared-audit/pause", "", "Idempotency-Key", "pause-conflict", "If-Match", `"2"`),
+	} {
+		response := serveAndValidatePublicContract(t, router, fixture.handler, request, true)
+		var failure errorResponse
+		if response.Code != http.StatusServiceUnavailable || json.Unmarshal(response.Body.Bytes(), &failure) != nil ||
+			failure.Code != "storage_transaction_conflict" || !failure.Retryable {
+			t.Fatalf("%s %s with a detail transaction conflict = %d %s", request.Method, request.URL.Path, response.Code, response.Body.String())
+		}
 	}
 }

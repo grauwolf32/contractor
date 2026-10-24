@@ -57,6 +57,22 @@ type ListedPreparationRole struct {
 	Latest *PreparationAttempt
 }
 
+// PreparedDetail is what the detail projection of a started Audit that pins
+// a prepare role reads from one commit (ASC-R149): the Audit, its pinned
+// prepare roles in role order, each with its latest attempt, and, while the
+// Audit is in the rounds phase and not deleting, its committed
+// initial-inventory link and its first Round (ASC-R146). A read that asks for
+// the current Round also holds that Round and only its items (AUD-R226);
+// CurrentRound is nil while the Audit has none.
+type PreparedDetail struct {
+	Audit         Audit
+	Roles         []ListedPreparationRole
+	InventoryLink *ArtifactLink
+	FirstRound    *Round
+	CurrentRound  *Round
+	CurrentItems  []Item
+}
+
 type StartPreparationParams struct {
 	OwnerID          string
 	AuditID          string
