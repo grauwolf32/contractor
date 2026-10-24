@@ -334,6 +334,9 @@ RuntimeCredentialKind = Literal[
     "http-proxy-basic@1",
     "http-proxy-bearer@1",
     "otlp-headers@1",
+    "target-basic@1",
+    "target-bearer@1",
+    "target-login@1",
 ]
 HTTPProxyTarget = Literal["llm-gateway", "tool-http", "tool-subprocess"]
 WorkspaceMode = Literal["direct", "overlay"]

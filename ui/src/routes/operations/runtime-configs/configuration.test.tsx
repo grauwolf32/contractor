@@ -122,6 +122,30 @@ function setup(
   };
 }
 
+/** Operations whose Runtime credential creation answers safe metadata. */
+function setupWithCreate() {
+  const view = renderApplication("/operations/configuration", {
+    capabilities: ["user", "operations"],
+    server: {
+      "GET /v1/operations/snapshot": () => json(operationsSnapshot("1")),
+      "GET /v1/operations/runtime-configs": () => json(page([])),
+      "GET /v1/operations/runtime-credentials": () => json(page([])),
+      "GET /v1/operations/runtime-labels": () => json(page([])),
+      "POST /v1/operations/runtime-credentials": () =>
+        json(
+          conforming("RuntimeCredentialMetadata", {
+            credentialId: "alice-login",
+            kind: "target-login@1",
+            createdBy: "user_local",
+            createdAt: CREATED,
+          }),
+          201,
+        ),
+    },
+  });
+  return view;
+}
+
 describe("Runtime configuration hub navigation", () => {
   it("shows nested RuntimeConfig export settings and explicit clears with labels", async () => {
     setup("/operations/configuration/debug/1", {
@@ -397,6 +421,51 @@ describe("Runtime configuration hub navigation", () => {
     expect(screen.getByLabelText("RuntimeConfig")).toHaveDisplayValue(
       "debug@1",
     );
+  });
+
+  it("creates a pentest target login credential from named fields", async () => {
+    const secret = "target-login-secret";
+    const { user, server } = setupWithCreate();
+    await user.click(
+      await screen.findByRole("button", { name: "Add Runtime credential" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Create Runtime credential",
+    });
+    await user.type(
+      within(dialog).getByLabelText("Runtime credential ID"),
+      "alice-login",
+    );
+    await user.selectOptions(
+      within(dialog).getByLabelText("Credential kind"),
+      "Pentest target login fields",
+    );
+    const values = within(dialog).getAllByLabelText(/Login field value/);
+    expect(
+      within(dialog)
+        .getAllByLabelText("Login field name")
+        .map((input) => (input as HTMLInputElement).value),
+    ).toEqual(["username", "password"]);
+    await user.type(values[0]!, "alice");
+    await user.type(values[1]!, secret);
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: "Create active Runtime credential",
+      }),
+    );
+    expect(
+      await within(dialog).findByText(/Created safe metadata/),
+    ).toBeInTheDocument();
+    for (const value of within(dialog).getAllByLabelText(/Login field value/)) {
+      expect(value).toHaveValue("");
+    }
+    expect(document.body.textContent).not.toContain(secret);
+    const [sent] = server.sent("POST", "/v1/operations/runtime-credentials");
+    expect(await sent!.json()).toEqual({
+      credentialId: "alice-login",
+      kind: "target-login@1",
+      material: { fields: { username: "alice", password: secret } },
+    });
   });
 
   it("opens Runtime configuration as an Operations section with a scope label and refresh", async () => {

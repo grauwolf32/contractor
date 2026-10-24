@@ -8733,7 +8733,10 @@
         "caido-bearer@1",
         "interactsh-token@1",
         "http-origin-basic@1",
-        "http-origin-bearer@1"
+        "http-origin-bearer@1",
+        "target-basic@1",
+        "target-bearer@1",
+        "target-login@1"
       ]
     },
     "RuntimeCredentialMetadata": {
@@ -8798,12 +8801,11 @@
       "additionalProperties": false,
       "required": ["username", "password"],
       "properties": {
-        "username": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "username": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/BasicCredentialUsername"
+        },
         "password": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 8192,
-          "writeOnly": true
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/BasicCredentialPassword"
         }
       }
     },
@@ -8849,17 +8851,29 @@
         }
       }
     },
+    "BasicCredentialUsername": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[^\\x00-\\x1F\\x7F:]+$"
+    },
+    "BasicCredentialPassword": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8192,
+      "pattern": "^[^\\x00-\\x1F\\x7F]+$",
+      "writeOnly": true
+    },
     "HTTPOriginBasicMaterial": {
       "type": "object",
       "additionalProperties": false,
       "required": ["username", "password"],
       "properties": {
-        "username": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "username": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/BasicCredentialUsername"
+        },
         "password": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 8192,
-          "writeOnly": true
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/BasicCredentialPassword"
         }
       }
     },
@@ -8873,6 +8887,54 @@
           "minLength": 1,
           "maxLength": 8192,
           "pattern": "^[!-~]+(?:[ \\t]+[!-~]+)*$",
+          "writeOnly": true
+        }
+      }
+    },
+    "TargetBasicMaterial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["username", "password"],
+      "properties": {
+        "username": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/BasicCredentialUsername"
+        },
+        "password": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/BasicCredentialPassword"
+        }
+      }
+    },
+    "TargetBearerMaterial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["token"],
+      "properties": {
+        "token": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8192,
+          "pattern": "^[!-~]+(?:[ \\t]+[!-~]+)*$",
+          "writeOnly": true
+        }
+      }
+    },
+    "TargetLoginMaterial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fields"],
+      "properties": {
+        "fields": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 16,
+          "propertyNames": { "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 8192,
+            "pattern": "^[^\\x00-\\x1F\\x7F]+$",
+            "writeOnly": true
+          },
           "writeOnly": true
         }
       }
@@ -8980,6 +9042,51 @@
             "kind": { "type": "string", "const": "http-origin-bearer@1" },
             "material": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/HTTPOriginBearerMaterial",
+              "writeOnly": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["credentialId", "kind", "material"],
+          "properties": {
+            "credentialId": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
+            },
+            "kind": { "type": "string", "const": "target-basic@1" },
+            "material": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/TargetBasicMaterial",
+              "writeOnly": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["credentialId", "kind", "material"],
+          "properties": {
+            "credentialId": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
+            },
+            "kind": { "type": "string", "const": "target-bearer@1" },
+            "material": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/TargetBearerMaterial",
+              "writeOnly": true
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["credentialId", "kind", "material"],
+          "properties": {
+            "credentialId": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
+            },
+            "kind": { "type": "string", "const": "target-login@1" },
+            "material": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/TargetLoginMaterial",
               "writeOnly": true
             }
           }

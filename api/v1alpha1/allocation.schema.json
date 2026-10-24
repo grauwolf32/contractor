@@ -1073,7 +1073,10 @@
             "http-origin-bearer@1",
             "http-proxy-basic@1",
             "http-proxy-bearer@1",
-            "otlp-headers@1"
+            "otlp-headers@1",
+            "target-basic@1",
+            "target-bearer@1",
+            "target-login@1"
           ],
           "title": "Kind",
           "type": "string"

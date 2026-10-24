@@ -611,6 +611,8 @@ its owning requirement.
 | `LIM-RCF-27` | exactly 1 active default binding | Control Plane label bindings | Control Plane database (migration and binding mutations) | [RCF-R122](../configuration/runtime-config.md) |
 | `LIM-RCF-28` | at least 120 s, default 180 s | RuntimeSettings.requestTimeoutSeconds (allocation-local outbound request budget) | Server | [RCF-R161](../configuration/runtime-config.md) |
 | `LIM-RCF-29` | positive integer at most 2^31-1 | gatewayPolicy tpmLimit, rpmLimit and maxParallelRequests | Server credential creation (before any Gateway call) | [RCF-R63](../configuration/runtime-config.md) |
+| `LIM-RCF-30` | 1–16 named fields | target-login@1 login secret fields | Server runtime-credential creation | [RCF-R184](../configuration/runtime-config.md) |
+| `LIM-RCF-31` | 16 KiB | target-login@1 total field value size | Server runtime-credential creation | [RCF-R184](../configuration/runtime-config.md) |
 | `LIM-REV-1` | 1 initial coverage row per selected requirement or operation | Audit coverage at start (requirement rows start as not-tested) | Audit Controller (coverage) | [REV-R13](../audits/review-and-reports.md) |
 | `LIM-REV-2` | 1 Audit revision advance per event (each review.expired and each review.requested) | Review renewal of expired item requests by Resume or the Controller | Audit API (Resume) and Audit Controller, in PostgreSQL | [REV-R39](../audits/review-and-reports.md) |
 | `LIM-REV-3` | 2 exact report links | Atomic publication on human report acceptance | Audit API | [REV-R47](../audits/review-and-reports.md) |
