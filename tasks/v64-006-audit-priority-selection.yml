@@ -23,6 +23,26 @@ context:
   design: docs/plans/2026-09-20-audit-check-prioritization.md
   specification: [docs/proposals/0034-audit-check-prioritization.md, docs/spec/audits/audits.md]
   contract: The V64-000 pure selector consumes complete validated verdicts; this task verifies accepted receipt/journal authority and delegates atomic admission to the V64-002 store interface.
+  revalidated: >-
+    2026-10-24 on b523ae77: still deferred under execution_policy.current_delivery_focus, not
+    superseded. The deliveries named in reactivate_when have landed (cookie persistence V377-001,
+    c50d6ab0; the V62 journey through V62-012, 8c2441f0) and every dependency outside V64 is
+    complete (V64-000, V62-001, V62-002, V62-003, V25-011); what remains is representative audit
+    evidence and an explicit user decision. The new plans do not supersede it: proposal 0033 section
+    14 says V64 is not a prerequisite, its section 8.2 orders pentest hypotheses by frozen
+    assessment order, policy, budget and plan digest rather than per-candidate model verdicts,
+    V411-012 excludes V64 ranking integration, and V55-009 (pending scanner ranking) stays
+    independent per proposal 0034. The V64-000 pure core in internal/auditpriority (domain layer,
+    internal/archtest/layers_test.go:117) still has no production importer:
+    tools/testonlyexports/baseline.txt:67-70 holds BindVerdict and DecodeVerdict for V64-005 and
+    ResolveTopN and SelectionDigest for V64-006, so archiving the series would also require removing
+    those exports. Its schema and fixtures live in api/audit-priority/v1, not the
+    api/testdata/audit-priority path named in the V64-001, V64-005 and V64-010 deliverables.
+    Proposal 0034 was last refreshed on 2026-10-21 (631d6d51) and already cites the domain
+    specification documents. Task-specific: internal/auditpriority/selection.go and
+    selection_test.go already implement the pure selector; ResolveTopN and SelectionDigest wait on
+    this task in the test-only export baseline. V380-001 (b8a9e325) made automatic active checks the
+    Project default, which changes how often selected items await approval.
 scope:
   in:
     - Integrate the V64-000 pure selector with the exact frozen remaining pool and complete receipt/journal-accepted verdict set using critical/high/medium/low descending and canonical candidate ID ascending for ties.

@@ -32,6 +32,13 @@ context:
     (884 ms at 1 MiB, 838 ms at 256 KiB) and plain text takes 162 ms. LikeC4
     parses in a worker. Archive files previewed through the same renderers
     share this path.
+  revalidated: >-
+    2026-10-24 on b523ae77: accurate. OpenApiArtifactPreview
+    (ui/src/routes/artifacts/previews/openapi.tsx:11) still passes the whole
+    document to ApiReferenceReact; neither openapi.tsx, openapi-document.ts
+    nor the pinned @scalar/api-reference-react 0.9.66 changed since the task
+    was filed (c0efdb88); UI-R194, UI-R202 and LIM-UI-12 still read as
+    cited, and no V414 task covers the preview.
 scope:
   in:
     - "Measure where the time goes (YAML or JSON parse in openapi-document.ts, Scalar's store, or rendering) at 256 KiB and 1 MiB, with and without tags."

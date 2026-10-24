@@ -20,6 +20,35 @@ context:
   design: docs/plans/2026-09-20-audit-workflow-composition.md
   specification: [docs/spec/audits/audits.md, docs/spec/artifacts/artifact-store.md]
   contract: On reactivation, this task defines round-results, snapshot schema, result selection, review pins and finite bounds; V62-001 now covers preparation only.
+  revalidated: >-
+    2026-10-24 on b523ae77: still deferred, not superseded. Every V62 foundation is complete:
+    V62-001 (22fcba08), V62-002 (c13dfbb9), V62-003 and V62-004 (11471640), V62-009 (4bd4fd6d),
+    V62-010 (233b94a5), V62-011 (a597d779) and V62-012 (8c2441f0). The Audit specification was split
+    on 2026-10-11: mapping sources and preparation are docs/spec/audits/scans.md ASC-R13 to ASC-R19
+    (the ASC-R17 table keeps retained-output same-Round only and lets prepare-output feed every
+    Round), role bindings are docs/spec/audits/audits.md AUD-R31 to AUD-R43 (AUD-R41 forbids
+    dependencies on per-item check outputs), and execution, review and completion moved to
+    execution.md (AUX), review-and-reports.md (REV) and worker-completion.md (AWC); the scans.md and
+    audits.md non-goals still list round-results, retained dependencies, proposed-check routing and
+    standalone project-analysis as not provided. Schema changes since deferral:
+    audit_collection_receipts folded into audit_executions (V365-017, b97fa2b6), audit_coverage_rows
+    and audit_proposal_items into audit_items (V365-018, b2deb200), and audit_report_candidates into
+    the report-acceptance review request (V365-019, b74c3f5c); keyed receipts use mutation_receipts
+    and controller leases use audit_controller_claims through ControllerClaims (V370-007, PER-R24,
+    PER-R25); migrations restart at 000001_baseline.sql (V367-001) and the next free number is
+    000040. internal/auditstore is now split into claimstore, hookstore, ownerstore, querystore,
+    reviewstore and internal/pgstore. A planned consumer now exists: V411-012 (pending) depends on
+    V62-005, V62-006 and V62-007 as blocking prerequisites and must reuse their contracts, so
+    V411-015 to V411-018, V411-020, V411-021 and V412-003 to V412-005 (directly or through
+    V411-020), and the autonomous-http-pentest-2026-10 milestone, cannot finish until the user
+    reactivates and completes them. Proposal 0033 sections 7.4 and 8 now propose the shared shapes
+    to settle on reactivation: profile proposedChecks entries {planSchema, phase, workflowRole,
+    requiredCapabilities} with phase verify or replay, the retained-dependency input source resolved
+    from an accepted item's manifest, and findingConfirmation: optional. V410-006 explicitly leaves
+    V62-006/007 routing out of the sitemap slice. This note reactivates nothing. Task-specific: no
+    shipped profile binds an assessment role (configs/audit-profiles), so V411-012 is the only
+    planned consumer. V414-018 (pending) makes the Audit detail projection one snapshot read; that
+    is read consistency, not a settled-round snapshot, and does not overlap this scope.
 scope:
   in:
     - Construct a versioned canonical snapshot after every item settles and before the first assessment consumes it.

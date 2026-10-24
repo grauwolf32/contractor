@@ -55,6 +55,22 @@ context:
     paired differences, p50/p90 cost/latency and sample sizes. Do not infer statistical
     significance from the small pilot. Record missing infrastructure explicitly;
     live prerequisites and an explicit execution budget are required for completion.
+  revalidated: >-
+    2026-10-24 on b523ae77: scope unchanged; the task is still blocked on
+    V40-002, which is in_progress with its live acceptance A1/A2 open (the new
+    current-schema wrappers and candidate versions are unpublished, and its
+    archived AuditProfile wrappers select the removed audit-results@1). V41-008
+    is completed. Since this task was written, Managed Evals landed
+    (docs/spec/evals/managed-evals.md): EVM-R231 lets the Playground client
+    create native experiments or register an external matrix through the
+    managed submission API, and EVM-R232 labels the direct Run/Audit mode
+    described under server above as legacy/unassociated; pick the route when
+    V40-002 freezes the live plan. The pilot plan path follows the separately
+    pinned current-schema experiment that V40-002 freezes, not necessarily
+    experiments/agent-instructions/plan.json. docs/reviews does not exist;
+    dated reports live under docs/research/. The ../playground-v2 checkout is
+    absent on this workstation, so the playground commands were not run;
+    go test ./tests/eval/agent_instructions ./internal/config passed.
 
 scope:
   in:

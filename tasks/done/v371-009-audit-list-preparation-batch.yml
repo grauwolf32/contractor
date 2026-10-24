@@ -6,7 +6,35 @@ epic: audits
 kind: defect
 introduced_by: V62-003
 priority: P3
-status: pending
+status: archived
+archive:
+  date: "2026-10-24"
+  previous_status: pending
+  reason: >-
+    Delivered by V407-004 (3cd9826c7d5a3676f6cff53a712d6ea555b76736), which
+    batched the list's preparation hydration for this same finding (its
+    dispositions name V371-009 as covered). Verified on b523ae77.
+    A1: listProjectAudits (internal/httpapi/public/audit_handlers.go:257)
+    calls Service.ListPage, which reads the page and the preparation of
+    its preparing and inventory items in one read-only REPEATABLE READ
+    snapshot (QueryStore.ListPreparedPage, ASC-R150 in
+    docs/spec/audits/scans.md); auditDetailReadModel is no longer called
+    per item (it remains on GET /v1/audits/{auditId}, :295).
+    TestSharedPostgresAuditListsHydratePreparationInFixedStatements
+    (internal/httpapi/public/audit_list_preparation_postgres_test.go:358)
+    counts statements with a pgx tracer: 200 preparing Audits and one take
+    the same 4 (BEGIN, list, preparation, COMMIT), the old per-row
+    hydration of the same page took 1,201, and every item's preparation
+    equals its detail GET; it also proves the snapshot across a pause, a
+    new attempt and a purge. Rerun on b523ae77 against PostgreSQL
+    (contractor_test_act): all five subtests passed (not skipped).
+    A2: V407-004 ran the count test on base 7023e96e, where it failed in
+    every subtest (1,201 statements). It was not run on a07f5e9 itself;
+    the per-row hydration (auditReadModel then auditDetailReadModel for
+    each preparing item) is identical there (a07f5e9
+    audit_handlers.go:222-224, 7023e96e :279-281), so the test fails on
+    the code this task named.
+    Open question (4) of V414-027 is answered by this record.
 depends_on: []
 languages: [go]
 goal: "GET /v1/audits issues a fixed number of statements per page, whatever the number of preparing or inventory Audits on it, and every item's preparation belongs to the list's snapshot."

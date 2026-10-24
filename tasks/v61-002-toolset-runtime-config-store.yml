@@ -34,6 +34,39 @@ context:
   reuse: >-
     Reuse immutable runtime_config_versions, binding CAS/locks, publication
     idempotency, AtomicPatch, canonicalization and RuntimeCredentialService.
+  revalidated: >-
+    2026-10-24 on b523ae77: still deferred, not superseded; main has no MCP or generic
+    worker.toolsets code or specification. The work remains on the unmerged branch
+    origin/feat/v61-toolset-runtime-configuration (head f6dfd6ed16240574ed3565bc6460f737fd072b49,
+    merge base c41a5989, 18 commits). Main is now 2,850 commits past that merge base and git
+    merge-tree reports 75 conflicting paths (35 at deferral), including modify/delete conflicts on
+    files main removed: docs/spec/01-agent-template.md, 02-runtime-and-a2a.md,
+    06-server-ui-and-operations.md, 07-runtime-labels-and-infrastructure-config.md, 19-audits.md,
+    29-tool-workers.md and ui-user-stories.md (retired for the domain documents by af85cc54),
+    internal/config/descriptors.go (now internal/config/resolved/descriptors.go, c8cbf2e1),
+    internal/contracts/agent.go (now internal/contracts/control/agent.go, ToolsetCapability at line
+    26, 6d277c5c), internal/runtimeconfig/principal.go (Agent principal labels now in
+    internal/agentprincipal, 3ecd3f2f) and
+    api/descriptor-parity/toolset-infrastructure-channels.yaml (replaced by
+    api/testdata/toolset-descriptors.json under TLS-R38, 35f59294). The example in reactivate_when
+    no longer applies: proposal 0033 section 14 says V61 MCP configuration is not a prerequisite of
+    the V411 HTTP/API pentest delivery, its section 4.3 keeps MCP tools out of the controlled-proof
+    path without their own gate, and V411-001 explicitly excludes V61 reactivation, so reactivation
+    needs a user decision that names a concrete MCP consumer. Task-specific: V365-011 folded
+    runtime_credential_creations and runtime_credential_tombstones into runtime_credentials
+    (168fff53), V365-012 folded runtime_config_publications into runtime_config_versions (9fc18e38),
+    V370-007 moved keyed receipts to mutation_receipts through KeyedMutation (PER-R24, bce4dba4) and
+    V367-001 folded every migration into 000001_baseline.sql (a0438557). The branch migration
+    000056_mcp_runtime_credentials.sql must be renumbered to the next free number (000040 today) and
+    rebuilt on runtime_credentials_credential_kind_check as last redefined by
+    000028_interactsh_credential.sql, which now also allows interactsh-token@1, http-origin-basic@1
+    and http-origin-bearer@1; V411-001 plans to redefine the same CHECK, so the two changes must be
+    sequenced. Physical-Agent label assignment moved to internal/agentprincipal (service.go,
+    label_holders.go; RCF-R138 to RCF-R144), where the toolset-label rejection now belongs. Header
+    limits still carry OTLP names (internal/credentials/runtime_types.go:24-26, LIM-RCF-19 to
+    LIM-RCF-22), so the protocol-neutral rename stays in scope. Overlap: V414-015 (pending) defines
+    the sendable HTTP field-value grammar for stored credential tokens; mcp-headers@1 must reuse it
+    rather than add another copy.
 scope:
   in:
     - Add bounded typed Toolsets map, registry normalization/validation, defaults, clones, Spec.Empty and canonical serialization.
