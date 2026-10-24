@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"mime"
 	"net"
 	"net/http"
@@ -65,8 +66,14 @@ type Manager struct {
 	maxResponseBytes int64
 }
 
-func (m *Manager) String() string   { return "litellm.Manager([REDACTED])" }
-func (m *Manager) GoString() string { return "litellm.Manager([REDACTED])" }
+// Manager redacts itself as a whole for every fmt verb and flag, for log/slog
+// and for JSON (SEC-R88): through its unexported bindings field fmt would
+// print the admin keys. The value receivers make a copied value redact too.
+func (m Manager) String() string                 { return "litellm.Manager([REDACTED])" }
+func (m Manager) GoString() string               { return m.String() }
+func (m Manager) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, m.String()) }
+func (m Manager) LogValue() slog.Value           { return slog.StringValue(m.String()) }
+func (m Manager) MarshalJSON() ([]byte, error)   { return json.Marshal(m.String()) }
 
 func NewManager(bindings *AdminBindings, policies ModelPolicyLookup, options Options) (*Manager, error) {
 	if bindings == nil || policies == nil {

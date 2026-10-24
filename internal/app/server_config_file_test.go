@@ -78,7 +78,7 @@ spec:
 		cfg.PerformanceMetrics || !cfg.Pprof || cfg.PprofListen != "127.0.0.1:6061" {
 		t.Fatalf("remaining ServerConfig settings = %+v", cfg)
 	}
-	if cfg.DatabaseURL != "" || cfg.PublicBearerToken.Reveal() != "" ||
+	if cfg.DatabaseURL.Reveal() != "" || cfg.PublicBearerToken.Reveal() != "" ||
 		cfg.DevelopmentWorkerToken.Reveal() != "" || cfg.DevelopmentPlannerToken.Reveal() != "" {
 		t.Fatal("ServerConfig populated a secret value")
 	}

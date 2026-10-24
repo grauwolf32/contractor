@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"strings"
 	"time"
@@ -38,6 +39,12 @@ type workflowServices struct {
 	telemetryRetention *telemetry.Retention
 	projectDeletion    *projectlifecycle.Controller
 	settings           *settingsstore.PostgresStore
+}
+
+// Format redacts the services as a whole for every verb (SEC-R88): through the
+// unexported scheduler field fmt would print its telemetry secrets.
+func (workflowServices) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "app.workflowServices([REDACTED])")
 }
 
 func configurePlanners(
@@ -174,7 +181,7 @@ func configureWorkflows(
 			RunSkills:           &runSkillInitializer{pool: pool},
 			Settings:            schedulerSettings,
 			TelemetrySecrets: []string{
-				cfg.DatabaseURL, cfg.PublicBearerToken.Reveal(),
+				cfg.DatabaseURL.Reveal(), cfg.PublicBearerToken.Reveal(),
 				cfg.DevelopmentWorkerToken.Reveal(), cfg.DevelopmentPlannerToken.Reveal(),
 			},
 			Logger: logger,

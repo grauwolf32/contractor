@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
@@ -26,6 +27,12 @@ type controlServices struct {
 	runtimeClient         *controlplane.RuntimeControlClient
 	workers               *controlplane.RuntimeBatchController
 	runtimeConfigurations *runtimeconfig.ManagementService
+}
+
+// Format redacts the services as a whole for every verb (SEC-R88): through the
+// unexported tls field fmt would print the private key and session ticket keys.
+func (controlServices) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "app.controlServices([REDACTED])")
 }
 
 func configureControlPlane(

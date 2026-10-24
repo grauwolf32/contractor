@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -38,6 +39,12 @@ type GitKeyMetadata struct {
 type GitKeys struct {
 	db     postgres.DBTX
 	cipher *TokenCipher
+}
+
+// Format redacts the store as a whole for every verb (SEC-R88): through its
+// unexported cipher field fmt would print the cipher's key bytes.
+func (s GitKeys) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "credentials.GitKeys([REDACTED])")
 }
 
 func NewGitKeys(db postgres.DBTX, cipher *TokenCipher) *GitKeys {

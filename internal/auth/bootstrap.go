@@ -1,8 +1,11 @@
 package auth
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 
 	"github.com/grauwolf32/contractor/internal/securefile"
 	"go.yaml.in/yaml/v4"
@@ -21,6 +24,12 @@ func (b Bootstrap) String() string {
 }
 
 func (b Bootstrap) GoString() string { return b.String() }
+
+// Format, LogValue and MarshalJSON redact the password hash for every verb,
+// for log/slog and for JSON (SEC-R88).
+func (b Bootstrap) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, b.String()) }
+func (b Bootstrap) LogValue() slog.Value           { return slog.StringValue(b.String()) }
+func (b Bootstrap) MarshalJSON() ([]byte, error)   { return json.Marshal(b.String()) }
 
 type bootstrapDocument struct {
 	User bootstrapUser `yaml:"user"`

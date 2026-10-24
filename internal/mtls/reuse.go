@@ -73,6 +73,12 @@ type RuntimeAgentTransports struct {
 	order list.List
 }
 
+// Format redacts the owner as a whole for every verb (SEC-R88): through the
+// unexported base field fmt would print the Control Plane's private key.
+func (t *RuntimeAgentTransports) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "mtls.RuntimeAgentTransports([REDACTED])")
+}
+
 // principalTransports holds the connections of one expected principal. A
 // generation is one http.Transport; a new generation replaces the current one
 // when the reuse lifetime ends, and a retired generation closes its
@@ -84,6 +90,13 @@ type principalTransports struct {
 	current        *transportGeneration
 	inflight       int
 	lastActive     time.Time
+}
+
+// Format redacts the connections as a whole for every verb (SEC-R88): through
+// the unexported tlsConfig field fmt would print the Control Plane's private
+// key.
+func (principalTransports) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "mtls.principalTransports([REDACTED])")
 }
 
 type transportGeneration struct {

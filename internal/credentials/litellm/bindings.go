@@ -4,8 +4,11 @@ package litellm
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"log/slog"
 	"os"
 	"unicode/utf8"
 
@@ -24,16 +27,39 @@ type GatewayLookup interface {
 	LLMGateway(string) (llmgateway.ResolvedLLMGatewayConfig, error)
 }
 
+// adminKey formats and logs only as a redaction marker, for every fmt verb
+// and flag, and refuses JSON encoding (SEC-R88).
 type adminKey struct{ value string }
 
 func (k adminKey) reveal() string   { return k.value }
 func (k adminKey) String() string   { return "[REDACTED]" }
 func (k adminKey) GoString() string { return "litellm.adminKey([REDACTED])" }
+func (k adminKey) Format(state fmt.State, verb rune) {
+	if verb == 'v' && state.Flag('#') {
+		_, _ = io.WriteString(state, k.GoString())
+		return
+	}
+	_, _ = io.WriteString(state, k.String())
+}
+func (k adminKey) LogValue() slog.Value { return slog.StringValue(k.String()) }
+func (k adminKey) MarshalJSON() ([]byte, error) {
+	return nil, errors.New("Gateway admin key cannot be serialized")
+}
 
+// exactBinding redacts itself as a whole (SEC-R88): fmt cannot call the
+// admin key's own redaction through the unexported key field.
 type exactBinding struct {
 	managementURL string
 	key           adminKey
 }
+
+func (b exactBinding) String() string {
+	return fmt.Sprintf("litellm.exactBinding{managementURL:%q key:[REDACTED]}", b.managementURL)
+}
+func (b exactBinding) GoString() string               { return b.String() }
+func (b exactBinding) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, b.String()) }
+func (b exactBinding) LogValue() slog.Value           { return slog.StringValue(b.String()) }
+func (b exactBinding) MarshalJSON() ([]byte, error)   { return json.Marshal(b.String()) }
 
 // AdminBindings is an immutable in-memory map loaded once during Server
 // startup. The exact Gateway ref is resolved while loading so a forged
@@ -49,8 +75,14 @@ func (b *AdminBindings) Len() int {
 	return len(b.bindings)
 }
 
-func (b *AdminBindings) String() string   { return "litellm.AdminBindings([REDACTED])" }
-func (b *AdminBindings) GoString() string { return "litellm.AdminBindings([REDACTED])" }
+// AdminBindings redacts itself as a whole for every fmt verb and flag, for
+// log/slog and for JSON (SEC-R88); the value receivers make a copied value
+// redact too.
+func (b AdminBindings) String() string                 { return "litellm.AdminBindings([REDACTED])" }
+func (b AdminBindings) GoString() string               { return b.String() }
+func (b AdminBindings) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, b.String()) }
+func (b AdminBindings) LogValue() slog.Value           { return slog.StringValue(b.String()) }
+func (b AdminBindings) MarshalJSON() ([]byte, error)   { return json.Marshal(b.String()) }
 
 type bindingDocument struct {
 	Bindings []bindingSource `yaml:"bindings"`

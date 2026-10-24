@@ -3,6 +3,8 @@ package events
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -90,11 +92,21 @@ type Hub struct {
 	active         sync.WaitGroup
 }
 
+// Format redacts the Hub as a whole for every verb (SEC-R88): through its
+// unexported authentication field fmt would print the sessions' CSRF tokens.
+func (h *Hub) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, "events.Hub([REDACTED])") }
+
 type socketSlot struct {
 	handle   auth.SessionHandle
 	socket   *socket
 	revoked  bool
 	released bool
+}
+
+// Format redacts the slot as a whole for every verb (SEC-R88): through its
+// unexported socket field fmt would print the session's CSRF token.
+func (socketSlot) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "events.socketSlot([REDACTED])")
 }
 
 func NewHub(options Options) (*Hub, error) {

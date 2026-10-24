@@ -1,7 +1,11 @@
 package app
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -11,7 +15,9 @@ import (
 )
 
 // serveConfigInputs is transient parse state. Unlike ServerConfig, it may hold
-// sealed environment credentials; no serialization or logging is provided.
+// sealed environment credentials and the database URL, so it redacts itself as
+// a whole for every fmt verb, for log/slog and for JSON (SEC-R88): fmt cannot
+// call SecretString's own redaction through its unexported fields.
 type serveConfigInputs struct {
 	settings                    serverConfigValues
 	serverConfigPath            string
@@ -50,6 +56,12 @@ type serveConfigInputs struct {
 
 	certificateExpiryWarningWindow time.Duration
 }
+
+func (c serveConfigInputs) String() string                 { return "app.serveConfigInputs([REDACTED])" }
+func (c serveConfigInputs) GoString() string               { return c.String() }
+func (c serveConfigInputs) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, c.String()) }
+func (c serveConfigInputs) LogValue() slog.Value           { return slog.StringValue(c.String()) }
+func (c serveConfigInputs) MarshalJSON() ([]byte, error)   { return json.Marshal(c.String()) }
 
 func loadServeConfigInputs(args []string, getenv func(string) string) (*serveConfigInputs, error) {
 	serverConfigPath, err := discoverServerConfigPath(args, getenv)

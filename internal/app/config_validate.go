@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auth"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 )
 
@@ -112,7 +113,7 @@ func (c *serveConfigInputs) effectiveConfig() (Config, error) {
 		ListenAddress:              c.listenAddress, PrivateListenAddress: c.privateListenAddress, PrivateURL: c.privateURL,
 		ShutdownTimeout: c.shutdownTimeout, RuntimeRequestTimeout: c.runtimeRequestTimeout,
 		WorkerRequestTimeout:        c.workerRequestTimeout,
-		DatabaseURL:                 c.databaseURL,
+		DatabaseURL:                 contracts.NewSecretString(c.databaseURL),
 		OperatorConfigRoot:          c.operatorConfigRoot,
 		ManagedConfigRoot:           c.managedConfigRoot,
 		CredentialMasterKeyFile:     c.credentialMasterKeyFile,
