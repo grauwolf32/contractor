@@ -81,6 +81,58 @@ func TestPostgresModelFreeLanePoolMigrationClassifiesExistingRuns(t *testing.T) 
 		}
 	}
 
+	// An Audit-managed Run queues the deferred binding check on every UPDATE,
+	// including the lane backfill. Ordinary Runs above do not exercise it.
+	auditWorkflow := resolved.ResolvedWorkflow{EntryStage: "entry", Stages: map[string]resolved.ResolvedStage{"entry": cases[0].entry}}
+	workflowJSON, err := json.Marshal(auditWorkflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := json.Marshal(map[string]any{"workflows": map[string]any{"scan": map[string]any{"workflow": auditWorkflow}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO projects(project_id,owner_id,kind,name,request_idempotency_key,request_digest)
+ VALUES('lanes','user','project','Lanes','create','sha256:'||repeat('a',64))`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO audits(audit_id,owner_id,project_id,profile_name,profile_version,profile_digest,
+ profile_snapshot,input_selection,baseline_snapshot,state,phase,started_at,max_rounds,batch_size,max_items_per_round,max_items_total,
+ max_submitted_runs,max_item_run_attempts,max_evidence_bytes,reserved_run_count,outstanding_run_count)
+ VALUES('audit-lanes','user','lanes','profile','1','sha256:'||repeat('a',64),$1::jsonb,'{}',
+ '{"schema":"contractor.audit.baseline.v1","inputs":{},"scope":{}}',
+ 'active','rounds',clock_timestamp(),1,1,10,10,20,1,1024,1,1)`, profile); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `INSERT INTO audit_executions(
+ execution_id,audit_id,role,workflow_role,role_attempt,manifest_ref,manifest_digest,submission_key,request_digest)
+ VALUES('execution-scan','audit-lanes','discovery','scan',1,'{}','sha256:'||repeat('b',64),
+ 'submit-scan','sha256:'||repeat('b',64))`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO workflow_runs (
+ run_id, owner_id, project_id, workflow_name, workflow_version, workflow_schema_version, workflow_snapshot,
+ parameters, runtime_labels, runtime_config_snapshot, state, state_reason_code,
+ publication_mode, audit_execution_id, audit_submission_key
+) VALUES ('run-audit-scan','user','lanes','workflow','1','v1',$1::jsonb,
+ '{}','{}',$2::jsonb,'pending','test','audit-managed','execution-scan','submit-scan')`, workflowJSON, builtInRunRuntimeSnapshot); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, `UPDATE audit_executions SET state='submitted', run_id='run-audit-scan',
+ run_provenance='{"schema":"contractor.audit.run-provenance.v1","runId":"run-audit-scan"}'
+ WHERE execution_id='execution-scan'`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
@@ -93,6 +145,17 @@ func TestPostgresModelFreeLanePoolMigrationClassifiesExistingRuns(t *testing.T) 
 		if err := pool.QueryRow(ctx, `SELECT scheduler_lane_class FROM workflow_runs WHERE run_id = $1`, test.runID).Scan(&class); err != nil || class != string(want) {
 			t.Errorf("%s migrated to class %q (%v), want %q", test.runID, class, err, want)
 		}
+	}
+	var runClass, executionClass string
+	if err := pool.QueryRow(ctx, `SELECT r.scheduler_lane_class, e.lane_class
+ FROM workflow_runs r JOIN audit_executions e ON e.execution_id=r.audit_execution_id
+ WHERE r.run_id='run-audit-scan' AND e.run_id=r.run_id AND e.submission_key=r.audit_submission_key`).Scan(&runClass, &executionClass); err != nil || runClass != "tool" || executionClass != "tool" {
+		t.Fatalf("migrated Audit binding classes = %q, %q (%v)", runClass, executionClass, err)
+	}
+	var deferred bool
+	if err := pool.QueryRow(ctx, `SELECT tgdeferrable AND tginitdeferred FROM pg_trigger
+ WHERE tgrelid='workflow_runs'::regclass AND tgname='workflow_runs_require_complete_audit_binding'`).Scan(&deferred); err != nil || !deferred {
+		t.Fatalf("Audit binding trigger lost its deferred contract: %v (%v)", deferred, err)
 	}
 	var toolRuns, revision int
 	var toolDefault *string

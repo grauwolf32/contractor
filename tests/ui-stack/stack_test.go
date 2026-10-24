@@ -233,12 +233,13 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	// Credential file options intentionally have no environment alias in the
 	// production parser; startServerOrFatal passes their explicit flags.
 	serverEnvironment := inheritedEnvironment(serverOverrides)
+	uiDist := buildBrowserUI(t, filepath.Join(repositoryRoot, "ui"), temporaryRoot)
 	uiEnvironment := cleanEnvironment(map[string]string{
 		"NODE_ENV":                   "production",
 		"CONTRACTOR_UI_API_BASE_URL": serverURL,
 		"CONTRACTOR_UI_HOST":         "127.0.0.1",
 		"CONTRACTOR_UI_PORT":         uiPort,
-		"CONTRACTOR_UI_DIST_DIR":     filepath.Join(repositoryRoot, "ui", "dist"),
+		"CONTRACTOR_UI_DIST_DIR":     uiDist,
 	}, "PATH", "LANG", "LC_ALL", "TZ")
 	secrets := []string{publicBearerCanary, modelGatewayCanary, managerAdminCanary, generatedKeyCanary}
 	assertEnvironmentHasNoSecrets(t, uiEnvironment, secrets)
@@ -295,8 +296,6 @@ func runBrowserStack(t *testing.T, evalMode string) {
 	waitForHTTP(t, ctx, runtimeProcess, controlClient, runtimeURL+"/healthz", http.StatusOK, secrets)
 	waitForProcessLog(t, ctx, runtimeProcess, "runtime agent registered", secrets)
 
-	uiBuildEnvironment := cleanEnvironment(nil, "PATH", "HOME", "XDG_CACHE_HOME", "COREPACK_HOME", "TMPDIR", "LANG", "LC_ALL", "TZ")
-	runChecked(t, filepath.Join(repositoryRoot, "ui"), uiBuildEnvironment, "corepack", "pnpm", "build")
 	stack.startUIOrFatal()
 	stack.startControlServer()
 	if managedEvals {

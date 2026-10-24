@@ -546,3 +546,10 @@ Workflow-specific UI controls are bundled widgets, reused by single scans and
 sweeps. The follow-up [V406-010](../../tasks/done/v406-010-scanner-widget-boundaries.yml)
 isolates the existing scanner report and Audit input views behind the same
 explicit widget ownership rules, without new Studio capabilities.
+
+Focused verification on 2026-10-24 passed the complete real browser stack,
+including native/external managed Evals, installed Nuclei and scanner browser
+journeys, wire/API checks, and the PostgreSQL sweep boundary/recovery/lifecycle
+suites. The process browser stacks now own immutable private UI builds.
+V406-007 remains in progress: the user explicitly postponed the aggregate
+release-verify command, so this evidence does not close the milestone.

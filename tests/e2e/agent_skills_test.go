@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
@@ -63,12 +64,12 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
 	packageA, packageB := stageAgentSkillPackageVariants(t, configRoot, fixture)
-	seedPlan, err := agentskills.DiscoverBundled(configRoot)
+	_, bundles, err := configload.LoadUnionReadOnly(configRoot, filepath.Join(temporaryRoot, "managed-configs"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	bundledNames := make([]string, 0, len(seedPlan.Packages()))
-	for _, pkg := range seedPlan.Packages() {
+	bundledNames := make([]string, 0, len(bundles.Skills.Packages()))
+	for _, pkg := range bundles.Skills.Packages() {
 		bundledNames = append(bundledNames, pkg.Name)
 	}
 

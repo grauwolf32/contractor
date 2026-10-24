@@ -172,6 +172,10 @@ make test-e2e
 The process harness starts the actual Go Server and Python Runtime entry points,
 creates temporary mTLS identities, and uses a deterministic loopback model
 Gateway. It verifies scheduling, artifacts and cleanup without a live model.
+Each browser process stack builds and serves one private temporary UI snapshot.
+A developer build or another gate may replace ui/dist without invalidating a
+running stack. The scanner browser likewise builds privately, or copies an
+explicitly requested prebuilt snapshot before starting Node.
 
 Each process-test package builds the Server lazily once and retains its binary
 until `TestMain` finishes all tests and their cleanup. Test enumeration and

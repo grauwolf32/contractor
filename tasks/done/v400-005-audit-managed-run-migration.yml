@@ -1,0 +1,63 @@
+schema_version: "1.0"
+id: V400-005
+title: "Drain deferred Audit binding checks before altering migrated Runs"
+milestone: model-free-stage-lanes-2026-10
+epic: execution-core
+kind: defect
+introduced_by: V400-001
+priority: P1
+status: completed
+implementation_commit: "407462b448d5d17e044e061a4e0827d65a7caa67"
+depends_on: [V400-001]
+languages: [go, sql]
+goal: >-
+  Upgrade a populated schema through the model-free lane migration while retaining
+  Audit-managed Runs, their matching executions and deferred binding enforcement.
+context:
+  specification:
+    - docs/spec/execution/scheduler.md#SCH-R175
+    - docs/spec/platform/persistence.md#PER-R22
+  severity: high
+  finding: >-
+    internal/persistence/migrations/000026_model_free_lane_pool.sql:75 alters
+    workflow_runs after backfilling every Run. An Audit-managed Run queues
+    workflow_runs_require_complete_audit_binding and PostgreSQL rejects the
+    ALTER with pending trigger events (SQLSTATE 55006). Reproduced while
+    rehearsing the demo upgrade from schema 25 to 32 on a restored database.
+  siblings: >-
+    Migration 000027 already makes its audit_executions binding check immediate
+    before backfill. Migration 000030 updates allocations without subsequent
+    ALTER, and 000032 adds defaulted columns without UPDATE. Standalone Runs
+    do not queue the Audit binding trigger. Cover standalone and Audit-managed
+    Runs together, including an upgrade starting before migration 26.
+scope:
+  in:
+    - "Resolve pending Audit binding checks before migration 26 alters workflow_runs."
+    - "Extend the real PostgreSQL migration regression with a matching Audit-managed Run."
+    - "Rehearse the complete upgrade on the restored demo database."
+  out:
+    - "No schema reset, data replacement or weakened binding checks."
+acceptance_criteria:
+  - id: A1
+    text: "Given matching Audit-managed Runs at schema 25, upgrading to latest succeeds and retains their binding and lane class."
+  - id: A2
+    text: "Standalone Run classification and Audit execution migration keep their existing behavior; deferred binding constraints remain initially deferred."
+  - id: A3
+    text: "The real PostgreSQL regression fails with the unmodified migration and passes after the fix."
+tests:
+  - command: "go test -count=1 ./internal/persistence/postgres"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+verification_notes: >-
+  The extended real-store test failed on the original migration with SQLSTATE
+  55006 and the full postgres package passed after the fix. An additional
+  internal/persistence run failed an existing SQL ownership scanner false
+  positive at internal/cli/scan_sweep_remote.go:196: the help text "targets
+  come from Projects" is parsed as a SQL read. This task does not change
+  that CLI path or the SQL scanner.
+deployment_evidence: >-
+  .local/demo/run/deployment-20261024.json records a restore-verified backup,
+  rehearsal of all seven pending migrations and their application to the demo.
+  Original business columns and rows were retained. make lint passed. Source
+  remains on codex/fix-populated-lane-migration, unmerged into main.

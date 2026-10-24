@@ -40,6 +40,10 @@ $$;
 -- every Worker runs on tool@1.
 ALTER TABLE workflow_runs ADD COLUMN scheduler_lane_class text;
 
+-- Audit-managed Runs queue a deferred binding check on every UPDATE. Check
+-- it as the backfill writes each row so the ALTER below has no pending events.
+SET CONSTRAINTS workflow_runs_require_complete_audit_binding IMMEDIATE;
+
 WITH next_stage AS (
     SELECT run.run_id,
            COALESCE(
@@ -72,6 +76,8 @@ ALTER TABLE workflow_runs
     ALTER COLUMN scheduler_lane_class SET NOT NULL,
     ADD CONSTRAINT workflow_runs_scheduler_lane_class_check
         CHECK (scheduler_lane_class IN ('model', 'tool'));
+
+SET CONSTRAINTS workflow_runs_require_complete_audit_binding DEFERRED;
 
 -- Each pool claims only its class, so the class leads both claim indexes and
 -- a claim still reads candidates in claim order without sorting (SCH-R164).
