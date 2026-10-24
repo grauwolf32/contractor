@@ -275,12 +275,14 @@ func deletionProbeBudget(t *testing.T, f deletionProbeFixture, live bool) deleti
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(f.ctx)) }()
-	if _, err := tx.Exec(f.ctx, `SET LOCAL enable_seqscan = off; SET LOCAL enable_bitmapscan = off`); err != nil {
+	// Only the cleanup index yields the range in this order without a sort.
+	if _, err := tx.Exec(f.ctx, `SET LOCAL enable_seqscan = off; SET LOCAL enable_bitmapscan = off; SET LOCAL enable_sort = off`); err != nil {
 		t.Fatal(err)
 	}
 	analysis, err := explaintest.Explain(f.ctx, tx, `
 SELECT execution.execution_id FROM audit_executions AS execution
- WHERE execution.audit_id = $1 AND execution.run_id IS NOT NULL AND execution.run_deleted_at IS NULL`, f.audit.AuditID)
+ WHERE execution.audit_id = $1 AND execution.run_id IS NOT NULL AND execution.run_deleted_at IS NULL
+ ORDER BY execution.run_deleted_at, execution.created_at, execution.execution_id`, f.audit.AuditID)
 	if err != nil {
 		t.Fatal(err)
 	}
