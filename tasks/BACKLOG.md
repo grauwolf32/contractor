@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-127 open tasks: 9 in progress, 107 pending, 11 deferred. 1093 finished: 1083 completed, 10 archived.
+126 open tasks: 8 in progress, 107 pending, 11 deferred. 1094 finished: 1084 completed, 10 archived.
 
 ## In progress
 
@@ -16,7 +16,6 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V414-034](v414-034-audit-controller-invalid-write-retry.yml) | audits | defect | P2 | Close an Audit whose controller write is refused as invalid instead of retrying it |
-| [V414-036](v414-036-output-bind-missing-source.yml) | execution-core | defect | P2 | End the Run when a Workflow output's source revision is missing instead of retrying finalization |
 | [V414-037](v414-037-eval-attempt-metrics-strict-read.yml) | evals | chore | P2 | Read Eval attempt metrics strictly and remove the older passthrough@1 path |
 | [V414-038](v414-038-scale-test-budgets-under-load.yml) | quality | defect | P1 | Keep the Audit claim and deletion-probe read budgets exact while other suites share the server |
 | [V414-039](v414-039-workspace-timeout-tests-wall-clock.yml) | workspaces | defect | P2 | Test workspace operation deadlines without real sub-second wall-clock budgets |
@@ -213,7 +212,7 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
-| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032, V414-034, V414-036, V414-037, V414-038, V414-039, V414-040 | Close the V407/V409 review follow-ups |
+| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032, V414-034, V414-037, V414-038, V414-039, V414-040 | Close the V407/V409 review follow-ups |
 
 ## Deferred
 
@@ -238,7 +237,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 41 | 55 | 18 | 80 |
+| Run execution core (`execution-core`) | 4 | 41 | 55 | 18 | 80 |
 | Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 42 | 17 | 61 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
