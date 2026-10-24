@@ -95,9 +95,48 @@ reached their existing safe terminal or released boundaries.
 
 **DEL-R3.** An old revision must remain resolvable to its immutable internal
 version for as long as Run input provenance, a StageContext snapshot, a
-StageResult, a Run output or a retention policy keeps that version alive
-(LIFE-DEL-5). The versioned refs and timestamps carried by read and write
-results are specified in [artifact-store](artifact-store.md).
+StageResult, a Run output or another exact-reference holder that protects it
+keeps that version alive (LIFE-DEL-5). Automatic history retention removes
+only historical revisions that no such holder protects
+([Automatic history retention](#automatic-history-retention)). The versioned
+refs and timestamps carried by read and write results are specified in
+[artifact-store](artifact-store.md).
+
+### Automatic history retention
+
+**DEL-R62.** The ArtifactStore is the only owner that removes single
+historical revisions outside a controlled scope purge. It applies the
+retained-history policy of [artifact-store](artifact-store.md) (ART-R122 to
+ART-R127) and removes a revision only when it is not the current revision of
+its binding and no exact-reference holder protects it. Retention never cuts
+lineage, never removes a revision of a frozen binding's current pointer, and
+grants no write or delete authority.
+
+**DEL-R63.** These holders protect the exact revisions they name, from the
+transaction that records the reference until the holder's own lifecycle
+releases it: the current pointer of a binding; both ends of every lineage
+edge (`input_fork`, including Skill forks and retained sweep inputs,
+`output_bind`, `project_output_publish` and `audit_import`); both ends of a
+Run output publication; a Stage's context snapshot, including its
+continuation, and its candidate StageResult, which the accepted StageResult
+equals, for the life of the Run; a Planner session's completed result and
+its scan plan, input and report references; a Run's selected Skill sources;
+an Audit's selected inputs and its baseline inputs and Skill sources, for
+the life of the Audit; a finding proposal receipt's proposal and evidence
+while its source Run holds it; and the case inputs of an Eval dataset
+revision. A reference to a binding that has only one revision for its whole
+life, such as a frozen Audit-managed binding, a finding proposal or a Run
+output, is protected as that binding's current revision.
+
+**DEL-R64.** These references do not protect the revision they name: Eval
+records and `eval_evidence_refs`, whose loss makes a comparison incomplete;
+copies of protected inputs in Eval plans, members and suboperations; the
+Run repeat record; Audit references to a deleted child Run; references
+embedded in report or package bytes; finding fingerprint and anchor
+projections; keyed receipts, whose replay confirms the original reference
+without reading or protecting it; and Runtime caches. A reader of such a
+reference reports the revision as unavailable and never substitutes the
+current revision.
 
 ### Controlled scope purge
 

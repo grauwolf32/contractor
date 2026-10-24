@@ -8005,6 +8005,12 @@ type ArtifactCreated = ArtifactWriteResponse
 // ArtifactUnavailable defines model for ArtifactUnavailable.
 type ArtifactUnavailable = Error
 
+// ArtifactWriteConflict defines model for ArtifactWriteConflict.
+type ArtifactWriteConflict = Error
+
+// ArtifactWriteUnavailable defines model for ArtifactWriteUnavailable.
+type ArtifactWriteUnavailable = Error
+
 // ArtifactWritten defines model for ArtifactWritten.
 type ArtifactWritten = ArtifactWriteResponse
 
@@ -30951,6 +30957,7 @@ type PutArtifactResponse500Headers struct {
 
 // PutArtifactResponse503Headers the declared response headers of an HTTP 503 response for PutArtifact
 type PutArtifactResponse503Headers struct {
+	RetryAfter *int
 	XRequestID RequestId
 }
 
@@ -30968,13 +30975,13 @@ type PutArtifactResponse struct {
 	// JSON403 the response for an HTTP 403 `application/json` response
 	JSON403 *Forbidden
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
+	JSON409 *ArtifactWriteConflict
 	// JSON413 the response for an HTTP 413 `application/json` response
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *ArtifactUnavailable
+	JSON503 *ArtifactWriteUnavailable
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *PutArtifactResponse200Headers
 	// Headers201 the parsed response headers for an HTTP 201 response
@@ -31021,7 +31028,7 @@ func (r PutArtifactResponse) GetJSON403() *Forbidden {
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r PutArtifactResponse) GetJSON409() *Conflict {
+func (r PutArtifactResponse) GetJSON409() *ArtifactWriteConflict {
 	return r.JSON409
 }
 
@@ -31036,7 +31043,7 @@ func (r PutArtifactResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r PutArtifactResponse) GetJSON503() *ArtifactUnavailable {
+func (r PutArtifactResponse) GetJSON503() *ArtifactWriteUnavailable {
 	return r.JSON503
 }
 
@@ -45187,6 +45194,7 @@ type PutProjectArtifactResponse500Headers struct {
 
 // PutProjectArtifactResponse503Headers the declared response headers of an HTTP 503 response for PutProjectArtifact
 type PutProjectArtifactResponse503Headers struct {
+	RetryAfter *int
 	XRequestID RequestId
 }
 
@@ -45206,13 +45214,13 @@ type PutProjectArtifactResponse struct {
 	// JSON404 the response for an HTTP 404 `application/json` response
 	JSON404 *NotFound
 	// JSON409 the response for an HTTP 409 `application/json` response
-	JSON409 *Conflict
+	JSON409 *ArtifactWriteConflict
 	// JSON413 the response for an HTTP 413 `application/json` response
 	JSON413 *PayloadTooLarge
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON503 the response for an HTTP 503 `application/json` response
-	JSON503 *ArtifactUnavailable
+	JSON503 *ArtifactWriteUnavailable
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *PutProjectArtifactResponse200Headers
 	// Headers201 the parsed response headers for an HTTP 201 response
@@ -45266,7 +45274,7 @@ func (r PutProjectArtifactResponse) GetJSON404() *NotFound {
 }
 
 // GetJSON409 returns the response for an HTTP 409 `application/json` response
-func (r PutProjectArtifactResponse) GetJSON409() *Conflict {
+func (r PutProjectArtifactResponse) GetJSON409() *ArtifactWriteConflict {
 	return r.JSON409
 }
 
@@ -45281,7 +45289,7 @@ func (r PutProjectArtifactResponse) GetJSON500() *InternalError {
 }
 
 // GetJSON503 returns the response for an HTTP 503 `application/json` response
-func (r PutProjectArtifactResponse) GetJSON503() *ArtifactUnavailable {
+func (r PutProjectArtifactResponse) GetJSON503() *ArtifactWriteUnavailable {
 	return r.JSON503
 }
 
@@ -55042,7 +55050,7 @@ func ParsePutArtifactResponse(rsp *http.Response) (*PutArtifactResponse, error) 
 		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
+		var dest ArtifactWriteConflict
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -55063,7 +55071,7 @@ func ParsePutArtifactResponse(rsp *http.Response) (*PutArtifactResponse, error) 
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactUnavailable
+		var dest ArtifactWriteUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -55182,6 +55190,13 @@ func ParsePutArtifactResponse(rsp *http.Response) (*PutArtifactResponse, error) 
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers PutArtifactResponse503Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
@@ -72562,7 +72577,7 @@ func ParsePutProjectArtifactResponse(rsp *http.Response) (*PutProjectArtifactRes
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
-		var dest Conflict
+		var dest ArtifactWriteConflict
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -72583,7 +72598,7 @@ func ParsePutProjectArtifactResponse(rsp *http.Response) (*PutProjectArtifactRes
 		response.JSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ArtifactUnavailable
+		var dest ArtifactWriteUnavailable
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -72712,6 +72727,13 @@ func ParsePutProjectArtifactResponse(rsp *http.Response) (*PutProjectArtifactRes
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers PutProjectArtifactResponse503Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

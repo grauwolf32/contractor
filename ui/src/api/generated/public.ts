@@ -6701,6 +6701,27 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description A stale or already-consumed CAS precondition (`conflict`), a frozen binding (`artifact_frozen`), or protected history that cannot fit the binding's retained-history limit (`artifact_history_protected`, not retryable). */
+        ArtifactWriteConflict: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description Transfer capacity exhausted, a definite database transaction conflict exhausted retries, or history maintenance pending (`artifact_history_maintenance_pending`, which carries Retry-After) (retryable); or stored content missing/corrupt (not automatically retryable). */
+        ArtifactWriteUnavailable: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         PayloadTooLarge: {
             headers: {
                 [name: string]: unknown;
@@ -9086,10 +9107,10 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
+            409: components["responses"]["ArtifactWriteConflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["ArtifactUnavailable"];
+            503: components["responses"]["ArtifactWriteUnavailable"];
         };
     };
     getProjectArtifactArchive: {
@@ -11210,10 +11231,10 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
-            409: components["responses"]["Conflict"];
+            409: components["responses"]["ArtifactWriteConflict"];
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
-            503: components["responses"]["ArtifactUnavailable"];
+            503: components["responses"]["ArtifactWriteUnavailable"];
         };
     };
     getArtifactArchive: {
