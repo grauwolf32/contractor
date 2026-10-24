@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-125 open tasks: 14 in progress, 86 pending, 25 deferred. 1073 finished: 1063 completed, 10 archived.
+124 open tasks: 13 in progress, 86 pending, 25 deferred. 1074 finished: 1064 completed, 10 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V414-008](v414-008-stored-size-check-classification.yml) | persistence | defect | P2 | Classify stored-size CHECK rejections as invalid input at every store writer |
 | [V414-010](v414-010-credential-recovery-previous-owner.yml) | execution-core | defect | P2 | Keep a previous lease owner's credential delete intent from committing behind the new owner's startup recovery |
 | [V414-013](v414-013-adk-callable-cache-release.yml) | planner-worker | defect | P2 | Stop ADK's module-level callable caches from keeping a released allocation's tools alive |
-| [V414-016](v414-016-otlp-transport-family.yml) | operations | defect | P2 | Retry OTLP batches after TLS and OS transport failures |
 | [V414-018](v414-018-audit-detail-snapshot-read.yml) | audits | defect | P2 | Read the Audit detail projection in one snapshot instead of answering an undeclared 409 |
 | [V414-026](v414-026-eval-summary-generic-plan.yml) | evals | defect | P2 | Bound Eval experiment summary pages by page size in generic plans |
 | [V414-029](v414-029-audit-deletion-next-run-probe.yml) | audits | defect | P2 | Find a deleting Audit's next live child Run without reading every execution and Run |
@@ -192,7 +191,7 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-001, V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
-| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-002, V414-003, V414-004, V414-007, V414-008, V414-009, V414-010, V414-012, V414-013, V414-014, V414-016, V414-018, V414-019, V414-020, V414-021, V414-022, V414-024, V414-025, V414-026, V414-029, V414-030 | Close the V407/V409 review follow-ups |
+| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-002, V414-003, V414-004, V414-007, V414-008, V414-009, V414-010, V414-012, V414-013, V414-014, V414-018, V414-019, V414-020, V414-021, V414-022, V414-024, V414-025, V414-026, V414-029, V414-030 | Close the V407/V409 review follow-ups |
 
 ## Deferred
 
@@ -247,7 +246,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 7 | 21 | 37 | 11 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 61 | 13 | 55 |
-| Operations, authentication, CLI and deployment (`operations`) | 2 | 16 | 37 | 6 | 13 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 37 | 6 | 13 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 36 | 21 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 8 | 0 | 24 | 42 | 13 |
 | Quality, CI and process (`quality`) | 15 | 1 | 25 | 92 | 23 |
