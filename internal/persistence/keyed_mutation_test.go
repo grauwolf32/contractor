@@ -17,6 +17,7 @@ var advisoryLockFiles = map[string]string{
 	"internal/persistence/postgres/migrate.go":                       "the migration lock, scoped to the schema it migrates",
 	"internal/persistence/postgres/budgets_postgres_test.go":         "holds the migration lock to time out a migrator",
 	"internal/app/single_active.go":                                  "the session lease of the active Server, whose fixed key every Server version shares (PER-R2)",
+	"internal/app/single_active_budget_test.go":                      "a fake PostgreSQL peer answers the session lease acquisition, naming its pg_try_advisory_lock result column",
 	"internal/app/single_active_database_postgres_test.go":           "holds the session lease from another database",
 	"internal/httpapi/public/eval_external_records_postgres_test.go": "finds the requests that wait on a receipt key in pg_locks by the key's hash",
 	"tests/integration/lease/standby_process_test.go":                "holds the session lease so a second Server process starts as the standby",
