@@ -619,7 +619,12 @@ retryable (FAIL-AUX-5).
 **AUX-R69.** PostgreSQL is authoritative. The Controller periodically claims
 and reconciles a bounded number of nonterminal Audits (LIM-AUX-11) through
 the shared controller claim lifecycle
-([PER-R26](../platform/persistence.md)).
+([PER-R26](../platform/persistence.md)). A claim pass leases free or expired
+claims of reconcilable Audits, lowest epoch first, then least recently
+updated Audit, and skips claims another transaction holds locked. It reads
+the Audits in the reconcilable states through their partial index and each
+candidate's claim by its key, so the drafts and terminal Audits that keep
+their claim rows until purge add nothing to its work.
 
 **AUX-R70.** Process-local notifications are wake hints only; their loss,
 duplication or reordering cannot prevent progress. Public WebSocket is not an
@@ -989,6 +994,14 @@ Shared rules are in
     tests `TestPostgresControllerDrainBatchesCancellationObservationAndDeletion`
     and `TestPostgresControllerDrainBatchStopsAtALostClaim` in
     [`internal/auditcontroller/drain_batch_postgres_test.go`](../../../internal/auditcontroller/drain_batch_postgres_test.go).
+12. A claim pass reads, in its custom and generic plans, the Audits in the
+    reconcilable states and one claim per candidate plus one per leased
+    claim, whatever the number of retained drafts and terminal Audits, and
+    leases the candidates in claim order past locked claims (AUX-R69); tests
+    `TestPostgresAuditClaimReadsOnlyTheReconcilableAudits` in
+    [`internal/auditstore/internal/pgstore/claim_scale_postgres_test.go`](../../../internal/auditstore/internal/pgstore/claim_scale_postgres_test.go)
+    and `TestPostgresAuditClaimLeasesTheOriginalCandidatesInOrder` in
+    [`internal/auditstore/internal/pgstore/claim_candidates_postgres_test.go`](../../../internal/auditstore/internal/pgstore/claim_candidates_postgres_test.go).
 
 ## Non-goals
 

@@ -7,6 +7,22 @@ kind: defect
 introduced_by: V25-003
 priority: P2
 status: in_progress
+progress: >-
+  Checkpoint 2026-10-24 before pause. Done: claimAuditSQL rewritten
+  (claims_sql.go: reconcilableAuditStatesSQL list + CASE predicate, candidates
+  from audits_reconcile_idx, claims by primary key in two LATERAL OFFSET 0
+  lookups, shared LeaseSQL kept); tests claim_scale_postgres_test.go (A1/A3:
+  exact reads 369/425 claims, 411 Audits in both plans and both phases;
+  original reads 16,714/64,714 claims and fails), claim_candidates_postgres_test.go
+  (A2 matrix vs original and a Go expectation, locked rows; passes, mutation
+  checked), reconcilable_states_test.go, internal/scanstore/claim_postgres_test.go
+  (sweep claim reads 101 in both phases); spec AUX-R69 + invariant 12 in
+  docs/spec/audits/execution.md, SCN-R247 + Invariants in docs/spec/tools/scanners.md.
+  Failing: the sweep test's last "every due sweep held" case read 290 instead of
+  220 in the full parallel run, because the committed UPDATE's dead index
+  entries are not removable while another package's transaction holds the
+  xmin horizon. Next step: insert the held state in the fixture (no UPDATE),
+  rerun the task test command, make lint, merge main, close the task.
 depends_on: []
 languages: [go, sql]
 goal: >-
