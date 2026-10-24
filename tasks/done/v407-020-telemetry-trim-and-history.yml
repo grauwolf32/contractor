@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V1-004
 priority: P2
 status: completed
-implementation_commit: 6cfc21ab75d09ddf61186b4b6ee7420db0e784e6
+implementation_commit: a5379e5476166e074d819c4b5ff66196ac5cba7a
 depends_on: []
 languages:
 - go
@@ -89,7 +89,7 @@ tests:
   - A4
 verification:
   date: '2026-10-24'
-  revision: 6cfc21ab75d09ddf61186b4b6ee7420db0e784e6
+  revision: a5379e5476166e074d819c4b5ff66196ac5cba7a
   environment: Worktree contractor-wt/r1, branch claude/rv-r1 on base 33f73b27, macOS arm64 (Darwin),
     Go 1.26.9 (GOTOOLCHAIN=local), Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm, local
     PostgreSQL 17.11 with CONTRACTOR_TEST_DATABASE_URL=postgres://ruslan@localhost:5432/contractor_test_r1.
@@ -187,8 +187,8 @@ verification:
     jsonb stores 5e-05 as 0.00005, 1e+16 and 1e+300 as digits and -0.0 as 0.0, so the Go byte comparison
     (sameJSON) turned a replayed report into ErrConflict. RecordAllocationReport and RecordPlannerReport now
     read report = $n::jsonb with the identity row and sameJSON is deleted; they were its only callers, and
-    no other replay compares documents holding tool arguments (stage_metrics holds aggregates, Worker State
-    is not persisted). TestMetricsPostgresReplayComparesNumbersAsStored replays both kinds with 5e-05, 1e+16,
+    no other replay compares documents holding tool arguments (stage_metrics.metrics holds the full reports
+    but is an upsert that compares nothing; Worker State is not persisted). TestMetricsPostgresReplayComparesNumbersAsStored replays both kinds with 5e-05, 1e+16,
     1e+300, -0.0, 9007199254740993, 5e-324 and -1.7976931348623157e+308, and checks that another number
     conflicts. On 990846cd it fails with a conflict for 5e-05, 1e+16, 1e+300 and -0.0, in both kinds (2^53+1
     is stored exactly and passes there). (2) Range: a number in a tool argument summary must be finite as a
@@ -221,12 +221,42 @@ verification:
     passed, 105 failed, 39 skipped; the failures are the same known macOS set plus the wall-clock parser test.
     make test-wire-cross-language: passed (255 fixtures, 254 Go and 194 Python shared tests). make lint: passed.
     make docs-dependencies: no change.'
+  - 'Round-2 re-review follow-up (2026-10-24, commit a5379e54): stored reports at the byte bound could not
+    be read. jsonb renders a stored report with a space after each separator and every number expanded, and
+    AllocationFinalReport.UnmarshalJSON applied the private 1 MiB check to every decode, so ListAllocationReports,
+    RebuildStageMetrics and the allocation replay lookup failed for the whole Stage. The check now runs in
+    AllocationFinalResponse.UnmarshalJSON on the raw report member a Runtime sent, before decoding. The existing test in
+    performance_test.go still pins it: an oversized, invalid resources block is rejected before it is discarded.
+    A stored report keeps the same strict decoder (strictjson required members, nulls, duplicates, unknown
+    members). Because the decoded numbers keep jsonb''s expansion (since 138aca3d), the 1e308 case then failed
+    in StageMetrics.Validate ("planner report: tool call 0 arguments exceed 4096 bytes"). StageMetrics.Validate,
+    whose only caller is RebuildStageMetrics, now runs ExecutionReport.validateStored: every rule of Validate,
+    including LIM-OBS-16, record counts and error-message bytes, but not the byte bounds that measure compact
+    JSON (4096-byte summaries, 1 MiB report). TestMetricsPostgresReadsReportsTrimmedToTheByteBound stores
+    1000 calls trimmed to the bound, in both report kinds, with 4096-byte summaries of 32-item arrays of "a"
+    and of 1e308. It checks that each stored row is truncated and renders more than 1 MiB (measured: "a"
+    1295573 / 1300358 bytes for allocation / Planner, 1e308 52079144 / 52287941), then replays both kinds and
+    runs ListAllocationReports and RebuildStageMetrics. On 437e31f0 it fails in all three readers for both
+    cases with "decode allocation report: allocation final report exceeds 1 MiB". The test takes about 5 s,
+    and 66 s under -race.'
+  - 'After the round-2 fix: go test -count=1 ./internal/telemetry/... ./internal/controlplane/... ./internal/contracts/...
+    with the database set: all ok. -tags integration ./internal/telemetry/...: ok. -race on internal/telemetry,
+    internal/contracts/reporting and internal/controlplane: ok. internal/scheduler, internal/runservice and
+    internal/archtest: ok. cd runtime && uv run --locked pytest -q tests/test_metrics.py tests/test_allocation.py:
+    all passed (the Runtime is unchanged in this round). make test-wire-cross-language: passed (255 fixtures).
+    make lint: passed. make docs-dependencies: no change.'
   siblings: 'Fixed: the double argument-summary measure in Go (policy.go) and Python (_bound_arguments).
     Ruled out: runtime/src/contractor_runtime/worker/state.py _fit_snapshot already uses a binary search
     (logarithmic encodes) under its own WRK State rule; registry.go heartbeatOrder (128) and stageReservationTombstones
     reslice with [1:], so append reallocates only when capacity runs out (amortized constant), unlike the
     per-append 255-entry copy. Python RuntimeReport.isolate_resources is decode-side isolation, not policy
-    application.'
+    application. Raw-size checks on read: AllocationFinalReport.UnmarshalJSON was the only UnmarshalJSON in
+    internal/ that bounds its input bytes (all custom decoders were checked). Planner reports (ExecutionReport)
+    have no such decoder, and their reader now passes at the bound with 1e308 too. Stored StageMetrics documents
+    are decoded without validation by RebuildStageMetrics and GetStageMetricsBatch. Ruled out:
+    finding_proposal_receipts.comparison_projection, whose decoder bounds the jsonb text, which its CHECK also
+    measures as octet_length(comparison_projection::text) at write. Other raw-size checks in internal/ bound encoded
+    output or non-jsonb payloads.'
   decision: 'Boundary: Worker producer and Server trim independently (two languages), so one definition
     is impossible; the guarantee is the shared fixture plus per-language differential tests against the
     previous loop. Alternatives considered: halving or binary search over the removal count (logarithmic
@@ -250,6 +280,15 @@ verification:
     expanded digits, because a tighter bound would also change what the Runtime writes for values such as
     1e+300. Reopen if a reader of stored reports must hold less memory per stage, or if stored tool calls
     are exposed through an API.
+    Round 2: this task also repairs a reader defect that predates it. The private 1 MiB check in
+    AllocationFinalReport.UnmarshalJSON came from 0b6d4f1d, V32-001 (performance contracts and settings).
+    It applied to stored reports and made a report trimmed to the bound unreadable, even with plain strings.
+    The check belongs to the received bytes, so it moved to the private response. A stored report keeps
+    the strict decoder and every validation rule except the byte bounds. Those bounds measure compact JSON,
+    which the jsonb rendering no longer is. This is no lenient legacy reader: it reads the same documents
+    with the same rules. Alternative rejected: re-encode stored numbers into a shortest form on read. That
+    is lossy for integers beyond 2^53 and would need a copy of numeric normalization. No separate defect
+    record was added, so introduced_by stays V1-004.
     Out of scope, reported: the Go metrics policy replaces every configured secret wherever it occurs,
     while OBS-R31 limits secrets under 16 bytes to whole strings (controlplane/runtime_client.go has the
     OBS-R31 matcher).'
@@ -261,6 +300,7 @@ verification:
   - OBS-R9 (a replay matches when the documents are equal as jsonb)
   - OBS-R27 (placeholder shape, sensitive-name subset, idempotent second redaction)
   - OBS-R42 (empty arguments absent, number literals kept, LIM-OBS-16 range, [NON_FINITE] integers)
-  - OBS-R110 (read-back factor of a stored report)
+  - OBS-R110 (byte bounds measure received JSON; stored reports pass every other rule; measured read-back
+    factor and memory cost accepted with a reopen condition)
   - FAIL-OBS-1 (ambiguous delivery outcome)
   - observability invariants 7 and 9 (new tests)
