@@ -264,18 +264,12 @@ class _SourceArchiveSession:
         _validate_pattern(pattern)
         _validate_page(offset, limit)
         async with self._lock:
-            self._require_open()
-            matches = _path_matcher(pattern)
-            matched = [item for item in self._files.values() if matches(item.path)]
-            matched.sort(key=lambda item: item.path)
-            page = matched[offset : offset + limit]
-            return {
-                "files": [{"path": item.path, "size": item.size} for item in page],
-                "offset": offset,
-                "limit": limit,
-                "total": len(matched),
-                "truncated": offset + len(page) < len(matched),
-            }
+            # The summary's file tuple is immutable; matching it in the guard's
+            # thread keeps up to maxEntries paths off the event loop (WSP-R179).
+            files = self._require_open().files
+            return await self._guard.run(
+                lambda: _list_page(files, pattern, offset, limit), deadline=self._deadline()
+            )
 
     async def search(
         self,
@@ -288,17 +282,14 @@ class _SourceArchiveSession:
     ) -> dict[str, Any]:
         _validate_search(query, path_pattern, regex, case_sensitive, max_results)
         async with self._lock:
-            self._require_open()
-            matches = _path_matcher(path_pattern)
-            files = tuple(
-                item
-                for item in sorted(self._files.values(), key=lambda item: item.path)
-                if matches(item.path)
-            )
-            return await self._guard.run(
-                lambda: self._search_files(files, query, regex, case_sensitive, max_results),
-                deadline=self._deadline(),
-            )
+            files = self._require_open().files
+
+            def select_and_scan() -> dict[str, Any]:
+                return self._search_files(
+                    _select_files(files, path_pattern), query, regex, case_sensitive, max_results
+                )
+
+            return await self._guard.run(select_and_scan, deadline=self._deadline())
 
     async def read(self, path: str, start_line: int, max_lines: int) -> dict[str, Any]:
         normalized = _validate_requested_path(path)
@@ -448,12 +439,13 @@ class _SourceArchiveSession:
         except UnicodeDecodeError as error:
             raise ValueError("managed source file is no longer valid UTF-8") from error
 
-    def _require_open(self) -> None:
+    def _require_open(self) -> _OpenSummary:
         self._require_available()
         if self._summary is None:
             raise ToolInputError(
                 "open_source_archive must be called first", code="source_archive_not_open"
             )
+        return self._summary
 
 
 _BaseSourceTool = SessionArtifactTool[_SourceArchiveSession]
@@ -781,6 +773,37 @@ def _path_matcher(pattern: str) -> Callable[[str], bool]:
             return False
 
     return matches
+
+
+def _select_files(files: Sequence[_SourceFile], pattern: str) -> tuple[_SourceFile, ...]:
+    """Return the files whose path matches ``pattern``, in path order.
+
+    The work grows with the admitted entry count (LIM-GIT-16), so callers run it
+    in the session guard's worker thread, never on the event loop (WSP-R179).
+    """
+
+    matches = _path_matcher(pattern)
+    return tuple(sorted((item for item in files if matches(item.path)), key=_path_order))
+
+
+def _path_order(item: _SourceFile) -> str:
+    return item.path
+
+
+def _list_page(
+    files: Sequence[_SourceFile], pattern: str, offset: int, limit: int
+) -> dict[str, Any]:
+    """Select one validated page of ``files``; runs in the guard's worker thread."""
+
+    matched = _select_files(files, pattern)
+    page = matched[offset : offset + limit]
+    return {
+        "files": [{"path": item.path, "size": item.size} for item in page],
+        "offset": offset,
+        "limit": limit,
+        "total": len(matched),
+        "truncated": offset + len(page) < len(matched),
+    }
 
 
 def _validate_page(offset: int, limit: int) -> None:
