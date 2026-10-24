@@ -7,7 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
-	"github.com/grauwolf32/contractor/internal/persistence/plantest"
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 )
 
 // itemPageCase is one filter and cursor of the public item page.
@@ -101,7 +101,7 @@ func TestPostgresItemPagesBoundCandidatesPerRound(t *testing.T) {
 					want = append(want, item.ItemID)
 				}
 			}
-			for _, mode := range plantest.Modes {
+			for _, mode := range explaintest.Modes {
 				if _, err := conn.Exec(f.ctx, "SET plan_cache_mode = "+string(mode)); err != nil {
 					t.Fatal(err)
 				}
@@ -117,11 +117,11 @@ func TestPostgresItemPagesBoundCandidatesPerRound(t *testing.T) {
 					t.Fatalf("%s: page holds %d items %v, want %d %v", mode, len(got), got[:min(3, len(got))], len(want), want[:min(3, len(want))])
 				}
 				statement, args := itemPageQuery(params)
-				plan := plantest.Explain(t, f.ctx, f.pool, mode, statement, args...)
-				if read := plan.Read("audit_items"); read > test.budget {
-					t.Fatalf("%s: page read %d items, budget %d\n%s", mode, read, test.budget, plan.JSON)
+				plan := explainPrepared(t, f.ctx, f.pool, mode, statement, args...)
+				if read := plan.Reads.Of("audit_items"); read > test.budget {
+					t.Fatalf("%s: page read %d items, budget %d\n%s", mode, read, test.budget, plan.Plan)
 				}
-				t.Logf("%s: page of %d read %d items (budget %d)", mode, len(got), plan.Read("audit_items"), test.budget)
+				t.Logf("%s: page of %d read %d items (budget %d)", mode, len(got), plan.Reads.Of("audit_items"), test.budget)
 			}
 			if _, err := conn.Exec(f.ctx, "RESET plan_cache_mode"); err != nil {
 				t.Fatal(err)

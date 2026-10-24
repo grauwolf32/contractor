@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/persistence/plantest"
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -109,14 +109,14 @@ SELECT (SELECT count(*) FROM audit_review_requests WHERE audit_id = $1),
 		// join and for the live-authority lookup, and each request has two
 		// row versions since the fixture moved its expiry.
 		budget := 2*2*approvalRequests + supersededEntries
-		for _, mode := range plantest.Modes {
+		for _, mode := range explaintest.Modes {
 			for _, limit := range []*int{&one, nil} {
-				plan := plantest.Explain(t, f.ctx, f.pool, mode, expiredItemReviewsSQL, f.auditID, limit)
-				if read := plan.Read("audit_review_requests"); read > budget {
-					t.Fatalf("%s: the search read %d review requests, budget %d\n%s", mode, read, budget, plan.JSON)
+				plan := explainPrepared(t, f.ctx, f.pool, mode, expiredItemReviewsSQL, f.auditID, limit)
+				if read := plan.Reads.Of("audit_review_requests"); read > budget {
+					t.Fatalf("%s: the search read %d review requests, budget %d\n%s", mode, read, budget, plan.Plan)
 				}
 				t.Logf("%s limit %v: read %d review requests (budget %d)", mode, deref(limit),
-					plan.Read("audit_review_requests"), budget)
+					plan.Reads.Of("audit_review_requests"), budget)
 			}
 		}
 	})
@@ -144,7 +144,7 @@ SELECT (SELECT count(*) FROM audit_review_requests WHERE audit_id = $1),
 			t.Fatal(err)
 		}
 		defer conn.Release()
-		for _, mode := range plantest.Modes {
+		for _, mode := range explaintest.Modes {
 			if _, err := conn.Exec(f.ctx, "SET plan_cache_mode = "+string(mode)); err != nil {
 				t.Fatal(err)
 			}
@@ -159,11 +159,11 @@ SELECT (SELECT count(*) FROM audit_review_requests WHERE audit_id = $1),
 			if !slices.Equal(got, want) {
 				t.Fatalf("%s: reconcile window holds %d items, want the first %d unsettled, awaiting review last", mode, len(got), limit)
 			}
-			plan := plantest.Explain(t, f.ctx, f.pool, mode, listReconcileItemsSQL, f.auditID, limit)
-			if read := plan.Read("audit_items"); read > unsettled+supersededEntries {
-				t.Fatalf("%s: the window read %d items, budget %d unsettled\n%s", mode, read, unsettled+supersededEntries, plan.JSON)
+			plan := explainPrepared(t, f.ctx, f.pool, mode, listReconcileItemsSQL, f.auditID, limit)
+			if read := plan.Reads.Of("audit_items"); read > unsettled+supersededEntries {
+				t.Fatalf("%s: the window read %d items, budget %d unsettled\n%s", mode, read, unsettled+supersededEntries, plan.Plan)
 			}
-			t.Logf("%s: read %d items (budget %d)", mode, plan.Read("audit_items"), unsettled+supersededEntries)
+			t.Logf("%s: read %d items (budget %d)", mode, plan.Reads.Of("audit_items"), unsettled+supersededEntries)
 		}
 	})
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -200,4 +201,17 @@ SELECT `+strings.Join(values, ", ")+`
  WHERE src.`+where, key, copies); err != nil {
 		t.Fatalf("clone %s: %v", table, err)
 	}
+}
+
+// explainPrepared analyzes sql with args prepared and planned in mode on a
+// connection of pool, and fails t when the analysis fails.
+func explainPrepared(
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, mode explaintest.Mode, sql string, args ...any,
+) explaintest.Analysis {
+	t.Helper()
+	analysis, err := explaintest.ExplainPrepared(ctx, pool, mode, sql, args...)
+	if err != nil {
+		t.Fatalf("%s: explain: %v\n%s", mode, err, sql)
+	}
+	return analysis
 }

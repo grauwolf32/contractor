@@ -212,7 +212,7 @@ func (s *ClaimStore) listWindowExecutions(
 	ctx context.Context, auditID string,
 ) ([]auditstore.Execution, map[string]runstore.WorkflowRunState, error) {
 	rows, err := s.db.Query(ctx, `
-SELECT `+prefixedExecutionColumns("execution")+`, run.state
+SELECT `+ExecutionColumns("execution")+`, run.state
   FROM audit_executions AS execution
   LEFT JOIN workflow_runs AS run ON run.run_id = execution.run_id
  WHERE execution.audit_id = $1 AND execution.state IN `+uncollectedExecutionStatesSQL+`
@@ -226,7 +226,7 @@ SELECT `+prefixedExecutionColumns("execution")+`, run.state
 	states := make(map[string]runstore.WorkflowRunState)
 	for rows.Next() {
 		var runState *string
-		execution, scanErr := scanExecution(withColumns{row: rows, after: []any{&runState}})
+		execution, scanErr := ScanExecution(withColumns{row: rows, after: []any{&runState}})
 		if scanErr != nil {
 			return nil, nil, fmt.Errorf("scan Audit execution: %w", scanErr)
 		}
@@ -692,7 +692,7 @@ func (s *store) listRoleExecutions(
 	ctx context.Context, auditID string, roundID *string,
 ) ([]auditstore.Execution, error) {
 	rows, err := s.db.Query(ctx, `
-SELECT `+prefixedExecutionColumns("audit_executions")+` FROM audit_executions
+SELECT `+ExecutionColumns("audit_executions")+` FROM audit_executions
  WHERE audit_id = $1 AND (role = 'prepare' OR (
        role IN ('discovery', 'assessment') AND round_id IS NOT DISTINCT FROM $2))
  ORDER BY role, workflow_role, role_attempt, execution_id
@@ -703,7 +703,7 @@ SELECT `+prefixedExecutionColumns("audit_executions")+` FROM audit_executions
 	defer rows.Close()
 	result := make([]auditstore.Execution, 0)
 	for rows.Next() {
-		execution, scanErr := scanExecution(rows)
+		execution, scanErr := ScanExecution(rows)
 		if scanErr != nil {
 			return nil, fmt.Errorf("scan Audit role execution: %w", scanErr)
 		}
@@ -807,7 +807,12 @@ func scanItem(row scanner) (auditstore.Item, error) {
 	return result, nil
 }
 
-func scanExecution(row scanner) (auditstore.Execution, error) {
+// ScanExecution reads one execution that ExecutionColumns selected and
+// rejects a stored value that the store would not write: an inexact manifest
+// ref or an invalid digest, an unknown role, state or terminal outcome, a
+// negative terminal sequence, or Run provenance or a preparation snapshot
+// that does not decode strictly.
+func ScanExecution(row scanner) (auditstore.Execution, error) {
 	var result auditstore.Execution
 	var encodedRef []byte
 	var role, state string

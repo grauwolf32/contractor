@@ -12,7 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
-	"github.com/grauwolf32/contractor/internal/persistence/plantest"
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -176,19 +176,20 @@ func TestPostgresInventoryChildPagesProbeTheExecutionIDRange(t *testing.T) {
 			if foreign := read("owner-inventory-foreign", child, fetch); len(foreign) != 0 {
 				t.Fatalf("another owner reads %d children", len(foreign))
 			}
-			for _, mode := range plantest.Modes {
-				plan := plantest.Explain(t, ctx, pool, mode, inventoryPageAuditExecutionsSQL, inventoryScaleOwner, auditID, child, fetch)
+			for _, mode := range explaintest.Modes {
+				analysis, err := explaintest.ExplainPrepared(ctx, pool, mode, inventoryPageAuditExecutionsSQL, inventoryScaleOwner, auditID, child, fetch)
+				if err != nil {
+					t.Fatalf("%s: explain: %v", mode, err)
+				}
 				// The child keyset bounds an index scan of the executions,
 				// plain or bitmap, by the execution ID.
-				probe := slices.IndexFunc(plan.IndexScans("audit_executions_"), func(scan plantest.Scan) bool {
-					return strings.Contains(scan.IndexCond, "execution_id > ")
+				probe := slices.IndexFunc(analysis.Plan.Nodes(), func(node explaintest.Node) bool {
+					return strings.HasPrefix(node.Index, "audit_executions_") && strings.Contains(node.IndexCond, "execution_id > ")
 				})
-				if read := plan.Read("audit_executions"); read > 2*fetch || probe < 0 {
-					t.Fatalf("%s: inventory page read %d executions (budget %d) through %+v\n%s",
-						mode, read, 2*fetch, plan.IndexScans("audit_executions_"), plan.JSON)
+				if read := analysis.Reads.Of("audit_executions"); read > 2*fetch || probe < 0 {
+					t.Fatalf("%s: inventory page read %d executions (budget %d):\n%s", mode, read, 2*fetch, analysis.Plan)
 				}
-				scan := plan.IndexScans("audit_executions_")[probe]
-				t.Logf("%s: read %d executions through %s %s (%s)", mode, plan.Read("audit_executions"), scan.NodeType, scan.IndexName, scan.IndexCond)
+				t.Logf("%s: read %d executions:\n%s", mode, analysis.Reads.Of("audit_executions"), analysis.Plan)
 			}
 		})
 	}

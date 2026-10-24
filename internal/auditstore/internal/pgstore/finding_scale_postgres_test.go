@@ -9,7 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
-	"github.com/grauwolf32/contractor/internal/persistence/plantest"
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -56,9 +56,9 @@ SELECT (SELECT count(*) FROM audit_findings WHERE audit_id = $1),
 	// inModes runs read under each plan cache mode on the store's
 	// connection, so its prepared statements run as custom and as generic
 	// plans.
-	inModes := func(t *testing.T, read func(t *testing.T, mode plantest.Mode)) {
+	inModes := func(t *testing.T, read func(t *testing.T, mode explaintest.Mode)) {
 		t.Helper()
-		for _, mode := range plantest.Modes {
+		for _, mode := range explaintest.Modes {
 			if _, err := conn.Exec(f.ctx, "SET plan_cache_mode = "+string(mode)); err != nil {
 				t.Fatal(err)
 			}
@@ -68,20 +68,20 @@ SELECT (SELECT count(*) FROM audit_findings WHERE audit_id = $1),
 			t.Fatal(err)
 		}
 	}
-	within := func(t *testing.T, mode plantest.Mode, statement string, args []any, budgets map[string]int64) {
+	within := func(t *testing.T, mode explaintest.Mode, statement string, args []any, budgets map[string]int64) {
 		t.Helper()
-		plan := plantest.Explain(t, f.ctx, f.pool, mode, statement, args...)
+		plan := explainPrepared(t, f.ctx, f.pool, mode, statement, args...)
 		for table, rows := range budgets {
-			budget, read := rows+supersededEntries, plan.Read(table)
+			budget, read := rows+supersededEntries, plan.Reads.Of(table)
 			if read > budget {
-				t.Fatalf("%s: read %d %s rows, budget %d\n%s", mode, read, table, budget, plan.JSON)
+				t.Fatalf("%s: read %d %s rows, budget %d\n%s", mode, read, table, budget, plan.Plan)
 			}
 			t.Logf("%s: read %d %s rows (budget %d)", mode, read, table, budget)
 		}
 	}
 
 	t.Run("workspace", func(t *testing.T) {
-		inModes(t, func(t *testing.T, mode plantest.Mode) {
+		inModes(t, func(t *testing.T, mode explaintest.Mode) {
 			summary, err := store.GetWorkspace(f.ctx, owner, auditID)
 			if err != nil || int64(summary.Findings) != findings || int64(summary.UnreviewedFindings) != unreviewed ||
 				int64(summary.PendingReviews) != unexpired || summary.AsOf.IsZero() {
@@ -134,7 +134,7 @@ SELECT finding_id, state, current_decision_id IS NULL FROM audit_findings
 						matching = append(matching, row.ID)
 					}
 				}
-				inModes(t, func(t *testing.T, mode plantest.Mode) {
+				inModes(t, func(t *testing.T, mode explaintest.Mode) {
 					basis, err := store.FindingPageBasis(f.ctx, params)
 					if err != nil || int64(basis.Total) != test.total || int64(len(matching)) != test.total {
 						t.Fatalf("%s: total = %d, %v; want %d of %d matching", mode, basis.Total, err, test.total, len(matching))
@@ -175,7 +175,7 @@ SELECT finding_id, state, current_decision_id IS NULL FROM audit_findings
 	t.Run("review pages", func(t *testing.T) {
 		pending := auditstore.ReviewPending
 		params := auditstore.ReviewListParams{OwnerID: owner, AuditID: auditID, State: &pending, Limit: fetch}
-		inModes(t, func(t *testing.T, mode plantest.Mode) {
+		inModes(t, func(t *testing.T, mode explaintest.Mode) {
 			basis, err := store.ReviewPageBasis(f.ctx, params)
 			if err != nil || int64(basis.Total) != reviews {
 				t.Fatalf("%s: review total = %d, %v; want %d", mode, basis.Total, err, reviews)
@@ -214,10 +214,10 @@ SELECT NOT EXISTS (
 // the original gate once one execution in each declared state is added.
 func requireUncollectedProbe(t *testing.T, ctx context.Context, pool *pgxpool.Pool, auditID, collectedID string) {
 	t.Helper()
-	for _, mode := range plantest.Modes {
-		plan := plantest.Explain(t, ctx, pool, mode, uncollectedProbeSQL, auditID)
-		if read := plan.Read("audit_executions"); read > supersededEntries {
-			t.Fatalf("%s: the probe read %d executions of an Audit without uncollected ones\n%s", mode, read, plan.JSON)
+	for _, mode := range explaintest.Modes {
+		plan := explainPrepared(t, ctx, pool, mode, uncollectedProbeSQL, auditID)
+		if read := plan.Reads.Of("audit_executions"); read > supersededEntries {
+			t.Fatalf("%s: the probe read %d executions of an Audit without uncollected ones\n%s", mode, read, plan.Plan)
 		}
 	}
 	rows, err := pool.Query(ctx, `
