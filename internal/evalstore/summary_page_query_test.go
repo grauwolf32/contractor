@@ -1,74 +1,58 @@
 package evalstore
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
 )
 
-// TestSummaryPageQueryNamesOnlySetFilters checks that every filter and cursor
-// combination becomes its own statement whose predicates are plain index
-// conditions numbered after the owner, Project and limit (V414-026).
-func TestSummaryPageQueryNamesOnlySetFilters(t *testing.T) {
-	if strings.Count(summaryPageSQL, summaryPageFilters) != 1 {
-		t.Fatalf("summaryPageSQL must contain %q exactly once", summaryPageFilters)
+// TestSummaryPageQueryHasFourShapes checks that the experiment list has one
+// statement for each of its four shapes, every Project or one and first page
+// or later, each without an optional predicate and with the arguments its
+// placeholders number (EVM-R247).
+func TestSummaryPageQueryHasFourShapes(t *testing.T) {
+	if strings.Count(summaryPageSQL, summaryPagePredicates) != 1 {
+		t.Fatalf("summaryPageSQL must contain %q exactly once", summaryPagePredicates)
 	}
 	cursor := time.Date(2026, 10, 24, 0, 0, 0, 0, time.UTC)
 	texts := map[string]bool{}
-	for mask := 0; mask < 32; mask++ {
-		p := SummaryPageParams{ListParams: ListParams{OwnerID: "owner", Limit: 25}}
-		if mask&1 != 0 {
-			p.ProjectID = "project"
-		}
-		if mask&2 != 0 {
-			p.State = "draft"
-		}
-		if mask&4 != 0 {
-			p.DatasetID = "dataset"
-		}
-		if mask&8 != 0 {
-			p.ControlMode = "managed"
-		}
-		if mask&16 != 0 {
-			p.AfterCreatedAt, p.AfterID = &cursor, "exp-1"
-		}
-		query, args := summaryPageQuery(p)
-		if strings.Contains(query, "/* filters */") || strings.Contains(query, "= ''") || strings.Contains(query, "IS NULL OR") {
-			t.Fatalf("mask %d: statement keeps an optional predicate:\n%s", mask, query)
-		}
-		if args[0] != "owner" || args[1] != p.ProjectID || args[2] != 26 {
-			t.Fatalf("mask %d: fixed arguments = %v", mask, args[:3])
-		}
-		want := []string{}
-		if p.ProjectID != "" {
-			want = append(want, "AND project_id = $2")
-		}
-		n := 3
-		for _, f := range []struct{ column, value string }{{"state", p.State}, {"dataset_id", p.DatasetID}, {"control_mode", p.ControlMode}} {
-			if f.value != "" {
-				n++
-				want = append(want, fmt.Sprintf("AND %s = $%d", f.column, n))
-				if args[n-1] != f.value {
-					t.Fatalf("mask %d: $%d = %v, want %q", mask, n, args[n-1], f.value)
+	for _, project := range []string{"", "project"} {
+		for _, after := range []*time.Time{nil, &cursor} {
+			p := SummaryPageParams{OwnerID: "owner", ProjectID: project, Limit: 25, AfterCreatedAt: after, AfterID: "exp-1"}
+			query, args := summaryPageQuery(p)
+			end := strings.Index(query, "), details AS (")
+			if end < 0 {
+				t.Fatalf("summaryPageSQL lost its page selection:\n%s", query)
+			}
+			page := query[:end]
+			if strings.Contains(page, summaryPagePredicates) || strings.Contains(page, "''") || strings.Contains(page, " OR ") {
+				t.Fatalf("%q %v: the page selection keeps an optional predicate:\n%s", project, after != nil, page)
+			}
+			want := []any{"owner", project, 26}
+			if after != nil {
+				want = append(want, cursor, "exp-1")
+			}
+			if len(args) != len(want) {
+				t.Fatalf("%q %v: arguments %v, want %v", project, after != nil, args, want)
+			}
+			for i := range want {
+				if args[i] != want[i] {
+					t.Fatalf("%q %v: arguments %v, want %v", project, after != nil, args, want)
 				}
 			}
-		}
-		if p.AfterCreatedAt != nil {
-			want = append(want, fmt.Sprintf("AND (created_at, experiment_id) < ($%d, $%d)", n+1, n+2))
-			n += 2
-		}
-		if len(args) != n {
-			t.Fatalf("mask %d: %d arguments, want %d", mask, len(args), n)
-		}
-		for _, clause := range want {
-			if !strings.Contains(query, "WHERE owner_id = $1") || !strings.Contains(query, clause) {
-				t.Fatalf("mask %d: statement lacks %q:\n%s", mask, clause, query)
+			for clause, present := range map[string]bool{
+				"WHERE owner_id = $1 AND project_id = $2":               project != "",
+				"(created_at, experiment_id) < ($4, $5)":                after != nil,
+				"ORDER BY created_at DESC, experiment_id DESC LIMIT $3": true,
+			} {
+				if strings.Contains(page, clause) != present {
+					t.Fatalf("%q %v: the page selection contains %q = %v:\n%s", project, after != nil, clause, !present, page)
+				}
 			}
+			texts[query] = true
 		}
-		texts[query] = true
 	}
-	if len(texts) != 32 {
-		t.Fatalf("%d distinct statements, want 32", len(texts))
+	if len(texts) != 4 {
+		t.Fatalf("%d distinct statements, want 4", len(texts))
 	}
 }

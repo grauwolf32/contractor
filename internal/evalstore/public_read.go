@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -82,11 +81,17 @@ func (s *Store) DatasetPage(ctx context.Context, scope Scope, afterID, afterRevi
 	return result, nil
 }
 
-// SummaryPageParams pages by the immutable (created_at, experiment_id) key;
+// SummaryPageParams selects a page of the owner's experiment list: every
+// Project of the owner, or ProjectID alone, newest first (EVM-R247). It pages
+// by the immutable (created_at, experiment_id) key AfterCreatedAt, AfterID;
 // updated_at moves on usage ticks that do not fence the collection revision.
+// Revision, when set, is the collection revision the cursor was read at.
 type SummaryPageParams struct {
-	ListParams
-	AfterCreatedAt *time.Time
+	OwnerID, ProjectID string
+	Limit              int
+	Revision           *int64
+	AfterCreatedAt     *time.Time
+	AfterID            string
 }
 
 type PublicSummary struct {
@@ -155,34 +160,24 @@ func (s *Store) SummaryPage(ctx context.Context, p SummaryPageParams) (SummaryPa
 	return result, nil
 }
 
-// summaryPageFilters marks where summaryPageQuery adds predicates to
+// summaryPagePredicates marks where summaryPageQuery adds predicates to
 // summaryPageSQL.
-const summaryPageFilters = " /* filters */"
+const summaryPagePredicates = " /* predicates */"
 
-// summaryPageQuery returns summaryPageSQL with the predicates of the filters
-// p sets, and its arguments. Each combination of the Project, state, dataset
-// and control-mode filters and the cursor is its own statement text (at most
-// 32), so a cached generic plan never carries an optional predicate that
-// cannot be an index condition (V414-026). $1 is the owner, $2 the Project
-// (also read for the collection revision) and $3 the limit plus one; set
-// filters follow.
+// summaryPageQuery returns one of the four summary page statements and its
+// arguments: $1 is the owner, $2 the Project (empty for every Project; it
+// also names the collection revision), $3 the limit plus one, and $4, $5 the
+// keyset cursor when p has one. A statement holds only the predicates p
+// needs, so the Project and the cursor are index conditions of the
+// created-order page indexes in custom and generic plans alike (EVM-R247).
 func summaryPageQuery(p SummaryPageParams) (string, []any) {
-	var b strings.Builder
-	args := []any{p.OwnerID, p.ProjectID, p.Limit + 1}
+	predicates, args := "", []any{p.OwnerID, p.ProjectID, p.Limit + 1}
 	if p.ProjectID != "" {
-		b.WriteString(" AND project_id = $2")
-	}
-	for _, f := range [...]struct{ column, value string }{
-		{"state", p.State}, {"dataset_id", p.DatasetID}, {"control_mode", p.ControlMode},
-	} {
-		if f.value != "" {
-			args = append(args, f.value)
-			fmt.Fprintf(&b, " AND %s = $%d", f.column, len(args))
-		}
+		predicates += " AND project_id = $2"
 	}
 	if p.AfterCreatedAt != nil {
+		predicates += " AND (created_at, experiment_id) < ($4, $5)"
 		args = append(args, *p.AfterCreatedAt, p.AfterID)
-		fmt.Fprintf(&b, " AND (created_at, experiment_id) < ($%d, $%d)", len(args)-1, len(args))
 	}
-	return strings.Replace(summaryPageSQL, summaryPageFilters, b.String(), 1), args
+	return strings.Replace(summaryPageSQL, summaryPagePredicates, predicates, 1), args
 }
