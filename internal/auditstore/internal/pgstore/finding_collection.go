@@ -7,65 +7,71 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/jackc/pgx/v5"
 )
 
 // CollectionReceiptIDs resolves findings of an owner's Audit, each at the
 // exact revision the caller read, to every receipt that contributed to them
-// or first proposed them, sorted. A missing finding is ErrNotFound, a finding
-// at another revision ErrConflict, and more than
-// auditdomain.MaximumCollectionEntries receipts ErrInvalid. No page or first
-// proposal shortcut drops a supporting receipt.
+// or first proposed them, sorted. It reads them in one statement that
+// returns at most one row per finding and auditdomain.MaximumCollectionEntries
+// + 1 receipts (LIM-FND-25, FND-R159). The first finding in input order that
+// is missing is ErrNotFound, or at another revision ErrConflict; only then
+// are more than auditdomain.MaximumCollectionEntries receipts, or more
+// findings than that, ErrInvalid. No page or first proposal shortcut drops a
+// supporting receipt.
 func (s *QueryStore) CollectionReceiptIDs(
 	ctx context.Context, ownerID, auditID string, findings []auditstore.FindingRevision,
 ) ([]string, error) {
-	ids := map[string]bool{}
-	for _, finding := range findings {
-		var revision uint64
-		var first string
-		err := s.db.QueryRow(ctx, `
-SELECT f.revision, f.first_receipt_id FROM audit_findings AS f JOIN audits AS a USING(audit_id)
- WHERE a.owner_id=$1 AND a.audit_id=$2 AND f.finding_id=$3`, ownerID, auditID, finding.FindingID).Scan(&revision, &first)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, auditstore.ErrNotFound
-		}
-		if err != nil {
-			return nil, err
-		}
-		if revision != finding.Revision {
-			return nil, auditstore.ErrConflict
-		}
-		ids[first] = true
-		if err := s.addContributions(ctx, auditID, finding.FindingID, ids); err != nil {
-			return nil, err
-		}
+	if len(findings) == 0 {
+		return []string{}, nil
 	}
-	result := make([]string, 0, len(ids))
-	for id := range ids {
-		result = append(result, id)
+	if len(findings) > auditdomain.MaximumCollectionEntries {
+		return nil, auditstore.ErrInvalid
 	}
-	sort.Strings(result)
-	return result, nil
-}
-
-func (s *QueryStore) addContributions(ctx context.Context, auditID, findingID string, ids map[string]bool) error {
-	rows, err := s.db.Query(ctx, `SELECT receipt_id FROM audit_finding_contributions WHERE audit_id=$1 AND finding_id=$2 ORDER BY receipt_id LIMIT $3`,
-		auditID, findingID, auditdomain.MaximumCollectionEntries+1)
+	findingIDs := make([]string, len(findings))
+	for index, finding := range findings {
+		findingIDs[index] = finding.FindingID
+	}
+	rows, err := s.db.Query(ctx, readCollectionReceiptIDsSQL,
+		ownerID, auditID, findingIDs, auditdomain.MaximumCollectionEntries+1)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer rows.Close()
+	revisions := make([]*uint64, len(findings))
+	receipts := make([]string, 0, len(findings))
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return err
+		var kind int
+		var ordinal *int64
+		var revision *uint64
+		var receiptID *string
+		if err := rows.Scan(&kind, &ordinal, &revision, &receiptID); err != nil {
+			return nil, err
 		}
-		ids[id] = true
-		if len(ids) > auditdomain.MaximumCollectionEntries {
-			return auditstore.ErrInvalid
+		switch {
+		case kind == 0 && ordinal != nil && *ordinal >= 1 && *ordinal <= int64(len(findings)):
+			revisions[*ordinal-1] = revision
+		case kind == 1 && receiptID != nil:
+			receipts = append(receipts, *receiptID)
+		default:
+			return nil, errors.New("read Audit collection receipts: unexpected row")
 		}
 	}
-	return rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	for index, finding := range findings {
+		if revisions[index] == nil {
+			return nil, auditstore.ErrNotFound
+		}
+		if *revisions[index] != finding.Revision {
+			return nil, auditstore.ErrConflict
+		}
+	}
+	if len(receipts) > auditdomain.MaximumCollectionEntries {
+		return nil, auditstore.ErrInvalid
+	}
+	sort.Strings(receipts)
+	return receipts, nil
 }
 
 // CollectionReviews reads, for each receipt, the findings of the owner's

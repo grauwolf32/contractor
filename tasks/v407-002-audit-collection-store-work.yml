@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V45-004
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -49,6 +49,79 @@ plan:
 - Add real PostgreSQL count assertions for the stated bounds, transient errors, ambiguous receipt replay
   and claim loss. Document the resulting formulas and measured counts without inventing a whole-Collect
   statement target.
+decisions:
+- >-
+  Findings re-verified on base f42665bd and measured by the new count tests on the base code:
+  check_results.go:134 read every evidence payload through ReadRunExact only for its descriptor (960
+  payload reads for the 64-item, 960-record fixture; a revision cited twice was read twice);
+  check_results.go:292,346 retained each distinct source in its own WithArtifactWrite transaction with
+  a claim lock and an Audit row lock (959 transactions); findingintake/postgres.go:268-316 resolved,
+  read the receipt, read all its holds and read the document per key (512 statements per 128 keys,
+  16,384 for a 4,096-proposal Run); pgstore/finding_collection.go:23-39,52-53 sent two statements per
+  finding (510 for 255 findings).
+- >-
+  Evidence descriptors (A1, ART-R121, LIM-ART-8): artifacts.ScopedStore.DescribeExact returns digest,
+  media type and size of exact revisions in request order, one payload-free statement per 32
+  references; Importer.describeEvidence describes each distinct cited revision once. A reference that
+  is not exact or has an invalid name is rejected before any read and a revision the Run does not hold
+  is not found, both evidence-reference-invalid; a stored descriptor that fails validation
+  (ErrArtifactIntegrity) and every other failure stay transient and leave the execution collecting
+  (AUX-R96). The import no longer hashes evidence bytes: the retained binding shares the stored version
+  and every payload read verifies it against the digest. Before, a corrupt evidence blob kept the
+  execution collecting indefinitely; now the receipt is accepted and a later read of the retained copy
+  fails integrity like the source. Reopen if acceptance must prove blob integrity; then read distinct
+  revisions with ReadExactBatch (32 refs, LIM-ART-4) rather than per record.
+- >-
+  Retention chunks (A3, AUX-R98, LIM-AUX-7 now 512): ServiceArtifactAccess.RetainRunExact takes all
+  retentions of one collection (result plus distinct evidence, role outputs, or preparation attempt
+  outputs) and commits them in order in WithArtifactWrite transactions of at most
+  auditdomain.MaximumCollectionTransactionWork = 512 retentions, the bound finding intake already used,
+  now one shared constant. Each transaction keeps the existing claim Lock, Audit row FOR UPDATE and
+  claim Live check, so every retention is still owned by an artifact-write transaction holding the
+  claim and the Audit row. Fixed overhead 5 statements (begin, claim lock, Audit lock, claim check,
+  commit); 2 statements and 3 rows (binding, binding revision, lineage) per new retention, 5 statements
+  per retention replayed through the existing create-only Fork conflict and its content and lineage
+  verification; no payload bytes are copied and refs are bounded by LIM-ART-1. Alternatives: one
+  transaction per revision (base, 959 Audit row locks), one transaction for all (unbounded, out of
+  scope), chunks of 1,024 links (longer Audit row lock hold against takeover and purge). All-or-nothing
+  holds at the receipt: copies stay unlinked and out of public projections until the one collection
+  transaction links them, so an interrupted, cancelled or claim-lost chunk leaves earlier chunks
+  committed but unlinked, no receipt, and the execution collecting; the next attempt (or the next
+  holder) replays them. commitRoleFailure now checks the whole evidence budget before retaining any
+  output (before, earlier outputs were retained unlinked before a later one exhausted the budget; the
+  receipt is the same).
+- >-
+  Proposal resolution (A2): ResolveAuditProposals (proposal_resolution.go) validates the request, then
+  one statement resolves every key to at most two receipts retained by the execution with this Audit's
+  hold, and hydrateAuditReceiptBatch reads the documents in exact batches (32 refs, LIM-ART-4): 1 +
+  ceil(n/32) statements for small documents, 5 for 128 keys, 160 for 4,096 proposals in 32 calls. The
+  128-key limit and ProposalKey API are unchanged. Outcome changes, all mapped by the importer to the
+  same finding-proposal-association-invalid receipt: a key matching two retained receipts is
+  ErrConflict (before, QueryRow picked one; the method contract and AUX-R54 require one receipt);
+  invalid identities, repeated keys and more than 128 keys fail before any read, so an invalid key
+  after a missing one is now ErrInvalid instead of ErrNotFound; a missing, foreign or stale key fails
+  before any document is read. After source Run deletion the document is read from this Audit's own
+  hold, as GetAuditReceipts does, instead of the first hold of any Audit. hydrateReceiptDocuments had
+  no other caller and was removed; readReceiptByID is read only by tests and moved into
+  multi_audit_import_test.go with its statement.
+- >-
+  Collection receipts (A4, FND-R159): CollectionReceiptIDs sends one statement: one revision row per
+  requested finding and at most 257 distinct receipts (at most 257 contributions per finding through
+  the (finding_id, receipt_id) key, plus first receipts). It runs on the publication's repeatable-read
+  transaction, so the read is one snapshot. The first missing finding in input order is ErrNotFound,
+  the first stale one ErrConflict, and only then are more than 256 receipts ErrInvalid (before, the
+  checks interleaved per finding, so an overflow before a stale finding won). More than 256 findings is
+  ErrInvalid without a read: callers cap selectors at 256 (LIM-FND-25) and distinct findings of one
+  Audit have distinct first receipts.
+- >-
+  Siblings ruled out: collectSucceededRole and commitRoleFailure still read role-output payloads through
+  ReadRunBinding (a role has few outputs, and dropping the read would change the outcome for a corrupt
+  output blob, which commitRoleFailure skips and collectSucceededRole retries); resolveTaskProposal
+  stays one GetAuditReceipt (3 statements) per member with a finding task, at most 64 per execution,
+  keeping per-member outcome order; ResolveAuditProposals stays one call per item because the plan
+  keeps the 128-key call limit; scan recovery needs the bytes it reads; the late 1,024-link receipt
+  bound after retention is the out-of-scope oversized-envelope redesign. New spec IDs: AUX-R98,
+  ART-R121, LIM-AUX-15, LIM-ART-8; LIM-AUX-7 gained its value and FND-R159 names the finding expansion.
 scope:
   in:
   - Metadata-only evidence description and bounded batching of existing proposal, retention and collection-receipt

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-93 open tasks: 4 in progress, 64 pending, 25 deferred. 1025 finished: 1021 completed, 4 archived.
+93 open tasks: 5 in progress, 63 pending, 25 deferred. 1025 finished: 1021 completed, 4 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V398-001](v398-001-runtime-completion-capability-derivation.yml) | audits | chore | P3 | Derive the Runtime's completion-contract capability from one rule |
+| [V407-002](v407-002-audit-collection-store-work.yml) | audits | chore | P2 | Batch Audit collection lookups and retention within existing row and byte limits |
 
 ## Pending
 
@@ -82,7 +83,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V371-009](v371-009-audit-list-preparation-batch.yml) | defect | P3 | — | Read the preparation state of a whole Audit page in bounded statements |
-| [V407-002](v407-002-audit-collection-store-work.yml) | chore | P2 | — | Batch Audit collection lookups and retention within existing row and byte limits |
 | [V407-004](v407-004-audit-list-summary-projection.yml) | chore | P2 | — | Batch preparing Audit list hydration without changing the response contract |
 | [V409-004](v409-004-audit-read-statements-indexes.yml) | chore | P2 | — | Reduce avoidable Audit read work while preserving exact totals and expiry |
 

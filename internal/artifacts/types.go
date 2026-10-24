@@ -221,6 +221,10 @@ type Repository interface {
 	CreateFrozen(context.Context, Scope, ArtifactRef, Payload) (WriteResult, error)
 	Read(context.Context, Scope, ArtifactRef) (ReadResult, error)
 	Metadata(context.Context, Scope, ArtifactRef) (Metadata, error)
+	// DescribeExact returns the exact descriptors of at most
+	// MaxExactReadBatchSize exact revisions of one scope in request order,
+	// without reading their payloads.
+	DescribeExact(context.Context, Scope, []ArtifactRef) ([]contracts.ExactArtifact, error)
 	ListRefs(context.Context, Scope, RefPageQuery) (RefPage, error)
 	ListMetadata(context.Context, Scope, BindingPageQuery) ([]Metadata, error)
 	ListVersions(context.Context, Scope, ArtifactRef, VersionPageQuery) ([]Metadata, error)

@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -698,7 +699,7 @@ func (c *intakeTransactions) TraceQueryStart(ctx context.Context, _ *pgx.Conn, d
 		return context.WithValue(ctx, intakeStatementKey{}, intakeStatement{fence: fence})
 	case strings.Contains(statement, "insert into finding_proposal_audit_holds"):
 		// A fresh hold weighs one for its receipt and one per imported
-		// proposal or evidence revision (maxCollectionTransactionWork).
+		// proposal or evidence revision (auditdomain.MaximumCollectionTransactionWork).
 		var evidence []json.RawMessage
 		if len(data.Args) == 5 {
 			if encoded, ok := data.Args[4].([]byte); ok {
@@ -773,7 +774,7 @@ func (c *intakeTransactions) requireCommittedHolds(t *testing.T, holds ...int) {
 		counts[index] = len(weights)
 		work := 0
 		for _, weight := range weights {
-			if work >= maxCollectionTransactionWork {
+			if work >= auditdomain.MaximumCollectionTransactionWork {
 				t.Fatalf("transaction %d started a proposal at work %d: %v", index+1, work, weights)
 			}
 			work += weight

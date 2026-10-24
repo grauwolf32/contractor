@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -16,8 +17,16 @@ type ArtifactAccess interface {
 	ReadProjectExact(context.Context, string, auditstore.ExactArtifact) ([]byte, error)
 	ReadRunBinding(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, []byte, bool, error)
 	ReadRunExact(context.Context, string, contracts.ArtifactRef) (auditstore.ExactArtifact, []byte, error)
-	RetainRunExact(context.Context, string, auditstore.ExactArtifact, string, contracts.ArtifactRef) (auditstore.ExactArtifact, error)
+	DescribeRunExact(context.Context, string, []contracts.ArtifactRef) ([]auditstore.ExactArtifact, error)
+	RetainRunExact(context.Context, string, string, []RunRetention) ([]auditstore.ExactArtifact, error)
 	PutImmutableProject(context.Context, string, contracts.ArtifactRef, artifacts.Payload) (auditstore.ExactArtifact, error)
+}
+
+// RunRetention names an exact revision of an Audit child Run and the
+// create-only Audit-managed binding that retains it.
+type RunRetention struct {
+	Source auditstore.ExactArtifact
+	Target contracts.ArtifactRef
 }
 
 type ServiceArtifactAccess struct {
@@ -95,28 +104,74 @@ func (a *ServiceArtifactAccess) ReadRunExact(
 	return metadata.Exact(), append([]byte(nil), read.Payload.Data...), nil
 }
 
-// RetainRunExact retains the exact revision source of the Audit child Run
-// runID as the create-only, frozen Audit-managed binding target of projectID,
-// with audit_import lineage and without copying bytes. The binding stays out
-// of public Project projections until the Audit receipt that names it
-// commits. A retry after a lost acknowledgement finds the binding retained
-// from the same source and returns it.
+// DescribeRunExact returns the exact descriptors of refs, exact revisions of
+// the Audit child Run runID, in request order without reading their payloads
+// (artifacts.ScopedStore.DescribeExact, LIM-ART-8). A reference that is not
+// an exact revision is ErrExactRevisionRequired before any read; a revision
+// the Run does not hold is ErrArtifactNotFound. Any other error leaves the
+// references unverified, so the caller must not treat it as an invalid
+// reference.
+func (a *ServiceArtifactAccess) DescribeRunExact(
+	ctx context.Context, runID string, refs []contracts.ArtifactRef,
+) ([]auditstore.ExactArtifact, error) {
+	for _, ref := range refs {
+		if err := ref.ValidateExact(); err != nil {
+			return nil, artifacts.ErrExactRevisionRequired
+		}
+	}
+	store, err := a.service.Run(runID)
+	if err != nil {
+		return nil, err
+	}
+	return store.DescribeExact(ctx, refs)
+}
+
+// RetainRunExact retains each source, an exact revision of the Audit child
+// Run runID, as its create-only, frozen Audit-managed binding target of
+// projectID, with audit_import lineage and without copying bytes, and returns
+// the retained descriptors in request order. The bindings stay out of public
+// Project projections until the Audit receipt that names them commits.
+//
+// Retentions commit in order in artifact-write transactions of at most
+// auditdomain.MaximumCollectionTransactionWork retentions each (LIM-AUX-7,
+// AUX-R98). Each transaction holds the live controller claim and the Audit
+// row, like every claimed artifact write, so takeover and purge serialize
+// with every retention. A failed transaction leaves earlier ones committed
+// but unlinked; a retry after it, or after a lost acknowledgement, finds each
+// binding retained from the same source and returns it.
 func (a *ServiceArtifactAccess) RetainRunExact(
-	ctx context.Context,
-	runID string,
-	source auditstore.ExactArtifact,
-	projectID string,
-	target contracts.ArtifactRef,
-) (auditstore.ExactArtifact, error) {
-	var retained auditstore.ExactArtifact
-	err := a.writes.WithArtifactWrite(ctx, a.claim, projectID, target.Namespace, func(service *artifacts.Service) error {
-		bound := *a
-		bound.service = service
-		var retainErr error
-		retained, retainErr = bound.retainRunExact(ctx, runID, source, projectID, target)
-		return retainErr
-	})
-	return retained, err
+	ctx context.Context, runID, projectID string, retentions []RunRetention,
+) ([]auditstore.ExactArtifact, error) {
+	retained := make([]auditstore.ExactArtifact, 0, len(retentions))
+	for start := 0; start < len(retentions); start += auditdomain.MaximumCollectionTransactionWork {
+		chunk := retentions[start:min(start+auditdomain.MaximumCollectionTransactionWork, len(retentions))]
+		namespace := chunk[0].Target.Namespace
+		for _, retention := range chunk {
+			if retention.Target.Namespace != namespace {
+				return nil, fmt.Errorf("%w: retained Audit bindings span namespaces", auditstore.ErrInvalid)
+			}
+		}
+		var written []auditstore.ExactArtifact
+		err := a.writes.WithArtifactWrite(ctx, a.claim, projectID, namespace, func(service *artifacts.Service) error {
+			// A definite transaction conflict replays this callback.
+			written = make([]auditstore.ExactArtifact, 0, len(chunk))
+			bound := *a
+			bound.service = service
+			for _, retention := range chunk {
+				one, retainErr := bound.retainRunExact(ctx, runID, retention.Source, projectID, retention.Target)
+				if retainErr != nil {
+					return retainErr
+				}
+				written = append(written, one)
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+		retained = append(retained, written...)
+	}
+	return retained, nil
 }
 
 func (a *ServiceArtifactAccess) retainRunExact(

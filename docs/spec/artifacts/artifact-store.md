@@ -689,6 +689,20 @@ Rationale: Run deletion purges the whole RunScope in one transaction
 (DEL-R22); without a bound on the Run, a large enough Run could never be
 deleted within the purge budget.
 
+**ART-R121.** Trusted Server callers read or describe exact revisions in
+batches of at most 32 references per statement (LIM-ART-8), in request
+order. A batched read returns the payloads, which together stay within the
+generic payload limit (LIM-ART-4); a description returns each revision's
+digest, media type and size without reading its payload, for a caller that
+needs only the exact descriptor. A reference without a revision or with an
+invalid name is rejected before any read, a revision the scope does not hold
+fails the whole batch as not found, and a stored descriptor that fails
+validation is an integrity failure. Any other failure, such as a database
+error or cancellation, leaves every reference unverified, so the caller must
+not treat it as an invalid reference. A description does not verify the
+payload bytes; every payload read verifies them against the digest wherever
+they are read later.
+
 How long an old revision remains resolvable to its immutable internal version
 is owned by [Retention and deletion](retention-and-deletion.md).
 
@@ -1134,6 +1148,8 @@ Limits ([registry](../platform/limits.md)):
   characters (ART-R48).
 - LIM-ART-6 — binding revisions of one RunScope outside `outputs`: at most
   50,000 (ART-R118).
+- LIM-ART-8 — exact references per batched read or description statement:
+  32 (ART-R121).
 
 Errors ([registry](../platform/errors.md)):
 

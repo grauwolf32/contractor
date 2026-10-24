@@ -365,6 +365,15 @@ func createFixtureAudit(t *testing.T, f deletionImportFixture, auditID string) {
 
 // insertAuditChildReceipt records one more receipt of the fixture's source Run
 // with the fixture Audit as its origin, as intake does for an Audit child Run.
+// readReceiptByID reads proposal receipt receiptID with all its Audit holds,
+// for tests that inspect a receipt regardless of the Audit that holds it.
+func readReceiptByID(ctx context.Context, db querier, receiptID string) (Receipt, error) {
+	return scanReceipt(ctx, db, db.QueryRow(ctx, `
+SELECT `+receiptProjection+`
+  FROM finding_proposal_receipts AS receipt
+ WHERE receipt.receipt_id = $1`, receiptID))
+}
+
 func insertAuditChildReceipt(t *testing.T, f deletionImportFixture, clientKey string) Receipt {
 	return insertAuditChildReceiptWithEvidence(t, f, clientKey, []ExactArtifact{})
 }
