@@ -7,7 +7,7 @@ kind: chore
 introduced_by: V1-004
 priority: P2
 status: completed
-implementation_commit: a5379e5476166e074d819c4b5ff66196ac5cba7a
+implementation_commit: f41fdbdb18860290634a798c3b60240c37a0c9ee
 depends_on: []
 languages:
 - go
@@ -89,7 +89,7 @@ tests:
   - A4
 verification:
   date: '2026-10-24'
-  revision: a5379e5476166e074d819c4b5ff66196ac5cba7a
+  revision: f41fdbdb18860290634a798c3b60240c37a0c9ee
   environment: Worktree contractor-wt/r1, branch claude/rv-r1 on base 33f73b27, macOS arm64 (Darwin),
     Go 1.26.9 (GOTOOLCHAIN=local), Python 3.13 via uv sync --locked, Node 24.20 with Corepack pnpm, local
     PostgreSQL 17.11 with CONTRACTOR_TEST_DATABASE_URL=postgres://ruslan@localhost:5432/contractor_test_r1.
@@ -245,6 +245,52 @@ verification:
     internal/archtest: ok. cd runtime && uv run --locked pytest -q tests/test_metrics.py tests/test_allocation.py:
     all passed (the Runtime is unchanged in this round). make test-wire-cross-language: passed (255 fixtures).
     make lint: passed. make docs-dependencies: no change.'
+  - 'Round 3 (2026-10-24, commits b14bef72 and f41fdbdb; b14bef72 holds only the rename of the integer
+    overflow fixture because of a staging error, f41fdbdb carries the change): the read-back expansion was
+    unbounded in Agents and paid on the polled Run detail path, so LIM-OBS-16 now bounds it. A tool argument
+    number is kept when it is zero or the decimal exponent of its leading digit lies in -7..19, and any
+    exponent it writes lies in that range too; both sides judge the number as written (the received literal,
+    encoding/json text for a Go value the Server built, Python repr for a Runtime float). Range rationale:
+    -7 keeps probabilities to 1e-7 and float32 epsilon (1.19e-7); 19 keeps every 64-bit integer (uint64 max
+    1.8e19), which covers ports, counts, sizes and s/ms/ns timestamps; repr switches to exponent form below
+    1e-4 and at 1e16, so the Runtime writes 1e-07 and 1e+19 at the edges. -6 would lose 1e-7 probabilities
+    and 18 would lose nanosecond timestamps after 2286 and uint64 sizes. One marker, "[NUMBER_OUT_OF_RANGE]",
+    replaces "[NON_FINITE]" in the Runtime summary for any other number, NaN and infinities, and sets
+    argumentsTruncated; contracts.base defines it once with the bounds, Go reporting.ArgumentNumberMarker
+    matches it and the trim fixture pins both. The Go sanitizer writes the marker for Server-built summaries
+    (Planner tool calls via streamline, passthrough and scheduler reports) and keeps a derived size only in
+    range; receipt of an ExecutionReport or WorkerStateToolCall rejects such a number with reason invariant
+    (Python _require_tool_arguments does the same for ToolCallRecord and Worker State). Ruled out: the
+    summarizer''s "[NON_FINITE]" (worker/summarizer.py) projects model input and is no tool argument
+    summary. Fixtures: telemetry-report-trim-cases.json gains argumentNumbers (range, marker, 14 kept and 8
+    replaced literals), checked by TestSharedArgumentNumbersAgreeWithTheRuntime and
+    test_shared_argument_numbers_agree_with_the_server; the Runtime-built case now shows the marker; invalid
+    private fixtures cover 1e-08, 1e+20 and the integer 10^20 (float-overflow stays), and a valid fixture
+    holds 1e-7, -1e-7, 0, 0.0001, 1e19 and +-99999999999999980000 in the shared canonical form;
+    mutation-cases.json and required-member-cases.json were regenerated with their -update flags.
+    Measured on PostgreSQL 17.11 with 1 MiB reports of 250 tool calls of 4096-byte summaries (raw /
+    rendered octet_length(report::text) / factor / pg_column_size jsonb): bare 1e19 1047996 / 4476007 /
+    4.27x / 2504744; -9e19 3.73x; Runtime 1e+19 1047996 / 3742507 / 3.57x / 2097744; 1e-7 2.16x; Runtime
+    1e-07 1.81x; one-character strings 1.24x; a realistic mix of ports, counts, timestamps, fractions, paths,
+    booleans and nulls 1.09x; 20-digit integers 1.05x. The analytic bound is 4.4x (5-byte "1e19," to
+    22-byte "10000000000000000000, "), so OBS-R110 states that factor and the accepted-risk paragraph is
+    gone. The byte-bound reader test now uses 280 calls of 8-character strings (still trimmed) and 60 calls
+    of 1e19, the fewest that render past 1 MiB (59 render 1048795 / 1048441 bytes, under the bound; 60
+    render 1066562 / 1066208); it takes 1 s, and 10 s under -race instead of 66 s.'
+  - 'After round 3 and the merge of claude/review-v407-v409 at 19f7477f (merge 8d1eb756; only the generated
+    tasks/BACKLOG.md conflicted and was regenerated; metrics._metric_identifier and _truncate_utf8, which
+    V407-012 imports, kept their names): go test -count=1 ./internal/telemetry/... ./internal/controlplane/...
+    ./internal/contracts/... with the database set: all ok, and go test -v shows the three
+    TestMetricsPostgres tests PASS. go test -race on internal/telemetry, internal/contracts/reporting and
+    internal/controlplane/...: ok (telemetry 19 s). -tags integration ./internal/telemetry/...: ok.
+    internal/scheduler, internal/runservice, internal/planner/streamline and internal/archtest: ok. cd runtime
+    && uv run --locked pytest -q tests/test_metrics.py tests/test_allocation.py: 67 passed; with
+    test_contracts.py, test_instrumentation.py and test_otlp_adapter.py: 367 passed. make
+    test-wire-cross-language: passed (261 fixtures, 292 Go and 198 Python shared tests). Full Runtime suite:
+    4582 passed, 105 failed, 39 skipped; the failures are the known macOS set (95 Podman, tool_process 2,
+    trailmark_child 2, projectfs_local_direct 2, projectfs_local_io 1, local_direct_faults 1,
+    code_analysis_graph 1, and the wall-clock code_analysis_shallow parser test), none in a touched module.
+    make lint: passed. make docs-dependencies: no change.'
   siblings: 'Fixed: the double argument-summary measure in Go (policy.go) and Python (_bound_arguments).
     Ruled out: runtime/src/contractor_runtime/worker/state.py _fit_snapshot already uses a binary search
     (logarithmic encodes) under its own WRK State rule; registry.go heartbeatOrder (128) and stageReservationTombstones
@@ -275,11 +321,14 @@ verification:
     into Go, so equality is exactly the column''s own equality; a replay that writes 5e-05 where the first
     delivery wrote 0.00005 is equal too, which is harmless because both denote the same value. The number
     range is checked in validation next to the size bound rather than in decoding, so a violation gets the
-    same invariant class in Go and Python and both sides pin it in the shared fixtures. The text read back
-    from a stored report is accepted at up to about 52 times its byte bound instead of bounding the
-    expanded digits, because a tighter bound would also change what the Runtime writes for values such as
-    1e+300. Reopen if a reader of stored reports must hold less memory per stage, or if stored tool calls
-    are exposed through an API.
+    same invariant class in Go and Python and both sides pin it in the shared fixtures.
+    Round 3 replaces the earlier acceptance of a read-back of about 52 times the byte bound: LIM-OBS-16
+    bounds the expanded digits at the source, so a stored report reads back as at most 4.4 times its bound.
+    Alternatives rejected: selecting only counters in the readers (Run detail and the replay still decode
+    whole documents, and the expansion would remain model-steerable) and re-encoding numbers on read (lossy
+    beyond 2^53). Cost: the Runtime now writes the marker for values such as 1e+300 or 5e-324 that it kept
+    before, which a security tool argument summary does not need. Reopen if a tool needs argument numbers
+    outside -7..19 in its summary; then widen the range only with a new measurement and OBS-R110 update.
     Round 2: this task also repairs a reader defect that predates it. The private 1 MiB check in
     AllocationFinalReport.UnmarshalJSON came from 0b6d4f1d, V32-001 (performance contracts and settings).
     It applied to stored reports and made a report trimmed to the bound unreadable, even with plain strings.
@@ -294,13 +343,14 @@ verification:
     OBS-R31 matcher).'
   new_spec_ids:
   - OBS-R110 (docs/spec/platform/observability.md) and observability invariant 9
-  - LIM-OBS-16 (docs/spec/platform/limits.md, tool argument numbers finite as a float64 with an exponent
-    between -324 and 308)
+  - LIM-OBS-16 (docs/spec/platform/limits.md, each tool argument number zero or with a leading-digit and
+    written decimal exponent between -7 and 19; other numbers become "[NUMBER_OUT_OF_RANGE]")
   amended_spec_ids:
   - OBS-R9 (a replay matches when the documents are equal as jsonb)
   - OBS-R27 (placeholder shape, sensitive-name subset, idempotent second redaction)
-  - OBS-R42 (empty arguments absent, number literals kept, LIM-OBS-16 range, [NON_FINITE] integers)
-  - OBS-R110 (byte bounds measure received JSON; stored reports pass every other rule; measured read-back
-    factor and memory cost accepted with a reopen condition)
+  - OBS-R42 (empty arguments absent, number literals kept, LIM-OBS-16 range and its rationale, the one
+    [NUMBER_OUT_OF_RANGE] marker on both sides)
+  - OBS-R110 (byte bounds measure received JSON; stored reports pass every other rule; read-back bounded at
+    4.4 times the byte bound with measured factors, no accepted risk)
   - FAIL-OBS-1 (ambiguous delivery outcome)
-  - observability invariants 7 and 9 (new tests)
+  - observability invariants 7 and 9 (new and renamed tests)
