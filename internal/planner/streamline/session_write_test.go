@@ -3,6 +3,7 @@ package streamline
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	"github.com/grauwolf32/contractor/internal/runstore"
 	"google.golang.org/adk/model"
 	"google.golang.org/genai"
 )
@@ -197,4 +199,33 @@ func finishCalled(report reporting.ExecutionReport) bool {
 		}
 	}
 	return false
+}
+
+// Plan progress or a fact that the session store refuses as invalid, such as
+// a state over its stored size bound, ends the invocation with the
+// non-retryable planner_session_rejected, never the retryable
+// planner_plan_persistence_failed that an outage returns (PLN-R106).
+func TestStreamlineRejectedPlanWriteIsNotRetryable(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		cause     error
+		code      string
+		retryable bool
+	}{
+		{name: "store outage", cause: errors.New("database write failed"),
+			code: "planner_plan_persistence_failed", retryable: true},
+		{name: "store rejection", cause: fmt.Errorf("append Planner event: %w: planner_session_state_size", runstore.ErrInvalid),
+			code: "planner_session_rejected", retryable: false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			state := newExecutionState(DefaultLimits())
+			failure := (&streamlinePlanner{}).planPersistenceFailure(state, test.cause)
+			if failure.Code != test.code || failure.Retryable != test.retryable {
+				t.Fatalf("failure = %+v, want %s retryable=%t", failure, test.code, test.retryable)
+			}
+			if state.failure == nil || state.failure.Code != test.code || !errors.Is(state.failure, test.cause) {
+				t.Fatalf("state failure = %v, want %s wrapping the cause", state.failure, test.code)
+			}
+		})
+	}
 }

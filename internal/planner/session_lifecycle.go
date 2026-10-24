@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -184,14 +185,24 @@ func completionRetryable(completion Completion) bool {
 
 // SessionError classifies a durable session failure during operation: a
 // session that another invocation still runs is
-// planner_invocation_in_progress (PLN-R107), every other failure
-// planner_session_unavailable (PLN-R106). Both are retryable.
+// planner_invocation_in_progress (PLN-R107), a write the session store
+// refused, such as a state over its stored size bound, is the non-retryable
+// planner_session_rejected, and every other failure the retryable
+// planner_session_unavailable (PLN-R106).
 func SessionError(operation string, cause error) *Error {
 	if errors.Is(cause, ErrInvocationInProgress) {
 		return NewError(
 			"planner_invocation_in_progress",
 			"Planner invocation is already in progress and cannot be resumed",
 			true,
+			cause,
+		)
+	}
+	if SessionWriteRejected(cause) {
+		return NewError(
+			"planner_session_rejected",
+			"Planner durable session rejected the write during "+operation,
+			false,
 			cause,
 		)
 	}
@@ -212,4 +223,11 @@ func EndSessionSpan(span telemetry.PlannerSpan, sessionError *Error) {
 		outcome = "unavailable"
 	}
 	span.End(outcome, telemetry.PlannerSpanAttributes{ErrorCode: sessionError.Code})
+}
+
+// SessionWriteRejected reports a session write that the store refused as
+// invalid, such as a value over a stored size bound: a deterministic
+// rejection that repeating the same write cannot change (PLN-R106).
+func SessionWriteRejected(err error) bool {
+	return errors.Is(err, runstore.ErrInvalid)
 }

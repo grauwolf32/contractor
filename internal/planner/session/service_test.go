@@ -433,6 +433,9 @@ func (s *memoryStore) StartPlanner(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.startCalls++
+	if err := checkStoredStateSize(params.InitialState); err != nil {
+		return err
+	}
 	if s.execution.State != runstore.StagePreparing {
 		return &runstore.StateConflictError{
 			Resource: "StageExecution", ID: params.StageExecutionID,
@@ -492,6 +495,9 @@ func (s *memoryStore) AppendPlannerEvent(
 ) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := checkStoredStateSize(params.NewState); err != nil {
+		return err
+	}
 	if params.SequenceNumber != s.session.NextEventSequence {
 		return runstore.ErrConflict
 	}
@@ -500,6 +506,44 @@ func (s *memoryStore) AppendPlannerEvent(
 	s.session.State = append(json.RawMessage(nil), params.NewState...)
 	s.session.NextEventSequence++
 	return nil
+}
+
+// checkStoredStateSize refuses a session state as the
+// planner_session_state_size CHECK does: on the length of its jsonb text,
+// which puts a space after every member colon and element comma, so compact
+// JSON within the Server's pre-check can still exceed it.
+func checkStoredStateSize(state json.RawMessage) error {
+	if storedJSONBTextBytes(state) > 2*1024*1024 {
+		return fmt.Errorf("%w: planner_session_state_size", runstore.ErrInvalid)
+	}
+	return nil
+}
+
+func storedJSONBTextBytes(value json.RawMessage) int {
+	size, inString, escaped := 0, false, false
+	for _, current := range value {
+		switch {
+		case inString:
+			size++
+			switch {
+			case escaped:
+				escaped = false
+			case current == '\\':
+				escaped = true
+			case current == '"':
+				inString = false
+			}
+		case current == '"':
+			size++
+			inString = true
+		case current == ' ' || current == '\t' || current == '\n' || current == '\r':
+		case current == ':' || current == ',':
+			size += 2
+		default:
+			size++
+		}
+	}
+	return size
 }
 
 func (s *memoryStore) snapshotEvents() []runstore.AppendPlannerEventParams {

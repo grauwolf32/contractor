@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V25-008
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 67c0d2bdf53f8deeacf26525b5a66e087621c4bc
 depends_on: []
 languages: [go, sql]
 goal: >-
@@ -125,3 +126,68 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A2]
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go from /private/tmp/contractor-go-darwin; PostgreSQL 17.11 database
+    contractor_test_v414_sql with disposable per-test schemas; branch claude/v414-sql with main
+    (17245309) merged; TMPDIR set to a path without symlinked components, because the filesystem
+    blob store rejects the /var -> /private/var symlink of the macOS default TMPDIR (unrelated to
+    this change).
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://.../contractor_test_v414_sql go test
+      -tags=integration -count=1 ./internal/auditstore/... ./internal/auditcontroller/...
+      ./internal/rundeletion/... passed twice in a row (every package with tests ok).
+    - make lint passed (after make docs-dependencies for the changed spec document).
+    - go test -count=1 ./internal/persistence/ ./internal/archtest/... passed (SQL placement and layers).
+    - >-
+      Run with -v, TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns and
+      TestPostgresAuditDeletionProbeTraversesRunsInOriginalOrder report PASS and no SKIP; the scale
+      test also passed three times in a row on its own.
+  database_tests_configured: true
+  evidence:
+    - >-
+      A1: with 20,000 and then 40,000 executions of the deleting Audit whose Runs are marked deleted,
+      and 15,000 and then 30,000 live child Runs of another Audit, the next-live-Run probe reads 1
+      execution and 3 workflow_runs entries (the Run, plus the 2 lowest and highest
+      workflow_runs_pkey entries the planner reads while planning, confirmed with a plan-only
+      EXPLAIN) with a live tail of 51, and 0 executions and 2 Run entries once drained, in Custom
+      and Generic plans. Blocks go from 9 to 10 (live) and stay at 5 (drained). The purge gate reads
+      the same: 1 and 3 (live), 0 and 2 (drained), 8 to 13 blocks.
+    - >-
+      A3 and the purge-gate sibling: the original probe reads 35,051 -> 70,051 executions and
+      15,053 -> 30,053 Runs (live) and 35,001 -> 70,001 and 15,002 -> 30,002 (drained). The
+      original purge gate hashes every Run (15,053 -> 30,053 with a live Run left) and reads every
+      execution once drained (35,001 -> 70,001). purgeClaimedAudit evaluates the gate on every purge
+      pass, so the gate now uses the same probe. The test requires both original statements to
+      exceed the budget.
+    - >-
+      A2: over 9 child Runs (ties in created_at broken by execution_id, 3 executions with Runs
+      marked deleted, a Run deleted out of order, a Run removed without its mark, 5 Runs of
+      another Audit), the rewritten probe returns the original statement's Run at every step. A
+      lost claim gives ErrClaimLost at every step and after the drain. The rewritten and the
+      original purge gate, and PurgeClaimed, fail while a child Run is left and pass once none is.
+      Removing the EXISTS probe or the created_at key from the ORDER BY makes the test fail at step 4.
+  decisions:
+    - >-
+      run_deleted_at leads the probe's ORDER BY. PostgreSQL does not treat an IS NULL condition
+      as making the column constant, so ORDER BY (created_at, execution_id) alone did not match
+      audit_executions_audit_run_cleanup_idx. The first rewrite (checkpoint 6ee71d39) still sorted
+      after a sequential scan and a hash of every Run: 35,051 execution and 15,053 Run reads.
+    - >-
+      The EXISTS probe of workflow_runs by primary key stays, so the meaning is still "the earliest
+      execution whose Run still exists". The run_deleted_at IS NULL condition only skips executions
+      whose Run is gone. internal/rundeletion/deleter.go:91 marks the execution in the transaction
+      that deletes the Run. It is the only production DELETE of workflow_runs: Project deletion has
+      no cascade to workflow_runs, as migration 000037 records. The deferred
+      contractor_require_matching_audit_run check rejects a mark while the Run exists. Run IDs are
+      random (randomid.New("run_") or the Controller's NewID), so a marked execution's Run is
+      not re-created. The probe bound relies on every Run deletion marking its execution; a Run
+      removed without its mark (only test fixtures do this, for example deleteChildRunForPurge)
+      costs one extra read and is still skipped correctly.
+    - >-
+      The probe is one constant, firstLiveChildRunSQL, used by both nextLiveRunForDeletionSQL
+      and purgeClaimedAuditSQL, so the two cannot drift apart. No index was added. Sibling joins
+      of executions and Runs in execution_sql.go (bind and observe) are keyed by execution_id and
+      were ruled out.
