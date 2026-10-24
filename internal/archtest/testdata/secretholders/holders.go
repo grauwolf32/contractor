@@ -46,11 +46,11 @@ type RedactingHolder struct {
 	token contracts.SecretString
 }
 
-func (h RedactingHolder) String() string                { return "RedactingHolder([REDACTED])" }
-func (h RedactingHolder) GoString() string              { return h.String() }
+func (h RedactingHolder) String() string                 { return "RedactingHolder([REDACTED])" }
+func (h RedactingHolder) GoString() string               { return h.String() }
 func (h RedactingHolder) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, h.String()) }
-func (h RedactingHolder) MarshalJSON() ([]byte, error)  { return json.Marshal(h.String()) }
-func (h RedactingHolder) LogValue() slog.Value          { return slog.StringValue(h.String()) }
+func (h RedactingHolder) MarshalJSON() ([]byte, error)   { return json.Marshal(h.String()) }
+func (h RedactingHolder) LogValue() slog.Value           { return slog.StringValue(h.String()) }
 
 // Finding: fmt cannot call RedactingHolder's methods through an unexported
 // field, and %t follows one pointer.
@@ -114,7 +114,9 @@ type pointerFormatted struct {
 	token contracts.SecretString
 }
 
-func (h *pointerFormatted) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, "[REDACTED]") }
+func (h *pointerFormatted) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "[REDACTED]")
+}
 
 // Accepted: a type holding a lock may redact through its pointer only.
 type lockedHolder struct {
@@ -137,11 +139,11 @@ type handle struct {
 	digest [32]byte
 }
 
-func (h handle) String() string                { return "handle([REDACTED])" }
-func (h handle) GoString() string              { return h.String() }
+func (h handle) String() string                 { return "handle([REDACTED])" }
+func (h handle) GoString() string               { return h.String() }
 func (h handle) Format(state fmt.State, _ rune) { _, _ = io.WriteString(state, h.String()) }
-func (h handle) MarshalJSON() ([]byte, error)  { return json.Marshal(h.String()) }
-func (h handle) LogValue() slog.Value          { return slog.StringValue(h.String()) }
+func (h handle) MarshalJSON() ([]byte, error)   { return json.Marshal(h.String()) }
+func (h handle) LogValue() slog.Value           { return slog.StringValue(h.String()) }
 
 // Accepted: holds only the non-secret handle.
 type handleHolder struct {

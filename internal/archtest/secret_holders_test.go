@@ -64,6 +64,9 @@ type secretHolderRules struct {
 	nonSecret map[string]string
 	// exceptions are holders the guard does not check, with the reason.
 	exceptions map[string]string
+	// plainFields are fields, named type.field, whose secret-like name holds
+	// no secret value, with the reason.
+	plainFields map[string]string
 }
 
 var productionSecretHolderRules = secretHolderRules{
@@ -98,6 +101,11 @@ var productionSecretHolderRules = secretHolderRules{
 			"inside RuntimeSettings.RevealJSON only (SEC-R88); it carries the plaintext by design",
 		"internal/scanplan.revealedOptions": "in-process JSON form of the normalization round trip, " +
 			"built and encoded inside one call; it carries the plaintext by design",
+	},
+	plainFields: map[string]string{
+		"internal/localpki.Paths.PrivateKey": "the path of the private key file, not the key",
+		"internal/mtls.Files.PrivateKey":     "the path of the private key file, not the key",
+		"internal/mtlstest.Files.PrivateKey": "the path of the private key file, not the key",
 	},
 }
 
@@ -404,6 +412,15 @@ func checkSecretHolders(packages *typedPackages, rules secretHolderRules) []stri
 			problems = append(problems, fmt.Sprintf("non-secret type %s names no type; fix or delete the entry", key))
 		}
 	}
+	for _, key := range sortedKeys(rules.plainFields) {
+		typeKey := key[:max(strings.LastIndex(key, "."), 0)]
+		if rules.plainFields[key] == "" {
+			problems = append(problems, fmt.Sprintf("plain field %s needs a reason", key))
+		}
+		if defined[typeKey] == nil {
+			problems = append(problems, fmt.Sprintf("plain field %s names no type; fix or delete the entry", key))
+		}
+	}
 	for _, key := range sortedKeys(rules.exceptions) {
 		if rules.exceptions[key] == "" {
 			problems = append(problems, fmt.Sprintf("exception %s needs a reason", key))
@@ -580,13 +597,18 @@ func (c *secretHolderChecker) holderPath(root *types.Named) (path, target string
 		if !top && exported && types.Implements(t, c.formatter) {
 			return "", ""
 		}
+		owner := ""
+		if named, ok := t.(*types.Named); ok {
+			owner = c.key(named.Origin().Obj())
+		}
 		switch underlying := t.Underlying().(type) {
 		case *types.Struct:
 			for index := range underlying.NumFields() {
 				field := underlying.Field(index)
 				fieldExported := exported && field.Exported()
 				fieldPath := path + "." + field.Name()
-				if isPlainSecretField(field) && (!fieldExported || !isWireField(underlying.Tag(index))) {
+				_, notSecret := c.rules.plainFields[owner+"."+field.Name()]
+				if !notSecret && isPlainSecretField(field) && (!fieldExported || !isWireField(underlying.Tag(index))) {
 					return fieldPath, "the plain-text secret field "
 				}
 				if found, target := walk(field.Type(), fieldExported, pointers, fieldPath, false); target != "" {

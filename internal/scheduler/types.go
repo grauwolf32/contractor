@@ -3,6 +3,8 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"log/slog"
 	"time"
 
@@ -327,6 +329,11 @@ type Options struct {
 	Clock              Clock
 	NewID              func(string) (string, error)
 	Logger             *slog.Logger
+}
+
+// Format redacts the options as a whole for every verb (SEC-R88): TelemetrySecrets holds secret values in plain text.
+func (Options) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "scheduler.Options([REDACTED])")
 }
 
 // RuntimeTransportSettings holds the static endpoints needed when materializing

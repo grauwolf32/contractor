@@ -64,6 +64,11 @@ type Invoker struct {
 	wait func(context.Context, time.Duration) error
 }
 
+// Format redacts the invoker as a whole for every verb (SEC-R88): through the unexported tlsConfig field fmt would print the Control Plane's private key.
+func (Invoker) Format(state fmt.State, _ rune) {
+	_, _ = io.WriteString(state, "a2a.Invoker([REDACTED])")
+}
+
 func NewMTLS(files mtls.Files, timeout time.Duration, options Options) (*Invoker, error) {
 	if timeout <= 0 {
 		return nil, fmt.Errorf("A2A request timeout must be positive")
