@@ -1,0 +1,203 @@
+schema_version: '1.0'
+id: V407-004
+title: Batch preparing Audit list hydration without changing the response contract
+milestone: server-runtime-review-2026-10
+epic: audits
+kind: chore
+introduced_by: V62-003
+priority: P2
+status: completed
+implementation_commit: 3cd9826c7d5a3676f6cff53a712d6ea555b76736
+depends_on: []
+languages:
+- go
+goal: Hydrate preparation fields for an Audit page with bounded set reads while preserving the complete
+  existing list response and revision fences.
+context:
+  review: docs/research/2026-10-23-server-runtime-review.md (corrected dispositions, verified on main
+    dc7012e8; recheck source lines before implementation)
+  specification: docs/spec/api/public-api.md
+  validation: Revalidated against main dc7012e8 on 2026-10-23. N+1 preparation hydration is confirmed.
+    The claimed per-row inventory payload downloads are disproved by mutually exclusive phase guards;
+    no such download needs fixing.
+  finding: internal/httpapi/public/audit_handlers.go:275-280 calls auditDetailReadModel for each preparing
+    or inventory-phase Audit. That helper decodes the profile and calls Preparation, GeneratedInventory
+    and Get (audit_preparation.go:20-28,46). Preparation performs Get, role/execution reads and a revision
+    check (auditservice/preparation.go:20-28,58), so a 200-row preparing page incurs repeated store calls.
+    GeneratedInventory already returns nil for phase != rounds before any inventory link/payload read
+    (generated_inventory.go:36-47); the list never enters that payload-reading phase. Non-preparing list
+    rows already use auditReadModel directly. The opportunity is batched preparation projection, not removal
+    of required fields or creation of a narrower incompatible AuditSummary response.
+  siblings: Both owner and project lists share this path. Keep GET /v1/audits/{id} detail behavior and
+    the existing GeneratedInventory phase guard. Preserve preparation status/output descriptors and every
+    currently exposed list field.
+plan:
+- Capture deterministic statement counts and response fixtures for mixed pages and 200 preparing Audits,
+  including bounded preparation roles/attempts and retained output descriptors.
+- Add a bounded page hydration reader keyed by the listed Audit IDs and revisions. Retrieve role/execution
+  data set-wise, retain owner/project authorization and stale-revision detection, and bound both rows
+  and bytes using the enclosing page and per-Audit contracts.
+- Use the batched hydration result in the existing list response model. Preserve field presence, preparation
+  statuses, output descriptors, pagination and all currently absent GeneratedInventory values; leave detail
+  GET behavior unchanged.
+- Prove constant set-query counts per allowed page/batch with a PostgreSQL tracer and compare full responses
+  with baseline fixtures. Exercise concurrent revision changes and unavailable storage without silently
+  returning mixed revisions.
+- Keep OpenAPI and generated clients unchanged if the response contract is unchanged. Run public API and
+  UI verification to prove compatibility; any necessary schema edit must be additive and generated normally.
+scope:
+  in:
+  - Batched hydration of existing preparation fields for owner/project Audit lists.
+  - Real-store statement counts, response parity and revision-conflict coverage at the maximum page size.
+  out:
+  - Replacing existing list items with a narrower public summary shape or dropping optional fields that
+    current callers receive.
+  - Claiming or fixing inventory payload downloads on the list path, which already avoids them.
+  - Changing detail GET, public pagination limits, stale-revision semantics or UI vocabulary.
+acceptance_criteria:
+- id: A1
+  text: A 200-row preparing page hydrates required preparation data through a documented fixed number
+    of set queries per bounded batch rather than per-row service calls; the deterministic count test improves
+    on the recorded baseline.
+- id: A2
+  text: Full owner/project list response fixtures preserve every existing field and preparation output/status,
+    pagination and authorization behavior for mixed phases. GeneratedInventory remains absent where the
+    current phase guard returns nil.
+- id: A3
+  text: Revision races produce the existing conflict outcome, and transient storage errors retain their
+    classification; the page does not combine incompatible revisions or exceed documented row/byte bounds.
+- id: A4
+  text: Public API verification and the UI suite pass without a narrowing contract change; detail GET
+    behavior and its inventory reads remain unchanged.
+tests:
+- command: test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1 ./internal/httpapi/public/...
+    ./internal/auditservice/... ./internal/auditstore/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make verify-public-api
+  covers:
+  - A2
+  - A4
+- command: make ui-verify
+  covers:
+  - A2
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+verification:
+  date: '2026-10-23'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Node 24.20 and Runtime venv; local
+    PostgreSQL 17.11 database contractor_test_b2 with isolated per-test
+    schemas; base 7023e96e, then claude/review-v407-v409 (f36507d9) merged
+    in f5ed0b03.
+  re_verification: >-
+    The finding held on base 7023e96e: listProjectAudits called
+    auditDetailReadModel for every preparing or inventory item, which read
+    Preparation (Get, roles, executions, revision Get), GeneratedInventory
+    (nil before rounds) and Get again. GeneratedInventory never reached an
+    inventory link or payload on the list path, as the validation says. The
+    per-row hydration came with 11471640, the implementation of V62-003, so
+    introduced_by names V62-003.
+  review: >-
+    The first implementation (f9a711f1) read the page and its preparation in
+    two READ COMMITTED statements tied by a revision fence, so any event on a
+    listed preparing or inventory Audit between them failed the GET with an
+    undeclared 409 and a purge with 500; the review measured about 5% of 5 s
+    polls failing with ten preparing Audits. The base had the same defect
+    with a longer window. 1c2bf58e removes the fence and reads both
+    statements in one read-only REPEATABLE READ snapshot. The re-review then
+    measured about 535 ms idle in transaction for a 201-row page, because
+    the selection callback decoded every pinned profile between the two
+    statements; 3cd9826c checks only the scanned phase inside the snapshot
+    and applies the selection after COMMIT.
+  regression_before_fix: >-
+    TestSharedPostgresAuditListsHydratePreparationInFixedStatements, copied
+    onto base 7023e96e in a temporary worktree, failed in every subtest: a
+    200-item preparing page took 1201 statements (per-row hydration of the
+    same page 1200), the 12-item mixed page 61. Its snapshot subtest fails
+    on f9a711f1 with 409 and, with READ COMMITTED in place of the snapshot
+    transaction, with 500 (the purged Audit is missing from the second
+    statement). Its selection subtest fails on 1c2bf58e: the selection ran
+    201 times before COMMIT on a 201-row fetch. Dropping accepted outputs in
+    the scanner fails the mixed page parity.
+  change: >-
+    QueryStore.ListPreparedPage reads the list statement and, when a listed
+    Audit's phase shows preparation (AuditPhase.ShowsPreparation: preparing
+    or inventory, which the database ties to a pinned prepare role), one
+    preparation statement (pinned prepare roles, attempt counts and latest
+    attempts) in snapshotTransaction through persistencepostgres.Within, as
+    ListEventsPage and GetReconcileSnapshot do; nothing but that phase check
+    runs between the statements. The status CASE and attempt
+    joins are shared SQL fragments with ListPreparationRoles, and
+    projectPreparationRole is the one Go projection for the detail and list
+    reads. Service.ListPage replaces Service.List and PreparationPage and
+    applies the caller's selection after COMMIT, refusing one outside those
+    phases; the lists pass auditListHydratesPreparation (that phase check
+    plus a decodable profile with a prepare role), and the detail read keeps
+    its statements. ASC-R150 records the snapshot, statement
+    count, bounds (LIM-API-18 page plus the next-page row, LIM-ASC-2 roles,
+    latest attempt only, LIM-ASC-5 outputs) and outcomes. OpenAPI and
+    generated clients are unchanged.
+  commands:
+    - >-
+      test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -count=1
+      ./internal/httpapi/public/... ./internal/auditservice/... ./internal/auditstore/...
+      passed on 3cd9826c's tree (public 102s, events 5s, auditservice 193s,
+      pgstore 56s), and before on 1c2bf58e's.
+    - make verify-public-api passed on 3cd9826c and 1c2bf58e.
+    - >-
+      make ui-verify passed on 1c2bf58e (192 files, 2371 tests and 1
+      expected fail; build ok); 3cd9826c changes no UI or OpenAPI. A first
+      run concurrent with the Go suites timed out one workflows test at 5 s;
+      it passed alone and in the full rerun.
+    - make lint passed on 3cd9826c.
+  database_tests_configured: true
+  acceptance:
+    A1: >-
+      The public PostgreSQL test counts statements through a pgx tracer: the
+      owner list of 200 preparing Audits and of one take 4 (BEGIN, list,
+      preparation, COMMIT), a Project list 5 (with the Project read), a page
+      without preparing items 3; the recorded per-row baseline is 1201. The
+      store test reads a full fetch of 201 preparing Audits in exactly two
+      data statements, and a draft page in one. On a 201-row fetch the
+      selection runs 201 times, none of them before COMMIT.
+    A2: >-
+      Owner pages of 200 preparing Audits and of 12 mixed items (draft,
+      pending, intent, submitted, retrying, exhausted, accepted, inventory,
+      paused, failed, rounds) and the Project page equal the old per-row
+      hydration byte for byte and validate against AuditPage; cursor
+      pagination carries over; each item's preparation equals its detail
+      GET; no item has generatedInventory; only selected items are
+      hydrated. Another owner's list returns no Audits and no preparation.
+    A3: >-
+      A pause, a new prepare attempt and a full purge committed between the
+      list and the preparation statement leave the response byte-identical
+      to the one served before them (no 409, no 404, no mixed commits); the
+      next request shows them. A terminated backend returns 500 without
+      items; a 40001 failure stays IsTransactionConflict in the store and
+      maps to 503 storage_transaction_conflict in the handler. Bounds of
+      1..201 unique identities, 16 roles per Audit and 128 outputs per
+      attempt are checked on read.
+    A4: >-
+      make verify-public-api and make ui-verify pass with OpenAPI and
+      generated clients unchanged; auditDetailReadModel keeps its
+      Preparation, GeneratedInventory and revision reads.
+  dispositions:
+    - >-
+      V371-009 (status unchanged) is covered by this change: one preparing
+      Audit and 200 take the same statements, every item shows the
+      preparation its detail GET shows, each item's preparation is read in
+      the list's snapshot without reading each Audit again, and the count
+      test fails on base 7023e96e (not run on a07f5e9 itself).
+  declined:
+    - >-
+      The list and detail operations still do not declare 409 in OpenAPI.
+      The lists no longer return it for concurrent changes; the detail
+      read's revision check is unchanged and out of scope.

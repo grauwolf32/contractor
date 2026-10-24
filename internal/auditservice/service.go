@@ -176,12 +176,6 @@ func (s *Service) Get(
 	return s.reads().Get(ctx, ownerID, auditID)
 }
 
-func (s *Service) List(
-	ctx context.Context, params auditstore.ListParams,
-) ([]auditstore.Audit, error) {
-	return s.reads().List(ctx, params)
-}
-
 func (s *Service) ListItems(
 	ctx context.Context, params auditstore.ListItemsParams,
 ) ([]auditstore.Item, error) {
