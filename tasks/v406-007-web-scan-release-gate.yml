@@ -74,7 +74,7 @@ lifecycle:
   retention: Acceptance logs record command/outcome/revision; temporary resources are removed after collection.
 acceptance_criteria:
 - id: A1
-  given: all six implementation tasks completed on the branch
+  given: all implementation tasks completed on the branch
   when: deterministic gates run against disposable PostgreSQL
   then: web scan, once-uploaded rulepack and recoverable/cancellable sweep journeys pass through real
     Server/Runtime/browser boundaries
@@ -94,6 +94,8 @@ tests:
   - A1
   - A2
   - A3
+- command: make test-nuclei-web-installed
+  covers: *id001
 - command: make test-scan-e2e
   covers: *id001
 - command: make test-wire-cross-language
@@ -103,6 +105,12 @@ tests:
 - command: make ui-verify
   covers: *id001
 - command: make test-ui-stack
+  covers: *id001
+- command: make verify-architecture
+  covers: *id001
+- command: make test-config
+  covers: *id001
+- command: make lint
   covers: *id001
 - command: make release-verify
   covers: *id001

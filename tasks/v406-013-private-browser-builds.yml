@@ -27,7 +27,7 @@ scope:
   - Production static-server caching changes, relaxed errors or increased Eval timeouts, model selection and Studio features.
 failure_outcomes:
 - operation: Build and serve test-owned UI assets
-  permanent: Missing build inputs or an incomplete prebuilt snapshot fail before browser execution; no fallback to a shared live directory.
+  permanent: Missing build inputs or an unreadable prebuilt snapshot fail setup; missing assets fail the gate. No fallback to a shared live directory.
   retryable: Existing bounded process readiness only.
   ambiguous: No durable application mutation; retain ordinary failure diagnostics and evidence.
   cancelled: Join the Node/browser processes before removing their test-owned directory.
