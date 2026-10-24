@@ -31,6 +31,7 @@ from contractor_runtime.adapters.host import (
     RuntimeAdapterMetricsState,
 )
 from contractor_runtime.contracts import InteractshSettings
+from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS
 from contractor_runtime.strict_json import strict_json_loads as loads
 
 # LIM-INT-1..8, docs/spec/platform/limits.md. Upstream protocol is pinned by
@@ -280,7 +281,7 @@ class InteractshClient:
         except InteractshError:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
             raise
-        except (httpx.HTTPError, OSError):
+        except HTTP_TRANSPORT_ERRORS:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
             raise InteractshError("interactsh_request_failed", retryable=True) from None
         except (ValueError, TypeError, RecursionError):

@@ -1,4 +1,4 @@
-"""Bounded reads of streamed httpx response bodies, including content decoding.
+"""Bounded reads of streamed httpx response bodies, and the httpx transport failure family.
 
 httpx decodes a whole received chunk at once, so a single 64 KiB gzip chunk can
 inflate to tens of MiB before a caller sees it and checks its limit. This reader
@@ -15,6 +15,13 @@ import httpx
 # The content codings this reader decodes. They match httpx's decoders for the
 # locked dependency set; any other coding is kept exactly as received.
 DECODED_CONTENT_CODINGS = frozenset({"identity", "gzip", "deflate"})
+
+# The transport failure family of one httpx exchange, sending or reading:
+# httpx's own errors, and OSError, which httpcore's network backends let
+# escape unmapped (for example ssl.SSLError for a corrupt TLS record). Every
+# Runtime client of a target or service classifies exactly this family as a
+# transport failure; any other exception is an implementation failure.
+HTTP_TRANSPORT_ERRORS: tuple[type[Exception], ...] = (httpx.HTTPError, OSError)
 
 
 class BodyTooLarge(Exception):

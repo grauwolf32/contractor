@@ -28,6 +28,7 @@ from contractor_runtime.core.process import (
     run_command,
 )
 from contractor_runtime.core.target_policy import TargetDenied, TargetPolicy
+from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS
 
 MAX_SUBPROCESS_ARGUMENTS = 128
 MAX_SUBPROCESS_ARGUMENT_BYTES = 4096
@@ -175,7 +176,7 @@ class ProxyHTTPClient:
             raise
         except ProxyRequestError:
             raise
-        except (httpx.HTTPError, OSError):
+        except HTTP_TRANSPORT_ERRORS:
             # Any other exception is an implementation failure outside the
             # route transport and keeps its type. Inside the route transport,
             # which the model Gateway shares, every failure is a route failure.

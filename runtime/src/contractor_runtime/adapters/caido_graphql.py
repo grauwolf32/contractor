@@ -22,7 +22,7 @@ from contractor_runtime.adapters.host import (
     RuntimeAdapterMetricsState,
 )
 from contractor_runtime.contracts import CaidoSettings, RuntimeAdapterRef
-from contractor_runtime.http_body import BodyTooLarge, read_limited_body
+from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS, BodyTooLarge, read_limited_body
 from contractor_runtime.strict_json import strict_json_loads
 
 MAX_CAIDO_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -321,8 +321,7 @@ class CaidoGraphQLClient:
         except CaidoClientError as error:
             metrics.record_operation(succeeded=False, error_code="request_failed")
             raise error from None
-        except (httpx.HTTPError, OSError):
-            # The documented transport family, as for the Interactsh adapter.
+        except HTTP_TRANSPORT_ERRORS:
             metrics.record_operation(succeeded=False, error_code="request_failed")
             raise CaidoClientError("caido_request_failed", retryable=True) from None
         except Exception:

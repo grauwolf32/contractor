@@ -39,7 +39,7 @@ from contractor_runtime.core.target_policy import (
     validate_host_syntax,
 )
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics, elapsed_ms
-from contractor_runtime.http_body import BodyTooLarge, read_limited_body
+from contractor_runtime.http_body import HTTP_TRANSPORT_ERRORS, BodyTooLarge, read_limited_body
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
@@ -72,8 +72,13 @@ from contractor_runtime.toolsets.common.http_limits import (
     header_block_bytes,
 )
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
-from contractor_runtime.toolsets.http.cookies import CookieCheckpoint, matching_cookies
+from contractor_runtime.toolsets.http.cookies import (
+    CookieCheckpoint,
+    extract_sendable_cookies,
+    matching_cookies,
+)
 from contractor_runtime.toolsets.http.errors import HTTPToolError
+from contractor_runtime.toolsets.http.fields import is_cookie_pair, is_field_value
 from contractor_runtime.toolsets.http.transport import PolicyHTTPTransport
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -477,9 +482,9 @@ class _HTTPSession:
                     "http_request_invalid": "request_invalid",
                 }.get(error.code, "transport_error")
                 raise
-            except httpx.HTTPError:
-                # A transport-family failure not already classified per hop,
-                # such as closing a response stream.
+            except HTTP_TRANSPORT_ERRORS:
+                # A transport failure not already classified per hop, such as
+                # closing a response stream.
                 captured.complete = False
                 captured.error = "transport_error"
                 raise HTTPToolError("http_request_failed") from None
@@ -569,7 +574,7 @@ class _HTTPSession:
                 )
             except asyncio.CancelledError:
                 raise
-            except (ProxyRequestError, httpx.TransportError, httpx.TimeoutException):
+            except (ProxyRequestError, *HTTP_TRANSPORT_ERRORS):
                 if current_method in _IDEMPOTENT_METHODS and retries + 1 < MAX_ATTEMPTS:
                     delay = _retry_delay(retries + 1, None, deadline)
                     if delay is not None:
@@ -580,7 +585,7 @@ class _HTTPSession:
 
             handoff = False
             try:
-                candidate_cookies.extract_cookies(response)
+                extract_sendable_cookies(candidate_cookies, response)
                 if (
                     response.status_code in _RETRYABLE_STATUS
                     and current_method in _IDEMPOTENT_METHODS
@@ -740,10 +745,10 @@ class _HTTPSession:
             # Connect-time and proxy-route denials share the pre-send code.
             raise HTTPToolError("http_target_denied") from None
         except Exception:
-            # Transport failures (httpx errors, the proxy route's failure) are
-            # classified and retried by the caller. Any other exception is an
-            # implementation failure and keeps its type; either way the
-            # retained attempt has no complete response.
+            # Transport failures (HTTP_TRANSPORT_ERRORS, the proxy route's
+            # failure) are classified and retried by the caller. Any other
+            # exception is an implementation failure and keeps its type; either
+            # way the retained attempt has no complete response.
             if attempt is not None:
                 attempt.error = "transport_error"
             raise
@@ -1019,7 +1024,7 @@ class _HTTPTool:
             secrets=self._session.metric_secrets,
             bound_error=lambda error: (
                 HTTPToolError(fallback)
-                if isinstance(error, (httpx.HTTPError, ProxyRequestError))
+                if isinstance(error, (ProxyRequestError, *HTTP_TRANSPORT_ERRORS))
                 else error
             ),
         )
@@ -1363,7 +1368,7 @@ def _headers(headers: Mapping[str, Any] | None) -> dict[str, str]:
         normalized = name.lower()
         if normalized in seen or normalized in _FORBIDDEN_REQUEST_HEADERS:
             raise HTTPToolError("http_request_invalid")
-        if not isinstance(raw_value, str) or any(char in raw_value for char in "\r\n\x00"):
+        if not isinstance(raw_value, str) or not is_field_value(raw_value):
             raise HTTPToolError("http_request_invalid")
         size = _request_utf8_size(raw_value)
         if size > MAX_HEADER_VALUE_BYTES:
@@ -1497,7 +1502,7 @@ async def _read_response_body(response: httpx.Response) -> bytes:
         return await read_limited_body(response, MAX_RESPONSE_BODY_BYTES)
     except BodyTooLarge:
         raise HTTPToolError("http_response_too_large") from None
-    except (httpx.HTTPError, UnicodeError):
+    except (*HTTP_TRANSPORT_ERRORS, UnicodeError):
         raise HTTPToolError("http_request_failed") from None
 
 
@@ -1558,6 +1563,7 @@ def _cookie_values(cookies: Mapping[str, Any]) -> dict[str, str]:
             or not isinstance(value, str)
             or _request_utf8_size(value) > MAX_HEADER_VALUE_BYTES
             or any(char in value for char in "\r\n\x00")
+            or not is_cookie_pair(name, value)
         ):
             raise HTTPToolError("http_request_invalid")
         result[name] = value
@@ -1595,7 +1601,7 @@ def _auth(
             set(auth) != {"kind", "token"}
             or not isinstance(bearer_token, str)
             or not 1 <= _request_utf8_size(bearer_token) <= MAX_HEADER_VALUE_BYTES
-            or any(char in bearer_token for char in "\r\n\x00")
+            or not is_field_value(bearer_token)
         ):
             raise HTTPToolError("http_request_invalid")
         return "bearer", None, bearer_token
