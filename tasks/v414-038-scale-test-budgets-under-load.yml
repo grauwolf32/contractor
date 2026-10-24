@@ -1,0 +1,70 @@
+schema_version: "1.0"
+id: V414-038
+title: "Keep the Audit claim and deletion-probe read budgets exact while other suites share the server"
+milestone: review-v407-v409-followups-2026-10
+epic: quality
+kind: defect
+introduced_by: V414-028
+priority: P1
+status: pending
+depends_on: []
+languages: [go]
+goal: >-
+  The read-budget tests of the Audit claim and the deletion probes measure
+  the same result whether or not other test packages hold snapshots on the
+  same PostgreSQL server, so a parallel make test-go cannot fail them.
+context:
+  specification:
+    - docs/testing/README.md
+  review: >-
+    Reported by every lane of the 2026-10-24 V410-V414 delivery (V414-008,
+    V414-018, V414-019, V414-030, V410-010, V411-001). The user asked on
+    2026-10-24 to file it and fix it next.
+  severity: low
+  finding: >-
+    TestPostgresAuditClaimReadsOnlyTheReconcilableAudits
+    (internal/auditstore/internal/pgstore/claim_scale_postgres_test.go,
+    V414-028) and TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns
+    (internal/auditstore/internal/pgstore/deletion_probe_postgres_test.go:315,
+    V414-029) read one to four index entries over their budget when other
+    packages run in parallel against the same server, and pass when the
+    package runs alone. While another session holds an old snapshot, VACUUM
+    cannot remove superseded index entries (for example in
+    workflow_runs_pkey and the audit_executions ranges outside the one the
+    deletion test already counts), and the scans read them. It also fails
+    without other lanes: on main e2823c0b, on an otherwise idle machine,
+    go test -tags=integration -count=1 ./cmd/... ./internal/... failed both
+    tests, because go test runs packages in parallel against one server, so
+    make test-go is red until this is fixed. AGENTS.md 3.5:
+    a test must be able to fail only for the property it checks.
+  siblings: >-
+    Every test in the repository that asserts a row or block budget from
+    pg_stat or EXPLAIN (ANALYZE, BUFFERS) on a fixture that updates or
+    deletes rows: the V414-019 held inbox tests (which already budget two
+    versions per receipt), V414-025/026 page tests, the claim scale tests.
+    Each is checked under a concurrent snapshot or ruled out with the
+    reason.
+  decision: >-
+    Choose with evidence between (1) counting the superseded entries of
+    every index the statement probes and adding them to the budget, as the
+    deletion test already does for one range, and (2) building each scale
+    fixture in a scratch database created per test, whose VACUUM no other
+    database's snapshot holds back (needs CREATEDB, as scripts/erd uses).
+    Record the choice and its reversal condition.
+scope:
+  in:
+    - "Make both tests independent of other sessions' snapshots by the chosen approach, without loosening the budget by a fixed slack."
+    - "A test or harness step that holds a concurrent snapshot in another database or session while the scale test runs and shows the budget still holds."
+    - "Check every sibling listed above."
+  out:
+    - "Changing the statements under test."
+acceptance_criteria:
+  - id: A1
+    text: "Both tests pass while another session holds an open snapshot on the same server, in a deterministic harness, and still fail with the pre-fix statements."
+  - id: A2
+    text: "Each sibling is made robust the same way or ruled out with the reason."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/auditstore/..."
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1, A2]
