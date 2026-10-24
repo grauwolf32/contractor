@@ -6,7 +6,7 @@ epic: execution-core
 kind: chore
 introduced_by: V8-001
 priority: P3
-status: pending
+status: in_progress
 depends_on:
 - V407-016
 languages:

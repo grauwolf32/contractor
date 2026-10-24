@@ -101,7 +101,7 @@ func (s *Service) update(
 	}
 	result := Decision{RetryAfterSeconds: s.policy.MaxDelay.Seconds()}
 	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if err := lockRun(ctx, tx, s.runs, runID, request.Terminal()); err != nil {
+		if _, err := lockRun(ctx, tx, s.runs, runID, request.Terminal()); err != nil {
 			return err
 		}
 		if !request.Terminal() {

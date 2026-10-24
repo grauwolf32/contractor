@@ -2311,31 +2311,48 @@ func (s *memorySchedulerStore) ListStageAllocationsBatch(
 	return result, nil
 }
 
+// MarkStageAllocationReleaseAttempt and MarkStageAllocationReleased mirror
+// the PostgreSQL markers: a blank ID refuses the call before anything is
+// marked, each named allocation whose release has not completed is marked, a
+// completed one is left as it is, and only a missing one is ErrNotFound,
+// without stopping the others.
 func (s *memorySchedulerStore) MarkStageAllocationReleaseAttempt(
-	_ context.Context, allocationID string,
+	_ context.Context, allocationIDs ...string,
 ) error {
-	for index := range s.allocations {
-		if s.allocations[index].AllocationID == allocationID {
-			now := time.Now().UTC()
-			s.allocations[index].ReleaseAttemptedAt = &now
-			return nil
-		}
-	}
-	return runstore.ErrNotFound
+	return s.markAllocations(allocationIDs, false)
 }
 
 func (s *memorySchedulerStore) MarkStageAllocationReleased(
-	_ context.Context, allocationID string,
+	_ context.Context, allocationIDs ...string,
 ) error {
-	for index := range s.allocations {
-		if s.allocations[index].AllocationID == allocationID {
-			now := time.Now().UTC()
-			s.allocations[index].ReleaseAttemptedAt = &now
-			s.allocations[index].ReleaseCompletedAt = &now
-			return nil
+	return s.markAllocations(allocationIDs, true)
+}
+
+func (s *memorySchedulerStore) markAllocations(allocationIDs []string, completed bool) error {
+	for _, allocationID := range allocationIDs {
+		if strings.TrimSpace(allocationID) == "" {
+			return runstore.ErrInvalid
 		}
 	}
-	return runstore.ErrNotFound
+	var failures []error
+	for _, allocationID := range allocationIDs {
+		index := slices.IndexFunc(s.allocations, func(allocation runstore.StageAllocation) bool {
+			return allocation.AllocationID == allocationID
+		})
+		if index < 0 {
+			failures = append(failures, fmt.Errorf("Stage allocation %q: %w", allocationID, runstore.ErrNotFound))
+			continue
+		}
+		if s.allocations[index].ReleaseCompletedAt != nil {
+			continue
+		}
+		now := time.Now().UTC()
+		s.allocations[index].ReleaseAttemptedAt = &now
+		if completed {
+			s.allocations[index].ReleaseCompletedAt = &now
+		}
+	}
+	return errors.Join(failures...)
 }
 
 // Memory persistence never publishes Project outputs, so nothing reads the

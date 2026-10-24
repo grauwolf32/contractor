@@ -16,8 +16,8 @@ import (
 // recovery wait of the Run changes.
 type RunStates interface {
 	// LockRun locks the row of Run runID until tx ends and returns the Run's
-	// state, or "" when there is no such Run.
-	LockRun(ctx context.Context, tx pgx.Tx, runID string) (string, error)
+	// state and owner, or "" for both when there is no such Run.
+	LockRun(ctx context.Context, tx pgx.Tx, runID string) (state, ownerID string, err error)
 	// EnterWaiting moves a running Run to waiting with reason code, the
 	// failure code of the blocked route, or gives a waiting Run that reason.
 	// A Run in any other state is left as it is.
@@ -34,13 +34,13 @@ type RunStates interface {
 // lockRun locks an active Run through runs. A cancelling Run still accepts
 // the terminal update of a granted attempt, so that cancellation
 // relinquishes its probe; a Run that does not exist accepts nothing.
-func lockRun(ctx context.Context, tx pgx.Tx, runs RunStates, runID string, terminalUpdate bool) error {
-	state, err := runs.LockRun(ctx, tx, runID)
+func lockRun(ctx context.Context, tx pgx.Tx, runs RunStates, runID string, terminalUpdate bool) (string, error) {
+	state, ownerID, err := runs.LockRun(ctx, tx, runID)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if !acceptsUpdate(state, terminalUpdate) {
-		return ErrUnavailable
+		return "", ErrUnavailable
 	}
-	return nil
+	return ownerID, nil
 }

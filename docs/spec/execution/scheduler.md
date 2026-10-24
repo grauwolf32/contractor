@@ -787,6 +787,27 @@ the Stage the grant names is terminal or unknown. A grant still named by an
 active Stage is left to that Stage's own release; the durable row is then
 marked released because the grant no longer exists.
 
+**SCH-R182.** One release of a Stage's allocations, by a lane on the normal
+path or by a terminal release recovery operation that holds the Stage's
+release gate (SCH-R180), writes its durable markers per phase, not per
+allocation. One marker statement records the release attempts of every
+allocation it releases before its release batch; after the batch, one more
+marks released exactly those whose live grant is gone. Recovery marks the
+allocations whose grant was already gone with one statement before its
+release batch. Each marker statement names at most 128 allocations
+(LIM-SCH-22) and has the store-operation budget, never the batch's cleanup
+deadline (SCH-R65). Each allocation keeps its own outcome: a completed
+release is left as it is, a missing allocation is an error for that
+allocation alone while the others are still marked, a grant the batch could
+not release keeps its fence and its incomplete row (SCH-R69, SCH-R71), and a
+divergent grant follows SCH-R73. A recovery operation reads and marks only
+its own Stage's allocations and never takes another Stage to fill a marker
+statement. Decision: both markers are idempotent per allocation, so a lost
+response is repaired by the next attempt exactly as for a single-row marker,
+while one statement per allocation made a Stage's store round trips grow
+with its Agents. Reopen the per-statement bound if a Stage may bind more
+Agents than one statement can name within the store-operation budget.
+
 **SCH-R74.** A Runtime Agent has no PostgreSQL or long-lived external telemetry
 credential. It may receive an allocation-scoped exporter credential only inside
 RuntimeSettings ([Runtime configuration](../configuration/runtime-config.md)),
@@ -1593,6 +1614,8 @@ Limits ([registry](../platform/limits.md)):
 - LIM-SCH-21 — lanes of one pool claiming at once outside a replacement after
   useful work: at most 1, so at most 1 claim attempt per idle pool and fill
   round (SCH-R181).
+- LIM-SCH-22 — allocations one release-marker statement names: at most 128
+  (SCH-R182).
 - Used here, owned elsewhere: concurrent A2A Tasks per Worker
   ([LIM-CTL-6](../platform/limits.md), SCH-R10), slots per Runtime Agent
   process ([LIM-CTL-4](../platform/limits.md), SCH-R139), the
@@ -1631,7 +1654,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-SCH-6 — A2A Task cancellation (SCH-R54).
 - FAIL-SCH-7 — abort control command (SCH-R56, SCH-R57).
 - FAIL-SCH-8 — finalize control command (SCH-R99, SCH-R63).
-- FAIL-SCH-9 — allocation release (SCH-R69, SCH-R71, SCH-R180).
+- FAIL-SCH-9 — allocation release (SCH-R69, SCH-R71, SCH-R180, SCH-R182).
 - FAIL-SCH-10 — progression transaction (SCH-R78).
 - FAIL-SCH-11 — allocation loss (SCH-R93, SCH-R118).
 - FAIL-SCH-12 — Server restart (SCH-R96).

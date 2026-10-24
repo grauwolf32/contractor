@@ -89,14 +89,14 @@ func validateGatewayWait(runID, reasonCode string) error {
 // transaction it passes.
 type GatewayRecoveryRuns struct{}
 
-// LockRun locks the row of Run runID until tx ends and returns its state, or
-// "" when there is no such Run.
-func (GatewayRecoveryRuns) LockRun(ctx context.Context, tx pgx.Tx, runID string) (string, error) {
-	state, err := NewPostgresTxStore(tx).LockRunState(ctx, runID)
+// LockRun locks the row of Run runID until tx ends and returns its state and
+// owner, or "" for both when there is no such Run.
+func (GatewayRecoveryRuns) LockRun(ctx context.Context, tx pgx.Tx, runID string) (string, string, error) {
+	state, ownerID, err := NewPostgresTxStore(tx).lockRunOwner(ctx, runID)
 	if errors.Is(err, ErrNotFound) {
-		return "", nil
+		return "", "", nil
 	}
-	return string(state), err
+	return string(state), ownerID, err
 }
 
 // EnterWaiting is PostgresTxStore.EnterWaiting in tx.
