@@ -12,7 +12,7 @@ from typing import Any
 
 import pytest
 
-from contractor_runtime._https import decode_private_error
+from contractor_runtime._https import PrivateConnections, decode_private_error
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.control_client import (
     ControlClient,
@@ -22,7 +22,7 @@ from contractor_runtime.control_client import (
     RegistrationRejectedError,
 )
 from contractor_runtime.lease import LeaseWatchdog
-from contractor_runtime.mtls import runtime_agent_client_context
+from contractor_runtime.mtls import runtime_agent_client_context, verify_control_plane_peer
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
 
@@ -575,6 +575,7 @@ def test_real_mtls_control_transport_registers_and_heartbeats(
     async def scenario() -> None:
         received: list[dict[str, Any]] = []
         received_request_ids: list[str] = []
+        accepted: list[int] = []
         server_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         server_context.minimum_version = ssl.TLSVersion.TLSv1_3
         server_context.verify_mode = ssl.CERT_REQUIRED
@@ -584,30 +585,33 @@ def test_real_mtls_control_transport_registers_and_heartbeats(
         )
 
         async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+            accepted.append(len(accepted))
             try:
-                request_line = await reader.readline()
-                headers: dict[str, str] = {}
-                while True:
-                    line = await reader.readline()
-                    if line == b"\r\n":
-                        break
-                    name, _, value = line.partition(b":")
-                    headers[name.decode().lower()] = value.decode().strip()
-                payload = json.loads(await reader.readexactly(int(headers["content-length"])))
-                received.append(payload)
-                received_request_ids.append(headers["x-request-id"])
-                if request_line.startswith(b"POST /private/v1/agents/register "):
-                    response = registration_response()
-                else:
-                    response = heartbeat_response(payload["heartbeatSeq"])
-                encoded = json.dumps(response, separators=(",", ":")).encode()
-                writer.write(
-                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
-                    + str(len(encoded)).encode()
-                    + b"\r\nConnection: close\r\n\r\n"
-                    + encoded
-                )
-                await writer.drain()
+                # Serve keep-alive requests until the client closes.
+                while request_line := await reader.readline():
+                    headers: dict[str, str] = {}
+                    while True:
+                        line = await reader.readline()
+                        if line == b"\r\n":
+                            break
+                        name, _, value = line.partition(b":")
+                        headers[name.decode().lower()] = value.decode().strip()
+                    assert "connection" not in headers
+                    payload = json.loads(await reader.readexactly(int(headers["content-length"])))
+                    received.append(payload)
+                    received_request_ids.append(headers["x-request-id"])
+                    if request_line.startswith(b"POST /private/v1/agents/register "):
+                        response = registration_response()
+                    else:
+                        response = heartbeat_response(payload["heartbeatSeq"])
+                    encoded = json.dumps(response, separators=(",", ":")).encode()
+                    writer.write(
+                        b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                        + str(len(encoded)).encode()
+                        + b"\r\n\r\n"
+                        + encoded
+                    )
+                    await writer.drain()
             finally:
                 writer.close()
                 await writer.wait_closed()
@@ -627,21 +631,26 @@ def test_real_mtls_control_transport_registers_and_heartbeats(
             certificate_file=pki["agent_certificate"],
             private_key_file=pki["agent_key"],
         )
-        transport = MTLSJSONTransport(settings.control_plane_url, client_context, 2)
+        connections = PrivateConnections(client_context, verify_control_plane_peer)
+        transport = MTLSJSONTransport(settings.control_plane_url, connections, 2)
         state = RuntimeState(instance_id="runtime-real-mtls", capabilities=runtime_capabilities)
         client = ControlClient(settings, state, transport)
         try:
             await client.register()
-            await client.heartbeat_once()
-            await client.heartbeat_once()
+            for _ in range(9):
+                await client.heartbeat_once()
         finally:
+            await connections.aclose()
             server.close()
             await server.wait_closed()
-        assert [item.get("heartbeatSeq") for item in received[1:]] == [1, 2]
-        assert [item.get("echoedAckSeq") for item in received[1:]] == [0, 1]
-        assert len(received_request_ids) == 3
+        assert [item.get("heartbeatSeq") for item in received[1:]] == list(range(1, 10))
+        assert [item.get("echoedAckSeq") for item in received[1:]] == list(range(9))
+        # Registration and nine heartbeats share one verified connection
+        # (CTL-R163); the transport used to open one connection per call.
+        assert accepted == [0]
+        assert len(received_request_ids) == 10
         assert all(value.startswith("request_") for value in received_request_ids)
-        assert len(set(received_request_ids)) == 3
+        assert len(set(received_request_ids)) == 10
 
     asyncio.run(scenario())
 

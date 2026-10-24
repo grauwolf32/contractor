@@ -13,7 +13,8 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import ValidationError
 
-from contractor_runtime import artifacts
+from contractor_runtime import _https, artifacts
+from contractor_runtime._https import ConnectionReader, PrivateConnections
 from contractor_runtime.artifacts import (
     MAX_ARTIFACT_BYTES,
     ArtifactAPIError,
@@ -29,6 +30,7 @@ from contractor_runtime.contracts import (
     ArtifactListResult,
     ArtifactRef,
 )
+from contractor_runtime.mtls import verify_control_plane_peer
 
 SHARED_LIST_CASES = (
     Path(__file__).resolve().parents[2] / "api/testdata/v1alpha1/artifact-list-cases.json"
@@ -545,7 +547,7 @@ def refused_port() -> int:
 def test_mtls_transport_maps_connection_setup_failure_to_transport_error() -> None:
     transport = MTLSArtifactTransport(
         f"https://127.0.0.1:{refused_port()}/private/v1",
-        ssl.create_default_context(),
+        PrivateConnections(ssl.create_default_context(), verify_control_plane_peer),
         timeout_seconds=3,
         runtime_instance_id="runtime-1",
     )
@@ -557,28 +559,26 @@ def test_mtls_transport_maps_connection_setup_failure_to_transport_error() -> No
     asyncio.run(scenario())
 
 
-def fake_connection(
-    monkeypatch: pytest.MonkeyPatch, response: bytes, verify_peer: Mock | None = None
-) -> Mock:
+def fake_connection(monkeypatch: pytest.MonkeyPatch, response: bytes) -> Mock:
     context = ssl.create_default_context()
     ssl_object = context.wrap_bio(ssl.MemoryBIO(), ssl.MemoryBIO(), server_hostname="localhost")
-    reader = asyncio.StreamReader()
+    reader = ConnectionReader()
     reader.feed_data(response)
     reader.feed_eof()
     writer = Mock(spec=asyncio.StreamWriter)
     writer.get_extra_info.return_value = ssl_object
+    writer.is_closing.return_value = False
     writer.transport = Mock()
     writer.drain = AsyncMock()
     writer.wait_closed = AsyncMock()
-    monkeypatch.setattr(asyncio, "open_connection", AsyncMock(return_value=(reader, writer)))
-    monkeypatch.setattr(artifacts, "verify_control_plane_peer", verify_peer or Mock())
+    monkeypatch.setattr(_https, "_open_connection", AsyncMock(return_value=(reader, writer)))
     return writer
 
 
-def mtls_transport() -> MTLSArtifactTransport:
+def mtls_transport(connections: PrivateConnections | None = None) -> MTLSArtifactTransport:
     return MTLSArtifactTransport(
         "https://localhost:8443/private/v1",
-        ssl.create_default_context(),
+        connections or PrivateConnections(ssl.create_default_context(), Mock()),
         timeout_seconds=1,
         runtime_instance_id="runtime-1",
     )
@@ -592,7 +592,8 @@ def test_mtls_transport_sends_identity_headers_and_returns_response(
             monkeypatch,
             b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n{}\r\n0\r\n\r\n",
         )
-        response = await mtls_transport().request(
+        connections = PrivateConnections(ssl.create_default_context(), Mock())
+        response = await mtls_transport(connections).request(
             "GET", "/x?y=1", headers={"Accept": "*/*"}, body=b"", max_response_bytes=2
         )
         assert (response.status_code, response.body) == (200, b"{}")
@@ -600,6 +601,10 @@ def test_mtls_transport_sends_identity_headers_and_returns_response(
         assert request.startswith(b"GET /private/v1/x?y=1 HTTP/1.1\r\nHost: localhost:8443\r\n")
         assert b"\r\nX-Request-ID: request_" in request
         assert b"\r\nX-Contractor-Runtime-Instance-ID: runtime-1\r\n" in request
+        assert b"\r\nConnection:" not in request
+        # The complete response leaves the connection with its owner.
+        writer.close.assert_not_called()
+        await connections.aclose()
         writer.close.assert_called_once()
 
     asyncio.run(scenario())
@@ -633,10 +638,12 @@ def test_mtls_transport_maps_peer_rejection_to_transport_error(
 ) -> None:
     async def scenario() -> None:
         rejected = Mock(side_effect=ssl.SSLCertVerificationError("wrong role"))
-        writer = fake_connection(monkeypatch, b"", rejected)
+        writer = fake_connection(monkeypatch, b"")
+        transport = mtls_transport(PrivateConnections(ssl.create_default_context(), rejected))
         with pytest.raises(ArtifactTransportError, match="SSLCertVerificationError"):
-            await mtls_transport().request("GET", "/x", headers={}, body=b"", max_response_bytes=0)
+            await transport.request("GET", "/x", headers={}, body=b"", max_response_bytes=0)
         writer.write.assert_not_called()
+        writer.close.assert_called_once()
 
     asyncio.run(scenario())
 

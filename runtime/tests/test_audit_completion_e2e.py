@@ -20,9 +20,10 @@ from test_adk_runtime import build_context, stage_request
 from test_audit_completion_continuation import CountedState
 from test_security_findings_toolset import FakeFindingClient
 
+from contractor_runtime._https import PrivateConnections
 from contractor_runtime.artifacts import ArtifactClient, MTLSArtifactTransport
 from contractor_runtime.contracts import WorkerCompletionContract
-from contractor_runtime.mtls import runtime_agent_client_context
+from contractor_runtime.mtls import runtime_agent_client_context, verify_control_plane_peer
 from contractor_runtime.toolsets.audit_results.collector import AuditCollectionError
 from contractor_runtime.toolsets.audit_results.v2 import AuditResultsToolsetFactory
 from contractor_runtime.toolsets.security_findings.facades import GeneralFindingTool
@@ -35,19 +36,20 @@ def test_runtime_zip_for_go_importer(tmp_path):
     if not specification:
         pytest.skip("launched by make test-audit-completion-e2e with a real Go Artifact API")
     spec = json.loads(Path(specification).read_text())
+    connections = PrivateConnections(
+        runtime_agent_client_context(
+            ca_file=spec["ca"],
+            certificate_file=spec["certificate"],
+            private_key_file=spec["privateKey"],
+        ),
+        verify_control_plane_peer,
+    )
 
     async def scenario():
         contract = WorkerCompletionContract.model_validate(spec["contract"])
         mode = spec["mode"]
         transport = MTLSArtifactTransport(
-            spec["apiURL"],
-            runtime_agent_client_context(
-                ca_file=spec["ca"],
-                certificate_file=spec["certificate"],
-                private_key_file=spec["privateKey"],
-            ),
-            timeout_seconds=3,
-            runtime_instance_id="runtime-1",
+            spec["apiURL"], connections, timeout_seconds=3, runtime_instance_id="runtime-1"
         )
         client = ArtifactClient(spec["allocationID"], transport)
         state = CountedState()
@@ -205,4 +207,10 @@ def test_runtime_zip_for_go_importer(tmp_path):
         report["modelCalls"] = len(model.requests)
         Path(spec["report"]).write_text(json.dumps(report))
 
-    asyncio.run(scenario())
+    async def owning_connections():
+        try:
+            await scenario()
+        finally:
+            await connections.aclose()
+
+    asyncio.run(owning_connections())

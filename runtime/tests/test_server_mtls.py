@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from contractor_runtime._https import PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS
 from contractor_runtime.mtls import runtime_agent_server_context
 from contractor_runtime.server import RuntimeServer, create_app, create_server_config
 from contractor_runtime.settings import Settings
@@ -38,6 +39,8 @@ def test_ca_valid_non_control_plane_peer_is_rejected_before_dispatch(tmp_path: P
         private_key_file=settings.private_key_file,
     )
     server = RuntimeServer(create_server_config(settings, create_app(state), server_context))
+    # The Server reuses verified connections for less than this (CTL-R165).
+    assert server.config.timeout_keep_alive == PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS
     failures: list[BaseException] = []
 
     def run_server() -> None:

@@ -192,6 +192,9 @@ func runCLI(
 	if err != nil {
 		return err
 	}
+	// ServeSystem returns only after the Scheduler stopped, so no lifecycle
+	// call outlives these Runtime Agent connections (CTL-R164).
+	defer control.runtimeClient.Close()
 	catalogs, err := configureCatalogs(ctx, pool, configurationManager, bundles, bootstrap.Principal.UserID, logger)
 	if err != nil {
 		return err

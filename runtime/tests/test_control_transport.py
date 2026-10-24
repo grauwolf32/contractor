@@ -7,7 +7,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from contractor_runtime import control_client
+from contractor_runtime import _https
+from contractor_runtime._https import ConnectionReader, PrivateConnections
 from contractor_runtime.control_client import (
     MAX_CONTROL_RESPONSE_BYTES,
     ControlClientError,
@@ -15,35 +16,42 @@ from contractor_runtime.control_client import (
     MTLSJSONTransport,
 )
 
-type FakeConnection = Callable[[], tuple[asyncio.StreamReader, Mock]]
+type FakeConnection = Callable[[], tuple[ConnectionReader, Mock]]
 
 
 @pytest.fixture
 def connection(monkeypatch: pytest.MonkeyPatch) -> FakeConnection:
-    def connect() -> tuple[asyncio.StreamReader, Mock]:
+    def connect() -> tuple[ConnectionReader, Mock]:
         context = ssl.create_default_context()
         ssl_object = context.wrap_bio(ssl.MemoryBIO(), ssl.MemoryBIO(), server_hostname="localhost")
-        reader = asyncio.StreamReader()
+        reader = ConnectionReader()
         writer = Mock(spec=asyncio.StreamWriter)
         writer.get_extra_info.return_value = ssl_object
+        writer.is_closing.return_value = False
         writer.transport = Mock()
         writer.drain = AsyncMock()
         writer.wait_closed = AsyncMock()
-        monkeypatch.setattr(asyncio, "open_connection", AsyncMock(return_value=(reader, writer)))
-        monkeypatch.setattr(control_client, "verify_control_plane_peer", Mock())
+        monkeypatch.setattr(_https, "_open_connection", AsyncMock(return_value=(reader, writer)))
         return reader, writer
 
     return connect
 
 
+def transport_for(
+    base_url: str, timeout_seconds: float = 1, verify_peer: Mock | None = None
+) -> tuple[MTLSJSONTransport, PrivateConnections]:
+    connections = PrivateConnections(ssl.create_default_context(), verify_peer or Mock())
+    return MTLSJSONTransport(base_url, connections, timeout_seconds), connections
+
+
 @pytest.mark.parametrize("status", [200, 503])
-def test_transport_closes_connection_and_preserves_http_status(
+def test_transport_keeps_a_complete_response_connection_and_preserves_http_status(
     status: int, connection: FakeConnection
 ) -> None:
     async def scenario() -> None:
         reader, writer = connection()
         reader.feed_data(f"HTTP/1.1 {status} Reason\r\nContent-Length: 2\r\n\r\n{{}}".encode())
-        transport = MTLSJSONTransport("https://[::1]:8443/base/", ssl.create_default_context(), 1)
+        transport, connections = transport_for("https://[::1]:8443/base/")
         if status == 200:
             assert await transport.post_json("/heartbeat", {"label": "метка"}) == b"{}"
         else:
@@ -52,6 +60,10 @@ def test_transport_closes_connection_and_preserves_http_status(
             assert error.value.status_code == status
         request = writer.write.call_args.args[0]
         assert request.startswith(b"POST /base/heartbeat HTTP/1.1\r\nHost: [::1]:8443\r\n")
+        assert b"\r\nConnection:" not in request
+        # The connection stays with its owner until the owner closes it.
+        writer.close.assert_not_called()
+        await connections.aclose()
         writer.close.assert_called_once()
         writer.wait_closed.assert_awaited_once()
 
@@ -91,7 +103,7 @@ def test_transport_attaches_only_a_strict_private_error_envelope(
         reader.feed_data(
             f"HTTP/1.1 400 Bad Request\r\nContent-Length: {len(body)}\r\n\r\n".encode() + body
         )
-        transport = MTLSJSONTransport("https://localhost", ssl.create_default_context(), 1)
+        transport, _ = transport_for("https://localhost")
         with pytest.raises(ControlHTTPError) as error:
             await transport.post_json("/private/v1/agents/register", {})
         attached = (error.value.code, error.value.retryable, error.value.request_id)
@@ -102,17 +114,13 @@ def test_transport_attaches_only_a_strict_private_error_envelope(
     asyncio.run(scenario())
 
 
-def test_role_is_verified_before_writing_request(
-    connection: FakeConnection, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_role_is_verified_before_writing_request(connection: FakeConnection) -> None:
     async def scenario() -> None:
         _, writer = connection()
-        monkeypatch.setattr(
-            control_client,
-            "verify_control_plane_peer",
-            Mock(side_effect=ssl.SSLCertVerificationError("wrong role")),
+        transport, _ = transport_for(
+            "https://localhost",
+            verify_peer=Mock(side_effect=ssl.SSLCertVerificationError("wrong role")),
         )
-        transport = MTLSJSONTransport("https://localhost", ssl.create_default_context(), 1)
         with pytest.raises(ssl.SSLCertVerificationError):
             await transport.post_json("/heartbeat", {})
         writer.write.assert_not_called()
@@ -126,7 +134,8 @@ def test_cancellation_during_connection_close_aborts_transport(
 ) -> None:
     async def scenario() -> None:
         reader, writer = connection()
-        reader.feed_data(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}")
+        # The peer ends the connection, so the exchange closes it.
+        reader.feed_data(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}")
         closing = asyncio.Event()
 
         async def wait_closed() -> None:
@@ -134,7 +143,7 @@ def test_cancellation_during_connection_close_aborts_transport(
             await asyncio.Event().wait()
 
         writer.wait_closed.side_effect = wait_closed
-        transport = MTLSJSONTransport("https://localhost", ssl.create_default_context(), 1)
+        transport, _ = transport_for("https://localhost")
         task = asyncio.create_task(transport.post_json("/heartbeat", {}))
         await closing.wait()
         task.cancel()
@@ -154,10 +163,10 @@ def test_invalid_request_target_is_rejected_before_connection(
 ) -> None:
     async def scenario() -> None:
         connection()
-        transport = MTLSJSONTransport("https://localhost", ssl.create_default_context(), 1)
+        transport, _ = transport_for("https://localhost")
         with pytest.raises(ValueError):
             await transport.post_json(request_path, {})
-        asyncio.open_connection.assert_not_awaited()
+        _https._open_connection.assert_not_awaited()
 
     asyncio.run(scenario())
 
@@ -175,7 +184,7 @@ def test_invalid_request_target_is_rejected_before_connection(
 )
 def test_invalid_base_url_is_rejected(base_url: str) -> None:
     with pytest.raises(ValueError):
-        MTLSJSONTransport(base_url, ssl.create_default_context(), 1)
+        transport_for(base_url)
 
 
 def test_request_timeout_covers_sending_and_receiving_together(
@@ -190,7 +199,7 @@ def test_request_timeout_covers_sending_and_receiving_together(
             asyncio.get_running_loop().call_later(0.03, reader.feed_data, b"{}")
 
         writer.drain.side_effect = delayed_drain
-        transport = MTLSJSONTransport("https://localhost", ssl.create_default_context(), 0.05)
+        transport, _ = transport_for("https://localhost", 0.05)
         with pytest.raises(TimeoutError):
             await transport.post_json("/heartbeat", {})
         writer.close.assert_called_once()
@@ -218,7 +227,7 @@ def test_malformed_response_raises_control_error(
         reader, writer = connection()
         reader.feed_data(response)
         reader.feed_eof()
-        transport = MTLSJSONTransport("https://localhost", ssl.create_default_context(), 1)
+        transport, _ = transport_for("https://localhost")
         with pytest.raises(ControlClientError, match=match):
             await transport.post_json("/heartbeat", {})
         writer.close.assert_called_once()

@@ -21,6 +21,7 @@ from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 from uvicorn.protocols.http.h11_impl import H11Protocol
 
+from contractor_runtime._https import PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS
 from contractor_runtime.a2a_server import AllocationA2AGateway
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.contracts import (
@@ -442,6 +443,9 @@ def create_server_config(
         access_log=False,
         log_config=None,
         proxy_headers=False,
+        # The Control Plane reuses verified connections for less than this
+        # listener keeps an idle one open (CTL-R165).
+        timeout_keep_alive=PRIVATE_LISTENER_IDLE_TIMEOUT_SECONDS,
         timeout_graceful_shutdown=max(1, math.ceil(settings.shutdown_grace_seconds)),
         ssl_context_factory=lambda _config, _default: tls_context,
     )
