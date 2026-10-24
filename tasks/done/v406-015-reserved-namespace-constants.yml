@@ -6,7 +6,7 @@ epic: scan-tools
 kind: chore
 introduced_by: V406-004
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V406-004]
 languages: [go]
 goal: Keep reserved Artifact Namespace identities owned by artifactpolicy while preserving sweep and library behavior.
@@ -45,3 +45,11 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A3]
+implementation_commit: 17ad4783a431436de839eacadf7860f9c426461e
+verification:
+  date: '2026-10-24'
+  baseline: The complete main release run failed the unchanged ownership regression with all six copied Namespace literals.
+  passed:
+  - go test -count=1 ./internal/artifactpolicy ./internal/artifacts ./internal/runservice ./internal/scanservice ./internal/scanstore; every package with tests passed against a separate PostgreSQL database. scanstore has no test files and is exercised through the scanservice repository suites.
+  - make lint; all task/spec/layer/release-graph and Runtime checks passed.
+  behavior: Reserved identities, static SQL text and partial-index predicates are unchanged; ownership guards and test fixtures are unchanged.
