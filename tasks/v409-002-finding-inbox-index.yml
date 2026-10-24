@@ -6,7 +6,7 @@ epic: findings
 kind: chore
 introduced_by: V25-010
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: "Reduce avoidable scans of unrelated receipts in Audit inbox pages while preserving visibility, ordering, deduplication and the existing atomic per-Run proposal quota."
