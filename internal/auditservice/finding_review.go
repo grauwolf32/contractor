@@ -107,6 +107,19 @@ func (s *Service) CreateFindingReview(
 	return FindingReviewResult{Request: request, Replayed: replayed}, err
 }
 
+// DecideFinding records an analyst decision on a pending finding-triage
+// request and projects it onto the finding in one transaction. The projection
+// updates audit_findings, whose correlation trigger takes the Project
+// correlation fence without waiting (FND-R177), so a concurrent child-Run
+// creation or artifact admission in the same Project aborts the transaction
+// with a definite conflict. Only such a conflict replays the transaction, at
+// most InTxWithRetry's finite attempts within ctx. A replay is safe: the
+// advisory lock, the decision and its idempotency receipt, the request,
+// finding and Audit revisions and the events are statements of the aborted
+// transaction, nothing leaves the process before commit, and the captured
+// results are reset on each attempt. Validation, authority, precondition,
+// cancellation and uncertain commit failures return unchanged; repeating the
+// request with its idempotency key reconciles an uncertain commit.
 func (s *Service) DecideFinding(
 	ctx context.Context, params DecideFindingParams,
 ) (FindingDecisionResult, error) {
@@ -116,7 +129,8 @@ func (s *Service) DecideFinding(
 	var decisionID, requestID, findingID string
 	var replayed bool
 	var expired bool
-	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	err := persistencepostgres.InTxWithRetry(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		decisionID, requestID, findingID, replayed, expired = "", "", "", false, false
 		reviews := reviewstore.NewTx(tx)
 		if err := reviews.LockFindingReviews(ctx, params.AuditID); err != nil {
 			return err

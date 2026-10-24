@@ -481,7 +481,9 @@ an item.
 **AUX-R49.** Each transaction retains a bounded number of proposal and
 evidence revisions (LIM-AUX-7), so a collection attempt that reaches its
 deadline keeps the holds it committed and the next attempt retains only the
-rest (FAIL-AUX-3).
+rest. A definite transaction conflict, such as Project correlation fence
+contention (FND-R177), replays only the transaction it aborted, from the same
+proposal and with the same bound (FAIL-AUX-3).
 
 **AUX-R50.** For an Audit child Run, collection accounts for every committed
 proposal receipt before making the Run deletable: an allowed proposal receives
@@ -580,7 +582,9 @@ retryable (FAIL-AUX-5).
 ### Recovery
 
 **AUX-R69.** PostgreSQL is authoritative. The Controller periodically claims
-and reconciles a bounded number of nonterminal Audits (LIM-AUX-11).
+and reconciles a bounded number of nonterminal Audits (LIM-AUX-11) through
+the shared controller claim lifecycle
+([PER-R26](../platform/persistence.md)).
 
 **AUX-R70.** Process-local notifications are wake hints only; their loss,
 duplication or reordering cannot prevent progress. Public WebSocket is not an

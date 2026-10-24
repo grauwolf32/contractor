@@ -35,9 +35,6 @@ type artifactHandlers struct {
 }
 
 func (h *artifactHandlers) listArtifacts(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, err := h.Artifacts.User(principalUserID(r.Context()))
 	if err != nil {
 		handleError(w, err)
@@ -50,9 +47,6 @@ func (h *artifactHandlers) listArtifacts(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *artifactHandlers) getArtifactMetadata(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if err := validateUserArtifactReadRoute(r); err != nil {
 		handleError(w, err)
 		return
@@ -66,9 +60,6 @@ func (h *artifactHandlers) getArtifactMetadata(w http.ResponseWriter, r *http.Re
 }
 
 func (h *artifactHandlers) listArtifactVersions(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if err := validateUserArtifactReadRoute(r); err != nil {
 		handleError(w, err)
 		return
@@ -82,9 +73,6 @@ func (h *artifactHandlers) listArtifactVersions(w http.ResponseWriter, r *http.R
 }
 
 func (h *artifactHandlers) listArtifactLineage(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if err := validateUserArtifactReadRoute(r); err != nil {
 		handleError(w, err)
 		return
@@ -98,9 +86,6 @@ func (h *artifactHandlers) listArtifactLineage(w http.ResponseWriter, r *http.Re
 }
 
 func (h *artifactHandlers) listRunArtifacts(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, runID, err := h.ownedRunArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -113,10 +98,6 @@ func (h *artifactHandlers) listRunArtifacts(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *artifactHandlers) getRunArtifact(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodHead {
-		methodNotAllowed(w, r)
-		return
-	}
 	store, _, err := h.ownedRunArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -134,9 +115,6 @@ func (h *artifactHandlers) getRunArtifact(w http.ResponseWriter, r *http.Request
 }
 
 func (h *artifactHandlers) getRunArtifactMetadata(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, _, err := h.ownedRunArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -149,9 +127,6 @@ func (h *artifactHandlers) getRunArtifactMetadata(w http.ResponseWriter, r *http
 }
 
 func (h *artifactHandlers) listRunArtifactVersions(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, runID, err := h.ownedRunArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -164,9 +139,6 @@ func (h *artifactHandlers) listRunArtifactVersions(w http.ResponseWriter, r *htt
 }
 
 func (h *artifactHandlers) listRunArtifactLineage(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	store, runID, err := h.ownedRunArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
@@ -506,10 +478,6 @@ func (h *artifactHandlers) writeArtifactUpload(
 }
 
 func (h *artifactHandlers) getArtifact(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodHead {
-		methodNotAllowed(w, r)
-		return
-	}
 	if err := validateUserArtifactReadRoute(r); err != nil {
 		handleError(w, err)
 		return
@@ -562,10 +530,6 @@ func validateUserArtifactReadRoute(r *http.Request) error {
 }
 
 func (h *artifactHandlers) getRunOutput(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodHead {
-		methodNotAllowed(w, r)
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return

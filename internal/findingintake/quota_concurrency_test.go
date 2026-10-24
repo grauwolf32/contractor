@@ -25,13 +25,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Two distinct submissions of one Run race for its last quota slot. The
-// per-Run lock must serialize their counts, so exactly one is admitted.
-func TestPostgresRunProposalQuotaSerializesDistinctSubmissions(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-	pool := isolatedFindingPool(t, ctx)
-	const ownerID, projectID, runID = "quota-owner", "quota-project", "quota-run"
+const quotaRunID = "quota-run"
+
+// seedQuotaRun creates a running Run with maxProposalsPerRun-1 receipts, one
+// slot below its proposal quota, and returns the grant of its allocation.
+func seedQuotaRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool) controlplane.AllocationGrant {
+	t.Helper()
+	const ownerID, projectID, runID = "quota-owner", "quota-project", quotaRunID
 	if _, _, err := projectstore.NewPostgresStore(pool).Create(ctx, projectstore.CreateParams{
 		ProjectID: projectID, OwnerID: ownerID, Kind: projectstore.KindProject,
 		Name: "Quota project", IdempotencyKey: "quota-project",
@@ -63,8 +63,30 @@ SELECT 'filler-' || n, 'filler-proposal-' || n, 'filler-allocation', 'runtime',
 		runID, ownerID, projectID, maxProposalsPerRun-1); err != nil {
 		t.Fatal(err)
 	}
+	return grant
+}
 
-	gate := &quotaCountGate{held: make(chan struct{}), resume: make(chan struct{})}
+// quotaReceiptCount counts the quota Run's receipts.
+func quotaReceiptCount(t *testing.T, ctx context.Context, pool *pgxpool.Pool) int {
+	t.Helper()
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, quotaRunID).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	return count
+}
+
+// Two distinct submissions of one Run race for its last quota slot. The
+// per-Run lock must serialize their counts, so exactly one is admitted. At
+// capacity a replay of the admitted submission returns its receipt without a
+// quota check, and a third distinct submission is the rejected 4097th.
+func TestPostgresRunProposalQuotaSerializesDistinctSubmissions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	pool := isolatedFindingPool(t, ctx)
+	grant := seedQuotaRun(t, ctx, pool)
+
+	gate := &quotaCountGate{match: "count(*) FROM finding_proposal_receipts", held: make(chan struct{}), resume: make(chan struct{})}
 	defer gate.release()
 	first, firstPID := quotaActorPool(t, ctx, pool, gate)
 	second, _ := quotaActorPool(t, ctx, pool, nil)
@@ -133,12 +155,83 @@ SELECT EXISTS (
 			t.Fatalf("unexpected submission error: %v", err)
 		}
 	}
-	var count int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM finding_proposal_receipts WHERE run_id = $1`, runID).Scan(&count); err != nil {
+	if count := quotaReceiptCount(t, ctx, pool); admitted != 1 || rejected != 1 || count != maxProposalsPerRun {
+		t.Fatalf("admitted=%d rejected=%d count=%d", admitted, rejected, count)
+	}
+	winner := testSubmission("invocation-a", "candidate-a", []contracts.ArtifactRef{})
+	if firstErr != nil {
+		winner = testSubmission("invocation-b", "candidate-b", []contracts.ArtifactRef{})
+	}
+	stored, err := readReceiptBySubmission(ctx, pool, grant.AllocationID, winner.InvocationID, winner.SubmissionID)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if admitted != 1 || rejected != 1 || count != maxProposalsPerRun {
-		t.Fatalf("admitted=%d rejected=%d count=%d", admitted, rejected, count)
+	replay, replayed, err := secondService.Submit(ctx, grant, winner)
+	if err != nil || !replayed || replay.ReceiptID != stored.ReceiptID {
+		t.Fatalf("replay at capacity = (%s, replayed=%t, %v), want %s", replay.ReceiptID, replayed, err, stored.ReceiptID)
+	}
+	_, _, err = secondService.Submit(ctx, grant, testSubmission("invocation-c", "candidate-c", []contracts.ArtifactRef{}))
+	if !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "quota") {
+		t.Fatalf("4097th distinct submission = %v, want the quota rejection", err)
+	}
+	if count := quotaReceiptCount(t, ctx, pool); count != maxProposalsPerRun {
+		t.Fatalf("Run has %d receipts after replay and rejection, want %d", count, maxProposalsPerRun)
+	}
+}
+
+// A submission for the last quota slot whose transaction rolls back after it
+// wrote the proposal Artifact and the receipt admits neither, and leaves the
+// slot to the next distinct submission.
+func TestPostgresRunProposalQuotaRollbackLeavesSlot(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	pool := isolatedFindingPool(t, ctx)
+	grant := seedQuotaRun(t, ctx, pool)
+	gate := &quotaCountGate{match: "INSERT INTO finding_proposal_receipts", held: make(chan struct{}), resume: make(chan struct{})}
+	defer gate.release()
+	actor, _ := quotaActorPool(t, ctx, pool, gate)
+	actorService, err := New(actor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	submitCtx, cancelSubmit := context.WithCancel(ctx)
+	defer cancelSubmit()
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := actorService.Submit(submitCtx, grant, testSubmission("invocation-rollback", "candidate-rollback", []contracts.ArtifactRef{}))
+		done <- err
+	}()
+	select {
+	case <-gate.held:
+	case <-ctx.Done():
+		t.Fatal("submission never inserted its receipt")
+	}
+	// Cancel while the transaction holds the uncommitted Artifact and receipt.
+	cancelSubmit()
+	if err := <-done; err == nil {
+		t.Fatal("cancelled submission committed")
+	}
+	var bindings, revisions int
+	if err := pool.QueryRow(ctx, `
+SELECT (SELECT count(*) FROM artifact_bindings
+         WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = 'finding-proposals'),
+       (SELECT count(*) FROM artifact_binding_revisions
+         WHERE scope_kind = 'run' AND scope_id = $1 AND namespace = 'finding-proposals')`,
+		quotaRunID).Scan(&bindings, &revisions); err != nil {
+		t.Fatal(err)
+	}
+	if count := quotaReceiptCount(t, ctx, pool); count != maxProposalsPerRun-1 || bindings != 0 || revisions != 0 {
+		t.Fatalf("rolled-back submission left %d receipts, %d bindings, %d revisions", count, bindings, revisions)
+	}
+	service, err := New(pool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, replayed, err := service.Submit(ctx, grant, testSubmission("invocation-next", "candidate-next", []contracts.ArtifactRef{})); err != nil || replayed {
+		t.Fatalf("submission for the freed slot = (replayed=%t, %v)", replayed, err)
+	}
+	if count := quotaReceiptCount(t, ctx, pool); count != maxProposalsPerRun {
+		t.Fatalf("Run has %d receipts, want %d", count, maxProposalsPerRun)
 	}
 }
 
@@ -234,9 +327,11 @@ func quotaSubmissionGrantWithInputs(
 	}
 }
 
-// quotaCountGate pauses the first transaction that counts Run proposals until
-// released, while that transaction still owns every lock it has taken.
+// quotaCountGate pauses the first transaction that runs a statement
+// containing match until released or cancelled, while that transaction still
+// owns every lock it has taken.
 type quotaCountGate struct {
+	match        string
 	held, resume chan struct{}
 	once         sync.Once
 	releaseOnce  sync.Once
@@ -244,8 +339,8 @@ type quotaCountGate struct {
 
 type quotaCountContextKey struct{}
 
-func (*quotaCountGate) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
-	return context.WithValue(ctx, quotaCountContextKey{}, strings.Contains(data.SQL, "count(*) FROM finding_proposal_receipts"))
+func (gate *quotaCountGate) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	return context.WithValue(ctx, quotaCountContextKey{}, strings.Contains(data.SQL, gate.match))
 }
 
 func (gate *quotaCountGate) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, _ pgx.TraceQueryEndData) {

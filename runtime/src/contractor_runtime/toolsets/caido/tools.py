@@ -30,7 +30,12 @@ from contractor_runtime.adapters.caido_graphql import (
     CaidoGraphQLClient,
 )
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
-from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient, ArtifactTransportError
+from contractor_runtime.artifacts import (
+    MAX_ARTIFACT_BYTES,
+    ArtifactClient,
+    ArtifactClientError,
+    ArtifactTransportError,
+)
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.target_policy import (
     TargetDenied,
@@ -467,12 +472,13 @@ class _CaidoSession:
             _exact_object(data, {"request"})
             if data["request"] is None:
                 return {"request_id": selected_id, "status": "not_found"}
-            request = _request_detail(data["request"])
-            raw_request = self._redaction.message(_blob(request.pop("_raw")))
-            response = request.get("response")
-            raw_response = b""
-            if isinstance(response, dict):
-                raw_response = self._redaction.message(_blob(response.pop("_raw")))
+            request, raw_request, raw_response = await threads.to_thread_until_done(
+                _request_detail_exchange,
+                data["request"],
+                self._redaction,
+                name="caido-request-detail",
+            )
+            response = request["response"]
             await self._remember_exchange(
                 request["id"],
                 request["method"],
@@ -485,12 +491,9 @@ class _CaidoSession:
                 ),
                 raw_request,
                 raw_response,
-                response.get("status_code") if isinstance(response, dict) else None,
+                response["status_code"] if response is not None else None,
                 invocation_id,
             )
-            request["raw"] = _raw_preview(raw_request)
-            if isinstance(response, dict):
-                response["raw"] = _raw_preview(raw_response)
             return _bounded_result(request)
 
     async def replay(
@@ -527,12 +530,12 @@ class _CaidoSession:
                 _exact_object(detail_data, {"request"})
                 if detail_data["request"] is None:
                     return {"request_id": selected_request_id, "status": "not_found"}
-                detail = _request_detail(detail_data["request"])
-                if detail["id"] != selected_request_id:
-                    raise CaidoToolError("caido_response_invalid")
-                raw_bytes = _blob(detail["_raw"])
-                if not raw_bytes or len(raw_bytes) > MAX_RAW_REQUEST_BYTES:
-                    raise CaidoToolError("caido_request_invalid")
+                detail, raw_bytes = await threads.to_thread_until_done(
+                    _stored_request,
+                    detail_data["request"],
+                    selected_request_id,
+                    name="caido-stored-request",
+                )
                 connection = {
                     "host": _connection_host(detail["host"]),
                     "port": _required_integer(detail["port"], minimum=1, maximum=65535),
@@ -551,8 +554,9 @@ class _CaidoSession:
                 }
 
             request_tag = self._next_request_tag()
-            tagged, _ = _inject_request_tag(raw_bytes, request_tag)
-            raw_blob = base64.b64encode(tagged).decode("ascii")
+            raw_blob, _ = await threads.to_thread_until_done(
+                _tagged_request_blob, raw_bytes, request_tag, (), name="caido-request-tag"
+            )
             if "raw" in source:
                 source["raw"]["raw"] = raw_blob
 
@@ -599,12 +603,18 @@ class _CaidoSession:
                     polled = await self._execute("replay_entry", {"id": entry_id})
                 except CaidoToolError as error:
                     raise CaidoToolError(error.code, retryable=False) from None
-                observation = _replay_observation(polled, entry_id)
+                observation = await threads.to_thread_until_done(
+                    _replay_exchange,
+                    polled,
+                    entry_id,
+                    self._redaction,
+                    name="caido-replay-observation",
+                )
                 if observation is not None:
                     if observation["status"] == "failed":
                         return _bounded_result({**base_result, "status": "failed"})
-                    raw_response = self._redaction.message(observation.pop("_raw_response"))
-                    raw_replayed_request = self._redaction.message(observation.pop("_raw_request"))
+                    raw_response = observation.pop("_raw_response")
+                    raw_replayed_request = observation.pop("_raw_request")
                     await self._remember_exchange(
                         observation["request_id"],
                         observation["method"],
@@ -620,8 +630,6 @@ class _CaidoSession:
                         observation["status_code"],
                         invocation_id,
                     )
-                    observation["raw"] = _raw_preview(raw_replayed_request)
-                    observation["response_raw"] = _raw_preview(raw_response)
                     return _bounded_result({**base_result, **observation})
                 remaining = deadline - self._monotonic()
                 if remaining <= 0:
@@ -669,12 +677,12 @@ class _CaidoSession:
             _exact_object(detail_data, {"request"})
             if detail_data["request"] is None:
                 return {"request_id": selected_request_id, "status": "not_found"}
-            detail = _request_detail(detail_data["request"])
-            if detail["id"] != selected_request_id:
-                raise CaidoToolError("caido_response_invalid")
-            raw_bytes = _blob(detail["_raw"])
-            if not raw_bytes or len(raw_bytes) > MAX_RAW_REQUEST_BYTES:
-                raise CaidoToolError("caido_request_invalid")
+            detail, raw_bytes = await threads.to_thread_until_done(
+                _stored_request,
+                detail_data["request"],
+                selected_request_id,
+                name="caido-stored-request",
+            )
             connection = {
                 "host": _connection_host(detail["host"]),
                 "port": _required_integer(detail["port"], minimum=1, maximum=65535),
@@ -682,11 +690,13 @@ class _CaidoSession:
             }
             self._require_target(connection["host"], connection["port"])
             request_tag = self._next_request_tag()
-            tagged, request_tag_span = _inject_request_tag(raw_bytes, request_tag)
-            placeholders = _placeholder_offsets(
-                tagged, selected_targets, excluded=(request_tag_span,)
+            raw_blob, placeholders = await threads.to_thread_until_done(
+                _tagged_request_blob,
+                raw_bytes,
+                request_tag,
+                selected_targets,
+                name="caido-request-tag",
             )
-            raw_blob = base64.b64encode(tagged).decode("ascii")
 
             created = await self._execute_mutation(
                 "create_automate_session",
@@ -793,7 +803,12 @@ class _CaidoSession:
                     "entry_id": selected_entry,
                     "status": "not_found",
                 }
-            entry = _automate_entry(data["automateEntry"], selected_limit)
+            entry = await threads.to_thread_until_done(
+                _automate_entry,
+                data["automateEntry"],
+                selected_limit,
+                name="caido-automate-results",
+            )
             return _bounded_result(
                 {
                     "session_id": selected_session,
@@ -941,10 +956,13 @@ class _CaidoSession:
                     "status": "rejected",
                     "error_code": result["error_code"],
                 }
-            output = self._redaction.message(_blob(result["output"]))
-            try:
-                text_output = output.decode()
-            except UnicodeDecodeError:
+            output, text_output = await threads.to_thread_until_done(
+                _convert_output,
+                result["output"],
+                self._redaction,
+                name="caido-convert-output",
+            )
+            if text_output is None:
                 try:
                     artifact = await self._write_artifact(
                         CAIDO_OUTPUT_ARTIFACT_PREFIX,
@@ -1089,9 +1107,9 @@ class _CaidoSession:
                 media_type=media_type,
                 expected_revision=None,
             )
-        except asyncio.CancelledError:
-            raise
-        except Exception:
+        except ArtifactClientError:
+            # Only the Artifact client's own failures are classified; any
+            # other exception is an implementation failure and keeps its type.
             raise CaidoToolError("caido_request_failed") from None
         return written.artifact.require_exact()
 
@@ -1124,12 +1142,12 @@ class _CaidoSession:
             raise CaidoToolError("caido_request_failed")
         try:
             return await handle.execute(operation, variables)
-        except asyncio.CancelledError:
-            raise
         except CaidoClientError as error:
+            # The adapter classifies transport, HTTP status, JSON, GraphQL and
+            # bound failures. Any other exception is an implementation failure:
+            # it keeps its type for the Worker's tool-error handling instead of
+            # becoming a retryable transport failure.
             raise CaidoToolError(error.code, retryable=error.retryable) from None
-        except Exception:
-            raise CaidoToolError("caido_request_failed") from None
 
     async def _execute_mutation(
         self, operation: str, variables: Mapping[str, Any] | None = None
@@ -1166,12 +1184,14 @@ class _CaidoTool(ArtifactObservingTool):
         summary: Callable[[Any], Mapping[str, Any]],
         operation: Callable[[], Any],
     ) -> Any:
+        # CaidoToolError carries a stable code. An unexpected exception
+        # propagates unchanged to the Worker's tool-error handling, which
+        # answers with a bounded non-retryable failure (OBS-R32).
         with RecordedToolCall(
             self._metrics,
             self.name,
             arguments,
             secrets=self._session.metric_secrets,
-            bound_error=_bounded_caido_error,
         ) as call:
             result = self._session.redact_result(await operation())
             call.succeed(summary(result))
@@ -1933,6 +1953,76 @@ def _request_detail(value: object) -> dict[str, Any]:
     }
 
 
+# The payload helpers below are pure and run in a joined worker thread
+# (threads.to_thread_until_done) while the caller holds the session lock. The
+# adapter's complete-response bound (LIM-HTP-19) bounds the decoded Blobs.
+
+
+def _request_detail_exchange(
+    value: object, redaction: _CaidoRedaction
+) -> tuple[dict[str, Any], bytes, bytes]:
+    """Validate request detail, scrub both raw messages and add their previews."""
+
+    request = _request_detail(value)
+    raw_request = redaction.message(_blob(request.pop("_raw")))
+    response = request["response"]
+    raw_response = b""
+    if response is not None:
+        raw_response = redaction.message(_blob(response.pop("_raw")))
+        response["raw"] = _raw_preview(raw_response)
+    request["raw"] = _raw_preview(raw_request)
+    return request, raw_request, raw_response
+
+
+def _stored_request(value: object, expected_id: str) -> tuple[dict[str, Any], bytes]:
+    """Validate a stored request used as a mutation source and decode its raw bytes."""
+
+    detail = _request_detail(value)
+    if detail["id"] != expected_id:
+        raise CaidoToolError("caido_response_invalid")
+    raw = _blob(detail["_raw"])
+    if not raw or len(raw) > MAX_RAW_REQUEST_BYTES:
+        raise CaidoToolError("caido_request_invalid")
+    return detail, raw
+
+
+def _tagged_request_blob(
+    raw: bytes, tag: str, targets: Sequence[str]
+) -> tuple[str, list[dict[str, int]]]:
+    """Return the tagged request as a Blob and placeholder offsets in its exact bytes."""
+
+    tagged, tag_span = _inject_request_tag(raw, tag)
+    placeholders = _placeholder_offsets(tagged, targets, excluded=(tag_span,))
+    return base64.b64encode(tagged).decode("ascii"), placeholders
+
+
+def _replay_exchange(
+    data: object, expected_entry_id: str, redaction: _CaidoRedaction
+) -> dict[str, Any] | None:
+    """Validate one Replay poll and scrub a completed exchange with its previews."""
+
+    observation = _replay_observation(data, expected_entry_id)
+    if observation is None or observation["status"] != "completed":
+        return observation
+    raw_request = redaction.message(observation["_raw_request"])
+    raw_response = redaction.message(observation["_raw_response"])
+    observation["_raw_request"] = raw_request
+    observation["_raw_response"] = raw_response
+    observation["raw"] = _raw_preview(raw_request)
+    observation["response_raw"] = _raw_preview(raw_response)
+    return observation
+
+
+def _convert_output(value: object, redaction: _CaidoRedaction) -> tuple[bytes, str | None]:
+    """Decode and scrub convert output; the text is None when it is not UTF-8."""
+
+    output = redaction.message(_blob(value))
+    try:
+        return output, output.decode()
+    except UnicodeDecodeError:
+        return output, None
+
+
 def _automate_session(value: object) -> dict[str, Any]:
     session = _exact_object(value, {"id", "name", "entries", "settings"})
     entries: list[dict[str, Any]] = []
@@ -2354,10 +2444,6 @@ def _bounded_result(value: dict[str, Any]) -> dict[str, Any]:
     if len(_tool_result_json(value)) > MAX_TOOL_RESULT_BYTES:
         raise CaidoToolError("caido_response_too_large")
     return value
-
-
-def _bounded_caido_error(error: Exception) -> Exception:
-    return error if isinstance(error, CaidoToolError) else CaidoToolError("caido_request_failed")
 
 
 async def _closed_sleep(_seconds: float) -> None:

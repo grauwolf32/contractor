@@ -3,6 +3,7 @@ package evalservice
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -16,7 +17,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type executionOperations struct{ pool *pgxpool.Pool }
+type executionOperations struct {
+	pool *pgxpool.Pool
+	// now stamps the intents whose request records the time they were made.
+	now func() time.Time
+}
 
 func (d *executionOperations) tx(ctx context.Context, fn func(*evalstore.Store, pgx.Tx) error) error {
 	return postgres.InTx(ctx, d.pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return fn(evalstore.NewTxStore(tx), tx) })

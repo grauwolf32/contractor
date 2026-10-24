@@ -9,9 +9,6 @@ import (
 )
 
 func (h *catalogHandlers) getAgentInstructions(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return

@@ -13,9 +13,6 @@ import (
 
 func (h *runtimeConfigurationHandlers) listRuntimeAgentPrincipals(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
 		handleError(w, err)
@@ -61,9 +58,6 @@ func (h *runtimeConfigurationHandlers) listRuntimeAgentPrincipals(w http.Respons
 
 func (h *runtimeConfigurationHandlers) getRuntimeAgentPrincipal(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return

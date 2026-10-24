@@ -5,13 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/claimpass"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -44,8 +43,10 @@ func (c *Controller) Run(ctx context.Context) error {
 }
 
 // RunOnce fairly claims a bounded Audit set and reconciles each claim
-// independently. A failed Audit is returned in the joined diagnostic only
-// after every other claimed Audit had an opportunity to progress.
+// independently through the shared claim lifecycle (PER-R26). A failed Audit
+// is returned in the joined diagnostic only after every other claimed Audit
+// had an opportunity to progress. Each release has the ordinary operation
+// budget.
 func (c *Controller) RunOnce(ctx context.Context) (bool, error) {
 	claimContext, cancelClaim := context.WithTimeout(ctx, c.options.OperationTimeout)
 	claims, err := c.store.Claim(claimContext, auditstore.ClaimParams{
@@ -55,31 +56,10 @@ func (c *Controller) RunOnce(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	if len(claims) == 0 {
-		return false, nil
-	}
-	var worked atomic.Bool
-	errorsByClaim := make([]error, len(claims))
-	var wait sync.WaitGroup
-	for index, claim := range claims {
-		wait.Add(1)
-		go func(index int, claim auditstore.ControllerClaim) {
-			defer wait.Done()
-			changed, reconcileErr := c.reconcile(ctx, claim)
-			if changed {
-				worked.Store(true)
-			}
-			releaseContext, releaseCancel := context.WithTimeout(context.Background(), c.options.OperationTimeout)
-			releaseErr := c.store.ReleaseClaim(releaseContext, claim)
-			releaseCancel()
-			if errors.Is(releaseErr, auditstore.ErrClaimLost) {
-				releaseErr = nil
-			}
-			errorsByClaim[index] = errors.Join(reconcileErr, releaseErr)
-		}(index, claim)
-	}
-	wait.Wait()
-	return worked.Load(), errors.Join(errorsByClaim...)
+	return claimpass.Run(ctx, claims, claimpass.Lifecycle[auditstore.ControllerClaim]{
+		Handle: c.reconcile, Release: c.store.ReleaseClaim,
+		ReleaseBudget: c.options.OperationTimeout, Lost: auditstore.ErrClaimLost,
+	})
 }
 
 func (c *Controller) reconcile(

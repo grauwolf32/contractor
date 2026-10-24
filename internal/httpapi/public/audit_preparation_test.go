@@ -2,6 +2,8 @@ package public
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,7 +21,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/configtest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
@@ -86,10 +90,39 @@ func TestSharedAuditPreparationHandlersWithoutRound(t *testing.T) {
 		list := auditAuthenticatedRequest(http.MethodGet, "/v1/audits", nil)
 		listed := httptest.NewRecorder()
 		h.listProjectAudits(listed, list)
-		if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), `"preparation":{"roles"`) {
+		if listed.Code != http.StatusOK || !strings.Contains(listed.Body.String(), `"preparation":{"roles"`) ||
+			len(management.preparationPages) == 0 || management.preparationPages[len(management.preparationPages)-1] != 1 {
 			t.Fatalf("preparation list omitted required role status: %d %s", listed.Code, listed.Body.String())
 		}
 	}
+	// A failed page read fails the list with its own class; it never returns
+	// the page without preparation.
+	for _, failure := range []struct {
+		err    error
+		status int
+		code   string
+	}{
+		{fmt.Errorf("list Audit page preparation: %w", &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}),
+			http.StatusServiceUnavailable, "storage_transaction_conflict"},
+		{errors.New("storage unavailable"), http.StatusInternalServerError, "internal_error"},
+	} {
+		management.preparationErr = failure.err
+		listed := httptest.NewRecorder()
+		h.listProjectAudits(listed, auditAuthenticatedRequest(http.MethodGet, "/v1/audits", nil))
+		var body errorResponse
+		if listed.Code != failure.status || json.Unmarshal(listed.Body.Bytes(), &body) != nil || body.Code != failure.code {
+			t.Fatalf("list with hydration error %v = %d %s", failure.err, listed.Code, listed.Body.String())
+		}
+	}
+	management.preparationErr = nil
+	management.audit.Phase, management.audit.State = auditdomain.AuditPhaseNotStarted, auditstore.AuditDraft
+	drafts := httptest.NewRecorder()
+	h.listProjectAudits(drafts, auditAuthenticatedRequest(http.MethodGet, "/v1/audits", nil))
+	if drafts.Code != http.StatusOK || strings.Contains(drafts.Body.String(), `"preparation"`) ||
+		management.preparationPages[len(management.preparationPages)-1] != 0 {
+		t.Fatalf("draft list hydrated preparation: %d %s", drafts.Code, drafts.Body.String())
+	}
+	management.audit.Phase, management.audit.State = auditdomain.AuditPhaseInventory, auditstore.AuditActive
 	for _, action := range []struct {
 		name   string
 		handle func(http.ResponseWriter, *http.Request)

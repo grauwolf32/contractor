@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
-	"github.com/grauwolf32/contractor/internal/evalstore"
 )
 
 func TestSharedEvalReadinessRetainsEligibilityAndReportsObservedEqualityWithoutPrivateMaterial(t *testing.T) {
@@ -20,14 +19,18 @@ func TestSharedEvalReadinessRetainsEligibilityAndReportsObservedEqualityWithoutP
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err := nativeReadiness(evalstore.Plan{Document: bundle.Plan, Setup: bundle.Setup})
+	var setup preparedSetup
+	if err = json.Unmarshal(bundle.Setup, &setup); err != nil {
+		t.Fatal(err)
+	}
+	view, err := evaldomain.NativeReadiness(bundle.Plan, setup.Comparison)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(view.Arms) != 2 || view.Arms[0].Expected != 4 || view.Arms[0].Unsupported != 2 || view.Arms[1].Eligible != 4 {
 		t.Fatalf("incorrect full matrix: %+v", view.Arms)
 	}
-	pins := map[string]ReadinessPin{}
+	pins := map[string]evaldomain.ReadinessPin{}
 	for _, pin := range view.Pins {
 		pins[pin.Dimension] = pin
 	}

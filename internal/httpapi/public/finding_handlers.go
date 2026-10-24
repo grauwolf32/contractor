@@ -53,9 +53,6 @@ type importFindingProposalResponse struct {
 
 func (h *findingHandlers) listRunFindingProposals(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	run, err := ownedRun(r, h.Runs)
 	if err != nil {
 		handleError(w, err)
@@ -73,9 +70,6 @@ func (h *findingHandlers) listRunFindingProposals(w http.ResponseWriter, r *http
 
 func (h *findingHandlers) listAuditFindingProposals(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	auditID := r.PathValue("auditId")
 	if _, err := h.Audits.Get(
 		r.Context(), principalUserID(r.Context()), auditID,

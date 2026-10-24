@@ -171,7 +171,12 @@ func (i *Importer) prepareCheckResults(
 			evidenceOwner[evidenceID] = index
 		}
 	}
-
+	// Every evidence record now has exactly one owning member index.
+	// DecodeCheckResultPackage rejects an evidence record no result cites;
+	// collectSucceeded admits exactly len(members) results with distinct
+	// item keys; the members of one execution are distinct Items of one Round
+	// (audit_execution_items FKs, audit_items_round_key), so the loop above
+	// matched every result to one member and recorded each cited ID once.
 	return preparedCheckResults{members: members, evidenceByID: evidenceByID, evidenceOwner: evidenceOwner}, nil
 }
 
@@ -349,11 +354,8 @@ func (i *Importer) retainCheckResults(
 			}
 			artifact, displayRef = shared, ""
 		}
-		owner, exists := evidenceOwner[id]
-		if !exists || owner < 0 || owner >= len(members) {
-			return i.collectInvalid(ctx, claim, execution, members, source, "evidence-item-membership-invalid")
-		}
-		provenance, provenanceErr := evidenceProvenance(snapshot, execution, members[owner], run, source, evidence.value)
+		// prepareCheckResults established one owning member for every ID.
+		provenance, provenanceErr := evidenceProvenance(snapshot, execution, members[evidenceOwner[id]], run, source, evidence.value)
 		if provenanceErr != nil {
 			return false, provenanceErr
 		}

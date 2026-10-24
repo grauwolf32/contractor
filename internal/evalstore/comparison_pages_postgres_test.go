@@ -94,7 +94,7 @@ func TestSharedPostgresEvalTenThousandSelectedMembersBoundedPages(t *testing.T) 
 		if err != nil {
 			return err
 		}
-		_, err = st.db.Exec(ctx, `INSERT INTO eval_frozen_plans(experiment_id,document_kind,document,plan_sha256,setup) SELECT $1,document_kind,document,plan_sha256,setup FROM eval_frozen_plans WHERE experiment_id=$2`, id, template.ID)
+		_, err = st.db.Exec(ctx, `INSERT INTO eval_frozen_plans(experiment_id,document_kind,document,plan_sha256,setup,readiness) SELECT $1,document_kind,document,plan_sha256,setup,readiness FROM eval_frozen_plans WHERE experiment_id=$2`, id, template.ID)
 		if err != nil {
 			return err
 		}

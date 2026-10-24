@@ -8,23 +8,19 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
-	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 // prepareFingerprint resolves only owner-pinned Stage inputs already selected
 // as evidence. It runs before the intake transaction and cannot change the
 // proposal, the client key or the model-visible tool response.
-func (s *Service) prepareFingerprint(ctx context.Context, grant controlplane.AllocationGrant, input Submission) (auditdomain.FindingFingerprint, error) {
+func (s *Service) prepareFingerprint(ctx context.Context, grant controlplane.AllocationGrant, input Submission, readStage preparationStage) (auditdomain.FindingFingerprint, error) {
 	absent := auditdomain.UnavailableFindingFingerprint
 	if len(input.EvidenceRefs) == 0 || len(input.Proposal.Locations) == 0 {
 		return absent("not_provided"), nil
 	}
-	stage, err := runstore.NewPostgresStore(s.pool).GetStageExecution(ctx, grant.StageExecutionID)
+	stage, err := readStage()
 	if err != nil {
 		return absent("not_provided"), err
-	}
-	if stage.RunID != grant.RunID {
-		return absent("not_provided"), ErrAccessDenied
 	}
 	pinned := make(map[string]bool, len(stage.StageContext.Artifacts))
 	key := func(ref contracts.ArtifactRef) string {
