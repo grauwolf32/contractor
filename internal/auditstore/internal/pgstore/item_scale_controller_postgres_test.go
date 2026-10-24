@@ -26,7 +26,7 @@ import (
 // unsettled item, awaiting review last, before it can take the first
 // MaxReconcileRows+1, so it reads the Audit's unsettled items once through
 // audit_items_dispatch_idx and none of its settled ones. Each budget adds
-// supersededEntries.
+// planningEntries.
 func TestPostgresControllerReadsAtItemScale(t *testing.T) {
 	f := newItemScaleFixture(t)
 	if _, err := f.pool.Exec(f.ctx, `
@@ -38,13 +38,14 @@ SELECT 'old-' || item_id, audit_id, NULL, 'audit-item-action', item_id, 'active-
 		t.Fatal(err)
 	}
 	// The approval items' live reviews pass their expiry; nothing has stored
-	// it yet, as when a reconciliation finds them.
+	// it yet, as when a reconciliation finds them. VACUUM removes the
+	// versions this update superseded.
 	if _, err := f.pool.Exec(f.ctx, `
 UPDATE audit_review_requests SET expires_at = clock_timestamp() - interval '1 minute'
  WHERE audit_id = $1 AND state = 'pending'`, f.auditID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.pool.Exec(f.ctx, `ANALYZE audit_review_requests`); err != nil {
+	if _, err := f.pool.Exec(f.ctx, `VACUUM (INDEX_CLEANUP ON, ANALYZE) audit_review_requests`); err != nil {
 		t.Fatal(err)
 	}
 	var reviews, approvalRequests int64
@@ -106,9 +107,8 @@ SELECT (SELECT count(*) FROM audit_review_requests WHERE audit_id = $1),
 			t.Fatalf("without the index the search finds %+v, want %+v", without, all)
 		}
 		// The search probes each approval item's requests twice, for the
-		// join and for the live-authority lookup, and each request has two
-		// row versions since the fixture moved its expiry.
-		budget := 2*2*approvalRequests + supersededEntries
+		// join and for the live-authority lookup.
+		budget := 2*approvalRequests + planningEntries
 		for _, mode := range explaintest.Modes {
 			for _, limit := range []*int{&one, nil} {
 				plan := explainPrepared(t, f.ctx, f.pool, mode, expiredItemReviewsSQL, f.auditID, limit)
@@ -160,10 +160,10 @@ SELECT (SELECT count(*) FROM audit_review_requests WHERE audit_id = $1),
 				t.Fatalf("%s: reconcile window holds %d items, want the first %d unsettled, awaiting review last", mode, len(got), limit)
 			}
 			plan := explainPrepared(t, f.ctx, f.pool, mode, listReconcileItemsSQL, f.auditID, limit)
-			if read := plan.Reads.Of("audit_items"); read > unsettled+supersededEntries {
-				t.Fatalf("%s: the window read %d items, budget %d unsettled\n%s", mode, read, unsettled+supersededEntries, plan.Plan)
+			if read := plan.Reads.Of("audit_items"); read > unsettled+planningEntries {
+				t.Fatalf("%s: the window read %d items, budget %d unsettled\n%s", mode, read, unsettled+planningEntries, plan.Plan)
 			}
-			t.Logf("%s: read %d items (budget %d)", mode, plan.Reads.Of("audit_items"), unsettled+supersededEntries)
+			t.Logf("%s: read %d items (budget %d)", mode, plan.Reads.Of("audit_items"), unsettled+planningEntries)
 		}
 	})
 }

@@ -161,15 +161,34 @@ pinned `ubuntu-24.04` runner image.
 ## Database and process tests
 
 Provide an explicit disposable test database whose user may create and drop
-schemas. Process tests create isolated schemas and clean them up; PostgreSQL
-itself is supplied by the caller. Database tests skip only while
-`CONTRACTOR_TEST_DATABASE_URL` is unset: once it is set, an unreachable server
-fails them, and `make lint` rejects helpers that skip after a failed connection.
+schemas and databases (`CREATEDB`). Most tests and the process tests create
+isolated schemas in it and clean them up; some create databases of their own
+on the same server and drop them afterwards. PostgreSQL itself is supplied by
+the caller. Database tests skip only while `CONTRACTOR_TEST_DATABASE_URL` is
+unset: once it is set, an unreachable server or a missing privilege fails
+them, and `make lint` rejects helpers that skip after a failed connection.
 
 ```shell
 export CONTRACTOR_TEST_DATABASE_URL='postgres://contractor:password@127.0.0.1:5432/contractor_test?sslmode=disable'
 make test-e2e
 ```
+
+### Read budgets
+
+A test that budgets the rows or blocks a statement reads measures it with
+[`explaintest`](../../internal/persistence/explaintest), whose counts include
+the index entries of row versions VACUUM has not removed yet. VACUUM keeps
+every version that an older snapshot in the same database may still see, and
+`go test` runs packages in parallel against the one test database, so any
+other test's open transaction can keep the superseded versions of a fixture
+that updated or deleted rows. A budget must not absorb them with a fixed
+slack. Such a fixture is built with `explaintest.Database` instead, in a
+database of its own whose VACUUM no other database's session holds back, and
+with autovacuum off for its tables. That helper also holds a snapshot open in
+the shared test database for the whole test, so the budgets are always
+measured while another session's snapshot is older than the fixture. A
+fixture that only inserts rows, or a budget that already counts every version
+its fixture writes, may stay in a schema of the shared database.
 
 The process harness starts the actual Go Server and Python Runtime entry points,
 creates temporary mTLS identities, and uses a deterministic loopback model

@@ -25,11 +25,15 @@ const (
 	// itemScaleAwaitingEvery spaces the current round's items that await
 	// review, the inbox's sparse state.
 	itemScaleAwaitingEvery = 500
-	// supersededEntries bounds the index entries of row versions that a
-	// scale fixture's store writes superseded: a read still visits them
-	// until VACUUM can remove them, which it can only once no older
-	// transaction runs anywhere in the cluster. Row budgets add it.
-	supersededEntries = 8
+	// planningEntries bounds the index entries the planner reads to find a
+	// column's current extremes, in custom and generic plans alike, when a
+	// comparison value, such as the other side's extreme in a merge join's
+	// estimate, falls in a histogram end bin (see explaintest). ANALYZE
+	// samples the large tables, so whether it does varies between runs (the
+	// reconcile window's planning read 0 or 2 items); in a scale fixture's
+	// own vacuumed database each probe reads one live entry. Row budgets add
+	// it.
+	planningEntries = 8
 )
 
 // itemScaleFixture is an Audit at the item limits: Round 1, the current
@@ -38,6 +42,8 @@ const (
 // settled items. Every round repeats the same subject keys, so a subject
 // matches one item per round. A second, small Audit of the same owner and an
 // Audit of another owner keep the reads honest about their Audit and owner.
+// The fixture has a database of its own (budgetAuditPool) and is vacuumed,
+// so its reads visit no superseded version of what the store wrote.
 type itemScaleFixture struct {
 	ctx      context.Context
 	pool     *pgxpool.Pool
@@ -57,7 +63,7 @@ func newItemScaleFixture(t *testing.T) itemScaleFixture {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	t.Cleanup(cancel)
-	pool := isolatedAuditPool(t, ctx, databaseURL)
+	pool := budgetAuditPool(t, ctx, databaseURL)
 	f := itemScaleFixture{ctx: ctx, pool: pool, store: newTestStore(pool), owner: "owner-item-scale"}
 	projects := projectstore.NewPostgresStore(pool)
 	for _, owner := range []string{f.owner, "owner-item-scale-foreign"} {
@@ -74,7 +80,7 @@ func newItemScaleFixture(t *testing.T) itemScaleFixture {
 	f.smallID = f.materialize(t, f.owner, "audit-item-small", 7, 3)
 	f.cloneSettledRounds(t, "audit-item-small", 3)
 	f.foreign = f.materialize(t, "owner-item-scale-foreign", "audit-item-foreign", 5, 2)
-	if _, err := pool.Exec(ctx, `ANALYZE audit_items; ANALYZE audit_rounds; ANALYZE audits`); err != nil {
+	if _, err := pool.Exec(ctx, `VACUUM (INDEX_CLEANUP ON, ANALYZE) audit_items, audit_rounds, audits`); err != nil {
 		t.Fatal(err)
 	}
 	var total int

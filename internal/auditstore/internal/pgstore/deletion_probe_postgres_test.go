@@ -85,10 +85,10 @@ type deletionProbeFixture struct {
 }
 
 // newDeletionProbeFixture collects the fixture's execution and deletes the
-// Audit, keeping the execution's Run.
+// Audit, keeping the execution's Run, in a database of its own.
 func newDeletionProbeFixture(t *testing.T, name string) deletionProbeFixture {
 	t.Helper()
-	f := newCollectingAuditFixture(t, name, 1<<20)
+	f := newCollectingAuditFixture(t, name, 1<<20, collectingAuditFixtureOptions{ownDatabase: true})
 	// The copies and the reads outlast the collecting fixture's deadline.
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
 	t.Cleanup(cancel)
@@ -261,37 +261,13 @@ func explainDeletionProbe(
 
 // deletionProbeBudget is the budget of one statement on the fixture: the
 // first execution whose Run is not stamped deleted when there is one, its
-// Run and the planner's Run entries, and the superseded entries of the
-// unstamped range of audit_executions_audit_run_cleanup_idx. Those are the
-// versions the store's own writes of the fixture's execution (collection
-// and, in the drained fixture, the Run deletion stamp) left in the index:
-// VACUUM removes them only once no snapshot of a concurrent test is older,
-// as production keeps them for the executions written since the table was
-// last vacuumed. They do not grow with the history, which is inserted.
-func deletionProbeBudget(t *testing.T, f deletionProbeFixture, live bool) deletionProbeMeasurement {
-	t.Helper()
-	tx, err := f.pool.Begin(f.ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = tx.Rollback(context.WithoutCancel(f.ctx)) }()
-	// Only the cleanup index yields the range in this order without a sort.
-	if _, err := tx.Exec(f.ctx, `SET LOCAL enable_seqscan = off; SET LOCAL enable_bitmapscan = off; SET LOCAL enable_sort = off`); err != nil {
-		t.Fatal(err)
-	}
-	analysis, err := explaintest.Explain(f.ctx, tx, `
-SELECT execution.execution_id FROM audit_executions AS execution
- WHERE execution.audit_id = $1 AND execution.run_id IS NOT NULL AND execution.run_deleted_at IS NULL
- ORDER BY execution.run_deleted_at, execution.created_at, execution.execution_id`, f.audit.AuditID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !analysis.Plan.Uses("audit_executions_audit_run_cleanup_idx") {
-		t.Fatalf("the unstamped range is not read through the cleanup index:\n%s", analysis.Plan)
-	}
-	superseded := analysis.Reads.Of("audit_executions") - int64(analysis.Plan.Rows)
-	t.Logf("%d superseded entries in the unstamped range of %d executions", superseded, int64(analysis.Plan.Rows))
-	budget := deletionProbeMeasurement{executions: superseded, runs: deletionProbePlannerRuns}
+// Run, and the planner's Run entries. The store's own writes of the fixture's
+// execution (collection and, in the drained fixture, the Run deletion stamp)
+// superseded versions of it, of its Run and of the Audit; the fixture's
+// database is its own, so VACUUM removes their entries and the statements
+// read live entries only.
+func deletionProbeBudget(live bool) deletionProbeMeasurement {
+	budget := deletionProbeMeasurement{runs: deletionProbePlannerRuns}
 	if live {
 		budget.executions++
 		budget.runs++
@@ -347,7 +323,7 @@ func TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns(t *testing.T) {
 			}
 			before := map[string]deletionProbeMeasurement{}
 			measure := func(phase string) {
-				budget := deletionProbeBudget(t, f, tc.keepRun)
+				budget := deletionProbeBudget(tc.keepRun)
 				for _, p := range tc.probes {
 					for _, mode := range explaintest.Modes {
 						key := p.name + "/" + string(mode)

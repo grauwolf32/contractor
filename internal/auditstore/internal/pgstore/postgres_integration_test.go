@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
@@ -1069,7 +1070,7 @@ func isolatedAuditPool(t *testing.T, ctx context.Context, databaseURL string) *p
 		admin.Close()
 		t.Fatal(err)
 	}
-	if _, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{}); err != nil {
+	if err := applyAuditMigrations(ctx, pool); err != nil {
 		pool.Close()
 		admin.Close()
 		t.Fatal(err)
@@ -1084,6 +1085,25 @@ func isolatedAuditPool(t *testing.T, ctx context.Context, databaseURL string) *p
 		admin.Close()
 	})
 	return pool
+}
+
+// budgetAuditPool is isolatedAuditPool on a database of its own
+// (explaintest.Database), for a fixture whose reads a test budgets: no other
+// package's snapshot keeps the superseded versions its VACUUM must remove.
+func budgetAuditPool(t *testing.T, ctx context.Context, databaseURL string) *pgxpool.Pool {
+	t.Helper()
+	pool := explaintest.Database(t, ctx, databaseURL, applyAuditMigrations)
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cleanupCancel()
+		requireDenseAuditEvents(t, cleanupCtx, pool)
+	})
+	return pool
+}
+
+func applyAuditMigrations(ctx context.Context, pool *pgxpool.Pool) error {
+	_, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{})
+	return err
 }
 
 // supersedeBlockedClaim proves that a mutation which began with an old MVCC
