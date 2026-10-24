@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-126 open tasks: 8 in progress, 107 pending, 11 deferred. 1093 finished: 1083 completed, 10 archived.
+127 open tasks: 8 in progress, 108 pending, 11 deferred. 1093 finished: 1083 completed, 10 archived.
 
 ## In progress
 
@@ -46,6 +46,12 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | chore | P3 | — | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
+
+### Agent Skills (`agent-skills`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V414-040](v414-040-run-skill-error-public-mapping.yml) | defect | P2 | — | Answer Run Skill failures with their own public error codes instead of internal_error |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -207,7 +213,7 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
-| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032, V414-034, V414-036, V414-037, V414-038, V414-039 | Close the V407/V409 review follow-ups |
+| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032, V414-034, V414-036, V414-037, V414-038, V414-039, V414-040 | Close the V407/V409 review follow-ups |
 
 ## Deferred
 
@@ -236,7 +242,7 @@ tasks in `introduced_by`.
 | Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 42 | 17 | 61 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
-| Agent Skills (`agent-skills`) | 0 | 11 | 3 | 1 | 3 |
+| Agent Skills (`agent-skills`) | 1 | 11 | 4 | 1 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 10 | 19 | 15 | 5 | 16 |
