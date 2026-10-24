@@ -116,7 +116,7 @@ func TestSharedPostgresFindingCorrelationMigrationFreezesRetainedPrimaryKeys(t *
 			t.Fatalf("backfill %s: %s %s %s %s %s receiptChanged=%v", c.name, project, algorithm, value, group, reason, receipt != before[c.name])
 		}
 	}
-	if _, err := pool.Exec(ctx, "UPDATE projects SET finding_correlation_revision=0 WHERE project_id='correlation-upgrade'"); Classify(err) != ClassRejected {
+	if _, err := pool.Exec(ctx, "UPDATE finding_correlation_fences SET revision=0 WHERE project_id='correlation-upgrade'"); Classify(err) != ClassRejected {
 		t.Fatalf("revision regressed: %v", err)
 	}
 	if _, err := pool.Exec(ctx, "UPDATE audit_findings SET correlation_project_id='foreign' WHERE finding_id='old'"); Classify(err) != ClassRejected {

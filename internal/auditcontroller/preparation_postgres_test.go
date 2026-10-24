@@ -225,8 +225,10 @@ func TestPostgresPreparationDependentRunsRetainExactOutputs(t *testing.T) {
 	if err != nil || audit.Phase != auditdomain.AuditPhaseInventory || audit.State != auditstore.AuditActive || audit.CurrentRoundID != nil || audit.ReservedRunCount != 2 || audit.OutstandingRunCount != 0 || audit.RetainedEvidenceBytes <= 0 || string(audit.BaselineSnapshot) != originalBaseline {
 		t.Fatalf("preparation boundary: %+v %v", audit, err)
 	}
-	projection, err := h.service.Preparation(ctx, audit.OwnerID, audit.AuditID)
-	if err != nil || len(projection) != 2 || projection["a-refine"].Status != auditdomain.PreparationAccepted || len(projection["z-seed"].Outputs) != 2 {
+	detail, err := h.service.Detail(ctx, audit.OwnerID, audit, detailHydratesPreparation)
+	projection := detail.Preparation
+	if err != nil || detail.Audit.Revision != audit.Revision || len(projection) != 2 ||
+		projection["a-refine"].Status != auditdomain.PreparationAccepted || len(projection["z-seed"].Outputs) != 2 {
 		t.Fatalf("public preparation projection: %+v %v", projection, err)
 	}
 	for _, execution := range preparationExecutions(t, ctx, h, 2) {
@@ -240,11 +242,12 @@ func TestPostgresPreparationDependentRunsRetainExactOutputs(t *testing.T) {
 	if _, err := h.audits.GetPreparationOutput(ctx, audit.AuditID, "z-seed", "diagnostics"); err != nil {
 		t.Fatalf("source Run deletion lost diagnostics: %v", err)
 	}
-	projection, err = h.service.Preparation(ctx, audit.OwnerID, audit.AuditID)
+	detail, err = h.service.Detail(ctx, audit.OwnerID, audit, detailHydratesPreparation)
+	projection = detail.Preparation
 	if err != nil || len(projection["z-seed"].Outputs) != 2 || projection["z-seed"].RunID == nil {
 		t.Fatalf("source Run deletion lost public provenance: %+v %v", projection, err)
 	}
-	if _, err := h.service.Preparation(ctx, "another-owner", audit.AuditID); !errors.Is(err, auditstore.ErrNotFound) {
+	if _, err := h.service.Detail(ctx, "another-owner", audit, detailHydratesPreparation); !errors.Is(err, auditstore.ErrNotFound) {
 		t.Fatalf("preparation disclosure to another owner: %v", err)
 	}
 	var roundCount, itemCount, receiptCount int

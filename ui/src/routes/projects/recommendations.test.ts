@@ -50,6 +50,36 @@ const likeC4: WorkflowSummary = {
 };
 
 describe("Project Workflow compatibility", () => {
+  it("does not suggest Project YAML as an owner-scoped Nuclei rulepack", () => {
+    const nuclei: WorkflowSummary = {
+      ...openAPI,
+      ref: { name: "nuclei-web", version: "1" },
+      parameters: { target: { required: true } },
+      inputs: {
+        rulepack: {
+          required: false,
+          sourceScope: "user",
+          mediaTypes: ["application/yaml"],
+        },
+      },
+    };
+    const result = buildWorkflowCompatibility(
+      [nuclei],
+      [
+        artifact(
+          "openapi",
+          "nashdom",
+          "revision-openapi-1",
+          "application/yaml",
+        ),
+      ],
+    )[0]!;
+
+    expect(result.compatible).toBe(true);
+    expect(result.candidates.rulepack).toEqual([]);
+    expect(result.preselected).toEqual({});
+  });
+
   it("recommends independent workflows and preselects one exact source", () => {
     const source = artifact(
       "sources",

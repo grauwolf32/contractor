@@ -93,10 +93,11 @@ func TestListPreparedPageRejectsUnboundedSelections(t *testing.T) {
 }
 
 // TestSharedPostgresListPreparedPageReadsAFullFetchInTwoStatements checks the
-// list page read on a full fetch of preparing Audits against the per-Audit
-// preparation reads: the list and one preparation statement, the same roles
-// and latest attempts, no preparation statement for a page without preparing
-// Audits, and storage failures keeping their class.
+// list page read on a full fetch of preparing Audits against the detail read
+// of each Audit: the list and one preparation statement, the same roles and
+// latest attempts, no preparation statement for a page without preparing
+// Audits, and storage failures keeping their class. It also counts the
+// statements of the detail read (ASC-R149).
 func TestSharedPostgresListPreparedPageReadsAFullFetchInTwoStatements(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -231,10 +232,12 @@ func TestSharedPostgresListPreparedPageReadsAFullFetchInTwoStatements(t *testing
 	}
 	statuses := map[string]auditdomain.PreparationStatus{}
 	for _, audit := range audits {
-		want, err := store.ListPreparationRoles(ctx, audit.AuditID)
-		if err != nil {
-			t.Fatal(err)
+		// Every listed Audit has the roles its detail reads (ASC-R150).
+		detail, err := NewQueryStore(pool).GetPreparedDetail(ctx, owner, audit.AuditID, false)
+		if err != nil || detail.Audit.Revision != audit.Revision {
+			t.Fatalf("%s detail = revision %d, %v", audit.AuditID, detail.Audit.Revision, err)
 		}
+		want := detail.Roles
 		executions, err := store.ListPreparationExecutions(ctx, audit.AuditID)
 		if err != nil {
 			t.Fatal(err)
@@ -244,8 +247,8 @@ func TestSharedPostgresListPreparedPageReadsAFullFetchInTwoStatements(t *testing
 			t.Fatalf("%s roles = %+v, want %+v", audit.AuditID, got, want)
 		}
 		for index, role := range got {
-			if !reflect.DeepEqual(role.PreparationRole, want[index]) {
-				t.Fatalf("%s role %d = %+v, want %+v", audit.AuditID, index, role.PreparationRole, want[index])
+			if !reflect.DeepEqual(role, want[index]) {
+				t.Fatalf("%s role %d = %+v, want %+v", audit.AuditID, index, role, want[index])
 			}
 			if (role.Latest == nil) != (role.ExecutionID == nil) {
 				t.Fatalf("%s role %s latest attempt = %+v", audit.AuditID, role.WorkflowRole, role.Latest)
@@ -289,6 +292,45 @@ func TestSharedPostgresListPreparedPageReadsAFullFetchInTwoStatements(t *testing
 	unavailable := errors.New("storage unavailable")
 	if _, _, _, err := read(t, params, "WITH ORDINALITY AS listed", unavailable); !errors.Is(err, unavailable) {
 		t.Fatalf("unavailable page = %v", err)
+	}
+
+	// detail reads one Audit's detail, with its current Round, in a caller's
+	// snapshot transaction, as read does a page.
+	detail := func(t *testing.T, ownerID, auditID, failOn string, failure error) (auditstore.PreparedDetail, int, error) {
+		t.Helper()
+		tx, err := pool.BeginTx(ctx, snapshotTransaction)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
+		counted := &pageStatementTx{Tx: tx, failOn: failOn, failure: failure}
+		read, err := NewQueryStore(counted).GetPreparedDetail(ctx, ownerID, auditID, true)
+		return read, counted.statements, err
+	}
+	// A preparing Audit takes the Audit and the list's preparation statement
+	// and has neither inventory nor a Round; a draft takes the Audit
+	// statement alone.
+	exhausted, statements, err := detail(t, owner, "audit-exhausted", "", nil)
+	if err != nil || statements != 2 || !reflect.DeepEqual(exhausted.Roles, roles["audit-exhausted"]) ||
+		exhausted.InventoryLink != nil || exhausted.FirstRound != nil || exhausted.CurrentRound != nil || exhausted.CurrentItems != nil {
+		t.Fatalf("preparing detail = %+v in %d statements: %v", exhausted, statements, err)
+	}
+	draft, statements, err := detail(t, owner, "audit-draft", "", nil)
+	if err != nil || statements != 1 || draft.Audit.AuditID != "audit-draft" || draft.Roles != nil {
+		t.Fatalf("draft detail = %+v in %d statements: %v", draft, statements, err)
+	}
+	for _, missing := range [][2]string{{"another-owner", "audit-exhausted"}, {owner, "audit-missing"}} {
+		if _, _, err := detail(t, missing[0], missing[1], "", nil); !errors.Is(err, auditstore.ErrNotFound) {
+			t.Fatalf("detail of %s's %s = %v", missing[0], missing[1], err)
+		}
+	}
+	_, _, err = detail(t, owner, "audit-exhausted", "WITH ORDINALITY AS listed",
+		&pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure, Message: "could not serialize access"})
+	if !persistencepostgres.IsTransactionConflict(err) || errors.Is(err, auditstore.ErrConflict) {
+		t.Fatalf("transient detail failure = %v", err)
+	}
+	if _, _, err := detail(t, owner, "audit-exhausted", "WITH ORDINALITY AS listed", unavailable); !errors.Is(err, unavailable) {
+		t.Fatalf("unavailable detail = %v", err)
 	}
 }
 

@@ -179,7 +179,7 @@ func runCLI(
 	if err := configurationManager.ConfigureModelSelection(ctx, settingsstore.NewPostgresStore(pool)); err != nil {
 		return fmt.Errorf("configure deployment model selection: %w", err)
 	}
-	credentialSet, err := configureCredentials(ctx, pool, configurationManager, cfg)
+	credentialSet, err := configureCredentials(ctx, pool, lease.server, configurationManager, cfg)
 	if err != nil {
 		return err
 	}

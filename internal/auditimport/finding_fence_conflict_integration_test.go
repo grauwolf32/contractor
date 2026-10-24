@@ -11,14 +11,15 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 // Project fence contention that outlasts finding intake's finite transaction
 // retries (FND-R177) is a transient collection failure (AUX-R96): the
 // execution stays collecting without a receipt, a consumed item attempt or a
-// retained proposal, and the next collection retains the proposal and
-// accepts the result.
+// retained proposal, and the next collection, after the contender rolled
+// back, retains the proposal and accepts the result.
 func TestPostgresProjectFenceConflictKeepsExecutionCollecting(t *testing.T) {
 	f := newCompletionFixtureWithOptions(t, completionPool(t), completionOptions{
 		acceptance: "automatic", findingConfirmation: "human-required",
@@ -44,12 +45,19 @@ func TestPostgresProjectFenceConflictKeepsExecutionCollecting(t *testing.T) {
 	importer, err := New(f.audits, f.audits, f.runs, access, intake)
 	mustCompletion(t, err)
 
-	// A concurrent Run creation's active-Project check holds the Project row
-	// FOR SHARE through every retention attempt.
+	// A concurrent Project metadata update holds the Project row exclusively
+	// through every retention attempt. The finding correlation fence shares
+	// that row without waiting (FND-R177), so each attempt aborts.
+	projects := projectstore.NewPostgresStore(f.pool)
+	project, err := projects.Get(f.ctx, "owner", f.id)
+	mustCompletion(t, err)
 	contender, err := f.pool.Begin(f.ctx)
 	mustCompletion(t, err)
 	defer func() { _ = contender.Rollback(context.Background()) }()
-	_, err = contender.Exec(f.ctx, `SELECT project_id FROM projects WHERE project_id = $1 FOR SHARE`, f.id)
+	_, err = projectstore.NewPostgresStore(contender).Update(f.ctx, projectstore.UpdateParams{
+		ProjectID: f.id, OwnerID: "owner", ExpectedRevision: project.Revision,
+		Name: "Renamed during collection", Description: project.Description,
+	})
 	mustCompletion(t, err)
 	changed, err := importer.Collect(f.ctx, f.claim, snapshot, execution)
 	if changed || !persistencepostgres.IsTransactionConflict(err) || errors.Is(err, ErrPermanent) {

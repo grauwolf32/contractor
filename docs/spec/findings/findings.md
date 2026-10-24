@@ -786,26 +786,60 @@ groups and two indexed first/next probes per group, with no peer count or
 per-peer hydration (LIM-FND-42). Ownership is checked before group presentation.
 Model/private finding tools and collection contents remain unchanged.
 
-**FND-R177.** An opaque `finding_correlation_revision` on the existing Project
-row fences current membership, triage/assessment, additional contributions and
-retained source availability. Advance it within the existing transaction once
-per affected Project per mutation statement; natural-key replay advances
-neither membership nor revision/events. Keep Run then Audit authority order;
-import acquires a nonblocking Project `FOR NO KEY UPDATE NOWAIT` before any
-retained artifact admission. Other child mutations also acquire this fence
-without waiting; contention becomes the existing retryable SQLSTATE `40001`,
-finite transaction retries and the retryable HTTP `503
-storage_transaction_conflict` (PER-R16). Owner import, each bounded
-collection transaction and an analyst finding decision replay only the whole
-transaction that aborted, at most three transactions within the caller's
-context and budget; a permanent, cancelled or uncertain outcome is never
-replayed (FAIL-REV-7, FAIL-AUX-3, FAIL-REV-1).
-No new claim or advisory lock is introduced. The revision is an
-exact integer in 1..9007199254740991 and cannot decrease or skip an increment.
-A finding page's Audit revision still fences its own observations; the explicit
-Project revision fences current correlation, which may change when another
-Audit admits or removes a peer. Existing events invalidate the affected Audit;
-there is no synthetic human decision/event or fanout write to peer Audits.
+**FND-R177.** An opaque Project finding correlation revision fences current
+membership, triage/assessment, additional contributions and retained source
+availability. It lives in the Project's finding correlation fence row
+(`finding_correlation_fences`), which `internal/auditstore/internal/pgstore`
+owns ([PER-R23](../platform/persistence.md)); the Project row holds no part of
+it. The Project's first Audit creates the row in the Audit's own transaction,
+and the row is removed only with its Project (LIFE-FND-4). A Project without
+the row has never had an Audit and reads revision 1, the revision the row
+starts with. Advance the revision within the existing transaction once per
+affected Project per mutation statement, the Projects in sorted order;
+natural-key replay advances neither membership nor revision/events. Every
+finding writer takes the fence without waiting: the Project row `FOR SHARE
+NOWAIT`, then the fence row `FOR NO KEY UPDATE NOWAIT`. Keep Run then Audit
+authority order; import takes the fence through the Audit store after its Run
+and Audit locks and before any retained artifact admission. Another finding
+writer of the Project, or a Project deletion, lifecycle change or metadata
+update that holds the Project row exclusively, is contention, and contention
+becomes the existing retryable SQLSTATE `40001`, finite transaction retries and
+the retryable HTTP `503 storage_transaction_conflict` (PER-R16). Run creation,
+Audit start, Project artifact admission, Git import and Eval checks share the
+Project row and never contend with a finding writer. A missing fence row where
+a finding mutation needs one is a permanent internal failure. Owner import,
+each bounded collection transaction and an analyst finding decision replay
+only the whole transaction that aborted, at most three transactions within the
+caller's context and budget; a permanent, cancelled or uncertain outcome is
+never replayed (FAIL-REV-7, FAIL-AUX-3, FAIL-REV-1). No new claim or advisory
+lock is introduced. The revision is an exact integer in 1..9007199254740991
+and cannot decrease or skip an increment. A finding page's Audit revision
+still fences its own observations; the explicit Project revision fences
+current correlation, which may change when another Audit admits or removes a
+peer. Existing events invalidate the affected Audit; there is no synthetic
+human decision/event or fanout write to peer Audits.
+
+Rationale: only finding writers change the revision, but unrelated
+admissions share-lock the Project row to fence its change to `deleting`. When
+the revision was a column of that row, a finding writer's exclusive lock
+aborted import, collection and analyst decisions whenever the Audit
+Controller created a child Run in the same Project, and triggers on finding
+tables wrote a relation that `internal/projectstore` owns. The order is safe
+against Project deletion, which takes the Project row exclusively first in
+each of its transactions: a finding writer that meets that lock aborts at
+once, and a deletion that meets a writer's shared lock waits for a writer that
+never waits on the Project row again, because its later admissions request a
+lock it already holds. The fence row is locked only after the shared Project
+lock, so a deletion that holds the Project row never meets a held fence row,
+and Audit creation inserts the row only when its snapshot shows none, so it
+never waits on a finding writer. Rejected alternatives: keeping the column and
+locking it through a `projectstore` API keeps the false contention and the
+trigger writes; an advisory lock is a new lock mechanism; weakening Run and
+artifact admission to `FOR KEY SHARE` loses their fence against the change to
+`deleting`. The fence row is its own lock domain with its own owner, not an
+immutability split of the Project row. Reopen this when unrelated admissions
+stop share-locking the Project row, or when findings move under
+`internal/projectstore` ownership.
 
 **FND-R178.** Automatic marks never change analyst state, TP/FP, severity,
 manual duplicate targets, finding revision, pending review subject or frozen

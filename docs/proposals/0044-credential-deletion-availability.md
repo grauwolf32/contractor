@@ -205,10 +205,14 @@ failed step ends recovery without a retry.
    is still committing on a connection that outlived the lease handover. If
    such an intent committed after the new owner admitted a Run of C,
    `executeDelete` would answer `credential_in_use` and every later start would
-   fail until that Run ends, which needs a running Server. Not reproduced; it
-   needs a COMMIT delayed past the new owner's startup. Owner: `execution-core`
-   (single-active Server, lease handover); reopen if a lease handover with a
-   live previous owner is observed.
+   fail until that Run ends, which needs a running Server. Reproduced by
+   V414-010 with a COMMIT held across a server-side end of the previous
+   owner's lease session, and fixed there: managed credential writes are
+   lease-fenced and startup recovery reads the journal only after the lease
+   handover ([PER-R34](../spec/platform/persistence.md),
+   [RCF-R72](../spec/configuration/runtime-config.md)). A reference of the
+   previous owner in flight across the handover remains an accepted risk
+   ([PER-R36](../spec/platform/persistence.md)).
 8. **FAIL-RCF-2 leaves the timeout outcome "not specified".** In code a Gateway
    timeout and a cancellation during the Gateway request both answer
    `gateway_unavailable` and keep the intent prepared. A task that changes

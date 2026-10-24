@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V62-010
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, yaml]
 goal: >-
@@ -138,3 +138,102 @@ tests:
     covers: [A2]
   - command: make lint
     covers: [A1, A2, A3, A4]
+implementation_commit: e39b6d72a47d4a80cef3e485fc2cd36b6366bfe2
+verification:
+  date: '2026-10-24'
+  environment: >-
+    macOS arm64; Go 1.26.9; Node 24 with the frozen pnpm install for
+    make ui-verify and make lint; the locked Runtime venv; local PostgreSQL
+    17.11 (Homebrew) database contractor_test_v414_audit with per-test
+    schemas and all 40 migrations. Rerun after merging main e92c0272.
+  decision: >-
+    Choice (a), recorded in ASC-R149 with its rationale and reversal
+    condition. QueryStore.GetPreparedDetail reads the Audit, its pinned
+    prepare roles with their latest attempts through listPreparationPageSQL
+    (the statement the lists use, ASC-R150), and in the rounds phase while
+    not deleting the initial-inventory link and Round 1, in one read-only
+    REPEATABLE READ transaction; a start response also reads the current
+    Round and its items there (AUD-R226). The exact inventory snapshot is
+    read and verified after the commit. A draft, or an Audit whose profile
+    pins no prepare role, is its own detail without another read, as before.
+    A mutation response is the Audit as of its commit or a later one, which
+    is what an Idempotency-Key replay already answered; an Audit purged in
+    between answers 404 as a later read would. Rejected (b): declaring 409
+    on getAudit keeps every poller retrying and still reports a lost race
+    for a committed mutation. Reopen if the detail must read a part that is
+    unbounded or mutable outside the transaction. The service's Preparation
+    and GeneratedInventory reads and the per-Audit ListPreparationRoles
+    statement lost their only caller and were removed (AGENTS.md 3.7). No UI
+    change was needed: getAudit no longer answers 409, and the UI already
+    checks a start response's Round against currentRoundId and a mutation's
+    ETag against its revision.
+  scope_note: >-
+    The PostgreSQL tests commit the interleaved write from a pgx
+    QueryTracer on the traced pool (as the V407-004 list tests do) instead
+    of a test hook in export_test.go, so the production read needs no seam.
+    listAuditFindingProposals was confirmed: findingintake.ListAuditInbox
+    reads no Audit revision and raises no conflict, so the investigation
+    found no other undeclared status and no follow-up gate task is needed.
+  commands:
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=postgres://localhost/contractor_test_v414_audit
+      go test -count=1 ./internal/httpapi/public ./internal/auditservice
+      passed (public 148.1s, auditservice 98.3s).
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL=… go test -tags=integration -count=1
+      ./internal/httpapi/public ./internal/auditservice
+      ./internal/auditstore/... ./internal/auditcontroller ./internal/artifacts
+      passed before the merge (public 138.4s, auditservice 261.1s, pgstore
+      145.2s, auditcontroller 104.7s, artifacts 78.2s). After merging main,
+      public, auditservice, auditcontroller and artifacts passed again;
+      pgstore's TestPostgresAuditDeletionProbesReadOnlyTheLiveRuns (from
+      main, V414-029) exceeded its read budget twice while the other
+      packages loaded the same server, a known issue on main, and the
+      pgstore package passed when run alone (294.8s).
+    - >-
+      New tests: TestSharedPublicAuditDetailSnapshotContracts (fake store;
+      getAudit, start, pause, resume, cancel and delete answer the snapshot
+      revision, ETag and preparation through kin-openapi validation, and a
+      serialization failure answers 503 storage_transaction_conflict for
+      GET and pause); TestSharedPostgresAuditDetailReadsOneCommitWhileTheAuditChanges
+      (a prepare attempt is submitted between the detail statements of GET,
+      and accepted between those of a pause response; each answer is one
+      commit's revision, ETag and preparation; the pause replay answers the
+      current Audit); TestPostgresAuditDetailReadsGeneratedInventoryFromOneCommit
+      (an owner pause commits before the initial-inventory link statement;
+      the detail keeps the earlier revision with its inventory, BEGIN
+      REPEATABLE READ READ ONLY to COMMIT is six statements and the exact
+      snapshot is read after COMMIT; a start response read after Round 1
+      began carries that Round and only its items); the pgstore page test
+      counts the detail statements (preparing Audit 2, draft 1), checks
+      not-found for another owner and that a serialization failure stays a
+      transaction conflict, not ErrConflict.
+    - >-
+      Composition matrix integration boundary: the new tests were added to
+      tests/e2e/audit_composition_matrix.yml; go test -json with the matrix
+      pattern over auditcontroller, artifacts and httpapi/public passed and
+      scripts/test-audit-composition-e2e.py --verify-only --boundary
+      integration accepted the report (zero skips). The process and browser
+      boundaries were not run (they need sqlmap, nuclei and Chromium).
+    - >-
+      make verify-public-api passed; TestSharedPublicAuditDetailSnapshotContracts
+      was added to its selection in make/dev.mk.
+    - make ui-verify passed (196 test files, 2387 tests and 1 expected fail; build).
+    - >-
+      make lint passed (staticcheck U1000, testonlyexports, SQL placement,
+      layers, release graph, task and spec checks, ERD).
+  can_fail: >-
+    A3: main 17245309 (a descendant of 19f7477f whose audit_preparation.go,
+    audit_handlers.go, auditservice/preparation.go and
+    generated_inventory.go are unchanged from 19f7477f) was exported and
+    the new public PostgreSQL test run there: getAudit answered 409
+    {"code":"conflict","retryable":true} and kin-openapi rejected it with
+    "status is not supported" for getAudit; without the GET interleave the
+    pause answered 409 conflict for a pause that had committed.
+  byte_for_byte: >-
+    A4: without a concurrent write the detail reads the same Audit row and
+    the same preparation projection the lists already returned through
+    listPreparationPageSQL (V407-004 proved list and detail preparation
+    equal); the generated inventory projection keeps the same validation
+    and fields. The existing preparation, composition and handler tests with
+    fixed expected bodies pass unchanged.

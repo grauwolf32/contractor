@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
@@ -115,7 +116,8 @@ func TestCredentialLifecycleRecoversCreateCrashWindow(t *testing.T) {
 	}
 	emptyRegistry, _ := NewManagerRegistry()
 	blockedService, err := NewService(ServiceOptions{
-		Pool: pool, Gateways: staticGatewayLookup{gateway: fixture.gateway}, Managers: emptyRegistry,
+		Pool: pool, Lease: leasetest.Hold(t, pool).Lease,
+		Gateways: staticGatewayLookup{gateway: fixture.gateway}, Managers: emptyRegistry,
 		Runs: runstore.NewPostgresStore(pool), Cipher: fixture.cipher,
 	})
 	if err != nil {
@@ -600,8 +602,12 @@ func newLifecycleFixtureWithCipher(
 		t.Fatal(err)
 	}
 	var ids atomic.Int32
+	lease := overrides.Lease
+	if !lease.Valid() {
+		lease = leasetest.Hold(t, pool).Lease
+	}
 	options := ServiceOptions{
-		Pool: pool, Gateways: staticGatewayLookup{gateway: gateway}, Managers: registry,
+		Pool: pool, Lease: lease, Gateways: staticGatewayLookup{gateway: gateway}, Managers: registry,
 		Runs: runstore.NewPostgresStore(pool), Audits: overrides.Audits,
 		Cipher: cipher, Barrier: overrides.Barrier,
 		Now: time.Now,

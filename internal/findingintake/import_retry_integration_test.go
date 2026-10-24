@@ -20,7 +20,9 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore/hookstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -30,19 +32,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// A concurrent Run creation in the same Project holds the Project row FOR
-// SHARE, so the owner import's nonblocking correlation fence aborts with the
-// retryable 40001 (FND-R177). The Run creation commits after that abort and
+// Another finding writer of the same Project holds the Project's finding
+// correlation fence, so the owner import's nonblocking fence aborts with the
+// retryable 40001 (FND-R177). The other writer commits after that abort and
 // before the next attempt; the import replays its whole transaction and
 // commits exactly once. A replay of the request changes nothing.
 func TestPostgresOwnerImportReplaysProjectFenceConflict(t *testing.T) {
 	f := newDeletionImportFixture(t)
-	creation := beginConcurrentRunCreation(t, f, "concurrent-run")
+	writer := beginConcurrentFindingWriter(t, f)
 	trace := &intakeTransactions{}
 	trace.afterFence = func(fence int, _ error) {
 		if fence == 1 {
-			if err := creation.Commit(f.ctx); err != nil {
-				t.Errorf("commit the concurrent Run creation: %v", err)
+			if err := writer.Commit(f.ctx); err != nil {
+				t.Errorf("commit the concurrent finding writer: %v", err)
 			}
 		}
 	}
@@ -58,9 +60,6 @@ func TestPostgresOwnerImportReplaysProjectFenceConflict(t *testing.T) {
 	if want := before.admitted(1); committed != want {
 		t.Fatalf("state after the import = %+v, want %+v", committed, want)
 	}
-	if _, err := runstore.NewPostgresStore(f.pool).GetRun(f.ctx, "concurrent-run"); err != nil {
-		t.Fatalf("the concurrent Run creation did not commit: %v", err)
-	}
 
 	again, replayed, err := intake.ImportIntoAudit(f.ctx, f.request)
 	if err != nil || !replayed || !again.CreatedAt.Equal(hold.CreatedAt) ||
@@ -70,6 +69,50 @@ func TestPostgresOwnerImportReplaysProjectFenceConflict(t *testing.T) {
 	trace.requireAttempts(t, 3, true, false, false)
 	if replayedState := readIntakeState(t, f); replayedState != committed {
 		t.Fatalf("import replay changed state %+v to %+v", committed, replayedState)
+	}
+}
+
+// Run creation, Audit start and Project artifact admission hold the Project
+// row FOR SHARE until they commit, as Git import does. The finding correlation
+// fence is a row of its own that only finding writers lock (FND-R177), so
+// owner import and collection retention each commit in their first
+// transaction with one fence step while such a holder is open, and the holder
+// never waits on them.
+func TestPostgresFindingIntakeSharesTheProjectWithConcurrentAdmissions(t *testing.T) {
+	for _, contender := range []struct {
+		name  string
+		begin func(*testing.T, deletionImportFixture) pgx.Tx
+	}{
+		{"Run creation", func(t *testing.T, f deletionImportFixture) pgx.Tx {
+			return beginConcurrentRunCreation(t, f, "concurrent-run")
+		}},
+		{"Audit start", beginConcurrentAuditStart},
+		{"Project artifact admission", beginConcurrentProjectArtifactAdmission},
+	} {
+		t.Run(contender.name, func(t *testing.T) {
+			f := newDeletionImportFixture(t)
+			collected := f.request
+			collected.Proposal = insertAuditChildReceipt(t, f, "collected-candidate").Proposal.Ref
+			holder := contender.begin(t, f)
+			trace := &intakeTransactions{}
+			intake := intakeOnActorPool(t, f, trace)
+			before := readIntakeState(t, f)
+			if hold, replayed, err := intake.ImportIntoAudit(f.ctx, f.request); err != nil || replayed ||
+				hold.AuditID != f.request.AuditID {
+				t.Fatalf("import beside a concurrent %s = (%+v, %t, %v)", contender.name, hold, replayed, err)
+			}
+			trace.requireAttempts(t, 1, false)
+			if err := intake.RetainAuditCollectionBatch(f.ctx, []ImportRequest{collected}); err != nil {
+				t.Fatalf("collection beside a concurrent %s = %v", contender.name, err)
+			}
+			trace.requireAttempts(t, 2, false, false)
+			if after, want := readIntakeState(t, f), before.admitted(2); after != want {
+				t.Fatalf("state after import and collection = %+v, want %+v", after, want)
+			}
+			if err := holder.Commit(f.ctx); err != nil {
+				t.Fatalf("commit the concurrent %s: %v", contender.name, err)
+			}
+		})
 	}
 }
 
@@ -112,7 +155,7 @@ func TestPostgresFindingIntakeReplaysOnlyDefiniteConflicts(t *testing.T) {
 	} {
 		t.Run(entry.name+"/persistent Project contention", func(t *testing.T) {
 			f := newDeletionImportFixture(t)
-			creation := beginConcurrentRunCreation(t, f, "concurrent-run")
+			writer := beginConcurrentFindingWriter(t, f)
 			trace := &intakeTransactions{}
 			intake := intakeOnActorPool(t, f, trace)
 			before := readIntakeState(t, f)
@@ -125,15 +168,15 @@ func TestPostgresFindingIntakeReplaysOnlyDefiniteConflicts(t *testing.T) {
 			if after := readIntakeState(t, f); after != before {
 				t.Fatalf("aborted %s changed state %+v to %+v", entry.name, before, after)
 			}
-			// The concurrent Run creation never waited on the intake.
-			if err := creation.Commit(f.ctx); err != nil {
+			// The other finding writer never waited on the intake.
+			if err := writer.Commit(f.ctx); err != nil {
 				t.Fatal(err)
 			}
 		})
 
 		t.Run(entry.name+"/cancelled after a conflict", func(t *testing.T) {
 			f := newDeletionImportFixture(t)
-			_ = beginConcurrentRunCreation(t, f, "concurrent-run")
+			_ = beginConcurrentFindingWriter(t, f)
 			ctx, cancel := context.WithCancel(f.ctx)
 			defer cancel()
 			trace := &intakeTransactions{}
@@ -283,17 +326,17 @@ func TestPostgresCollectionPageReplaysOnlyItsConflictedTransaction(t *testing.T)
 			release := func() {
 				if released.CompareAndSwap(false, true) {
 					if err := contender.Rollback(ctx); err != nil {
-						t.Errorf("release the Project: %v", err)
+						t.Errorf("release the Project's finding correlation fence: %v", err)
 					}
 				}
 			}
 			trace := &intakeTransactions{}
 			trace.beforeFence = func(fence int) {
 				if fence == conflictedFence {
-					// A concurrent Run creation's active-Project check.
-					if _, err := contender.Exec(ctx,
-						`SELECT project_id FROM projects WHERE project_id = $1 FOR SHARE`, "delete-project"); err != nil {
-						t.Errorf("contend for the Project: %v", err)
+					// Another finding writer of the Project takes its fence.
+					if err := hookstore.NewFindingEventsTx(contender).LockFindingCorrelationFence(
+						ctx, "delete-project"); err != nil {
+						t.Errorf("contend for the Project's finding correlation fence: %v", err)
 					}
 				}
 			}
@@ -519,7 +562,8 @@ func TestPostgresFindingIntakeSerializesWithProjectDeletion(t *testing.T) {
 }
 
 // intakeState is what an Audit admission changes: the Audit's holds,
-// findings, events and revision and its Project's correlation revision.
+// findings, events and revision and its Project's finding correlation
+// revision.
 type intakeState struct {
 	holds, findings, events, rejections int64
 	auditRevision, correlationRevision  int64
@@ -534,7 +578,7 @@ SELECT (SELECT count(*) FROM finding_proposal_audit_holds WHERE audit_id = $1),
        (SELECT count(*) FROM audit_events WHERE audit_id = $1),
        (SELECT count(*) FROM audit_events WHERE audit_id = $1 AND kind = 'finding.proposal_rejected'),
        (SELECT revision::bigint FROM audits WHERE audit_id = $1),
-       (SELECT finding_correlation_revision::bigint FROM projects WHERE project_id = $2)`,
+       (SELECT revision FROM finding_correlation_fences WHERE project_id = $2)`,
 		f.request.AuditID, "delete-project",
 	).Scan(&state.holds, &state.findings, &state.events, &state.rejections,
 		&state.auditRevision, &state.correlationRevision); err != nil {
@@ -565,8 +609,8 @@ func (s intakeState) rejected(count int64) intakeState {
 
 // beginConcurrentRunCreation creates another Run of the fixture Project in a
 // transaction that the test ends. Like every Run creation, its active-Project
-// check holds the Project row FOR SHARE until then, which conflicts with the
-// intake's Project correlation fence.
+// check holds the Project row FOR SHARE until then, which the intake's
+// finding correlation fence shares.
 func beginConcurrentRunCreation(t *testing.T, f deletionImportFixture, runID string) pgx.Tx {
 	t.Helper()
 	source, err := runstore.NewPostgresStore(f.pool).GetRun(f.ctx, f.request.RunID)
@@ -586,6 +630,70 @@ func beginConcurrentRunCreation(t *testing.T, f deletionImportFixture, runID str
 	}); err != nil {
 		t.Fatal(err)
 	}
+	return tx
+}
+
+// beginConcurrentAuditStart takes the shared Project lock that Audit start
+// holds while it snapshots Project inputs, in a transaction that the test
+// ends.
+// beginConcurrentFindingWriter holds the fixture Project's finding correlation
+// fence in a transaction that the test ends, as another finding writer of the
+// Project does from its fence lock until it commits: an import or collection
+// into another Audit takes it through the same auditstore call, and an
+// analyst decision or an Audit purge through the finding triggers.
+func beginConcurrentFindingWriter(t *testing.T, f deletionImportFixture) pgx.Tx {
+	t.Helper()
+	tx, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+	if err := hookstore.NewFindingEventsTx(tx).LockFindingCorrelationFence(f.ctx, "delete-project"); err != nil {
+		t.Fatal(err)
+	}
+	return tx
+}
+
+func beginConcurrentAuditStart(t *testing.T, f deletionImportFixture) pgx.Tx {
+	t.Helper()
+	tx, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+	if _, err := projectstore.NewPostgresStore(tx).LockActiveAuditProject(
+		f.ctx, f.request.OwnerID, "delete-project",
+	); err != nil {
+		t.Fatal(err)
+	}
+	return tx
+}
+
+// beginConcurrentProjectArtifactAdmission writes an Artifact into the
+// fixture's existing ProjectScope in a transaction that the test ends. Its
+// admission trigger holds the Project row FOR SHARE until then.
+func beginConcurrentProjectArtifactAdmission(t *testing.T, f deletionImportFixture) pgx.Tx {
+	t.Helper()
+	write := func(db persistencepostgres.DBTX, name string) {
+		t.Helper()
+		projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(db)).Project("delete-project")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := projectArtifacts.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: name},
+			artifacts.Payload{MediaType: "text/plain", Data: []byte(name)}, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The scope exists before the contender, as it does for every Project
+	// with inputs; only the contender's own admission stays open.
+	write(f.pool, "existing")
+	tx, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+	write(tx, "concurrent")
 	return tx
 }
 
@@ -689,7 +797,7 @@ func (c *intakeTransactions) TraceQueryStart(ctx context.Context, _ *pgx.Conn, d
 		lock := c.auditLocks
 		c.mu.Unlock()
 		return context.WithValue(ctx, intakeStatementKey{}, intakeStatement{auditLock: lock})
-	case strings.Contains(statement, "contractor_lock_finding_correlation_project"):
+	case strings.Contains(statement, "contractor_lock_finding_correlation_fence"):
 		c.fences = append(c.fences, nil)
 		fence, hook := len(c.fences), c.beforeFence
 		c.mu.Unlock()

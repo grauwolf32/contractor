@@ -195,13 +195,16 @@ export function useRunDraftState(
         const known =
           metadata === undefined
             ? current.knownArtifacts
-            : [
-                ...current.knownArtifacts.filter(
-                  (candidate) =>
-                    artifactOptionKey(candidate.artifact) !== selected,
-                ),
-                metadata,
-              ];
+            : {
+                ...current.knownArtifacts,
+                [slot]: [
+                  ...(current.knownArtifacts[slot] ?? []).filter(
+                    (candidate) =>
+                      artifactOptionKey(candidate.artifact) !== selected,
+                  ),
+                  metadata,
+                ],
+              };
         return {
           ...current,
           artifactSelections: updateRecord(

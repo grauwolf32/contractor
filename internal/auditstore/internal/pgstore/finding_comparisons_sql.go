@@ -1,11 +1,23 @@
 package pgstore
 
+// projectCorrelationFenceJoin joins the finding correlation fence row of the
+// Project aliased project, and projectCorrelationRevision is that Project's
+// opaque finding correlation revision (FND-R177). A Project without a fence
+// row has never had an Audit, so no finding correlation exists, and it reads
+// 1, the revision its fence row starts with when its first Audit creates it.
+const (
+	projectCorrelationFenceJoin = `
+ LEFT JOIN finding_correlation_fences AS fence ON fence.project_id=project.project_id`
+	projectCorrelationRevision = `coalesce(fence.revision,1)`
+)
+
 // correlationFenceSQL reads only the two selected Audit identities and compact
 // baseline identities. No profile, evidence or whole-Audit inventory is hydrated.
-const correlationFenceSQL = `SELECT project.finding_correlation_revision,
+const correlationFenceSQL = `SELECT ` + projectCorrelationRevision + `,
  audit.audit_id,audit.revision,audit.state,audit.profile_name,audit.profile_version,audit.profile_digest,
  CASE WHEN audit.baseline_snapshot IS NULL THEN NULL ELSE 'sha256:'||encode(sha256(convert_to(audit.baseline_snapshot::text,'UTF8')),'hex') END
- FROM projects AS project LEFT JOIN audits AS audit ON audit.project_id=project.project_id
+ FROM projects AS project` + projectCorrelationFenceJoin + `
+ LEFT JOIN audits AS audit ON audit.project_id=project.project_id
  AND audit.owner_id=$1 AND audit.audit_id=ANY($3::text[])
  WHERE project.owner_id=$1 AND project.project_id=$2 ORDER BY audit.audit_id COLLATE "C"`
 
@@ -13,9 +25,9 @@ const correlationFenceSQL = `SELECT project.finding_correlation_revision,
 // first/contributing relation. A foreign receipt is indistinguishable from absent.
 const candidateSourceSQL = `SELECT finding.finding_id,finding.audit_id,finding.correlation_project_id,
  finding.first_receipt_id,receipt.receipt_id,finding.correlation_group_key,receipt.comparison_projection,
- audit.revision,project.finding_correlation_revision
+ audit.revision,` + projectCorrelationRevision + `
  FROM audit_findings AS finding JOIN audits AS audit USING(audit_id)
- JOIN projects AS project ON project.project_id=audit.project_id AND project.owner_id=$1
+ JOIN projects AS project ON project.project_id=audit.project_id AND project.owner_id=$1` + projectCorrelationFenceJoin + `
  JOIN finding_proposal_receipts AS receipt ON receipt.receipt_id=coalesce($4::text,finding.first_receipt_id)
  WHERE audit.owner_id=$1 AND finding.audit_id=$2 AND finding.finding_id=$3
  AND (receipt.receipt_id=finding.first_receipt_id OR EXISTS(
@@ -129,8 +141,9 @@ const comparisonPreviewsSQL = `SELECT finding.finding_id,finding.audit_id,findin
 // checkCorrelationFenceSQL rechecks only scalar revisions after hydration; the
 // immutable baseline/profile metadata need not be read or hashed a second time.
 const checkCorrelationFenceSQL = `SELECT
- EXISTS(SELECT 1 FROM projects WHERE owner_id=$1 AND project_id=$2
- AND ($3::bigint=0 OR finding_correlation_revision=$3))
+ EXISTS(SELECT 1 FROM projects AS project` + projectCorrelationFenceJoin + `
+ WHERE project.owner_id=$1 AND project.project_id=$2
+ AND ($3::bigint=0 OR ` + projectCorrelationRevision + `=$3))
  AND (SELECT count(*) FROM unnest($4::text[],$5::bigint[]) AS expected(audit_id,revision)
  JOIN audits AS audit ON audit.audit_id=expected.audit_id AND audit.revision=expected.revision
  WHERE audit.owner_id=$1 AND audit.project_id=$2)=cardinality($4::text[])`

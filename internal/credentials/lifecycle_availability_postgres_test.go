@@ -9,6 +9,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -43,8 +45,9 @@ func newAvailabilityFixture(t *testing.T) (availabilityFixture, context.Context)
 	pool, ctx := lifecycleTestPool(t)
 	manager := newFakeGatewayManager()
 	barrier := NewLifecycleBarrier()
+	lease := leasetest.Hold(t, pool).Lease
 	f := availabilityFixture{
-		lifecycleFixture: newLifecycleFixture(t, pool, manager, ServiceOptions{Barrier: barrier}),
+		lifecycleFixture: newLifecycleFixture(t, pool, manager, ServiceOptions{Barrier: barrier, Lease: lease}),
 		pool:             pool, manager: manager, barrier: barrier,
 	}
 	if err := f.service.Recover(ctx); err != nil {
@@ -57,7 +60,7 @@ func newAvailabilityFixture(t *testing.T) (availabilityFixture, context.Context)
 			t.Fatal(err)
 		}
 	}
-	f.runtimeCredentials = newRuntimeServiceBeside(t, ctx, pool, f.cipher, barrier)
+	f.runtimeCredentials = newRuntimeServiceBeside(t, ctx, pool, lease, f.cipher, barrier)
 	return f, ctx
 }
 
@@ -68,11 +71,12 @@ func (f availabilityFixture) deleteRequest(credential CreateRequest, key string)
 // newRuntimeServiceBeside composes a Runtime credential service on barrier
 // and stores one OTLP credential in it.
 func newRuntimeServiceBeside(
-	t *testing.T, ctx context.Context, pool *pgxpool.Pool, cipher *TokenCipher, barrier *LifecycleBarrier,
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, lease persistencepostgres.ServerLease,
+	cipher *TokenCipher, barrier *LifecycleBarrier,
 ) *RuntimeCredentialService {
 	t.Helper()
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-		Pool: pool, Cipher: cipher, Usage: NewRuntimeCredentialRepository(pool),
+		Pool: pool, Lease: lease, Cipher: cipher, Usage: NewRuntimeCredentialRepository(pool),
 		Audits: staticAuditDispatchHolds{}, Barrier: barrier,
 	})
 	if err != nil {
@@ -400,7 +404,7 @@ func TestCredentialPreparedDeleteFencesOwnReferencesAndEveryManagedMutation(t *t
 
 func TestCredentialDurableIntentFoundByReconciliationKeepsTheProcessWideFenceUntilRestart(t *testing.T) {
 	f, ctx := newDeleteFenceFixture(t)
-	runtimeCredentials := newRuntimeServiceBeside(t, ctx, f.pool, f.cipher, f.service.barrier)
+	runtimeCredentials := newRuntimeServiceBeside(t, ctx, f.pool, f.lease.Lease, f.cipher, f.service.barrier)
 	deletion := f.deleteRequest(f.deleting, "delete-lost-reply")
 	f.faults.arm(commitFaultLoseResponse)
 	if _, err := f.service.Delete(ctx, deletion); err == nil {

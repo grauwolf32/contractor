@@ -467,6 +467,13 @@ func TestProjectDeletionPurgesAuditWithDecidedReviewsAndAssessments(t *testing.T
 		t.Fatal(err)
 	}
 	seedDecidedAuditHistory(t, ctx, pool, audit)
+	// The finding and its decision stepped the Project's finding correlation
+	// fence, whose row the Audit created (FND-R177).
+	var fenceRevision int64
+	if err := pool.QueryRow(ctx, `SELECT revision FROM finding_correlation_fences WHERE project_id = $1`,
+		project.ProjectID).Scan(&fenceRevision); err != nil || fenceRevision < 2 {
+		t.Fatalf("finding correlation fence before Project deletion = %d, %v", fenceRevision, err)
+	}
 	if _, _, err := projects.BeginDeletion(ctx, projectstore.BeginDeletionParams{
 		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
 	}); err != nil {
@@ -493,15 +500,16 @@ func TestProjectDeletionPurgesAuditWithDecidedReviewsAndAssessments(t *testing.T
 	if _, err := projects.Get(ctx, project.OwnerID, project.ProjectID); !errors.Is(err, projectstore.ErrNotFound) {
 		t.Fatalf("Project did not finish deletion: %v", err)
 	}
-	var decisions, assessments, receipts int
+	var decisions, assessments, receipts, fences int
 	if err := pool.QueryRow(ctx, `
 SELECT (SELECT count(*) FROM audit_review_decisions),
        (SELECT count(*) FROM audit_finding_assessments),
-       (SELECT count(*) FROM finding_proposal_receipts WHERE project_id = $1)`, project.ProjectID,
-	).Scan(&decisions, &assessments, &receipts); err != nil ||
-		decisions != 0 || assessments != 0 || receipts != 0 {
-		t.Fatalf("Audit decisions/assessments/receipts after Project deletion = (%d, %d, %d, %v)",
-			decisions, assessments, receipts, err)
+       (SELECT count(*) FROM finding_proposal_receipts WHERE project_id = $1),
+       (SELECT count(*) FROM finding_correlation_fences WHERE project_id = $1)`, project.ProjectID,
+	).Scan(&decisions, &assessments, &receipts, &fences); err != nil ||
+		decisions != 0 || assessments != 0 || receipts != 0 || fences != 0 {
+		t.Fatalf("Audit decisions/assessments/receipts/fences after Project deletion = (%d, %d, %d, %d, %v)",
+			decisions, assessments, receipts, fences, err)
 	}
 }
 
