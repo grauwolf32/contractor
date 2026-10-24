@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-127 open tasks: 8 in progress, 108 pending, 11 deferred. 1093 finished: 1083 completed, 10 archived.
+127 open tasks: 9 in progress, 107 pending, 11 deferred. 1093 finished: 1083 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V414-034](v414-034-audit-controller-invalid-write-retry.yml) | audits | defect | P2 | Close an Audit whose controller write is refused as invalid instead of retrying it |
+| [V414-036](v414-036-output-bind-missing-source.yml) | execution-core | defect | P2 | End the Run when a Workflow output's source revision is missing instead of retrying finalization |
 | [V414-037](v414-037-eval-attempt-metrics-strict-read.yml) | evals | chore | P2 | Read Eval attempt metrics strictly and remove the older passthrough@1 path |
 | [V414-038](v414-038-scale-test-budgets-under-load.yml) | quality | defect | P1 | Keep the Audit claim and deletion-probe read budgets exact while other suites share the server |
 | [V414-039](v414-039-workspace-timeout-tests-wall-clock.yml) | workspaces | defect | P2 | Test workspace operation deadlines without real sub-second wall-clock budgets |
@@ -30,7 +31,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 | [V414-014](v414-014-standby-shutdown-race.yml) | defect | P3 | — | Exit a standby Server cleanly when shutdown races its readiness listener |
-| [V414-036](v414-036-output-bind-missing-source.yml) | defect | P2 | — | End the Run when a Workflow output's source revision is missing instead of retrying finalization |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
