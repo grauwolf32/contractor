@@ -49,6 +49,15 @@ def success(request: dict[str, object]) -> None:
     )
 
 
+def ignore_sigterm() -> None:
+    """Ignore SIGTERM; a marker path in argv[2] records that one arrived."""
+    if len(sys.argv) < 3:
+        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        return
+    marker = Path(sys.argv[2])
+    signal.signal(signal.SIGTERM, lambda *_: marker.touch())
+
+
 def main() -> int:
     mode = sys.argv[1]
     if mode == "exit-once-before-read":
@@ -83,7 +92,7 @@ def main() -> int:
         return trailmark_child.main()
     request = read_request()
     if mode == "hang":
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        ignore_sigterm()
         time.sleep(60)
     if mode == "crash":
         return 9
@@ -124,7 +133,7 @@ def main() -> int:
         )
         time.sleep(60)
     if mode == "ignore-term":
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        ignore_sigterm()
         success(request)
         time.sleep(60)
     if mode == "stderr-flood":
@@ -138,7 +147,7 @@ def main() -> int:
         time.sleep(60)
     if mode == "hang-query":
         success(request)
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
+        ignore_sigterm()
         read_request()
         time.sleep(60)
     if mode == "crash-query":
