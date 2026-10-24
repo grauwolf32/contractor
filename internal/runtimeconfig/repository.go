@@ -121,6 +121,21 @@ JOIN unnest($1::text[], $2::text[], $3::text[]) AS requested(name, version, dige
 	return result, nil
 }
 
+// versionsOfBindings reads the version each binding names with one
+// statement. A binding references its version by foreign key, so a missing
+// one keeps the class a single-version read reports, ErrNotFound.
+func (r *Repository) versionsOfBindings(ctx context.Context, bindings []Binding) (map[Ref]Version, error) {
+	refs := make([]Ref, len(bindings))
+	for index, binding := range bindings {
+		refs[index] = binding.Ref
+	}
+	versions, err := r.GetVersionsByRefs(ctx, refs)
+	if errors.Is(err, ErrVersionNotFound) {
+		return nil, ErrNotFound
+	}
+	return versions, err
+}
+
 func (r *Repository) ListVersions(ctx context.Context, afterName, afterVersion string, limit int) ([]Version, error) {
 	if (afterName == "") != (afterVersion == "") || !pagelimit.ValidFetch(limit) {
 		return nil, invalid("RuntimeConfig page cursor or limit is invalid")
@@ -345,6 +360,10 @@ func (r *Repository) LockBindingsForUpdate(ctx context.Context, labels []string)
 	return r.lockBindings(ctx, labels, "FOR UPDATE")
 }
 
+// lockBindings locks the whole label set with one statement in mode (CTL-R89).
+// The statement takes its row locks in the bytewise order of the sorted
+// labels, whatever the database collation, so overlapping lock sets cannot
+// deadlock. A missing label is ErrNotFound, as for a single-row read.
 func (r *Repository) lockBindings(ctx context.Context, labels []string, mode string) ([]Binding, error) {
 	ordered := append([]string(nil), labels...)
 	for _, label := range ordered {
@@ -359,12 +378,31 @@ func (r *Repository) lockBindings(ctx context.Context, labels []string, mode str
 		}
 	}
 	result := make([]Binding, 0, len(ordered))
-	for _, label := range ordered {
-		binding, err := scanBinding(r.db.QueryRow(ctx, bindingSelect+` WHERE label = $1 `+mode, label))
-		if err != nil {
-			return nil, err
+	if len(ordered) == 0 {
+		return result, nil
+	}
+	rows, err := r.db.Query(ctx, lockBindingsSQL+mode+` OF binding`, ordered)
+	if err != nil {
+		return nil, persistencepostgres.WrapError("lock RuntimeConfig label bindings", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		binding, scanErr := scanBinding(rows)
+		if scanErr != nil {
+			return nil, scanErr
 		}
 		result = append(result, binding)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, persistencepostgres.WrapError("lock RuntimeConfig label bindings", err)
+	}
+	if len(result) != len(ordered) {
+		return nil, ErrNotFound
+	}
+	for index := range result {
+		if result[index].Label != ordered[index] {
+			return nil, errors.New("locked RuntimeConfig bindings differ from the requested label set")
+		}
 	}
 	return result, nil
 }

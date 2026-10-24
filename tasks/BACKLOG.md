@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-85 open tasks: 4 in progress, 56 pending, 25 deferred. 1033 finished: 1029 completed, 4 archived.
+84 open tasks: 4 in progress, 55 pending, 25 deferred. 1034 finished: 1030 completed, 4 archived.
 
 ## In progress
 
@@ -26,7 +26,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold SQL and the UI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 | [V407-013](v407-013-mtls-connection-reuse.yml) | chore | P2 | — | Reuse verified private TLS connections with bounded lifecycle ownership |
-| [V409-011](v409-011-execution-store-n1-and-duplicates.yml) | chore | P3 | — | Reduce execution query round trips while preserving lock and recovery contracts |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -122,7 +121,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
 | [V408-002](v408-002-shared-postgres-test-schema.yml) | chore | P2 | V408-001 | Apply migrations once per package: one shared PostgreSQL test helper with per-test truncation |
 | [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V409-004 | Consolidate indexes only where reader and constraint evidence permits it |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-004, V409-007, V409-011, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-004, V409-007, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -181,7 +180,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 41 | 51 | 18 | 73 |
+| Run execution core (`execution-core`) | 4 | 41 | 51 | 18 | 73 |
 | Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 40 | 16 | 58 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 25 | 13 | 4 | 41 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |

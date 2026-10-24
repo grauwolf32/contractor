@@ -605,11 +605,11 @@ func (s *laneTestStore) ListStageAllocationsBatch(context.Context, []string) (ma
 	return nil, errors.New("unexpected allocation batch read")
 }
 
-func (s *laneTestStore) MarkStageAllocationReleaseAttempt(context.Context, string) error {
+func (s *laneTestStore) MarkStageAllocationReleaseAttempt(context.Context, ...string) error {
 	return errors.New("unexpected release attempt")
 }
 
-func (s *laneTestStore) MarkStageAllocationReleased(context.Context, string) error {
+func (s *laneTestStore) MarkStageAllocationReleased(context.Context, ...string) error {
 	return errors.New("unexpected release completion")
 }
 

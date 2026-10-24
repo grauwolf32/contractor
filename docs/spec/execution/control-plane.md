@@ -943,7 +943,15 @@ snapshot. It sends no AllocationSpec before that transaction commits.
 
 **CTL-R89.** All Run creation, binding mutation, Agent-label mutation
 and allocation-pinning transactions use the same binding-then-principal lock
-order.
+order. A transaction locks its binding set with one statement and its
+principal set with one more, each in the bytewise order of its keys (label,
+`runtime_agent_id`), which the statement keeps whatever the database
+collation, so overlapping sets cannot deadlock. Run creation, Agent-label
+validation and allocation pinning lock bindings shared, so their sets never
+wait for one another; a binding mutation locks its bindings exclusively and
+so waits for, and excludes, every transaction that holds one of them.
+Principal rows are always locked exclusively. A duplicate or malformed key
+refuses the set before any statement, and a missing row fails the whole set.
 
 **CTL-R90.** If any revision changed or the recomputed settings no
 longer fit the selected adapter capabilities, Control Plane releases the

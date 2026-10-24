@@ -273,16 +273,18 @@ func (s *pacedReleaseStore) ListStageAllocations(ctx context.Context, stageExecu
 	return s.Store.ListStageAllocations(ctx, stageExecutionID)
 }
 
-func (s *pacedReleaseStore) MarkStageAllocationReleaseAttempt(ctx context.Context, allocationID string) error {
+func (s *pacedReleaseStore) MarkStageAllocationReleaseAttempt(ctx context.Context, allocationIDs ...string) error {
 	s.paced.inFlight()
-	return s.Store.MarkStageAllocationReleaseAttempt(ctx, allocationID)
+	return s.Store.MarkStageAllocationReleaseAttempt(ctx, allocationIDs...)
 }
 
-func (s *pacedReleaseStore) MarkStageAllocationReleased(ctx context.Context, allocationID string) error {
+func (s *pacedReleaseStore) MarkStageAllocationReleased(ctx context.Context, allocationIDs ...string) error {
 	s.paced.inFlight()
-	err := s.Store.MarkStageAllocationReleased(ctx, allocationID)
+	err := s.Store.MarkStageAllocationReleased(ctx, allocationIDs...)
 	if err == nil {
-		s.paced.released <- s.stageOf[allocationID]
+		for _, allocationID := range allocationIDs {
+			s.paced.released <- s.stageOf[allocationID]
+		}
 	}
 	return err
 }

@@ -25,3 +25,22 @@ SELECT allocation_id, stage_execution_id, logical_agent_name, namespace,
 FROM stage_allocations
 WHERE stage_execution_id = ANY($1::text[])
 ORDER BY stage_execution_id, logical_agent_name`
+
+// markStageAllocationReleaseAttemptsSQL records a release attempt of each
+// allocation of $1 whose release has not completed and returns the marked
+// allocation IDs. Used by PostgresStore.MarkStageAllocationReleaseAttempt.
+const markStageAllocationReleaseAttemptsSQL = `
+UPDATE stage_allocations
+SET release_attempted_at = clock_timestamp()
+WHERE allocation_id = ANY($1::text[]) AND release_completed_at IS NULL
+RETURNING allocation_id`
+
+// markStageAllocationsReleasedSQL records the completed release of each
+// allocation of $1 whose release has not completed and returns the marked
+// allocation IDs. Used by PostgresStore.MarkStageAllocationReleased.
+const markStageAllocationsReleasedSQL = `
+UPDATE stage_allocations
+SET release_attempted_at = statement_timestamp(),
+    release_completed_at = statement_timestamp()
+WHERE allocation_id = ANY($1::text[]) AND release_completed_at IS NULL
+RETURNING allocation_id`
