@@ -164,12 +164,20 @@ func TestPostgresHeldAuditCredentialChecksReadOnlyMatchingHeldAudits(t *testing.
 			t.Fatal(err)
 		}
 		plan, matching := analysis.Plan, int64(len(expected(check.member, check.credential, 128)))
+		if !plan.Uses(indexes[check.member]) {
+			t.Errorf("%s holds of %s do not find the held Audits through %s:\n%s",
+				check.member, check.credential, indexes[check.member], plan)
+		}
+		if examined := plan.Examined("audits"); examined > matching {
+			t.Errorf("%s holds of %s read %d Audits for %d matching held Audits:\n%s",
+				check.member, check.credential, examined, matching, plan)
+		}
 		original := explainWithoutHeldCredentialIndexes(t, ctx, pool, sql, check.credential)
 		t.Logf("%s holds of %s, %d matching: %d blocks:\n%s\nwithout the held credential indexes, %d blocks:\n%s",
 			check.member, check.credential, matching, plan.Blocks(), plan, original.Blocks(), original)
-		if !plan.Uses(indexes[check.member]) || plan.Examined("audits") > matching || plan.Blocks() >= original.Blocks() {
-			t.Errorf("%s holds of %s read %d Audits for %d matching held Audits in %d blocks (%d without the indexes)",
-				check.member, check.credential, plan.Examined("audits"), matching, plan.Blocks(), original.Blocks())
+		if plan.Blocks() >= original.Blocks() {
+			t.Errorf("%s holds of %s read %d blocks, no fewer than the %d they read without the held credential indexes",
+				check.member, check.credential, plan.Blocks(), original.Blocks())
 		}
 	}
 	conn, err := pool.Acquire(ctx)
@@ -191,8 +199,9 @@ func TestPostgresHeldAuditCredentialChecksReadOnlyMatchingHeldAudits(t *testing.
 var errHeldRollback = errors.New("rolled back")
 
 // explainWithoutHeldCredentialIndexes explains sql as the schema before
-// V407-025 ran it, in a transaction that drops the held credential indexes
-// and is rolled back.
+// V407-025 ran it, in a transaction that drops the held credential indexes,
+// if they exist, and is rolled back. Without the indexes the plan checks
+// above fail; this comparison then only records the same plan twice.
 func explainWithoutHeldCredentialIndexes(
 	t *testing.T, ctx context.Context, pool interface {
 		Begin(context.Context) (pgx.Tx, error)
@@ -204,7 +213,7 @@ func explainWithoutHeldCredentialIndexes(
 		t.Fatal(err)
 	}
 	defer func() { _ = tx.Rollback(context.WithoutCancel(ctx)) }()
-	if _, err := tx.Exec(ctx, `DROP INDEX audits_held_llm_credentials_idx, audits_held_runtime_credentials_idx`); err != nil {
+	if _, err := tx.Exec(ctx, `DROP INDEX IF EXISTS audits_held_llm_credentials_idx, audits_held_runtime_credentials_idx`); err != nil {
 		t.Fatal(err)
 	}
 	analysis, err := explaintest.Explain(ctx, tx, sql, credential, 128)

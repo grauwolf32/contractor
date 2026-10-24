@@ -397,8 +397,11 @@ never runs.
 
 **PER-R22.** A row trigger fires only when what it guards or checks can
 change. A guard that rejects changes to some columns fires on `UPDATE OF`
-exactly the columns its function or WHEN condition compares, and no BEFORE UPDATE trigger of its
-table assigns a column, so only an UPDATE that lists a guarded column runs it;
+exactly the columns its function or WHEN condition compares, reads no other
+column of NEW or OLD except a value that only qualifies a change of a listed
+column, such as the state in which that change is still allowed, and no
+BEFORE UPDATE trigger of its table assigns a column, so only an UPDATE that
+lists a guarded column runs it;
 an after-row or deferred trigger states in its WHEN condition the change it
 reacts to, and fires on every INSERT when its function checks new rows. A Run
 event append, which only advances the Run's event sequence, therefore fires no
@@ -624,8 +627,10 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     An append to a Run with an Audit completion fires only the binding
     check; test `TestAuditCompletionPostgresAtomicCreationRestartAndAllocation`
     in [`internal/runservice/audit_completion_postgres_test.go`](../../../internal/runservice/audit_completion_postgres_test.go).
-    Each column-scoped guard of `workflow_runs` and `stage_executions` lists
-    exactly the columns its function compares; tests
+    Each column-scoped guard of `workflow_runs` and `stage_executions` reads
+    through NEW and OLD, in any spelling, only the columns it lists and the
+    qualifiers declared for it, and reads every listed column through NEW;
+    tests
     `TestWorkflowRunGuardsFireOnTheColumnsTheyCompare` and
     `TestStageExecutionGuardsFireOnTheColumnsTheyCompare` in
     [`internal/persistence/postgres/workflow_run_triggers_postgres_test.go`](../../../internal/persistence/postgres/workflow_run_triggers_postgres_test.go).
