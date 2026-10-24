@@ -3,6 +3,7 @@ package explaintest
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -315,9 +316,19 @@ func closing(tokens []token, open int, opening, closingText string) (int, error)
 //
 // runs only that block on UPDATE, and a body whose first statement is the
 // same block for 'INSERT' runs everything after it; any other body, including
-// one with ELSE or ELSIF in that first IF, is read whole. Reading more than
-// the UPDATE path can only add failures, never hide one.
+// one with ELSE or ELSIF in that first IF, is read whole. A DECLARE section
+// before the body belongs to every path, since each call evaluates its
+// defaults. Reading more than the UPDATE path can only add failures, never
+// hide one.
 func updatePath(body []token) []token {
+	if len(body) > 0 && body[0].isWord("declare") {
+		for i := 1; i < len(body); i++ {
+			if body[i].isWord("begin") {
+				return append(slices.Clip(body[:i]), updatePath(body[i:])...)
+			}
+		}
+		return body
+	}
 	if len(body) < 6 || !body[0].isWord("begin") || !body[1].isWord("if") || !body[2].isWord("tg_op") ||
 		!body[3].is(symbolToken, "=") || body[4].kind != literalToken || !body[5].isWord("then") {
 		return body

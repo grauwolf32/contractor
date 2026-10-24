@@ -24,3 +24,8 @@ SELECT trigger.tgname::text, language.lanname::text, function.prosrc, pg_get_tri
 var tableColumnsSQL = `
 SELECT attname::text FROM pg_attribute
  WHERE attrelid = $1::text::regclass AND attnum > 0 AND NOT attisdropped`
+
+// columnTypeSQL returns the type of column $2 of table $1. Used by Changed.
+var columnTypeSQL = `
+SELECT format_type(atttypid, atttypmod) FROM pg_attribute
+ WHERE attrelid = $1::text::regclass AND attname = $2 AND attnum > 0 AND NOT attisdropped`

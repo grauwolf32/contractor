@@ -371,3 +371,32 @@ func set(values []string) map[string]bool {
 func sortedSet(values []string) []string {
 	return slices.Compact(slices.Sorted(slices.Values(values)))
 }
+
+// changedConstants holds, for each column type that Changed supports, a
+// constant of that type.
+var changedConstants = map[string]string{
+	"text": `'changed'`, "bigint": `'1'`, "integer": `'1'`, "smallint": `'1'`, "boolean": `'true'`,
+	"jsonb": `'["changed"]'`, "text[]": `'{changed}'`, "timestamp with time zone": `'2000-01-01 00:00:00+00'`,
+}
+
+// Changed returns an expression that, assigned to column in an UPDATE of
+// table, changes the column whatever value it holds: NULL for a value and a
+// constant of the column's type for NULL. A guard's tests assign it to each
+// guarded column in turn to show that the guard sees each one change alone;
+// a check constraint or NOT NULL that would reject the value runs only after
+// the BEFORE triggers.
+func Changed(ctx context.Context, q Querier, table, column string) (string, error) {
+	rows, err := q.Query(ctx, columnTypeSQL, table, column)
+	if err != nil {
+		return "", err
+	}
+	columnType, err := pgx.CollectExactlyOneRow(rows, pgx.RowTo[string])
+	if err != nil {
+		return "", fmt.Errorf("find the column %s of %s: %w", column, table, err)
+	}
+	constant, ok := changedConstants[columnType]
+	if !ok {
+		return "", fmt.Errorf("the column %s of %s has the type %s, which Changed has no constant for", column, table, columnType)
+	}
+	return fmt.Sprintf("CASE WHEN %s IS NULL THEN %s::%s END", column, constant, columnType), nil
+}

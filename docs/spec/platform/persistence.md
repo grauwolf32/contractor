@@ -464,7 +464,26 @@ StageExecution admission and a counted output publication failure, which
 change neither a guarded column nor the state, fire no trigger of
 `stage_executions`; the manual continuation check still runs on every INSERT
 and on an UPDATE only when the resume source is assigned, and the lifecycle
-capture on every INSERT and on a state change.
+capture on every INSERT and on a state change. A Stage allocation's release
+attempt, release and execution report mark fire no trigger of
+`stage_allocations`: the completion check looks up the Run's completion
+authority when an allocation is inserted and afterwards only rejects a changed
+completion, because the allocation's Stage and agent and the Stage's Run and
+name are immutable, and the Run's completion is fixed when the Run is created,
+before any Stage can exist ([RUN-R26](../execution/runs.md)). An Audit update that assigns neither its
+phase nor a baseline column, such as an event append, fires no preparation
+guard, and the guard looks for a prepare execution only to decide a changed
+baseline or a return to `not-started`. The Eval output projection reacts to a
+Run output that is inserted or deleted or whose revision or frozen flag
+changes; the deferred Run association check of an AuditExecution runs on every
+INSERT and on an UPDATE that changes a column it reads; and the Eval retention
+trigger of `workflow_runs` fires only for a Run deletion that can match a
+`run-create` suboperation, one with a Project, request key and request digest.
+A trigger whose decision reads other tables keeps firing on every change it
+may have to reject, with the reason stated beside it: Project admission runs on
+every INSERT and UPDATE of a Project-scoped artifact binding, each of which is
+an artifact write that a deleting Project rejects at the write itself
+([DEL-R40](../artifacts/retention-and-deletion.md)).
 
 ### Keyed mutations and controller claims
 
@@ -698,6 +717,34 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     lifecycle events are one per state entered; test
     `TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern` in
     [`internal/runstore/stage_triggers_postgres_test.go`](../../../internal/runstore/stage_triggers_postgres_test.go).
+    The guards of `stage_allocations`, `audits`, `artifact_bindings` and
+    `audit_executions` meet the same column rule, and every trigger of those
+    tables and of `workflow_runs` has a stated event and column condition or
+    a stated reason to fire on every change; tests
+    `TestRowTriggerGuardsFireOnTheColumnsTheyCompare` and
+    `TestRowTriggerInventory` in
+    [`internal/persistence/postgres/row_trigger_scope_postgres_test.go`](../../../internal/persistence/postgres/row_trigger_scope_postgres_test.go).
+    Each allocation write calls only the `stage_allocations` triggers it
+    concerns and each guarded column changed alone is rejected; test
+    `TestPostgresStageAllocationUpdatesFireOnlyTheTriggersTheyConcern` in
+    [`internal/runstore/allocation_triggers_postgres_test.go`](../../../internal/runstore/allocation_triggers_postgres_test.go).
+    An Audit event append calls no preparation guard and probes no
+    AuditExecution, and each AuditExecution write from intent to collection
+    calls only the triggers it concerns while a changed Run association or
+    receipt column is still rejected; tests
+    `TestPostgresAuditUpdatesSkipThePreparationProbe` and
+    `TestPostgresAuditExecutionWritesFireOnlyTheTriggersTheyConcern` in
+    [`internal/auditstore/internal/pgstore/trigger_scope_postgres_test.go`](../../../internal/auditstore/internal/pgstore/trigger_scope_postgres_test.go).
+    Each artifact write calls only the `artifact_bindings` triggers it
+    concerns, the preparation guards still reject each guarded column, and a
+    Project deletion that commits between a write's scope and its binding
+    still rejects the write while an Audit that deletion cancels may still
+    import; tests in
+    [`internal/artifacts/trigger_scope_postgres_test.go`](../../../internal/artifacts/trigger_scope_postgres_test.go).
+    The Eval output projection marks a member dirty for each output change
+    and for no other write; test
+    `TestSharedPostgresEvalProjectionFollowsOnlyRunOutputChanges` in
+    [`internal/evalstore/trigger_scope_postgres_test.go`](../../../internal/evalstore/trigger_scope_postgres_test.go).
 18. Only its owner package writes a relation; every other access is a granted
     read or a known access that names an open task, and no registry entry
     outlives its access (PER-R23); tests

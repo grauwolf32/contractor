@@ -1,10 +1,13 @@
 package explaintest
 
 import (
+	"context"
 	"maps"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
 )
 
 // explainedUpdate is EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) output of an
@@ -89,8 +92,43 @@ func TestProbeCountsFiredTriggersPerRelationUntilReset(t *testing.T) {
 	if got := probe.Fired("runs"); !maps.Equal(got, map[string]int64{"guard": 2}) {
 		t.Errorf("Fired(runs) = %v", got)
 	}
+	// A savepoint begun through the probe adds to its counts, before and
+	// after a Reset.
+	savepoint, err := (&Probe{Tx: savepointTx{}, t: t, fired: probe.fired}).Begin(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	nested, ok := savepoint.(*Probe)
+	if !ok {
+		t.Fatalf("Begin returned %T, want a *Probe", savepoint)
+	}
+	nested.fired[Trigger{Relation: "stages", Name: "guard"}]++
+	if got := probe.Fired("stages"); !maps.Equal(got, map[string]int64{"guard": 2}) {
+		t.Errorf("Fired(stages) with a savepoint = %v", got)
+	}
 	probe.Reset()
 	if got := slices.Collect(maps.Keys(probe.Fired("stages"))); len(got) != 0 {
 		t.Errorf("Fired(stages) after Reset = %v", got)
 	}
+	nested.fired[Trigger{Relation: "stages", Name: "guard"}]++
+	if got := probe.Fired("stages"); !maps.Equal(got, map[string]int64{"guard": 1}) {
+		t.Errorf("Fired(stages) of a savepoint after Reset = %v", got)
+	}
 }
+
+func TestProbeAnalyzesOnlyQueriesAndDataChanges(t *testing.T) {
+	for sql, want := range map[string]bool{
+		"SELECT 1": true, "\n  -- reads\n  with x AS (SELECT 1) SELECT * FROM x": true, "UPDATE\tt SET x = 1": true,
+		"INSERT INTO t VALUES (1)": true, "DELETE FROM t": true, "VALUES(1)": true, "(SELECT 1)": false,
+		"SHOW transaction_isolation": false, "SET CONSTRAINTS ALL IMMEDIATE": false, "-- only a comment": false, "": false,
+	} {
+		if got := analyzable(sql); got != want {
+			t.Errorf("analyzable(%q) = %t, want %t", sql, got, want)
+		}
+	}
+}
+
+// savepointTx is a transaction whose Begin starts another one.
+type savepointTx struct{ pgx.Tx }
+
+func (savepointTx) Begin(context.Context) (pgx.Tx, error) { return savepointTx{}, nil }

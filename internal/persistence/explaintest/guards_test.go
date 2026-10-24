@@ -134,6 +134,31 @@ BEGIN
     END IF;
     RETURN NEW;
 END;`},
+		{name: "UPDATE branch after declarations", qualifiers: []string{}, source: `
+DECLARE found text; begun boolean := true;
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        IF NEW.x IS DISTINCT FROM OLD.x THEN
+            RAISE EXCEPTION 'x is immutable';
+        END IF;
+        RETURN NEW;
+    END IF;
+    SELECT state INTO found FROM t WHERE y = NEW.y;
+    RETURN NEW;
+END;`},
+		{name: "declaration that reads an unlisted column", qualifiers: []string{}, source: `
+DECLARE missing boolean := NEW.y IS NULL;
+BEGIN
+    IF TG_OP = 'UPDATE' THEN
+        IF NEW.x IS DISTINCT FROM OLD.x THEN
+            RAISE EXCEPTION 'x is immutable';
+        END IF;
+        RETURN NEW;
+    END IF;
+    RETURN NEW;
+END;`, want: "reads [NEW.y], which it neither lists nor declares"},
+		{name: "declarations without a body", qualifiers: []string{},
+			source: "DECLARE missing boolean := NEW.y IS NULL;", want: "reads [NEW.y], which it neither lists nor declares"},
 		{name: "unscoped trigger that assigns", updateOf: []string{}, qualifiers: []string{},
 			source: "BEGIN NEW.y := now(); RETURN NEW; END;", want: "assigns NEW.y"},
 		{name: "unscoped trigger reading whole rows", updateOf: []string{}, qualifiers: []string{},

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -200,7 +201,8 @@ func (n Node) walk(visit func(Node, int)) {
 // Query or QueryRow before it runs it, and adds up the triggers each one
 // called, so a store bound to it reports which triggers its operations call.
 // Every statement therefore runs twice, the first time in a savepoint that is
-// rolled back; batches and copies are not probed.
+// rolled back; a savepoint begun through the Probe probes its statements too.
+// Utility statements, batches and copies are not probed.
 type Probe struct {
 	pgx.Tx
 	t     testing.TB
@@ -233,11 +235,45 @@ const foreignKeyTriggerPrefix = "RI_ConstraintTrigger_"
 
 // Reset forgets the triggers counted so far.
 func (p *Probe) Reset() {
-	p.fired = map[Trigger]int64{}
+	clear(p.fired)
+}
+
+// Begin starts a savepoint whose statements add to the same counts.
+func (p *Probe) Begin(ctx context.Context) (pgx.Tx, error) {
+	savepoint, err := p.Tx.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &Probe{Tx: savepoint, t: p.t, fired: p.fired}, nil
+}
+
+// analyzable reports whether EXPLAIN ANALYZE accepts sql: a query or a data
+// change, possibly after comments and a WITH clause. A utility statement
+// such as SHOW or SET calls no trigger.
+func analyzable(sql string) bool {
+	for {
+		sql = strings.TrimSpace(sql)
+		if !strings.HasPrefix(sql, "--") {
+			break
+		}
+		_, sql, _ = strings.Cut(sql, "\n")
+	}
+	end := strings.IndexFunc(sql, func(r rune) bool { return unicode.IsSpace(r) || r == '(' })
+	if end < 0 {
+		end = len(sql)
+	}
+	switch strings.ToUpper(sql[:end]) {
+	case "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE", "WITH", "VALUES":
+		return true
+	}
+	return false
 }
 
 func (p *Probe) analyze(ctx context.Context, sql string, args ...any) {
 	p.t.Helper()
+	if !analyzable(sql) {
+		return
+	}
 	analysis, err := Explain(ctx, p.Tx, sql, args...)
 	if err != nil {
 		p.t.Fatalf("explain %q: %v", sql, err)
