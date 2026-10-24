@@ -1,0 +1,70 @@
+schema_version: "1.0"
+id: V415-004
+title: "Restore macOS mesh routes when another VPN captures peer traffic"
+milestone: runtime-host-provisioning-2026-10
+epic: operations
+kind: defect
+priority: P1
+status: completed
+depends_on: []
+languages: [python]
+goal: "Make local-up restore explicit mesh routing on macOS without restarting an existing tunnel or changing the personal VPN."
+context:
+  severity: medium
+  finding: >-
+    deploy/wireguard/mesh.py:158 only invokes wg-quick up. On macOS a connected
+    personal WireGuard VPN can capture mesh peer traffic; an existing mesh
+    interface remains up but its Runtime peers are unreachable. Repeating
+    local-up fails because wg-quick refuses an already existing interface.
+    The original implementation is baeb04eddf918141d342438eb66da5b2d573fcfa;
+    no task identifies that deployment addition.
+  siblings: >-
+    Linux cloud mesh startup remains owned by linux-mesh.sh and systemd.
+    The macOS graphical client remains manually managed: this change must
+    refuse to manipulate an interface it cannot identify as this CLI mesh.
+    Mesh rendering retains peer /32 AllowedIPs; the host route is limited
+    to the deployment private /24. Egress/default routes remain unchanged.
+scope:
+  in:
+    - "Detect the existing macOS mesh interface by its controller address and verify its WireGuard public identity."
+    - "Start a missing CLI tunnel, then reconcile and verify an explicit private mesh subnet route; repeated calls repair routing without restarting the tunnel."
+    - "Cover fresh startup, wrong/missing/already-correct routes, changing utun numbers, conflicting interfaces, permission and route failures with real subprocess fixtures."
+    - "Document privileges, temporary route lifecycle and use after personal VPN activation."
+  out:
+    - "Persistent route monitoring, launchd integration, VPN switching, key rotation and cloud provisioning."
+acceptance_criteria:
+  - id: A1
+    text: "Given a stopped macOS mesh, local-up starts it, discovers its actual utun interface and establishes a route for the configured private /24."
+  - id: A2
+    text: "Given an existing matching mesh and a missing or captured route, repeating local-up repairs the route without invoking wg-quick up/down or changing a default route. An already correct route requires no mutation."
+  - id: A3
+    text: "Conflicting addresses or identities and failed route writes/verification fail visibly without changing unrelated interfaces, printing keys or claiming success. Non-macOS startup remains unchanged."
+  - id: A4
+    text: "Subprocess regressions exercise the standalone CLI orchestration with disposable command fixtures and fail on the original implementation; the complete hybrid suite and lint pass."
+tests:
+  - command: make test-hybrid
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+failure_outcomes:
+  - operation: "Start/reuse the local tunnel and reconcile its subnet route"
+    success: "The matching interface exists, the exact /24 route and every peer lookup use it; an already correct route is unchanged."
+    permanent: "Bad state, conflicting identity/address, missing tools or denied administrator access fail visibly before unrelated network changes."
+    retryable: "External command failure or a competing VPN route change fails this bounded invocation; the operator may rerun local-up."
+    ambiguous: "A successful route write is read back; a mismatching or missing read never produces a ready message. No route deletion or broad retry is attempted."
+    cancelled: "Existing interfaces and routes are retained. No new background process or monitor is introduced beyond wg-quick's existing tunnel lifecycle."
+    timeout: "Route reads have a 10-second timeout; common subprocess calls retain their 120-second deadline. A failed startup or verification leaves any successfully created tunnel available for explicit retry/down."
+cardinality:
+  - collection: "Configured cloud peers"
+    expected: "two"
+    maximum: "sixteen, as accepted by mesh init"
+    bound: "One subnet route write at most and one read per peer; no whole-network probing."
+lifecycle:
+  - entity: "macOS mesh subnet route"
+    delete: "wg-quick down removes routes using its interface."
+    retention: "Temporary until interface teardown; rerun local-up after VPN changes. No launchd or persistent route mutation."
+verification_results:
+  - "make test-hybrid: 23 tests passed, Ruff checks/format and shell syntax passed."
+  - "Both final regression scenarios failed on the original mesh.py: no subnet route write after fresh startup and CalledProcessError when repeating startup."
+  - "make lint: passed (Go vet/staticcheck, UI gates, deployment suites, registries, spec/task checks and Runtime lint/import checks)."
+implementation_commit: 3ae3b7bdb3d54e03cf7d7f93ce2af996c0eb43a7

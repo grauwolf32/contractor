@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-121 open tasks: 4 in progress, 106 pending, 11 deferred. 1091 finished: 1081 completed, 10 archived.
+121 open tasks: 4 in progress, 106 pending, 11 deferred. 1092 finished: 1082 completed, 10 archived.
 
 ## In progress
 
@@ -243,7 +243,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 5 | 21 | 37 | 11 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 62 | 13 | 57 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 37 | 6 | 13 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 38 | 6 | 13 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 11 |
 | PostgreSQL persistence and schema (`persistence`) | 7 | 0 | 24 | 42 | 13 |
 | Quality, CI and process (`quality`) | 15 | 1 | 26 | 92 | 23 |
