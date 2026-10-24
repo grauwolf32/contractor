@@ -19,7 +19,9 @@ test-release-reports:
 	mkdir -p "$(RELEASE_REPORTS)"
 	: > "$(SHARED_FIXTURE_LOG)"
 
-test-go: test-hardening-matrices runtime-venv $(if $(filter 1,$(RELEASE_CONSOLIDATED)),test-release-reports)
+# Prerequisites are parsed before a caller's target-specific consolidation
+# flag exists. Initialize unconditionally, once, before either language writes.
+test-go: test-hardening-matrices runtime-venv test-release-reports
 	$(if $(filter 1,$(RELEASE_CONSOLIDATED)),CONTRACTOR_SHARED_FIXTURE_LOG="$(SHARED_FIXTURE_LOG)" python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-unit.jsonl" -- go test -json -count=1 ./...,go test $$(go list ./... | grep -v '/tests/e2e$$'))
 
 test-runtime: test-runtime-hardening
