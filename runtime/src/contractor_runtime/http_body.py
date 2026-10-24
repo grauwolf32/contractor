@@ -18,9 +18,11 @@ DECODED_CONTENT_CODINGS = frozenset({"identity", "gzip", "deflate"})
 
 # The transport failure family of one httpx exchange, sending or reading:
 # httpx's own errors, and OSError, which httpcore's network backends let
-# escape unmapped (for example ssl.SSLError for a corrupt TLS record). Every
-# Runtime client of a target or service classifies exactly this family as a
-# transport failure; any other exception is an implementation failure.
+# escape unmapped (for example ssl.SSLError for a corrupt TLS record). The
+# HTTP toolset, the Caido and Interactsh adapters and the proxy handle classify
+# exactly this family as a transport failure; any other exception is an
+# implementation failure. The Gateway client and the OTLP exporter keep their
+# own retry rules.
 HTTP_TRANSPORT_ERRORS: tuple[type[Exception], ...] = (httpx.HTTPError, OSError)
 
 
