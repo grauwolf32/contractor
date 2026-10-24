@@ -6,7 +6,6 @@ import asyncio
 import json
 import logging
 import random
-import ssl
 from collections import deque
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
@@ -23,7 +22,6 @@ from contractor_runtime.contracts import (
     decode_private,
 )
 from contractor_runtime.lease import LeaseWatchdog
-from contractor_runtime.mtls import verify_control_plane_peer
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.threads import consume_task_exception
@@ -113,12 +111,15 @@ class ControlTiming:
 class MTLSJSONTransport:
     """Minimal HTTPS/1.1 transport with a pre-request URI SAN role check.
 
-    Each control call opens a fresh bounded connection through the shared
-    private exchange, which verifies the Control Plane role before the first
-    request byte is written.
+    Control calls reuse the process-owned private connections, which verify
+    the Control Plane role on every new connection before its first request
+    byte (CTL-R163). Registration and heartbeats are never sent twice by the
+    transport: a failed call returns its error to the sequenced client.
     """
 
-    def __init__(self, base_url: str, context: ssl.SSLContext, timeout_seconds: float) -> None:
+    def __init__(
+        self, base_url: str, connections: _https.PrivateConnections, timeout_seconds: float
+    ) -> None:
         if not _is_visible_ascii(base_url):
             raise ValueError("Control Plane base URL must contain only visible ASCII characters")
         parsed = urlsplit(base_url)
@@ -135,20 +136,19 @@ class MTLSJSONTransport:
         self._host = parsed.hostname
         self._port = parsed.port or 443
         self._base_path = parsed.path.rstrip("/")
-        self._context = context
+        self._connections = connections
         self._timeout = timeout_seconds
 
     async def post_json(self, path: str, payload: Mapping[str, Any]) -> bytes:
         request = self._encode_request(path, payload)
         try:
-            response = await _https.exchange(
+            response = await self._connections.exchange(
                 self._host,
                 self._port,
-                self._context,
                 request,
+                idempotent=False,
                 timeout_seconds=self._timeout,
                 max_response_bytes=MAX_CONTROL_RESPONSE_BYTES,
-                verify_peer=verify_control_plane_peer,
             )
         except _https.HTTPResponseTooLargeError:
             raise ControlClientError("Control Plane response is too large") from None
@@ -168,7 +168,6 @@ class MTLSJSONTransport:
             "Content-Length": str(len(body)),
             "Accept": "application/json",
             "X-Request-ID": _https.new_request_id(),
-            "Connection": "close",
         }
         return _https.encode_request("POST", self._base_path + path, headers, body)
 

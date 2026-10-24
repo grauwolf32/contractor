@@ -29,7 +29,7 @@ const explainedUpdate = `[{
           "Plans": [{"Node Type": "Bitmap Index Scan", "Index Name": "runs_state_idx",
                      "Actual Rows": 400, "Actual Loops": 1, "Shared Hit Blocks": 3, "Shared Read Blocks": 0}]},
          {"Node Type": "Index Scan", "Relation Name": "stages", "Index Name": "stages_pkey",
-          "Actual Rows": 0.5, "Actual Loops": 3, "Rows Removed by Filter": 2,
+          "Index Cond": "(stage_id = runs.stage_id)", "Actual Rows": 0.5, "Actual Loops": 3, "Rows Removed by Filter": 2,
           "Shared Hit Blocks": 24, "Shared Read Blocks": 2}
        ]}
     ]
@@ -56,6 +56,15 @@ func TestParseReadsThePlanAndItsTriggers(t *testing.T) {
 			t.Errorf("Examined(%s) = %d, want %d", relation, got, want)
 		}
 	}
+	var nodes []string
+	for _, node := range plan.Nodes() {
+		nodes = append(nodes, node.Type)
+	}
+	if want := []string{
+		"ModifyTable", "Index Only Scan", "Nested Loop", "Bitmap Heap Scan", "Bitmap Index Scan", "Index Scan",
+	}; !slices.Equal(nodes, want) {
+		t.Errorf("Nodes = %v, want the root first and each node before its children, %v", nodes, want)
+	}
 	if !plan.Uses("runs_state_idx") || !plan.Uses("audits_project_idx") || plan.Uses("runs_pkey") {
 		t.Errorf("Uses does not follow the plan's indexes:\n%s", plan)
 	}
@@ -68,9 +77,22 @@ func TestParseReadsThePlanAndItsTriggers(t *testing.T) {
 	}
 	rendered := strings.Split(plan.String(), "\n")
 	if len(rendered) != 6 || rendered[1] != "  InitPlan: Index Only Scan on audits using audits_project_idx rows=0 removed=0 blocks=2" ||
-		rendered[5] != "    Index Scan on stages using stages_pkey rows=2 removed=6 blocks=26" {
+		rendered[5] != "    Index Scan on stages using stages_pkey where (stage_id = runs.stage_id) rows=2 removed=6 blocks=26" {
 		t.Errorf("String =\n%s", plan)
 	}
+}
+
+func TestReadsOfRejectsATableTheSchemaLacks(t *testing.T) {
+	reads := Reads{"runs": 3, "stages": 0}
+	if reads.Of("runs") != 3 || reads.Of("stages") != 0 {
+		t.Errorf("Of does not return the counts: runs %d, stages %d", reads.Of("runs"), reads.Of("stages"))
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("Of(run) returned a count for a table the schema lacks")
+		}
+	}()
+	reads.Of("run")
 }
 
 func TestParseRejectsOutputWithoutOnePlan(t *testing.T) {

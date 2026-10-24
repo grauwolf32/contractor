@@ -1,12 +1,34 @@
 // Package explaintest measures, against a real PostgreSQL, the work a SQL
-// statement does: the plan PostgreSQL ran, with the rows each scan read and
-// the shared blocks the statement touched, and the row triggers it called.
-// Explain runs the statement under EXPLAIN ANALYZE in a savepoint that it
-// rolls back, so analyzing a write leaves nothing behind; Probe does that
-// for every statement a store sends through it before it runs the statement
-// for real. RequireColumnScopedGuards holds the column-scoped row guards of a
-// table to the columns they list in UPDATE OF (PER-R22), and SplitStatements
-// reads SQL text, such as a migration file, with the same lexer.
+// statement does: the plan PostgreSQL ran, with the shared blocks it touched,
+// the rows it read from each table and the row triggers it called. Explain
+// runs the statement under EXPLAIN ANALYZE in a savepoint that it rolls back,
+// so analyzing a write leaves nothing behind; ExplainPrepared does the same
+// for the statement prepared under a forced plan cache mode, so a test sees
+// both the custom plan PostgreSQL makes for a pooled prepared statement's
+// first executions and the generic plan it may switch to later; Probe
+// analyzes every statement a store sends through it before it runs the
+// statement for real. RequireColumnScopedGuards holds the column-scoped row
+// guards of a table to the columns they list in UPDATE OF (PER-R22), and
+// SplitStatements reads SQL text, such as a migration file, with the same
+// lexer.
+//
+// The rows a statement read from a table (Reads) are the rows the table's
+// sequential scans returned plus the entries the table's indexes returned,
+// as the transaction's own statistics counters count them. It is the one
+// count of rows read that the package offers, and row budgets use it. The
+// count is exact where EXPLAIN rounds each node's rows to a per-loop average
+// (Node.Examined reads those averages to describe a plan's table scans), and
+// for a fixed fixture it is deterministic; it never measures time. Rows a
+// parallel worker reads never reach the counters, so a counted statement is
+// planned without parallel workers. The
+// count includes rows a filter discarded later, the entries of an index-only
+// scan and every entry a bitmap index scan returned, and also an entry of a
+// row version that is dead but that VACUUM has not removed yet, or, for a
+// B-tree, that no earlier scan has marked dead. It excludes an entry that a
+// later column's index condition rejected inside the index and the other
+// rows of a lossy bitmap page. A custom plan's planning may probe an index for a column's
+// current extremes, and those entries count too, so a budget allows a few
+// rows beyond the execution's own.
 //
 // EXPLAIN reports the triggers of the statement's own tables, deferred ones
 // included once SET CONSTRAINTS ALL IMMEDIATE has made them run at the end of
@@ -20,6 +42,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"unicode"
 
@@ -43,6 +66,8 @@ type Analysis struct {
 	Plan Node
 	// Triggers counts the calls of each trigger the statement called.
 	Triggers map[Trigger]int64
+	// Reads counts the rows the statement read from each table.
+	Reads Reads
 }
 
 // Node is one plan node. Rows and the removed counts are averages per loop,
@@ -52,6 +77,7 @@ type Node struct {
 	Relationship     string  `json:"Parent Relationship"`
 	Relation         string  `json:"Relation Name"`
 	Index            string  `json:"Index Name"`
+	IndexCond        string  `json:"Index Cond"`
 	Rows             float64 `json:"Actual Rows"`
 	Loops            float64 `json:"Actual Loops"`
 	RemovedByFilter  float64 `json:"Rows Removed by Filter"`
@@ -72,20 +98,167 @@ var tableScans = map[string]bool{
 // reported. The statement really runs, triggers and constraint checks
 // included, so it fails as the statement itself would.
 func Explain(ctx context.Context, db Beginner, sql string, args ...any) (Analysis, error) {
+	return analyze(ctx, db, nil, sql, args, nil)
+}
+
+// Mode is a plan_cache_mode under which ExplainPrepared plans a statement.
+type Mode string
+
+const (
+	// Custom plans the statement with its arguments, as PostgreSQL does for
+	// the first executions of a prepared statement.
+	Custom Mode = "force_custom_plan"
+	// Generic plans the statement without its arguments, as PostgreSQL may
+	// for later executions of a prepared statement.
+	Generic Mode = "force_generic_plan"
+)
+
+// Modes are both plan cache modes a pooled prepared statement can run in.
+var Modes = []Mode{Custom, Generic}
+
+// prepared numbers the statements ExplainPrepared prepares.
+var prepared atomic.Uint64
+
+// ExplainPrepared is Explain for sql prepared as a statement of its own and
+// planned in mode. EXECUTE takes no bound parameters, so the arguments reach
+// it as SQL literals that pgx renders, and the statement's parameter types
+// are those PostgreSQL infers from sql. A prepared statement belongs to the
+// session rather than to the transaction: ExplainPrepared deallocates it
+// after a successful analysis, and a statement whose analysis failed stays
+// on the session under a name no other call uses.
+func ExplainPrepared(ctx context.Context, db Beginner, mode Mode, sql string, args ...any) (Analysis, error) {
+	name := fmt.Sprintf("explaintest_%d", prepared.Add(1))
+	execute := "EXECUTE " + name
+	if len(args) > 0 {
+		placeholders := make([]string, len(args))
+		for index := range args {
+			placeholders[index] = fmt.Sprintf("$%d", index+1)
+		}
+		execute += "(" + strings.Join(placeholders, ", ") + ")"
+		args = append([]any{pgx.QueryExecModeSimpleProtocol}, args...)
+	}
+	return analyze(ctx, db,
+		[]string{"SET LOCAL plan_cache_mode = " + string(mode), "PREPARE " + name + " AS " + sql},
+		execute, args, []string{"DEALLOCATE " + name})
+}
+
+// analyze runs setup, then statement with args under EXPLAIN ANALYZE while
+// it counts the rows read, then teardown, in a savepoint or transaction of
+// db that it rolls back.
+func analyze(
+	ctx context.Context, db Beginner, setup []string, statement string, args []any, teardown []string,
+) (Analysis, error) {
 	savepoint, err := db.Begin(ctx)
 	if err != nil {
 		return Analysis{}, err
 	}
 	var output []byte
-	err = savepoint.QueryRow(ctx,
-		`EXPLAIN (ANALYZE, BUFFERS, TIMING OFF, SUMMARY OFF, FORMAT JSON) `+sql, args...).Scan(&output)
+	var reads Reads
+	err = func() error {
+		for _, sql := range setup {
+			if _, err := savepoint.Exec(ctx, sql); err != nil {
+				return err
+			}
+		}
+		var err error
+		reads, err = CountReads(ctx, savepoint, func() error {
+			return savepoint.QueryRow(ctx,
+				`EXPLAIN (ANALYZE, BUFFERS, TIMING OFF, SUMMARY OFF, FORMAT JSON) `+statement, args...).Scan(&output)
+		})
+		for _, sql := range teardown {
+			if err != nil {
+				break
+			}
+			_, err = savepoint.Exec(ctx, sql)
+		}
+		return err
+	}()
 	if rollbackErr := savepoint.Rollback(ctx); err == nil {
 		err = rollbackErr
 	}
 	if err != nil {
 		return Analysis{}, err
 	}
-	return parse(output)
+	analysis, err := parse(output)
+	analysis.Reads = reads
+	return analysis, err
+}
+
+// Reads counts the rows statements read from each table of the current
+// schema, as the package documentation defines them.
+type Reads map[string]int64
+
+// Of returns the rows read from table. It panics when the current schema has
+// no such table, so a misspelt name cannot pass a budget.
+func (r Reads) Of(table string) int64 {
+	count, ok := r[table]
+	if !ok {
+		panic(fmt.Sprintf("explaintest: the current schema has no table %q", table))
+	}
+	return count
+}
+
+// readsSQL returns, for every table of the current schema, the rows the
+// current transaction's sequential scans of it returned and the entries its
+// indexes returned so far.
+const readsSQL = `
+SELECT table_class.relname::text,
+       pg_stat_get_xact_tuples_returned(table_class.oid)
+         + COALESCE(sum(pg_stat_get_xact_tuples_returned(index.indexrelid)), 0)::bigint
+  FROM pg_class AS table_class
+  LEFT JOIN pg_index AS index ON index.indrelid = table_class.oid
+ WHERE table_class.relkind IN ('r', 'p')
+   AND table_class.relnamespace = current_schema()::regnamespace
+ GROUP BY table_class.oid, table_class.relname`
+
+// CountReads calls run and returns the rows the statements it sent through
+// tx read from each table. PostgreSQL keeps the counters per transaction, so
+// run's statements must go through tx itself. The rows a parallel worker
+// reads never reach the transaction's counters, so run plans without
+// parallel workers and the transaction's own setting returns afterwards.
+func CountReads(ctx context.Context, tx pgx.Tx, run func() error) (Reads, error) {
+	var parallel string
+	if err := tx.QueryRow(ctx,
+		`SELECT current_setting('max_parallel_workers_per_gather'), set_config('max_parallel_workers_per_gather', '0', true)`,
+	).Scan(&parallel, new(string)); err != nil {
+		return nil, err
+	}
+	before, err := readCounters(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	if err := run(); err != nil {
+		return nil, err
+	}
+	after, err := readCounters(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.Exec(ctx, `SELECT set_config('max_parallel_workers_per_gather', $1, true)`, parallel); err != nil {
+		return nil, err
+	}
+	for table, count := range after {
+		after[table] = count - before[table]
+	}
+	return after, nil
+}
+
+func readCounters(ctx context.Context, tx pgx.Tx) (Reads, error) {
+	rows, err := tx.Query(ctx, readsSQL)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	reads := Reads{}
+	for rows.Next() {
+		var table string
+		var count int64
+		if err := rows.Scan(&table, &count); err != nil {
+			return nil, err
+		}
+		reads[table] = count
+	}
+	return reads, rows.Err()
 }
 
 // ExplainGeneric returns the generic plan of sql, the one a cached prepared
@@ -132,10 +305,14 @@ func (n Node) Blocks() int64 {
 	return n.SharedHit + n.SharedRead
 }
 
-// Examined returns the rows of relation the plan's table scans read over all
-// their loops: the rows they returned and the rows their filters and index
-// rechecks removed. Index entries that a scan skipped without reading a row,
-// as a bitmap index scan or a whole-index walk does, count in Blocks only.
+// Examined returns the rows of relation that the plan's table scans returned
+// or discarded over all their loops: the rows they returned and the rows
+// their filters and index rechecks removed. Index entries that a scan passed
+// over without producing a row, as a bitmap index scan or a whole-index walk
+// does, count in Blocks only. It describes the shape of one plan from
+// EXPLAIN's per-loop averages, which EXPLAIN rounds, so it is exact only
+// where each scan returns whole rows per loop; it is not the rows the
+// statement read, which Analysis.Reads counts for row budgets.
 func (n Node) Examined(relation string) int64 {
 	var examined float64
 	n.walk(func(node Node, _ int) {
@@ -144,6 +321,14 @@ func (n Node) Examined(relation string) int64 {
 		}
 	})
 	return int64(examined + 0.5)
+}
+
+// Nodes returns the plan's nodes, the root first and each node before its
+// children, InitPlans and SubPlans included.
+func (n Node) Nodes() []Node {
+	var nodes []Node
+	n.walk(func(node Node, _ int) { nodes = append(nodes, node) })
+	return nodes
 }
 
 // Uses reports whether any node of the plan scans index.
@@ -165,7 +350,8 @@ func (n Node) SeqScans() []string {
 }
 
 // String renders the plan as one indented line per node with its relation,
-// index, rows over all loops, rows removed and shared blocks, for test logs.
+// index and index condition, rows over all loops, rows removed and shared
+// blocks, for test logs.
 func (n Node) String() string {
 	var lines []string
 	n.walk(func(node Node, depth int) {
@@ -179,6 +365,9 @@ func (n Node) String() string {
 		}
 		if node.Index != "" {
 			line += " using " + node.Index
+		}
+		if node.IndexCond != "" {
+			line += " where " + node.IndexCond
 		}
 		line += fmt.Sprintf(" rows=%.0f removed=%.0f blocks=%d",
 			node.Rows*node.Loops, (node.RemovedByFilter+node.RemovedByRecheck)*node.Loops, node.Blocks())

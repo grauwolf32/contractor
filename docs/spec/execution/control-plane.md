@@ -365,6 +365,90 @@ Audit package formats or A2A envelopes; their own versions remain explicit.
 **CTL-R10.** Changes to this private surface require compatible
 Server/Runtime builds rather than a silent downgrade to an older shape.
 
+### Private connection reuse
+
+**CTL-R163.** The Server and the Runtime Agent reuse verified private HTTPS
+connections instead of opening one per request. Every new connection
+completes TLS 1.3 with full certificate verification, without session
+resumption, and passes the caller's peer check before its first request byte:
+the Server's check binds it to the expected Runtime Agent principal (CTL-R19,
+CTL-R20), the Runtime's check requires the Control Plane role
+([security](../platform/security.md)). A connection verified for one expected
+principal is never offered to a request for another principal or another
+endpoint: the Server keeps connections per expected principal and endpoint,
+the Runtime per Control Plane origin. A connection carries no authority of its
+own; the receiver derives the peer principal from each request's verified
+certificate and authorizes the allocation, instance and grant that the
+request names (CTL-R17, CTL-R18).
+
+**CTL-R164.** Each set of reusable connections has one owner, which closes it,
+and no connection outlives its owner. The Server's Runtime control client is
+owned by the Server process: releasing an allocation closes the connections
+of its Runtime principal (CTL-R124), and Server shutdown closes the rest after
+the Scheduler has stopped. An A2A invocation owns the connections of its
+`SendMessage`, its polls and its best-effort `CancelTask` and closes them
+before it returns. The Runtime process owns one set for registration and
+heartbeats and another for Artifact API traffic, so a heartbeat never waits
+behind an Artifact transfer, and closes both at shutdown after its private
+listener has stopped. Closing ends idle connections at once and a connection
+in use when its exchange ends; an exchange started after its owner closed
+fails without opening a connection. Invalidation follows from the keys: a
+request for another principal or endpoint never uses a connection, and the
+connections of a deleted principal or of an endpoint a Runtime left when it
+registered again close at release or after the idle bound. A process
+loads its own certificate, key and trusted CA at startup, so a change to them
+takes effect at restart, which closes every set.
+
+**CTL-R165.** Reuse is bounded on both sides. A private listener closes a
+keep-alive connection that stays idle for LIM-CTL-13; a client keeps an idle
+connection for reuse for at most LIM-CTL-14, which is shorter, so a client
+normally never writes to a connection the listener already closed. No request
+starts on a connection as old as LIM-CTL-15, so a renewed or replaced peer
+certificate is verified within that time even while requests keep a
+connection busy. The Server's transport closes an idle connection when the
+idle bound ends; the Runtime stops reusing it then and closes it at its next
+exchange to that origin, at shutdown or when the listener closes it after
+LIM-CTL-13. One owner keeps at most LIM-CTL-16 connections per peer endpoint;
+a request beyond that waits for a connection within its own deadline. The
+Server's Runtime control client keeps connections for at most LIM-CTL-17
+Runtime principals and the Runtime for at most LIM-CTL-18 Control Plane
+origins, evicting the least recently used; an exchange already waiting on an
+evicted origin still runs, on a connection of its own that is not kept. While
+the requests of a retired Server transport (after the lifetime or an
+eviction) or of an evicted Runtime origin finish, their connections add to
+those of the replacement, so one endpoint can briefly carry up to twice
+LIM-CTL-16; none of them takes a new request. The Server
+(`internal/mtls`) and the Runtime (`contractor_runtime._https`) hold the
+shared values, which
+[`private-connection-reuse.json`](../../../api/testdata/v1alpha1/private-connection-reuse.json)
+pins.
+
+**CTL-R166.** Reuse changes neither request deadlines, error classification
+nor retry semantics (FAIL-CTL-11). A request's deadline covers waiting for a
+connection, connecting, peer verification and the response, and a peer that
+fails verification fails the request before any request byte with the error
+it caused before reuse. A connection is closed instead of reused after a
+timeout, cancellation, transport or parse error, a response without length
+framing, an HTTP/1.0 or `Connection: close` response, or bytes beyond the
+response. The Runtime, whose HTTP/1.1 client is its own, also closes a
+connection after an interim (1xx) response: an interim response carries no
+content and is skipped, at most five per exchange, and a protocol switch
+(101), more interim responses, and a 204 or 304 response that declares
+content (`Transfer-Encoding` or a non-zero `Content-Length`) fail the
+exchange as malformed responses. The Server's transports follow Go
+`net/http` for these responses: it skips interim responses within its
+response-header byte bound and may reuse the connection afterwards, treats
+101 as a final response and ignores declared content on 204 and 304. The connection layer repeats a request only when none of its bytes
+were written, or when it is a read (`GET`) that received no response byte on
+a reused connection, and then on another connection; the Runtime repeats such
+a read once, on a new verified connection. A write whose
+response was lost is never repeated by the connection layer; its caller
+reconciles it as before (heartbeat sequence, finalization and abort
+identities, Artifact expected revisions). A caller's private request carries
+no `Connection` header, and a Server request no `Idempotency-Key` or
+`X-Idempotency-Key` header, which would let net/http repeat a write; the
+connection layer refuses such a request before sending it.
+
 ### Registration and process identity
 
 **CTL-R11.** On process start a Runtime Agent generates a fresh random
@@ -1409,6 +1493,9 @@ The private live-state route is
   of one registration (CTL-R148).
 - [LIM-CTL-10](../platform/limits.md): a hold window of five Scheduler poll
   intervals, 5 seconds by default (CTL-R155).
+- [LIM-CTL-13](../platform/limits.md) to
+  [LIM-CTL-18](../platform/limits.md): idle, lifetime and count bounds of
+  reusable private connections (CTL-R165).
 - [FAIL-CTL-1](../platform/failure-model.md): Runtime Agent registration and
   re-registration (CTL-R12, CTL-R34,
   CTL-R50).
@@ -1430,10 +1517,13 @@ The private live-state route is
   (CTL-R64).
 - [FAIL-CTL-10](../platform/failure-model.md): validation of the resource block
   of a final report (CTL-R136).
+- [FAIL-CTL-11](../platform/failure-model.md): a private request on a reusable
+  connection (CTL-R166).
 - [LIFE-CTL-1](../platform/lifecycle.md) Runtime Agent Registry entry,
   [LIFE-CTL-2](../platform/lifecycle.md) authoritative allocation,
   [LIFE-CTL-3](../platform/lifecycle.md) durable allocation record,
-  [LIFE-CTL-4](../platform/lifecycle.md) Runtime Agent principal.
+  [LIFE-CTL-4](../platform/lifecycle.md) Runtime Agent principal,
+  [LIFE-CTL-5](../platform/lifecycle.md) reusable private connections.
 - This document defines no error codes. Insufficient compatible capacity is a
   temporary placement result, and the code of a preparation StageTermination
   identifies the infrastructure error ([scheduler](scheduler.md)).
@@ -1449,7 +1539,9 @@ Within that boundary this document adds: the certificate-derived principal and
 its binding of every request, report and RuntimeSettings to the issuing process
 (CTL-R17, CTL-R18, CTL-R22, CTL-R24, CTL-R144);
 SPKI verification of registered endpoints (CTL-R19,
-CTL-R20); no executable input from Workflow, template, Planner or API
+CTL-R20), repeated on every new reusable connection, which is never shared
+across principals and is re-verified within a bounded lifetime (CTL-R163,
+CTL-R165); no executable input from Workflow, template, Planner or API
 (CTL-R5); no secrets in a `WorkerHandle` and the Agent Card secret scan
 (CTL-R109, CTL-R110); proxy settings that never carry
 control traffic (CTL-R131). The principal and capabilities never grant a

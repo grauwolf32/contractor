@@ -7,15 +7,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/auditstore/auditstoretest"
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -187,107 +186,31 @@ type inboxStatement struct {
 	held, recorded      bool
 }
 
-// inboxReads counts the base-relation rows one execution visited: rows read
-// by sequential scans plus heap rows fetched through indexes, filtered rows
-// included. PostgreSQL counts both per transaction.
+// inboxReads is the receipt and hold rows one execution read, as explaintest
+// counts the rows a statement reads.
 type inboxReads struct{ receipts, holds int64 }
 
-func readInboxCounters(ctx context.Context, tx pgx.Tx) (inboxReads, error) {
-	var reads inboxReads
-	err := tx.QueryRow(ctx, `
-SELECT coalesce(sum(seq_tup_read + coalesce(idx_tup_fetch, 0))
-                FILTER (WHERE relname = 'finding_proposal_receipts'), 0),
-       coalesce(sum(seq_tup_read + coalesce(idx_tup_fetch, 0))
-                FILTER (WHERE relname = 'finding_proposal_audit_holds'), 0)
-  FROM pg_stat_xact_user_tables
- WHERE schemaname = current_schema()`).Scan(&reads.receipts, &reads.holds)
-	return reads, err
-}
-
-// inboxPlanNode is the part of an EXPLAIN (FORMAT JSON) node the budget test
-// reports.
-type inboxPlanNode struct {
-	NodeType            string          `json:"Node Type"`
-	RelationName        string          `json:"Relation Name"`
-	IndexName           string          `json:"Index Name"`
-	ActualRows          float64         `json:"Actual Rows"`
-	ActualLoops         float64         `json:"Actual Loops"`
-	RowsRemovedByFilter float64         `json:"Rows Removed by Filter"`
-	Plans               []inboxPlanNode `json:"Plans"`
-}
-
-// accesses describes how the plan reads relation, for the test log.
-func (node inboxPlanNode) accesses(relation string) []string {
-	var result []string
-	if node.RelationName == relation {
-		access := node.NodeType
-		if node.IndexName != "" {
-			access += " " + node.IndexName
-		}
-		result = append(result, fmt.Sprintf("%s rows=%.0fx%.0f removed=%.0fx%.0f",
-			access, node.ActualRows, node.ActualLoops, node.RowsRemovedByFilter, node.ActualLoops))
-	}
-	for _, child := range node.Plans {
-		result = append(result, child.accesses(relation)...)
-	}
-	return result
+func inboxReadsOf(reads explaintest.Reads) inboxReads {
+	return inboxReads{receipts: reads.Of("finding_proposal_receipts"), holds: reads.Of("finding_proposal_audit_holds")}
 }
 
 // explainInbox runs statement once with EXPLAIN ANALYZE as a prepared
-// statement under plan_cache_mode mode and returns the rows it visited and a
-// summary of its plan.
+// statement planned in mode and returns the rows it read and its plan.
 func explainInbox(
-	t *testing.T, ctx context.Context, pool *pgxpool.Pool, statement, mode string, args []any,
-) (inboxReads, string) {
+	t *testing.T, ctx context.Context, pool *pgxpool.Pool, statement string, mode explaintest.Mode, args []any,
+) (inboxReads, explaintest.Node) {
 	t.Helper()
-	connection, err := pool.Acquire(ctx)
+	analysis, err := explaintest.ExplainPrepared(ctx, pool, mode, statement, args...)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("%s: explain: %v", mode, err)
 	}
-	defer connection.Release()
-	tx, err := connection.Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer tx.Rollback(context.Background())
-	for _, setup := range []string{
-		"SET LOCAL plan_cache_mode = " + mode,
-		"PREPARE inbox_budget(text, text, timestamptz, text, integer) AS " + statement,
-	} {
-		if _, err := tx.Exec(ctx, setup); err != nil {
-			t.Fatal(err)
-		}
-	}
-	defer connection.Exec(context.Background(), "DEALLOCATE inbox_budget")
-	before, err := readInboxCounters(ctx, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var plan []byte
-	if err := tx.QueryRow(ctx, "EXPLAIN (ANALYZE, FORMAT JSON) EXECUTE inbox_budget($1, $2, $3, $4, $5)",
-		append([]any{pgx.QueryExecModeSimpleProtocol}, args...)...).Scan(&plan); err != nil {
-		t.Fatal(err)
-	}
-	after, err := readInboxCounters(ctx, tx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var plans []struct {
-		Plan inboxPlanNode `json:"Plan"`
-	}
-	if err := json.Unmarshal(plan, &plans); err != nil || len(plans) != 1 {
-		t.Fatalf("decode plan %s: %v", plan, err)
-	}
-	summary := fmt.Sprintf("receipts: %s; holds: %s",
-		strings.Join(plans[0].Plan.accesses("finding_proposal_receipts"), ", "),
-		strings.Join(plans[0].Plan.accesses("finding_proposal_audit_holds"), ", "))
-	return inboxReads{receipts: after.receipts - before.receipts, holds: after.holds - before.holds}, summary
+	return inboxReadsOf(analysis.Reads), analysis.Plan
 }
 
 // serviceInbox runs statement executions times through pgx's default
 // statement cache on one connection, as the service does, so PostgreSQL's
 // plan cache may switch to a generic plan after five custom ones. It returns
-// the most rows any execution visited and the receipt IDs of the last.
+// the most rows any execution read and the receipt IDs of the last.
 func serviceInbox(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool, statement string, args []any, executions int,
 ) (inboxReads, []string) {
@@ -298,32 +221,24 @@ func serviceInbox(
 	}
 	defer tx.Rollback(context.Background())
 	var most inboxReads
-	var ids []string
+	var receipts []Receipt
 	for range executions {
-		before, err := readInboxCounters(ctx, tx)
+		counted, err := explaintest.CountReads(ctx, tx, func() error {
+			rows, err := tx.Query(ctx, statement, args...)
+			if err != nil {
+				return err
+			}
+			receipts, err = scanReceiptRows(rows)
+			return err
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		rows, err := tx.Query(ctx, statement, args...)
-		if err != nil {
-			t.Fatal(err)
-		}
-		receipts, err := scanReceiptRows(rows)
-		if err != nil {
-			t.Fatal(err)
-		}
-		after, err := readInboxCounters(ctx, tx)
-		if err != nil {
-			t.Fatal(err)
-		}
-		most.receipts = max(most.receipts, after.receipts-before.receipts)
-		most.holds = max(most.holds, after.holds-before.holds)
-		ids = ids[:0]
-		for _, receipt := range receipts {
-			ids = append(ids, receipt.ReceiptID)
-		}
+		reads := inboxReadsOf(counted)
+		most.receipts = max(most.receipts, reads.receipts)
+		most.holds = max(most.holds, reads.holds)
 	}
-	return most, ids
+	return most, receiptIDs(receipts)
 }
 
 func inboxIDs(t *testing.T, ctx context.Context, db querier, statement string, args ...any) []string {
@@ -346,10 +261,11 @@ func inboxIDs(t *testing.T, ctx context.Context, db querier, statement string, a
 // The inbox reads the Audit's own receipts and the receipts it holds, never
 // the rest of the receipt relation. With a fixed inbox and a growing
 // population of other owners', other Audits' and ordinary Runs' receipts, the
-// receipt rows an inbox page visits stay within a budget derived from the
-// Audit's native receipts N, its holds H and the fetch limit L, under custom,
-// generic and the service's cached-statement plans; the recorded original
-// statement exceeds the same budget once the unrelated population is large.
+// receipt rows an inbox page reads, as explaintest counts them, stay within a
+// budget derived from the Audit's native receipts N, its holds H and the
+// fetch limit L, under custom, generic and the service's cached-statement
+// plans; the recorded original statement exceeds the same budget once the
+// unrelated population is large.
 //
 // With holds of two Audits only, a generic plan estimates that each Audit
 // holds half of them; the receipt budget must still hold. Hold rows stay
@@ -432,8 +348,17 @@ SELECT (SELECT count(*) FROM finding_proposal_receipts),
 		}
 		// The native branch reads at most the Audit's N native receipts, the
 		// held branch probes one receipt per hold, and the page reads L whole.
-		budget := inboxReads{receipts: native + holds + inboxFetch + inboxPlanningRows, holds: holds + inboxPlanningRows}
-		heldBudget := inboxReads{receipts: holds + inboxFetch + inboxPlanningRows, holds: holds + inboxPlanningRows}
+		// Holding a receipt rewrites its retention state, so a held receipt
+		// has two row versions, and until VACUUM can remove the old one an
+		// index may return an entry for each: every read that can reach a
+		// held receipt counts twice, at most H of the native branch's reads,
+		// all H of the held branch's and all L of the page's. Holds are never
+		// rewritten.
+		budget := inboxReads{
+			receipts: native + holds + 2*holds + 2*inboxFetch + inboxPlanningRows,
+			holds:    holds + inboxPlanningRows,
+		}
+		heldBudget := inboxReads{receipts: 2*holds + 2*inboxFetch + inboxPlanningRows, holds: holds + inboxPlanningRows}
 		t.Logf("population %d receipts: N=%d H=%d L=%d; inbox budget %d receipt rows, held budget %d",
 			total, native, holds, inboxFetch, budget.receipts, heldBudget.receipts)
 		for _, statement := range statements {
@@ -455,10 +380,10 @@ SELECT (SELECT count(*) FROM finding_proposal_receipts),
 				{"late", []any{inboxOwner, inboxAudit, lateAt, late, inboxFetch}},
 			} {
 				readings := map[string]inboxReads{}
-				for _, mode := range []string{"force_custom_plan", "force_generic_plan"} {
+				for _, mode := range explaintest.Modes {
 					reads, plan := explainInbox(t, ctx, pool, statement.sql, mode, cursor.args)
-					readings[mode] = reads
-					t.Logf("%s %s %s: %d receipt rows, %d hold rows; %s",
+					readings[string(mode)] = reads
+					t.Logf("%s %s %s: %d receipt rows, %d hold rows:\n%s",
 						statement.name, cursor.name, mode, reads.receipts, reads.holds, plan)
 				}
 				service, got := serviceInbox(t, ctx, pool, statement.sql, cursor.args, 8)

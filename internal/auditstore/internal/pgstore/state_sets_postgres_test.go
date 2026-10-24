@@ -104,6 +104,7 @@ func TestPostgresAuditStateSetsMatchSchema(t *testing.T) {
 			}},
 			Indexes: map[string]map[string]string{
 				"audit_review_requests_finding_idx":             nil,
+				"audit_review_requests_item_subject_idx":        nil,
 				"audit_review_requests_pending_subject_unique":  {"state": "pending"},
 				"audit_review_requests_report_candidate_unique": nil,
 				"audit_review_requests_report_round_idx":        nil,

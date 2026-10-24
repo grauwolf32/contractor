@@ -32,10 +32,11 @@ WHERE e.owner_id = $1 AND e.experiment_id = $2 AND m.member_id = $3
 `
 
 // inventoryPageAuditExecutionsSQL returns a keyset page of the owner's Audit $2
-// child executions ordered by execution_id, limited to $4. The cursor $3 is the
-// page key '1' || execution_id (the parent entry's key is "0"). Rows carry the
-// child Run ID, role, round ordinal, Run state and existence, and terminal
-// outcome. Used by Store.InventoryPage.
+// child executions ordered by execution_id, after the execution ID $3 (empty
+// for the first child), limited to $4. Comparing the bare execution ID lets
+// the scan start at $3 in an index led by execution_id instead of reading
+// every earlier execution. Rows carry the child Run ID, role, round ordinal,
+// Run state and existence, and terminal outcome. Used by Store.InventoryPage.
 var inventoryPageAuditExecutionsSQL = `
 SELECT x.execution_id,x.run_id,x.role,round.ordinal,r.state,r.run_id IS NOT NULL,x.terminal_outcome
 FROM audit_executions x
@@ -46,7 +47,7 @@ LEFT JOIN workflow_runs r ON r.run_id = x.run_id
 AND r.owner_id = a.owner_id
 WHERE a.owner_id = $1
     AND x.audit_id = $2
-    AND '1' || x.execution_id > $3
+    AND x.execution_id > $3
 ORDER BY x.execution_id
 LIMIT $4
 `

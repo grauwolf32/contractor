@@ -14,17 +14,30 @@ finding.revision, finding.created_at, finding.updated_at,
 finding.correlation_project_id, finding.correlation_algorithm, finding.correlation_value,
 finding.correlation_group_key, finding.correlation_reason`
 
-// findingFilterSQL is the FROM and WHERE of a finding page of owner $1: the
-// Audit $2 or, when NULL, every Audit of the owner; state $3; the current
-// decision's verdict $4; only undecided findings when $5; the decision's
-// severity $6. Used by QueryStore.ListFindings, ListOwnerFindings and
-// FindingPageBasis.
-const findingFilterSQL = `
+// findingFilterSQL is the FROM and WHERE of a finding page of owner $1's
+// Audit $2: state $3; the current decision's verdict $4; only undecided
+// findings when $5; the decision's severity $6. It names the Audit without a
+// NULL alternative, so a generic plan of the prepared statement still reads
+// only that Audit's findings; "$2 IS NULL OR" made it read every finding of
+// the owner. Used by QueryStore.ListFindings and FindingPageBasis.
+const findingFilterSQL = findingJoinsSQL + `
+ WHERE audit.owner_id = $1 AND finding.audit_id = $2` + findingPredicatesSQL
+
+// ownerFindingFilterSQL is findingFilterSQL over every Audit of owner $1,
+// with $2 NULL. Used by QueryStore.ListOwnerFindings.
+const ownerFindingFilterSQL = findingJoinsSQL + `
+ WHERE audit.owner_id = $1 AND ($2::text IS NULL OR finding.audit_id = $2)` + findingPredicatesSQL
+
+// findingJoinsSQL joins a finding to its Audit and current decision.
+const findingJoinsSQL = `
   FROM audit_findings AS finding
   JOIN audits AS audit USING (audit_id)
   LEFT JOIN audit_review_decisions AS decision
-    ON decision.decision_id = finding.current_decision_id
- WHERE audit.owner_id = $1 AND ($2::text IS NULL OR finding.audit_id = $2)
+    ON decision.decision_id = finding.current_decision_id`
+
+// findingPredicatesSQL holds the finding filters $3 to $6 of
+// findingFilterSQL.
+const findingPredicatesSQL = `
    AND ($3::text IS NULL OR finding.state = $3)
    AND ($4::text IS NULL OR decision.verdict = $4)
    AND (NOT $5::boolean OR finding.current_decision_id IS NULL)
@@ -72,10 +85,10 @@ var visibleAuditProjectSQL = `
  AND ` + projectstore.OwnerListedProjectSQL("audit.project_id", "audit.owner_id")
 
 // listOwnerFindingsSQL is an owner-wide finding page, newest first: the
-// findingFilterSQL filters over every Audit ($2 is NULL), Audits of listed
+// ownerFindingFilterSQL filters over every Audit ($2 is NULL), Audits of listed
 // Projects only, before the cursor ($7, $8), in the Audit states $10, at most
 // $9 rows. Used by QueryStore.ListOwnerFindings.
-var listOwnerFindingsSQL = correlateFindingSelection(`SELECT `+findingRecordColumns+findingFilterSQL+visibleAuditProjectSQL+`
+var listOwnerFindingsSQL = correlateFindingSelection(`SELECT `+findingRecordColumns+ownerFindingFilterSQL+visibleAuditProjectSQL+`
    AND ($7::timestamptz IS NULL OR (finding.created_at, finding.finding_id) < ($7, $8))
    AND ($10::text[] IS NULL OR audit.state = ANY($10))
  ORDER BY finding.created_at DESC, finding.finding_id DESC LIMIT $9`, true)
