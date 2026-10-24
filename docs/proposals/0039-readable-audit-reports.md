@@ -309,8 +309,9 @@ Sections 1–7 above.
    beside it, or "without gaps" alone.
 4. Stop returning `machine` inline from the report read and download
    `report.json` through the artifact read instead. This removes a field from
-   a `/v1` response, which AGENTS.md 3.1 allows only additively, so it needs
-   your decision.
+   a `/v1` response; API-R3's pre-release exception allows that when the
+   Server, clients and UI change together, so it needs only your decision on
+   the design.
 5. Whether an owner can issue a new report edition after triage, or the
    "changes since" block is enough.
 

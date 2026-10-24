@@ -147,7 +147,11 @@ enum, state set, error code, retry class):
    `api/testdata/`, for example `scan-host-syntax.json`, and
    `make test-wire-cross-language`).
 4. For public API fields, update the OpenAPI document and run
-   `make verify-public-api`. Within `/v1`, changes must be additive.
+   `make verify-public-api`. Until the first release `/v1` may change
+   incompatibly (API-R3 in `docs/spec/api/public-api.md`): remove an unused
+   field, parameter or value end to end (Server, OpenAPI, both generated
+   clients, UI) in one commit and record it in the task, rather than keep a
+   variant only to stay additive.
 
 ### 3.2 State every failure outcome (~70 tasks)
 
