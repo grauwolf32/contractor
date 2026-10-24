@@ -829,6 +829,23 @@ recording the completion and accepting the candidate become one durable step,
 so that a summarized candidate can reach its continuation after a session
 outage.
 
+A session write that is refused as invalid returns the non-retryable
+`planner_session_rejected` instead of `planner_session_unavailable` or
+`planner_plan_persistence_failed`, whether it starts the session or records a
+request, plan progress, a fact, a redacted ADK event or the completion. A
+write is refused as invalid when its session state or Run event JSON exceeds
+its bounded size, measured on the submitted JSON before the write or on the
+stored jsonb text, which can be longer, by the database; or when the session
+already holds its limit of recorded facts. Repeating the same write is
+refused the same way, so it is a deterministic rejection, never an outage. It
+is non-retryable like every other deterministic store rejection rather than
+retryable like the budget stops of PLN-R85: a fresh StageExecution receives
+the same request, Workflow and AgentTemplate, and nothing bounds the plan or
+completion it builds below the size that was refused, so a retry would most
+likely repeat the rejection after another full invocation. Reopen this when a
+retried invocation is given a smaller state budget than the one that was
+refused.
+
 **PLN-R107.** The record is not authority for resuming a partially
 completed model invocation: a session still running after process loss yields
 the stable retryable error `planner_invocation_in_progress`, and Workflow
@@ -951,6 +968,11 @@ Errors ([registry](../platform/errors.md)):
   failure or failed candidate is non-retryable (PLN-R106, PLN-R119, PLN-R120).
 - `planner_invocation_in_progress` — retryable; the Planner session is still
   running after process loss (PLN-R107).
+- `planner_plan_persistence_failed` — retryable; Streamline or Router could
+  not record plan progress or a fact for a reason other than a refused write
+  (PLN-R106).
+- `planner_session_rejected` — non-retryable; the Planner session refused a
+  write as invalid, such as a state over its bounded size (PLN-R106).
 - `result_contract_violation` belongs to [Scheduler](scheduler.md); a
   Planner raises it, non-retryable, for a candidate that violates the Stage
   result contract, including a rejected result reference (PLN-R118).

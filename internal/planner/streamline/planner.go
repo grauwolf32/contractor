@@ -212,6 +212,12 @@ func (p *streamlinePlanner) Run(
 			if errors.As(iterationErr, &plannerError) {
 				return stageresult.StageContentResult{}, p.fail(ctx, identity, state, plannerError)
 			}
+			if planner.SessionWriteRejected(iterationErr) {
+				// The session refused a redacted ADK event (PLN-R106).
+				return stageresult.StageContentResult{}, p.fail(
+					ctx, identity, state, planner.SessionError("record ADK event", iterationErr),
+				)
+			}
 			return stageresult.StageContentResult{}, p.fail(
 				ctx, identity, state, planner.NewError(
 					"planner_execution_failed", "Planner ADK execution failed", true, iterationErr,

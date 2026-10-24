@@ -36,6 +36,9 @@ depends_on:
   - V414-028
   - V414-029
   - V414-030
+  - V414-031
+  - V414-032
+  - V414-033
 languages: [go, python, typescript, sql]
 goal: >-
   Every follow-up found while implementing and reviewing V407 and V409 has a
@@ -99,6 +102,8 @@ context:
     (4) confirmed and closed: V371-009 is archived as delivered by V407-004
     (3cd9826c7d5a3676f6cff53a712d6ea555b76736) with per-criterion evidence
     in tasks/done/v371-009-audit-list-preparation-batch.yml.
+    Recorded on 2026-10-24 during the V410-V414 delivery: (2) owned by
+    V414-032 at the user's request.
 scope:
   in:
     - "Reconcile every V414 dependency: completed with its implementation_commit and moved to tasks/done/, or archived by the user's decision with the reason, the evidence and its removal from depends_on in the same metadata change. Archived or deferred tasks never count as completed."

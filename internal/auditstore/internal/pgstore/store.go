@@ -88,7 +88,7 @@ func (s *OwnerStore) CreateDraft(ctx context.Context, params auditstore.CreateDr
 				// The Audit ID belongs to an Audit of another request.
 				return auditMutationResult{}, auditstore.ErrConflict
 			}
-			return auditMutationResult{}, fmt.Errorf("create Audit: %w", err)
+			return auditMutationResult{}, writeError("create Audit", err)
 		})
 }
 

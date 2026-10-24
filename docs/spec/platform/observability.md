@@ -421,7 +421,13 @@ contains them.
 checks and Worker results: a secret of at least 16 UTF-8 bytes (LIM-OBS-3)
 matches wherever it occurs, while a shorter one, such as a proxy username or a
 short header value, matches only a complete string, so it never garbles
-ordinary text. In metrics a match is replaced by `[REDACTED]`. How a Worker
+ordinary text. Long secrets are replaced longest first, so a short secret
+that prefixes a longer one cannot leave the longer one's remainder. The policy
+holds at the Server's telemetry persistence boundary and for Planner span
+attributes as well as in the Runtime; the Server and the Runtime each define it
+once and both read the cases in
+`api/testdata/v1alpha1/secret-matching-cases.json`. In metrics a match is
+replaced by `[REDACTED]`. How a Worker
 result that contains a secret is handled is specified in the Worker document
 ([WRK-R60](../execution/worker.md), [WRK-R61](../execution/worker.md)). How an
 allocation check applies it is specified in the Control Plane document
@@ -725,7 +731,15 @@ more spans or the final flush.
 
 **OBS-R74.** Worker delivery retries temporary transport failures
 and HTTP 429, 502, 503 and 504. Other HTTP errors, including 500, are terminal
-(FAIL-OBS-5).
+(FAIL-OBS-5). A temporary transport failure is any member of the Runtime's one
+HTTP transport failure family (httpx's errors and `OSError`, such as
+`ssl.SSLError` for a corrupt TLS record or a connection reset), raised while
+sending the batch or reading the acknowledgement, except an unsupported
+protocol and a local protocol error, which are terminal, and a body that fails
+content decoding, which is a malformed acknowledgement (OBS-R77). Any other
+exception is an implementation failure and terminal. The exporter applies its
+own retry budget, backoff and `Retry-After` rules (OBS-R75, OBS-R76) to this
+family.
 
 **OBS-R75.** A valid `Retry-After` header is honoured as seconds or as an
 HTTP date. Without it, exponential backoff starts at

@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"strconv"
-	"strings"
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/documentnumber"
+	"github.com/grauwolf32/contractor/internal/documentyaml"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"go.yaml.in/yaml/v4"
 	"go.yaml.in/yaml/v4/plugin/limit"
@@ -94,30 +93,35 @@ func (r *documentReader) read(node *yaml.Node, depth int) (any, error) {
 	}
 	switch node.Kind {
 	case yaml.MappingNode:
-		if node.ShortTag() != "!!map" || len(node.Content)%2 != 0 {
+		if !documentyaml.Collection(node) || len(node.Content)%2 != 0 {
 			break
 		}
 		result := make(map[string]any, len(node.Content)/2)
 		for i := 0; i < len(node.Content); i += 2 {
 			key := node.Content[i]
-			if key.Kind != yaml.ScalarNode || key.ShortTag() != "!!str" {
-				return nil, &PreparationError{Code: "invalid_document"}
-			}
-			if _, err := r.read(key, depth+1); err != nil {
+			// A member name is a node at the depth of its value.
+			if err := r.count(depth + 1); err != nil {
 				return nil, err
 			}
-			if _, duplicate := result[key.Value]; duplicate {
+			if key.Anchor != "" {
+				return nil, &PreparationError{Code: "invalid_document"}
+			}
+			name, ok := documentyaml.Key(key)
+			if !ok {
+				return nil, &PreparationError{Code: "invalid_document"}
+			}
+			if _, duplicate := result[name]; duplicate {
 				return nil, &PreparationError{Code: "invalid_document"}
 			}
 			value, err := r.read(node.Content[i+1], depth+1)
 			if err != nil {
 				return nil, err
 			}
-			result[key.Value] = value
+			result[name] = value
 		}
 		return result, nil
 	case yaml.SequenceNode:
-		if node.ShortTag() != "!!seq" {
+		if !documentyaml.Collection(node) {
 			break
 		}
 		result := make([]any, 0, len(node.Content))
@@ -130,35 +134,8 @@ func (r *documentReader) read(node *yaml.Node, depth int) (any, error) {
 		}
 		return result, nil
 	case yaml.ScalarNode:
-		switch node.ShortTag() {
-		case "!!str":
-			// The YAML resolver falls back to a string when numeric conversion
-			// overflows. Quoted and explicitly tagged strings are ordinary data.
-			if node.Style == 0 && documentnumber.LooksNumeric(node.Value) {
-				break
-			}
-			return node.Value, nil
-		case "!!timestamp":
-			// OpenAPI/JSON carry dates as strings. Preserve the source spelling.
-			return node.Value, nil
-		case "!!null":
-			switch node.Value {
-			case "", "~", "null", "Null", "NULL":
-				return nil, nil
-			}
-		case "!!bool":
-			value, err := strconv.ParseBool(node.Value)
-			if err == nil {
-				return value, nil
-			}
-		case "!!int":
-			if value, ok := documentnumber.Integer(node.Value); ok {
-				return value, nil
-			}
-		case "!!float":
-			if value, ok := documentnumber.Float(strings.ReplaceAll(node.Value, "_", "")); ok {
-				return value, nil
-			}
+		if value, ok := documentyaml.Scalar(node); ok {
+			return value, nil
 		}
 	}
 	return nil, &PreparationError{Code: "invalid_document"}

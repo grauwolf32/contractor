@@ -3,11 +3,13 @@ package planner
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -117,7 +119,9 @@ func TestPassthroughUnwrittenOutcomeKeepsItsRetryability(t *testing.T) {
 
 // A session span carries the code of the error the Planner returns: a session
 // that another invocation still runs is planner_invocation_in_progress,
-// retryable (PLN-R107), not planner_session_unavailable.
+// retryable (PLN-R107), and a write the store refuses as invalid is
+// planner_session_rejected, non-retryable (PLN-R106), not
+// planner_session_unavailable.
 func TestSessionSpansCarryTheReturnedCode(t *testing.T) {
 	for _, test := range []struct {
 		name      string
@@ -133,6 +137,10 @@ func TestSessionSpansCarryTheReturnedCode(t *testing.T) {
 		{
 			name: "store failure", cause: errors.New("database write failed"),
 			code: "planner_session_unavailable", outcome: "unavailable", retryable: true,
+		},
+		{
+			name: "store rejection", cause: fmt.Errorf("start Planner: %w: state too large", runstore.ErrInvalid),
+			code: "planner_session_rejected", outcome: "rejected", retryable: false,
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -153,6 +161,35 @@ func TestSessionSpansCarryTheReturnedCode(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A completion the store refuses as invalid, such as a state over its stored
+// size bound, ends even a retryable outcome with the non-retryable
+// planner_session_rejected: repeating the write is refused the same way
+// (PLN-R106).
+func TestPassthroughRejectedCompletionIsNotRetryable(t *testing.T) {
+	sessions := &memorySessions{completeHook: func(context.Context, Completion) error {
+		return fmt.Errorf("append Planner event: %w: planner_session_state_size", runstore.ErrInvalid)
+	}}
+	worker := &recordingWorker{err: errors.New("A2A transport closed")}
+	factory, err := NewPassthroughFactory(sessions, worker, &fakeInspector{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	instance, err := factory.Create(testInvocation())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = instance.Run(t.Context())
+	assertSessionError(t, err, "planner_session_rejected", false)
+	if !errors.Is(err, runstore.ErrInvalid) || sessions.completion != nil {
+		t.Fatalf("error = %v, recorded = %+v, want the store rejection and no completion", err, sessions.completion)
+	}
+	report, ok := instance.(ReportProvider).ExecutionReport()
+	if !ok {
+		t.Fatal("no report")
+	}
+	assertReportEndsWith(t, report, "planner_session_rejected", false)
 }
 
 func assertUnwrittenOutcome(t *testing.T, err error, retryable bool) {

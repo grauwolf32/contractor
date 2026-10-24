@@ -37,6 +37,10 @@ var layers = []layerSpec{
 			"internal/contracts/contractstest",
 			"internal/credentialerrors",
 			"internal/documentnumber",
+			// The YAML scalar and member-name rule of JSON-compatible source
+			// documents (SCN-R124) that scan preparation and the Audit
+			// inventories share.
+			"internal/documentyaml",
 			"internal/httpapi/httpx",
 			"internal/mtlstest",
 			// The public list page bound shared by handlers, stores and the CLI.
@@ -45,6 +49,9 @@ var layers = []layerSpec{
 			"internal/publicclient/generated",
 			"internal/randomid",
 			"internal/requestid",
+			// The one secret-matching rule (OBS-R31, LIM-OBS-3) that telemetry,
+			// the Planner span filters and the Agent Card scan share.
+			"internal/secretmatch",
 			"internal/securefile",
 			"internal/sourcezip",
 			"internal/strictjson",
