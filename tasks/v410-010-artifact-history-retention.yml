@@ -416,7 +416,6 @@ test_prerequisites:
     retention safety or bounded maintenance over the containing collections.
 progress: >-
   2026-10-24 second checkpoint (paused, task not complete). Done and tested:
-  internal/artifacts/history_policy.go (typed HistoryPolicy, errors);
   apierror codes artifact_history_protected (409) and
   artifact_history_maintenance_pending (503); spec ART-R122 to ART-R127,
   LIM-ART-9 to LIM-ART-11, DEL-R62 to DEL-R64 (holder classification), DEL-R3
@@ -426,7 +425,11 @@ progress: >-
   artifact_history_accounting adds and backfills
   artifact_bindings.retained_revisions/retained_bytes (NOT NULL, checked),
   maintained by writeSQL and forkSQL; migration test and a store accounting
-  test. No revision deletion exists yet. Not started: hold_count and holder
+  test. No revision deletion exists yet. The typed HistoryPolicy, its
+  context install and the HistoryProtectedError/HistoryMaintenanceError types
+  were drafted in commit 9d768c8d (internal/artifacts/history_policy.go) and
+  removed again in this checkpoint because nothing calls them yet (make lint
+  dead-code gates); restore that file together with admission. Not started: hold_count and holder
   triggers (migration 000041), eligible partial index, trusted retention
   delete exception, admission/eviction/maintenance, collector refactor,
   adapters (public Retry-After, private API, Runtime, Memory Go/Python,
