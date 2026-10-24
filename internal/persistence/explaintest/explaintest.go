@@ -247,9 +247,10 @@ func (p *Probe) Begin(ctx context.Context) (pgx.Tx, error) {
 	return &Probe{Tx: savepoint, t: p.t, fired: p.fired}, nil
 }
 
-// analyzable reports whether EXPLAIN ANALYZE accepts sql: a query or a data
-// change, possibly after comments and a WITH clause. A utility statement
-// such as SHOW or SET calls no trigger.
+// analyzable reports whether the probe explains sql: every statement except
+// the named utility statements SHOW, SET and RESET, which EXPLAIN rejects and
+// which call no trigger. Any other statement EXPLAIN cannot run fails the
+// probe instead of being skipped, so no data change goes uncounted.
 func analyzable(sql string) bool {
 	for {
 		sql = strings.TrimSpace(sql)
@@ -258,15 +259,15 @@ func analyzable(sql string) bool {
 		}
 		_, sql, _ = strings.Cut(sql, "\n")
 	}
-	end := strings.IndexFunc(sql, func(r rune) bool { return unicode.IsSpace(r) || r == '(' })
+	end := strings.IndexFunc(sql, func(r rune) bool { return unicode.IsSpace(r) || r == ';' })
 	if end < 0 {
 		end = len(sql)
 	}
 	switch strings.ToUpper(sql[:end]) {
-	case "SELECT", "INSERT", "UPDATE", "DELETE", "MERGE", "WITH", "VALUES":
-		return true
+	case "SHOW", "SET", "RESET", "":
+		return false
 	}
-	return false
+	return true
 }
 
 func (p *Probe) analyze(ctx context.Context, sql string, args ...any) {

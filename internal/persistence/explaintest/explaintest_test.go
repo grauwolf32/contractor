@@ -116,11 +116,13 @@ func TestProbeCountsFiredTriggersPerRelationUntilReset(t *testing.T) {
 	}
 }
 
-func TestProbeAnalyzesOnlyQueriesAndDataChanges(t *testing.T) {
+func TestProbeSkipsOnlyNamedUtilityStatements(t *testing.T) {
 	for sql, want := range map[string]bool{
 		"SELECT 1": true, "\n  -- reads\n  with x AS (SELECT 1) SELECT * FROM x": true, "UPDATE\tt SET x = 1": true,
-		"INSERT INTO t VALUES (1)": true, "DELETE FROM t": true, "VALUES(1)": true, "(SELECT 1)": false,
-		"SHOW transaction_isolation": false, "SET CONSTRAINTS ALL IMMEDIATE": false, "-- only a comment": false, "": false,
+		"INSERT INTO t VALUES (1)": true, "DELETE FROM t": true, "VALUES(1)": true, "(SELECT 1)": true,
+		"/* why */ UPDATE t SET x = 1": true, "DO $$ BEGIN END $$": true, "CALL p()": true,
+		"SHOW transaction_isolation": false, "set constraints all immediate": false, "RESET ALL": false,
+		"SET;": false, "-- only a comment": false, "": false,
 	} {
 		if got := analyzable(sql); got != want {
 			t.Errorf("analyzable(%q) = %t, want %t", sql, got, want)
