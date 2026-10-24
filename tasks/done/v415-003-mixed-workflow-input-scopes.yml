@@ -6,7 +6,7 @@ epic: scan-tools
 kind: defect
 introduced_by: V415-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V415-001]
 languages: [typescript, markdown]
 goal: A Project Workflow with ordinary inputs and an owner rulepack selects, uploads, previews and validates each input in its own scope.
@@ -52,3 +52,16 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: ab8dfc63a5f21ed470bdcf42319dc8bf28d03d77
+verification:
+  date: "2026-10-24"
+  passed:
+    - make ui-verify; 196 test files, 2393 passing tests and one expected failure; production build passed on Node 24.20.0 and pnpm 11.24.0.
+    - make ui-browser-mocked; 91 browser tests passed across 23 specs.
+    - make lint; task, specification, layer, architecture and other lint checks passed.
+  scope: >-
+    The mixed-input regression failed before the fix because the Project
+    inventory was not read. It now verifies independent pagination and
+    previews, uploads in both scopes, same-scope upload reuse, retained
+    metadata with equal exact ref keys across scopes and Project Run
+    submission. Server and scanner execution contracts are unchanged.
