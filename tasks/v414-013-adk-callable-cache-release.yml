@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: MVP-012
 priority: P2
-status: in_progress
+status: pending
 depends_on: []
 languages: [python]
 goal: >-

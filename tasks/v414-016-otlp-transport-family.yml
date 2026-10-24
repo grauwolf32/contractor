@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V51-001
 priority: P2
-status: in_progress
+status: pending
 depends_on: []
 languages: [python]
 goal: >-
