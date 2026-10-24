@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -817,15 +818,19 @@ func terminalRun(state runstore.WorkflowRunState) bool {
 	return runstore.RunLifecycleTerminal.Includes(state)
 }
 
-// permanentSubmissionError reports whether creating the child Run of an
-// intent failed in a way the same submission repeats on every attempt: the
-// Run Service, the Run store or the Audit store refused it as invalid, its
-// intent conflicts, or a pinned input is missing or corrupt. The intent then
-// fails instead of being resumed (AUX-R99, FAIL-AUX-1).
+// permanentSubmissionError reports a definite rejection of the pinned
+// submission, which no retry of the same intent can change: the Run Service,
+// the Run store or the Audit store refused it as invalid, its replay
+// conflicts, an exact input is missing or corrupt, or a non-retryable Run
+// Skill failure such as a start-pinned Skill source that no longer exists.
+// The intent then fails instead of being resumed (AUX-R99, FAIL-AUX-1). Any
+// other error leaves the intent to retry.
 func permanentSubmissionError(err error) bool {
+	var skill *agentskills.RunSkillError
 	return errors.Is(err, runservice.ErrInvalid) || errors.Is(err, runstore.ErrInvalid) ||
 		errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) ||
-		errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, artifacts.ErrArtifactIntegrity)
+		errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, artifacts.ErrArtifactIntegrity) ||
+		errors.As(err, &skill) && !skill.Retryable
 }
 
 func (c *Controller) beginRun() bool {

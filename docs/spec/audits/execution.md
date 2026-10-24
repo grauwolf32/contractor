@@ -828,6 +828,7 @@ slowly while one is being deleted.
 | --- | --- |
 | Crash before child Run creation | Durable intent retries (FAIL-AUX-1) |
 | Run created but response lost | Same submission key returns same associated Run (FAIL-AUX-1) |
+| Run Service definitely rejects the pinned submission: invalid or conflicting request, a Run Store or Audit Store refusal as invalid, missing or corrupt exact input, start-pinned Skill source no longer exists | The execution ends once with the submission-failed outcome and no Run; the intent is not retried (FAIL-AUX-1, AUX-R99) |
 | Crash after terminal Run before collection | Reconcile records the terminal version and one collection receipt (FAIL-AUX-2) |
 | Partial package materialization | Staging is invisible; retry completes or records one invalid receipt (FAIL-AUX-2) |
 | Terminal event lost/duplicated/reordered | Controller reads durable Run state and collects once (FAIL-AUX-2) |

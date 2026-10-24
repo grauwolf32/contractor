@@ -13,6 +13,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -275,7 +276,7 @@ func TestControllerLeavesMembersOmittedByByteBoundedPreparationReady(t *testing.
 
 func TestControllerReplaysIntentAfterSubmissionFailure(t *testing.T) {
 	harness := newControllerHarness(t, 1, 1)
-	harness.creator.failNext.Store(true)
+	harness.creator.failNextWith(errors.New("temporary database outage"))
 	if _, err := harness.controller.RunOnce(harness.ctx); err != nil { // accepted -> executing
 		t.Fatal(err)
 	}
@@ -338,6 +339,54 @@ func TestControllerFailsAnIntentWhoseRunCreationIsRefusedAsInvalid(t *testing.T)
 			if len(harness.store.executions) != 1 || harness.store.executions[0].TerminalOutcome == nil ||
 				*harness.store.executions[0].TerminalOutcome != auditstore.TerminalSubmissionFailed {
 				t.Fatalf("refused submission left executions %+v, want one failed intent", harness.store.executions)
+			}
+		})
+	}
+}
+
+// A definite rejection of the pinned submission ends its execution once as a
+// submission failure, while a retryable failure keeps the intent for replay
+// (FAIL-AUX-1). A start-pinned Skill source that no longer exists is such a
+// rejection: no retry of the same intent can create the Run.
+func TestControllerClassifiesRunSkillSubmissionFailures(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		failure   error
+		permanent bool
+	}{
+		{"missing pinned Skill source", &agentskills.RunSkillError{
+			Code: agentskills.CodeArtifactNotFound, Name: "review",
+		}, true},
+		{"transient Skill source lock", &agentskills.RunSkillError{
+			Code: agentskills.CodeArtifactUnavailable, Name: "review", Retryable: true,
+		}, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness := newControllerHarness(t, 1, 1)
+			if _, err := harness.controller.RunOnce(harness.ctx); err != nil { // accepted -> executing
+				t.Fatal(err)
+			}
+			harness.creator.failNextWith(test.failure)
+			worked, err := harness.controller.RunOnce(harness.ctx)
+			if harness.store.executionCount() != 1 || harness.creator.createdCount() != 0 {
+				t.Fatalf("executions = %d, Runs = %d; want one execution and no Run",
+					harness.store.executionCount(), harness.creator.createdCount())
+			}
+			execution := harness.store.execution(0)
+			if !test.permanent {
+				if !errors.Is(err, test.failure) || worked || execution.State != auditstore.ExecutionIntent {
+					t.Fatalf("retryable submission failure = (%t, %v), execution %s; want the intent kept",
+						worked, err, execution.State)
+				}
+				return
+			}
+			if err != nil || !worked || execution.State != auditstore.ExecutionCollecting ||
+				execution.TerminalOutcome == nil || *execution.TerminalOutcome != auditstore.TerminalSubmissionFailed {
+				t.Fatalf("permanent submission failure = (%t, %v), execution %s %v; want one submission failure",
+					worked, err, execution.State, execution.TerminalOutcome)
+			}
+			if state := harness.store.itemState(0); state != auditstore.ItemCollecting {
+				t.Fatalf("item state after the submission failure = %q", state)
 			}
 		})
 	}
@@ -1539,6 +1588,12 @@ func (s *fakeControllerStore) executionCount() int {
 	return len(s.executions)
 }
 
+func (s *fakeControllerStore) execution(index int) auditstore.Execution {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.executions[index]
+}
+
 func (s *fakeControllerStore) executionMembers(index int) []auditstore.ExecutionItem {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -1663,20 +1718,23 @@ func (r *fakeControllerRuns) cancelCount() int {
 type fakeControllerCreator struct {
 	store    *fakeControllerStore
 	runs     *fakeControllerRuns
-	failNext atomic.Bool
+	failNext atomic.Pointer[error]
 	// refusal, when set before a pass, refuses every Run creation with it.
 	refusal  error
 	attempts atomic.Int64
 	created  atomic.Int64
 }
 
+// failNextWith makes the next CreateAudit fail with err and commit nothing.
+func (c *fakeControllerCreator) failNextWith(err error) { c.failNext.Store(&err) }
+
 func (c *fakeControllerCreator) CreateAudit(_ context.Context, params runservice.AuditCreateParams) (runservice.CreateResult, error) {
 	c.attempts.Add(1)
 	if c.refusal != nil {
 		return runservice.CreateResult{}, c.refusal
 	}
-	if c.failNext.CompareAndSwap(true, false) {
-		return runservice.CreateResult{}, errors.New("temporary database outage")
+	if failure := c.failNext.Swap(nil); failure != nil {
+		return runservice.CreateResult{}, *failure
 	}
 	c.store.mu.Lock()
 	index := c.store.findExecution(params.ExecutionID)
