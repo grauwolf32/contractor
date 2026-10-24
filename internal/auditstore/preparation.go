@@ -39,6 +39,24 @@ type PreparationRole struct {
 	ExecutionID    *string
 }
 
+// PreparationAttempt is the latest attempt of a prepare role as the public
+// preparation projection reads it (ASC-R41 to ASC-R43). Outputs are the
+// retained output descriptors of an accepted attempt and empty otherwise.
+type PreparationAttempt struct {
+	ExecutionID string
+	RoleAttempt int
+	RunID       *string
+	State       ExecutionState
+	Outputs     []PreparationOutput
+}
+
+// ListedPreparationRole is one pinned prepare role of a listed Audit with its
+// latest attempt, which is nil while the role has none.
+type ListedPreparationRole struct {
+	PreparationRole
+	Latest *PreparationAttempt
+}
+
 type StartPreparationParams struct {
 	OwnerID          string
 	AuditID          string

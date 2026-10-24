@@ -282,10 +282,10 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 		t.Fatalf("foreign owner get = %v", err)
 	}
 	foreignProjectID := project.ProjectID
-	if listed, err := service.List(ctx, auditstore.ListParams{
+	if listed, preparation, err := service.ListPage(ctx, auditstore.ListParams{
 		OwnerID: "other-owner", ProjectID: &foreignProjectID, Limit: 10,
-	}); err != nil || len(listed) != 0 {
-		t.Fatalf("foreign owner list = (%+v, %v)", listed, err)
+	}, func(auditstore.Audit) bool { return true }); err != nil || len(listed) != 0 || len(preparation) != 0 {
+		t.Fatalf("foreign owner list = (%+v, %v, %v)", listed, preparation, err)
 	}
 	if _, err := service.ListItems(ctx, auditstore.ListItemsParams{
 		OwnerID: "other-owner", AuditID: draft.AuditID, Limit: 10,
