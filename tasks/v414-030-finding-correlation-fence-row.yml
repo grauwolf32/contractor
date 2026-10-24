@@ -6,7 +6,7 @@ epic: findings
 kind: defect
 introduced_by: V397-003
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql, markdown]
 goal: >-
