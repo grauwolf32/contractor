@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
@@ -17,6 +18,7 @@ from contractor_runtime.contracts import (
     API_VERSION,
     AbortAllocationRequest,
     AgentTemplateRef,
+    AllocationFinalResponse,
     AllocationSpec,
     FinalizeAllocationRequest,
     ModelPolicyRef,
@@ -32,7 +34,9 @@ from contractor_runtime.contracts import (
     ToolsetSelection,
     WorkerRuntimeRef,
     WorkerSessionMode,
+    decode_private,
 )
+from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.digests import (
     _agent_template_digest,
     _model_policy_digest,
@@ -45,6 +49,11 @@ from contractor_runtime.factories import (
     built_in_factories,
 )
 from contractor_runtime.state import ProcessState, RuntimeState
+from contractor_runtime.telemetry.metrics import (
+    MAX_METRIC_ERRORS,
+    MAX_METRIC_TOOL_CALLS,
+    MAX_REPORT_JSON_BYTES,
+)
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import FindingsError
@@ -509,6 +518,65 @@ def test_finalize_report_and_release_erase_context_and_workspace(
         state_snapshot = await state.snapshot()
         assert state_snapshot.process_state is ProcessState.IDLE
         assert state_snapshot.allocation_id is None
+
+    asyncio.run(scenario())
+
+
+def test_maximum_worker_detail_crosses_the_private_report_boundary(
+    tmp_path: Path, runtime_capabilities: CapabilitySnapshot
+) -> None:
+    """The Runtime trims a full Worker report before it reaches the 1 MiB wire bound."""
+
+    class LongInputError(ToolInputError):
+        pass
+
+    async def scenario() -> None:
+        _, service = await make_service(tmp_path, runtime_capabilities)
+        spec = make_spec()
+        await service.prepare(spec)
+        assert service._context is not None and service._context.worker_state is not None
+        metrics = service._context.worker_state.metrics
+        message = "界" * 1365 + "a"  # 4096 UTF-8 bytes, the error-message bound
+        for index in range(MAX_METRIC_TOOL_CALLS):
+            failed = index >= MAX_METRIC_TOOL_CALLS - MAX_METRIC_ERRORS
+            metrics.record_tool_call(
+                "read_source_file",
+                arguments={"path": f"{index:04d}" + "ж" * 1990},
+                error=LongInputError(message) if failed else None,
+            )
+        reason = TerminationError(code="run_cancelled", message=message, retryable=False)
+        response = await service.abort(
+            AbortAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                abortId="abort-maximum-detail",
+                reason=reason,
+                deadline=NOW + timedelta(seconds=30),
+            )
+        )
+
+        # The body the control endpoint sends (Starlette's compact JSONResponse).
+        body = json.dumps(
+            response.model_dump(mode="json", by_alias=True, exclude_none=True),
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        ).encode()
+        assert len(body) <= MAX_REPORT_JSON_BYTES
+        decoded = decode_private(AllocationFinalResponse, body)
+        assert decoded == response
+        worker = decoded.report.worker
+        retained = list(metrics.tool_calls)
+        removed = len(retained) - len(worker.tool_calls)
+        assert 0 < removed < MAX_METRIC_TOOL_CALLS
+        assert worker.tool_calls == retained[removed:]
+        assert worker.truncated
+        # The termination reason is the newest error; the oldest one gave way.
+        assert len(worker.errors) == MAX_METRIC_ERRORS
+        assert worker.errors[-1].code == "run_cancelled"
+        assert worker.errors[:-1] == list(metrics.errors)[1:]
+        assert worker.metrics.tools["read_source_file"].calls == MAX_METRIC_TOOL_CALLS
+        assert worker.metrics.tools["read_source_file"].failed == MAX_METRIC_ERRORS
 
     asyncio.run(scenario())
 

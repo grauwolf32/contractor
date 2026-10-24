@@ -854,31 +854,74 @@ func testReservation(
 	}
 }
 
+// Finalize and Abort apply the one resource policy definition
+// (reporting.RuntimeReport.ApplyResourcePolicy) to what the Runtime sent.
 func TestRuntimeResourcesAreIsolatedFromLifecycleTruth(t *testing.T) {
+	const partial = `{"version":1,"scope":"runtime_process","status":"partial","durationSeconds":1}`
+	const malformed = `{"version":2,"scope":"runtime_process","status":"partial"}`
+	duration := 1.0
 	reason := reporting.ResourceInvalidReport
+	kept := &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourcePartial, DurationSeconds: &duration}
+	sentinel := &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourceUnavailable, Reason: &reason}
 	for _, test := range []struct {
-		name        string
-		policy      reporting.PerformanceCollectionPolicy
-		resources   *reporting.RuntimeResources
-		resourceErr *reporting.ResourceReason
-		want        bool
-		wantReason  *reporting.ResourceReason
+		name      string
+		policy    reporting.PerformanceCollectionPolicy
+		resources string
+		want      *reporting.RuntimeResources
 	}{
-		{name: "unrequested", policy: reporting.PerformanceCollectionDisabled, resources: &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourcePartial}},
-		{name: "malformed", policy: reporting.PerformanceCollectionRequested, resourceErr: &reason, want: true, wantReason: &reason},
-		{name: "valid", policy: reporting.PerformanceCollectionRequested, resources: &reporting.RuntimeResources{Version: 1, Scope: "runtime_process", Status: reporting.ResourcePartial}, want: true},
+		{name: "requested valid", policy: reporting.PerformanceCollectionRequested, resources: partial, want: kept},
+		{name: "requested malformed", policy: reporting.PerformanceCollectionRequested, resources: malformed, want: sentinel},
+		{name: "requested absent", policy: reporting.PerformanceCollectionRequested},
+		{name: "disabled valid", policy: reporting.PerformanceCollectionDisabled, resources: partial},
+		{name: "unsupported malformed", policy: reporting.PerformanceCollectionUnsupported, resources: malformed},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			report := reporting.RuntimeReport{Complete: true, Resources: test.resources, ResourcesError: test.resourceErr}
-			sanitizeRuntimeResources(&report, Reservation{PerformanceCollectionPolicy: test.policy})
-			if (report.Resources != nil) != test.want || report.ResourcesError != nil {
-				t.Fatalf("sanitized resources = %+v, error=%v", report.Resources, report.ResourcesError)
+			body := string(mustMarshal(t, reporting.AllocationFinalResponse{
+				APIVersion: contracts.APIVersion, Report: testExecutionReport("allocation_1"),
+			}))
+			if test.resources != "" {
+				body = strings.Replace(body, `"runtime":{`, `"runtime":{"resources":`+test.resources+`,`, 1)
 			}
-			if test.wantReason != nil && (report.Resources.Reason == nil || *report.Resources.Reason != *test.wantReason) {
-				t.Fatalf("sanitized reason = %+v", report.Resources)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, body)
+			}))
+			defer server.Close()
+			client, _ := NewRuntimeControlClient(server.Client())
+			reservation := testReservation(
+				"allocation_1", "builder", server.URL, server.URL,
+				testTemplate(t), time.Now().Add(time.Minute).UTC(),
+			)
+			reservation.PerformanceCollectionPolicy = test.policy
+			deadline := time.Now().Add(time.Minute)
+			finalized, err := client.Finalize(context.Background(), reservation, "finalization_1", deadline)
+			if err != nil {
+				t.Fatalf("Finalize: %v", err)
+			}
+			aborted, err := client.Abort(
+				context.Background(), reservation, "abort_1",
+				contracts.TerminationError{Code: "run_cancelled", Message: "cancelled"}, deadline,
+			)
+			if err != nil {
+				t.Fatalf("Abort: %v", err)
+			}
+			for _, report := range []reporting.AllocationFinalReport{finalized, aborted} {
+				if !reflect.DeepEqual(report.Runtime.Resources, test.want) || report.Runtime.ResourcesError != nil ||
+					!report.Runtime.Complete || !report.Worker.Complete {
+					t.Fatalf("resources = %+v, diagnostic %v; want %+v", report.Runtime.Resources, report.Runtime.ResourcesError, test.want)
+				}
 			}
 		})
 	}
+}
+
+func mustMarshal(t *testing.T, value any) []byte {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return encoded
 }
 
 func testRuntimeSettings() runtimesettings.RuntimeSettings {

@@ -220,6 +220,13 @@ class ToolCallRecord(WireModel):
     result_size_bytes: int | None = Field(default=None, ge=0)
     error: ExecutionError | None = None
 
+    @field_validator("arguments")
+    @classmethod
+    def absent_when_empty(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        # The Server encodes an empty summary as an absent member; one form on
+        # both sides keeps their record sizes equal (OBS-R42).
+        return value or None
+
     @model_validator(mode="after")
     def validate_call(self) -> Self:
         _require_text("callId", self.call_id)

@@ -47,7 +47,7 @@ type WorkerAllocationState struct {
 type WorkerStateToolCall struct {
 	CallID             string          `json:"callId" strictjson:"required"`
 	Tool               string          `json:"tool" strictjson:"required"`
-	Arguments          map[string]any  `json:"arguments,omitempty"`
+	Arguments          ToolArguments   `json:"arguments,omitempty"`
 	ArgumentsTruncated bool            `json:"argumentsTruncated" strictjson:"required"`
 	Outcome            ToolCallOutcome `json:"outcome" strictjson:"required"`
 	DurationMS         *uint64         `json:"durationMs,omitempty"`
@@ -269,6 +269,9 @@ func validateStateToolCall(call WorkerStateToolCall) error {
 		return contracts.Invalidf("absent Worker State arguments cannot be marked truncated")
 	}
 	if call.Arguments != nil {
+		if !call.Arguments.numbersInRange() {
+			return contracts.Invalidf("Worker State tool arguments hold a number outside their range")
+		}
 		size, err := contracts.ResultJSONSize(call.Arguments)
 		if err != nil || size > 4096 {
 			return contracts.Invalidf("Worker State tool arguments exceed their bound")

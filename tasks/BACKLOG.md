@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-72 open tasks: 6 in progress, 41 pending, 25 deferred. 1059 finished: 1051 completed, 8 archived.
+71 open tasks: 6 in progress, 40 pending, 25 deferred. 1060 finished: 1052 completed, 8 archived.
 
 ## In progress
 
@@ -92,12 +92,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
 
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V407-020](v407-020-telemetry-trim-and-history.yml) | chore | P2 | — | Reduce bounded telemetry trimming and operations-history copying |
-
 ### Public API and wire contracts (`api-contracts`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -129,7 +123,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-029](v372-029-shared-fixture-gate-scope.yml) | chore | P3 | — | Extend the shared fixture gate to every cross-language fixture and keep slow store suites out of it |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Find out why about a hundred Runtime tests fail on a macOS host and make each one pass or declare its platform |
-| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | V407-020 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V407-039](v407-039-close-server-runtime-review.yml) | chore | P3 | — | Close the validated Server and Runtime review with explicit dispositions and verification |
 
 ## Deferred
 
@@ -184,7 +178,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 2 | 21 | 34 | 8 | 41 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 1 | 24 | 61 | 13 | 55 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 11 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 16 | 33 | 6 | 11 |
 | Public API and wire contracts (`api-contracts`) | 4 | 1 | 34 | 20 | 10 |
 | PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 21 | 41 | 10 |
 | Quality, CI and process (`quality`) | 13 | 1 | 25 | 89 | 23 |

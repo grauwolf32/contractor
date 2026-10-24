@@ -167,6 +167,29 @@ func (r RuntimeResources) Validate() error {
 	return nil
 }
 
+// ApplyResourcePolicy keeps the resource block of a final report only under
+// the policy the Server pinned with the allocation (CTL-R136). Without a
+// request the block and its decode diagnostic are dropped. A requested block
+// that failed to decode or validate becomes the bounded invalid_report
+// sentinel, never raw input. This is the one definition: the Control Plane
+// applies it to a Runtime response and telemetry persistence to the report it
+// stores.
+func (r *RuntimeReport) ApplyResourcePolicy(policy PerformanceCollectionPolicy) {
+	if policy != PerformanceCollectionRequested {
+		r.Resources = nil
+		r.ResourcesError = nil
+		return
+	}
+	if r.ResourcesError != nil || (r.Resources != nil && r.Resources.Validate() != nil) {
+		reason := ResourceInvalidReport
+		r.Resources = &RuntimeResources{
+			Version: PerformanceMetricsVersion, Scope: "runtime_process",
+			Status: ResourceUnavailable, Reason: &reason,
+		}
+		r.ResourcesError = nil
+	}
+}
+
 // Resource-only errors are isolated from execution truth. Duplicate keys and
 // malformed JSON remain envelope errors at the strict transport decoder.
 func decodeOptionalResources(data json.RawMessage) (*RuntimeResources, *ResourceReason) {

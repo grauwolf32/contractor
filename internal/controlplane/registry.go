@@ -76,7 +76,7 @@ type InMemoryRegistry struct {
 	pendingLosses              []AllocationLoss
 	operationsGeneration       string
 	operationsRevision         uint64
-	operationsHistory          []OperationsChange
+	operationsHistory          operationsChanges
 	operationsWatchers         map[uint64]chan struct{}
 	nextOperationsWatcher      uint64
 }

@@ -108,7 +108,7 @@ def test_read_audit_task_returns_validated_json_without_raw_package_bytes() -> N
         assert result["executionManifestDigest"] == digest(execution_manifest)
         assert "dataBase64" not in result
         assert state.metrics.counters["tool_calls"] == 1
-        assert state.metrics.tool_calls[0].arguments == {}
+        assert state.metrics.tool_calls[0].arguments is None
 
     asyncio.run(scenario())
 
@@ -187,7 +187,7 @@ def test_completion_derives_identity_and_builds_canonical_package() -> None:
         ]
         assert state.metrics.counters["tool_calls"] == 1
         metric = state.metrics.tool_calls[0]
-        assert metric.arguments == {}
+        assert metric.arguments is None
         assert "Guard at app.py" not in repr(metric)
 
     asyncio.run(scenario())
@@ -321,7 +321,7 @@ def test_completion_publishes_one_complete_ordered_batch() -> None:
             }
         ]
         metric = state.metrics.tool_calls[-1]
-        assert metric.arguments == {}
+        assert metric.arguments is None
         assert "Guard at app.py" not in repr(metric)
 
     asyncio.run(scenario())
