@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	litellmcredentials "github.com/grauwolf32/contractor/internal/credentials/litellm"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -29,6 +30,7 @@ type credentialServices struct {
 func configureCredentials(
 	ctx context.Context,
 	pool *pgxpool.Pool,
+	lease persistencepostgres.ServerLease,
 	configurationManager *workflowconfig.Manager,
 	cfg Config,
 ) (credentialServices, error) {
@@ -116,7 +118,7 @@ func configureCredentials(
 	}
 	credentialBarrier := credentials.NewLifecycleBarrier()
 	credentialLifecycle, err := credentials.NewService(credentials.ServiceOptions{
-		Pool: pool, Gateways: configurationManager, Managers: credentialManagers,
+		Pool: pool, Lease: lease, Gateways: configurationManager, Managers: credentialManagers,
 		Runs: runstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool),
 		Cipher: tokenCipher, Barrier: credentialBarrier,
 	})
@@ -128,7 +130,7 @@ func configureCredentials(
 	}
 	runtimeCredentialLifecycle, err := credentials.NewRuntimeCredentialService(
 		credentials.RuntimeCredentialServiceOptions{
-			Pool: pool, Cipher: tokenCipher, Usage: runtimeCredentialRepository,
+			Pool: pool, Lease: lease, Cipher: tokenCipher, Usage: runtimeCredentialRepository,
 			Audits: hookstore.NewCredentialHolds(pool), Barrier: credentialBarrier,
 		},
 	)

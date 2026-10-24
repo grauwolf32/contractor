@@ -36,7 +36,7 @@ resolved durations and the Audit claim batch; it excludes URLs, paths and secret
 | `database.acquireTimeout` | `2s` | Wait for a pooled connection |
 | `database.queryTimeout` | `20s` | Client database operation budget, including each startup statement of the Control Plane lease session ([PER-R27](../spec/platform/persistence.md)) |
 | `database.statementTimeout` | `15s` | PostgreSQL statement execution |
-| `database.lockTimeout` | `2s` | PostgreSQL lock acquisition |
+| `database.lockTimeout` | `2s` | PostgreSQL lock acquisition, including a new active Server's wait for its predecessor's lease-fenced writes, whose expiry stops startup ([PER-R35](../spec/platform/persistence.md)) |
 | `database.idleTransactionTimeout` | `30s` | PostgreSQL idle transaction lifetime |
 | `a2a.pollInterval` | `100ms` | Delay before the first poll of a non-terminal A2A task; every poll that finds it still running doubles the delay, up to 2s or this value when it is longer (LIM-PLN-7) |
 | `credentialManagement.connectTimeout` | `3s` | LiteLLM virtual-key API connect/TLS timeout, at most 1m |

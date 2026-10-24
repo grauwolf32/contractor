@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
@@ -42,7 +43,8 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 		t.Fatal(err)
 	}
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-		Pool: pool, Cipher: cipher, Usage: repository, Audits: staticAuditDispatchHolds{}, Barrier: barrier,
+		Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher, Usage: repository,
+		Audits: staticAuditDispatchHolds{}, Barrier: barrier,
 		Now: func() time.Time { return time.Date(2026, 8, 31, 18, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
@@ -255,7 +257,8 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	cipher, _ := NewTokenCipher(bytes.Repeat([]byte{0x73}, 32))
 	now := time.Date(2026, 8, 31, 19, 0, 0, 0, time.UTC)
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-		Pool: pool, Cipher: cipher, Usage: repository, Audits: staticAuditDispatchHolds{}, Barrier: barrier,
+		Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher, Usage: repository,
+		Audits: staticAuditDispatchHolds{}, Barrier: barrier,
 		Now: func() time.Time { return now },
 	})
 	if err != nil {
@@ -638,7 +641,8 @@ func TestInteractshCredentialDeletionIsFencedByPublishedBindings(t *testing.T) {
 	cipher, _ := NewTokenCipher(bytes.Repeat([]byte{0x73}, 32))
 	now := time.Date(2026, 8, 31, 19, 0, 0, 0, time.UTC)
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-		Pool: pool, Cipher: cipher, Usage: repository, Audits: staticAuditDispatchHolds{}, Barrier: barrier,
+		Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher, Usage: repository,
+		Audits: staticAuditDispatchHolds{}, Barrier: barrier,
 		Now: func() time.Time { return now },
 	})
 	if err != nil {

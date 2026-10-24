@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 )
 
 // The lock is scoped by PostgreSQL to its database. A dedicated session owns
@@ -44,8 +45,11 @@ type controlPlaneLease struct {
 	lost      bool
 	// held is set once this session wins the advisory lock; reconnect is only
 	// valid while it is false.
-	held  bool
-	close sync.Once
+	held bool
+	// server identifies this session as the lease holder once it holds the
+	// lock; lease-fenced writes prove it (PER-R34).
+	server persistencepostgres.ServerLease
+	close  sync.Once
 }
 
 // PostgreSQL keeps a session advisory lock until it notices the session is
@@ -112,16 +116,38 @@ func (lease *controlPlaneLease) reconnect(ctx context.Context) error {
 	return nil
 }
 
+// tryAcquire takes the advisory lock without waiting. Once this session holds
+// it, the session is identified as the lease holder that lease-fenced writes
+// prove (PER-R34); a session that holds the lock but cannot be identified is
+// an error, and the caller closes it, which releases the lock.
 func (lease *controlPlaneLease) tryAcquire(ctx context.Context) (bool, error) {
 	var acquired bool
 	err := lease.conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, controlPlaneLeaseKey).Scan(&acquired)
 	if err != nil {
 		return false, fmt.Errorf("acquire Control Plane lease: %w", err)
 	}
-	if acquired {
-		lease.held = true
+	if !acquired {
+		return false, nil
 	}
-	return acquired, nil
+	lease.held = true
+	server, err := persistencepostgres.NewServerLease(ctx, lease.conn, controlPlaneLeaseKey)
+	if err != nil {
+		return false, fmt.Errorf("identify Control Plane lease session: %w", err)
+	}
+	lease.server = server
+	return true, nil
+}
+
+// awaitHandover waits, once this Server holds the lease, until every
+// lease-fenced write of the previous holder has ended (PER-R34). The working
+// pool's database.lockTimeout bounds the wait and database.queryTimeout the
+// statement; a failure stops startup like a failed startup lease step
+// (PER-R27).
+func (lease *controlPlaneLease) awaitHandover(ctx context.Context) error {
+	if err := persistencepostgres.AwaitLeaseHandover(ctx, lease.pool, lease.server); err != nil {
+		return fmt.Errorf("await Control Plane lease handover: %w", err)
+	}
+	return nil
 }
 
 // holderPID reports the session holding this database's lease. pg_locks lists
@@ -241,6 +267,9 @@ func awaitControlPlaneLease(ctx context.Context, pool *pgxpool.Pool, publicAddre
 		return nil, err
 	}
 	if acquired {
+		if err := lease.awaitHandover(ctx); err != nil {
+			return nil, err
+		}
 		owned = true
 		return lease, nil
 	}
@@ -275,6 +304,11 @@ func awaitControlPlaneLease(ctx context.Context, pool *pgxpool.Pool, publicAddre
 				return nil, errors.Join(err, stop())
 			}
 			if acquired {
+				// The standby keeps answering 503 while the previous
+				// holder's lease-fenced writes end.
+				if err := lease.awaitHandover(ctx); err != nil {
+					return nil, errors.Join(err, stop())
+				}
 				if err := stop(); err != nil {
 					return nil, err
 				}
@@ -300,6 +334,11 @@ func (lease *controlPlaneLease) acquireOrReconnect(ctx context.Context, logger *
 	}
 	if ctx.Err() != nil {
 		return false, ctx.Err()
+	}
+	if lease.held {
+		// The session holds the lock, which a reconnect would drop
+		// unnoticed; the caller closes it instead.
+		return false, err
 	}
 	logger.Warn("Control Plane lease acquisition attempt failed; retrying", "error", err)
 	if reconnectErr := lease.reconnect(ctx); reconnectErr != nil && ctx.Err() == nil {
