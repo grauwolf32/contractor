@@ -481,7 +481,9 @@ an item.
 **AUX-R49.** Each transaction retains a bounded number of proposal and
 evidence revisions (LIM-AUX-7), so a collection attempt that reaches its
 deadline keeps the holds it committed and the next attempt retains only the
-rest (FAIL-AUX-3).
+rest. A definite transaction conflict, such as Project correlation fence
+contention (FND-R177), replays only the transaction it aborted, from the same
+proposal and with the same bound (FAIL-AUX-3).
 
 **AUX-R50.** For an Audit child Run, collection accounts for every committed
 proposal receipt before making the Run deletable: an allowed proposal receives

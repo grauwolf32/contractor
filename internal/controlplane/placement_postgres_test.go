@@ -666,7 +666,16 @@ func (f *placementFixture) registerCandidateWithLabels(
 	labels []string,
 ) string {
 	t.Helper()
-	registration := control.AgentRegistration{
+	return f.registerProcess(t, ctx, instanceID, idDigit, labels, f.candidateRegistration(adapters, labels))
+}
+
+// candidateRegistration advertises exactly the fixture template's
+// capabilities plus adapters.
+func (f *placementFixture) candidateRegistration(
+	adapters []runtimesettings.RuntimeAdapterRef,
+	labels []string,
+) control.AgentRegistration {
+	return control.AgentRegistration{
 		InitialLabels:     append([]string{}, labels...),
 		SupportedRuntimes: []string{f.template.Runtime.RuntimeID + "@" + f.template.Runtime.Version},
 		SupportedToolsets: []control.ToolsetCapability{{
@@ -678,7 +687,6 @@ func (f *placementFixture) registerCandidateWithLabels(
 		},
 		SupportedRuntimeAdapters: append([]runtimesettings.RuntimeAdapterRef{}, adapters...),
 	}
-	return f.registerProcess(t, ctx, instanceID, idDigit, labels, registration)
 }
 
 // registerProcess stores the principal of idDigit and registers one idle
@@ -692,7 +700,20 @@ func (f *placementFixture) registerProcess(
 	registration control.AgentRegistration,
 ) string {
 	t.Helper()
-	runtimeAgentID := strings.Repeat(idDigit, 64)
+	return f.registerPrincipalProcess(t, ctx, instanceID, strings.Repeat(idDigit, 64), labels, registration)
+}
+
+// registerPrincipalProcess is registerProcess for any 64-digit principal, so
+// one fixture can hold more than sixteen principals.
+func (f *placementFixture) registerPrincipalProcess(
+	t *testing.T,
+	ctx context.Context,
+	instanceID string,
+	runtimeAgentID string,
+	labels []string,
+	registration control.AgentRegistration,
+) string {
+	t.Helper()
 	now := time.Now().UTC()
 	principal := agentprincipal.Principal{
 		RuntimeAgentID: runtimeAgentID, Labels: append([]string{}, labels...), LabelRevision: 1,

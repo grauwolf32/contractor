@@ -360,6 +360,9 @@ var (
 	}
 )
 
+// ImportIntoAudit retains one exact ordinary-Run proposal in an owner's Audit,
+// or returns the hold that an earlier import committed, in one transaction
+// (importTransaction).
 func (s *Service) ImportIntoAudit(
 	ctx context.Context,
 	request ImportRequest,
@@ -369,7 +372,8 @@ func (s *Service) ImportIntoAudit(
 	}
 	var hold AuditHold
 	var replayed bool
-	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	err := s.importTransaction(ctx, func(tx pgx.Tx) error {
+		hold, replayed = AuditHold{}, false
 		if err := lockFindingImportAuthority(ctx, tx, request, false); err != nil {
 			return err
 		}
@@ -381,6 +385,27 @@ func (s *Service) ImportIntoAudit(
 		return AuditHold{}, false, err
 	}
 	return hold, replayed, nil
+}
+
+// importTransaction runs one owner-import or collection-prefix transaction.
+// Only a definite transaction conflict, which is what contention on the early
+// Project correlation fence becomes (FND-R177), replays it in a fresh
+// transaction, at most InTxWithRetry's finite attempts within ctx and its
+// operation budget. A replay is safe because every effect of fn is a
+// statement of its own transaction: the source-Run, Audit and Project locks,
+// the exact artifact forks and frozen direct-verification writes, the hold
+// and the finding, revision and event rows its triggers append, so an abort
+// discards them all; a filesystem candidate blob of an aborted attempt is an
+// ordinary orphan for offline cleanup. A collection's direct-verification
+// cache keeps immutable terminal Run output, or the error of its non-locking
+// reads, which is never a transaction conflict; its evidence-budget mark
+// names the aborted transaction, so the replay checks the budget again.
+// fn must reset what it captures on entry. Validation, authority,
+// deleting-Project, cancellation, timeout and uncertain commit failures
+// return unchanged: the caller reconciles an uncertain commit through the
+// receipt's natural key before another mutation.
+func (s *Service) importTransaction(ctx context.Context, fn func(pgx.Tx) error) error {
+	return persistencepostgres.InTxWithRetry(ctx, s.pool, pgx.TxOptions{}, fn)
 }
 
 // maxCollectionTransactionWork bounds the work of one collection transaction.
@@ -401,7 +426,8 @@ const maxCollectionTransactionWork = 512
 // The page commits in transactions bounded by maxCollectionTransactionWork.
 // Each holds the source-Run and destination-Audit locks until it commits, and
 // each receipt uses the same exact artifact and direct-verification checks as
-// an owner import. A failed transaction leaves earlier ones committed; a retry
+// an owner import. A definite transaction conflict replays only the failed
+// transaction. A failed transaction leaves earlier ones committed; a retry
 // skips them. A proposal whose own exact data can never be retained is
 // rejected as RejectAuditCollection does, in the transaction that commits the
 // proposals before it, so it cannot block the rest of the page.
@@ -437,12 +463,15 @@ func (s *Service) RetainAuditCollectionBatch(ctx context.Context, requests []Imp
 // retainAuditCollectionPrefix retains requests in order in one transaction
 // until their work reaches maxCollectionTransactionWork, at least one, and
 // returns how many it committed. With rejection set, it rejects the request at
-// rejection.index once it reaches it and commits through that request.
+// rejection.index once it reaches it and commits through that request. A
+// transaction conflict replays only this transaction (importTransaction), so
+// its prefix and work are counted again from requests[0] and never include a
+// transaction that already committed.
 func (s *Service) retainAuditCollectionPrefix(
 	ctx context.Context, requests []ImportRequest, rejection *unretainableProposal,
 ) (int, error) {
 	committed := 0
-	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	err := s.importTransaction(ctx, func(tx pgx.Tx) error {
 		committed = 0
 		if err := lockFindingImportAuthority(ctx, tx, requests[0], true); err != nil {
 			return err

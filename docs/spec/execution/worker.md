@@ -959,6 +959,17 @@ summary prompt or result.
 lock as State mutations; JSON encoding happens after the lock is released, so
 a large read cannot block tool callbacks.
 
+**WRK-R169.** A State revision does not serialize retained metric detail
+again. The allocation metrics reducer serializes each tool-call record and
+error once, when it admits it, and drops that projection when overflow removes
+the record (LIM-OBS-4, LIM-OBS-5); a revision without a metric mutation
+serializes no record. The reducer and the canonical State share these
+projections read-only: a mutation copies only the invocation sections it may
+change, admission (WRK-R101) replaces rather than edits a value it trims, and
+every snapshot that leaves the store remains an independent deep copy
+(WRK-R160). Copying the retained references stays linear in the retained
+detail.
+
 **WRK-R161.** Counters saturate and detail admission stops at the declared
 bounds rather than evicting facts and changing earlier ordering.
 
@@ -1179,7 +1190,9 @@ endpoints.
 (LIM-WRK-20). Immutable task data is retained first; the newest
 complete event groups that fit are retained next, preserving their original
 order, and a deterministic `transcriptTruncated` marker reports any omission.
-Tool payloads remain subject to their existing model-visible bounds.
+Tool payloads remain subject to their existing model-visible bounds. Runtime
+records the projection only for a Worker whose pinned AgentTemplate has a
+summarizer; without one it records no transcript (WRK-R132).
 
 **WRK-R148.** The 512 KiB projection is the only local
 document-size admission; it does not establish that the complete request fits

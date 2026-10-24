@@ -33,6 +33,9 @@ type Scheduler struct {
 	releaseMu   sync.Mutex
 	releasing   map[string]struct{}
 	workflows   *workflowSnapshotCache
+	// preparedSecrets keeps the secret values of each Stage's Worker
+	// preparation for its report redaction (SCH-R178).
+	preparedSecrets *preparedSecretCache
 }
 
 // New requires every dependency. The process budgets (poll and lease-scan
@@ -70,6 +73,7 @@ func New(
 		workflows: newWorkflowSnapshotCache(
 			decodeExecutableWorkflow, workflowSnapshotCacheRuns, workflowSnapshotCacheBytes,
 		),
+		preparedSecrets: newPreparedSecretCache(preparedSecretStages),
 	}, nil
 }
 

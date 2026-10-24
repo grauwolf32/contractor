@@ -47,9 +47,19 @@ func TestPostgresAuditStateSetsMatchSchema(t *testing.T) {
 						return state.Terminal() || state == auditstore.AuditDraft
 					}),
 				},
+			}, {
+				Name: "hold_state", Check: "audits_hold_state_check",
+				Values: statesettest.DeclaredValues(t, "internal/auditstore", "HoldState"),
+				Subsets: map[string][]string{
+					// Credential deletion checks the Audits that hold their
+					// baseline credentials (listHeldAuditIDsByCredential).
+					"held": {string(auditstore.HoldHeld)},
+				},
 			}},
 			Indexes: map[string]map[string]string{
-				"audits_reconcile_idx": {"state": "reconcilable"},
+				"audits_reconcile_idx":                {"state": "reconcilable"},
+				"audits_held_llm_credentials_idx":     {"hold_state": "held"},
+				"audits_held_runtime_credentials_idx": {"hold_state": "held"},
 			},
 		},
 		{

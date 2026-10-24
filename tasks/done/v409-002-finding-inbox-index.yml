@@ -157,6 +157,12 @@ verification:
       the row budget (two-Audit fixture: 1257 receipt rows in a custom plan,
       20157 in a generic plan, which hash-joined a full receipt scan). Both
       edits were reverted.
+    - >-
+      After merging claude/review-v407-v409 (049d2820, with V409-001 bounded
+      InTxWithRetry and V407-033, which took FND-R184), the quota and inbox
+      requirements were renumbered to FND-R185 and FND-R186; LIM-FND-46 was
+      still free. The task test command, make verify-public-api and make lint
+      passed again on contractor_test_a2.
   row_budget_evidence: >-
     Measured as seq_tup_read + idx_tup_fetch deltas of
     pg_stat_xact_user_tables around EXPLAIN (ANALYZE) EXECUTE of the
@@ -182,10 +188,10 @@ verification:
   held_branch_bound: >-
     The held branch probes one receipt per hold of the Audit and sorts, so
     its work is O(H), not O(page): holds carry no receipt time. Recorded as
-    FND-R185.
+    FND-R186.
   quota_bound: >-
     Unchanged: COUNT of the Run's receipts under the run-proposal-quota
-    advisory lock, maxProposalsPerRun 4096. LIM-FND-46/FND-R184 state that
+    advisory lock, maxProposalsPerRun 4096. LIM-FND-46/FND-R185 state that
     the limit bounds matched receipts, not the count's physical work.
   declined: >-
     No new index or migration: the existing audit_id partial index and the

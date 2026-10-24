@@ -525,7 +525,7 @@ the proposal document size. It is immutable with the receipt, and Audit
 reports read it instead of the proposal artifact
 ([review and reports](../audits/review-and-reports.md), REV-R195).
 
-**FND-R184.** One source Run admits at most 4,096 proposal receipts
+**FND-R185.** One source Run admits at most 4,096 proposal receipts
 (LIM-FND-46). A replay (FND-R60) returns its receipt before the count and
 consumes nothing. A new submission counts the Run's receipts and inserts its
 own under one per-Run transaction lock, so concurrent final submissions admit
@@ -535,7 +535,7 @@ admits no receipt or Artifact. The limit bounds the receipts the count
 matches, not its execution: the count reads every receipt of the Run, and
 the PostgreSQL plan may read more.
 
-**FND-R185.** The Audit inbox (`GET /v1/audits/{auditId}/finding-proposals`)
+**FND-R186.** The Audit inbox (`GET /v1/audits/{auditId}/finding-proposals`)
 lists, oldest first in receipt (creation time, receipt ID) order, the
 Audit's native receipts whose source Run still exists and every receipt the
 Audit holds, each once (REV-R141, REV-R142). An imported receipt keeps its
@@ -651,6 +651,17 @@ Use only already cached versioned grammars during publication; missing or
 unloadable grammars yield `anchor_parser_unavailable`, without a lazy download.
 Runtime installation/test preparation owns prefetching pinned parser assets.
 
+**FND-R184.** The publisher of one allocation may retain the bytes of at most
+one selected exact ZIP within the LIM-FND-38 input bound and reuse them for a
+later finding that selects the same exact ref. Each finding still resolves the
+metadata of every selected ref, and reuse requires the media type and size that
+this resolution reports; otherwise the source is read again and checked as a
+fresh read is. Reuse counts as a content observation of the exact revision, as
+a read does. Concurrent findings of one exact ref share one read; a failed,
+cancelled or expired read retains nothing. Selecting another exact ZIP replaces
+the retained bytes, and allocation release discards them. ASTs and derivations
+are never retained, so each publication parses its selected files again.
+
 **FND-R170.** Resolve an exact inclusive line/range to one supported
 statement. Python statements must be direct children of a module/block;
 JavaScript/TypeScript support lexical/variable declarations, expression,
@@ -764,8 +775,13 @@ neither membership nor revision/events. Keep Run then Audit authority order;
 import acquires a nonblocking Project `FOR NO KEY UPDATE NOWAIT` before any
 retained artifact admission. Other child mutations also acquire this fence
 without waiting; contention becomes the existing retryable SQLSTATE `40001`,
-finite transaction retries and HTTP `503 storage_transaction_conflict` with
-`Retry-After`. No new claim or advisory lock is introduced. The revision is an
+finite transaction retries and the retryable HTTP `503
+storage_transaction_conflict` (PER-R16). Owner import, each bounded
+collection transaction and an analyst finding decision replay only the whole
+transaction that aborted, at most three transactions within the caller's
+context and budget; a permanent, cancelled or uncertain outcome is never
+replayed (FAIL-REV-7, FAIL-AUX-3, FAIL-REV-1).
+No new claim or advisory lock is introduced. The revision is an
 exact integer in 1..9007199254740991 and cannot decrease or skip an increment.
 A finding page's Audit revision still fences its own observations; the explicit
 Project revision fences current correlation, which may change when another
@@ -796,7 +812,8 @@ source finding/receipt, exact selection, limit and policy. Project-wide reads
 fence the dedicated Project revision; Audit and pair restrictions fence only
 their selected Audit revisions. Recheck around bounded hydration; a changed
 fence requires restarting. Missing or foreign sources use the same 404.
-Existing classified storage conflicts retain retryable 503/Retry-After.
+Existing classified storage conflicts retain the retryable 503
+`storage_transaction_conflict`.
 
 **FND-R180.** Candidate scope defaults to Project; `scope=audit` restricts to
 the source Audit. A selected target Audit belongs to the same owned Project.

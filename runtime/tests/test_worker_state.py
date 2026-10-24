@@ -1,13 +1,38 @@
 from __future__ import annotations
 
 import asyncio
+import copy
+import gc
 import json
+import threading
+import weakref
+from collections import Counter
+from datetime import timedelta
+from pathlib import Path
+from typing import Any
 
 import pytest
+from google.adk.utils.context_utils import find_context_parameter
+from test_allocation import NOW, make_service, make_spec
 
-from contractor_runtime.contracts import API_VERSION
+import contractor_runtime.worker.state as state_module
+from contractor_runtime.capabilities import CapabilitySnapshot
+from contractor_runtime.contracts import (
+    API_VERSION,
+    ExecutionError,
+    FinalizeAllocationRequest,
+    ReleaseAllocationRequest,
+    ToolCallRecord,
+)
+from contractor_runtime.observations import WorkspaceToolObservation
+from contractor_runtime.projectfs import WorkspaceObservationMetadata
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
-from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.telemetry.metrics import (
+    MAX_METRIC_ERRORS,
+    MAX_METRIC_TOOL_CALLS,
+    MetricsState,
+)
+from contractor_runtime.worker.observations import WorkspaceObservationReducer
 from contractor_runtime.worker.state import (
     MAX_AGENT_STATE_SNAPSHOT_BYTES,
     WorkerStateError,
@@ -15,6 +40,7 @@ from contractor_runtime.worker.state import (
 )
 
 SECRET = "worker-state-secret-canary"
+_DUMP_ARGUMENTS: dict[str, Any] = {"mode": "json", "by_alias": True, "exclude_none": True}
 
 
 def empty_invocation_metrics() -> dict[str, object]:
@@ -347,5 +373,312 @@ def test_state_records_one_closed_terminal_summarizer_attempt() -> None:
                 token_usage_unavailable=0,
                 failure_code="duplicate",
             )
+
+    asyncio.run(scenario())
+
+
+def count_record_serializations(monkeypatch: pytest.MonkeyPatch) -> Counter[str]:
+    """Count retained-record serializations without changing their output."""
+
+    counts: Counter[str] = Counter()
+    for model in (ToolCallRecord, ExecutionError):
+        original = model.model_dump
+
+        def counted(
+            self: Any,
+            *args: Any,
+            _original: Any = original,
+            _name: str = model.__name__,
+            **kwargs: Any,
+        ) -> dict[str, Any]:
+            counts[_name] += 1
+            return _original(self, *args, **kwargs)
+
+        monkeypatch.setattr(model, "model_dump", counted)
+    return counts
+
+
+def test_state_publication_serializes_each_retained_record_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dump_call = ToolCallRecord.model_dump
+    dump_error = ExecutionError.model_dump
+    counts = count_record_serializations(monkeypatch)
+
+    async def scenario() -> None:
+        metrics = MetricsState()
+        state = WorkerStateStore(metrics)
+        reducer = InvocationMetricsReducer()
+        await state.begin_invocation(
+            invocation_id="worker-cost",
+            subtask_id="0",
+            metrics=reducer.snapshot(),
+        )
+        failures = 0
+        # Tool callbacks publish State before and after every call.
+        for index in range(MAX_METRIC_TOOL_CALLS):
+            await state.publish_invocation_metrics(
+                invocation_id="worker-cost", metrics=reducer.snapshot()
+            )
+            failed = index % 5 == 0
+            failures += failed
+            metrics.record_tool_call(
+                "read_file",
+                arguments={},
+                error=RuntimeError("probe") if failed else None,
+                duration_ms=index,
+            )
+            reducer.record_tool_call("read_file", failed=failed)
+            await state.publish_invocation_metrics(
+                invocation_id="worker-cost", metrics=reducer.snapshot()
+            )
+
+        assert counts == {"ToolCallRecord": MAX_METRIC_TOOL_CALLS, "ExecutionError": failures}
+        assert failures > MAX_METRIC_ERRORS
+
+        published = dict(counts)
+        for _ in range(3):
+            await state.sync_metrics()
+            await state.publish_invocation_metrics(
+                invocation_id="worker-cost", metrics=reducer.snapshot()
+            )
+            await state.snapshot()
+            await state.agent_state_snapshot()
+        await state.complete_invocation(
+            invocation_id="worker-cost", phase="succeeded", metrics=reducer.snapshot()
+        )
+        await state.begin_invocation(
+            invocation_id="worker-cost-next",
+            subtask_id="1",
+            metrics=empty_invocation_metrics(),
+        )
+        assert counts == published
+
+        # The reused projection is exactly the record serialization it replaces.
+        snapshot = await state.snapshot()
+        assert snapshot["metrics"]["toolCalls"] == [
+            dump_call(record, **_DUMP_ARGUMENTS) for record in metrics.tool_calls
+        ]
+        assert snapshot["metrics"]["errors"] == [
+            dump_error(error, **_DUMP_ARGUMENTS) for error in metrics.errors
+        ]
+        assert snapshot["metrics"]["toolCalls"][0]["callId"] == "tool-00000001"
+        assert len(snapshot["metrics"]["errors"]) == MAX_METRIC_ERRORS
+        assert snapshot["metrics"]["truncated"] is True
+        assert_complete_state(snapshot)
+
+    asyncio.run(scenario())
+
+
+def tamper(snapshot: dict[str, Any]) -> None:
+    detail = snapshot["metrics"]
+    detail["toolCalls"][0]["arguments"]["nested"]["kind"] = "tampered"
+    detail["toolCalls"][0]["tool"] = "tampered"
+    detail["toolCalls"].append({"tampered": True})
+    detail["errors"][0]["message"] = "tampered"
+    detail["counters"]["tool_calls"] = 0
+    for field_name in ("currentInvocation", "lastCompletedInvocation"):
+        invocation = snapshot[field_name]
+        if invocation is not None:
+            invocation["metrics"]["tools"]["tampered"] = {"calls": 1, "failures": 1}
+            invocation["summarizer"]["phase"] = "tampered"
+            invocation["subtaskId"] = "tampered"
+
+
+def test_returned_snapshots_never_alias_the_store_or_shared_projections() -> None:
+    async def scenario() -> None:
+        metrics = MetricsState()
+        state = WorkerStateStore(metrics)
+        reducer = InvocationMetricsReducer()
+        metrics.record_tool_call(
+            "read_file", arguments={"path": "a.py", "nested": {"kind": "source"}}, duration_ms=1
+        )
+        metrics.record_tool_call("read_file", arguments={}, error=RuntimeError("probe"))
+        reducer.record_tool_call("read_file", failed=False)
+        reducer.record_tool_call("read_file", failed=True)
+        begun = await state.begin_invocation(
+            invocation_id="worker-alias", subtask_id="0", metrics=reducer.snapshot()
+        )
+        published = await state.publish_invocation_metrics(
+            invocation_id="worker-alias", metrics=reducer.snapshot()
+        )
+        completed = await state.complete_invocation(
+            invocation_id="worker-alias", phase="succeeded", metrics=reducer.snapshot()
+        )
+        synced = await state.sync_metrics()
+        read = await state.snapshot()
+        canonical = copy.deepcopy(read)
+        projection = copy.deepcopy(metrics.snapshot())
+
+        for returned in (begun, published, completed, synced, read):
+            tamper(returned)
+
+        assert await state.snapshot() == canonical
+        assert metrics.snapshot() == projection
+        # The previous completed invocation survives the next one unchanged.
+        following = await state.begin_invocation(
+            invocation_id="worker-alias-next", subtask_id="1", metrics=empty_invocation_metrics()
+        )
+        assert following["lastCompletedInvocation"] == canonical["lastCompletedInvocation"]
+        assert following["metrics"]["toolCalls"] == canonical["metrics"]["toolCalls"]
+        assert following["metrics"]["errors"] == canonical["metrics"]["errors"]
+
+    asyncio.run(scenario())
+
+
+def test_overflow_admission_keeps_the_oldest_prefix_of_unchanged_projections() -> None:
+    async def scenario() -> None:
+        metrics = MetricsState()
+        for index in range(MAX_METRIC_TOOL_CALLS):
+            metrics.record_tool_call(
+                "large_probe",
+                arguments={"index": index, "safe": "x" * 4050},
+                error=RuntimeError("probe") if index % 10 == 0 else None,
+                duration_ms=index,
+            )
+        projection = copy.deepcopy(metrics.snapshot())
+        state = WorkerStateStore(metrics)
+        snapshot = await state.sync_metrics()
+
+        admitted = snapshot["metrics"]["toolCalls"]
+        assert snapshot["metrics"]["errors"] == projection["errors"]
+        assert 0 < len(admitted) < MAX_METRIC_TOOL_CALLS
+        assert admitted == projection["toolCalls"][: len(admitted)]
+        assert snapshot["metrics"]["truncated"] is True
+        assert len(encoded_envelope(snapshot)) <= MAX_AGENT_STATE_SNAPSHOT_BYTES
+        widened = copy.deepcopy(snapshot)
+        widened["metrics"]["toolCalls"] = projection["toolCalls"][: len(admitted) + 1]
+        assert len(encoded_envelope(widened)) > MAX_AGENT_STATE_SNAPSHOT_BYTES
+        # Admission re-slices, and never edits, the reducer's projections.
+        assert metrics.snapshot() == projection
+        assert await state.snapshot() == snapshot
+
+    asyncio.run(scenario())
+
+
+def large_workspace_observation() -> dict[str, Any]:
+    paths = tuple(f"{index:05d}-{'x' * 180}.py" for index in range(9_000))
+    reducer = WorkspaceObservationReducer.from_metadata(
+        WorkspaceObservationMetadata(digest="sha256:" + "0" * 64, managed_text_paths=paths)
+    )
+    reducer.record(WorkspaceToolObservation(read=paths), ordinal=1)
+    observation = reducer.snapshot()
+    assert observation["scopeComplete"] is True
+    assert observation["detailComplete"] is True
+    return observation
+
+
+def test_conflicting_revision_retries_admission_from_the_validated_observation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observation = large_workspace_observation()
+    submitted = copy.deepcopy(observation)
+    metrics = empty_invocation_metrics()
+
+    async def scenario() -> None:
+        reference = await WorkerStateStore().begin_invocation(
+            invocation_id="worker-large", subtask_id="1", metrics=metrics, workspace=observation
+        )
+        fitted = reference["currentInvocation"]["workspace"]
+        assert not (fitted["scopeComplete"] and fitted["detailComplete"])
+
+        state = WorkerStateStore()
+        admit = state_module._fit_snapshot
+        loop = asyncio.get_running_loop()
+        held = asyncio.Event()
+        release = threading.Event()
+        entered: list[dict[str, Any] | None] = []
+
+        def held_admission(candidate: dict[str, Any]) -> dict[str, Any]:
+            current = candidate["currentInvocation"]
+            entered.append(copy.deepcopy(current["workspace"]) if current is not None else None)
+            if len(entered) == 1:
+                loop.call_soon_threadsafe(held.set)
+                if not release.wait(timeout=60):
+                    raise RuntimeError("held admission was never released")
+            return admit(candidate)
+
+        monkeypatch.setattr(state_module, "_fit_snapshot", held_admission)
+        begin = asyncio.create_task(
+            state.begin_invocation(
+                invocation_id="worker-large",
+                subtask_id="1",
+                metrics=metrics,
+                workspace=observation,
+            )
+        )
+        try:
+            await held.wait()
+            # A concurrent lifecycle publication commits while admission runs.
+            concurrent = await state.sync_metrics()
+        finally:
+            release.set()
+        begun = await begin
+
+        assert concurrent["stateRevision"] == 2
+        assert begun["stateRevision"] == 3
+        assert len(entered) == 3
+        # The retried transform starts from the untrimmed validated observation.
+        assert entered[0] == observation
+        assert entered[1] is None
+        assert entered[2] == observation
+        assert begun["currentInvocation"]["workspace"] == fitted
+        assert observation == submitted
+        assert_complete_state(begun)
+
+    asyncio.run(scenario())
+
+
+class TrackedMetricsState(MetricsState):
+    """An allocation metrics reducer whose lifetime a test can observe."""
+
+    __slots__ = ("__weakref__",)
+
+
+def test_released_allocation_retains_no_worker_state_projection(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(state_module, "MetricsState", TrackedMetricsState)
+
+    async def scenario() -> None:
+        _, service = await make_service(tmp_path, runtime_capabilities)
+        spec = make_spec()
+        await service.prepare(spec)
+        assert service._context is not None
+        worker_state = service._context.worker_state
+        assert worker_state is not None
+        assert type(worker_state.metrics) is TrackedMetricsState
+        worker_state.metrics.record_tool_call(
+            "read_artifact", arguments={"path": "safe.txt"}, duration_ms=1
+        )
+        assert (await worker_state.sync_metrics())["metrics"]["toolCalls"]
+        retained_state = weakref.ref(worker_state)
+        retained_metrics = weakref.ref(worker_state.metrics)
+        del worker_state
+
+        await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                finalizationId="state-release",
+                deadline=NOW + timedelta(seconds=30),
+            )
+        )
+        await service.release(
+            ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
+        )
+        gc.collect()
+        assert retained_state() is None
+        # ADK's module-level find_context_parameter LRU keeps the released
+        # allocation's tool callables, and through them this reducer, until
+        # 1024 newer callables evict them. That retention predates the record
+        # projections; with it removed, nothing else holds the reducer.
+        find_context_parameter.cache_clear()
+        gc.collect()
+
+        # The record projections belong to the allocation's metrics reducer.
+        assert retained_metrics() is None
 
     asyncio.run(scenario())

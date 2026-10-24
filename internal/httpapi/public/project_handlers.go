@@ -91,9 +91,6 @@ func (h *projectHandlers) createProject(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *projectHandlers) listProjects(w http.ResponseWriter, r *http.Request) {
-	if rejectHead(w, r) {
-		return
-	}
 	query, limit, encodedCursor, err := pageQuery(r.URL.RawQuery, "kind")
 	if err != nil {
 		handleError(w, err)
@@ -150,9 +147,6 @@ func (h *projectHandlers) listProjects(w http.ResponseWriter, r *http.Request) {
 
 func (h *projectHandlers) getProject(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
-	if rejectHead(w, r) {
-		return
-	}
 	if _, err := exactQuery(r.URL.RawQuery); err != nil {
 		handleError(w, err)
 		return

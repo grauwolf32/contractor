@@ -1552,6 +1552,11 @@ raw provider responses, package content or model transcripts
    [`internal/auditstore/internal/pgstore/event_allocation_postgres_test.go`](../../../internal/auditstore/internal/pgstore/event_allocation_postgres_test.go)
    and `TestAuditEventsHaveOneWriter` in
    [`internal/auditstore/internal/pgstore/event_allocation_test.go`](../../../internal/auditstore/internal/pgstore/event_allocation_test.go).
+10. A credential deletion check lists exactly the held Audits whose baseline
+    names the credential under its own kind, and reads only those Audits, not
+    every Audit or every held baseline (AUD-R16); test
+    `TestPostgresHeldAuditCredentialChecksReadOnlyMatchingHeldAudits` in
+    [`internal/auditstore/internal/pgstore/held_credentials_plan_postgres_test.go`](../../../internal/auditstore/internal/pgstore/held_credentials_plan_postgres_test.go).
 
 ## Examples
 

@@ -2,6 +2,7 @@ package public
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/jackc/pgx/v5/pgconn"
 
+	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 )
@@ -25,6 +27,20 @@ func (s conflictingSchedulerSettings) UpdateSchedulerSettings(
 	return settingsstore.SchedulerSettings{}, s.err
 }
 
+// conflictingFindingProposals fails an owner import as finding intake does when
+// a transaction conflict, such as Project correlation fence contention,
+// outlasts its finite transaction retries.
+type conflictingFindingProposals struct {
+	missingFindingProposals
+	err error
+}
+
+func (p conflictingFindingProposals) ImportIntoAudit(
+	context.Context, findingintake.ImportRequest,
+) (findingintake.AuditHold, bool, error) {
+	return findingintake.AuditHold{}, false, p.err
+}
+
 func TestTransactionConflictResponsesConformToOpenAPI(t *testing.T) {
 	router, err := gorillamux.NewRouter(loadPublicOpenAPI(t))
 	if err != nil {
@@ -37,14 +53,24 @@ func TestTransactionConflictResponsesConformToOpenAPI(t *testing.T) {
 			func(dependencies *testServices) {
 				dependencies.SchedulerSettings = conflictingSchedulerSettings{err: conflict}
 				dependencies.Audits = &fakeAuditManagement{err: conflict}
+				dependencies.FindingProposals = conflictingFindingProposals{
+					err: fmt.Errorf("lock Project correlation before finding retention: %w", conflict),
+				}
 			},
 		)
-		for _, path := range []string{"/v1/operations/settings/scheduler", "/v1/audit-standards"} {
-			response := serveAndValidatePublicContract(t, router, fixture.handler,
-				newPublicContractRequest(http.MethodGet, path, nil), true)
+		requests := []*http.Request{
+			newPublicContractRequest(http.MethodGet, "/v1/operations/settings/scheduler", nil),
+			newPublicContractRequest(http.MethodGet, "/v1/audit-standards", nil),
+			jsonContractRequest(http.MethodPost, "/v1/audits/audit-one/finding-proposal-imports",
+				`{"runId":"run-one","proposal":{"namespace":"finding-proposals","name":"proposal-one","revision":"proposal-r1"}}`),
+		}
+		for _, request := range requests {
+			method, path := request.Method, request.URL.Path
+			response := serveAndValidatePublicContract(t, router, fixture.handler, request, true)
 			if response.Code != http.StatusServiceUnavailable ||
-				!strings.Contains(response.Body.String(), `"code":"storage_transaction_conflict"`) {
-				t.Fatalf("SQLSTATE %s on GET %s = %d: %s", code, path, response.Code, response.Body.String())
+				!strings.Contains(response.Body.String(), `"code":"storage_transaction_conflict"`) ||
+				!strings.Contains(response.Body.String(), `"retryable":true`) {
+				t.Fatalf("SQLSTATE %s on %s %s = %d: %s", code, method, path, response.Code, response.Body.String())
 			}
 		}
 	}

@@ -195,7 +195,7 @@ class ReadArtifactTool(ArtifactTool):
             if type(length) is not int or not 1 <= length <= MAX_READ_CHUNK_BYTES:
                 raise ToolInputError(f"length must be between 1 and {MAX_READ_CHUNK_BYTES}")
             # The Artifact API has no range reads, so page a cached exact revision.
-            value = await self._cache.read(
+            read = await self._cache.read(
                 self._client,
                 ArtifactRef(
                     namespace=namespace,
@@ -204,10 +204,9 @@ class ReadArtifactTool(ArtifactTool):
                 ),
                 accept=_refuse_binary_media_type,
             )
-            try:
-                value.data.decode("utf-8", errors="strict")
-            except UnicodeDecodeError:
-                raise _binary_artifact(value.media_type) from None
+            value = read.value
+            if not read.utf8:
+                raise _binary_artifact(value.media_type)
             size = len(value.data)
             if offset > size:
                 raise ToolInputError("offset exceeds the artifact size")

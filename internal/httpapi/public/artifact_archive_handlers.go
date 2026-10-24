@@ -88,9 +88,6 @@ func (h *artifactHandlers) runArchiveStore(w http.ResponseWriter, r *http.Reques
 func (h *artifactHandlers) serveArchive(w http.ResponseWriter, r *http.Request, resolve archiveStoreResolver, file bool) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if rejectHead(w, r) {
-		return
-	}
 	allowed := []string{"revision"}
 	if file {
 		allowed = append(allowed, "path")
