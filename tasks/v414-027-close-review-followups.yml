@@ -89,6 +89,15 @@ context:
     report check (internal/auditimport/report_build.go:145-149, LIM-REV-8),
     which keeps audit_report_pages far below 4,096 pages of 64 MiB, has no
     test that drives it to its rejection; add one or record why not.
+  open_question_dispositions: >-
+    Recorded during the 2026-10-24 backlog revalidation on b523ae77:
+    (3) covered: V372-020 was rewritten and its item (5) now owns the
+    roughly 23 Planner, Worker-invocation and Scheduler Stage failure codes
+    that reach StageTermination or AttemptDiagnostic.code without an
+    errors.md row (planner_invocation_in_progress stays with V414-006);
+    (4) confirmed and closed: V371-009 is archived as delivered by V407-004
+    (3cd9826c7d5a3676f6cff53a712d6ea555b76736) with per-criterion evidence
+    in tasks/done/v371-009-audit-list-preparation-batch.yml.
 scope:
   in:
     - "Reconcile every V414 dependency: completed with its implementation_commit and moved to tasks/done/, or archived by the user's decision with the reason, the evidence and its removal from depends_on in the same metadata change. Archived or deferred tasks never count as completed."
