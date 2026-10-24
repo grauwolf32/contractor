@@ -66,7 +66,7 @@ func (s *ClaimStore) Collect(
 		}
 		return auditstore.CollectionReceipt{}, false, auditstore.ErrPrecondition
 	}
-	return auditstore.CollectionReceipt{}, false, fmt.Errorf("collect Audit execution: %w", err)
+	return auditstore.CollectionReceipt{}, false, writeError("collect Audit execution", err)
 }
 
 // evidenceBudgetExceeded names the advanced_audit gate that rejected a

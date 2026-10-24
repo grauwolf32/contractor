@@ -49,6 +49,21 @@ func createFixtureRun(t *testing.T, f deletionImportFixture, runID string) {
 // with its exact proposal, originated by Audit auditID unless it is empty.
 func insertInboxReceipt(t *testing.T, f deletionImportFixture, owner, runID, auditID, clientKey string) Receipt {
 	t.Helper()
+	receiptID := clientKey + "-receipt"
+	if err := tryInsertInboxReceipt(t, f, owner, runID, auditID, clientKey); err != nil {
+		t.Fatal(err)
+	}
+	receipt, err := readReceiptByID(f.ctx, f.pool, receiptID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return receipt
+}
+
+// tryInsertInboxReceipt is insertInboxReceipt up to the receipt write, whose
+// error it returns.
+func tryInsertInboxReceipt(t *testing.T, f deletionImportFixture, owner, runID, auditID, clientKey string) error {
+	t.Helper()
 	source, err := readReceiptByID(f.ctx, f.pool, f.receiptID)
 	if err != nil {
 		t.Fatal(err)
@@ -79,17 +94,10 @@ func insertInboxReceipt(t *testing.T, f deletionImportFixture, owner, runID, aud
 		t.Fatal(err)
 	}
 	receiptID := clientKey + "-receipt"
-	if err := persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	return persistencepostgres.InTx(f.ctx, f.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		return insertReceipt(f.ctx, tx, receiptID, clientKey+"-proposal", canonical, fingerprint, proposal,
 			[]ExactArtifact{}, origin, owner, &project, grant)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	receipt, err := readReceiptByID(f.ctx, f.pool, receiptID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return receipt
+	})
 }
 
 // pageAuditInbox pages list from the start at limit and returns every page.

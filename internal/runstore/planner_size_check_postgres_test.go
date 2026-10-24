@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -25,7 +26,8 @@ func expandingState(t *testing.T) json.RawMessage {
 }
 
 // A stored size CHECK that rejects a Planner session write past the
-// submitted-JSON pre-check returns ErrInvalid like the pre-check, keeps the
+// submitted-JSON pre-check, on the session state or on the Run event of the
+// same statement, returns ErrInvalid like the pre-check, keeps the
 // PostgreSQL cause and writes nothing (PER-R13).
 func TestPostgresPlannerSizeCheckRejectionIsInvalid(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -73,5 +75,35 @@ func TestPostgresPlannerSizeCheckRejectionIsInvalid(t *testing.T) {
 	session, err := store.GetPlannerSession(ctx, params.SessionID)
 	if err != nil || session.NextEventSequence != 2 {
 		t.Fatalf("Planner session after a rejected append = (%+v, %v)", session.NextEventSequence, err)
+	}
+
+	// The Run event of the same append meets workflow_run_events_data_check,
+	// with its production measure and a bound at the compact data's length,
+	// which the stored jsonb text outgrows.
+	data := mustRunEventJSON(t, identity)
+	if _, err := pool.Exec(ctx, fmt.Sprintf(`
+ALTER TABLE workflow_run_events DROP CONSTRAINT workflow_run_events_data_check,
+ADD CONSTRAINT workflow_run_events_data_check
+    CHECK (jsonb_typeof(data) = 'object' AND octet_length(data::text) <= %d) NOT VALID`, len(data))); err != nil {
+		t.Fatal(err)
+	}
+	err = store.AppendPlannerEvent(ctx, AppendPlannerEventParams{
+		SessionID: params.SessionID, StageExecutionID: stageID, InvocationID: params.InvocationID,
+		SequenceNumber: 2, NewStateSchemaVersion: contracts.APIVersion, NewState: json.RawMessage(`{"step":1}`),
+		RunEvent: RunEventAppend{
+			EventID: "session-size-event", EventSchemaVersion: contracts.APIVersion,
+			Kind: RunEventPlannerRequestRecorded, Data: data,
+		},
+	})
+	if !errors.Is(err, ErrInvalid) || persistencepostgres.Classify(err) != persistencepostgres.ClassInvalid ||
+		persistencepostgres.ConstraintName(err) != "workflow_run_events_data_check" {
+		t.Fatalf("append of a widened Run event = %v, want ErrInvalid wrapping workflow_run_events_data_check", err)
+	}
+	if after := readStartPlannerEffects(t, ctx, pool, stageID); after != started {
+		t.Fatalf("effects after a rejected Run event = %+v, want %+v", after, started)
+	}
+	session, err = store.GetPlannerSession(ctx, params.SessionID)
+	if err != nil || session.NextEventSequence != 2 || string(session.State) != `{"step": 0}` {
+		t.Fatalf("Planner session after a rejected Run event = (%d %s, %v)", session.NextEventSequence, session.State, err)
 	}
 }
