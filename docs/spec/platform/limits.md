@@ -725,7 +725,7 @@ its owning requirement.
 | `LIM-SCN-64` | 100 selected jobs | scan plan | scan-plan@1 Planner (BuildPlan and the scan plan codec) | [SCN-R198](../tools/scanners.md) |
 | `LIM-SCN-65` | 4 MiB | serialized scan plan | scan-plan@1 Planner (BuildPlan and the scan plan codec) | [SCN-R198](../tools/scanners.md) |
 | `LIM-SCN-66` | 100 bytes | report.from.name prefix of the scan-plan@1 aggregate report | scan-plan@1 Stage configuration | [SCN-R211](../tools/scanners.md) |
-| `LIM-SCN-67` | ±9007199254740991 (exact integer range of IEEE 754 doubles) | numbers in a JSON or YAML preparation source | Preparation library internal/scanplan | [SCN-R124](../tools/scanners.md) |
+| `LIM-SCN-67` | ±9007199254740991 (exact integer range of IEEE 754 doubles) | numbers in a JSON or YAML preparation source | Preparation library internal/scanplan; OpenAPI authoring Toolset openapi@1 (Runtime) on load and mutation ([SCN-R257](../tools/scanners.md)) | [SCN-R124](../tools/scanners.md) |
 | `LIM-SCN-68` | at most 1 retry | each failed ffuf HTTP request, without another rate-limiter tick | ffuf, within the scan_ffuf deadline (Runtime) | [SCN-R102](../tools/scanners.md) |
 | `LIM-SCN-69` | 50000 files | pinned Nuclei installed package | Runtime streaming private snapshot | [SCN-R227](../tools/scanners.md) |
 | `LIM-SCN-70` | 512 MiB | pinned Nuclei package aggregate file bytes | Runtime streaming private snapshot | [SCN-R227](../tools/scanners.md) |

@@ -817,6 +817,35 @@ state LIFE-SKL-3 and RuntimeSettings LIFE-RCF-6 and LIFE-SEC-1).
 **RTA-R110.** The private release confirms Toolset cleanup and Podman
 container removal before disposing mounted files.
 
+**RTA-R116.** After release, nothing in the Runtime process reaches the
+allocation's tool instances, their ArtifactClient and Toolset sessions, Worker
+State or MetricsState, including references that a library keeps in a
+process-wide cache (LIFE-WRK-3, SEC-R32). google-adk keeps two such caches:
+the module-level LRU caches of `context_utils.find_context_parameter` and
+`function_tool._build_declaration_cached` hold every callable that
+`FunctionTool` wraps strongly, as part of their key. The Runtime clears both
+during release, after it has closed every Toolset and dropped State and
+RuntimeSettings, and when a failed prepare rolls back the tools of a Worker it
+had already built. A failure to clear them is a release cleanup failure that
+keeps the slot fenced, and the idempotent release retry repeats the step
+(RTA-R91, FAIL-RTA-5). The Runtime resolves both cache functions when it
+starts, so a google-adk version that renames or removes one fails startup.
+
+Rationale: the Runtime has one allocation slot, so the caches hold no other
+allocation's entries when release clears them, and a new allocation's tool
+instances would miss them anyway; the cost is one declaration build per tool
+per allocation. The caches belong to google-adk (2.8.0 is pinned), which the
+Runtime does not patch. Handing `FunctionTool` an allocation-agnostic wrapper
+that reaches the tool through a weak reference was rejected: ADK derives the
+declaration and the call from the wrapped callable's signature, type hints,
+docstring and coroutine kind, so the wrapper would have to reproduce ADK's
+introspection, and the cached declarations would still keep
+allocation-specific descriptions. A `FunctionTool` subclass that bypasses both
+caches was rejected because it re-implements more private ADK code than one
+cache name. Revisit this when a google-adk release keys these caches weakly or
+per instance; the guard test named in the invariants fails when ADK stops
+retaining a wrapped callable.
+
 **RTA-R111.** The private release retains the allocation identity and cached
 report in `fenced` state (LIFE-RTA-5).
 
@@ -952,7 +981,7 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
 - FAIL-RTA-4 — Worker finalization on the Runtime (RTA-R88,
   RTA-R89); the Control Plane side is FAIL-CTL-5.
 - FAIL-RTA-5 — allocation release cleanup (RTA-R51,
-  RTA-R91, RTA-R30); the Control Plane side is FAIL-CTL-7.
+  RTA-R91, RTA-R30, RTA-R116); the Control Plane side is FAIL-CTL-7.
 - FAIL-RTA-6 — A2A Task execution and cancellation (RTA-R82,
   RTA-R83).
 - FAIL-RTA-7 — the `tool-subprocess` proxy route (RTA-R63,
@@ -974,7 +1003,8 @@ Lifecycle ([registry](../platform/lifecycle.md)):
 - LIFE-RTA-2 — allocation directory owner marker (RTA-R53).
 - LIFE-RTA-3 — allocation access tokens removed by private release
   (RTA-R90); the other state that release removes is LIFE-RTA-1,
-  LIFE-WSP-1, LIFE-WRK-3, LIFE-SKL-3, LIFE-RCF-6 and LIFE-SEC-1.
+  LIFE-WSP-1, LIFE-WRK-3 (with the library caches that would keep it
+  reachable, RTA-R116), LIFE-SKL-3, LIFE-RCF-6 and LIFE-SEC-1.
 - LIFE-RTA-4 — Worker runtime instance (RTA-R105, RTA-R87).
 - LIFE-RTA-5 — retained allocation identity and cached
   `AllocationFinalReport` (RTA-R26, RTA-R89, RTA-R111,
@@ -1014,7 +1044,8 @@ The security model, mutual TLS and the trust boundary are specified in
   RTA-R75, RTA-R76);
 - lease loss deactivates the allocation's A2A identity, secrets and access
   context (RTA-R26); release erases RuntimeSettings, access tokens and
-  adapter secrets (RTA-R90, RTA-R58);
+  adapter secrets (RTA-R90, RTA-R58) and leaves no library cache that keeps
+  the allocation's tools reachable (RTA-R116);
 - Worker proxying is allocation-scoped, fail-closed and never carries
   Contractor control, A2A or Artifact traffic (RTA-R56,
   RTA-R57, RTA-R59, RTA-R67, RTA-R69,
@@ -1061,6 +1092,17 @@ The security model, mutual TLS and the trust boundary are specified in
    and `test_likec4_document_work_runs_on_worker_threads_while_the_loop_runs`
    and `test_likec4_close_joins_a_cancelled_edit_preparation_before_clearing_the_session`
    in [runtime/tests/test_likec4_toolset.py](../../../runtime/tests/test_likec4_toolset.py).
+6. After release or a rolled-back prepare, no process-wide cache keeps the
+   allocation's tools, their clients and sessions, Worker State or
+   MetricsState reachable, and no live object holds a RuntimeSettings secret
+   or a session credential (RTA-R116). Owning tests:
+   `test_release_leaves_no_allocation_tool_reachable_after_an_invocation`,
+   `test_failed_prepare_rollback_leaves_no_allocation_tool_reachable`,
+   `test_release_retains_no_adapter_secret_or_session_credential`,
+   `test_failed_cache_release_keeps_the_slot_fenced_until_the_retry_repeats_it`
+   and `test_next_allocation_rebuilds_identical_tool_declarations`, with the
+   google-adk guard `test_adk_tool_caches_keep_wrapped_callables_until_released`,
+   in [runtime/tests/test_allocation.py](../../../runtime/tests/test_allocation.py).
 
 The invariants on one slot and one Worker per process, immutability of the
 process environment, label changes, proxy bypass and identity separation are

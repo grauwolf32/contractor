@@ -30,7 +30,7 @@ func (s *ClaimStore) SettleUndispatched(
 		claim.AuditID, claim.HolderID, claim.Epoch, limit,
 	).Scan(&authorized, &changed)
 	if err != nil {
-		return 0, fmt.Errorf("settle undispatched Audit items: %w", err)
+		return 0, writeError("settle undispatched Audit items", err)
 	}
 	if authorized {
 		return changed, nil

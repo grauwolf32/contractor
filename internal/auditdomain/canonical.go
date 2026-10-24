@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"math"
 	"mime"
@@ -14,6 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/documentnumber"
+	"github.com/grauwolf32/contractor/internal/documentyaml"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/ucarion/jcs"
 	"go.yaml.in/yaml/v4"
@@ -129,27 +129,31 @@ func yamlNodeValue(node *yaml.Node, depth int, nodes *int) (any, error) {
 	}
 	switch node.Kind {
 	case yaml.MappingNode:
-		if node.Tag != "!!map" && node.Tag != "tag:yaml.org,2002:map" || len(node.Content)%2 != 0 {
+		if !documentyaml.Collection(node) || len(node.Content)%2 != 0 {
 			return nil, errors.New("invalid YAML mapping")
 		}
 		result := make(map[string]any, len(node.Content)/2)
 		for index := 0; index < len(node.Content); index += 2 {
 			keyNode := node.Content[index]
-			if keyNode.Kind != yaml.ScalarNode || keyNode.Tag != "!!str" && keyNode.Tag != "tag:yaml.org,2002:str" || len([]byte(keyNode.Value)) > MaximumStringBytes {
+			if keyNode.Anchor != "" {
+				return nil, errors.New("YAML aliases are forbidden")
+			}
+			name, ok := documentyaml.Key(keyNode)
+			if !ok || len([]byte(name)) > MaximumStringBytes {
 				return nil, errors.New("YAML mapping keys must be strings")
 			}
-			if _, duplicate := result[keyNode.Value]; duplicate {
+			if _, duplicate := result[name]; duplicate {
 				return nil, errors.New("duplicate YAML key")
 			}
 			value, err := yamlNodeValue(node.Content[index+1], depth+1, nodes)
 			if err != nil {
 				return nil, err
 			}
-			result[keyNode.Value] = value
+			result[name] = value
 		}
 		return result, nil
 	case yaml.SequenceNode:
-		if node.Tag != "!!seq" && node.Tag != "tag:yaml.org,2002:seq" {
+		if !documentyaml.Collection(node) {
 			return nil, errors.New("invalid YAML sequence")
 		}
 		result := make([]any, 0, len(node.Content))
@@ -162,42 +166,16 @@ func yamlNodeValue(node *yaml.Node, depth int, nodes *int) (any, error) {
 		}
 		return result, nil
 	case yaml.ScalarNode:
-		return yamlScalarValue(node)
-	default:
-		return nil, errors.New("invalid YAML node")
-	}
-}
-
-func yamlScalarValue(node *yaml.Node) (any, error) {
-	switch node.Tag {
-	case "!!str", "tag:yaml.org,2002:str", "!!timestamp", "tag:yaml.org,2002:timestamp":
-		if !utf8.ValidString(node.Value) || len([]byte(node.Value)) > MaximumStringBytes {
+		value, ok := documentyaml.Scalar(node)
+		if !ok {
+			return nil, errors.New("invalid YAML scalar")
+		}
+		if text, isString := value.(string); isString && (!utf8.ValidString(text) || len([]byte(text)) > MaximumStringBytes) {
 			return nil, errors.New("invalid YAML string")
 		}
-		if node.ShortTag() == "!!str" && node.Style == 0 && documentnumber.LooksNumeric(node.Value) {
-			return nil, errors.New("invalid YAML number")
-		}
-		return node.Value, nil
-	case "!!null", "tag:yaml.org,2002:null":
-		return nil, nil
-	case "!!bool", "tag:yaml.org,2002:bool":
-		value, err := strconv.ParseBool(strings.ToLower(node.Value))
-		if err != nil {
-			return nil, err
-		}
 		return value, nil
-	case "!!int", "tag:yaml.org,2002:int":
-		if value, ok := documentnumber.Integer(node.Value); ok {
-			return value, nil
-		}
-		return nil, errors.New("invalid YAML number")
-	case "!!float", "tag:yaml.org,2002:float":
-		if value, ok := documentnumber.Float(strings.ReplaceAll(node.Value, "_", "")); ok {
-			return value, nil
-		}
-		return nil, errors.New("invalid YAML number")
 	default:
-		return nil, fmt.Errorf("unsupported YAML tag")
+		return nil, errors.New("invalid YAML node")
 	}
 }
 

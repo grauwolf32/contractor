@@ -337,7 +337,7 @@ func (s *Service) RecordFact(
 			return fmt.Errorf("Planner fact plan revision differs: %w", runstore.ErrConflict)
 		}
 		if len(state.FactDigests) >= maxRecordedPlannerFacts {
-			return fmt.Errorf("Planner fact limit reached")
+			return fmt.Errorf("Planner fact limit reached: %w", runstore.ErrInvalid)
 		}
 		next := state
 		next.NextSequence++
@@ -695,7 +695,9 @@ func encodeBounded(value any) (json.RawMessage, error) {
 		return nil, fmt.Errorf("encode Planner JSON: %w", err)
 	}
 	if len(encoded) > maxSessionJSONBytes {
-		return nil, fmt.Errorf("Planner JSON exceeds its bounded contract")
+		// The same bound the store enforces on the stored value: a refused
+		// write, never an unavailable session (PLN-R106).
+		return nil, fmt.Errorf("Planner JSON exceeds its bounded contract: %w", runstore.ErrInvalid)
 	}
 	return encoded, nil
 }
