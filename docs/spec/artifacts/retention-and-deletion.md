@@ -516,3 +516,10 @@ A deleting Project stays readable so that cleanup progress is visible
 4. Artifact garbage collection is reference-safe across all scopes (DEL-R9).
 5. Only authenticated public lifecycle endpoints and trusted Server recovery
    code can enter the controlled deletion path (DEL-R7).
+6. A drain poll and a purge recheck of a deleting Project find its Runs by
+   owner and Project, its Audits by Project and its unreleased allocations
+   from the allocations whose release has not completed. Neither reads the
+   Run history or every owner's active Runs, and both answer as a check of
+   every Project Run would (DEL-R44, DEL-R60); test
+   `TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations` in
+   [`internal/projectlifecycle/drain_plan_postgres_test.go`](../../../internal/projectlifecycle/drain_plan_postgres_test.go).

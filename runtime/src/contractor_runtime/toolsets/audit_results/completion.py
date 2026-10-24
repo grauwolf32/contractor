@@ -3,7 +3,9 @@
 import asyncio
 from collections.abc import Callable
 from dataclasses import replace
+from functools import partial
 
+from contractor_runtime import threads
 from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import (
     AUDIT_COMPLETION_TOOLS,
@@ -34,8 +36,10 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     AuditInvocationOwner,
     AuditTrustedInputs,
 )
-from contractor_runtime.toolsets.audit_results.encoding import AuditResultError
-from contractor_runtime.toolsets.audit_results.packages import _decode_task_input
+from contractor_runtime.toolsets.audit_results.encoding import (
+    AuditResultError,
+    CanonicalAuditPackageEncoder,
+)
 from contractor_runtime.toolsets.audit_results.publication import (
     DeterministicAuditResultPublisher,
     PublicationArtifactClient,
@@ -51,11 +55,14 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         self,
         contract: WorkerCompletionContract,
         inputs: AuditTrustedInputs,
+        encoder: CanonicalAuditPackageEncoder,
         client: PublicationArtifactClient,
         request_timeout: float,
     ):
         self.contract = contract.model_copy(deep=True)
         self._inputs = inputs
+        # Holds the inputs decoded once for every invocation and publication.
+        self._encoder = encoder
         self._client = client
         self._request_timeout = request_timeout
         self._collector: InvocationAuditCollector | None = None
@@ -119,17 +126,25 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
                 or value.media_type != media
             ):
                 raise AuditResultError("audit_result_invalid")
-        records = _decode_task_input(task.data, "application/zip")
+        # Decoding and matching are CPU-bound; they run off the event loop once
+        # per allocation, and a cancellation joins them before propagating.
+        encoder = CanonicalAuditPackageEncoder()
+        records = await threads.to_thread_until_done(
+            partial(encoder.task_records, task.data), name="audit-input-decode"
+        )
         owner = AuditInvocationOwner(
             allocation_id,
             "audit-preparation",
             sha256_digest(task.data),
-            tuple(record[0]["item_key"] for record in records),
+            tuple(task["item_key"] for task in records.tasks),
         )
         inputs = AuditTrustedInputs(owner, task.data, manifest.data)
         # Real encoder validates exact membership/order/digests before the model exists.
-        await InvocationAuditCollector(inputs).discard()
-        return cls(contract, inputs, client, timeout)
+        await threads.to_thread_until_done(
+            partial(encoder.trusted_inputs, inputs), name="audit-input-match"
+        )
+        await InvocationAuditCollector(inputs, encoder).discard()
+        return cls(contract, inputs, encoder, client, timeout)
 
     def current(self) -> InvocationAuditCollector:
         if self._collector is None:
@@ -142,7 +157,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
         inputs = replace(
             self._inputs, owner=replace(self._inputs.owner, invocation_id=invocation_id)
         )
-        self._collector = InvocationAuditCollector(inputs)
+        self._collector = InvocationAuditCollector(inputs, self._encoder)
         self._reminders = 0
         self.reset_diagnostics()
 
@@ -203,6 +218,7 @@ class PreparedAuditCompletion(PreparedWorkerCompletion):
             result_artifact=self.contract.result_artifact,
             client=self._client,
             check_active=check_active,
+            encoder=self._encoder,
         )
         sealed = await collector.seal()
         await self.record_phase("sealed")

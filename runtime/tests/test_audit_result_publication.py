@@ -4,6 +4,7 @@ import asyncio
 import io
 import json
 import stat
+import threading
 import zipfile
 from dataclasses import replace
 
@@ -84,7 +85,7 @@ def test_encoder_matches_legacy_bytes_and_excludes_revision_and_acceptance_histo
     tasks = [record[0] for record in _decode_task_input(inputs.task_package, "application/zip")]
     legacy = _build_result_package(
         tasks=tasks,
-        execution_bytes=inputs.execution_manifest,
+        execution_digest=digest(inputs.execution_manifest),
         results=[
             {
                 "assessment": item.value.assessment,
@@ -280,6 +281,7 @@ def publisher(snapshot, transport, *, target=None, check_active=lambda: None):
         result_artifact=target or ArtifactRef(namespace="check", name="configured-result"),
         client=ArtifactClient(snapshot.owner.allocation_id, transport),
         check_active=check_active,
+        encoder=CanonicalAuditPackageEncoder(),
     )
 
 
@@ -538,6 +540,7 @@ def test_publisher_pins_binding_rejects_foreign_owner_and_preserves_fatal_failur
                 result_artifact=target,
                 client=ArtifactClient("foreign-allocation", transport),
                 check_active=lambda: None,
+                encoder=CanonicalAuditPackageEncoder(),
             )
 
         class FatalBudget(RuntimeError):
@@ -628,5 +631,54 @@ def test_oversized_sealed_set_fails_before_any_artifact_io():
         with pytest.raises(AuditResultError, match="audit_result_size_exceeded"):
             await publisher(snapshot, transport).publish(snapshot, inputs=inputs, deadline=10**12)
         assert not transport.requests
+
+    asyncio.run(scenario())
+
+
+class BlockingEncode:
+    """Hold the real encoder inside its worker thread until the test releases it."""
+
+    def __init__(self, monkeypatch):
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        self.exited = threading.Event()
+        self.threads = []
+        real = CanonicalAuditPackageEncoder.encode
+
+        def encode(encoder, snapshot, *, inputs):
+            self.threads.append(threading.get_ident())
+            self.entered.set()
+            self.release.wait()
+            try:
+                return real(encoder, snapshot, inputs=inputs)
+            finally:
+                self.exited.set()
+
+        monkeypatch.setattr(CanonicalAuditPackageEncoder, "encode", encode)
+
+    async def wait_entered(self):
+        await asyncio.to_thread(self.entered.wait)
+
+
+def test_publication_encodes_off_loop_and_cancellation_joins_before_any_write(monkeypatch):
+    async def scenario():
+        snapshot, inputs = assigned()
+        transport = ScriptedArtifactTransport()
+        blocking = BlockingEncode(monkeypatch)
+        try:
+            publication = asyncio.create_task(
+                publisher(snapshot, transport).publish(snapshot, inputs=inputs, deadline=10**12)
+            )
+            await blocking.wait_entered()
+            assert threading.get_ident() not in blocking.threads
+            publication.cancel()
+            for _ in range(10):
+                await asyncio.sleep(0)
+            assert not publication.done()
+        finally:
+            blocking.release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await publication
+        assert blocking.exited.is_set() and not transport.requests
 
     asyncio.run(scenario())

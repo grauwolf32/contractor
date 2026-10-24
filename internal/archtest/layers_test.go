@@ -65,6 +65,8 @@ var layers = []layerSpec{
 			"internal/persistence",
 			"internal/persistence/migrations",
 			"internal/persistence/postgres",
+			// Test support: the plans, rows and trigger calls of statements.
+			"internal/persistence/explaintest",
 			// Test support: holds the migrated schema's state sets to Go.
 			"internal/persistence/statesettest",
 		},

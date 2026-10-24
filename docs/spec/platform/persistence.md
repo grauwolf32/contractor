@@ -447,8 +447,11 @@ never runs.
 
 **PER-R22.** A row trigger fires only when what it guards or checks can
 change. A guard that rejects changes to some columns fires on `UPDATE OF`
-exactly the columns its function or WHEN condition compares, and no BEFORE UPDATE trigger of its
-table assigns a column, so only an UPDATE that lists a guarded column runs it;
+exactly the columns its function or WHEN condition compares, reads no other
+column of NEW or OLD except a value that only qualifies a change of a listed
+column, such as the state in which that change is still allowed, and no
+BEFORE UPDATE trigger of its table assigns a column, so only an UPDATE that
+lists a guarded column runs it;
 an after-row or deferred trigger states in its WHEN condition the change it
 reacts to, and fires on every INSERT when its function checks new rows. A Run
 event append, which only advances the Run's event sequence, therefore fires no
@@ -456,7 +459,12 @@ trigger of `workflow_runs` except the deferred binding check of an
 audit-managed Run. The deferred Audit completion check runs when a Run is
 inserted and when its completion changes, not on later updates that keep it:
 the completion cannot change once set, and the profile binding it is checked
-against is immutable ([AWC-R7](../audits/worker-completion.md)).
+against is immutable ([AWC-R7](../audits/worker-completion.md)). Likewise a
+StageExecution admission and a counted output publication failure, which
+change neither a guarded column nor the state, fire no trigger of
+`stage_executions`; the manual continuation check still runs on every INSERT
+and on an UPDATE only when the resume source is assigned, and the lifecycle
+capture on every INSERT and on a state change.
 
 ### Keyed mutations and controller claims
 
@@ -678,9 +686,18 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     An append to a Run with an Audit completion fires only the binding
     check; test `TestAuditCompletionPostgresAtomicCreationRestartAndAllocation`
     in [`internal/runservice/audit_completion_postgres_test.go`](../../../internal/runservice/audit_completion_postgres_test.go).
-    Each column-scoped guard of `workflow_runs` lists exactly the columns its
-    function compares; test `TestWorkflowRunGuardsFireOnTheColumnsTheyCompare`
-    in [`internal/persistence/postgres/workflow_run_triggers_postgres_test.go`](../../../internal/persistence/postgres/workflow_run_triggers_postgres_test.go).
+    Each column-scoped guard of `workflow_runs` and `stage_executions` reads
+    through NEW and OLD, in any spelling, only the columns it lists and the
+    qualifiers declared for it, and reads every listed column through NEW;
+    tests
+    `TestWorkflowRunGuardsFireOnTheColumnsTheyCompare` and
+    `TestStageExecutionGuardsFireOnTheColumnsTheyCompare` in
+    [`internal/persistence/postgres/workflow_run_triggers_postgres_test.go`](../../../internal/persistence/postgres/workflow_run_triggers_postgres_test.go).
+    Each StageExecution store transition calls only the `stage_executions`
+    triggers it concerns, a guarded change is still rejected and the
+    lifecycle events are one per state entered; test
+    `TestPostgresStageExecutionUpdatesFireOnlyTheTriggersTheyConcern` in
+    [`internal/runstore/stage_triggers_postgres_test.go`](../../../internal/runstore/stage_triggers_postgres_test.go).
 18. Only its owner package writes a relation; every other access is a granted
     read or a known access that names an open task, and no registry entry
     outlives its access (PER-R23); tests
