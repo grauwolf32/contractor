@@ -41,15 +41,25 @@ func TestPostgresProjectDeletionClaimLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := store.BeginDeletion(ctx, BeginDeletionParams{
+	deleting, _, err := store.BeginDeletion(ctx, BeginDeletionParams{
 		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
-	}); err != nil {
-		t.Fatal(err)
+	})
+	if err != nil || deleting.Deletion == nil {
+		t.Fatalf("begin deletion = (%+v, %v)", deleting, err)
 	}
 
+	// The claim carries the deletion request time the controller logs purge
+	// age from.
 	claim, found, err := store.ClaimDeletion(ctx, lease("claim-a"))
-	want := DeletionClaim{ProjectID: project.ProjectID, OwnerID: project.OwnerID, ClaimID: "claim-a", Phase: DeletionCancelling}
-	if err != nil || !found || claim != want {
+	want := DeletionClaim{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ClaimID: "claim-a", Phase: DeletionCancelling,
+		RequestedAt: deleting.Deletion.RequestedAt,
+	}
+	if err != nil || !found || !claim.RequestedAt.Equal(want.RequestedAt) {
+		t.Fatalf("claim = (%+v, %t, %v), want %+v", claim, found, err, want)
+	}
+	claim.RequestedAt = want.RequestedAt
+	if claim != want {
 		t.Fatalf("claim = (%+v, %t, %v), want %+v", claim, found, err, want)
 	}
 	if _, found, err := store.ClaimDeletion(ctx, lease("claim-b")); err != nil || found {

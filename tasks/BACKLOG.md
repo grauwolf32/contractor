@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-88 open tasks: 4 in progress, 59 pending, 25 deferred. 1030 finished: 1026 completed, 4 archived.
+87 open tasks: 4 in progress, 58 pending, 25 deferred. 1031 finished: 1027 completed, 4 archived.
 
 ## In progress
 
@@ -89,8 +89,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
-| [V409-009](v409-009-eval-store-bounds.yml) | defect | P2 | — | Purge drained Eval data in bounded, restartable transactions |
-| [V409-014](v409-014-eval-comparison-and-recovery-queries.yml) | chore | P3 | V409-009 | Reduce Eval comparison-page and composed recovery query round trips |
+| [V409-014](v409-014-eval-comparison-and-recovery-queries.yml) | chore | P3 | — | Reduce Eval comparison-page and composed recovery query round trips |
 
 ### Web UI (`ui`)
 
@@ -125,7 +124,7 @@ the epics are in [epics.yml](epics.yml).
 | [V408-002](v408-002-shared-postgres-test-schema.yml) | chore | P2 | V408-001 | Apply migrations once per package: one shared PostgreSQL test helper with per-test truncation |
 | [V409-007](v409-007-dead-and-redundant-indexes.yml) | chore | P2 | V409-004 | Consolidate indexes only where reader and constraint evidence permits it |
 | [V409-012](v409-012-migration-and-sql-hygiene.yml) | chore | P3 | — | Test the revision-count and controller-claim backfills and document migration budgets |
-| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-004, V409-007, V409-009, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
+| [V409-013](v409-013-verify-sql-review-on-database.yml) | chore | P2 | V409-004, V409-007, V409-011, V409-012, V409-014 | Verify retained SQL-review changes and record evidence for every accepted or declined claim |
 
 ### Quality, CI and process (`quality`)
 
@@ -197,7 +196,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 3 | 14 | 14 | 12 | 16 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 30 | 33 | 6 | 37 |
 | Audits (`audits`) | 19 | 53 | 72 | 22 | 91 |
-| Evaluations (`evals`) | 4 | 21 | 34 | 8 | 41 |
+| Evaluations (`evals`) | 3 | 21 | 34 | 8 | 41 |
 | Podman sandbox (`sandbox`) | 0 | 9 | 2 | 1 | 3 |
 | Web UI (`ui`) | 3 | 24 | 58 | 12 | 53 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 33 | 6 | 10 |

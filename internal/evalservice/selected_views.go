@@ -48,6 +48,10 @@ func (s *Service) withSelectedView(ctx context.Context, p MemberPageParams, read
 			return err
 		}
 		if view == nil {
+			if e.DeletionRequestedAt != nil {
+				// The purge removes the view pointer before any of its rows (EVM-R244).
+				return evaldomain.Failure("eval_project_deleting")
+			}
 			return evaldomain.Failure("eval_not_ready")
 		}
 		if p.Snapshot != "" && p.Snapshot != view.Snapshot {

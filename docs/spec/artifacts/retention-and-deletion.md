@@ -334,7 +334,9 @@ deleted attempts (FAIL-DEL-5).
    completed release;
 3. invoke the terminal Run purge (DEL-R22) for every Project Run, including
    Runs that were already terminal when deletion began;
-4. delete every finding proposal receipt of the Project (DEL-R61), then
+4. purge the Project's native private eval storage in bounded passes
+   ([EVM-R243](../evals/managed-evals.md)), then delete every finding
+   proposal receipt of the Project (DEL-R61), then
    purge every binding, retained revision, pin and lineage edge in the
    complete ProjectScope, then garbage-collect only globally unreferenced
    versions and blobs (DEL-R9, LIFE-DEL-4), one purge batch per transaction
@@ -344,11 +346,13 @@ deleted attempts (FAIL-DEL-5).
 **DEL-R60.** A ProjectScope has no revision limit, so Project deletion
 purges it in transactions of at most one purge batch each (LIM-DEL-2). Every
 such transaction rechecks the deletion claim and that no Project Run or Audit
-remains, purges the Project's native private eval storage, which is a no-op
-after the first time, deletes the next batch of the Project's finding
-proposal receipts (DEL-R61), and only when no receipt is left removes one
-purge batch and collects the versions and blobs that batch left
-unreferenced. The transaction that finds the scope empty removes the scope
+remains, then runs one pass of the Project's native private eval storage
+purge, bounded by LIM-EVM-20 ([EVM-R243](../evals/managed-evals.md)). A
+transaction whose eval pass removed a row or left one commits with that pass
+alone. Only a transaction whose eval pass found nothing left deletes the next
+batch of the Project's finding proposal receipts (DEL-R61), and only when no
+receipt is left removes one purge batch and collects the versions and blobs
+that batch left unreferenced. The transaction that finds the scope empty removes the scope
 and the Project row. A committed batch stays purged: a deleting Project
 without Runs and Audits admits no Artifact write (DEL-R40), and a failed
 transaction leaves the earlier batches purged and the Project `deleting`
@@ -433,7 +437,7 @@ flowchart TD
     F --> AU["Cancel and drain the Project's Audits"]
     W --> P["3. Purge every Project Run"]
     AU --> P
-    P --> S["4. Delete the Project's finding proposal receipts, purge the complete ProjectScope, collect globally unreferenced versions and blobs"]
+    P --> S["4. Purge the Project's eval storage in bounded passes, delete its finding proposal receipts, purge the complete ProjectScope, collect globally unreferenced versions and blobs"]
     S --> R["5. Remove Project create-idempotency data and the Project row"]
     R --> N["Project reads return owner-safe 404"]
 ```
@@ -459,6 +463,9 @@ flowchart TD
 - [LIM-DEL-3](../platform/limits.md): 1,000 finding proposal receipts and
   64 MiB of their stored report projections and evidence per Project purge
   transaction (DEL-R61).
+- [LIM-EVM-20](../platform/limits.md): 1,000 row mutations and 16 MiB of
+  stored row bytes per eval purge pass, one pass per Project purge
+  transaction (DEL-R60).
 - [LIM-ART-6](../platform/limits.md): the Run revision limit that bounds one
   Run purge transaction (DEL-R59).
 - [FAIL-DEL-1](../platform/failure-model.md): terminal Run hard deletion

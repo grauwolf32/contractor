@@ -439,9 +439,11 @@ var (
 		link("EVM-R227", managedEval))
 	EvalProjectDeleting = evalCode("eval_project_deleting", http.StatusConflict,
 		"The evaluation workspace is being deleted.",
-		"The evaluation Project is being deleted, so the request is refused (recovery wait); an external "+
-			"producer returning after the deletion fence cannot recreate deleted attempts.",
-		link("EVM-R227", managedEval)+", "+link("DEL-R43", "../artifacts/retention-and-deletion.md"))
+		"The evaluation Project or experiment is being deleted, so the request is refused (recovery wait); "+
+			"a member-level read of an experiment whose purge is in progress is refused instead of answered in "+
+			"part, and an external producer returning after the deletion fence cannot recreate deleted attempts.",
+		link("EVM-R227", managedEval)+", "+link("EVM-R244", managedEval)+", "+
+			link("DEL-R43", "../artifacts/retention-and-deletion.md"))
 )
 
 // evalCode registers one managed Eval code.

@@ -19,6 +19,9 @@ type DeletionClaim struct {
 	OwnerID   string
 	ClaimID   string
 	Phase     DeletionPhase
+	// RequestedAt is when the Project's deletion was requested, as read by
+	// ClaimDeletion; the controller logs purge age from it.
+	RequestedAt time.Time
 }
 
 // ClaimDeletionParams lease a deleting Project to ClaimID for Duration, or for
@@ -56,7 +59,7 @@ func (s *PostgresStore) ClaimDeletion(
 	err := s.db.QueryRow(ctx, claimProjectDeletionSQL,
 		params.ClaimID, params.Duration.Microseconds(), params.PurgeDuration.Microseconds(),
 		DeletionPurgingRuns, DeletionPurgingArtifacts,
-	).Scan(&claim.ProjectID, &claim.OwnerID, &claim.Phase)
+	).Scan(&claim.ProjectID, &claim.OwnerID, &claim.Phase, &claim.RequestedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return DeletionClaim{}, false, nil
 	}

@@ -3,14 +3,20 @@
 package projectlifecycle
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -220,5 +226,177 @@ SELECT count(*) FROM finding_proposal_receipts
  WHERE project_id = $1 OR (project_id IS NULL AND run_id = 'run-standalone')`,
 		other.ProjectID).Scan(&kept); err != nil || kept != 3 {
 		t.Fatalf("receipts outside the deleted Project = %d, error = %v", kept, err)
+	}
+}
+
+// evalPurgeBatchRows is the shared CleanupBatchRows bound of one Eval purge
+// pass (EVM-R243), counting the two collection rows each deleted dataset
+// revision rewrites.
+const evalPurgeBatchRows = 1000
+
+// A deleting evaluation Project's private Eval data goes first, one bounded
+// pass per controller transaction: its fenced experiment, then its dataset
+// revisions, collection row and Eval mutation receipts. No finding receipt or
+// Artifact is purged while an Eval row is left, the Project row goes last,
+// and another evaluation Project of the owner keeps all its Eval rows
+// (EVM-R243, DEL-R60).
+func TestProjectDeletionPurgesEvalDataInBoundedTransactions(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	pool := isolatedPool(t, ctx)
+	projects := projectstore.NewPostgresStore(pool)
+	create := func(projectID string) projectstore.Project {
+		t.Helper()
+		project, _, err := projects.Create(ctx, projectstore.CreateParams{
+			ProjectID: projectID, OwnerID: "user-1", Kind: projectstore.KindEvaluation,
+			Name: projectID, IdempotencyKey: "create-" + projectID,
+			RequestDigest: "sha256:" + strings.Repeat("a", 64),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return project
+	}
+	project := create("evaluation-deleted")
+	other := create("evaluation-kept")
+	seedEval := func(projectID string, datasets, receipts int) {
+		t.Helper()
+		for _, seed := range []struct {
+			statement string
+			arguments []any
+		}{{`
+INSERT INTO eval_dataset_revisions (owner_id, project_id, dataset_id, revision, document, metadata)
+SELECT 'user-1', $1, 'dataset', 'r' || i, convert_to('{"revision":' || i || '}', 'UTF8'), '{}'
+FROM generate_series(1, $2::int) AS i`, []any{projectID, datasets}}, {`
+INSERT INTO mutation_receipts (key_scope, idempotency_key, operation, request_digest, resource_id, response, owner_id, project_id)
+SELECT ARRAY['eval', 'user-1', $1, 'experiments', 'experiment-create'], 'create-' || i, 'experiment-create',
+       'sha256:' || repeat('b', 64), 'experiments', convert_to('{"experimentId":"exp-' || i || '"}', 'UTF8'), 'user-1', $1
+FROM generate_series(1, $2::int) AS i`, []any{projectID, receipts}}, {`
+INSERT INTO eval_experiments (
+    experiment_id, owner_id, project_id, portable_id, control_mode, name, state, max_in_flight, wall_ms, deletion_requested_at
+) VALUES ($1 || '-experiment', 'user-1', $1, 'experiment', 'external', 'Fenced', 'cancelling', 1, 1000, clock_timestamp())`,
+			[]any{projectID}}, {`INSERT INTO eval_controller_claims (experiment_id) VALUES ($1 || '-experiment')`, []any{projectID}}} {
+			if _, err := pool.Exec(ctx, seed.statement, seed.arguments...); err != nil {
+				t.Fatalf("seed Eval data: %v", err)
+			}
+		}
+	}
+	const datasets, evalReceipts = 1500, 1200
+	seedEval(project.ProjectID, datasets, evalReceipts)
+	seedEval(other.ProjectID, 10, 5)
+	seedFindingReceipts(t, ctx, pool, "deleted", "run-deleted", &project.ProjectID, 10)
+	if _, err := pool.Exec(ctx, `
+UPDATE finding_proposal_receipts
+   SET retention_state = 'discarded', source_run_deleted_at = clock_timestamp(),
+       discarded_at = clock_timestamp(), retention_updated_at = clock_timestamp()
+ WHERE run_id = 'run-deleted'`); err != nil {
+		t.Fatal(err)
+	}
+	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := projectArtifacts.Write(ctx, artifacts.ArtifactRef{Namespace: "sources", Name: "first"},
+		artifacts.Payload{MediaType: "text/plain", Data: []byte("first")}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := projects.BeginDeletion(ctx, projectstore.BeginDeletionParams{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	type evalRows struct{ experiments, datasets, collections, receipts int }
+	evalFootprint := func(projectID string) evalRows {
+		t.Helper()
+		var rows evalRows
+		if err := pool.QueryRow(ctx, `
+SELECT (SELECT count(*) FROM eval_experiments WHERE project_id = $1),
+       (SELECT count(*) FROM eval_dataset_revisions WHERE project_id = $1),
+       (SELECT count(*) FROM eval_collections WHERE project_id = $1),
+       (SELECT count(*) FROM mutation_receipts WHERE key_scope[1] = 'eval' AND project_id = $1)`,
+			projectID).Scan(&rows.experiments, &rows.datasets, &rows.collections, &rows.receipts); err != nil {
+			t.Fatal(err)
+		}
+		return rows
+	}
+	laterPhases := func() int {
+		t.Helper()
+		var rows int
+		if err := pool.QueryRow(ctx, `
+SELECT (SELECT count(*) FROM finding_proposal_receipts WHERE project_id = $1)
+     + (SELECT count(*) FROM artifact_binding_revisions WHERE scope_kind = 'project' AND scope_id = $1)`,
+			project.ProjectID).Scan(&rows); err != nil {
+			t.Fatal(err)
+		}
+		return rows
+	}
+	otherBefore := evalFootprint(other.ProjectID)
+	var logs bytes.Buffer
+	controller, err := New(pool, runstore.NewPostgresStore(pool), rundeletion.New(pool), &recordingNotifier{}, Options{
+		PollInterval: time.Millisecond, ClaimDuration: time.Minute, OperationTimeout: 5 * time.Second,
+		Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evalSteps := 0
+	for step := 0; ; step++ {
+		if step > (3*datasets+evalReceipts)/evalPurgeBatchRows+20 {
+			t.Fatalf("Project deletion did not finish after %d steps", step)
+		}
+		before, laterBefore := evalFootprint(project.ProjectID), laterPhases()
+		worked, err := controller.RunOnce(ctx)
+		if err != nil || !worked {
+			t.Fatalf("Project deletion step %d = (%t, %v)", step, worked, err)
+		}
+		after, laterAfter := evalFootprint(project.ProjectID), laterPhases()
+		// An experiment costs its row, its claim and its two collection rows.
+		cost := 4*(before.experiments-after.experiments) + 3*(before.datasets-after.datasets) +
+			(before.collections - after.collections) + (before.receipts - after.receipts)
+		if cost > evalPurgeBatchRows {
+			t.Fatalf("step %d spent %d Eval row mutations, more than %d", step, cost, evalPurgeBatchRows)
+		}
+		if cost > 0 {
+			evalSteps++
+		}
+		if after != (evalRows{}) && laterAfter != laterBefore {
+			t.Fatalf("step %d purged finding receipts or Artifacts while Eval rows %+v were left", step, after)
+		}
+		if after.receipts < before.receipts && (after.experiments > 0 || after.datasets > 0) {
+			t.Fatalf("step %d deleted Eval receipts while %+v were left", step, after)
+		}
+		if _, err := projects.Get(ctx, project.OwnerID, project.ProjectID); errors.Is(err, projectstore.ErrNotFound) {
+			if after != (evalRows{}) || laterAfter != 0 {
+				t.Fatalf("Project deleted with Eval rows %+v and %d later-phase rows left", after, laterAfter)
+			}
+			break
+		} else if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if want := (3*datasets + evalReceipts + evalPurgeBatchRows - 1) / evalPurgeBatchRows; evalSteps < want {
+		t.Fatalf("Eval purge took %d transactions, want at least %d", evalSteps, want)
+	}
+	if got := evalFootprint(other.ProjectID); got != otherBefore {
+		t.Fatalf("another evaluation Project's Eval rows = %+v, want %+v", got, otherBefore)
+	}
+	// The purge meter logged the Eval purge's start and its end with every
+	// Eval pass.
+	var records []string
+	for decoder := json.NewDecoder(&logs); decoder.More(); {
+		var record struct {
+			Msg       string `json:"msg"`
+			ProjectID string `json:"project_id"`
+			Passes    int64  `json:"passes"`
+		}
+		if err := decoder.Decode(&record); err != nil {
+			t.Fatal(err)
+		}
+		if record.ProjectID == project.ProjectID && strings.HasPrefix(record.Msg, "Eval purge") {
+			records = append(records, fmt.Sprintf("%s after %d passes", record.Msg, record.Passes))
+		}
+	}
+	if want := []string{"Eval purge started after 1 passes", fmt.Sprintf("Eval purge finished after %d passes", evalSteps)}; !slices.Equal(records, want) {
+		t.Fatalf("Eval purge records = %q, want %q", records, want)
 	}
 }
