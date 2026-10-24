@@ -52,7 +52,7 @@ func containerServerBinary(t *testing.T, directory string) string {
 	}
 	defer input.Close()
 	target := filepath.Join(directory, "contractor-server")
-	output, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0700)
+	output, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0755)
 	if err != nil {
 		t.Fatal(err)
 	}
