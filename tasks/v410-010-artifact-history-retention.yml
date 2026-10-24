@@ -415,17 +415,25 @@ test_prerequisites:
     permissive fakes, wall-clock assertions and only three-row fixtures do not prove
     retention safety or bounded maintenance over the containing collections.
 progress: >-
-  2026-10-24 checkpoint (paused, not verified). Done: R4 holder inventory
-  investigated (below); internal/artifacts/history_policy.go adds the one typed
-  HistoryPolicy (defaults 2,000/1 GiB, ceilings 20,000/8 GiB, floors 2/128 MiB,
-  64-candidate/64-removal per transaction, 64 MiB reclaim per pass,
-  Retry-After 1 s), context install, ErrHistoryProtected/HistoryProtectedError
-  and ErrHistoryMaintenancePending/HistoryMaintenanceError; apierror registry
-  defines artifact_history_protected (409, permanent) and
-  artifact_history_maintenance_pending (503, retryable). Unverified: nothing
-  else wired; no OpenAPI, docs-error-registry, migration, eviction or tests yet,
-  and the apierror contract tests may fail until ART-R126/ART-R127 and OpenAPI
-  are written. No deletion is enabled.
+  2026-10-24 second checkpoint (paused, task not complete). Done and tested:
+  internal/artifacts/history_policy.go (typed HistoryPolicy, errors);
+  apierror codes artifact_history_protected (409) and
+  artifact_history_maintenance_pending (503); spec ART-R122 to ART-R127,
+  LIM-ART-9 to LIM-ART-11, DEL-R62 to DEL-R64 (holder classification), DEL-R3
+  and SKL-R81/LIFE-SKL-1 conflicts fixed; OpenAPI ArtifactWriteConflict and
+  ArtifactWriteUnavailable (optional Retry-After) on putArtifact and
+  putProjectArtifact, clients regenerated; migration 000040
+  artifact_history_accounting adds and backfills
+  artifact_bindings.retained_revisions/retained_bytes (NOT NULL, checked),
+  maintained by writeSQL and forkSQL; migration test and a store accounting
+  test. No revision deletion exists yet. Not started: hold_count and holder
+  triggers (migration 000041), eligible partial index, trusted retention
+  delete exception, admission/eviction/maintenance, collector refactor,
+  adapters (public Retry-After, private API, Runtime, Memory Go/Python,
+  gitimport), Server config fields, read-race not-found recheck, shared
+  fixtures, make targets, e2e, git-import OpenAPI responses. Note: macOS
+  TMPDIR under /var is a symlink, so filesystem-blob tests need a
+  symlink-free TMPDIR.
   Design decisions so far: only CAS-advancing writes grow history (forks and
   creates are create-only, so they start a binding at one revision and only
   initialize counters); counters artifact_bindings.retained_revisions and
@@ -467,7 +475,9 @@ progress: >-
   Skill init maps a missing source to retryable skill_artifact_unavailable
   (RUN-R27 says skill_artifact_not_found); bindOutput leaves a missing
   candidate source as an ordinary error.
-  Next step: verify the inventory claims against code, write migration 000040
-  (counters, hold_count, holder triggers, trigger-scoped immutability
-  exception, reference validation, migration test), then admission/eviction,
-  adapters, spec, fixtures and make targets.
+  Next step: merge main and recheck that 000040 is still the next free
+  migration number; verify the inventory claims against code; write migration
+  000041 (hold_count, lineage/publication and JSON holder triggers,
+  eligible partial index, trusted retention delete exception, validation of
+  stored references, migration test); then admission/eviction, adapters,
+  fixtures, make targets and e2e.

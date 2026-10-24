@@ -7,23 +7,26 @@ package artifacts
 // current_revision equals $6 (CAS), or creates the binding, frozen when $15,
 // when $6 is NULL, then upserts the sha256-keyed blob ($14: verified reusable
 // file key), version and revision. Returns revision, media type, size,
-// timestamps and the stored object key; no row is a conflict. Used by
-// PostgresRepository.write.
+// timestamps and the stored object key; no row is a conflict. The binding's
+// retained-history counters (ART-R123) are charged the new revision's full
+// encoded size $10. Used by PostgresRepository.write.
 var writeSQL = `
 WITH scope_ready AS (
     SELECT 1 FROM artifact_scopes WHERE scope_kind = $1 AND scope_id = $2 FOR KEY SHARE
 ), updated_binding AS (
     UPDATE artifact_bindings
-    SET current_revision = $5, updated_at = clock_timestamp()
+    SET current_revision = $5, updated_at = clock_timestamp(),
+        retained_revisions = retained_revisions + 1, retained_bytes = retained_bytes + $10
     WHERE scope_kind = $1 AND scope_id = $2 AND namespace = $3 AND name = $4
       AND $6::text IS NOT NULL AND current_revision = $6 AND NOT frozen
       AND EXISTS (SELECT 1 FROM scope_ready)
     RETURNING created_at
 ), created_binding AS (
     INSERT INTO artifact_bindings (
-        scope_kind, scope_id, namespace, name, current_revision, frozen
+        scope_kind, scope_id, namespace, name, current_revision, frozen,
+        retained_revisions, retained_bytes
     )
-    SELECT $1, $2, $3, $4, $5, $15::boolean FROM scope_ready
+    SELECT $1, $2, $3, $4, $5, $15::boolean, 1, $10 FROM scope_ready
     WHERE $6::text IS NULL
     ON CONFLICT DO NOTHING
     RETURNING created_at

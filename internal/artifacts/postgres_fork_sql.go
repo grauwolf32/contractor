@@ -9,7 +9,8 @@ package artifacts
 // admits only the frozen current revision of the source binding; $13/$14 name
 // a Run and the Project it must belong to, or are NULL. The statement holds FOR
 // KEY SHARE on the source scope, so a purge cannot remove the source before
-// the fork commits.
+// the fork commits. The new binding retains one revision charged the full
+// encoded size of the shared blob (ART-R123).
 //
 // The target is create-only: an existing binding creates nothing. Beside the
 // source-found and target-created flags, the source revision, media type and
@@ -52,9 +53,10 @@ WITH source_selection AS MATERIALIZED (
       AND binding.namespace = $8 AND binding.name = $9
 ), created_binding AS (
     INSERT INTO artifact_bindings (
-        scope_kind, scope_id, namespace, name, current_revision, frozen
+        scope_kind, scope_id, namespace, name, current_revision, frozen,
+        retained_revisions, retained_bytes
     )
-    SELECT $6, $7, $8, $9, $10, $15::boolean FROM source_selection
+    SELECT $6, $7, $8, $9, $10, $15::boolean, 1, source_selection.size_bytes FROM source_selection
     ON CONFLICT DO NOTHING
     RETURNING 1
 ), target_revision AS (

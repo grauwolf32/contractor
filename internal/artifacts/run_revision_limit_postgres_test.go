@@ -181,8 +181,8 @@ FROM generate_series(1, $1::int) AS i`, shared}, {`
 INSERT INTO artifact_binding_revisions (scope_kind, scope_id, namespace, name, revision, version_id)
 SELECT 'user', 'user-1', 'sources', 'source-' || i, 'rev-' || i, 'shared-version-' || i
 FROM generate_series(1, $1::int) AS i`, shared}, {`
-INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision)
-SELECT 'user', 'user-1', 'sources', 'source-' || i, 'rev-' || i
+INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision, retained_revisions, retained_bytes)
+SELECT 'user', 'user-1', 'sources', 'source-' || i, 'rev-' || i, 1, 0
 FROM generate_series(1, $1::int) AS i`, shared}, {`
 INSERT INTO artifact_binding_revisions (scope_kind, scope_id, namespace, name, revision, version_id)
 SELECT 'run', $1, 'inputs', 'source-' || i, 'fork-' || i, 'shared-version-' || i
@@ -203,8 +203,8 @@ FROM generate_series($2::int + 1, $3::int) AS i`, scratch}, {`
 INSERT INTO artifact_binding_revisions (scope_kind, scope_id, namespace, name, revision, version_id)
 SELECT 'run', $1, 'scratch', 'item-' || (i % 16667), 'rev-' || i, $1 || '-version-' || i
 FROM generate_series($2::int + 1, $3::int) AS i`, scratch}, {`
-INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision)
-SELECT DISTINCT ON (namespace, name) scope_kind, scope_id, namespace, name, revision
+INSERT INTO artifact_bindings (scope_kind, scope_id, namespace, name, current_revision, retained_revisions, retained_bytes)
+SELECT DISTINCT ON (namespace, name) scope_kind, scope_id, namespace, name, revision, 1, 0
 FROM artifact_binding_revisions
 WHERE scope_kind = 'run' AND scope_id = $1
 ORDER BY namespace, name, revision DESC`, []any{runID}}} {
