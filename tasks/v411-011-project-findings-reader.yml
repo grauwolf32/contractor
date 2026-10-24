@@ -27,9 +27,11 @@ context:
   - docs/spec/artifacts/retention-and-deletion.md
   - docs/spec/execution/control-plane.md
   - docs/spec/tools/toolsets.md
-  existing_boundaries: V62-005, V62-006 and V62-007 remain deferred and require separate explicit user reactivation
-    before their implementation. Only completed dependencies permit this task to start. V61 MCP, V64 prioritization
-    and V62-008 analysis-chain work are not implicitly reactivated.
+  existing_boundaries: >-
+    V62-005/006/007 are pending after the explicit 2026-10-24 user request.
+    Only completed declared dependencies permit this task to start. Generic
+    V62 work and V64 research retain their own task scopes; V61 MCP and
+    V62-008 analysis-chain work remain deferred.
   code_owners:
   - internal/findingintake
   - internal/auditservice

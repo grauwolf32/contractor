@@ -99,9 +99,11 @@ The guarantees proposed by V62-005/006/007 remain necessary: settled result
 snapshots, retained dependencies and profile-owned routing. Their future
 source shapes must also represent early grounding and alternative tests.
 The [delivery plan](../plans/2026-10-24-audit-hypothesis-search.md) now records
-the revised V62/V64 tasks and targeted V411 boundaries. That planning revision
-preserves existing statuses and adds deferred tasks; it is not implementation
-or reactivation.
+the revised V62/V64 tasks and targeted V411 boundaries. The planning revision
+initially retained deferral. By a later explicit user instruction on
+2026-10-24, exactly V64-001–018 and V62-005/006/007/013 are pending, with
+unchanged dependencies and all other task statuses preserved. This changes
+no implemented behavior; V61 and V62-008 remain deferred.
 
 ## 3. Concepts and durable model
 
@@ -393,7 +395,7 @@ pure-core APIs against the new contract rather than preserving obsolete
 restrictions. This changes no existing package in the proposal-only change.
 
 Do not build a parallel hypothesis ranker alongside the old V64 integration.
-Replan its pending/deferred integration tasks around one opt-in selection
+Use the replanned pending integration tasks around one opt-in selection
 boundary, with specialized policies. Keep the current direct deterministic
 path outside research, as required by section 1.1.
 
@@ -576,9 +578,12 @@ settled views; an UI state cannot outrun Server acceptance.
 
 The [staged delivery plan](../plans/2026-10-24-audit-hypothesis-search.md)
 owns the current task graph: revised V64-001–011, new V64-012–018, generic
-V62-005/006/007 plus V62-013, and narrow pentest/scanner task updates. All V64
-and iterative V62 implementation remains deferred. The sequence below states
-the intended outcomes rather than introducing additional dependency edges.
+V62-005/006/007 plus V62-013, and narrow pentest/scanner task updates. Exactly
+those 22 V64/iterative-V62 tasks are pending by explicit user direction on
+2026-10-24; completed prerequisites still govern when each can start. Optional
+ranking, attack-tree and pentest-bridge tasks are pending without becoming
+core dependencies. The sequence below states intended outcomes rather than
+introducing additional dependency edges or claiming implementation.
 
 1. **Contracts and deterministic boundaries.** Define the opt-in profile,
    hypothesis/plan/assessment/selection/context contracts and limits; revise

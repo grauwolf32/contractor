@@ -5,8 +5,13 @@ milestone: audit-iterative-composition-2026-10
 epic: audits
 kind: feature
 priority: P2
-status: deferred
-deferral:
+status: pending
+reactivation:
+  date: '2026-10-24'
+  previous_status: deferred
+  reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+previous_deferral:
   date: '2026-09-20'
   previous_status: pending
   reason: Verify/replay routing is independent of the first OpenAPI scan and preparation release.
@@ -23,8 +28,10 @@ languages:
 goal: Route accepted typed check plans through profile-owned exact Workflow bindings and immutable next-Round
   admission, preserving the existing finding receipt adapter and deterministic default paths.
 context:
-  authority: The user requested planning-only decomposition of proposal 0045 and revision of unfinished
-    dependencies on 2026-10-24. The original V62 deferral remains in force; this edit authorizes no implementation.
+  authority: >-
+    On 2026-10-24 the user explicitly requested pending status for the reviewed
+    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
+    is historical; dependency completion still gates implementation start.
   proposal:
   - docs/proposals/0045-audit-hypothesis-search.md
   - docs/proposals/0033-autonomous-pentest-audits.md
@@ -43,7 +50,7 @@ context:
   - docs/spec/platform/lifecycle.md
   replan_history: Deferred on 2026-09-20 outside the delivered OpenAPI/preparation slice; the original
     deferral record is preserved. The 2026-10-24 review at b523ae77 confirmed that this iterative capability
-    was still absent. Proposal 0045 now adds a planned consumer without reactivating this task. Completed
+    was still absent. The initial proposal 0045 plan retained deferral; the user subsequently queued this reviewed task as pending. Completed
     V62 preparation/API/UI/release tasks and their original milestone remain unchanged.
   ownership: Generic iterative Audit composition owns these contracts. V64-001 defines research contracts,
     V64-003 owns opt-in research lifecycle, V64-004 consumes exact context, V64-006 owns the base research-to-ordinary-AuditItem

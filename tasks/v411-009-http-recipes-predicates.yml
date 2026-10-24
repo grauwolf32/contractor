@@ -56,7 +56,7 @@ scope:
     operands, controls and outcome; Server independently recomputes accepted observation admissibility.
   out:
   - Cross-round admission/routing/fresh-session replay and reproduced proof collection are V411-012;
-    no reimplementation or reactivation of deferred V62 tasks.
+    no reimplementation of the shared V62 tasks in this change.
   - No browser step in HTTP v1, callback oracle, arbitrary code/JavaScript/regex, loops, model-authored
     success authority or timing-only injection proof.
 requirements:

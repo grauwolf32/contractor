@@ -1,10 +1,11 @@
 # Optional Audit hypothesis search
 
 Date: 2026-10-24. Design: [proposal 0045](../proposals/0045-audit-hypothesis-search.md).
-This is a planning revision, not implementation or task reactivation. Existing
-deferred V64 and V62 tasks remain deferred; the new tasks are also deferred.
-Completed task records, implementation commits and active unrelated work remain
-unchanged. The individual task files own implementation status and acceptance.
+Status update by explicit user direction on 2026-10-24: exactly V64-001–018
+and V62-005/006/007/013 are **pending**. Their dependencies are unchanged;
+completed records, implementation commits and all other task statuses remain
+unchanged. V61 and V62-008 remain deferred. This status update implements no
+capability. The individual task files own status and acceptance.
 
 ## 1. Delivery outcome and boundaries
 
@@ -57,9 +58,10 @@ requirement to preserve an unused interface.
 | G. Optional pentest research integration | V64-018 | A separately selected research-enabled pentest profile connects the released search and pentest paths and passes its own integration gate. Both base paths remain independently usable. |
 
 These stages describe useful outcomes, not additional hidden dependencies.
-Independent tasks may proceed once their declared prerequisites are complete
-and the user has explicitly reactivated their implementation scope. Planning
-does not satisfy that condition.
+The 22 pending tasks may be selected once their declared prerequisites are
+complete, following the normal task ownership and in-progress rules. No further
+reactivation decision is required for this scope. Pending does not mean that
+implementation has started or that an acceptance criterion has passed.
 
 Keep the existing `audit-check-prioritization` milestone identity and V64-011
 exit, replacing its old top-N outcome with the deterministic optional research
@@ -230,20 +232,22 @@ silently change accepted context or the Audit baseline.
 | Work | Planning action |
 | --- | --- |
 | V64-000 | Leave completed record and implementation evidence untouched. Reuse its useful validation/selection ideas without treating its old policy as universal. |
-| V64-001–011 | Replace the previous scopes, dependency edges and acceptance matrices as mapped above; preserve deferred status and historical deferral context. |
-| V64-012–018 | Add deferred tasks with explicit consumers, limits, failure outcomes, lifecycle and runnable verification commands. |
+| V64-001–011 | Use the revised scopes and dependency graph above; status is pending under the explicit 2026-10-24 instruction, with earlier deferrals retained as history. |
+| V64-012–018 | Keep the new tasks pending with explicit consumers, limits, failure outcomes, lifecycle and runnable verification commands. |
 | V64-001/012/006/005/008/009/011 human-input boundary | Define authenticated human origin and requested attention; implement audited create/revise, deterministic attention precedence, protection from model demotion, API/UI entry and real-process priority/blocked-state evidence. |
-| V62-005/006/007 | Revise their shared contracts and move to the generic iterative-composition milestone; retain deferred status and no V64 dependency. |
-| V62-013 | Add a deferred generic gate; it proves composition independently of research and pentest. |
+| V62-005/006/007 | Keep the revised shared contracts and generic iterative-composition milestone; status is pending and there is no V64 dependency. |
+| V62-013 | Keep the generic gate pending; it proves composition independently of research and pentest. |
 | Completed V62 tasks | Keep their history and once-per-Audit preparation guarantees; do not reopen completed implementations merely because a later extension uses them. |
 | Seven related unfinished task files | Apply only the exact boundary clarifications in the table below; retain their statuses and dependencies. |
 | V410-010 | Consume its shared ArtifactStore retention contract after completion; do not take over its active work. |
 | Other V410 and V413 tasks | Keep independently deliverable; research does not require live sitemap collection or Runtime cache work. |
-| Other V411/V412 tasks | Leave unchanged; generic iterative-composition prerequisites remain authoritative and no V64 dependency is added. |
+| Other V411/V412 tasks | Preserve scope, status and dependencies; update current prerequisite-status notices where needed. No V64 dependency is added. |
 | V61 and V62-008 | Leave deferred unrelated capabilities outside this plan. |
-| Task index, audit epic, backlog and plan links | Update milestone outcomes, exits and design references; regenerate the backlog. Do not turn a planning edit into a current implementation lane. |
+| Task index, audit epic, backlog and plan links | Record the explicit 22-task pending scope, preserve dependencies and other statuses, and regenerate the backlog; do not claim implementation or verification. |
 
-The related-task edit set is exactly:
+The original planning revision's related-task scope edits were exactly the
+following seven files. The status follow-up may also correct prerequisite-status
+notices without changing those tasks' scope, status or dependencies:
 
 | File | Boundary clarification |
 | --- | --- |
@@ -257,8 +261,10 @@ The related-task edit set is exactly:
 
 An old deferral's model-ranking evidence rationale is historical context, not
 a new requirement to prove model benefit before deterministic research can
-be reviewed. The revised scope still needs explicit implementation
-reactivation. Optional ranking has its own comparison gate in V64-016.
+be reviewed. The explicit 2026-10-24 instruction has moved the reviewed
+22-task scope to pending, superseding its earlier reactivation conditions.
+Optional ranking has its own comparison gate in V64-016. Ranking, attack-tree
+and pentest-bridge tasks are pending optional paths, not core prerequisites.
 
 No V64-019 live-Project adapter is created by this plan. Selected exact Project
 materials already provide the first consumer path. A later adapter requires a
