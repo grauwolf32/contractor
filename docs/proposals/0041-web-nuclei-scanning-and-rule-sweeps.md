@@ -1,16 +1,19 @@
 # Web-oriented Nuclei scanning and single-rule project sweeps
 
-Proposal 0041 · Status: **Accepted for implementation.** Recorded on 2026-10-23 and checked against
-`main @ 5677eda0`. It describes a web-oriented Nuclei scan primitive, a custom
-rulepack input, and a way to run one chosen rule across a scope of Projects. It
-is the accepted implementation plan; capabilities remain unavailable until their
-implementation tasks and verification complete.
+Proposal 0041 · Status: **Implemented and verified (2026-10-24).** The accepted
+scope, including basic scan/sweep UI and Workflow-specific widgets, is delivered.
+Studio remains outside the agreed scope. Current behavior is owned by the
+[scanner specification](../spec/tools/scanners.md) and the linked domain contracts.
+
+The original problem statement and design boundary below describe the
+2026-10-23 baseline, `main @ 5677eda0`; implementation and final verification
+are recorded at the end of this proposal.
 
 The driving case: a new Nuclei template (for example a fresh CVE check) is
 published, and the operator wants to run **only that rule** against the live
 endpoints of **several Projects** at once — the seven reconstructed DOM.RF app
 backends being the concrete example, each a Project with an `httpTarget` set.
-Today Contractor cannot do this:
+At that design baseline Contractor could not do this:
 
 - the only loaded Nuclei path, the Audit profile `openapi-nuclei-scan@1`, pins
   one fixed template (`http-missing-security-headers`) as a literal in
@@ -44,7 +47,7 @@ custom rule the installed template set does not contain.
 A single-URL web scan with a chosen ruleset is also available on its own,
 without an OpenAPI document and without the Audit coordination machinery.
 
-## Current boundary
+## Design boundary at the 2026-10-23 baseline
 
 - **The scanner already accepts the knobs.** `scan_nuclei`
   (`runtime/src/contractor_runtime/toolsets/scan/tools.py:314`) takes
@@ -404,9 +407,9 @@ Taken by the user on 2026-10-23:
 
 The binding fields (`parse`, `default`, `optional`), the rulepack input's
 `sourceScope: user` exception, installed-package digest pinning and immutable
-sweep admission snapshot are proposed resolutions of the remaining review
-findings. They require implementation and contract updates; none is described
-as an existing facility.
+sweep admission snapshot are the accepted resolutions of the review findings.
+They are implemented together with their owning specification, OpenAPI and
+shared-fixture updates.
 
 Implementation uses the phased client/server sweep and bounds recorded below.
 Ordinary Run target defaulting is outside scope; sweep admission captures the
@@ -485,13 +488,15 @@ Project URL explicitly.
   sweep admission cannot affect retained snapshots, pending members or replay;
   Run/sweep cleanup never deletes the owner's source artifact. Verify input
   forks, lineage and retention against real PostgreSQL/ArtifactStore.
-- Phase 3: the sweep resource and `target` defaulting; the settings widget
+- Phase 3: the sweep resource and target capture at admission; the settings widget
   authors valid parameters and never writes secrets or model-visible state;
   render at 390 px in light, dark and black themes.
-- The mandatory scan process gate (`make test-openapi-audit-scan-e2e` analogue
-  for the new Workflow) with disposable PostgreSQL and installed Nuclei.
+- The mandatory deterministic process gate, `make test-nuclei-web-e2e`, runs
+  the new Workflow with disposable PostgreSQL and the scanner protocol fixture.
+  The explicit `make test-nuclei-web-installed` gate separately verifies the
+  actual installed Nuclei engine.
 
-## Proposed tasks
+## Implementation phases
 
 1. Server + Runtime + configs: Phase 1 `nuclei-web@1` and
    `nuclei-web-scan@1`, explicit integer/default parameter bindings, Server and
@@ -528,28 +533,44 @@ identifies the artifact-preview work on main:
 - [V406-005](../../tasks/done/v406-005-web-scan-settings-ui.yml): single-scan form
   and owner rulepack selection/upload.
 - [V406-006](../../tasks/done/v406-006-scope-sweep-ui-cli.yml): sweep UI (completed).
-- [V406-007](../../tasks/v406-007-web-scan-release-gate.yml): milestone exit
-  and complete process/browser/release evidence.
+- [V406-007](../../tasks/done/v406-007-web-scan-release-gate.yml): completed
+  milestone exit and complete process/browser/release evidence.
 
 The implementation defaults are a 1,000-Project maximum scope, a resumable
 client loop in Phase 1, and target capture from `httpTarget.url` only at sweep
 admission. Ordinary Run creation continues to require its explicit target.
 Task records state the independent package, snapshot, tick and page bounds;
-the owning specification registries acquire them with each implementation.
+the owning specification registries record them with each implementation.
 
 The core-first implementation keeps UI/Studio work separate: CLI access to the
 durable server resource is tracked by [V406-009](../../tasks/done/v406-009-durable-sweep-cli.yml),
 which depends only on the completed server sweep. The basic scan and sweep UI
-is implemented; the final milestone gate remains pending.
+is implemented, and the final milestone gate is complete.
 
 Workflow-specific UI controls are bundled widgets, reused by single scans and
 sweeps. The follow-up [V406-010](../../tasks/done/v406-010-scanner-widget-boundaries.yml)
 isolates the existing scanner report and Audit input views behind the same
 explicit widget ownership rules, without new Studio capabilities.
 
-Focused verification on 2026-10-24 passed the complete real browser stack,
-including native/external managed Evals, installed Nuclei and scanner browser
-journeys, wire/API checks, and the PostgreSQL sweep boundary/recovery/lifecycle
-suites. The process browser stacks now own immutable private UI builds.
-V406-007 remains in progress: the user explicitly postponed the aggregate
-release-verify command, so this evidence does not close the milestone.
+Final verification on 2026-10-24 passed the complete release gate on
+`main @ a993c4d335266b79b98ff1cd54056f48dcfec936`: all 12 stages of
+`make -k release-verify RACE_PACKAGE_PARALLELISM=1` completed with exit 0 in
+6256.17 seconds on Ubuntu 24.04 with PostgreSQL 17.11. The run includes both
+full race stages, strict shared-fixture and result-report validation, all 25
+process scenarios, 91 mocked browser scenarios and 94 real-stack browser
+scenarios, including native/external managed Evals. Required database, process
+and browser scenarios had no skips. The installed Nuclei gate passed separately
+in 175.389 seconds. Task evidence records unrelated expected opt-in skips.
+
+The process browser stacks own immutable private UI builds. The release work
+also completed the reserved-namespace guard correction
+[V406-015](../../tasks/done/v406-015-reserved-namespace-constants.yml), shared
+fixture-evidence initialization
+[V406-016](../../tasks/done/v406-016-release-report-initialization.yml), and
+portable screenshot destinations
+[V406-017](../../tasks/done/v406-017-portable-browser-evidence.yml).
+
+A concurrent V407/V409 merge advanced main to `b523ae77` during verification.
+The user explicitly accepted closing V406-007 and this milestone against the
+green `a993c4d3` run; the newer main revision receives its full verification
+separately through V407-039. The recorded run does not claim to cover that merge.
