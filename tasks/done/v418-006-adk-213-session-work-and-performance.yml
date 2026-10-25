@@ -5,7 +5,7 @@ milestone: adk-213-upgrade-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V418-003
 - V418-004
@@ -175,3 +175,4 @@ verification:
   review: Independent read-only review finds no blocking defect. Timing residuals include deterministic
     fixture work/Runtime/adapter; lifecycle/reducer cases are distinguished from full Runner cases. WRK-R161
     only clarifies the existing OBS-R41 metric retention policy.
+implementation_commit: e230a0b798ae7fa58c231225fa0cfd1a8e4603af
