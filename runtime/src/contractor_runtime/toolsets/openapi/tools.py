@@ -30,6 +30,7 @@ from contractor_runtime.projectfs.storage import (
     WorkspaceStorageError,
 )
 from contractor_runtime.redaction import runtime_secrets
+from contractor_runtime.strict_json import reject_json_constant, unique_json_object
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.artifacts import (
     ArtifactClientFactory,
@@ -223,9 +224,9 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         self._project_workspace = project_workspace
         self._launcher = launcher
 
-    def _decode_seed(self, data: bytes) -> dict[str, Any]:
+    def _decode_seed(self, data: bytes, media_type: str) -> dict[str, Any]:
         # _parse_document already checked the bounds and the JSON value types.
-        document = _parse_document(data)
+        document = _parse_document(data, media_type)
         _validate_structure(document, require_provenance=False)
         return document
 
@@ -1264,7 +1265,7 @@ _StrictSafeLoader.yaml_constructors = {
 _StrictSafeLoader.yaml_multi_constructors = {}
 
 
-def _parse_document(data: bytes) -> dict[str, Any]:
+def _parse_document(data: bytes, media_type: str = TARGET_MEDIA_TYPE) -> dict[str, Any]:
     """Parse document bytes once and check its bounds and JSON value types."""
 
     if len(data) > MAX_DOCUMENT_BYTES:
@@ -1273,6 +1274,41 @@ def _parse_document(data: bytes) -> dict[str, Any]:
         text = data.decode("utf-8", errors="strict")
     except UnicodeDecodeError as error:
         raise ToolInputError("OpenAPI document must be valid UTF-8") from error
+    if media_type == "application/json":
+        try:
+            document = json.loads(
+                text,
+                object_pairs_hook=unique_json_object,
+                parse_constant=reject_json_constant,
+                parse_int=_json_number,
+                parse_float=_json_number,
+            )
+        except ToolInputError:
+            raise
+        except RecursionError as error:
+            raise ToolInputError(DOCUMENT_DEPTH_MESSAGE) from error
+        except ValueError as error:
+            raise ToolInputError("OpenAPI document is not valid JSON") from error
+    else:
+        document = _parse_yaml_document(text)
+    _validate_json_tree(document)
+    if not isinstance(document, dict):
+        raise ToolInputError("OpenAPI artifact must contain exactly one object document")
+    return document
+
+
+def _json_number(text: str) -> int | float:
+    # Check the source spelling before float rounding, like both Server readers.
+    value = yaml_scalars.document_float(text)
+    if value is None:
+        raise ToolInputError(yaml_scalars.NUMBER_MESSAGE)
+    # Keep integer tokens integral in YAML output, preserving the sign of -0.
+    if "." not in text and "e" not in text.lower() and text != "-0":
+        return int(text)
+    return value
+
+
+def _parse_yaml_document(text: str) -> Any:
     try:
         # The reader rejects non-printable characters while it is created.
         loader = _StrictSafeLoader(text)
@@ -1292,11 +1328,9 @@ def _parse_document(data: bytes) -> dict[str, Any]:
         raise ToolInputError("OpenAPI document is not valid YAML or JSON") from error
     finally:
         loader.dispose()
-    if len(documents) != 1 or not isinstance(documents[0], dict):
+    if len(documents) != 1:
         raise ToolInputError("OpenAPI artifact must contain exactly one object document")
-    document = documents[0]
-    _validate_json_tree(document)
-    return document
+    return documents[0]
 
 
 def _validate_json_tree(value: Any) -> None:

@@ -44,7 +44,7 @@ class DocumentSession[D]:
         self._target_name: str | None = None
         self._revision: str | None = None
 
-    def _decode_seed(self, data: bytes) -> D:
+    def _decode_seed(self, data: bytes, media_type: str) -> D:
         """Decode and completely validate seed bytes; runs in a worker thread."""
 
         raise NotImplementedError
@@ -89,7 +89,7 @@ class DocumentSession[D]:
                 raise ValueError("Artifact API did not preserve the requested exact revision")
             if value.media_type not in self.seed_media_types:
                 raise ToolInputError(self.seed_media_type_message)
-            document = await self._prepare(self._decode_seed, value.data)
+            document = await self._prepare(self._decode_seed, value.data, value.media_type)
             same_binding = namespace == self._namespace and name == target_name
             if same_binding and value.media_type == self.media_type:
                 self._remember(document, target_name, value.artifact)
