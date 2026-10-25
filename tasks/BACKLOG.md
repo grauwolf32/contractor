@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-127 open tasks: 6 in progress, 110 pending, 11 deferred. 1105 finished: 1095 completed, 10 archived.
+127 open tasks: 7 in progress, 109 pending, 11 deferred. 1105 finished: 1095 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V416-005](v416-005-hybrid-placement-labels.yml) | operations | defect | P2 | Declare Runtime placement labels in hybrid deployment inventory |
 | [V416-008](v416-008-rulepack-metadata-contract.yml) | scan-tools | chore | P3 | Share the Nuclei rulepack media and byte admission contract |
 | [V416-009](v416-009-nuclei-preparation-boundary.yml) | scan-tools | chore | P3 | Extract the Nuclei preparation sequence into a private helper with an explicit result |
 
@@ -167,7 +168,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
-| [V416-005](v416-005-hybrid-placement-labels.yml) | defect | P2 | — | Declare Runtime placement labels in hybrid deployment inventory |
 | [V416-006](v416-006-hybrid-bootstrap-idempotency.yml) | defect | P1 | — | Bind hybrid bootstrap idempotency keys to the complete mutation |
 
 ### Public API and wire contracts (`api-contracts`)
