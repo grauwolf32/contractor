@@ -1,18 +1,25 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import hashlib
 import threading
+import weakref
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
-from fakes.model import scripted_model
+from fakes.model import scripted_model, text_result, tool_call
 from fakes.spec import allocation_spec
 from filesystem_audit import FilesystemAudit
+from test_adk_runtime import FakeArtifactClient
+from test_adk_runtime import stage_request as worker_request
 from test_agent_skill_toolset import FakeSkillClient, resolved_value, skill_package
+from test_allocation import TrackedMetricsState, allocation_references, live_references
 
 import contractor_runtime.agent_skills.runtime as skill_runtime
+import contractor_runtime.worker.state as worker_state_module
 from contractor_runtime.agent_skills import probe_native_agent_skills
 from contractor_runtime.allocation import AllocationError, AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
@@ -22,9 +29,402 @@ from contractor_runtime.contracts import (
     FinalizeAllocationRequest,
     ReleaseAllocationRequest,
     TerminationError,
+    WorkerSessionMode,
 )
 from contractor_runtime.factories import built_in_factories
 from contractor_runtime.state import ProcessState, RuntimeState
+from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
+
+
+class ReadProxy:
+    def __init__(self, owner, allocation_id):
+        self.owner = owner
+        self.__name__ = "read_artifact"
+        self.__doc__ = f"Read exact input for {allocation_id}."
+
+    def __getattr__(self, name):
+        return getattr(self.owner, name)
+
+    async def __call__(
+        self,
+        namespace: str,
+        name: str,
+        revision: str | None = None,
+        offset: int = 0,
+        length: int = 262144,
+    ) -> dict:
+        return await self.owner(namespace, name, revision, offset, length)
+
+
+class UnhashableReadProxy(ReadProxy):
+    __hash__ = None
+
+
+def skill_graph_references(worker):
+    owner = worker._agent_skills
+    assert owner is not None and owner._adapter is not None
+    # PreparedAgentSkills/DisclosureBudget are slotted and not weakrefable.
+    # The owner always holds native_toolset, so its collection also proves no
+    # owner survived. Adapter detachment and session deletion cover State paths.
+    references = {
+        "skill_toolset": weakref.ref(owner.native_toolset),
+        "skill_adapter": weakref.ref(owner._adapter),
+        "model": weakref.ref(worker._model),
+    }
+    for index, skill in enumerate(owner.skills):
+        references[f"skill:{index}"] = weakref.ref(skill)
+    for name, tool in owner.native_tools.items():
+        references[f"native:{name}"] = weakref.ref(tool)
+    for tool in owner._adapter._tools:
+        references[f"disclosure:{tool.name}"] = weakref.ref(tool)
+    return references
+
+
+async def graph_service(tmp_path, monkeypatch, *, unhashable=False):
+    monkeypatch.setattr(worker_state_module, "MetricsState", TrackedMetricsState)
+    clients, built = [], []
+
+    class Client(FakeArtifactClient):
+        async def read_artifact(self, ref):
+            if ref.namespace == "skills":
+                return values[ref.name]
+            return await super().read_artifact(ref)
+
+    def client_factory(*_args):
+        client = Client()
+        clients.append(weakref.ref(client))
+        return client
+
+    def model_factory(_context):
+        return scripted_model(
+            [
+                tool_call(
+                    "read_artifact", {"namespace": "inputs", "name": "source"}, call_id="read"
+                ),
+                tool_call("load_skill", {"skill_name": "demo"}, call_id="activate"),
+                tool_call(
+                    "load_skill_resource",
+                    {"skill_name": "demo", "file_path": "scripts/check.py"},
+                    call_id="inert-script",
+                ),
+                text_result("Used this allocation's skill"),
+            ]
+        )
+
+    class Factory(AdkWorkerRuntimeFactory):
+        async def create(self, context):
+            proxy = (UnhashableReadProxy if unhashable else ReadProxy)(
+                context.tools["read_artifact"], context.allocation_id
+            )
+            worker = await super().create(replace(context, tools={"read_artifact": proxy}))
+            references = skill_graph_references(worker)
+            references["proxy"] = weakref.ref(proxy)
+            for tool in worker._agent.tools:
+                declaration = getattr(tool, "_get_declaration", None)
+                if callable(declaration):
+                    declaration()
+            built.append(references)
+            return worker
+
+    base = built_in_factories(tmp_path, client_factory, model_factory)
+    factories = replace(base, worker_runtimes={"adk@1": Factory(model_factory, client_factory)})
+    capabilities = capabilities_for(factories)
+    state = RuntimeState(instance_id="skill-graph", capabilities=capabilities)
+    await state.mark_registered()
+    service = AllocationService(
+        state,
+        factories,
+        capabilities,
+        a2a_base_url="https://runtime.example",
+        force_exit=lambda _: None,
+    )
+    selected, value = resolved_value(skill_package(script=b"raise RuntimeError('inert')\n"))
+    values = {"demo": value}
+    return service, state, selected, values, clients, built
+
+
+@pytest.mark.parametrize("unhashable", [False, True], ids=["hashable", "unhashable"])
+@pytest.mark.parametrize("termination", ["finalize", "abort"])
+def test_used_skill_graph_is_collected_and_next_allocation_is_independent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unhashable: bool, termination: str
+) -> None:
+    async def scenario() -> None:
+        service, state, _selected, values, clients, built = await graph_service(
+            tmp_path, monkeypatch, unhashable=unhashable
+        )
+        previous_session = None
+        for index in range(2):
+            pin, value = resolved_value(
+                skill_package(
+                    instructions=f"Independent guidance {index}",
+                    script=b"raise RuntimeError('inert')\n",
+                )
+            )
+            values["demo"] = value
+            allocation_id = f"allocation-{index}"
+            spec = allocation_spec(allocation_id=allocation_id, skills=[pin])
+            spec.worker_session_mode = WorkerSessionMode.SHARED
+            await service.prepare(spec)
+            del spec
+            context = service._context
+            worker = context.worker
+            owner = worker._agent_skills
+            assert owner.disclosure.used == 0
+            assert owner.skills[0].instructions.strip() == f"Independent guidance {index}"
+            assert worker._session_lifecycle.shared_session_id is None
+            references = allocation_references(service) | built[-1]
+            declaration = worker._agent.tools[0]._get_declaration()
+            assert declaration.description == f"Read exact input for {allocation_id}."
+            completion = await worker.invoke(worker_request())
+            assert completion.failure is None and completion.result is not None
+            session_id = worker._session_lifecycle.shared_session_id
+            assert session_id and session_id != previous_session
+            previous_session = session_id
+            session = await worker._session_service.get_session(
+                app_name=worker._app_name, user_id=worker._user_id, session_id=session_id
+            )
+            assert session.state["_adk_activated_skill_contractor_worker"] == ["demo"]
+            assert owner.disclosure.used > 0
+            if termination == "finalize":
+                await service.finalize(
+                    FinalizeAllocationRequest(
+                        apiVersion=API_VERSION,
+                        allocationId=allocation_id,
+                        finalizationId=f"final-{index}",
+                        deadline=datetime.now(UTC) + timedelta(seconds=5),
+                    )
+                )
+            else:
+                await service.abort(
+                    AbortAllocationRequest(
+                        apiVersion=API_VERSION,
+                        allocationId=allocation_id,
+                        abortId=f"abort-{index}",
+                        reason=TerminationError(
+                            code="test_abort", message="Stop fixture", retryable=False
+                        ),
+                        deadline=datetime.now(UTC) + timedelta(seconds=5),
+                    )
+                )
+            assert owner.skills == [] and owner.native_tools == {} and owner._adapter is None
+            assert not owner.extraction_root.exists()
+            assert (
+                await worker._session_service.get_session(
+                    app_name=worker._app_name, user_id=worker._user_id, session_id=session_id
+                )
+                is None
+            )
+            del context, worker, owner, completion, session, declaration
+            await service.release(
+                ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=allocation_id)
+            )
+            await service.confirm_release(allocation_id)
+            assert live_references(references) == []
+            gc.collect()
+            assert all(reference() is None for reference in clients)
+            assert (await state.snapshot()).process_state is ProcessState.IDLE
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("unhashable", [False, True], ids=["hashable", "unhashable"])
+def test_failed_prepare_after_skill_and_declaration_build_collects_graph(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, unhashable: bool
+) -> None:
+    async def scenario() -> None:
+        service, state, pin, _, clients, built = await graph_service(
+            tmp_path, monkeypatch, unhashable=unhashable
+        )
+
+        async def fail_commit(_allocation_id):
+            raise RuntimeError("synthetic post-build failure")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(state, "commit_allocation", fail_commit)
+            with pytest.raises(AllocationError) as failed:
+                await service.prepare(allocation_spec(skills=[pin]))
+            assert failed.value.code == "allocation_preparation_failed"
+            del failed
+        assert await service.snapshot() is None
+        assert list(tmp_path.iterdir()) == []
+        assert live_references(built[0]) == []
+        assert all(reference() is None for reference in clients)
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        spec = allocation_spec(allocation_id="allocation-recovered", skills=[pin])
+        await service.prepare(spec)
+        completion = await service._context.worker.invoke(worker_request())
+        assert completion.failure is None
+        await service.abort(
+            AbortAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=spec.allocation_id,
+                abortId="recovered",
+                reason=TerminationError(code="test_abort", message="End fixture", retryable=False),
+                deadline=datetime.now(UTC) + timedelta(seconds=5),
+            )
+        )
+        del completion
+        await service.release(
+            ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=spec.allocation_id)
+        )
+        await service.confirm_release(spec.allocation_id)
+        assert live_references(built[1]) == []
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("component", ["runner", "plugin", "native"])
+@pytest.mark.parametrize("cancelled", [False, True], ids=["error", "cancelled"])
+def test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, component: str, cancelled: bool
+) -> None:
+    async def scenario() -> None:
+        service, state, pin, _, _, _ = await graph_service(tmp_path, monkeypatch)
+        exits = []
+        service._force_exit = exits.append
+        await service.prepare(allocation_spec(skills=[pin]))
+        worker = service._context.worker
+        owner = worker._agent_skills
+        targets = {
+            "runner": worker._runner,
+            "plugin": worker._plugin,
+            "native": owner.native_toolset,
+        }
+        started, resume = asyncio.Event(), asyncio.Event()
+        calls = []
+        closing_tasks = []
+
+        async def interrupted_close():
+            calls.append(component)
+            closing_tasks.append(asyncio.current_task())
+            started.set()
+            await resume.wait()
+            raise RuntimeError("private close failure")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(targets[component], "close", interrupted_close)
+            running = asyncio.create_task(
+                service.finalize(
+                    FinalizeAllocationRequest(
+                        apiVersion=API_VERSION,
+                        allocationId="allocation-1",
+                        finalizationId="interrupted",
+                        deadline=datetime.now(UTC) + timedelta(seconds=10),
+                    )
+                )
+            )
+            await asyncio.wait_for(started.wait(), 5)
+            assert not running.done()
+            assert service._context.workspace.path.is_dir()
+            if cancelled:
+                running.cancel()
+                with pytest.raises(asyncio.CancelledError):
+                    await running
+            else:
+                resume.set()
+                with pytest.raises(AllocationError) as failed:
+                    await running
+                assert failed.value.code == "worker_stop_unconfirmed"
+                assert "private close failure" not in failed.value.message
+            await asyncio.gather(*closing_tasks, return_exceptions=True)
+            assert calls and len(calls) <= 2
+            assert all(task.done() for task in closing_tasks)
+        assert exits == [70]
+        assert (await state.snapshot()).process_state is ProcessState.FENCED
+        assert service._context.worker is not None
+        with pytest.raises(AllocationError):
+            await service.prepare(allocation_spec(allocation_id="forbidden-new", skills=[pin]))
+        with pytest.raises(AllocationError):
+            await service.release(
+                ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId="allocation-1")
+            )
+        # Production requires process exit for an unconfirmed in-process stop.
+        # Dispose this test's held owner after proving the persistent fence;
+        # this is not a successful-release or weakref assertion.
+        await owner.close()
+
+    asyncio.run(scenario())
+
+
+def test_cancelled_release_joins_one_cleanup_before_skill_slot_reuse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def scenario() -> None:
+        service, state, pin, _, clients, built = await graph_service(tmp_path, monkeypatch)
+        await service.prepare(allocation_spec(skills=[pin]))
+        completion = await service._context.worker.invoke(worker_request())
+        assert completion.failure is None
+        del completion
+        references = allocation_references(service) | built[-1]
+        await service.finalize(
+            FinalizeAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId="allocation-1",
+                finalizationId="release-cancel",
+                deadline=datetime.now(UTC) + timedelta(seconds=10),
+            )
+        )
+        context = service._context
+        original = context.sandbox.cleanup
+        started, resume = asyncio.Event(), asyncio.Event()
+        calls = []
+
+        async def cleanup(workspace):
+            calls.append(workspace.path)
+            started.set()
+            await resume.wait()
+            await original(workspace)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(context.sandbox, "cleanup", cleanup)
+            request = ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId="allocation-1")
+            running = asyncio.create_task(service.release(request))
+            await asyncio.wait_for(started.wait(), 5)
+            retained = context.release_cleanup_task
+            running.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await running
+            assert retained is context.release_cleanup_task and not retained.done()
+            assert context.workspace.path.is_dir()
+            assert (await state.snapshot()).process_state is ProcessState.FENCED
+            with pytest.raises(AllocationError):
+                await service.prepare(allocation_spec(allocation_id="too-early", skills=[pin]))
+            retry = asyncio.create_task(service.release(request))
+            await asyncio.sleep(0)
+            assert context.release_cleanup_task is retained and len(calls) == 1
+            resume.set()
+            await asyncio.wait_for(retry, 5)
+        assert retained.done() and context.release_prepared
+        assert not context.workspace.path.exists() and len(calls) == 1
+        await service.confirm_release("allocation-1")
+        del context, retained, retry, running
+        assert live_references(references) == []
+        assert all(reference() is None for reference in clients)
+        assert (await state.snapshot()).process_state is ProcessState.IDLE
+        next_id = "allocation-after-cancel"
+        await service.prepare(allocation_spec(allocation_id=next_id, skills=[pin]))
+        assert service._context.worker._agent_skills.disclosure.used == 0
+        assert service._context.worker._session_lifecycle.shared_session_id is None
+        completion = await service._context.worker.invoke(worker_request())
+        assert completion.failure is None
+        del completion
+        await service.abort(
+            AbortAllocationRequest(
+                apiVersion=API_VERSION,
+                allocationId=next_id,
+                abortId="after-cancel",
+                reason=TerminationError(code="test_abort", message="End fixture", retryable=False),
+                deadline=datetime.now(UTC) + timedelta(seconds=5),
+            )
+        )
+        await service.release(
+            ReleaseAllocationRequest(apiVersion=API_VERSION, allocationId=next_id)
+        )
+        await service.confirm_release(next_id)
+        assert live_references(built[-1]) == []
+        assert all(reference() is None for reference in clients)
+
+    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize("termination", ["finalize", "abort", "lease"])

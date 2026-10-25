@@ -5,21 +5,26 @@ import hashlib
 import io
 import json
 import zipfile
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
 import pytest
 from fakes.model import scripted_model, text_result, tool_call
 from google.adk.tools.base_tool import BaseTool
+from google.adk.tools.skill_toolset import SkillDiscoveryMode
 
+import contractor_runtime.agent_skills.runtime as skill_runtime
 from contractor_runtime.agent_skills import MEDIA_TYPE
 from contractor_runtime.agent_skills.runtime import (
     BINARY_ASSET_STATUS,
     DISCLOSURE_ENVELOPE_BYTES,
     EXACT_SKILL_TOOL_NAMES,
     MAXIMUM_DISCLOSURE_BYTES,
+    MAXIMUM_PACKAGES,
     AgentSkillPreparationError,
     DisclosureBudget,
     prepare_agent_skills,
@@ -607,6 +612,179 @@ def test_native_agent_skill_probe_checks_pinned_surface() -> None:
     assert asyncio.run(probe_native_agent_skills()) is True
 
 
+@pytest.mark.parametrize(
+    "changed", ["registry", "executor", "environment", "tools", "toolsets", "surface"]
+)
+def test_native_probe_rejects_expanded_or_executing_surfaces(
+    monkeypatch: pytest.MonkeyPatch, changed: str
+) -> None:
+    original = skill_runtime.SkillToolset
+
+    class UnsupportedToolset(original):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            attributes = {
+                "registry": ("_registry", object()),
+                "executor": ("_code_executor", object()),
+                "environment": ("_env", SimpleNamespace(is_initialized=False)),
+                "tools": (
+                    "_provided_tools_by_name",
+                    {"unexpected": BaseTool(name="unexpected", description="unsupported")},
+                ),
+                "toolsets": ("_provided_toolsets", [original(skills=[])]),
+            }
+            if changed in attributes:
+                name, value = attributes[changed]
+                setattr(self, name, value)
+
+        async def get_tools(self, *args, **kwargs):
+            tools = await super().get_tools(*args, **kwargs)
+            if changed == "surface":
+                tools.append(BaseTool(name="run_skill_script", description="unsupported"))
+            return tools
+
+    monkeypatch.setattr(skill_runtime, "SkillToolset", UnsupportedToolset)
+    assert asyncio.run(probe_native_agent_skills()) is False
+
+
+def test_all_32_skills_use_lazy_native_dispatch_and_are_erased(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        assert MAXIMUM_PACKAGES == 32
+        selected, values, responses = [], {}, [tool_call("list_skills", {}, call_id="all-skills")]
+        for index in range(MAXIMUM_PACKAGES):
+            name = f"skill-{index:02d}"
+            pin, value = resolved_value(
+                skill_package(name=name, description="я" * 512, instructions=f"Guidance {index}"),
+                name=name,
+            )
+            selected.append(pin)
+            values[name] = value
+            responses.append(tool_call("load_skill", {"skill_name": name}, call_id=f"load-{index}"))
+        responses.append(text_result("All selected guidance loaded"))
+        state = WorkerState()
+        context = build_context(tmp_path, state, selected[0])
+        context = replace(
+            context,
+            resolved_skills=tuple(selected),
+            model_policy=context.model_policy.model_copy(
+                update={"max_model_calls": 40, "max_tool_calls": 40}
+            ),
+        )
+        client = FakeSkillClient(values)
+        model = scripted_model(responses)
+        runtime = await AdkWorkerRuntimeFactory(lambda _: model, lambda *_: client).create(context)
+        owner = runtime._agent_skills
+        assert owner is not None and len(owner.skills) == MAXIMUM_PACKAGES
+        assert owner.native_toolset._discovery_mode is SkillDiscoveryMode.LAZY
+        assert owner.native_toolset._lifecycle_enabled is False
+        native_skills = list(owner.skills)
+        result = await runtime.invoke(stage_request())
+        assert result.failure is None and result.result is not None
+        assert len(client.reads) == MAXIMUM_PACKAGES
+        assert len(model.requests) == MAXIMUM_PACKAGES + 3
+        assert all(
+            request["toolNames"] == sorted(EXACT_SKILL_TOOL_NAMES)
+            for request in model.requests[:-1]
+        )
+        session_id = runtime._session_lifecycle.shared_session_id
+        session = await runtime._session_service.get_session(
+            app_name=runtime._app_name, user_id=runtime._user_id, session_id=session_id
+        )
+        assert session is not None
+        assert session.state["_adk_activated_skill_contractor_worker"] == list(values)
+        assert owner.disclosure.used == owner.charge_for("list_skills") + sum(
+            owner.charge_for("load_skill", name) for name in values
+        )
+        assert owner.disclosure.used < MAXIMUM_DISCLOSURE_BYTES
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=5))
+        assert all(skill.instructions == "" for skill in native_skills)
+        assert owner.skills == [] and owner.native_tools == {}
+        assert not owner.extraction_root.exists()
+        reads = []
+
+        def forbidden_client(*_args):
+            reads.append(True)
+            raise AssertionError("33 Skills must fail before client creation")
+
+        with pytest.raises(AgentSkillPreparationError) as rejected:
+            await prepare_agent_skills(
+                [*selected, selected[-1]],
+                allocation_id="too-many-skills",
+                runtime_settings=runtime_settings(),
+                workspace=allocation_workspace(tmp_path),
+                artifact_client_factory=forbidden_client,
+            )
+        assert rejected.value.code == "skill_runtime_unsupported" and reads == []
+
+    asyncio.run(scenario())
+
+
+def test_multibyte_disclosure_reaches_16_mib_without_seed_or_refund(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        charge = 1 << 20
+        envelope = DISCLOSURE_ENVELOPE_BYTES + len(
+            json.dumps(
+                {"skill_name": "demo", "file_path": "references/guide.md", "content": ""},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode()
+        )
+        text = "я" * 1000 + "x" * (charge - envelope - 2000)
+        over_path = "references/extra.md"
+        over = text + "x" * (len("references/guide.md") - len(over_path) + 1)
+        selected, value = resolved_value(
+            skill_package(reference=text.encode(), extra_resources=((over_path, over.encode()),))
+        )
+        prepared = await prepare_agent_skills(
+            [selected],
+            allocation_id="maximum-disclosure",
+            runtime_settings=runtime_settings(),
+            workspace=allocation_workspace(tmp_path),
+            artifact_client_factory=lambda *_: FakeSkillClient({"demo": value}),
+        )
+        assert prepared is not None and prepared.disclosure.used == 0
+        assert prepared.disclosure.limit == MAXIMUM_DISCLOSURE_BYTES
+        assert prepared.charge_for("load_skill_resource", "demo", "references/guide.md") == charge
+        assert prepared.charge_for("load_skill_resource", "demo", over_path) == charge + 1
+        state = WorkerState()
+        adapter = prepared.build_adapter(metrics=state.metrics)
+        tools = {tool.name: tool for tool in await adapter.get_tools()}
+        tool = tools["load_skill_resource"]
+        native = tool._native
+        dispatched = []
+        original = native.run_async
+
+        async def dispatch(*, args, tool_context):
+            dispatched.append(args["file_path"])
+            return await original(args=args, tool_context=tool_context)
+
+        native.run_async = dispatch
+        context = FakeToolContext()
+        arguments = {"skill_name": "demo", "file_path": "references/guide.md"}
+        for _ in range(15):
+            result = await tool.run_async(args=arguments, tool_context=context)
+            assert result["content"] == text
+        assert prepared.disclosure.used == MAXIMUM_DISCLOSURE_BYTES - charge
+        rejected = await tool.run_async(
+            args={"skill_name": "demo", "file_path": over_path}, tool_context=context
+        )
+        assert rejected["error_code"] == "SKILL_DISCLOSURE_LIMIT"
+        assert "content" not in rejected and len(dispatched) == 15
+        result = await tool.run_async(args=arguments, tool_context=context)
+        assert result["content"] == text
+        assert prepared.disclosure.used == MAXIMUM_DISCLOSURE_BYTES
+        rejected = await tool.run_async(args=arguments, tool_context=context)
+        assert rejected["error_code"] == "SKILL_DISCLOSURE_LIMIT"
+        assert len(dispatched) == 16 and over_path not in dispatched
+        assert state.metrics.counters["tool_calls"] == 18
+        assert state.metrics.counters["tool_errors"] == 2
+        assert text[:1000] not in json.dumps(state.metrics.snapshot(), ensure_ascii=False)
+        await prepared.close()
+        assert not prepared.extraction_root.exists()
+
+    asyncio.run(scenario())
+
+
 class FakeSkillClient:
     def __init__(self, values: dict[str, ArtifactValue]) -> None:
         self.values = values
@@ -672,16 +850,27 @@ class OversizedBinaryNativeTool(BaseTool):
         }
 
 
-def skill_package(*, script: bytes | None = None) -> bytes:
+def skill_package(
+    *,
+    script: bytes | None = None,
+    name: str = "demo",
+    description: str = "Demonstrate a bounded workflow.",
+    instructions: str = "Follow the exact demo procedure.",
+    reference: bytes = b"Reference contents.",
+    extra_resources: tuple[tuple[str, bytes], ...] = (),
+) -> bytes:
     entries = [
         (
             "SKILL.md",
-            b"---\nname: demo\ndescription: Demonstrate a bounded workflow.\n"
-            b"metadata:\n  author: contractor\n---\nFollow the exact demo procedure.\n",
+            (
+                f"---\nname: {name}\ndescription: {description}\n"
+                f"metadata:\n  author: contractor\n---\n{instructions}\n"
+            ).encode(),
         ),
-        ("references/guide.md", b"Reference contents."),
+        ("references/guide.md", reference),
         ("assets/pixel.bin", b"\xff\x00\xfe"),
     ]
+    entries.extend(extra_resources)
     if script is not None:
         entries.append(("scripts/check.py", script))
     output = io.BytesIO()
@@ -694,10 +883,10 @@ def skill_package(*, script: bytes | None = None) -> bytes:
     return output.getvalue()
 
 
-def resolved_value(payload: bytes) -> tuple[ResolvedSkill, ArtifactValue]:
-    artifact = ArtifactRef(namespace="skills", name="demo", revision="skill-r1")
+def resolved_value(payload: bytes, *, name: str = "demo") -> tuple[ResolvedSkill, ArtifactValue]:
+    artifact = ArtifactRef(namespace="skills", name=name, revision="skill-r1")
     selected = ResolvedSkill(
-        name="demo",
+        name=name,
         artifact=artifact,
         packageDigest=f"sha256:{hashlib.sha256(payload).hexdigest()}",
     )
