@@ -9,6 +9,7 @@ status: in_progress
 depends_on:
 - V418-003
 - V418-004
+- V418-011
 languages:
 - python
 - markdown
@@ -26,6 +27,9 @@ context:
   - docs/spec/execution/runtime-agent.md#RTA-R116
   - docs/spec/platform/limits.md
   - docs/spec/platform/observability.md
+  specification_clarification: WRK-R161 is scoped explicitly to first-observation semantic detail;
+    rolling allocation metric records keep the existing OBS-R41 oldest-detail removal and WRK-R169
+    cached-projection contract. The scale fixture crosses that cap without changing intended behavior.
   finding: 2.12 reduces Event/Session copying and history-loading overhead. Contractor uses InMemorySessionService
     and a custom BaseLlm object; the 2.13 advertised 8x string-model construction optimization is not
     its path. Nested State tracking/copy behavior and callback changes can affect long sessions even when
@@ -66,7 +70,8 @@ acceptance_criteria:
     or timing-based acceptance threshold.
 tests:
 - command: cd runtime && uv run --locked pytest -W error tests/test_adk_runtime.py tests/test_session_lifecycle.py
-    tests/test_worker_state.py tests/test_allocation.py
+    tests/test_worker_state.py tests/test_allocation.py tests/test_adk_runtime_scale.py
+    tests/test_adk_allocation_scale.py tests/test_adk_runtime_ceilings.py tests/test_metrics.py
   covers:
   - A1
   - A2
