@@ -108,6 +108,51 @@ func (s *Service) PrepareNextRound(
 	if err != nil {
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
+
+	manifests, dependencyLinks, admitted, err := s.buildAcceptedDependencies(ctx, writer, snapshot.Audit, profile, baseline, inventory, proposalSelection.Receipts)
+	if err != nil {
+		if errors.Is(err, auditstore.ErrEvidenceBudgetExhausted) {
+			return auditstore.AcceptRoundParams{}, &auditstore.StopReason{Code: "evidence_budget_exhausted", Message: "Exact retained dependencies exceed the Audit's remaining evidence budget."}, nil
+		}
+		if errors.Is(err, auditstore.ErrDependencySourceAmbiguous) {
+			return auditstore.AcceptRoundParams{}, &auditstore.StopReason{Code: "retained_dependency_source_ambiguous", Message: "The finding receipt does not identify one exact accepted producer item attempt."}, nil
+		}
+		if errors.Is(err, auditstore.ErrDependencyClosureLimit) {
+			return auditstore.AcceptRoundParams{}, &auditstore.StopReason{Code: "retained_dependency_closure_limit", Message: "The complete accepted result dependency closure exceeds its descriptor or metadata limit."}, nil
+		}
+		if errors.Is(err, artifacts.ErrHistoryProtected) {
+			return auditstore.AcceptRoundParams{}, &auditstore.StopReason{Code: "artifact_history_protected", Message: "Protected artifact history cannot retain the accepted exact dependency closure."}, nil
+		}
+		if errors.Is(err, ErrInvalid) || errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrNotFound) || errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, contracts.ErrExactArtifactMismatch) {
+			return auditstore.AcceptRoundParams{}, &auditstore.StopReason{Code: "retained_dependency_unavailable", Message: "An exact accepted dependency or its complete required closure is unavailable."}, nil
+		}
+		var invalid *auditdomain.ValidationError
+		if errors.As(err, &invalid) {
+			return auditstore.AcceptRoundParams{}, &auditstore.StopReason{Code: "retained_dependency_invalid", Message: "An accepted dependency manifest exceeds its bounds or violates its exact source contract."}, nil
+		}
+		return auditstore.AcceptRoundParams{}, nil, err
+	}
+
+	if admitted < len(inventory.Tasks) {
+		selected = retainedDependencyPrefix(selected, inventory.Tasks[:admitted])
+		source.Proposals = selected
+		sourceBytes, err = auditdomain.EncodeFindingInventory(source)
+		if err != nil {
+			return auditstore.AcceptRoundParams{}, nil, err
+		}
+		sourceArtifact, err = writer.write(ctx, contracts.ArtifactRef{Namespace: namespace, Name: auditdomain.DeterministicID("proposal-inventory", snapshot.Audit.AuditID, auditdomain.DigestBytes(sourceBytes))}, artifacts.Payload{MediaType: auditdomain.JSONMediaType, Data: sourceBytes})
+		if err != nil {
+			return auditstore.AcceptRoundParams{}, nil, nextRoundWriteError(err)
+		}
+		inventory, err = auditdomain.BuildFindingInventory(sourceBytes, nextRoundInventoryOptions(roundOrdinal, profile, baseline, approval, sourceArtifact.Ref))
+		if err != nil {
+			return auditstore.AcceptRoundParams{}, nil, err
+		}
+	}
+	inventory, err = auditdomain.WithRetainedDependencies(inventory, manifests)
+	if err != nil {
+		return auditstore.AcceptRoundParams{}, nil, err
+	}
 	if err := validateInventoryTaskExecution(profile, inventory); err != nil {
 		if errors.Is(err, ErrInvalid) {
 			return auditstore.AcceptRoundParams{}, &auditstore.StopReason{
@@ -161,7 +206,7 @@ func (s *Service) PrepareNextRound(
 		}
 		originRef := task.SourceRef
 		items[index] = auditstore.MaterializedItem{
-			ItemID:  itemID,
+			Dependencies: manifest.Items[index].Dependencies, ItemID: itemID,
 			ItemKey: item.ItemKey, Ordinal: item.Ordinal, Kind: item.Kind,
 			SubjectKey: item.SubjectKey, Task: taskArtifacts[index], WorkflowRole: item.WorkflowRole,
 			InitialState: state, ApprovalKind: approvalKind, ApprovalDigest: approvalDigest,
@@ -188,7 +233,7 @@ func (s *Service) PrepareNextRound(
 	return auditstore.AcceptRoundParams{
 		Claim: claim, ExpectedAuditRevision: snapshot.Audit.Revision,
 		PreviousRoundID: snapshot.Round.RoundID, RoundID: roundID,
-		RoundOrdinal: roundOrdinal, Manifest: worklist, Items: items,
+		RoundOrdinal: roundOrdinal, Manifest: worklist, Items: items, Retained: dependencyLinks,
 	}, nil, nil
 }
 

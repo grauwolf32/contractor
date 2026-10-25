@@ -1,7 +1,9 @@
 package auditcontroller
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -95,6 +97,16 @@ func batchCandidates(snapshot auditstore.ReconcileSnapshot) []auditstore.Item {
 }
 
 func sameBatchEnvelope(left, right auditstore.Item) bool {
+	if left.Dependencies != nil || right.Dependencies != nil {
+		if left.Dependencies == nil || right.Dependencies == nil {
+			return false
+		}
+		a, _ := json.Marshal(left.Dependencies.Dependencies)
+		b, _ := json.Marshal(right.Dependencies.Dependencies)
+		if !bytes.Equal(a, b) {
+			return false
+		}
+	}
 	return left.WorkflowRole == right.WorkflowRole && left.ApprovalKind == right.ApprovalKind &&
 		left.ApprovalDigest == right.ApprovalDigest
 }

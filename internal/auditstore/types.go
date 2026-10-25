@@ -412,6 +412,7 @@ type StandardEvidenceOrigin struct {
 }
 
 type MaterializedItem struct {
+	Dependencies    *auditdomain.RetainedDependencyManifest
 	ItemID          string
 	ItemKey         string
 	Ordinal         int
@@ -476,6 +477,7 @@ type MaterializeRoundParams struct {
 }
 
 type AcceptRoundParams struct {
+	Retained              []ArtifactLink
 	Claim                 ControllerClaim
 	ExpectedAuditRevision uint64
 	PreviousRoundID       string
@@ -498,6 +500,7 @@ type Round struct {
 }
 
 type Item struct {
+	Dependencies        *auditdomain.RetainedDependencyManifest
 	ItemID              string
 	AuditID             string
 	RoundID             string

@@ -154,7 +154,7 @@ WITH live_claim AS MATERIALIZED (
         workflow_role text, initial_state text, approval_kind text,
         approval_digest text, status text,
         requested jsonb, completed jsonb, gaps jsonb, rationale text,
-        proposal_sources jsonb
+        proposal_sources jsonb, retained_dependencies text
     )
 ), source_input AS MATERIALIZED (
     SELECT * FROM jsonb_to_recordset($11::jsonb) AS source(
@@ -175,6 +175,12 @@ WITH live_claim AS MATERIALIZED (
           WHERE used.audit_id = $1 AND used.proposal_receipt_id = source.receipt_id
             AND used.proposal_check_ordinal = source.proposed_check_ordinal
      )
+), retained_input AS MATERIALIZED (
+    SELECT * FROM jsonb_to_recordset($13::jsonb) AS link(
+        "logicalKey" text, artifact jsonb, "sourceProvenance" jsonb
+    )
+), retained_cost AS MATERIALIZED (
+` + retainedDependencyCostSQL + `
 ), audit_gate AS MATERIALIZED (
     SELECT audit.audit_id, audit.max_items_per_round, audit.max_items_total,
            audit.max_rounds,
@@ -182,9 +188,10 @@ WITH live_claim AS MATERIALIZED (
       FROM audits AS audit
       JOIN live_claim USING (audit_id)
       JOIN previous_round AS previous USING (audit_id)
-      CROSS JOIN source_gate
+      CROSS JOIN source_gate CROSS JOIN retained_cost
      WHERE audit.audit_id = $1 AND audit.revision = $4
        AND audit.state = 'active' AND audit.dispatch_state = 'open'
+       AND retained_cost.bytes <= audit.max_evidence_bytes-audit.retained_evidence_bytes
        AND audit.current_round_id = previous.round_id
        AND (audit.deadline_at IS NULL OR audit.deadline_at > clock_timestamp())
        AND $7 = previous.ordinal + 1 AND $7 <= audit.max_rounds
@@ -197,7 +204,7 @@ WITH live_claim AS MATERIALIZED (
      FOR UPDATE OF audit
 ), advanced AS (
     UPDATE audits AS audit
-       SET current_round_id = $6,
+       SET current_round_id = $6, retained_evidence_bytes = retained_evidence_bytes + (SELECT bytes FROM retained_cost),
            ` + nextRoundEvents.advance() + `,
            updated_at = GREATEST(clock_timestamp(), audit.updated_at + interval '1 microsecond')
       FROM audit_gate
@@ -218,7 +225,7 @@ WITH live_claim AS MATERIALIZED (
         task_ref, task_digest, origin, workflow_role, state,
         approval_kind, approval_subject_digest,
         coverage_status, coverage_requested, coverage_completed, coverage_gaps, coverage_rationale,
-        proposal_receipt_id, proposal_check_ordinal, proposal_ref, proposal_digest
+        proposal_receipt_id, proposal_check_ordinal, proposal_ref, proposal_digest, retained_dependencies
     )
     SELECT item.item_id, round.audit_id, round.round_id,
            item.item_key, item.ordinal, item.kind, item.subject_key,
@@ -227,11 +234,17 @@ WITH live_claim AS MATERIALIZED (
            NULLIF(item.approval_digest, ''),
            item.status, item.requested, item.completed, item.gaps, item.rationale,
            source.receipt_id, source.proposed_check_ordinal,
-           source.proposal->'ref', source.proposal->>'digest'
+           source.proposal->'ref', source.proposal->>'digest', item.retained_dependencies::json
       FROM inserted_round AS round CROSS JOIN item_input AS item
       LEFT JOIN source_input AS source USING (item_id)
     RETURNING item_id, audit_id, round_id, item_key, subject_key,
               approval_kind, approval_subject_digest
+), inserted_dependency_links AS (
+    INSERT INTO audit_artifact_links (audit_id,logical_key,artifact_ref,artifact_digest,media_type,size_bytes,source_provenance)
+    SELECT advanced.audit_id,link."logicalKey",link.artifact->'ref',link.artifact->>'digest',link.artifact->>'mediaType',
+        (link.artifact->>'sizeBytes')::bigint,link."sourceProvenance"
+    FROM advanced CROSS JOIN retained_input AS link
+    ON CONFLICT (audit_id,logical_key) DO NOTHING
 ), inserted_reviews AS (
     INSERT INTO audit_review_requests (
         request_id, audit_id, finding_id, subject_kind, subject_id, kind,

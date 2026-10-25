@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -747,7 +748,7 @@ func scanRound(row scanner) (auditstore.Round, error) {
 
 func scanItem(row scanner) (auditstore.Item, error) {
 	var result auditstore.Item
-	var taskRef, origin, acceptedRef []byte
+	var taskRef, origin, acceptedRef, dependencies []byte
 	var state, approvalKind string
 	var approvalDigest *string
 	var final *string
@@ -758,7 +759,7 @@ func scanItem(row scanner) (auditstore.Item, error) {
 		&result.Task.Digest, &origin, &result.WorkflowRole, &state,
 		&approvalKind, &approvalDigest, &final,
 		&acceptedRef, &acceptedDigest, &result.LastExecutionItemID,
-		&result.CreatedAt, &result.UpdatedAt,
+		&result.CreatedAt, &result.UpdatedAt, &dependencies,
 	); err != nil {
 		return auditstore.Item{}, err
 	}
@@ -771,6 +772,13 @@ func scanItem(row scanner) (auditstore.Item, error) {
 	if err := decodeStoredProvenance(origin, &result.Origin); err != nil ||
 		validateItemOrigin(result.Origin, result.ItemKey) != nil {
 		return auditstore.Item{}, errors.New("stored Audit item origin is invalid")
+	}
+	if dependencies != nil {
+		value, err := auditdomain.DecodeRetainedDependencies(dependencies)
+		if err != nil || value.AuditID != result.AuditID || value.ItemKey != result.ItemKey {
+			return auditstore.Item{}, errors.New("stored Audit retained dependencies are invalid")
+		}
+		result.Dependencies = &value
 	}
 	result.State = auditstore.ItemState(state)
 	if !result.State.Valid() {

@@ -1465,7 +1465,7 @@ func seedAuditFindingDocument(
 
 func seedAuditFindingProjected(
 	t *testing.T, ctx context.Context, pool *pgxpool.Pool,
-	projectID, ownerID, auditID, suffix string, document auditdomain.FindingProposal, fingerprint auditdomain.FindingFingerprint, anchors auditdomain.FindingAnchorProjection,
+	projectID, ownerID, auditID, suffix string, document auditdomain.FindingProposal, fingerprint auditdomain.FindingFingerprint, anchors auditdomain.FindingAnchorProjection, namespaces ...string,
 ) string {
 	t.Helper()
 	payload, err := auditdomain.EncodeFindingProposal(document)
@@ -1476,8 +1476,12 @@ func seedAuditFindingProjected(
 	if err != nil {
 		t.Fatal(err)
 	}
+	namespace := "audit-finding-proposals"
+	if len(namespaces) == 1 {
+		namespace = namespaces[0]
+	}
 	written, err := artifactstest.WriteAuditArtifact(ctx, artifacts.NewService(artifacts.NewPostgresRepository(pool)), projectID,
-		contracts.ArtifactRef{Namespace: "audit-finding-proposals", Name: "candidate-" + suffix},
+		contracts.ArtifactRef{Namespace: namespace, Name: "candidate-" + suffix},
 		artifacts.Payload{MediaType: "application/json", Data: payload})
 	if err != nil {
 		t.Fatal(err)
@@ -1688,7 +1692,7 @@ func loadAuditServiceProfilesWithProfile(t *testing.T, edit func(string) string)
 }
 
 func loadAuditServiceProfilesWithEdits(
-	t *testing.T, editProfile, editWorker func(string) string,
+	t *testing.T, editProfile, editWorker func(string) string, customize ...func(map[string]string),
 ) *config.Snapshot {
 	t.Helper()
 	root := t.TempDir()
@@ -1802,6 +1806,9 @@ spec:
 	}
 	if editWorker != nil {
 		files["agent-templates/worker.yaml"] = editWorker(files["agent-templates/worker.yaml"])
+	}
+	for _, apply := range customize {
+		apply(files)
 	}
 	for _, directory := range []string{
 		"instructions", "llm-gateways", "model-policies", "execution-configs",

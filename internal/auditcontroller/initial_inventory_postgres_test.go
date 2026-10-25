@@ -343,8 +343,11 @@ func finishGeneratedChecklistCheck(t *testing.T, ctx context.Context, h *postgre
 	if err := artifactstest.FreezeOutputs(ctx, h.artifacts, *execution.RunID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.runs.TransitionRun(ctx, *execution.RunID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "test-admitted"}); err != nil {
-		t.Fatal(err)
+	current, _ := h.runs.GetRun(ctx, *execution.RunID)
+	if current.State == runstore.RunPending {
+		if _, err := h.runs.TransitionRun(ctx, *execution.RunID, runstore.RunPending, runstore.RunRunning, runstore.Reason{Code: "test-admitted"}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := h.runs.TransitionRun(ctx, *execution.RunID, runstore.RunRunning, runstore.RunSucceeded, runstore.Reason{Code: "test-terminal"}); err != nil {
 		t.Fatal(err)

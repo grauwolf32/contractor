@@ -76,11 +76,12 @@ func selectNextProposalChecksFromInbox(
 	sort.Slice(result, func(i, j int) bool { return result[i].ReceiptID < result[j].ReceiptID })
 	return proposalCheckSelection{
 		Proposals: result, Eligible: selection.eligible, ScanExhausted: scanExhausted,
-		Unschedulable: selection.unschedulable,
+		Unschedulable: selection.unschedulable, Receipts: selection.receipts,
 	}, nil
 }
 
 type proposalCheckSelection struct {
+	Receipts      map[string]findingintake.Receipt
 	Proposals     []auditdomain.FindingInventoryProposal
 	Eligible      bool
 	ScanExhausted bool
@@ -95,6 +96,7 @@ type unschedulableProposal struct {
 }
 
 type proposalCheckAccumulator struct {
+	receipts      map[string]findingintake.Receipt
 	budget        *auditdomain.FindingRoundBudget
 	selected      []auditdomain.FindingInventoryProposal
 	unschedulable []unschedulableProposal
@@ -155,6 +157,10 @@ func (selection *proposalCheckAccumulator) admit(
 	selection.eligible = true
 	if admission.Checks != 0 {
 		selection.selected = append(selection.selected, admission.Proposal)
+		if selection.receipts == nil {
+			selection.receipts = map[string]findingintake.Receipt{}
+		}
+		selection.receipts[receipt.ReceiptID] = receipt
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
@@ -14,6 +15,7 @@ import (
 )
 
 type materializedItemJSON struct {
+	Dependencies    *string                  `json:"retained_dependencies"`
 	ItemID          string                   `json:"item_id"`
 	ItemKey         string                   `json:"item_key"`
 	Ordinal         int                      `json:"ordinal"`
@@ -58,7 +60,7 @@ func (s *OwnerStore) MaterializeRound(
 			approvalKind = auditstore.ItemApprovalNone
 		}
 		items[index] = materializedItemJSON{
-			ItemID: item.ItemID, ItemKey: item.ItemKey, Ordinal: item.Ordinal,
+			Dependencies: encodedItemDependencies(item.Dependencies), ItemID: item.ItemID, ItemKey: item.ItemKey, Ordinal: item.Ordinal,
 			Kind: item.Kind, SubjectKey: item.SubjectKey, TaskRef: encodedTaskRef,
 			TaskDigest: item.Task.Digest, Origin: encodedOrigin, WorkflowRole: item.WorkflowRole,
 			InitialState: string(item.InitialState), ApprovalKind: string(approvalKind),
@@ -141,7 +143,7 @@ func (s *ClaimStore) AcceptNextRound(
 			sources = append(sources, itemSources[sourceIndex])
 		}
 		items[index] = materializedItemJSON{
-			ItemID: item.ItemID, ItemKey: item.ItemKey, Ordinal: item.Ordinal,
+			Dependencies: encodedItemDependencies(item.Dependencies), ItemID: item.ItemID, ItemKey: item.ItemKey, Ordinal: item.Ordinal,
 			Kind: item.Kind, SubjectKey: item.SubjectKey, TaskRef: encodedTaskRef,
 			TaskDigest: item.Task.Digest, Origin: encodedOrigin, WorkflowRole: item.WorkflowRole,
 			InitialState: string(item.InitialState), ApprovalKind: string(approvalKind),
@@ -153,11 +155,12 @@ func (s *ClaimStore) AcceptNextRound(
 	}
 	encodedItems, _ := json.Marshal(items)
 	encodedSources, _ := json.Marshal(sources)
+	encodedLinks, _ := json.Marshal(append([]auditstore.ArtifactLink{}, params.Retained...))
 	round, err := scanRound(persistencepostgres.SavepointQueryRow(ctx, s.db, acceptNextRoundSQL,
 		params.Claim.AuditID, params.Claim.HolderID, params.Claim.Epoch,
 		params.ExpectedAuditRevision, params.PreviousRoundID,
 		params.RoundID, params.RoundOrdinal, encodedManifestRef,
-		params.Manifest.Digest, encodedItems, encodedSources, acceptanceDigest,
+		params.Manifest.Digest, encodedItems, encodedSources, acceptanceDigest, encodedLinks,
 	))
 	if err == nil {
 		return round, true, nil
@@ -176,6 +179,14 @@ func (s *ClaimStore) AcceptNextRound(
 		}
 		if persistencepostgres.Classify(err) == persistencepostgres.ClassDuplicate {
 			return auditstore.Round{}, false, auditstore.ErrConflict
+		}
+
+		var exhausted bool
+		if err := s.db.QueryRow(ctx, dependencyBudgetExhaustedSQL, params.Claim.AuditID, encodedLinks).Scan(&exhausted); err != nil {
+			return auditstore.Round{}, false, writeError("classify retained dependency budget", err)
+		}
+		if exhausted {
+			return auditstore.Round{}, false, auditstore.ErrEvidenceBudgetExhausted
 		}
 		return auditstore.Round{}, false, auditstore.ErrPrecondition
 	}
@@ -220,10 +231,11 @@ func roundAcceptanceDigest(params auditstore.AcceptRoundParams) (string, error) 
 		RoundOrdinal    int                           `json:"roundOrdinal"`
 		Manifest        auditstore.ExactArtifact      `json:"manifest"`
 		Items           []auditstore.MaterializedItem `json:"items"`
+		Retained        []auditstore.ArtifactLink     `json:"retained"`
 	}{
 		Schema: "contractor.audit.round-acceptance.v1", PreviousRoundID: params.PreviousRoundID,
 		RoundID: params.RoundID, RoundOrdinal: params.RoundOrdinal,
-		Manifest: params.Manifest, Items: params.Items,
+		Manifest: params.Manifest, Items: params.Items, Retained: params.Retained,
 	})
 	if err != nil {
 		return "", fmt.Errorf("encode Audit Round acceptance identity: %w", err)
@@ -271,5 +283,16 @@ func optionalDeadline(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
 	}
+	return &value
+}
+
+// The item envelope uses a JSON string to preserve the exact canonical bytes
+// through jsonb_to_recordset; an embedded object would be normalized by JSONB.
+func encodedItemDependencies(manifest *auditdomain.RetainedDependencyManifest) *string {
+	if manifest == nil {
+		return nil
+	}
+	encoded, _ := auditdomain.EncodeRetainedDependencies(*manifest)
+	value := string(encoded)
 	return &value
 }
