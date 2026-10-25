@@ -1,0 +1,17 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: nuclei-scan, version: "1"}
+spec:
+  description: A model-free fixture for exact Eval input admission.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  toolsets:
+    - ref: scan@1
+      tools: [scan_nuclei]
+  execution:
+    tool: scan_nuclei
+    arguments:
+      url: {source: parameter, name: target}
+      rulepack_ref: {source: artifact, name: rulepack, optional: true}
+    resultArtifact: report
+    timeoutSeconds: 300

@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V406-003
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: >-
@@ -164,3 +164,27 @@ tests:
     covers: [A1, A2, A3, A4, A5, A6]
   - command: "make lint"
     covers: [A2, A5, A6]
+progress:
+  completed_work:
+    - "Workflow preparation reads the pinned slot contract and reuses verified exact owner UserScope refs for user-only inputs. Ordinary Workflow inputs and Audit inputs retain their Project staging."
+    - "Preflight marks a ProjectScope case input mapped to a user-only slot unsupported with an explicit scope diagnostic; no implicit cross-scope conversion or new staging entity was added."
+    - "Definite exact-input and store-validation failures resolve the existing creation journal; unknown failures and lost responses keep the original recovery key."
+    - "Added real-store regressions for native and external Workflow/Audit submission, mapping and fork lineage, absent packs, source advancement, cancellation/purge after definite rejection, restart after lost acceptance, and source preservation after Run deletion."
+    - "Recorded the source and failure contracts in EVM-R249/EVM-R250 and FAIL-EVM-5. DEL-R64 still owns source availability before Run admission; no new retention hold or cleanup protocol exists."
+  remaining_work: []
+verification:
+  date: "2026-10-25"
+  environment: "Isolated codex/v416-eval-inputs worktree, Go 1.26.9, Node 24.20, own locked Python 3.13 Runtime environment, dedicated disposable v416_eval PostgreSQL database; GOMAXPROCS=2 and go -p 2."
+  regression_before_fix: >-
+    TestSharedPostgresEvalUserRulepackCreatesRun failed against the unfixed production code
+    with artifact not found on the coordinator's execution tick after Prepare and Start
+    succeeded. The committed regression uses real production services, PostgreSQL and
+    repository testdata, not the temporary review overlay.
+  decisions:
+    - "A sourceScope:user slot requires a user-scoped case source, checked against the authenticated owner. Project-origin sources are unsupported at preflight rather than copied into a new owner-scoped staging lifecycle."
+    - "The existing inputs journal records the exact reused ref. The original User source is caller-owned, so Eval/Run cleanup never removes it; Run input forks retain normal lineage and history protection."
+  results:
+    - "Required go test -p 2 -count=1 ./internal/evalservice ./internal/evalstore ./internal/runservice ./internal/auditservice ./internal/artifacts passed with PostgreSQL configured; no database skips."
+    - "Focused source-scope regressions passed, including native and external Web Audit ProjectScope rulepacks and exact Workflow fork lineage."
+    - "make lint passed, including Go vet/staticcheck, layer and export checks, all repository validators, UI gates, deployment checks and Runtime lint/import contracts."
+    - "python3 scripts/check_spec.py and git diff --check passed."

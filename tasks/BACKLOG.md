@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-132 open tasks: 4 in progress, 117 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+132 open tasks: 5 in progress, 116 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V416-001](v416-001-eval-input-source-scope.yml) | evals | defect | P1 | Honor Workflow input source scopes in Eval submissions and drain definite creation failures |
 
 ## Pending
 
@@ -151,7 +152,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-019](v411-019-pentest-target-fixtures-and-proof-scorers.yml) | chore | P1 | V411-002 | Build paired pentest fixtures and independent proof scorers |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate pentest quality against a frozen repeated-sample baseline |
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | chore | P3 | — | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
-| [V416-001](v416-001-eval-input-source-scope.yml) | defect | P1 | — | Honor Workflow input source scopes in Eval submissions and drain definite creation failures |
 
 ### Podman sandbox (`sandbox`)
 
