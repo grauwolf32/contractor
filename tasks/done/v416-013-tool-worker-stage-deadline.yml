@@ -6,7 +6,7 @@ epic: scan-tools
 kind: defect
 introduced_by: V55-003
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, go]
 goal: A tool Worker never begins or continues scanner work after its effective invocation deadline merely because the Server's cancellation request did not arrive.
@@ -130,6 +130,7 @@ reopened:
     this follow-up completes the existing criterion without changing receipt
     identity, scanner execution or the ADK finalizer fixes.
 
+implementation_commit: 4b92c1751c67bddff0c73b73b5c253d5e1df1cd5
 verification:
   date: '2026-10-25'
   environment: Isolated macOS arm64 worktree on 8888641c5628875ce1c9bde3efa4a68614a0e9c0, with the initial deadline change and V416-016 already merged; local uv sync --locked environment; Go build concurrency limited with GOFLAGS=-p=2; isolated PostgreSQL review_v416_tool_deadline database.
