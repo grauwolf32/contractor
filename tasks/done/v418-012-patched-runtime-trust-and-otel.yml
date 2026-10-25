@@ -6,7 +6,7 @@ epic: execution-core
 kind: defect
 introduced_by: MVP-012
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V418-002
 - V418-004
@@ -139,3 +139,4 @@ verification:
     without timing assertions or expensive regex.
   limit: Per explicit user direction no full Runtime, release graph or global E2E rerun after the patch.
     Earlier broad evidence remains attributed to the old lock.
+implementation_commit: d3f10fcb8c6016ae18bbb885686a3a7b1a4fe63c
