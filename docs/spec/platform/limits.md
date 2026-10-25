@@ -672,7 +672,7 @@ its owning requirement.
 | `LIM-SCN-5` | 8192 UTF-8 bytes | literal string argument values | tool@1 AgentTemplate validation | [SCN-R8](../tools/scanners.md) |
 | `LIM-SCN-6` | ±9007199254740991 | integral literal numbers (exactly representable integer range) | tool@1 AgentTemplate validation | [SCN-R8](../tools/scanners.md) |
 | `LIM-SCN-7` | 16 additional result bindings | additional result bindings of a tool Worker | tool Worker (Runtime), before invocation | [SCN-R14](../tools/scanners.md) |
-| `LIM-SCN-8` | 1-3600 seconds | execution.timeoutSeconds | tool Worker (Runtime), around the tool call | [SCN-R15](../tools/scanners.md) |
+| `LIM-SCN-8` | 1-3600 seconds | execution.timeoutSeconds | tool Worker (Runtime), around the tool call and clamped by the remaining invocation deadline | [SCN-R15](../tools/scanners.md) |
 | `LIM-SCN-9` | 64 KiB of canonical JSON | bound arguments plus artifact refs and output binding | tool Worker (Runtime) | [SCN-R16](../tools/scanners.md) |
 | `LIM-SCN-10` | 512 KiB | tool Worker report (application/json) | tool Worker (Runtime), report publication | [SCN-R41](../tools/scanners.md) |
 | `LIM-SCN-11` | 8192 UTF-8 JSON bytes | observation.artifacts map returned by the callable | tool Worker (Runtime) | [SCN-R44](../tools/scanners.md) |
@@ -757,6 +757,7 @@ its owning requirement.
 | `LIM-SCN-90` | 24 hours; at most 100 attempts; backoff at most 300 seconds | pending member admission | Captured admission deadline and retry count | [SCN-R249](../tools/scanners.md) |
 | `LIM-SCN-91` | 30-second tick; 10-second child; 60-second claim; 5-second release; 1-second poll | sweep controller | Independent contexts, existing claims and joined release | [SCN-R249](../tools/scanners.md) |
 | `LIM-SCN-92` | 30 days after settlement; one parent and at most 25 member deletions per minute | automatic sweep retention | Terminal-only indexed maintenance | [SCN-R251](../tools/scanners.md) |
+| `LIM-SCN-93` | 5 seconds each | tool Worker State admission and terminal publication | Runtime tool Worker; joined cleanup and fencing on terminal publication failure | [SCN-R51](../tools/scanners.md) |
 | `LIM-SEC-1` | 256 bits (exactly 32 decoded bytes) | Credential-encryption master key in the --credential-master-key-file (RFC 4648 base64) | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-2` | at most 1 trailing newline | Content of the credential master key file | Server startup (master key loader) | [SEC-R17](security.md) |
 | `LIM-SEC-3` | 1 active master key | Credential-encryption keyring | Server | [SEC-R20](security.md) |
