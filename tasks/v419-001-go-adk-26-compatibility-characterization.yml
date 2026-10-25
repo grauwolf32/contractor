@@ -6,7 +6,8 @@ epic: planner-worker
 kind: chore
 priority: P1
 status: in_progress
-depends_on: []
+depends_on:
+- V419-006
 languages:
 - go
 - markdown
