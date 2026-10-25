@@ -5,7 +5,7 @@ milestone: go-adk-26-upgrade-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V419-002
 languages:
@@ -157,21 +157,17 @@ test_prerequisites:
   disposable PostgreSQL database. Validate nonzero executed case inventories from Go JSON reports; a command
   exit alone is not proof. The only ordinary optional skips are the two named live-Gateway tests and the
   explicitly optional real-Collector test. Do not retry failed gates until green without a diagnosed change.
-
 verification:
   source_commit: 39e4775ad1a69d36a04ee4c7f31f311375cf17ab
   evidence: tasks/evidence/v419-go-adk-26-runner-conformance.json
-  result: >-
-    The one final scoped PostgreSQL/race command passed all five packages,
-    145 top-level tests and 374 pass records (321 executed passed leaves).
-    All 84 existing required manifest cases plus 16 new cases passed; the only
-    skips were the two explicitly opt-in live Gateway tests. All 16 SDK
-    projection observations matched the declared v2 dispositions. This is
-    targeted owner verification, not a repeated full release pass.
-  cancellation_contract: >-
-    Active Worker cancellation also cancels the required failDispatch plan
-    write. Both supported v1.6 and v2.6 return the documented retryable
-    planner_plan_persistence_failed with the original context.Canceled cause,
-    joined local work and no replay. The initial planner_cancelled expectation
-    was rejected after an actual historical Runner/PostgreSQL probe; no
-    production behavior or error precedence was changed.
+  result: The one final scoped PostgreSQL/race command passed all five packages, 145 top-level tests and
+    374 pass records (321 executed passed leaves). All 84 existing required manifest cases plus 16 new
+    cases passed; the only skips were the two explicitly opt-in live Gateway tests. All 16 SDK projection
+    observations matched the declared v2 dispositions. This is targeted owner verification, not a repeated
+    full release pass.
+  cancellation_contract: Active Worker cancellation also cancels the required failDispatch plan write.
+    Both supported v1.6 and v2.6 return the documented retryable planner_plan_persistence_failed with
+    the original context.Canceled cause, joined local work and no replay. The initial planner_cancelled
+    expectation was rejected after an actual historical Runner/PostgreSQL probe; no production behavior
+    or error precedence was changed.
+implementation_commit: 660143a9befc65103f2be1bd381bf27640a66ee7
