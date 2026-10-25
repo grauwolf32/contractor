@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-128 open tasks: 12 in progress, 105 pending, 11 deferred. 1142 finished: 1132 completed, 10 archived.
+127 open tasks: 11 in progress, 105 pending, 11 deferred. 1143 finished: 1133 completed, 10 archived.
 
 ## In progress
 
@@ -22,7 +22,6 @@ the epics are in [epics.yml](epics.yml).
 | [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | projects-artifacts | feature | P1 | Reconcile exact OpenAPI declarations with live sitemap members |
 | [V410-006](v410-006-sitemap-workflow-composition.yml) | workflows | feature | P1 | Ship ordinary sitemap discovery and reconciliation Workflows |
 | [V410-007](v410-007-sitemap-release-gate.yml) | quality | chore | P1 | Verify the first sitemap slice across scale and lifecycle boundaries |
-| [V420-001](v420-001-planner-compaction-contract-spike.yml) | planner-worker | chore | P1 | Prove Planner compaction checkpoints and freeze the integration contract |
 
 ## Pending
 
@@ -48,7 +47,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | feature | P1 | V417-003 | Preserve compacted context across shared-session invocations |
 | [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Resolve reference-only compactor model policy overrides |
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
-| [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | V420-001 | Implement opt-in bounded compaction for Streamline and Router Planners |
+| [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | — | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
 
@@ -225,7 +224,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 4 | 41 | 56 | 19 | 84 |
-| Planners and the Worker model boundary (`planner-worker`) | 13 | 34 | 47 | 27 | 63 |
+| Planners and the Worker model boundary (`planner-worker`) | 12 | 34 | 47 | 27 | 63 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |

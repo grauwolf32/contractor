@@ -5,7 +5,7 @@ milestone: planner-context-compaction-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V419-005
 languages:
@@ -226,3 +226,16 @@ test_prerequisites:
 - No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the currently
   supported Runtime lock. New shared grammar or wire changes, if actually needed, must update all implementations
   and shared fixtures in the owning task.
+
+verification:
+  result: Public request projection selected; two real Runner/Gateway/PostgreSQL checkpoints continue one
+    Planner owner with exact recent groups. Closed Stage policy, byte/token admission, errors, memory
+    accounting, callable exact-history reader, opaque cursors and lifecycle are frozen in linked evidence.
+  tests: Full internal/planner race suite PASS (690 test records, 238 parents, no failures/skips); final
+    full changed-package race suite PASS (283 records, including 54 spike records, no failures/skips).
+    make test-streamline PASS on real PostgreSQL. Frozen-source make lint PASS.
+  boundary: Test-local harness only; no production config, Scheduler behavior, SDK lock, public wire or
+    terminal summarizer changed. Planned numbered registries land with V420-002 enforcement.
+  delivery: Committed on codex/compaction-spikes; not merged, pushed or deployed. Main claim remains
+    in 9d46711d56e41a30043f86e1f7b76a0c943cfc36 until implementation branch integration.
+implementation_commit: 02cab3749f866ef0fbefbe13a749e47c5f42eb9c
