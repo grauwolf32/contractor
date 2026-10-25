@@ -165,10 +165,7 @@ verification:
       make test-interactsh-protocol passed the real pinned Interactsh v1.4.1
       local server test (one test). Changed Runtime files pass Ruff check
       and format checks.
-  remaining: >-
-    Integrated make lint is owned by the coordinating branch; keep in_progress
-    until its result is confirmed for this implementation.
-
+  integration: The coordinating branch completed the required make lint; see integration_verification.
 implementation_commit: 3a874055294d2f7682bd9aeefd2dd67d27351829
 integration_verification:
   date: "2026-10-25"
