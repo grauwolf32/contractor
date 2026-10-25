@@ -33,6 +33,11 @@ context:
     registries and affected implementations together when an explicit clarification is necessary. No ADK-version
     branches, legacy readers, dual production runtimes, model replacement, silent retries, new receipt
     store or speculative public API. Read current code and re-establish the dated evidence before implementation.
+  verification_acceleration: User requested acceleration on2026-10-25. Verify all twelve current RELEASE_STAGES
+    with independent isolated workers/databases; preserve every mandatory case. The canonical already-passed26-parent
+    test-e2e union may supply the three process shards only after exact stage-input equivalence and report
+    validation. Record executed versus reused evidence explicitly; never claim an unexecuted make release-verify
+    invocation or treat missing/zero/skipped required cases as a cache hit.
 scope:
   in:
   - Integrated release verification, dependency advisory evidence, ownership/disposition reconciliation
@@ -69,36 +74,60 @@ tests:
 - command: cd runtime && uv sync --locked
   covers:
   - A1
-- command: make test-runtime
+- command: make release-verify-lint
   covers:
   - A1
+  - A4
+- command: make release-verify-unit
+  covers:
+  - A1
+  - A2
+- command: make release-verify-ui
+  covers:
+  - A2
+- command: make release-verify-families
+  covers:
+  - A2
+- command: make release-verify-browser-a
+  covers:
+  - A2
+- command: make release-verify-browser-b
+  covers:
+  - A2
+- command: make release-verify-race
+  covers:
+  - A2
+- command: make release-verify-race-discovered
+  covers:
+  - A2
+- command: make release-verify-integration
+  covers:
+  - A2
+- command: make test-e2e
+  covers:
   - A2
 - command: make test-runtime-dependencies-audit
   covers:
   - A3
-- command: make release-verify
-  covers:
-  - A1
-  - A2
-  - A4
-- command: make lint
-  covers:
-  - A4
 requirements:
 - id: R1
-  text: Create the final verification record from a clean isolated checkout/environment at the integrated
-    revision with uv sync --locked; record exact ADK, Python and transitive closure/lock digest and all
-    executed commands. Do not use exploratory PYTHONPATH overlays for final acceptance.
+  text: Create the final verification record from clean isolated checkouts at the integrated revision
+    and fresh default locked environments. Record exact ADK/Python/transitive closure, lock digest and
+    actual commands. No exploratory PYTHONPATH/SDK overlays. Reused process evidence must have a clean
+    original checkout and the equivalence proof required by R8.
 - id: R2
   text: 'Every finding from the case manifest has a disposition and owning passing regression: reminder
     identity, interrupted history, unknown names, deadline admission, cancellation classification, raw
     coercion, empty output, resource cleanup, Skills and Gateway/telemetry contracts. New findings become
     resolved tasks, never silent scope omissions.'
 - id: R3
-  text: Run the full deterministic release gate once on the integrated revision. Verify consolidation
-    reports so every required Runtime, real-store, real-process and wire case actually ran; zero matches/skipped
-    mandatory prerequisites fail. Correct documentation and generated gate inventory through their owning
-    commands.
+  text: Account for every current RELEASE_STAGES entry. Execute independent required stages in separate
+    checkout/report directories and disposable databases with bounded concurrency; release-verify-unit
+    runs the full Runtime suite and shared-fixture checks once. Validate consolidation reports and every
+    required Runtime/real-store/real-process/wire/browser case. The process A/B/C stages may use the same
+    successful canonical26-parent make test-e2e union under R8 instead of repeating it. Zero matches,
+    missing or skipped mandatory prerequisites block completion. Do not claim a literal full-parent make
+    invocation ran if stages were dispatched separately.
 - id: R4
   text: Run the separate Runtime dependency advisory gate and record result/date/source availability.
     A service outage is unavailable, never clean; an actionable finding requires a resolved owning decision
@@ -117,6 +146,14 @@ requirements:
   text: Record whether the branch is merged and the final implementation commit under normal task policy.
     Completion requires every listed acceptance gate, not merely a successful pin or most Runtime tests;
     no deployment is implied.
+- id: R8
+  text: Reuse a process result only with its actual successful command/exit/report hashes and complete
+    required case inventory. Compare original and final Go/Python locks/toolchains, all production code,
+    process tests/fixtures, runtime CLI/helpers, shipped configuration and selector/report-validator inputs.
+    Any relevant difference invalidates reuse. Identify harmless documentation/task metadata and newly
+    added unit-only/sampler paths explicitly rather than silently ignoring arbitrary files. Retain original
+    revision, final promoted revision, exact changed-path analysis and source fingerprints; classify each
+    stage as executed or verified reused, never skipped/pass-by-assumption.
 test_prerequisites:
 - Commands below are future implementation acceptance gates, not checks already passed by this planning
   change. A required command, selected case or dependency setup must not be skipped or match zero tests.
