@@ -6,7 +6,7 @@ epic: evals
 kind: defect
 introduced_by: V406-003
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: >-
@@ -187,4 +187,6 @@ verification:
     - "Required go test -p 2 -count=1 ./internal/evalservice ./internal/evalstore ./internal/runservice ./internal/auditservice ./internal/artifacts passed with PostgreSQL configured; no database skips."
     - "Focused source-scope regressions passed, including native and external Web Audit ProjectScope rulepacks and exact Workflow fork lineage."
     - "make lint passed, including Go vet/staticcheck, layer and export checks, all repository validators, UI gates, deployment checks and Runtime lint/import contracts."
+    - "After strengthening exact-source advancement and durable diagnostic assertions, the full evalservice suite passed again (33.567s), followed by targeted Go vet and formatting checks."
     - "python3 scripts/check_spec.py and git diff --check passed."
+implementation_commit: 05a6298d371bfe9f2a67bbd63b8efc79f3873198
