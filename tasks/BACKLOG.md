@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-137 open tasks: 4 in progress, 122 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+137 open tasks: 5 in progress, 121 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V416-013](v416-013-tool-worker-stage-deadline.yml) | scan-tools | defect | P1 | Enforce the effective Stage deadline inside model-free tool Workers |
 
 ## Pending
 
@@ -69,7 +70,6 @@ the epics are in [epics.yml](epics.yml).
 | [V414-004](v414-004-scan-audit-result-failure-classes.yml) | defect | P2 | — | Classify Audit scan result building failures by cause instead of as invalid input |
 | [V416-008](v416-008-rulepack-metadata-contract.yml) | chore | P3 | — | Share the Nuclei rulepack media and byte admission contract |
 | [V416-009](v416-009-nuclei-preparation-boundary.yml) | chore | P3 | — | Extract the Nuclei preparation sequence into a private helper with an explicit result |
-| [V416-013](v416-013-tool-worker-stage-deadline.yml) | defect | P1 | — | Enforce the effective Stage deadline inside model-free tool Workers |
 
 ### Findings tools and collections (`findings`)
 

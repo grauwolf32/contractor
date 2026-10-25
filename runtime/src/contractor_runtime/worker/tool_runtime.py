@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     from contractor_runtime.factories import WorkerBuildContext
     from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
 
+STATE_TIMEOUT_SECONDS = 5.0
 MAX_INPUT_BYTES = 64 * 1024
 MAX_REPORT_BYTES = 512 * 1024
 MAX_ADDITIONAL_ARTIFACT_BYTES = 16 * 1024 * 1024
@@ -58,6 +59,11 @@ FAILURE_CODES = frozenset(
 
 class ToolWorkerError(Exception):
     """Fixed, content-free execution diagnostic."""
+
+
+def _check_deadline(deadline: float) -> None:
+    if asyncio.get_running_loop().time() >= deadline:
+        raise TimeoutError("Tool invocation deadline exceeded")
 
 
 def _json(value: Any) -> bytes:
@@ -268,7 +274,45 @@ class ToolWorkerRuntime:
         for ref in refs.values():
             await self._client.read_artifact(ref, max_bytes=MAX_ADDITIONAL_ARTIFACT_BYTES)
 
+    async def _call_tool(self, arguments, invocation_deadline):
+        deadline = min(
+            invocation_deadline,
+            asyncio.get_running_loop().time() + self._execution.timeout_seconds,
+        )
+        _check_deadline(deadline)
+
+        async def call():
+            # Scheduling the owned task can itself cross the deadline.
+            _check_deadline(deadline)
+            return await self._tool(**arguments)
+
+        task = asyncio.create_task(call())
+        try:
+            async with asyncio.timeout_at(deadline):
+                observation = await asyncio.shield(task)
+                _check_deadline(deadline)
+                return observation
+        finally:
+            # The semantic timer is already closed. In particular, a deadline
+            # must not interrupt a child that is joining after external cancel.
+            if not task.done():
+                task.cancel()
+            interrupted = False
+            while not task.done():
+                try:
+                    await asyncio.wait({task})
+                except asyncio.CancelledError:
+                    interrupted = True
+            if not task.cancelled():
+                task.exception()  # consume a failure that lost to cancellation
+            if interrupted:
+                raise asyncio.CancelledError
+
     async def invoke(self, request: StageContentRequest) -> WorkerCompletion:
+        # Convert once, before any admission or receipt I/O. Replay does not
+        # execute semantic work and keeps its independent request budget.
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + (request.deadline - datetime.now(UTC)).total_seconds()
         if not self._accepting:
             return await self.failure_completion(
                 "worker_draining", "Worker is no longer accepting work"
@@ -292,7 +336,9 @@ class ToolWorkerRuntime:
             return completion.model_copy(deep=True)
         async with self._lock:
             self._active_owner = asyncio.current_task()
-            self._active = asyncio.create_task(self._run(request, arguments, target, key, digest))
+            self._active = asyncio.create_task(
+                self._run(request, arguments, target, key, digest, deadline)
+            )
             try:
                 result = await self._active
                 self._cache[key] = (digest, result.model_copy(deep=True))
@@ -303,7 +349,7 @@ class ToolWorkerRuntime:
                 self._active = None
                 self._active_owner = None
 
-    async def _run(self, request, arguments, target, key, digest):
+    async def _run(self, request, arguments, target, key, digest, deadline):
         invocation_id = "tool-" + key
         calls, error, report = 0, None, None
         artifacts = {}
@@ -311,16 +357,20 @@ class ToolWorkerRuntime:
         receipt = ArtifactRef(namespace=self._context.namespace, name=RECEIPT_PREFIX + key)
         owned = None
         beginning = asyncio.create_task(
-            self._state.begin_invocation(
-                invocation_id=invocation_id,
-                subtask_id=request.subtask_id,
-                metrics=_metrics(self._execution.tool),
+            asyncio.wait_for(
+                self._state.begin_invocation(
+                    invocation_id=invocation_id,
+                    subtask_id=request.subtask_id,
+                    metrics=_metrics(self._execution.tool),
+                ),
+                timeout=STATE_TIMEOUT_SECONDS,
             )
         )
         try:
             await asyncio.shield(beginning)
             try:
-                value = await self._client.read_artifact(receipt, max_bytes=MAX_RECEIPT_BYTES)
+                async with asyncio.timeout(self._context.runtime_settings.request_timeout_seconds):
+                    value = await self._client.read_artifact(receipt, max_bytes=MAX_RECEIPT_BYTES)
             except ArtifactAPIError as failure:
                 if failure.status_code != 404:
                     raise ToolWorkerError("tool_outcome_unknown") from None
@@ -360,28 +410,38 @@ class ToolWorkerRuntime:
                     raise ToolWorkerError(code if code in FAILURE_CODES else "tool_outcome_unknown")
                 if report is None:
                     raise ToolWorkerError("tool_outcome_unknown")
-                await self._verify_additional_artifacts(artifacts)
+                async with asyncio.timeout(self._context.runtime_settings.request_timeout_seconds):
+                    await self._verify_additional_artifacts(artifacts)
                 truncated = saved.get("truncated", False)
             else:
-                owned = await self._client.write_artifact(
-                    receipt,
-                    data=_json({"schemaVersion": 1, "inputDigest": digest, "phase": "started"}),
-                    media_type="application/json",
-                    expected_revision=None,
-                )
-                calls = 1
                 try:
-                    async with asyncio.timeout(self._execution.timeout_seconds):
-                        observation = await self._tool(**arguments)
+                    async with asyncio.timeout_at(deadline):
+                        _check_deadline(deadline)
+                        owned = await self._client.write_artifact(
+                            receipt,
+                            data=_json(
+                                {"schemaVersion": 1, "inputDigest": digest, "phase": "started"}
+                            ),
+                            media_type="application/json",
+                            expected_revision=None,
+                        )
+                        # A response can win before the loop runs its timer.
+                        # Ownership of a receipt never extends the deadline.
+                        _check_deadline(deadline)
+                    calls = 1
+                    try:
+                        observation = await self._call_tool(arguments, deadline)
+                    except ToolInputError:
+                        tool_failed = True
+                        raise ToolWorkerError("tool_input_invalid") from None
+                    except TimeoutError:
+                        raise
+                    except Exception:
+                        tool_failed = True
+                        raise ToolWorkerError("tool_execution_failed") from None
                 except TimeoutError:
-                    tool_failed = True
+                    tool_failed = calls > 0
                     raise ToolWorkerError("tool_timeout") from None
-                except ToolInputError:
-                    tool_failed = True
-                    raise ToolWorkerError("tool_input_invalid") from None
-                except Exception:
-                    tool_failed = True
-                    raise ToolWorkerError("tool_execution_failed") from None
                 if (
                     not isinstance(observation, dict)
                     or not isinstance(observation.get("status"), str)
@@ -419,11 +479,19 @@ class ToolWorkerRuntime:
                     tool_failed = True
                     raise ToolWorkerError("tool_output_invalid") from None
                 try:
-                    await self._verify_additional_artifacts(artifacts)
-                    published = await self._client.write_artifact(
-                        target, data=payload, media_type="application/json", expected_revision=None
-                    )
-                    report = published.artifact
+                    # Publication follows the semantic outcome. It has its
+                    # own finite budget, never the expired invocation timer.
+                    async with asyncio.timeout(
+                        self._context.runtime_settings.request_timeout_seconds
+                    ):
+                        await self._verify_additional_artifacts(artifacts)
+                        published = await self._client.write_artifact(
+                            target,
+                            data=payload,
+                            media_type="application/json",
+                            expected_revision=None,
+                        )
+                        report = published.artifact
                 except Exception:
                     raise ToolWorkerError("tool_report_failed") from None
                 if observation["status"] == "failed":
@@ -461,12 +529,15 @@ class ToolWorkerRuntime:
                         slot: ref.model_dump(by_alias=True) for slot, ref in artifacts.items()
                     }
                 try:
-                    await self._client.write_artifact(
-                        receipt,
-                        data=_json(terminal),
-                        media_type="application/json",
-                        expected_revision=owned.artifact.revision,
-                    )
+                    async with asyncio.timeout(
+                        self._context.runtime_settings.request_timeout_seconds
+                    ):
+                        await self._client.write_artifact(
+                            receipt,
+                            data=_json(terminal),
+                            media_type="application/json",
+                            expected_revision=owned.artifact.revision,
+                        )
                 except asyncio.CancelledError:
                     error, cancelled = "tool_cancelled", True
                 except Exception:
@@ -475,22 +546,31 @@ class ToolWorkerRuntime:
                 self._state.metrics.record_tool_report_failure()
             self._state.metrics.record_outcome("failed" if error else "succeeded")
             finishing = asyncio.create_task(
-                self._state.complete_invocation(
-                    invocation_id=invocation_id,
-                    phase="cancelled"
-                    if error == "tool_cancelled"
-                    else "failed"
-                    if error
-                    else "succeeded",
-                    metrics=_metrics(self._execution.tool, calls, tool_failed),
+                asyncio.wait_for(
+                    self._state.complete_invocation(
+                        invocation_id=invocation_id,
+                        phase="cancelled"
+                        if error == "tool_cancelled"
+                        else "failed"
+                        if error
+                        else "succeeded",
+                        metrics=_metrics(self._execution.tool, calls, tool_failed),
+                    )
+                    if begun
+                    else self._state.sync_metrics(),
+                    timeout=STATE_TIMEOUT_SECONDS,
                 )
-                if begun
-                else self._state.sync_metrics()
             )
             try:
                 snapshot = await asyncio.shield(finishing)
             except asyncio.CancelledError:
-                await finishing
+                try:
+                    await finishing
+                except Exception:
+                    self._accepting = False
+                raise
+            except Exception:
+                self._accepting = False
                 raise
         if cancelled:
             raise asyncio.CancelledError
