@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-131 open tasks: 4 in progress, 116 pending, 11 deferred. 1101 finished: 1091 completed, 10 archived.
+131 open tasks: 5 in progress, 115 pending, 11 deferred. 1101 finished: 1091 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V414-012](v414-012-classify-closed-connection.yml) | persistence | defect | P2 | Classify a closed PostgreSQL connection, including a lost COMMIT reply, as unavailable |
 
 ## Pending
 
@@ -192,7 +193,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-008](v372-008-upward-table-reads.yml) | chore | P3 | — | Remove the table reads that point up the layer stack or name who owns each one |
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
-| [V414-012](v414-012-classify-closed-connection.yml) | defect | P2 | — | Classify a closed PostgreSQL connection, including a lost COMMIT reply, as unavailable |
 | [V414-021](v414-021-migration-file-deadline.yml) | defect | P3 | — | Decide the client deadline of a migration file: per statement or a migration budget of its own |
 | [V414-024](v414-024-plan-tests-exact-reads.yml) | chore | P3 | — | Measure the V407-025 drain and held-credential row budgets with explaintest Analysis.Reads |
 

@@ -508,12 +508,19 @@ maps to one class:
 | Missing database privilege | 42501 | permission denied | permanent |
 | Serialization failure or deadlock | 40001, 40P01 | transaction conflict | retryable: nothing committed, and the whole transaction may be replayed |
 | Lock wait or statement timeout, statement cancellation, expired caller deadline | 55P03, 57014 | timeout | retryable by an idempotent callee; ambiguous at commit |
-| Connection exception, insufficient resources, operator intervention, system error, any other transaction rollback, a lost or refused connection | classes 08, 53, 58, other class 57, other class 40 | unavailable | retryable by an idempotent callee; ambiguous at commit |
+| Connection exception, insufficient resources, operator intervention, system error, any other transaction rollback, a lost or refused connection, or a connection closed before or during a call (including a lost COMMIT reply) | classes 08, 53, 58, other class 57, other class 40; closed-connection cause | unavailable | retryable by an idempotent callee; ambiguous at commit |
 | Cancelled caller context | — | cancelled | not retried |
 | Any other SQLSTATE, such as a syntax, undefined-object, PL/pgSQL or internal error, or one of PostgreSQL's own program limits | all other classes, including 54000 naming no constraint | internal | permanent |
 
 A transient database failure (FAIL-PRJ-4, FAIL-SCH-15) is a transaction
 conflict, a timeout or an unavailable database in this table.
+
+A closed connection does not prove that COMMIT was unsent: PostgreSQL may
+have committed before the reply was lost. pgx's `SafeToRetry` hint is not
+evidence to the contrary and is never a production retry decision. The
+caller reconciles through its existing receipt, natural key or replay read
+before repeating a mutation; only a definite transaction conflict permits
+the central transaction helper to replay the whole transaction.
 
 Store reads, writes and locks preserve the original cause through every
 wrapper. A static safe message uses `postgres.WrapError`, whose `Unwrap`

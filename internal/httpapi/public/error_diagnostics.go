@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io/fs"
-	"net"
 	"net/http"
 
 	"github.com/jackc/pgx/v5"
@@ -57,6 +56,11 @@ func diagnosticCause(err error) string {
 	case errors.Is(err, pgx.ErrTxClosed), errors.Is(err, pgx.ErrTxCommitRollback):
 		return "storage_transaction_failed"
 	}
+	// Explicit domain causes above retain their diagnostic; an unclassified
+	// database/transport cause follows the shared persistence classification.
+	if persistencepostgres.Classify(err) == persistencepostgres.ClassUnavailable {
+		return "storage_unavailable"
+	}
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) {
 		switch postgresError.Code {
@@ -74,22 +78,9 @@ func diagnosticCause(err error) string {
 			persistencepostgres.ClassInvalid, persistencepostgres.ClassRejected,
 			persistencepostgres.ClassLimitExceeded:
 			return "storage_constraint_failed"
-		case persistencepostgres.ClassUnavailable:
-			return "storage_unavailable"
 		default:
 			return "storage_failed"
 		}
-	}
-	var connectionError *pgconn.ConnectError
-	if errors.As(err, &connectionError) {
-		return "storage_unavailable"
-	}
-	var networkError net.Error
-	if errors.As(err, &networkError) {
-		if networkError.Timeout() {
-			return "network_timeout"
-		}
-		return "network_failed"
 	}
 	var pathError *fs.PathError
 	if errors.As(err, &pathError) {

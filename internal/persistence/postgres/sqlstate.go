@@ -137,6 +137,10 @@ func Classify(err error) Class {
 		return ClassCancelled
 	case errors.Is(err, context.DeadlineExceeded):
 		return ClassTimeout
+	case errors.Is(err, pgconn.ErrConnClosed):
+		// pgx can replace a lost COMMIT reply with this sentinel. Its
+		// SafeToRetry hint does not establish that nothing committed.
+		return ClassUnavailable
 	}
 	var postgresError *pgconn.PgError
 	if errors.As(err, &postgresError) {
