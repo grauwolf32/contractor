@@ -124,7 +124,7 @@ INSERT INTO finding_proposal_receipts (
 	}
 	var original []byte
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'fingerprint_projection', 'anchor_projection', 'comparison_projection']
+SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'report_projection', 'fingerprint_projection', 'anchor_projection', 'comparison_projection']
                  ORDER BY receipt_id)
 FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(&original))
 	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
@@ -145,7 +145,7 @@ AND (comparison_projection->>'availability' IS DISTINCT FROM 'unavailable'
 		t.Fatal("discarded receipts retained comparison matching hints")
 	}
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'fingerprint_projection', 'anchor_projection', 'comparison_projection']
+SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'report_projection', 'fingerprint_projection', 'anchor_projection', 'comparison_projection']
                  ORDER BY receipt_id)
 FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(&retained))
 	// jsonb has a canonical encoding, including the original exact refs.
@@ -157,9 +157,58 @@ SELECT count(*) FROM finding_proposal_receipts AS receipt
 WHERE receipt.run_id = $1 AND receipt.retention_state = 'discarded'
   AND receipt.source_run_deleted_at IS NOT NULL
   AND receipt.discarded_at IS NOT NULL
+  AND receipt.report_projection = '{}'
   AND receipt.anchor_projection::jsonb = '{"schema":"contractor.finding.anchors-projection.v1","availability":"unavailable","reason":"discarded"}'::jsonb
   AND receipt.fingerprint_projection::jsonb = '{"schema":"contractor.finding.fingerprint-projection.v1","availability":"unavailable","reason":"discarded"}'::jsonb`, f.run.RunID).Scan(&discarded))
 	if discarded != 2 {
 		t.Fatalf("unheld native tombstones = %d, want 2", discarded)
+	}
+}
+
+func TestImporterFinalizesHeldFindingReportAfterSourceRunDeletion(t *testing.T) {
+	f := newCompletionFixtureWithInteraction(t, completionPool(t), "automatic", "human-required")
+	document := auditdomain.FindingProposal{
+		Schema: auditdomain.FindingProposalSchema, ClientKey: "retained-candidate",
+		Title: "Retained candidate", Description: "Exact report details survive the source Run",
+		Subject:       &auditdomain.FindingSubject{Kind: "code", Key: "handler"},
+		Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
+		EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{}, Limitations: []string{},
+	}
+	receiptID := f.proposal(t, document.ClientKey, document)
+	access, err := NewArtifactAccess(f.artifacts, hookstore.NewClaimedArtifacts(f.pool))
+	mustCompletion(t, err)
+	intake, err := findingintake.New(f.pool)
+	mustCompletion(t, err)
+	importer, err := New(f.audits, f.audits, f.runs, access, intake)
+	mustCompletion(t, err)
+	execution, snapshot := f.terminal(t, runstore.RunFailed)
+	if worked, err := importer.Collect(f.ctx, f.claim, snapshot, execution); err != nil || !worked {
+		t.Fatalf("collect retained candidate: worked=%v, err=%v", worked, err)
+	}
+	finishReportDeletionFixture(t, f)
+	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+	var retention string
+	mustCompletion(t, f.pool.QueryRow(f.ctx, "SELECT retention_state FROM finding_proposal_receipts WHERE receipt_id=$1", receiptID).Scan(&retention))
+	if retention != string(findingintake.RetentionAuditHeld) {
+		t.Fatalf("imported candidate after deletion = %s", retention)
+	}
+	snapshot, err = f.audits.GetReconcileSnapshot(f.ctx, f.claim)
+	mustCompletion(t, err)
+	if worked, err := importer.Finalize(f.ctx, f.claim, snapshot); err != nil || !worked {
+		t.Fatalf("finalize retained candidate: worked=%v, err=%v", worked, err)
+	}
+	link, err := f.audits.GetArtifactLink(f.ctx, f.id, auditstore.ReportMachineLogicalKey)
+	mustCompletion(t, err)
+	data, err := access.ReadProjectExact(f.ctx, f.id, link.Artifact)
+	mustCompletion(t, err)
+	var report struct {
+		Findings struct {
+			Proposed []reportFinding `json:"proposed"`
+		} `json:"findings"`
+	}
+	mustCompletion(t, json.Unmarshal(data, &report))
+	if len(report.Findings.Proposed) != 1 || report.Findings.Proposed[0].Title != document.Title ||
+		report.Findings.Proposed[0].Description != document.Description {
+		t.Fatalf("final report lost imported finding: %+v", report.Findings.Proposed)
 	}
 }

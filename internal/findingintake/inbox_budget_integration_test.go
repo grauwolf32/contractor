@@ -102,7 +102,7 @@ SELECT $1 || '-' || n, $1 || '-proposal-' || n, $1 || '-allocation', 'runtime',
        'sha256:' || repeat('b', 64),
        jsonb_build_object('namespace', 'finding-proposals', 'name', $1 || '-proposal-' || n, 'revision', 'r1'),
        'sha256:' || repeat('c', 64), 'application/json', 1, '[]'::jsonb,
-       '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}',
+       CASE WHEN $8 THEN '{}' ELSE '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}' END,
        $6::timestamptz + n * $7::interval,
        CASE WHEN $8 THEN 'discarded' ELSE 'source-held' END,
        CASE WHEN $8 THEN $6::timestamptz END, CASE WHEN $8 THEN $6::timestamptz END
