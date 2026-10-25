@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-144 open tasks: 4 in progress, 129 pending, 11 deferred. 1122 finished: 1112 completed, 10 archived.
+144 open tasks: 5 in progress, 128 pending, 11 deferred. 1122 finished: 1112 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V418-003](v418-003-adk-213-allocation-and-skill-lifecycle.yml) | agent-skills | chore | P1 | Verify allocation cleanup and bounded Skills on ADK 2.13 |
 
 ## Pending
 
@@ -57,12 +58,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | chore | P3 | — | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
-
-### Agent Skills (`agent-skills`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V418-003](v418-003-adk-213-allocation-and-skill-lifecycle.yml) | chore | P1 | — | Verify allocation cleanup and bounded Skills on ADK 2.13 |
 
 ### HTTP and Caido tools (`http-tools`)
 
