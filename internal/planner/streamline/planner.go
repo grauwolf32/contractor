@@ -186,6 +186,22 @@ func (p *streamlinePlanner) Run(
 				break
 			}
 		}
+		var writeError *plannersession.ADKEventWriteError
+		if errors.As(iterationErr, &writeError) {
+			// finish selects its candidate before ADK appends the response.
+			// A required write failure cannot become a completed candidate.
+			failure := planner.SessionError("record ADK event", writeError)
+			if result, _ := state.terminal(); result != nil {
+				failure = planner.CompletionWriteError(planner.Completion{Result: result}, writeError)
+			}
+			if stopped := stoppedPlannerError(ctx, runContext); stopped != nil {
+				failure = planner.NewError(
+					stopped.Code, stopped.Message, stopped.Retryable && failure.Retryable,
+					errors.Join(stopped, writeError),
+				)
+			}
+			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
+		}
 		if result, failure := state.terminal(); result != nil {
 			completion := planner.Completion{Result: result}
 			if err := planner.CompleteSession(ctx, p.sessions, identity, completion); err != nil {
@@ -195,16 +211,7 @@ func (p *streamlinePlanner) Run(
 		} else if failure != nil {
 			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
 		}
-		if runContext.Err() != nil {
-			failure := planner.NewError(
-				"planner_deadline_exceeded", "Planner exhausted its wall-time limit", true,
-				runContext.Err(),
-			)
-			if ctx.Err() != nil {
-				failure = planner.NewError(
-					"planner_cancelled", "Planner invocation was cancelled", true, ctx.Err(),
-				)
-			}
+		if failure := stoppedPlannerError(ctx, runContext); failure != nil {
 			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
 		}
 		if iterationErr != nil {
@@ -232,6 +239,16 @@ func (p *streamlinePlanner) Run(
 			genai.RoleUser,
 		)
 	}
+}
+
+func stoppedPlannerError(caller, execution context.Context) *planner.Error {
+	if execution.Err() == nil {
+		return nil
+	}
+	if caller.Err() != nil {
+		return planner.NewError("planner_cancelled", "Planner invocation was cancelled", true, caller.Err())
+	}
+	return planner.NewError("planner_deadline_exceeded", "Planner exhausted its wall-time limit", true, execution.Err())
 }
 
 func (p *streamlinePlanner) ExecutionReport() (reporting.ExecutionReport, bool) {

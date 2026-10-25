@@ -814,6 +814,17 @@ whose error is non-retryable. Then `planner_session_unavailable` is
 non-retryable too, so a Stage retry never invokes again a Worker whose failure
 was final.
 
+A validated in-memory `finish` and its `finish_requested` fact are not a
+completed-session receipt. A required ADK event write failure, including the
+final FunctionResponse append after that finish, prevents candidate completion
+and retains the owning session-error classification and outcome retryability.
+This does not move ordinary cancellation ahead of a successfully persisted
+terminal turn: its completion write keeps the independent budget below.
+If genuine cancellation or deadline expiry determines the stop code after a
+failed required append, it cannot make a known final outcome or definite store
+rejection retryable; the original write and stop causes remain in the private
+error chain.
+
 A summarized Worker result is a failed candidate with the non-retryable
 `worker_summarized` error ([SCH-R171](scheduler.md)), so a failed write of it
 returns non-retryable `planner_session_unavailable`. The Scheduler records an
@@ -934,8 +945,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   PLN-R62).
 - FAIL-PLN-8 — Planner Session after process loss (PLN-R106,
   PLN-R107).
-- FAIL-PLN-9 — Planner Session completion write after the Planner has its
-  outcome (PLN-R106).
+- FAIL-PLN-9 — Required Planner session write, including completion after the
+  Planner has its outcome (PLN-R106).
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 

@@ -67,6 +67,17 @@ type adkService struct {
 	allowedTools map[string]struct{}
 }
 
+// ADKEventWriteError identifies a required reduced-event append failure. It
+// preserves the store cause for errors.Is/As while allowing Runner consumers
+// to distinguish persistence failure from a model or tool execution error.
+type ADKEventWriteError struct {
+	cause error
+}
+
+func (*ADKEventWriteError) Error() string { return "required Planner ADK event write failed" }
+
+func (e *ADKEventWriteError) Unwrap() error { return e.cause }
+
 func (s *adkService) Create(
 	ctx context.Context, request *session.CreateRequest,
 ) (*session.CreateResponse, error) {
@@ -115,7 +126,7 @@ func (s *adkService) AppendEvent(
 	}
 	facts := reduceADKEvent(event, s.allowedTools)
 	if err := s.parent.recordADKEvent(ctx, s.identity, facts); err != nil {
-		return err
+		return &ADKEventWriteError{cause: err}
 	}
 	return s.memory.AppendEvent(ctx, current, event)
 }

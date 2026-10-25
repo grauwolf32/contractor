@@ -1,0 +1,416 @@
+{
+  "schema_version": "1.0",
+  "task": "V419-006",
+  "status": "Supported-baseline RED reproduced; production repair and task acceptance remain pending Runtime exit and authorization.",
+  "source_base_revision": "43358f56868ed7f598a843272eed1e6ea766f89d",
+  "task_creation_commit": "e38c21f86ca6d08b2d1f94cc006bfb7bde932eef",
+  "introduced_by": {
+    "task": "V1-006",
+    "implementation_commit": "aacda4b36be505201f0f95aecc7d586107ba68a5"
+  },
+  "source_sha256": {
+    "internal/planner/streamline/planner.go": "d0a90cfb3ecc2251668a044a3f54b9052c7ae72f1327ce5a49658c6cdabac822",
+    "internal/planner/streamline/tools.go": "2ef1104f93c9f6e8e6549ebb7bb9c3cdd23047d2aefacc213daa6be055a8182b",
+    "internal/planner/session/adk.go": "0e0259eeab2f51bc6437d6f4712e99265994b91fffb9bd1429cc9571a551972c",
+    "internal/planner/session/service.go": "ccbf7e6d970b766d2fa51456674bb081d4c90a2069f99fd30c9b3c98eaeb4ac0",
+    "internal/planner/session_lifecycle.go": "3c628ee0af9e83df9bc879bbb307c4bfbfd6c64b1cc7151cac7bdb79eb9d4676",
+    "internal/runstore/planner_store.go": "33a51571958ca53808e04ddbdd34ca70f5681221b974d8ffa225cbbd623255d0",
+    "internal/runstore/planner_store_sql.go": "113ff0a30bd1b735d7f868aee4d9d0e6e23a72211ceac187e510f8711b5ad78b",
+    "internal/planner/streamline/finish_append_precedence_postgres_test.go": "a57b8391bd24e6bc464a60e679c1f6b20bc10172cd989961bbd6af4c6d867f33",
+    "go.mod": "6f8dab15cba2869800cd671d985960e6749da4a345f4856115527fc6b83792eb",
+    "go.sum": "ea03800c1d809062d80cb639aa8bc6716f3381a75659f1eeb53cbe60bcd818a8"
+  },
+  "sdk": {
+    "module": "google.golang.org/adk",
+    "version": "v1.6.0",
+    "sum": "h1:wv506E7+Fw9PCIwbeeRbF9ooaH7cSonbd2tKSNcT3Rs=",
+    "gomod_sum": "h1:R20iBRF+zQdq997kqCM5/Zmwdoo4qbDeElmYPbDCsMQ=",
+    "source_sha256": {
+      "runner/runner.go": "a08ce523ffb4f2bc6dae56c72a90881014d33f4d2dc9aed75e8260df047ec4b7",
+      "internal/llminternal/base_flow.go": "3a394f84cbb2b22fb73c207eedcb54f0c3b4b937bc0ade66abe744f6aa34ce7c"
+    }
+  },
+  "genai": {
+    "module": "google.golang.org/genai",
+    "version": "v1.57.0",
+    "sum": "h1:qTyG2ynz5dQy2jF4CvZdLHHVslhR0heMue+zM1a4GNM="
+  },
+  "environment": {
+    "go": "go1.26.9",
+    "platform": "darwin/arm64",
+    "GOMAXPROCS": 1,
+    "package_parallelism": 1,
+    "storage": "Owned disposable host PostgreSQL database, isolated migrated schema per case. No demo or primary database touched.",
+    "runtime": "No Runtime process or virtual environment was needed or synchronized."
+  },
+  "run": {
+    "command": "CONTRACTOR_TEST_DATABASE_URL=\"${CONTRACTOR_TEST_DATABASE_URL:?Set an owned disposable PostgreSQL URL}\" GOMAXPROCS=1 go test -p=1 -json -count=1 -timeout=8m ./internal/planner/streamline -run '^(TestPostgresModeledPlannerAppendFailurePrecedence|TestModeledPlannerCancellationKeepsCompletionOwnership)$'",
+    "exit_code": 1,
+    "leaf_executed": 20,
+    "leaf_failed": 14,
+    "leaf_passed": 6,
+    "leaf_skipped": 0,
+    "parent_failed": 1,
+    "parent_passed": 1,
+    "red_report_sha256": "f495530fa6b5eab9e3c10f1f54fac8b95f015ef4ca5311f55fb9735661d81022",
+    "disposition": "Expected baseline failures are retained, never counted as a passing acceptance gate or converted to xfail."
+  },
+  "cases": [
+    {
+      "id": "TestModeledPlannerCancellationKeepsCompletionOwnership/router/before-finish",
+      "result": "pass",
+      "expected": {
+        "model_calls": 1,
+        "worker_calls": 0,
+        "outcome": "planner_cancelled with independently recorded failure"
+      },
+      "observed": "Passed real Runner/PostgreSQL assertions and joined owner teardown."
+    },
+    {
+      "id": "TestModeledPlannerCancellationKeepsCompletionOwnership/router/completion-write",
+      "result": "pass",
+      "expected": {
+        "model_calls": 1,
+        "worker_calls": 0,
+        "outcome": "unchanged failed candidate after successful final response; completion context not cancelled"
+      },
+      "observed": "Passed real Runner/PostgreSQL assertions and joined owner teardown."
+    },
+    {
+      "id": "TestModeledPlannerCancellationKeepsCompletionOwnership/streamline/before-finish",
+      "result": "pass",
+      "expected": {
+        "model_calls": 1,
+        "worker_calls": 0,
+        "outcome": "planner_cancelled with independently recorded failure"
+      },
+      "observed": "Passed real Runner/PostgreSQL assertions and joined owner teardown."
+    },
+    {
+      "id": "TestModeledPlannerCancellationKeepsCompletionOwnership/streamline/completion-write",
+      "result": "pass",
+      "expected": {
+        "model_calls": 1,
+        "worker_calls": 0,
+        "outcome": "unchanged failed candidate after successful final response; completion context not cancelled"
+      },
+      "observed": "Passed real Runner/PostgreSQL assertions and joined owner teardown."
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/failed-final/invalid",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_rejected",
+        "retryable": false
+      },
+      "observed": {
+        "postgres_class": "invalid",
+        "append_matches": 1,
+        "returned_code": "none",
+        "returned_outcome": "failed",
+        "stored_code": "candidate:failed",
+        "model_calls": 1,
+        "worker_calls": 0
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/failed-final/unavailable",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_unavailable",
+        "retryable": false
+      },
+      "observed": {
+        "postgres_class": "unavailable",
+        "append_matches": 1,
+        "returned_code": "none",
+        "returned_outcome": "failed",
+        "stored_code": "candidate:failed",
+        "model_calls": 1,
+        "worker_calls": 0
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/failed-retryable/invalid",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_rejected",
+        "retryable": false
+      },
+      "observed": {
+        "postgres_class": "invalid",
+        "append_matches": 1,
+        "returned_code": "none",
+        "returned_outcome": "failed",
+        "stored_code": "candidate:failed",
+        "model_calls": 1,
+        "worker_calls": 0
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/failed-retryable/unavailable",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_unavailable",
+        "retryable": true
+      },
+      "observed": {
+        "postgres_class": "unavailable",
+        "append_matches": 1,
+        "returned_code": "none",
+        "returned_outcome": "failed",
+        "stored_code": "candidate:failed",
+        "model_calls": 1,
+        "worker_calls": 0
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/succeeded/invalid",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_rejected",
+        "retryable": false
+      },
+      "observed": {
+        "postgres_class": "invalid",
+        "append_matches": 1,
+        "returned_code": "none",
+        "returned_outcome": "succeeded",
+        "stored_code": "candidate:succeeded",
+        "model_calls": 3,
+        "worker_calls": 1
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/succeeded/unavailable",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_unavailable",
+        "retryable": true
+      },
+      "observed": {
+        "postgres_class": "unavailable",
+        "append_matches": 1,
+        "returned_code": "none",
+        "returned_outcome": "succeeded",
+        "stored_code": "candidate:succeeded",
+        "model_calls": 3,
+        "worker_calls": 1
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/router/ordinary/none/invalid",
+      "result": "pass",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_rejected",
+        "retryable": false
+      },
+      "observed": {
+        "postgres_class": "invalid",
+        "append_matches": 1,
+        "returned_code": "planner_session_rejected",
+        "returned_outcome": null,
+        "stored_code": "planner_session_rejected",
+        "model_calls": 1,
+        "worker_calls": 0
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/router/ordinary/none/unavailable",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_unavailable",
+        "retryable": true
+      },
+      "observed": {
+        "postgres_class": "unavailable",
+        "append_matches": 1,
+        "returned_code": "planner_execution_failed",
+        "returned_outcome": null,
+        "stored_code": "planner_execution_failed",
+        "model_calls": 1,
+        "worker_calls": 0
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/failed-final/invalid",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_rejected",
+        "retryable": false
+      },
+      "observed": {
+        "postgres_class": "invalid",
+        "append_matches": 1,
+        "returned_code": "none",
+        "returned_outcome": "failed",
+        "stored_code": "candidate:failed",
+        "model_calls": 1,
+        "worker_calls": 0
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/failed-final/unavailable",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_unavailable",
+        "retryable": false
+      },
+      "observed": {
+        "postgres_class": "unavailable",
+        "append_matches": 1,
+        "returned_code": "none",
+        "returned_outcome": "failed",
+        "stored_code": "candidate:failed",
+        "model_calls": 1,
+        "worker_calls": 0
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/failed-retryable/invalid",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_rejected",
+        "retryable": false
+      },
+      "observed": {
+        "postgres_class": "invalid",
+        "append_matches": 1,
+        "returned_code": "none",
+        "returned_outcome": "failed",
+        "stored_code": "candidate:failed",
+        "model_calls": 1,
+        "worker_calls": 0
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/failed-retryable/unavailable",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_unavailable",
+        "retryable": true
+      },
+      "observed": {
+        "postgres_class": "unavailable",
+        "append_matches": 1,
+        "returned_code": "none",
+        "returned_outcome": "failed",
+        "stored_code": "candidate:failed",
+        "model_calls": 1,
+        "worker_calls": 0
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/succeeded/invalid",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_rejected",
+        "retryable": false
+      },
+      "observed": {
+        "postgres_class": "invalid",
+        "append_matches": 1,
+        "returned_code": "none",
+        "returned_outcome": "succeeded",
+        "stored_code": "candidate:succeeded",
+        "model_calls": 3,
+        "worker_calls": 1
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/succeeded/unavailable",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_unavailable",
+        "retryable": true
+      },
+      "observed": {
+        "postgres_class": "unavailable",
+        "append_matches": 1,
+        "returned_code": "none",
+        "returned_outcome": "succeeded",
+        "stored_code": "candidate:succeeded",
+        "model_calls": 3,
+        "worker_calls": 1
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/ordinary/none/invalid",
+      "result": "pass",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_rejected",
+        "retryable": false
+      },
+      "observed": {
+        "postgres_class": "invalid",
+        "append_matches": 1,
+        "returned_code": "planner_session_rejected",
+        "returned_outcome": null,
+        "stored_code": "planner_session_rejected",
+        "model_calls": 1,
+        "worker_calls": 0
+      }
+    },
+    {
+      "id": "TestPostgresModeledPlannerAppendFailurePrecedence/streamline/ordinary/none/unavailable",
+      "result": "fail",
+      "expected": {
+        "candidate": false,
+        "code": "planner_session_unavailable",
+        "retryable": true
+      },
+      "observed": {
+        "postgres_class": "unavailable",
+        "append_matches": 1,
+        "returned_code": "planner_execution_failed",
+        "returned_outcome": null,
+        "stored_code": "planner_execution_failed",
+        "model_calls": 1,
+        "worker_calls": 0
+      }
+    }
+  ],
+  "findings": [
+    "All12 accepted-finish rows return and durably record a candidate with nil error despite exactly one required final FunctionResponse append receiving a real PostgreSQL CHECK rejection or injected unavailable condition.",
+    "Both ordinary pre-finish unavailable rows return and durably record planner_execution_failed, instead of the PLN-R106 session-unavailable class.",
+    "Both ordinary pre-finish invalid rows correctly return planner_session_rejected with ErrInvalid; four cancellation controls correctly distinguish pre-finish caller cancellation from the independent completion write after successful final FunctionResponse."
+  ],
+  "contract": {
+    "required_write": "PLN-R94/R105 require reduced nonpartial events to commit; PLN-R106 requires the owning session failure instead of a candidate, including redacted ADK events.",
+    "receipt": "finish_requested stores only key/revision/outcome, not a full candidate. The in-memory completion is not completed-result recovery authority.",
+    "recovery": "PLN-R107 forbids partial model resume; completed failure/candidate recovery must invoke neither model nor Worker.",
+    "cancellation": "Independent CompleteSession uses context.WithoutCancel and its own finite budget. The passing controls must remain unchanged by repair."
+  },
+  "failure_source": {
+    "invalid": "Test-schema event-specific PostgreSQL CHECK v419_required_event_rejected, selecting only the required modeled event. Its actual PgError/constraint and runstore.ErrInvalid are asserted.",
+    "unavailable": "A test-schema event-specific trigger raises persistencepostgres.SQLStateConnectionFailure. This is an injected PostgreSQL SQLSTATE outage, not a real server/connection disruption.",
+    "forwarder": "The production SessionService and Store execute every write. The transparent ADK forwarder only observes actual delegate results; it creates no storage failure."
+  },
+  "scope_limits": [
+    "Actual pinned Runner and real PostgreSQL, scripted model and fake WorkerInvoker. No actual Gateway HTTP or Server/Runtime process conformance is claimed.",
+    "No production file, dependency pin, Scheduler implementation or existing test expectation changed.",
+    "No successful post-fix gate is claimed; full owner/race/lint gates remain required after repair.",
+    "Task remains in_progress. Production edits wait for V418-007 completion and coordinator authorization."
+  ],
+  "minimal_fix_plan": [
+    "Return an existing classified typed Planner session error (or an equivalent dedicated write-error wrapper preserving errors.Is/As) from the required ADK append boundary. Do not classify arbitrary SDK/model exceptions as storage outages.",
+    "Check that required-write failure before accepting the in-memory terminal candidate; preserve failed-candidate retryability and record only the owning failure completion, without model/Worker replay.",
+    "Keep genuine execution cancellation/deadline ownership and the independent completion-write budget separate; preserve the four passing cancellation controls.",
+    "After repair, rerun the exact20 unchanged assertions, then full Planner/Scheduler owner suites, race, test-streamline and lint; later001/003 candidate characterization reuses these case IDs."
+  ]
+}
