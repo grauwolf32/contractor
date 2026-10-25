@@ -12,6 +12,14 @@
     mode: "0755"
   loop: ['', downloads, tools, tools/wrappers, releases, cache]
 
+- name: Install the private environment command launcher
+  ansible.builtin.copy:
+    src: private_command.py
+    dest: "{{ contractor_runtime_prefix }}/tools/private_command.py"
+    owner: root
+    group: root
+    mode: "0644"
+
 - name: Install archived tools
   ansible.builtin.include_tasks: tool_archive.yml
   loop: "{{ __contractor_runtime_host.tools | difference(['likec4']) }}"

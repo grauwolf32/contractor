@@ -82,54 +82,11 @@
     group: root
   loop: "{{ __contractor_runtime_instance.tools }}"
 
-- name: Check with the Runtime parser the settings of {{ __contractor_runtime_instance.name }}
-  ansible.builtin.command:
-    argv: >-
-      {{ [__contractor_runtime_python, '-I', '-c',
-          'import sys; from contractor_runtime.settings import parse_settings; parse_settings(sys.argv[1:], {})']
-         + __contractor_runtime_instance.argv[1:] }}
-    chdir: "{{ __contractor_runtime_instance.root }}"
-  become: true
-  become_user: "{{ contractor_runtime_user }}"
-  changed_when: false
+- name: Preflight the instance
+  ansible.builtin.include_tasks: preflight.yml
 
-- name: Probe the executables of {{ __contractor_runtime_instance.name }}
-  ansible.builtin.command:
-    argv: ["{{ __contractor_runtime_python }}", -I, "{{ contractor_runtime_prefix }}/tools/probe_tools.py"]
-    chdir: "{{ __contractor_runtime_instance.root }}"
-  become: true
-  become_user: "{{ contractor_runtime_user }}"
-  environment: "{{ __contractor_runtime_instance.environment | combine({'HOME': contractor_runtime_home}) }}"
-  register: __contractor_runtime_probe
-  changed_when: false
-
-- name: Require exactly the configured validators and scanners
-  ansible.builtin.assert:
-    that: __contractor_runtime_advertised == __contractor_runtime_expected
-    fail_msg: >-
-      {{ __contractor_runtime_instance.name }} would advertise {{ __contractor_runtime_advertised | to_json }} but is
-      configured for {{ __contractor_runtime_expected | to_json }}. A missing tool failed the
-      Runtime's own probe; an extra one is on contractor_runtime_system_path.
-    quiet: true
-  vars:
-    __contractor_runtime_found: "{{ __contractor_runtime_probe.stdout | from_json }}"
-    __contractor_runtime_advertised: >-
-      {{ (__contractor_runtime_found['openapi@1'] | select('equalto', 'validate_openapi') | list
-          + __contractor_runtime_found['likec4@1'] | select('equalto', 'validate_likec4') | list
-          + __contractor_runtime_found['scan@1']) | sort }}
-    __contractor_runtime_expected: >-
-      {{ ((['validate_openapi'] if __contractor_runtime_instance.capabilities.openapi_validator else [])
-          + (['validate_likec4'] if __contractor_runtime_instance.capabilities.likec4_validator else [])
-          + __contractor_runtime_instance.capabilities.scanners | map('regex_replace', '^', 'scan_') | list) | sort }}
-
-- name: Write the unit of {{ __contractor_runtime_instance.name }}
-  ansible.builtin.template:
-    src: contractor-runtime.service.j2
-    dest: "{{ contractor_runtime_home }}/.config/systemd/user/{{ __contractor_runtime_instance.unit }}"
-    owner: "{{ contractor_runtime_user }}"
-    group: "{{ contractor_runtime_group }}"
-    mode: "0644"
-  register: __contractor_runtime_unit
+- name: Install the private unit configuration
+  ansible.builtin.include_tasks: unit.yml
 
 - name: Record a needed restart of {{ __contractor_runtime_instance.name }}
   ansible.builtin.set_fact:

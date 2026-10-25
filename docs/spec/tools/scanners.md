@@ -405,10 +405,13 @@ budget after semantic work settles; the expired invocation deadline does not
 cancel these writes or authorize another scan. An unconfirmed terminal write
 returns `tool_outcome_unknown` and leaves the durable fence authoritative.
 State admission and terminal State publication each have a five-second budget
-(LIM-SCN-93); their tasks are joined after cancellation. A failed terminal State
-publication fences the Worker instead of returning success with an unclosed
-State. External cancellation keeps its own semantics and retains the started
-receipt when final persistence is fenced.
+(LIM-SCN-93); repeated cancellation cannot interrupt the join or cancel the
+owned State task. Invocation ownership is retained until that task completes
+or its original budget expires, without restarting the budget. A failed State
+admission or terminal publication fences the Worker instead of returning
+success with an unclosed State; an externally requested cancellation remains
+cancellation even when that bounded State operation fails. A started receipt
+remains a no-rescan fence when final persistence is fenced.
 
 ### Scan toolset
 

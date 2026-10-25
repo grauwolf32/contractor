@@ -353,3 +353,111 @@ def test_shared_tool_stage_deadline_terminal_receipt_failure_keeps_fence(tmp_pat
         assert len(tool.calls) == 1
 
     run_with_advanceable_clock(scenario())
+
+
+@pytest.mark.parametrize("boundary", ["admission", "settlement"])
+@pytest.mark.parametrize("outcome", ["completed", "failed", "timeout"])
+def test_shared_tool_state_joins_repeated_executor_cancellation(tmp_path, boundary, outcome):
+    from contractor_runtime.worker.state import WorkerStateError
+
+    async def scenario():
+        store, tool, spec = ArtifactStore(), FixtureTool(), tool_spec()
+        tool.wait = boundary == "settlement"
+        spec.agent_template.execution.timeout_seconds = 60
+        runtime = await worker(tmp_path, store, tool, spec=spec)
+        executor = ContractorAgentExecutor(runtime)
+        entered, release, interrupted = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        operation = "begin_invocation" if boundary == "admission" else "complete_invocation"
+        original = getattr(runtime._state, operation)
+        state_task = None
+        committed_while_owned = False
+
+        async def gated(**kwargs):
+            nonlocal state_task, committed_while_owned
+            state_task = asyncio.current_task()
+            entered.set()
+            try:
+                await release.wait()
+                if outcome == "failed":
+                    raise WorkerStateError("controlled State publication failure")
+                result = await original(**kwargs)
+                committed_while_owned = not owner.done() and runtime._lock.locked()
+                return result
+            except asyncio.CancelledError:
+                interrupted.set()
+                raise
+
+        setattr(runtime._state, operation, gated)
+        envelope = data_request(spec.allocation_id)
+        ParseDict(
+            deadline_request(spec).model_dump(mode="json", by_alias=True, exclude_none=True),
+            envelope.message.parts[0].data,
+        )
+        context = RequestContext(
+            call_context=ServerCallContext(tenant=spec.allocation_id),
+            request=envelope,
+            task_id="repeated-cancel-tool",
+            context_id="repeated-cancel-context",
+        )
+        owner = asyncio.create_task(executor.execute(context, RecordingQueue()))
+        try:
+            if boundary == "settlement":
+                await asyncio.wait_for(tool.started.wait(), 2)
+                advance_clock(11)
+            await asyncio.wait_for(entered.wait(), 2)
+            if boundary == "settlement":
+                assert tool.cancelled.is_set()
+                receipt = json.loads(next(iter(store.values.values()))[0])
+                assert receipt["phase"] == "failed" and receipt["errorCode"] == "tool_timeout"
+            # Route both cancellations through the real A2A ownership map.
+            # Yield between them so the second reaches the cleanup join after
+            # the first has already interrupted the invocation's normal await.
+            await executor.cancel(context, RecordingQueue())
+            await asyncio.sleep(0)
+            await executor.cancel(context, RecordingQueue())
+            for _ in range(4):
+                await asyncio.sleep(0)
+            assert not owner.done() and runtime._lock.locked()
+            assert not interrupted.is_set()
+            assert state_task is not None and not state_task.done()
+            if outcome == "timeout":
+                advance_clock(6)
+            else:
+                release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await asyncio.wait_for(asyncio.shield(owner), 2)
+            assert state_task.done() and not runtime._lock.locked()
+            assert tool.calls == (
+                [] if boundary == "admission" else [(request(spec).parameters["target"], 10)]
+            )
+            if outcome == "completed":
+                assert committed_while_owned
+                assert runtime._accepting
+                assert_terminal(
+                    await runtime.agent_state_snapshot(),
+                    "cancelled" if boundary == "admission" else "failed",
+                    calls=0 if boundary == "admission" else 1,
+                )
+            else:
+                assert not runtime._accepting
+                assert (await runtime.invoke(request(spec))).failure.code == "worker_draining"
+                assert not committed_while_owned
+            if boundary == "settlement":
+                replacement = await worker(tmp_path, store, tool, spec=spec)
+                assert (await replacement.invoke(request(spec))).failure.code == "tool_timeout"
+                assert len(tool.calls) == 1
+            elif outcome == "completed":
+                # An admission cancelled before scanning is not a poisoned
+                # slot: an explicitly delivered next invocation can run.
+                setattr(runtime._state, operation, original)
+                next_request = request(spec).model_copy(update={"subtask_id": "next"})
+                assert (await runtime.invoke(next_request)).result is not None
+                assert len(tool.calls) == 1
+        finally:
+            release.set()
+            owner.cancel()
+            await asyncio.gather(owner, return_exceptions=True)
+            if state_task is not None:
+                await asyncio.gather(state_task, return_exceptions=True)
+
+    run_with_advanceable_clock(scenario())
