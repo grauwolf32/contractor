@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-136 open tasks: 4 in progress, 121 pending, 11 deferred. 1101 finished: 1091 completed, 10 archived.
+136 open tasks: 5 in progress, 120 pending, 11 deferred. 1101 finished: 1091 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V416-015](v416-015-ansible-environment-diagnostics.yml) | operations | defect | P1 | Keep Runtime environment values out of Ansible diagnostics |
 
 ## Pending
 
@@ -177,7 +178,6 @@ the epics are in [epics.yml](epics.yml).
 | [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
 | [V416-005](v416-005-hybrid-placement-labels.yml) | defect | P2 | — | Declare Runtime placement labels in hybrid deployment inventory |
 | [V416-006](v416-006-hybrid-bootstrap-idempotency.yml) | defect | P1 | — | Bind hybrid bootstrap idempotency keys to the complete mutation |
-| [V416-015](v416-015-ansible-environment-diagnostics.yml) | defect | P1 | — | Keep Runtime environment values out of Ansible diagnostics |
 
 ### Public API and wire contracts (`api-contracts`)
 

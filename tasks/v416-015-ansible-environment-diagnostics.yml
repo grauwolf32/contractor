@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V402-001
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [yaml, python]
 goal: >-
@@ -78,3 +78,15 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+implementation_notes:
+  - "Raw resolver calculations and results are private; public diagnostics use validated identity or entry index, field/key/argument index and fixed categories. Input shape checks precede Jinja operations that could otherwise echo bad values."
+  - "Configure/start include loops carry names instead of complete instances. Parser, probe, scope and journal payloads are private. Unit rendering suppresses both old/new diffs while preserving changed/restart state."
+  - "Runtime probe and UV overrides travel through command stdin to a standard-library exec launcher. This removes the task.environment shell prefix that pinned Ansible prints at -vvv despite no_log."
+  - "Registration diagnostics preserve last-probe-outcome semantics per expected ref; an available event followed by invalid_result cannot claim readiness. Raw outcomes and journal lines are never published."
+validation_notes:
+  - "Fix-finding skill: independent pre-patch investigator traced the boundaries and confirmed the no_log/task.environment verbose transport leak. One fresh bypass reviewer identified the latest-outcome regression; it was independently confirmed, repaired and covered in both event orders."
+  - "Fail-before: two new real-role tests against immutable 6887ec187acbbc81a0cfb8332c3b94ba8a231cb6 fail in three subcases because invalid environment and unrelated argument/capability failures expose synthetic host/instance sentinels."
+  - "Pass-after coverage: 17 real localhost callback tests, with normal output and -vvv/--diff, cover malformed entries/types, literal values, parser/probe/UV/scope failures, journal timeout and malformed/unknown events, old/new unit diffs, outer include loops, actual child environment delivery, unit changed/restart truth and registration verdicts."
+  - "Only synthetic values and disposable localhost fixtures are used. No live SSH/cloud deployment or real credential was accessed. ANSIBLE_DEBUG and user-added debug tasks explicitly exposing private host variables are outside the supported diagnostic boundary."
+  - "Final verification after the review repair: make test-ansible test-hybrid lint PASS, including 17 diagnostic regressions, 17 pruning regressions, four real-parser scope tests and 23 hybrid tests. Targeted Ruff check/format and git diff --check PASS. GOFLAGS=-p=2 bounded Go check concurrency."
+  - "The added real-role event-order regression fails against the reviewed pre-repair filter exactly for available followed by invalid_result, and passes both event orders after the repair."

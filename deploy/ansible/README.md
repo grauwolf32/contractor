@@ -234,3 +234,21 @@ npm install --package-lock-only --ignore-scripts
 `make test-ansible` (also part of `make lint`) runs the syntax check,
 ansible-lint, the controller-only resolution tests in `tests/resolve.yml`, and
 the tool probe against the locked Runtime environment.
+
+## Private deployment diagnostics
+
+Configuration validation reports only the instance (or entry index), field/key
+or argument index, and a fixed failure category. Raw resolver results, parser
+and probe output, UV overrides, scope arguments and service journals are private;
+unit templates disable both old/new diffs. Successful configuration and restart
+tracking are unchanged. Resolve a reported category by checking the named field,
+installed tools, service health or package connectivity in the private operator
+session; do not paste environment values or raw journals into shared logs.
+
+Normal output, Ansible verbosity through `-vvv`, and `--diff` keep configurable
+Runtime and UV environment values private. These environments travel inside a
+protected module payload to an exec launcher: `no_log` alone cannot protect
+Ansible's verbose transport command when `task.environment` is used. Do not
+turn on `ANSIBLE_DEBUG`, add debug tasks for host variables, or publish inventory,
+rendered unit files or private command payloads; those explicitly expose the
+operator's private configuration outside the role's diagnostic boundary.
