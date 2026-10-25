@@ -5,7 +5,7 @@ milestone: adk-213-upgrade-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V418-008
 - V418-009
@@ -176,3 +176,4 @@ verification:
     logical-owner clarification.
   baseline_defects: V418-008 and V418-009 completed before this characterization is closed; their failures
     were not attributed to ADK2.13 or suppressed.
+implementation_commit: 4f658bb93e33e1129cf9c4a1ca72f0eb184b87d5
