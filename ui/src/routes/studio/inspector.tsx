@@ -526,6 +526,7 @@ export function Inspector({
                           "prepare-output",
                           "retained-output",
                           "round-results",
+                          "retained-dependency",
                         ].map((source) => (
                           <option key={source}>{source}</option>
                         ))}
@@ -536,6 +537,7 @@ export function Inspector({
                     "audit-input",
                     "prepare-output",
                     "retained-output",
+                    "retained-dependency",
                   ].includes(textValue(record(input).source))
                     ? field("Source name", [...p, "inputs", name, "name"])
                     : null}

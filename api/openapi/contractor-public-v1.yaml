@@ -12487,11 +12487,11 @@ components:
       additionalProperties: false
       required: [source]
       properties:
-        source: {enum: [audit-input, item-package, execution-manifest, retained-output, prepare-output, round-results]}
+        source: {enum: [audit-input, item-package, execution-manifest, retained-output, prepare-output, round-results, retained-dependency]}
         name: {$ref: '#/components/schemas/ArtifactName'}
         role: {$ref: '#/components/schemas/ArtifactName'}
       oneOf:
-        - properties: {source: {const: audit-input}}
+        - properties: {source: {enum: [audit-input, retained-dependency]}}
           required: [name]
           not: {required: [role]}
         - properties: {source: {enum: [item-package, execution-manifest, round-results]}}

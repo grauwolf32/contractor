@@ -3700,12 +3700,12 @@ export interface components {
         };
         AuditWorkflowInputMapping: {
             /** @enum {unknown} */
-            source: "audit-input" | "item-package" | "execution-manifest" | "retained-output" | "prepare-output" | "round-results";
+            source: "audit-input" | "item-package" | "execution-manifest" | "retained-output" | "prepare-output" | "round-results" | "retained-dependency";
             name?: components["schemas"]["ArtifactName"];
             role?: components["schemas"]["ArtifactName"];
         } & ({
-            /** @constant */
-            source?: "audit-input";
+            /** @enum {unknown} */
+            source?: "audit-input" | "retained-dependency";
         } | {
             /** @enum {unknown} */
             source?: "item-package" | "execution-manifest" | "round-results";
