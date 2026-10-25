@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: V2-010
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V418-002
 languages:
@@ -132,3 +132,4 @@ verification:
   controls: Original frozen fixture999main+1finalizer succeeds without modification. Two isolated old-source
     negative cases fail as expected; source-only default500 checks and component independent review are
     preserved in linked evidence.
+implementation_commit: cc979dd4af2477015b23b9ad9319d09179645d45
