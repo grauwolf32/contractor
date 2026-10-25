@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-144 open tasks: 5 in progress, 128 pending, 11 deferred. 1122 finished: 1112 completed, 10 archived.
+144 open tasks: 6 in progress, 127 pending, 11 deferred. 1122 finished: 1112 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V418-003](v418-003-adk-213-allocation-and-skill-lifecycle.yml) | agent-skills | chore | P1 | Verify allocation cleanup and bounded Skills on ADK 2.13 |
+| [V418-004](v418-004-adk-213-gateway-and-telemetry-contracts.yml) | operations | chore | P1 | Preserve Gateway and telemetry contracts across ADK 2.13 |
 
 ## Pending
 
@@ -183,7 +184,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
-| [V418-004](v418-004-adk-213-gateway-and-telemetry-contracts.yml) | chore | P1 | — | Preserve Gateway and telemetry contracts across ADK 2.13 |
 
 ### Public API and wire contracts (`api-contracts`)
 
