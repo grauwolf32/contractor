@@ -199,7 +199,7 @@ func (s *Service) CreatePublic(ctx context.Context, params PublicCreateParams) (
 					if !contracts.AcceptsMediaType(workflow.Inputs[slot].MediaTypes, fork.MediaType) {
 						return fmt.Errorf("%w: input %q has unsupported media type", ErrInvalid, slot)
 					}
-					if workflow.Inputs[slot].SourceScope == "user" && (fork.Size > scan.MaxNucleiRulepackZIPBytes || (fork.MediaType == "application/yaml" && fork.Size > scan.MaxNucleiRulepackFileBytes)) {
+					if workflow.Inputs[slot].SourceScope == "user" && !scan.ValidNucleiRulepackMetadata(fork.MediaType, fork.Size) {
 						return fmt.Errorf("%w: rulepack input exceeds its byte limit", ErrInvalid)
 					}
 					exactSources[slot] = runrepeat.InputSource{SourceScope: sourceScope.Kind(), Artifact: fork.SourceRef}

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-132 open tasks: 6 in progress, 115 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+132 open tasks: 7 in progress, 114 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
 
 ## In progress
 
@@ -17,6 +17,7 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V416-004](v416-004-openapi-json-escapes.yml) | workflows | defect | P1 | Read OpenAPI JSON seeds with JSON escape semantics |
 | [V416-007](v416-007-interactsh-reconciliation-poll.yml) | http-tools | defect | P2 | Account for Interactsh reconciliation polls in the shared gap and rate rules |
+| [V416-008](v416-008-rulepack-metadata-contract.yml) | scan-tools | chore | P3 | Share the Nuclei rulepack media and byte admission contract |
 
 ## Pending
 
@@ -67,7 +68,6 @@ the epics are in [epics.yml](epics.yml).
 | [V410-004](v410-004-sitemap-structured-imports.yml) | feature | P1 | V410-002 | Import bounded scanner and selected Caido observations |
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020, V410-004 | Gate controlled ffuf execution through the pentest transport |
 | [V414-004](v414-004-scan-audit-result-failure-classes.yml) | defect | P2 | — | Classify Audit scan result building failures by cause instead of as invalid input |
-| [V416-008](v416-008-rulepack-metadata-contract.yml) | chore | P3 | — | Share the Nuclei rulepack media and byte admission contract |
 | [V416-009](v416-009-nuclei-preparation-boundary.yml) | chore | P3 | — | Extract the Nuclei preparation sequence into a private helper with an explicit result |
 
 ### Findings tools and collections (`findings`)

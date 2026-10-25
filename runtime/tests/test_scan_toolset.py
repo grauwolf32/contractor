@@ -705,6 +705,7 @@ def test_shared_nuclei_inputs():
         MAX_FILE_BYTES,
         MAX_ZIP_BYTES,
         RULEPACK_MEDIA_TYPE,
+        valid_rulepack_metadata,
     )
 
     assert fixture["rulepackLimits"] == {
@@ -712,6 +713,10 @@ def test_shared_nuclei_inputs():
         "fileBytes": MAX_FILE_BYTES,
         "mediaType": RULEPACK_MEDIA_TYPE,
     }
+    for case in fixture["rulepackMetadataCases"]:
+        assert valid_rulepack_metadata(case["mediaType"], case["size"]) == case["valid"], case[
+            "name"
+        ]
     for case in fixture["cases"]:
         try:
             validate_nuclei_arguments(case["arguments"])
