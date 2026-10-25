@@ -106,7 +106,7 @@ milestones:
     outcome: Opt-in Streamline and Router compaction continues one bounded Planner invocation with exact evidence, cumulative budgets, fail-closed persistence and per-owner strategy exclusion, while Scheduler lifecycle and independent Worker terminal summarization remain unchanged.
   - id: adk-213-upgrade-2026-10
     exit_task: V418-007
-    outcome: The exact ADK 2.13.0 dependency closure preserves logical Worker execution, strict tool admission, bounded lifecycle and telemetry through full Runtime and real-process release evidence, independently of compaction and model consultation.
+    outcome: ADK 2.13.0 preserves logical Worker execution, strict tools, lifecycle and telemetry through recorded broad migration evidence and user-authorized targeted checks of the final patched dependency closure. Per the explicit final no-full-rerun instruction, no complete full-release run is claimed for that last lock; compaction and consultation remain independent.
   - id: terminal-summarizer-reasoning-2026-10
     exit_task: V417-001
     outcome: The existing terminal summarizer accepts an explicitly pinned includeReasoning option with bounded redacted input and unchanged terminal behavior, independently of compaction implementation or quality experiments.

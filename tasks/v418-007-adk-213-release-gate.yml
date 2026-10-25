@@ -9,11 +9,13 @@ status: in_progress
 depends_on:
 - V418-005
 - V418-006
+- V418-012
 languages:
 - python
 - markdown
-goal: Accept the exact ADK 2.13 dependency closure only after the full deterministic release and all migration-specific
-  case inventories pass, then unblock the existing compaction spike.
+goal: Close the ADK2.13 migration after the prior broad evidence and user-authorized targeted checks on
+  the patched final dependency closure are honestly reconciled; do not claim a repeated full release after
+  the last dependency update.
 context:
   authority: 'User request on 2026-10-25: plan the ADK 2.13 upgrade with every identified compatibility
     change, adjust the existing compaction series, and keep model consultation as a proposal. These pending
@@ -33,11 +35,13 @@ context:
     registries and affected implementations together when an explicit clarification is necessary. No ADK-version
     branches, legacy readers, dual production runtimes, model replacement, silent retries, new receipt
     store or speculative public API. Read current code and re-establish the dated evidence before implementation.
-  verification_acceleration: User requested acceleration on2026-10-25. Verify all twelve current RELEASE_STAGES
-    with independent isolated workers/databases; preserve every mandatory case. The canonical already-passed26-parent
-    test-e2e union may supply the three process shards only after exact stage-input equivalence and report
-    validation. Record executed versus reused evidence explicitly; never claim an unexecuted make release-verify
-    invocation or treat missing/zero/skipped required cases as a cache hit.
+  verification_acceleration: 'Superseded by the later explicit user instruction: «Только полный прогон
+    не делай после этого обновления». Stop the remaining full release stages and globalE2E/Runtime reruns
+    after certifi/OTel remediation. Retain all earlier broad source/lock provenance and the first advisory
+    failure. Complete only focused checks of the patched closure and report the unexecuted full stages
+    explicitly.'
+  user_scope_change: User expressly waived a full rerun after the final certifi/OTel update on2026-10-25;
+    this overrides the earlier full-release plan without falsifying completed tests.
 scope:
   in:
   - Integrated release verification, dependency advisory evidence, ownership/disposition reconciliation
@@ -52,14 +56,15 @@ scope:
 acceptance_criteria:
 - id: A1
   given: The integrated revision and a fresh locked environment
-  when: Dependency smoke and the complete Runtime suite run
-  then: The supported 2.13 closure works without optional provider SDKs, regressions or skipped mandatory
-    cases.
+  when: A fresh locked smoke and targeted Runtime compatibility profile run
+  then: The patched final2.13 closure works without optional providers or regressions in the tested paths;
+    no full-suite claim is made for this lock.
 - id: A2
   given: All migration case inventories and predecessor evidence
-  when: The integrated release graph runs
-  then: Every required deterministic stage passes with actual case counts, including the previously skipped
-    real Go Artifact API scenario.
+  when: Prior broad records and the final targeted profile are reconciled under the explicit no-full-rerun
+    instruction
+  then: Required migration critical paths and real Artifact API evidence are accounted at their exact
+    source/lock; unexecuted final full stages and lack of a complete final-release run are explicit.
 - id: A3
   given: Current dependency advisory data and source availability
   when: The separate advisory gate runs
@@ -74,60 +79,40 @@ tests:
 - command: cd runtime && uv sync --locked
   covers:
   - A1
-- command: make release-verify-lint
+- command: cd runtime && uv run --locked pytest -W error tests/test_dependency_smoke.py tests/test_adk_runtime.py
+    tests/test_instrumentation.py tests/test_openai_gateway_llm.py tests/test_telemetry_content.py tests/test_shared_genai_telemetry.py
+    tests/test_adk_gateway_conformance.py tests/test_sensitive_output_tools.py tests/test_result_finalizer.py
+    tests/test_worker_summarizer.py
   covers:
   - A1
-  - A4
-- command: make release-verify-unit
-  covers:
-  - A1
   - A2
-- command: make release-verify-ui
+- command: make test-control-integration
   covers:
   - A2
-- command: make release-verify-families
-  covers:
-  - A2
-- command: make release-verify-browser-a
-  covers:
-  - A2
-- command: make release-verify-browser-b
-  covers:
-  - A2
-- command: make release-verify-race
-  covers:
-  - A2
-- command: make release-verify-race-discovered
-  covers:
-  - A2
-- command: make release-verify-integration
-  covers:
-  - A2
-- command: make test-e2e
+- command: go test -count=1 ./internal/telemetry/...
   covers:
   - A2
 - command: make test-runtime-dependencies-audit
   covers:
   - A3
+- command: runtime/.venv/bin/python scripts/check_tasks.py
+  covers:
+  - A4
 requirements:
 - id: R1
-  text: Create the final verification record from clean isolated checkouts at the integrated revision
-    and fresh default locked environments. Record exact ADK/Python/transitive closure, lock digest and
-    actual commands. No exploratory PYTHONPATH/SDK overlays. Reused process evidence must have a clean
-    original checkout and the equivalence proof required by R8.
+  text: Record a fresh ordinary locked environment for the patched final revision and exact versions/override/source/lock
+    hashes. No hidden SDK overlays. Keep every earlier broad source/lock identity unchanged.
 - id: R2
   text: 'Every finding from the case manifest has a disposition and owning passing regression: reminder
     identity, interrupted history, unknown names, deadline admission, cancellation classification, raw
     coercion, empty output, resource cleanup, Skills and Gateway/telemetry contracts. New findings become
     resolved tasks, never silent scope omissions.'
 - id: R3
-  text: Account for every current RELEASE_STAGES entry. Execute independent required stages in separate
-    checkout/report directories and disposable databases with bounded concurrency; release-verify-unit
-    runs the full Runtime suite and shared-fixture checks once. Validate consolidation reports and every
-    required Runtime/real-store/real-process/wire/browser case. The process A/B/C stages may use the same
-    successful canonical26-parent make test-e2e union under R8 instead of repeating it. Zero matches,
-    missing or skipped mandatory prerequisites block completion. Do not claim a literal full-parent make
-    invocation ran if stages were dispatched separately.
+  text: 'Follow the later explicit user instruction: after the certifi/OTel update, do not rerun the full
+    Runtime, release graph or globalE2E. Execute the focused profile listed under tests once on final
+    inputs, reusing the same actual passing012 command records rather than repeating them. State which
+    broad stages never ran and which earlier results concern the old lock. A targeted acceptance is never
+    represented as a complete full release.'
 - id: R4
   text: Run the separate Runtime dependency advisory gate and record result/date/source availability.
     A service outage is unavailable, never clean; an actionable finding requires a resolved owning decision
@@ -147,13 +132,10 @@ requirements:
     Completion requires every listed acceptance gate, not merely a successful pin or most Runtime tests;
     no deployment is implied.
 - id: R8
-  text: Reuse a process result only with its actual successful command/exit/report hashes and complete
-    required case inventory. Compare original and final Go/Python locks/toolchains, all production code,
-    process tests/fixtures, runtime CLI/helpers, shipped configuration and selector/report-validator inputs.
-    Any relevant difference invalidates reuse. Identify harmless documentation/task metadata and newly
-    added unit-only/sampler paths explicitly rather than silently ignoring arbitrary files. Retain original
-    revision, final promoted revision, exact changed-path analysis and source fingerprints; classify each
-    stage as executed or verified reused, never skipped/pass-by-assumption.
+  text: Historical reuse is attribution only after the dependency lock changes. No old full Runtime/process
+    result is promoted as a full run on the patched closure. Pure UI results may retain their unchanged
+    Node/UI inputs, but do not imply Python/process acceptance. User-imposed verification scope is recorded
+    explicitly in the final report.
 test_prerequisites:
 - Commands below are future implementation acceptance gates, not checks already passed by this planning
   change. A required command, selected case or dependency setup must not be skipped or match zero tests.

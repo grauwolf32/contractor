@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-141 open tasks: 7 in progress, 123 pending, 11 deferred. 1128 finished: 1118 completed, 10 archived.
+142 open tasks: 8 in progress, 123 pending, 11 deferred. 1128 finished: 1118 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V418-007](v418-007-adk-213-release-gate.yml) | quality | chore | P1 | Close the ADK 2.13 migration with an integrated release gate |
+| [V418-012](v418-012-patched-runtime-trust-and-otel.yml) | execution-core | defect | P1 | Patch Runtime CA trust and OpenTelemetry with an explicit tested ADK override |
 | [V419-001](v419-001-go-adk-26-compatibility-characterization.yml) | planner-worker | chore | P1 | Characterize Go ADK v1.6 to v2.6 compatibility on real Planner paths |
 | [V419-006](v419-006-finish-append-failure-precedence.yml) | planner-worker | defect | P1 | Fence Planner completion after a required ADK session write fails |
 
@@ -247,7 +248,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 4 | 41 | 55 | 19 | 83 |
+| Run execution core (`execution-core`) | 5 | 41 | 56 | 19 | 84 |
 | Planners and the Worker model boundary (`planner-worker`) | 19 | 34 | 47 | 27 | 63 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
