@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-143 open tasks: 5 in progress, 127 pending, 11 deferred. 1123 finished: 1113 completed, 10 archived.
+142 open tasks: 4 in progress, 127 pending, 11 deferred. 1124 finished: 1114 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V418-004](v418-004-adk-213-gateway-and-telemetry-contracts.yml) | operations | chore | P1 | Preserve Gateway and telemetry contracts across ADK 2.13 |
 
 ## Pending
 
@@ -27,7 +26,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 | [V414-014](v414-014-standby-shutdown-race.yml) | defect | P3 | — | Exit a standby Server cleanly when shutdown races its readiness listener |
-| [V418-005](v418-005-adk-213-real-process-conformance.yml) | chore | P1 | V418-004 | Verify ADK 2.13 across real Run and allocation processes |
+| [V418-005](v418-005-adk-213-real-process-conformance.yml) | chore | P1 | — | Verify ADK 2.13 across real Run and allocation processes |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -43,7 +42,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | feature | P1 | V417-003 | Preserve compacted context across shared-session invocations |
 | [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Resolve reference-only compactor model policy overrides |
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
-| [V418-006](v418-006-adk-213-session-work-and-performance.yml) | chore | P1 | V418-004 | Bound long-session and repeated-allocation work on ADK 2.13 |
+| [V418-006](v418-006-adk-213-session-work-and-performance.yml) | chore | P1 | — | Bound long-session and repeated-allocation work on ADK 2.13 |
 | [V419-001](v419-001-go-adk-26-compatibility-characterization.yml) | chore | P1 | — | Characterize Go ADK v1.6 to v2.6 compatibility on real Planner paths |
 | [V419-002](v419-002-go-adk-26-atomic-migration.yml) | chore | P1 | V419-001 | Upgrade Go ADK to v2.6.0 with atomic API and dependency adaptations |
 | [V419-003](v419-003-go-adk-26-runner-session-conformance.yml) | chore | P1 | V419-002 | Verify Go ADK v2 tool history and Planner session lifecycle |
@@ -265,7 +264,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |
-| Operations, authentication, CLI and deployment (`operations`) | 2 | 16 | 42 | 7 | 15 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 42 | 7 | 15 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
 | Quality, CI and process (`quality`) | 19 | 1 | 27 | 98 | 23 |

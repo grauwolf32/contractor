@@ -5,7 +5,7 @@ milestone: adk-213-upgrade-2026-10
 epic: operations
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V418-002
 languages:
@@ -191,3 +191,10 @@ lifecycle:
     required publication receipts through their existing owner.
   retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
     results under existing retention policies.
+verification:
+  focused: Required and adjacent Runtime modules201plus312pass;20newrealHTTP/serializedOTLPcases pass.
+    Go telemetry49top-level pass,1explicitoptionalCollector skip; wire271fixtures326Go224Pythonshared functions pass.
+  aggregate: Common native Linux make test-runtime and report verifier pass4984,55unchanged allowed skips,
+    zero failures; all20newGatewaycases executed. Full make lint passes; exact hashes and a scoped existing
+    nullable-property limitation are recorded in linked evidence. No native exporter or optional provider enabled.
+implementation_commit: 6ae73cb26dd391d9cd1645f97a1121c905106f66
