@@ -180,6 +180,8 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		"--private-key-file", agentPaths.PrivateKey,
 		"--listen", runtimeAddress,
 		"--work-root", workRoot,
+		"--workspace-storage", "local",
+		"--workspace-work-root", filepath.Join(temporaryRoot, "runtime-project-work"),
 		"--request-timeout-seconds", "12",
 		"--shutdown-grace-seconds", "5",
 		"--runtime-adapter", "otlp-http@1",
@@ -357,6 +359,21 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	}
 	assertAgentSkillGatewaySequence(t, gateway.Observations(), fixture)
 	assertLikeC4ValidatorCount(t, validatorLog, 10)
+	// Selected packages reuse immutable bytes on this one Runtime across
+	// independently authorized allocations. The workspace process gate proves
+	// the other eligible caller through its own actual hydration allocations.
+	cacheRoot := filepath.Join(temporaryRoot, "runtime-project-work", ".contractor-archive-cache")
+	dataFiles, err := filepath.Glob(filepath.Join(cacheRoot, "*.data"))
+	if err != nil || len(dataFiles) < 2 {
+		t.Fatalf("cache did not retain A/B Skill archives: %v %v", dataFiles, err)
+	}
+	runtimeProcess.stop(t)
+	assertRuntimeArchiveCacheCounters(t, runtimeProcess.logs.redacted(), "archiveCacheSkillHit")
+	dataFiles, err = filepath.Glob(filepath.Join(cacheRoot, "*.data"))
+	if err != nil || len(dataFiles) != 0 {
+		t.Fatal("Runtime shutdown retained reusable cache files", err)
+	}
+
 	assertAgentSkillCanariesAbsent(
 		t, fixture,
 		firstServer.logs.redacted(publicToken, llmGatewayToken),
@@ -1157,4 +1174,25 @@ func mustJSON(t *testing.T, value any) []byte {
 		t.Fatal(err)
 	}
 	return encoded
+}
+
+// Counters are fixed scalars and contain no identities, keys or paths.
+func assertRuntimeArchiveCacheCounters(t *testing.T, logs string, keys ...string) {
+	t.Helper()
+	for _, line := range strings.Split(logs, "\n") {
+		var event map[string]any
+		if json.Unmarshal([]byte(line), &event) != nil || event["message"] != "runtime archive cache stopped" {
+			continue
+		}
+		for _, key := range keys {
+			if count, ok := event[key].(float64); !ok || count < 1 {
+				t.Fatalf("no production %s: %s", key, line)
+			}
+		}
+		if _, ok := event["contentCacheKey"]; ok {
+			t.Fatal("cache identity leaked into operations log")
+		}
+		return
+	}
+	t.Fatal("Runtime did not report joined cache shutdown counters", logs)
 }

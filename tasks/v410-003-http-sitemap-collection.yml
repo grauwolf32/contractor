@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V410-002
 languages:
@@ -183,3 +183,12 @@ tests:
 test_prerequisites:
 - Use injected clocks for flush budgets; local HTTP fixtures and real Server/Runtime/PostgreSQL provide process
   evidence, with mandatory collector cases registered in the gate manifest.
+
+execution:
+  branch: codex/v410-sitemap
+  claimed_on: "2026-10-26"
+  note: >-
+    Taken into work by Codex at the user's explicit request. The seven-task
+    batch is reserved together; implementation proceeds in dependency order,
+    and dependent tasks do not start implementation before their prerequisites
+    complete. Status records assignment, not completed implementation or tests.

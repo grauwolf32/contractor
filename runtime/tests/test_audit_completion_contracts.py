@@ -178,10 +178,7 @@ def test_shared_encoder_inputs_pin_both_artifacts_and_keep_sensitive_bytes_immut
         owner(), task_set_sha256="sha256:" + hashlib.sha256(package).hexdigest()
     )
     inputs = AuditTrustedInputs(identity, package, b"manifest-secret")
-    assert (
-        inputs.execution_manifest_sha256
-        == "sha256:" + hashlib.sha256(b"manifest-secret").hexdigest()
-    )
+    assert inputs.execution_manifest == b"manifest-secret"
     assert "secret" not in repr(inputs)
     with pytest.raises(dataclasses.FrozenInstanceError):
         inputs.task_package = b"replacement"

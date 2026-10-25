@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
 from contractor_runtime.projectfs.paths import ProjectPathError, normalize_project_path
 
@@ -21,16 +21,6 @@ class WorkspaceToolObservation:
     read: tuple[str, ...] = ()
     matched: tuple[str, ...] = ()
     modified: tuple[str, ...] = ()
-
-
-class ObservationExtractor(Protocol):
-    """Reviewed opt-in interface implemented by model-visible tool objects."""
-
-    def contractor_observation(
-        self,
-        tool_args: Mapping[str, Any],
-        result: Any,
-    ) -> WorkspaceToolObservation | None: ...
 
 
 def filesystem_tool_observation(

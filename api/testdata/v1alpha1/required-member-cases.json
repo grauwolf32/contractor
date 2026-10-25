@@ -1767,6 +1767,50 @@
         "/artifacts/1/namespace"
       ]
     },
+    "artifact-metadata-result-boundary.json": {
+      "omit": [
+        "/apiVersion",
+        "/artifact",
+        "/artifact/name",
+        "/artifact/namespace",
+        "/artifact/revision",
+        "/contentCacheKey",
+        "/mediaType",
+        "/size"
+      ],
+      "null": [
+        "/apiVersion",
+        "/artifact",
+        "/artifact/name",
+        "/artifact/namespace",
+        "/artifact/revision",
+        "/contentCacheKey",
+        "/mediaType",
+        "/size"
+      ]
+    },
+    "artifact-metadata-result.json": {
+      "omit": [
+        "/apiVersion",
+        "/artifact",
+        "/artifact/name",
+        "/artifact/namespace",
+        "/artifact/revision",
+        "/contentCacheKey",
+        "/mediaType",
+        "/size"
+      ],
+      "null": [
+        "/apiVersion",
+        "/artifact",
+        "/artifact/name",
+        "/artifact/namespace",
+        "/artifact/revision",
+        "/contentCacheKey",
+        "/mediaType",
+        "/size"
+      ]
+    },
     "artifact-read-result.json": {
       "omit": [
         "/apiVersion",

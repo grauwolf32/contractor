@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: workflows
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V410-003
 - V410-004
@@ -188,3 +188,12 @@ test_prerequisites:
 - Existing tool@1 and Audit prepare/round mapping implementations are reused, not recreated. Use disposable PostgreSQL,
   local target/provider fixtures and scripted model responses; do not require paid/live models or deferred iterative
   features.
+
+execution:
+  branch: codex/v410-sitemap
+  claimed_on: "2026-10-26"
+  note: >-
+    Taken into work by Codex at the user's explicit request. The seven-task
+    batch is reserved together; implementation proceeds in dependency order,
+    and dependent tasks do not start implementation before their prerequisites
+    complete. Status records assignment, not completed implementation or tests.

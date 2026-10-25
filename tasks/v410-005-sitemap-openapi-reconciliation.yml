@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V410-002
 - V55-007
@@ -199,3 +199,12 @@ tests:
 test_prerequisites:
 - Register deterministic reconciliation process cases in the sitemap gate. No target network, installed scanner,
   browser or external model is needed. PostgreSQL-backed source races and receipt/quota cases are mandatory.
+
+execution:
+  branch: codex/v410-sitemap
+  claimed_on: "2026-10-26"
+  note: >-
+    Taken into work by Codex at the user's explicit request. The seven-task
+    batch is reserved together; implementation proceeds in dependency order,
+    and dependent tasks do not start implementation before their prerequisites
+    complete. Status records assignment, not completed implementation or tests.

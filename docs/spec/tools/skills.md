@@ -765,11 +765,13 @@ ModelPolicy limits as a Contractor Toolset call (FAIL-SKL-5).
 Rationale: the per-member bounds keep both the charge estimate and one native
 result bounded.
 
-**SKL-R101.** Runtime may keep an immutable package cache keyed only by
-verified package digest. The cache is bounded, never resolves a logical or
-current binding, and contains no User or Run authority, secret, ADK State or
-conversation data. A cache hit still verifies the manifest name and the exact
-digest (LIFE-SKL-4).
+**SKL-R101.** Local-storage Runtime may reuse encoded packages in the bounded
+private archive cache (RTA-R119 through RTA-R124), keyed by Server trust-domain
+and the authenticated immutable `contentCacheKey` (ART-R116). Every lookup
+rechecks current allocation authority for the exact selected ref; the cache
+contains no User or Run authority, secret, ADK State or conversation data.
+Every hit independently verifies the manifest name and exact trusted selected
+package digest, not just the local integrity checksum (LIFE-SKL-4).
 
 **SKL-R102.** When Agent Skills are selected, ADK's allocation-local
 activated-skill State is separate from the reserved `contractor` subtree and

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import re
 from typing import Self
 
 from pydantic import (
+    ConfigDict,
     Field,
     model_validator,
 )
@@ -18,6 +20,8 @@ from contractor_runtime.contracts.base import (
     WireModel,
     _require_text,
 )
+
+MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
 
 # The Run Namespaces a trusted purpose-specific flow owns (ART-R114): none is a
 # Stage Agent or MemoryTools Namespace, and no Stage or Worker result binds
@@ -140,3 +144,23 @@ class ArtifactReadResult(VersionedWireModel):
 
 class ArtifactWriteResult(ArtifactReadResult):
     pass
+
+
+class ArtifactMetadataResult(ArtifactReadResult):
+    """Private content identity, never a public read/write or model projection."""
+
+    model_config = ConfigDict(
+        populate_by_name=False,
+        validate_by_name=False,
+        validate_by_alias=True,
+        hide_input_in_errors=True,
+    )
+    content_cache_key: str = Field(repr=False)
+
+    @model_validator(mode="after")
+    def validate_private_metadata(self) -> Self:
+        if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", self.content_cache_key) is None:
+            raise ValueError("invalid content cache key")
+        if self.size > MAX_ARTIFACT_BYTES:
+            raise ValueError("artifact size exceeds encoded byte bound")
+        return self

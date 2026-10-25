@@ -323,6 +323,7 @@ class FakeFindingClient:
                         },
                         "mediaType": "text/plain",
                         "size": 0,
+                        "contentCacheKey": "test_metadata_version",
                     }
                 ).encode(),
             )

@@ -100,6 +100,7 @@ class ArtifactStore:
                         "artifact": {"namespace": namespace, "name": name, "revision": revision},
                         "mediaType": media_type,
                         "size": len(data),
+                        "contentCacheKey": "test_metadata_version",
                     },
                 )
             assert len(data) <= max_response_bytes

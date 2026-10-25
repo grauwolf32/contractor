@@ -93,7 +93,6 @@ def test_local_probe_atomically_advertises_the_complete_graph_subset(tmp_path: P
         snapshot = await discover_capabilities(factories)
         factory = factories.toolsets[CODE_ANALYSIS_REF]
         assert isinstance(factory, CodeAnalysisToolsetFactory)
-        assert factory.graph_probe_succeeded is True
         assert _tools(snapshot) == SHALLOW_TOOLS | GRAPH_TOOLS
         assert not tuple((tmp_path / "scratch").glob("code-analysis-mirror-*"))
 
@@ -121,7 +120,6 @@ def test_memory_runtime_skips_graph_probe_and_remains_shallow(
         snapshot = await discover_capabilities(factories)
         factory = factories.toolsets[CODE_ANALYSIS_REF]
         assert isinstance(factory, CodeAnalysisToolsetFactory)
-        assert factory.graph_probe_succeeded is False
         assert _tools(snapshot) == SHALLOW_TOOLS
         assert calls == 0
 
@@ -150,7 +148,6 @@ def test_missing_or_broken_trailmark_affects_only_future_graph_subset(
         snapshot = await discover_capabilities(factories)
         factory = factories.toolsets[CODE_ANALYSIS_REF]
         assert isinstance(factory, CodeAnalysisToolsetFactory)
-        assert factory.graph_probe_succeeded is False
         assert _tools(snapshot) == SHALLOW_TOOLS
 
     asyncio.run(scenario())

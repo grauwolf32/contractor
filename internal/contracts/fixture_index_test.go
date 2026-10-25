@@ -88,6 +88,7 @@ var fixtureCodecs = map[string]fixtureCodec{
 	"AllocationSpec":                  revealingCodecFor(control.AllocationSpec.RevealJSON),
 	"AllocationWorkspaceSpec":         codecFor[contracts.AllocationWorkspaceSpec](),
 	"ArtifactListResult":              codecFor[contracts.ArtifactListResult](),
+	"ArtifactMetadataResult":          codecFor[contracts.ArtifactMetadataResult](),
 	"ArtifactReadResult":              codecFor[contracts.ArtifactReadResult](),
 	"FinalizeAllocationRequest":       codecFor[control.FinalizeAllocationRequest](),
 	"HeartbeatResponse":               codecFor[control.HeartbeatResponse](),

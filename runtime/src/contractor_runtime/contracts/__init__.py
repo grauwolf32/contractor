@@ -22,6 +22,7 @@ from contractor_runtime.contracts.allocation import (
 )
 from contractor_runtime.contracts.allocation import WorkerHandle as WorkerHandle
 from contractor_runtime.contracts.artifacts import ArtifactListResult as ArtifactListResult
+from contractor_runtime.contracts.artifacts import ArtifactMetadataResult as ArtifactMetadataResult
 from contractor_runtime.contracts.artifacts import ArtifactReadResult as ArtifactReadResult
 from contractor_runtime.contracts.artifacts import ArtifactRef as ArtifactRef
 from contractor_runtime.contracts.artifacts import ArtifactWriteResult as ArtifactWriteResult

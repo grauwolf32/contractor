@@ -96,10 +96,6 @@ class AuditTrustedInputs:
         if self.owner.task_set_sha256 != sha256_digest(self.task_package):
             raise ValueError("trusted Audit task package changed digest")
 
-    @property
-    def execution_manifest_sha256(self):
-        return sha256_digest(self.execution_manifest)
-
 
 @dataclass(frozen=True, slots=True)
 class AuditEvidence:

@@ -4,34 +4,6 @@
 # entry has a production reference again or no longer exists, and when its
 # task is finished or missing, so the list only shrinks.
 
-# Error kinds the registry defines but code names only by their string code
-# (evaldomain.Failure("eval_not_found") and the Audit package errors).
-internal/apierror.AuditDigestMismatch V372-030
-internal/apierror.AuditInventoryInvalid V372-030
-internal/apierror.AuditLimitExceeded V372-030
-internal/apierror.AuditPackageInvalid V372-030
-internal/apierror.AuditPackageMemberForbidden V372-030
-internal/apierror.AuditPackagePathInvalid V372-030
-internal/apierror.AuditReferenceInvalid V372-030
-internal/apierror.AuditRemoteReference V372-030
-internal/apierror.AuditResultSetInvalid V372-030
-internal/apierror.AuditSchemaUnsupported V372-030
-internal/apierror.EvalBudgetExhausted V372-030
-internal/apierror.EvalEvidenceUnavailable V372-030
-internal/apierror.EvalExternalControl V372-030
-internal/apierror.EvalIdempotencyConflict V372-030
-internal/apierror.EvalLimitExceeded V372-030
-internal/apierror.EvalMemberConflict V372-030
-internal/apierror.EvalNotFound V372-030
-internal/apierror.EvalNotReady V372-030
-internal/apierror.EvalPinMismatch V372-030
-internal/apierror.EvalPreconditionRequired V372-030
-internal/apierror.EvalPreparationUnavailable V372-030
-internal/apierror.EvalProducerStale V372-030
-internal/apierror.EvalProjectDeleting V372-030
-internal/apierror.EvalRevisionMismatch V372-030
-internal/apierror.EvalViewChanged V372-030
-
 # Accessors that only in-memory test doubles read (V368-010 keeps the doubles).
 internal/artifacts.Scope.ID V372-030
 internal/credentials.RuntimeCredentialMaterial.Kind V372-030
@@ -51,11 +23,8 @@ internal/auditstandards.SeedPlan.Packages V372-030
 internal/config.Snapshot.AgentTemplate V372-030
 internal/configload.Load V372-030
 
-# Planner construction that tests use instead of the composition's.
-internal/planner.CloneWorkerCompletion V372-030
+# Run-bound inspector used by injected metadata stores in tests.
 internal/planner.NewRunArtifactInspector V372-030
-internal/planner/router.NewConfiguredFactory V372-030
-internal/planner/streamline.NewConfiguredFactory V372-030
 
 # Function adapters of interfaces that only tests use; production passes the
 # concrete implementations.

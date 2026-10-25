@@ -60,8 +60,8 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 	}
 	workers := &workerInvoker{}
 	inspector := artifactInspector{}
-	factory, err := streamline.NewConfiguredFactory(
-		sessions, sessions, workers, inspector, unavailableWorkerStateReader{}, modelFactory,
+	factory, err := streamline.NewConfiguredFactoryWithMemory(
+		sessions, sessions, workers, inspector, unavailableWorkerStateReader{}, nil, modelFactory,
 		streamline.Limits{MaxWallTime: time.Minute},
 	)
 	if err != nil {
@@ -87,9 +87,9 @@ func TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restartedFactory, err := streamline.NewConfiguredFactory(
+	restartedFactory, err := streamline.NewConfiguredFactoryWithMemory(
 		restartedSessions, restartedSessions, workers, inspector,
-		unavailableWorkerStateReader{}, modelFactory, streamline.DefaultLimits(),
+		unavailableWorkerStateReader{}, nil, modelFactory, streamline.DefaultLimits(),
 	)
 	if err != nil {
 		t.Fatal(err)

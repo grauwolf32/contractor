@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
+from contractor_runtime.archive_cache import ArchiveValue, read_archive
 from contractor_runtime.artifacts import ArtifactClientError, ArtifactValue
 from contractor_runtime.contracts import AllocationWorkspaceSpec, ArtifactRef
 from contractor_runtime.projectfs.local_io import RootedLocalFilesystem
@@ -141,7 +142,7 @@ async def hydrate_workspace(
         for source in spec.sources:
             if time.monotonic() >= deadline:
                 raise _capacity()
-            value = await _read_artifact(artifact_reader, source.artifact, deadline)
+            value = await _read_artifact(artifact_reader, source.artifact, deadline, archive=True)
             if value.artifact != source.artifact or value.media_type != WORKSPACE_SOURCE_MEDIA_TYPE:
                 raise _invalid_source()
             await to_thread_until_done(
@@ -233,14 +234,14 @@ async def hydrate_workspace(
 
 
 async def _read_artifact(
-    reader: ArtifactReader, ref: ArtifactRef, deadline: float
-) -> ArtifactValue:
+    reader: ArtifactReader, ref: ArtifactRef, deadline: float, *, archive: bool = False
+) -> ArtifactValue | ArchiveValue:
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise _capacity()
     try:
         async with asyncio.timeout(remaining):
-            value = await reader.read_artifact(ref)
+            value = await read_archive(reader, ref) if archive else await reader.read_artifact(ref)
     except asyncio.CancelledError:
         raise
     except TimeoutError:

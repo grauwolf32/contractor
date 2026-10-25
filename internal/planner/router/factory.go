@@ -19,24 +19,6 @@ type Factory struct {
 	delegate *streamline.Factory
 }
 
-func NewConfiguredFactory(
-	sessions planner.PlanSessionService,
-	adkSessions ADKSessionFactory,
-	invoker planner.WorkerInvoker,
-	inspector planner.ArtifactInspector,
-	stateReader planner.WorkerStateReader,
-	modelFactory InvocationModelFactory,
-	limits Limits,
-) (*Factory, error) {
-	delegate, err := streamline.NewConfiguredRouterDelegate(
-		sessions, adkSessions, invoker, inspector, stateReader, modelFactory, limits,
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &Factory{delegate: delegate}, nil
-}
-
 func NewConfiguredFactoryWithMemory(
 	sessions planner.PlanSessionService,
 	adkSessions ADKSessionFactory,

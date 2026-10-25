@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V410-010
 languages:
@@ -256,3 +256,12 @@ test_prerequisites:
 - Run complete touched domain, Artifact/Project integration, public API and CLI packages. Generic migrations,
   holder/writer coverage and shared-blob GC belong to completed dependency V410-010; retain its required gates
   when integration changes those boundaries. Regenerate generated clients through repository targets.
+
+execution:
+  branch: codex/v410-sitemap
+  claimed_on: "2026-10-26"
+  note: >-
+    Taken into work by Codex at the user's explicit request. The seven-task
+    batch is reserved together; implementation proceeds in dependency order,
+    and dependent tasks do not start implementation before their prerequisites
+    complete. Status records assignment, not completed implementation or tests.

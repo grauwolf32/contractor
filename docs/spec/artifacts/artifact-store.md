@@ -207,7 +207,10 @@ immutable version selected through it.
 
 **ART-R9.** The Server resolves `(scope, namespace, name, revision)`
 to one immutable internal version. Blob locations, digests and immutable
-storage-version IDs remain internal.
+storage-version IDs remain internal, except that the authenticated private
+allocation metadata DTO exposes an opaque version identity as `contentCacheKey`
+under ART-R116. It never exposes a blob digest or location, grants no access,
+and is absent from public/shared read/write DTOs, tools, telemetry and exports.
 
 **ART-R10.** A revision is an opaque selection token, not an
 authorization credential.
@@ -560,10 +563,17 @@ to grow with Run size, skip hidden name ranges in the index.
 
 **ART-R116.** `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata`,
 with the same optional `revision` and the same allocation, Namespace and
-grant checks as the raw read, returns the `ArtifactReadResult` of the ref (its
-exact revision, media type and size) without reading or sending the payload.
-It is not a content observation: only a payload read records the exact
-revision for invocation provenance.
+grant checks as the raw read, returns the separate private
+`ArtifactMetadataResult`: required `apiVersion`, exact `artifact`, `mediaType`,
+`size` and `contentCacheKey`, without reading or sending the payload. The key
+is an opaque case-sensitive ASCII token (LIM-ART-12), stable for the resolved
+immutable version and identical across its frozen fork bindings. Independent
+versions may use different keys even for equal bytes. Both readers reject
+missing, unknown, duplicate and invalid members strictly; there is no legacy
+response shape. Metadata alone is not a content observation. A verified cache
+hit records the consuming allocation's exact binding ref, like a payload read.
+The key grants no authority and only the eligible Runtime archive callers may
+reuse bytes under [RTA-R119](../execution/runtime-agent.md).
 
 **ART-R120.** The private allocation API serves exactly its routes: the
 Artifact list, raw read, metadata read and write of this section, finding
