@@ -1,0 +1,170 @@
+schema_version: "1.0"
+id: V414-032
+title: "Reject the NUL escape before Audit and finding writes reach a jsonb cast"
+milestone: review-v407-v409-followups-2026-10
+epic: api-contracts
+kind: defect
+priority: P2
+status: completed
+implementation_commit: 5e9a7cc836cbfe304fd5e66f2eebc39c82f98faa
+depends_on: []
+languages: [go]
+goal: >-
+  A request whose JSON holds a \u0000 escape in a value that the Server casts
+  to jsonb is refused with the route's classified 4xx before any store write,
+  instead of failing at the cast with a retryable 500, on every public and
+  private route that does so.
+context:
+  specification:
+    - docs/spec/platform/persistence.md#PER-R32
+    - docs/spec/platform/errors.md
+    - docs/spec/api/public-api.md
+  review: >-
+    tasks/v414-027-close-review-followups.yml, open question 2, found while
+    verifying V414-017 (tasks/done/v414-017-eval-json-nul-escape.yml,
+    context.finding "Outside Eval"). The user asked on 2026-10-24 to file it
+    as a task.
+  severity: medium
+  finding: >-
+    Audit and finding stores pass request strings to jsonb parameters
+    (PostgreSQL casts them when the statement runs). PostgreSQL rejects the
+    \u0000 escape in any jsonb value with SQLSTATE 22P05, so such a request
+    fails at the write and nothing is stored, but the error is unclassified:
+    internal/httpapi/public/errors.go answers it as the retryable 500
+    internal_error, and a client that follows Retry semantics repeats a
+    request that can never succeed (AGENTS.md 3.2: a deterministic store
+    rejection is permanent). strictjson.ValidUnicodeEscapes rejects lone
+    surrogates but accepts \u0000; V414-017 added strictjson.HasNULEscape
+    and applied it only to Eval documents.
+  siblings: >-
+    Every route whose request text reaches a jsonb parameter or column:
+    Audit create and start, Audit review requests and decisions, finding
+    import, collection and analyst decisions (public and private Runtime
+    routes), Project and Run creation inputs, RuntimeConfig versions and any
+    other writer the implementer finds by searching the *_sql.go files for
+    jsonb casts and jsonb columns. Already correct: Eval documents
+    (V414-017, EVF-R236). Each sibling is fixed here or ruled out with the
+    reason (for example a bytea column that is never cast).
+  decision: >-
+    Prefer one rule at the request boundary (V414-027 suggests a single
+    check next to strictJSON decoding in internal/httpapi/public/request.go
+    and the private API's decoder) over mapping 22P05 in every store, so the
+    rejection happens before receipts or claims are taken. A route where
+    the escape is legitimate data (for example artifact content stored as
+    bytea) keeps accepting it; record each such exception.
+scope:
+  in:
+    - "Reject \\u0000 in request JSON that reaches a jsonb cast, before any store call, with the route's existing invalid-request code and a non-retryable 4xx."
+    - "Classify a remaining 22P05 from a store as invalid input rather than an unclassified 500, so a missed path cannot become a retry loop."
+    - "Real-PostgreSQL regression tests for an Audit write, a finding import or analyst decision, and every other sibling fixed."
+    - "State the rule once in the spec (next to PER-R32 or the public API request rules) and reference it from the Eval rule EVF-R236."
+  out:
+    - "Eval documents; V414-017 already rejects the escape there."
+    - "Rewriting stored data: no stored row can hold the escape in a jsonb column, because PostgreSQL rejected it at write."
+acceptance_criteria:
+  - id: A1
+    text: "An Audit create or start request and a finding import whose JSON holds \\u0000 in a free string answer the route's 4xx invalid-request code, non-retryable, and write nothing, including no mutation receipt."
+  - id: A2
+    text: "Each sibling path in context.siblings behaves the same way or is recorded as ruled out with the reason."
+  - id: A3
+    text: "The regression tests fail on the unfixed code with the 500 internal_error."
+  - id: A4
+    text: "An escaped backslash followed by u0000 (text, not an escape) is still accepted."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/httpapi/... ./internal/auditservice/... ./internal/findingintake/... ./internal/strictjson/..."
+    covers: [A1, A2, A3, A4]
+  - command: make verify-public-api
+    covers: [A1]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+
+revalidation:
+  date: "2026-10-25"
+  revision: a7b1c76db989c1586fb3be2d9d068562cea04ddc
+  outcome: >-
+    Still valid. New real-PostgreSQL regressions against original production
+    sources fail with retryable 500 for ordinary and Project Run parameters,
+    finding import runId and an unclassified jsonb data exception. Audit scope,
+    Project metadata, finding proposal names and analyst rationale already
+    reject NUL in their domain validators; do not claim those were old-500
+    reproductions. They now share the request-boundary refusal before a service
+    or mutation receipt lookup.
+implementation_decisions:
+  - >-
+    Public JSON metadata uses readJSONBody, including the raw RuntimeConfig
+    publication path; private mutation envelopes use decodeBoundedJSON. Both
+    reuse strictjson.HasNULEscape rather than define another escape grammar.
+    Existing Eval codecs keep their 422 eval_invalid result.
+  - >-
+    An unclassified PostgreSQL ClassInvalid is the existing permanent
+    invalid_request at both HTTP boundaries. Classified domain errors and
+    definite transaction conflicts keep their owning codes. PER-R13 already
+    classifies data exceptions, including PostgreSQL's NUL rejection, as
+    ClassInvalid; no second SQLSTATE interpretation is added.
+  - >-
+    Login passwords, encrypted Runtime credential material and encrypted Git
+    SSH key bytes use bounded strict decoding without the metadata NUL gate.
+    Their identifiers and material kinds retain their owning validation. Raw
+    Artifact bodies are bytea/blob payloads, not mutation metadata, and keep
+    accepting raw NUL, JSON NUL escapes and literal backslashes exactly.
+sibling_dispositions:
+  - >-
+    Audit create, finding imports, collection publication, review requests and
+    decisions, Project create/update, Run create/repeat/cancel/resume, queue
+    controls, scanner sweeps, configuration publication, Operations settings,
+    Runtime bindings, credential metadata and agent-principal mutations use
+    the shared public metadata decoder. Real PostgreSQL regressions exercise
+    Audit, Project, ordinary/Project Run, cancellation, resumption and finding
+    import; the before-service tests additionally cover Audit and RuntimeConfig.
+  - >-
+    Audit start/resume use a separate strict optional body containing only the
+    numeric deadlineSeconds field: NUL member names are unknown and NUL string
+    values have the wrong type, so no free string can reach jsonb. Ruled out.
+  - >-
+    Private finding submission and Gateway recovery use the private bounded
+    metadata decoder; finding submission maps its rejection to the existing
+    invalid_finding_request code. The real intake regression proves no replay
+    or submit call and no receipt or Artifact binding is made.
+  - >-
+    Managed Eval documents are already protected by EVF-R236/V414-017, including
+    documents stored as bytes then cast by reads. WebSocket frames are not
+    stored JSON mutations. Raw artifacts and opaque authentication/encrypted
+    secrets are deliberate exceptions with regression coverage.
+verification_progress:
+  regression_before:
+    command: >-
+      go test -overlay=/private/tmp/contractor-v414-032-red-source/overlay.json
+      -tags=integration -count=1 ./internal/httpapi/public
+      -run '^(TestPostgresJSONNULFailureIsPermanent|TestPostgresPublicJSONNULEscapesBeforeSideEffects|TestPostgresFindingImportRejectsNULEscapeBeforeSideEffects)$'
+    outcome: >-
+      Failed as required against a7b1c76d production request/error sources:
+      ordinary/Project Run parameters, finding import and raw data exception
+      returned 500 internal_error retryable=true. New tests remain unchanged.
+    private_outcome: >-
+      The original private decoder accepts the NUL description and reaches
+      real FindReplay; the original private error handler answers a genuine
+      PostgreSQL jsonb NUL failure as 500 internal_error retryable=true.
+  focused_fixed: >-
+    Public NUL and opaque Git-key tests passed with real PostgreSQL. Private
+    decoder/intake/error/bytea round-trip regressions passed with real
+    PostgreSQL. Literal backslash-u0000 is accepted by real stores and the same
+    idempotency keys remain available after rejection.
+  remaining: []
+
+completion_verification:
+  date: "2026-10-25"
+  result: passed
+  base_revision: a7b1c76db989c1586fb3be2d9d068562cea04ddc
+  environment: Go 1.26.9, PostgreSQL 17 disposable databases, locked CPython 3.13 Runtime, canonical TMPDIR; bounded Go parallelism.
+  commands:
+    - "go test -tags=integration -count=1 ./internal/httpapi/... ./internal/auditservice/... ./internal/findingintake/... ./internal/strictjson/..."
+    - "make verify-public-api"
+    - "make lint"
+  evidence: >-
+    All listed commands completed successfully. Real-store regression-before
+    failures and focused after-fix evidence are recorded above. Integrated
+    lint, shared fixtures and full telemetry/public API checks passed after
+    assembling the four fixes; task metadata was validated again after closure.
+  precedence: >-
+    The owner-safe Project lookup before a Project Run body remains the
+    API-R112 precheck; NUL is rejected before mutation receipts or writes.

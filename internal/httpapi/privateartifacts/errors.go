@@ -77,6 +77,8 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusBadRequest, "invalid_finding_request", "request does not satisfy the finding intake contract", false)
 	case persistencepostgres.IsTransactionConflict(err):
 		h.writeError(w, http.StatusServiceUnavailable, "storage_transaction_conflict", "database transaction conflicted; retry the request", true)
+	case persistencepostgres.Classify(err) == persistencepostgres.ClassInvalid:
+		h.writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the private Artifact API contract", false)
 	default:
 		h.writeError(w, http.StatusInternalServerError, "internal_error", "artifact operation could not be processed", true)
 	}

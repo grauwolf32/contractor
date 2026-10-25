@@ -51,7 +51,7 @@ func (h *gitKeyHandlers) replaceGitKey(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		PrivateKey string `json:"privateKey"`
 	}
-	if err := decodeJSONBounded(w, r, &body, maximumGitKeyBodyBytes); err != nil {
+	if err := decodeOpaqueJSONBounded(w, r, &body, maximumGitKeyBodyBytes); err != nil {
 		if !errors.Is(err, errRequestTooLarge) {
 			err = credentials.ErrGitKeyInvalid
 		}

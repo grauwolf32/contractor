@@ -8,7 +8,7 @@ import "github.com/grauwolf32/contractor/internal/contracts"
 // top-level value at depth 1, and its nodes, member names included. The Runtime
 // OpenAPI authoring Toolset enforces the same bounds, so no document it writes
 // exceeds them (SCN-R253); api/testdata/openapi-document-bounds.json holds
-// both sides to the same verdicts.
+// all three readers, including the Audit OpenAPI inventory, to the same verdicts.
 const (
 	MaxSourceBytes    = 2 * 1024 * 1024
 	MaxOptionsBytes   = 256 * 1024

@@ -70,7 +70,7 @@ func (h *sessionHandlers) login(w http.ResponseWriter, r *http.Request) {
 	controller := http.NewResponseController(w)
 	_ = controller.SetReadDeadline(time.Now().Add(loginBodyReadTimeout))
 	var request loginRequest
-	decodeErr := decodeJSONBounded(w, r, &request, maximumLoginBodyBytes)
+	decodeErr := decodeOpaqueJSONBounded(w, r, &request, maximumLoginBodyBytes)
 	_ = controller.SetReadDeadline(time.Time{})
 	if decodeErr != nil {
 		handleError(w, decodeErr)

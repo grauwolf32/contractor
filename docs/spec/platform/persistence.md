@@ -660,7 +660,10 @@ that reads documents stored as JSON text or bytes:
   cast or reads the value without a JSON cast, unless a schema the document
   was validated against excludes it. Every Eval document excludes it
   ([EVF-R236](../evals/format.md)), which is also what lets production Eval
-  reads cast stored documents.
+  reads cast stored documents. Public and private JSON mutation metadata
+  excludes it at the request boundary ([API-R71](../api/public-api.md)); a
+  remaining PostgreSQL data exception is a permanent invalid input outcome
+  under PER-R13, rather than a retryable internal error.
 - PostgreSQL may pull a subquery, or a CTE referenced once, up into the
   statement that uses it and substitute its output expressions at each
   reference, so a parse in its select list, such as `convert_from(document,

@@ -1,5 +1,5 @@
 {
-  "description": "Boundary cases of the OpenAPI source-document bounds that Server scan preparation (internal/scanplan) and the Runtime OpenAPI authoring Toolset openapi@1 both enforce: LIM-SCN-39 UTF-8 source bytes; LIM-SCN-41 depth, with the top-level value at depth 1 and every member name, member value and array element one deeper than its container; and LIM-SCN-42 nodes, counting every object, array, scalar and member name. Each case is generated at test time in both formats, so no large payload is checked in. A document is the format's prefix followed, in this order and only when the case sets them, by x-deep (deep.depth - 2 nested one-member objects {\"a\": ...} or arrays around the number 0, so the 0 is at deep.depth), x-items (an array of elements zeros), x-keys (an object of members members k000000, k000001, ..., each 0) and x-pad (a string of pad.fill repeated, then completed with a, so the document has exactly pad.bytes bytes). JSON is compact; YAML uses block mappings and sequences with two-space indentation and a flow sequence for nested arrays. sha256 pins each generated document so both readers test identical bytes; nodes and depth describe the document; violation names the one bound a rejected document exceeds and is null for an accepted one.",
+  "description": "Boundary cases of the OpenAPI source-document bounds that Server scan preparation (internal/scanplan) the openapi-operations@1 inventory (internal/auditdomain), and the Runtime OpenAPI authoring Toolset openapi@1 all enforce: LIM-SCN-39 UTF-8 source bytes; LIM-SCN-41 depth, with the top-level value at depth 1 and every member name, member value and array element one deeper than its container; and LIM-SCN-42 nodes, counting every object, array, scalar and member name. Each case is generated at test time in both formats, so no large payload is checked in. A document is the format's prefix followed, in this order and only when the case sets them, by x-deep (deep.depth - 2 nested one-member objects {\"a\": ...} or arrays around the number 0, so the 0 is at deep.depth), x-items (an array of elements zeros), x-keys (an object of members members k000000, k000001, ..., each 0) and x-pad (a string of pad.fill repeated, then completed with a, so the document has exactly pad.bytes bytes). JSON is compact; YAML uses block mappings and sequences with two-space indentation and a flow sequence for nested arrays. sha256 pins each generated document so all readers test identical bytes; nodes and depth describe the document; violation names the one bound a rejected document exceeds and is null for an accepted one. String cases replace the prefix with one /bounds GET operation and response 200 description ok; kind value adds operation description of a repeated bytes times, kind name adds operation member x- followed by bytes-2 a characters with value 0, kind path replaces /bounds with / followed by bytes-1 a characters, and kind operationId adds that display field with bytes a characters. JSON is compact. YAML uses the same info mapping, explicit quoted path keys, get and responses block mappings, single-quoted 200, double-quoted string values, and an explicit quoted key for kind name. Verdicts describe source decoding, not consumer readiness: the 65,537-byte path is accepted by every source decoder and by inventory, while the authoring loader keeps its separate 2,048-character path-readiness rejection without writes.",
   "bounds": {
     "sourceBytes": 2097152,
     "depth": 64,
@@ -180,6 +180,174 @@
         "json": "68bd11fc12ebbb408ae849c6684ed7094a42c35e5e8e28d10567b7fea0851e0e",
         "yaml": "fc30e6fcf5590115ffd8634a284edea89137310ac04edd04f17669b4160a0f7d"
       }
+    },
+    {
+      "name": "string-value-65536",
+      "string": {
+        "kind": "value",
+        "bytes": 65536
+      },
+      "violation": null,
+      "sha256": {
+        "json": "064f043e7994c89ec02a4316d428bea812c2e7e73392d1012e4a95e5929f1cb8",
+        "yaml": "94f20a81a35bdc30b1aebda87767313ae5b85cc1df6915278a94f0847affb729"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-value-65537",
+      "string": {
+        "kind": "value",
+        "bytes": 65537
+      },
+      "violation": null,
+      "sha256": {
+        "json": "f7ed0001a3fcd7e96f8e7cc46430513def0e72711f42a0532a75aa2debaf8eea",
+        "yaml": "84d4f9e18984d2073de17175dc66ae3f44d50c2ca5f823e61b04c18453ffa84b"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-value-65538",
+      "string": {
+        "kind": "value",
+        "bytes": 65538
+      },
+      "violation": null,
+      "sha256": {
+        "json": "e9bb2457ad9220009bb31c480f712d1aa5c5424df345fb874927603541257f9d",
+        "yaml": "b1454f6f7f7c4222167bd3e6f734c3ecf8055cb01fc44855c15fefd742520a69"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-value-2096896",
+      "string": {
+        "kind": "value",
+        "bytes": 2096896
+      },
+      "violation": null,
+      "sha256": {
+        "json": "d36ecfa00cde1362cb1d535978faa89c89b18be12f3cccb1ceaea9c3197b07e6",
+        "yaml": "8af421128fa3446013b5415f579ceda85a9966f993615ff6cb53005b788099e1"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-name-65536",
+      "string": {
+        "kind": "name",
+        "bytes": 65536
+      },
+      "violation": null,
+      "sha256": {
+        "json": "b9b095b6c2831d18ff462116fe9a62e6fbeaab4a9db68b2564b47c760d11007d",
+        "yaml": "483874cebf1c0c51510581990ab0aab0de1dd2a0466046954d77e8bd54cc79d9"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-name-65537",
+      "string": {
+        "kind": "name",
+        "bytes": 65537
+      },
+      "violation": null,
+      "sha256": {
+        "json": "7ac5509c1d25b6689e9523051b9e3db5747586d3c35a499b8b612ed5123d3ea0",
+        "yaml": "7a8b447c6e34baf4442b3138cb04ab2b2d411406d0c5082e6d0d033a31a5f481"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-name-65538",
+      "string": {
+        "kind": "name",
+        "bytes": 65538
+      },
+      "violation": null,
+      "sha256": {
+        "json": "363dd3ece1f33a21cd1c68cb3ab2febb3ff46ed02e48d2acdf127bc1f63f7267",
+        "yaml": "7310372c425afe14a673d5e9e87bb49372056728964d653a3dab3e929b1b8aa1"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-name-2096896",
+      "string": {
+        "kind": "name",
+        "bytes": 2096896
+      },
+      "violation": null,
+      "sha256": {
+        "json": "6a4bca230cecbf5b5352c0946deef2c11e89d1a179776454d4ea23dde91210dc",
+        "yaml": "55f8f0e88a01a8abfd818d250a7bfb6c322f2f2dcb2186a5795b0635b141b70b"
+      },
+      "nodes": 23,
+      "depth": 7
+    },
+    {
+      "name": "string-path-512",
+      "string": {
+        "kind": "path",
+        "bytes": 512
+      },
+      "violation": null,
+      "sha256": {
+        "json": "9b03b2d7348760beaa2e5a22b97c393be23a330c2535d6ad5dfab923453ba537",
+        "yaml": "f4ad4a58505ea0a845cede77fa6eb1ff44d17d9812e6d2ed6de9c9a397bd7280"
+      },
+      "nodes": 21,
+      "depth": 7
+    },
+    {
+      "name": "string-path-513",
+      "string": {
+        "kind": "path",
+        "bytes": 513
+      },
+      "violation": null,
+      "sha256": {
+        "json": "c8850b2a2fcee10fd98db9c1061fbedaf813780375b8864c2427ba1f850306e8",
+        "yaml": "eb2e05c74dfdad916727c540f4cd720612fe5e283ed2dfd1bd6d69b440f211c3"
+      },
+      "nodes": 21,
+      "depth": 7
+    },
+    {
+      "name": "string-path-65537",
+      "string": {
+        "kind": "path",
+        "bytes": 65537
+      },
+      "violation": null,
+      "sha256": {
+        "json": "44817dae4b6896d27d1c3d4c15a40728f00523098078b865441699c8ba94c650",
+        "yaml": "9e862dea3f1fa1de030ef1563c9a9ce476760295c341e40af4d7baa4bc069ab5"
+      },
+      "nodes": 21,
+      "depth": 7
+    },
+    {
+      "name": "string-operationId-65537",
+      "string": {
+        "kind": "operationId",
+        "bytes": 65537
+      },
+      "violation": null,
+      "sha256": {
+        "json": "65a802cbf382ea2aa3de9e89d3d643d8c892b85f8ca55414deb44bb0951b83cc",
+        "yaml": "b68b15c54d1e2818cf62c90db346d7e33b14d53e342d8ca34ef81622bfd9ab1d"
+      },
+      "nodes": 23,
+      "depth": 7
     }
   ]
 }

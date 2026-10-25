@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-134 open tasks: 4 in progress, 119 pending, 11 deferred. 1136 finished: 1126 completed, 10 archived.
+130 open tasks: 4 in progress, 115 pending, 11 deferred. 1140 finished: 1130 completed, 10 archived.
 
 ## In progress
 
@@ -79,7 +79,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V371-010](v371-010-discarded-receipt-projection.yml) | defect | P2 | — | Drop the report projection of a proposal receipt discarded by Run deletion |
 | [V371-011](v371-011-proposal-quota-limits.yml) | chore | P3 | — | Register the per-proposal evidence quota and hold both proposal quotas to the registry |
 | [V372-023](v372-023-findings-tool-error-codes.yml) | chore | P3 | — | Name the findings error codes the open question lists and register the findings tool codes |
 | [V397-006](v397-006-finding-analysis-resolver.yml) | feature | P2 | — | Resolve optional finding analysis against exact retained evidence |
@@ -143,7 +142,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V411-002 | Pin optional pentest programs and nonblocking finding review |
 | [V411-012](v411-012-pentest-admission-rounds.yml) | feature | P1 | V411-009, V411-010, V62-005, V62-006, V62-007 | Admit typed pentest plans and derive exact later-round replay |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
-| [V414-001](v414-001-openapi-inventory-string-bound.yml) | defect | P2 | — | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
 
@@ -171,12 +169,6 @@ the epics are in [epics.yml](epics.yml).
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the autonomous HTTP pentest setup and evidence journey |
 
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
-
 ### Public API and wire contracts (`api-contracts`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -186,7 +178,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-026](v372-026-request-digests-in-services.yml) | chore | P3 | — | Move the Project, Audit and review request digests out of the public handlers |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-010, V411-011, V411-012, V411-016, V411-006 | Expose pentest drafts progress surfaces and proof through API and CLI |
 | [V414-009](v414-009-machine-value-byte-bounds.yml) | chore | P3 | — | Declare the byte bounds of machine values in the public API and hold OpenAPI, Go and the UI to them |
-| [V414-032](v414-032-nul-escape-outside-evals.yml) | defect | P2 | — | Reject the NUL escape before Audit and finding writes reach a jsonb cast |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
@@ -213,7 +204,7 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
-| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
+| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 
@@ -249,14 +240,14 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 10 | 19 | 16 | 5 | 17 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
-| Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
+| Findings tools and collections (`findings`) | 8 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 7 | 40 |
-| Audits (`audits`) | 33 | 67 | 80 | 26 | 105 |
+| Audits (`audits`) | 32 | 67 | 80 | 26 | 105 |
 | Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 42 | 7 | 15 |
-| Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 16 | 42 | 7 | 15 |
+| Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
 | Quality, CI and process (`quality`) | 17 | 1 | 27 | 98 | 23 |

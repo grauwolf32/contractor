@@ -10,10 +10,22 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
 var openAPIMethodOrder = []string{"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 var openAPIVersionPattern = regexp.MustCompile(`^3\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?$`)
+
+// parseOpenAPIDocument uses the same syntax and source limits as scan
+// preparation. Checklist parsing keeps its separate Audit-internal limits.
+func parseOpenAPIDocument(data []byte, mediaType string) (map[string]any, error) {
+	root, err := scanplan.ParseDocument(data, normalizedMediaType(mediaType))
+	if err != nil {
+		return nil, invalid(CodeInvalid, "document")
+	}
+	return root, nil
+}
 
 type openAPISource struct {
 	raw        []byte
@@ -33,7 +45,7 @@ type openAPIOperation struct {
 // BuildOpenAPIInventory constructs an inventory from one exact JSON or YAML
 // artifact. Relative document refs cannot resolve in this form and are rejected.
 func BuildOpenAPIInventory(source []byte, mediaType string, options InventoryOptions) (Inventory, error) {
-	root, err := parseJSONOrYAML(source, mediaType)
+	root, err := parseOpenAPIDocument(source, mediaType)
 	if err != nil {
 		return Inventory{}, err
 	}
@@ -59,7 +71,7 @@ func BuildOpenAPIInventoryFromPackage(payload []byte, options InventoryOptions) 
 		metadata := member.Metadata()
 		switch normalizedMediaType(metadata.MediaType) {
 		case "application/json", "application/yaml", "application/x-yaml", "text/yaml":
-			document, parseErr := parseJSONOrYAML(member.Data(), metadata.MediaType)
+			document, parseErr := parseOpenAPIDocument(member.Data(), metadata.MediaType)
 			if parseErr != nil {
 				return Inventory{}, invalid(CodeInventoryInvalid, "package.document")
 			}
@@ -107,7 +119,7 @@ func buildOpenAPIInventory(source openAPISource, options InventoryOptions) (Inve
 		if strings.HasPrefix(strings.ToLower(pathTemplate), "x-") {
 			continue
 		}
-		if !strings.HasPrefix(pathTemplate, "/") || strings.ContainsRune(pathTemplate, 0) || len([]byte(pathTemplate)) > MaximumPathBytes {
+		if !strings.HasPrefix(pathTemplate, "/") || strings.ContainsRune(pathTemplate, 0) {
 			return Inventory{}, invalid(CodeInventoryInvalid, "paths")
 		}
 		pathItem, ok := paths[pathTemplate].(map[string]any)
@@ -158,7 +170,7 @@ func buildOpenAPIInventory(source openAPISource, options InventoryOptions) (Inve
 	basis := inventoryBasis{
 		Schema: InventoryBasisSchema, Kind: "openapi-operations", Subjects: basisSubjects, Gaps: globalGaps,
 	}
-	canonical, err := canonicalJSON(basis)
+	canonical, err := canonicalInventoryJSON(basis)
 	if err != nil {
 		return Inventory{}, invalid(CodeInventoryInvalid, "inventory")
 	}
@@ -201,7 +213,7 @@ func (r *openAPIResolver) buildOperation(
 	result := openAPIOperation{path: pathTemplate, method: method, gaps: []string{}}
 	if operationID, exists := operation["operationId"]; exists {
 		text, ok := operationID.(string)
-		if !ok || validateText(text, "operationId", false) != nil {
+		if !ok || validateOpenAPISourceText(text, "operationId", false) != nil {
 			return openAPIOperation{}, invalid(CodeInventoryInvalid, "operationId")
 		}
 		result.operationID = text
@@ -445,7 +457,7 @@ func (r *openAPIResolver) resolveValue(value any, documentPath string, stack map
 }
 
 func (r *openAPIResolver) referenceTarget(currentDocument, raw string) (string, string, bool, error) {
-	if raw == "" || len([]byte(raw)) > MaximumPathBytes*2 || strings.Contains(raw, "\\") {
+	if raw == "" || strings.Contains(raw, "\\") {
 		return "", "", false, invalid(CodeReferenceInvalid, "$ref")
 	}
 	parsed, err := url.Parse(raw)

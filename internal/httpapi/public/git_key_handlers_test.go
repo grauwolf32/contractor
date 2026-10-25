@@ -74,6 +74,9 @@ func TestGitKeyPublicAPIUsesAuthenticatedOwnerAndNeverReturnsSecrets(t *testing.
 	_, privateKey, _ := ed25519.GenerateKey(rand.Reader)
 	encoded, _ := x509.MarshalPKCS8PrivateKey(privateKey)
 	secret := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: encoded})
+	// The SSH parser accepts trailing bytes after a valid PEM block. They
+	// remain opaque encrypted bytes, including U+0000, never jsonb metadata.
+	secret = append(secret, 0)
 	body, _ := json.Marshal(map[string]string{"privateKey": string(secret)})
 	for _, method := range []string{http.MethodPut, http.MethodGet, http.MethodDelete, http.MethodGet} {
 		var payload []byte

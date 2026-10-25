@@ -419,7 +419,7 @@ func (h *runtimeConfigurationHandlers) createRuntimeCredential(w http.ResponseWr
 		return
 	}
 	var request createRuntimeCredentialRequest
-	if err := decodeJSON(w, r, &request); err != nil {
+	if err := decodeOpaqueJSONBounded(w, r, &request, maxJSONRequestSize); err != nil {
 		handleError(w, err)
 		return
 	}

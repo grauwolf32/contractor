@@ -32,6 +32,9 @@ func decodeBoundedJSON(w http.ResponseWriter, r *http.Request, maximum int64, ta
 	if err != nil {
 		return fmt.Errorf("%w: read JSON body", errInvalidRequest)
 	}
+	if strictjson.HasNULEscape(data) {
+		return fmt.Errorf("%w: JSON body contains a NUL escape", errInvalidRequest)
+	}
 	if err := strictjson.Decode(data, target); errors.Is(err, strictjson.ErrTrailingData) {
 		return fmt.Errorf("%w: JSON body has trailing data", errInvalidRequest)
 	} else if err != nil {

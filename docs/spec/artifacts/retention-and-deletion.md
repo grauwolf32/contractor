@@ -331,6 +331,13 @@ its proposal and evidence revisions (LIFE-DEL-6).
 Run as bounded tombstone provenance; only imported Artifact revisions,
 protected by the destination Audit's own exact holds, survive as readable
 content. The tombstones of a Project's Runs go with the Project (DEL-R61).
+The exact retained field set and byte bounds are owned by
+[FND-R154](../findings/findings.md#proposals-of-ordinary-runs): receipt/source
+identities, request and content digests, timestamps and exact proposal/evidence
+descriptors survive; report prose becomes `{}` and derived correlation content
+becomes unavailable/discarded markers. A descriptor does not retain the
+referenced Artifact payload. Removing the last Audit hold after source deletion
+applies the same rule.
 
 Rationale: Run deletion therefore cannot leak abandoned proposals or silently
 remove evidence already retained by an Audit. How a proposal stays readable

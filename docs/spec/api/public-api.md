@@ -272,6 +272,20 @@ value are rejected rather than guessed. A body is rejected with
 `400 invalid_request`; a frame is answered with an `invalid_frame` error frame
 and leaves the socket and its subscriptions unchanged.
 
+JSON mutation metadata also excludes U+0000 in every string and member name:
+the JSON escape `\u0000` is rejected with the operation's permanent invalid
+request error before a service reads or claims a mutation receipt or writes
+data. A literal backslash followed by `u0000` remains ordinary text. The same
+rule governs allocation-scoped private JSON mutations; Managed Eval documents
+apply it through [EVF-R236](../evals/format.md) with `422 eval_invalid`.
+PostgreSQL cannot store U+0000 in `text` or `jsonb`; a remaining data exception
+at the HTTP boundary is permanent `400 invalid_request`, never retryable
+`500 internal_error` (PER-R13). Opaque artifact payloads, login passwords,
+Runtime credential material and Git SSH key bytes are exceptions: they are
+stored as bytes, encrypted or hashed, and their enclosing identifiers retain
+their own validation. This metadata rule does not inspect WebSocket text or
+the contents of an execution output.
+
 ### Browser clients and domain services
 
 **API-R7.** Browser code uses the authenticated public Server APIs directly.

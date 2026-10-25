@@ -932,8 +932,33 @@ proposal discarded, purges its proposal and evidence revisions with the
 RunScope, and retains only bounded tombstone provenance; an imported proposal
 is protected by the destination Audit's own exact holds (LIFE-FND-1).
 
+The discarded receipt retains its receipt/proposal IDs, submission and request
+digest, client key, source owner/Project/Run/Stage/allocation/runtime identities,
+Workflow identity and closure digest, optional Audit origin, retention state
+and timestamps. Their existing identity bounds still apply: receipt/proposal
+IDs and owner/Run/Stage/allocation/runtime IDs are at most 256 bytes, invocation,
+submission, logical Agent and Workflow identity strings at most 128 bytes,
+and the stored client key at most 160 ASCII bytes. The Workflow configuration
+reference is at most 4 KiB of JSON; digests are SHA-256 descriptors.
+The exact proposal reference (at most 4 KiB of JSON), its digest, fixed JSON
+media type and original byte size (at most 8 MiB), and the exact evidence
+descriptor array (at most 1 MiB of JSON) also remain. These are immutable
+identity/provenance descriptors, containing no Artifact payload; they preserve
+exact submission replay after source deletion (FND-R167).
+
+The report projection is replaced with the two-byte empty object `{}`; the
+fingerprint, anchor and comparison projections keep only their closed
+unavailable/discarded markers. The same erasure applies when the last Audit
+hold is purged after source deletion and to already discarded receipts during
+schema migration. A source-held or audit-held report projection remains
+immutable. Discarded receipts cannot acquire report content on insert or update.
+
 Rationale: Run deletion therefore cannot leak abandoned proposals or silently
-remove evidence already retained by an Audit.
+remove evidence already retained by an Audit. Keeping proposal/evidence
+descriptors rather than clearing them preserves exact receipt replay and its
+source provenance without retaining content. Revisit that choice only if the
+replay contract changes or those descriptors acquire payload-bearing fields;
+finding intake owns that boundary.
 
 Hard deletion of a Run as a whole is specified in
 [retention and deletion](../artifacts/retention-and-deletion.md) (DEL-R28,

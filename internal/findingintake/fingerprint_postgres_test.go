@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -124,6 +125,20 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 	if err := deleteRun(ctx, pool, owner, run); err != nil {
 		t.Fatal(err)
 	}
+	// Run deletion removes only unheld report content; exact descriptors are
+	// tombstone provenance and remain sufficient for replay without artifacts.
+	heldReport, err := auditdomain.EncodeFindingReportProjection(auditdomain.ProjectFindingReport(input.Proposal))
+	if err != nil {
+		t.Fatal(err)
+	}
+	requireReceiptReportProjection(t, ctx, pool, first.ReceiptID, string(heldReport))
+	requireReceiptReportProjection(t, ctx, pool, second.ReceiptID, "{}")
+	discardReplay, ok, err := service.Submit(ctx, grant, secondInput)
+	if err != nil || !ok || discardReplay.ReceiptID != second.ReceiptID ||
+		discardReplay.Retention != RetentionDiscarded || !reflect.DeepEqual(discardReplay.Proposal, second.Proposal) ||
+		!reflect.DeepEqual(discardReplay.Evidence, second.Evidence) {
+		t.Fatalf("discarded replay lost exact provenance: %+v, replay=%v, err=%v", discardReplay, ok, err)
+	}
 	// Replay uses its stored projection even after every original Run input is gone.
 	replay, ok, err := service.Submit(ctx, grant, input)
 	if err != nil || !ok || replay.ReceiptID != first.ReceiptID || replay.Fingerprint.Value != first.Fingerprint.Value {
@@ -153,6 +168,7 @@ func TestPostgresFindingFingerprintIntakeReplayAndRetention(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	requireReceiptReportProjection(t, ctx, pool, first.ReceiptID, "{}")
 	discarded, err := readReceiptByID(ctx, pool, first.ReceiptID)
 	if err != nil || discarded.Fingerprint.Reason != "discarded" || discarded.Fingerprint.Value != "" {
 		t.Fatalf("discarded sensitive projection=%+v %v", discarded.Fingerprint, err)
@@ -234,5 +250,16 @@ func TestPostgresFindingFingerprintOptionalBudgetKeepsOrdinaryProposal(t *testin
 	receipt, replayed, err := service.Submit(ctx, grant, input)
 	if err != nil || replayed || receipt.Fingerprint.Reason != "input_limit" {
 		t.Fatalf("optional report budget rejected ordinary finding: %+v %v %v", receipt.Fingerprint, replayed, err)
+	}
+}
+
+func requireReceiptReportProjection(t *testing.T, ctx context.Context, pool *pgxpool.Pool, receiptID, want string) {
+	t.Helper()
+	var got string
+	if err := pool.QueryRow(ctx, "SELECT report_projection FROM finding_proposal_receipts WHERE receipt_id=$1", receiptID).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("receipt %s report projection = %q, want %q", receiptID, got, want)
 	}
 }

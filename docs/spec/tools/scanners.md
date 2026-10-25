@@ -1419,18 +1419,36 @@ as stored (LIM-SCN-39); the depth of the parsed document, with the top-level
 value at depth 1 and every member name, member value and array element one
 deeper than its container (LIM-SCN-41); and its nodes, one for every object,
 array, scalar and member name (LIM-SCN-42). A JSON document and a YAML document
-of the same tree count alike. The OpenAPI authoring Toolset `openapi@1`
-enforces the same three bounds, counted the same way, on every document it
-loads, on the result of every mutation, on every document it writes or returns,
-and in `validate_openapi` before the external validator runs, so no document it
-accepts or writes exceeds these byte, depth or node bounds of preparation;
-both read YAML scalars and member names under SCN-R124 (SCN-R257). Preparation
-reports an exceeded bound as `source_limit_exceeded`; `openapi@1` reports it as
-the non-retryable `tool_input_invalid` tool error that names the bound and
-leaves the current document unchanged. Sharing these bounds does not make
-authoring validation a scan-readiness check: reference resolution, operation
-selection and the other bounds of SCN-R167 apply only during preparation. Both
-implementations give the same verdict on the
+of the same tree count alike. Scan preparation and the `openapi-operations@1`
+inventory use the same source decoder, including each JSON/YAML member of an
+OpenAPI source package. The OpenAPI authoring Toolset `openapi@1` enforces the
+same three bounds, counted the same way, on every document it loads, on the
+result of every mutation, on every document it writes or returns, and in
+`validate_openapi` before the external validator runs. All three read YAML
+scalars and member names under SCN-R124 (SCN-R257).
+
+The shared source decoder and the `openapi-operations@1` inventory apply no
+additional length limit to source strings or member names, including path
+templates, operation IDs and local JSON pointers. The whole-document
+bounds suffice; adding an independent string bound would reject documents
+that authoring and preparation already admit. Revisit this choice only if
+measured resource use demonstrates a need, then register and enforce the same
+bound in all three readers. Package member paths retain their separate
+LIM-AUD-15/16 bounds; generated Audit documents and reference expansion retain
+the limits in [audits](../audits/audits.md), AUD-R128 and AUD-R144. Checklist
+and Audit-internal field bounds are unchanged.
+
+Preparation reports an exceeded source bound as `source_limit_exceeded`;
+`openapi@1` reports it as the non-retryable `tool_input_invalid` tool error
+that names the bound and leaves the current document unchanged; the inventory
+uses its existing `audit_document_invalid` or `audit_inventory_invalid`
+rejection (FAIL-AUD-8). Sharing source bounds does not make authoring
+validation a scan-readiness or inventory-readiness check: reference resolution,
+operation selection and generated-output bounds remain each consumer's own
+contract. In particular, the authoring structural path check remains separate
+from source decoding; a long path can pass the shared source bounds and the
+inventory but fail authoring readiness. The Go preparation and Audit inventory readers and the Python
+authoring reader give the same verdict on the
 [shared boundary cases](../../../api/testdata/openapi-document-bounds.json).
 
 ### Scan planning

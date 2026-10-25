@@ -6,7 +6,8 @@ epic: operations
 kind: defect
 introduced_by: V32-005
 priority: P2
-status: pending
+status: completed
+implementation_commit: 47e5ccaba82458f54f951932140be61c6879349a
 depends_on: []
 languages: [go, sql]
 goal: >-
@@ -124,3 +125,67 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A3]
+
+implementation_decision:
+  chosen: >-
+    Select eight stable SQL shapes by the presence of the exact Run, upper
+    boundary and cursor. All values stay parameters, and each enabled boundary
+    has a terminal_at <= predicate beside the unchanged exact tuple comparison.
+    Keep the normal pgx prepared-statement cache; both Custom and Generic plans
+    use the existing indexes. Effective-report lookup still follows the page LIMIT.
+  alternative: >-
+    QueryExecModeExec would force replanning on every call and remove the generic
+    shape risk, but it adds planning work and leaves the SQL dependent on that
+    execution mode. Separate shapes are bounded to eight cached statements and
+    make each filter directly visible to either planner mode.
+  reopen_when: >-
+    A new history filter changes the finite shape set, or representative data or
+    a PostgreSQL upgrade breaks the real-store row budgets. Re-evaluate query
+    shape and data distribution before adding indexes or forcing custom plans.
+  scope_accounting: >-
+    Owner history is unbounded. The committed fixture has six interleaved owners,
+    6,000 Runs, 18,000 terminal Stages and allocations, three allocations per
+    terminal timestamp, and 12,000 reports. The page is 51; the Stage budget is
+    (page + two tie groups) * six owners + eight boundary/planning probes = 350;
+    allocation reads are at most page + two tie groups + eight = 65. An exact
+    Run has three Stages and a budget of three + eight = 11. These fixture-derived
+    budgets do not claim a universal bound on arbitrary owner sparsity or tie size.
+  sibling_disposition: >-
+    ListStageAllocationResources remains unchanged: its bounded Stage ID input
+    has no optional Run or cursor branch. Other optional-filter statements stay
+    outside this measured defect as recorded under context.siblings. No public
+    fields, cursor encoding, limits, indexes, mutations or lifecycle rules change.
+verification_progress:
+  date: '2026-10-25'
+  red_before: >-
+    The new real-Repository regression on the unfixed production statement failed
+    the page-derived budgets: the 1,500-row-deep Custom page read 9,311 Stages;
+    the one-Run Generic page read 18,004. The original statement remains in the
+    test as a negative budget control and a full-result pagination oracle.
+  focused_after: >-
+    TestPostgresAllocationHistoryPagesKeepBoundedReadsAndExactCursors passed with
+    both forced plan modes: first page 311 Stage / 105 Run / 54 allocation reads;
+    deep cursor, deep upper and pinned cursor pages 329 / 111 / 57; exact Run
+    pages 5 Stage reads. Full walks with two-row pages split timestamp ties and
+    match the original order, membership and resource projections, with and
+    without an upper boundary and with owned or foreign exact Runs.
+  owner_suite: >-
+    With CONTRACTOR_TEST_DATABASE_URL set to the dedicated disposable PostgreSQL
+    database, go test -count=1 ./internal/telemetry/... passed (22.617s), including
+    the scale regression, report projection, retention, identity and cursor tests.
+    scripts/check_tasks.py, scripts/check_spec.py and git diff --check passed.
+  remaining: []
+
+completion_verification:
+  date: "2026-10-25"
+  result: passed
+  base_revision: a7b1c76db989c1586fb3be2d9d068562cea04ddc
+  environment: Go 1.26.9, PostgreSQL 17 disposable databases, locked CPython 3.13 Runtime, canonical TMPDIR; bounded Go parallelism.
+  commands:
+    - "go test -count=1 ./internal/telemetry/... ./internal/httpapi/public/..."
+    - "make lint"
+  evidence: >-
+    All listed commands completed successfully. Real-store regression-before
+    failures and focused after-fix evidence are recorded above. Integrated
+    lint, shared fixtures and full telemetry/public API checks passed after
+    assembling the four fixes; task metadata was validated again after closure.

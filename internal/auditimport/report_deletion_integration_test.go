@@ -295,6 +295,11 @@ func newReportDeletionFixture(t *testing.T, pool *pgxpool.Pool, acceptance strin
 	// No Runtime/model process is needed: a failed child contributes a real
 	// collected receipt, then normal closure settles its undispatched retry.
 	f.collect(t, runstore.RunFailed, false)
+	return f, finishReportDeletionFixture(t, f)
+}
+
+func finishReportDeletionFixture(t *testing.T, f *completionFixture) auditstore.ReconcileSnapshot {
+	t.Helper()
 	audit, err := f.audits.Get(f.ctx, "owner", f.id)
 	mustCompletion(t, err)
 	_, err = f.audits.TransitionClaimed(f.ctx, auditstore.ClaimedTransitionParams{
@@ -318,7 +323,7 @@ func newReportDeletionFixture(t *testing.T, pool *pgxpool.Pool, acceptance strin
 	mustCompletion(t, err)
 	snapshot, err := f.audits.GetReconcileSnapshot(f.ctx, f.claim)
 	mustCompletion(t, err)
-	return f, snapshot
+	return snapshot
 }
 
 func reportDeletionReviewService(t *testing.T, f *completionFixture) *auditservice.Service {

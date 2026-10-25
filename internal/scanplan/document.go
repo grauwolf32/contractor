@@ -14,6 +14,13 @@ import (
 	"go.yaml.in/yaml/v4/plugin/limit"
 )
 
+// ParseDocument decodes an OpenAPI source mapping under SCN-R124/253. It checks
+// source syntax and byte/depth/node bounds; consumers own operation selection,
+// reference resolution and the bounds of their generated output.
+func ParseDocument(data []byte, mediaType string) (map[string]any, error) {
+	return parseDocument(data, mediaType)
+}
+
 // parseDocument accepts one bounded JSON-compatible mapping. Both parsers
 // retain numeric spelling until bounds have been checked, so unsafe
 // integer examples never pass through an already-rounded float64.

@@ -210,7 +210,9 @@ non-finite numbers or implicit date objects.
 
 **EVF-R236.** No string and no object member name of an Eval document holds
 U+0000, which JSON spells as the escape `\u0000`, or a lone UTF-16 surrogate
-escape. Every codec rejects such a document as `eval_invalid` whatever its
+escape. This is the stored-metadata rule of
+[API-R71](../api/public-api.md), with the Eval document's own error code.
+Every codec rejects such a document as `eval_invalid` whatever its
 kind, before schema validation and before any side effect; a document
 authored as YAML is held to the rule in its JSON form. The rule governs
 documents, not the bytes of an execution output that a native check inspects:

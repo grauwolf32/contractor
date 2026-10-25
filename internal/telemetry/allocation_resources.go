@@ -57,19 +57,8 @@ func (r *Repository) ListAllocationResourceHistory(
 	if err := validateAllocationResourceHistoryParams(params); err != nil {
 		return nil, err
 	}
-	upperAt, hasUpper := time.Time{}, params.UpperFinishedAt != nil
-	if hasUpper {
-		upperAt = params.UpperFinishedAt.UTC()
-	}
-	afterAt, hasAfter := time.Time{}, params.AfterFinishedAt != nil
-	if hasAfter {
-		afterAt = params.AfterFinishedAt.UTC()
-	}
-	rows, err := r.db.Query(ctx, allocationResourceHistorySQL,
-		params.OwnerID, params.RunID, params.RunID != "",
-		upperAt, params.UpperAllocationID, hasUpper,
-		afterAt, params.AfterAllocationID, hasAfter, params.Limit,
-	)
+	statement, args := allocationResourceHistoryQuery(params)
+	rows, err := r.db.Query(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list allocation resource history: %w", err)
 	}

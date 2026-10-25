@@ -1149,7 +1149,12 @@ rejected.
 returns durable terminal-allocation resource summaries with an optional exact
 Run filter, a default page size of 50 and a maximum of 100
 (LIM-OPS-28), a descending `(finished_at, allocation_id)` keyset
-cursor and a pinned upper boundary for subsequent pages.
+cursor and a pinned upper boundary for subsequent pages. Cursor and upper-bound
+reads use an indexable terminal-time bound alongside the exact allocation
+comparison, so later pages do not rescan newer timestamp groups. An exact Run
+filter remains an index condition in both custom and generic prepared plans;
+it must not become a filter over the owner's full Stage history. Work within
+a terminal-time tie group and owner authorization remains necessary.
 
 **OPS-R169.** `finished_at` is the owning StageExecution's durable
 terminal timestamp, available even without a Runtime report, so a late report
