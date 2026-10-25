@@ -5,7 +5,7 @@ milestone: planner-context-compaction-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V419-005
 languages:
@@ -19,6 +19,8 @@ context:
     These pending records authorize planning only, do not start implementation and do not change the current
     delivery focus.'
   review: tasks/evidence/v419-go-adk-26-review.json
+  evidence: tasks/evidence/v420-001-planner-compaction-spike.json
+  decision: tasks/evidence/v420-001-planner-compaction-contract.md
   specification:
   - docs/spec/execution/planners.md#PLN-R1
   - docs/spec/execution/planners.md#PLN-R81
@@ -39,8 +41,9 @@ context:
     No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
     Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only configuration
     plumbing, mechanical imports and regression fixtures may change there.
-  finding: Native summary calls bypass Planner callbacks; tail-retention AppendEvent failure is suppressed;
-    current terminal-result check precedes iterationErr, so post-finish failures require explicit precedence.
+  finding: Native summary calls bypass Planner callbacks and tail-retention AppendEvent failure is suppressed.
+    The historical finish-before-iterationErr finding was repaired by V419-006 before this spike;
+    preserve and run its required-write/finish/cancellation real-store regressions.
 scope:
   in:
   - Test-only integration proof, implementation-ready task/evidence decisions, strict policy matrix and reproducible
@@ -147,10 +150,10 @@ requirements:
     parameters, inputs, result contract and separate continuation context; never inject the entire maximum
     plan.
 - id: R10
-  text: 'Freeze numerical limits and counting definitions in the owning limits registry using the initial envelope
+  text: 'Freeze numerical limits and counting definitions in the linked design evidence for installation in the owning limits registry together with V420-002 production enforcement, using the initial envelope
     in cardinality: default ratio 0.75 within strict (0,1), cycles 8/max 16, recent groups 4/max 16, summary
     16 KiB, tail 1 MiB, retained data 32 MiB/4096 groups and accounted peak 64 MiB. Every serialized Gateway
-    request still fits 4 MiB; pages fit 32 KiB and8 groups or a bounded fragment. If a measured valid group
+    request still fits 4 MiB; pages fit 32 KiB and 8 groups or a bounded fragment. If a measured valid group
     cannot fit, select and document a bounded alternative before completing this spike; no unresolved limits
     pass to implementation.'
 - id: R11

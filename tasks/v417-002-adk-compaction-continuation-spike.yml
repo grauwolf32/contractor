@@ -5,7 +5,7 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V418-007
 languages:
@@ -18,6 +18,8 @@ context:
     includeReasoning independently deliverable. This record plans work; it does not start implementation
     or change existing delivery priorities.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
+  evidence: tasks/evidence/v417-002-adk-compaction-spike.json
+  decision: tasks/evidence/v417-002-adk-compaction-spike.md
   specification:
   - docs/spec/execution/worker.md#WRK-R143
   - docs/spec/execution/worker.md#WRK-R65
