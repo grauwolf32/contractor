@@ -94,9 +94,9 @@ requirements:
     to agent.Context. Hidden tool interfaces must be exercised through real dispatch, not only a tool.Tool
     compile assertion. Leave instruction providers on ReadonlyContext.
 - id: R3
-  text: Update both dated NewEvent test calls with the existing context or t.Context(); re-inventory all
-    constructors and direct event/response serialization. New camelCase/omitempty LLMResponse JSON tags
-    must not leak into or redefine our durable reduced-fact contract.
+  text: Update every NewEvent test call in the fresh inventory with the existing context or t.Context();
+    re-inventory all constructors and direct event/response serialization. New camelCase/omitempty LLMResponse
+    JSON tags must not leak into or redefine our durable reduced-fact contract.
 - id: R4
   text: Raise the go directive to at least 1.26.6 without gratuitously changing the existing sufficient
     toolchain 1.26.9. Resolve and commit go.mod/go.sum using Go tools; record every required direct/transitive
