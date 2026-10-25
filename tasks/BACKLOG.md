@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-126 open tasks: 4 in progress, 111 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+127 open tasks: 4 in progress, 112 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
 
 ## In progress
 
@@ -92,6 +92,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-007, V410-003, V410-006 | Discover URL-only targets and retain bounded source-aware surfaces |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-012, V411-013, V411-014, V411-011, V411-010, V411-016 | Publish exact HTTP API pentest Workflows and source-mode presets |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-002, V411-020, V410-009 | Publish optional browser programs behind their independent release gate |
+| [V416-004](v416-004-openapi-json-escapes.yml) | defect | P1 | — | Read OpenAPI JSON seeds with JSON escape semantics |
 
 ### Projects, artifacts and lifecycle controls (`projects-artifacts`)
 
@@ -207,7 +208,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
-| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-001, V416-002, V416-003, V416-008, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main review |
+| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-001, V416-002, V416-003, V416-004, V416-008, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main review |
 
 ## Deferred
 
@@ -242,13 +243,13 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 10 | 19 | 15 | 5 | 16 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 5 | 16 | 8 | 8 | 15 |
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
-| Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
+| Workflow catalog and document workflows (`workflows`) | 8 | 18 | 15 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 6 | 39 |
 | Audits (`audits`) | 33 | 66 | 80 | 26 | 105 |
 | Evaluations (`evals`) | 6 | 21 | 38 | 12 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 3 | 25 | 63 | 13 | 57 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 38 | 6 | 13 |
-| Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 11 |
+| Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 7 | 0 | 24 | 42 | 13 |
 | Quality, CI and process (`quality`) | 16 | 1 | 27 | 93 | 23 |
