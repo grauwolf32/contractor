@@ -1,14 +1,50 @@
 package telemetry
 
+import "fmt"
+
 // SQL statements for allocation_resources.go.
 
-// allocationResourceHistorySQL lists owner $1's allocations of terminal
-// StageExecutions, newest finished first, up to $10 rows. Boolean flags enable
-// the optional filters: $3 for Run $2, $6 for the inclusive upper bound
-// ($4, $5) and $9 for the exclusive cursor ($7, $8). Each row carries whether
-// the allocation ever stored a report, and the best unexpired execution
-// report (complete first, then newest) with its resources.
-// Used by Repository.ListAllocationResourceHistory.
+// allocationResourceHistoryQuery selects one of eight stable statement shapes:
+// an optional exact Run, inclusive upper bound and exclusive cursor. Omitting
+// absent predicates keeps the Run and terminal-time indexes usable even after
+// PostgreSQL switches a cached statement to its generic plan. The direct time
+// bounds start the index scan at the boundary's tie group; the cross-table row
+// comparisons still select the exact allocation within that group.
+func allocationResourceHistoryQuery(params AllocationResourceHistoryParams) (string, []any) {
+	args := []any{params.OwnerID, params.Limit}
+	predicates := ""
+	if params.RunID != "" {
+		args = append(args, params.RunID)
+		predicates += fmt.Sprintf("\n      AND run.run_id = $%d", len(args))
+	}
+	if params.UpperFinishedAt != nil {
+		args = append(args, params.UpperFinishedAt.UTC(), params.UpperAllocationID)
+		predicates += fmt.Sprintf(allocationResourceHistoryUpperSQL, len(args)-1, len(args)-1, len(args))
+	}
+	if params.AfterFinishedAt != nil {
+		args = append(args, params.AfterFinishedAt.UTC(), params.AfterAllocationID)
+		predicates += fmt.Sprintf(allocationResourceHistoryAfterSQL, len(args)-1, len(args)-1, len(args))
+	}
+	return fmt.Sprintf(allocationResourceHistorySQL, predicates), args
+}
+
+// allocationResourceHistoryUpperSQL adds an index range and the exact inclusive
+// upper tuple. Its placeholders are assigned by allocationResourceHistoryQuery.
+const allocationResourceHistoryUpperSQL = `
+      AND execution.terminal_at <= $%d::timestamptz
+      AND (execution.terminal_at, allocation.allocation_id) <= ($%d::timestamptz, $%d::text)`
+
+// allocationResourceHistoryAfterSQL adds an index range and the exact exclusive
+// cursor tuple. Its placeholders are assigned by allocationResourceHistoryQuery.
+const allocationResourceHistoryAfterSQL = `
+      AND execution.terminal_at <= $%d::timestamptz
+      AND (execution.terminal_at, allocation.allocation_id) < ($%d::timestamptz, $%d::text)`
+
+// allocationResourceHistorySQL lists owner $1's terminal allocations, newest
+// first, up to $2 rows. allocationResourceHistoryQuery fills %s with only the
+// enabled bound predicates and appends their values after $2. Each row carries
+// whether the allocation ever stored a report, and its best unexpired report
+// (complete first, then newest) with resources. Report lookup follows LIMIT.
 const allocationResourceHistorySQL = `WITH candidates AS (
     SELECT allocation.allocation_id, execution.run_id, execution.stage_execution_id,
            execution.stage_name, allocation.logical_agent_name, execution.state,
@@ -19,14 +55,9 @@ const allocationResourceHistorySQL = `WITH candidates AS (
     JOIN stage_allocations AS allocation
       ON allocation.stage_execution_id = execution.stage_execution_id
     WHERE run.owner_id = $1
-      AND execution.terminal_at IS NOT NULL
-      AND (NOT $3::boolean OR run.run_id = $2)
-      AND (NOT $6::boolean OR
-           (execution.terminal_at, allocation.allocation_id) <= ($4::timestamptz, $5::text))
-      AND (NOT $9::boolean OR
-           (execution.terminal_at, allocation.allocation_id) < ($7::timestamptz, $8::text))
+      AND execution.terminal_at IS NOT NULL%s
     ORDER BY execution.terminal_at DESC, allocation.allocation_id DESC
-    LIMIT $10
+    LIMIT $2
 )
 SELECT candidate.allocation_id, candidate.run_id, candidate.stage_execution_id,
        candidate.stage_name, candidate.logical_agent_name, candidate.state,
