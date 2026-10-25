@@ -8,7 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
-const MaxPayloadSize = 64 * 1024 * 1024
+const MaxPayloadSize = contracts.MaxArtifactPayloadBytes
 
 type ScopeKind string
 
@@ -88,10 +88,11 @@ type Metadata struct {
 	Size      int64       `json:"size"`
 	// Digest is an internal projection of the immutable blob identity. It is
 	// deliberately absent from the public Metadata JSON contract.
-	Digest    string    `json:"-"`
-	Current   bool      `json:"current"`
-	Frozen    bool      `json:"frozen"`
-	CreatedAt time.Time `json:"createdAt"`
+	ContentCacheKey string    `json:"-"`
+	Digest          string    `json:"-"`
+	Current         bool      `json:"current"`
+	Frozen          bool      `json:"frozen"`
+	CreatedAt       time.Time `json:"createdAt"`
 }
 
 // Exact describes this revision as the shared exact-content descriptor.

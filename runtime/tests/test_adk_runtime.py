@@ -43,7 +43,7 @@ from contractor_runtime.artifacts import ArtifactValue
 from contractor_runtime.contracts import (
     API_VERSION,
     AgentTemplateRef,
-    ArtifactReadResult,
+    ArtifactMetadataResult,
     ArtifactRef,
     ArtifactWriteResult,
     CaidoSettings,
@@ -4075,10 +4075,11 @@ class FakeArtifactClient:
     def observed_exact_refs_since(self, cursor: int) -> tuple[ArtifactRef, ...]:
         return tuple(self._observed[cursor:])
 
-    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactReadResult:
+    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactMetadataResult:
         # The read tools resolve the exact revision before the payload
         # (ART-R116); like the real client, this is not a content read.
-        return ArtifactReadResult(
+        return ArtifactMetadataResult(
+            contentCacheKey="test_metadata_version",
             apiVersion=API_VERSION,
             artifact=ArtifactRef(namespace=ref.namespace, name=ref.name, revision="read-r1"),
             mediaType="text/plain",

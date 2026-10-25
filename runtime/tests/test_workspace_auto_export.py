@@ -950,7 +950,10 @@ class MemoryArtifactClient(ArtifactClient):
         if record is None:
             return private_error(404, "artifact_not_found", retryable=False)
         if kind == "metadata":
-            response = json_response(200, record.read_result(namespace, name))
+            response = json_response(
+                200,
+                {**record.read_result(namespace, name), "contentCacheKey": "test_metadata_version"},
+            )
             if self.after_metadata is not None:
                 self.after_metadata(name)
             return response

@@ -11,6 +11,11 @@ from collections.abc import Callable, Sequence
 
 from contractor_runtime._https import PrivateConnections
 from contractor_runtime.allocation import AllocationService
+from contractor_runtime.archive_cache import (
+    ImmutableArchiveCache,
+    archive_trust_domain,
+    tls_trust_fingerprint,
+)
 from contractor_runtime.artifacts import ArtifactClient, MTLSArtifactTransport
 from contractor_runtime.capabilities import discover_capabilities
 from contractor_runtime.control_client import (
@@ -53,6 +58,7 @@ async def serve(
     lifecycle = PodmanLifecycle(settings.podman) if settings.podman.enabled else None
     project_root = settings.workspace.work_root if settings.workspace is not None else None
     with hold_work_roots(settings.work_root, project_root):
+        archive_cache = None
         try:
             roots = [settings.work_root]
             if project_root is not None:
@@ -68,6 +74,8 @@ async def serve(
                 await lifecycle.recover(
                     deadline=time.monotonic() + settings.podman.prepare_max_seconds
                 )
+            if project_root is not None and settings.workspace.storage == "local":
+                archive_cache = await ImmutableArchiveCache.open(project_root)
             await _serve(
                 settings,
                 state=state,
@@ -76,12 +84,19 @@ async def serve(
                 server_factory=server_factory,
                 install_signal_handlers=install_signal_handlers,
                 lifecycle=lifecycle,
+                archive_cache=archive_cache,
             )
         finally:
-            if lifecycle is not None:
-                # EOF still delegates cleanup to the surviving owner if this
-                # bounded graceful close cannot confirm it. Never kill the owner.
-                await lifecycle.close(deadline=time.monotonic() + settings.shutdown_grace_seconds)
+            try:
+                if archive_cache is not None:
+                    await asyncio.wait_for(archive_cache.close(), settings.shutdown_grace_seconds)
+            finally:
+                if lifecycle is not None:
+                    # EOF still delegates cleanup to the surviving owner if this
+                    # bounded graceful close cannot confirm it. Never kill the owner.
+                    await lifecycle.close(
+                        deadline=time.monotonic() + settings.shutdown_grace_seconds
+                    )
 
 
 async def _serve(
@@ -93,6 +108,7 @@ async def _serve(
     server_factory: Callable[..., RuntimeServer],
     install_signal_handlers: bool,
     lifecycle: PodmanLifecycle | None,
+    archive_cache: ImmutableArchiveCache | None,
 ) -> None:
     runtime_state = state or RuntimeState()
     stop = stop_requested or asyncio.Event()
@@ -121,6 +137,9 @@ async def _serve(
     control_transport = transport or MTLSJSONTransport(
         settings.control_plane_url, control_connections, settings.request_timeout_seconds
     )
+    trust_fingerprint = await to_thread_until_done(
+        tls_trust_fingerprint, outgoing_tls, name="archive-cache-trust"
+    )
     factories = built_in_factories(
         settings.work_root,
         artifact_client_factory=lambda allocation_id, runtime_settings: ArtifactClient(
@@ -130,6 +149,10 @@ async def _serve(
                 artifact_connections,
                 runtime_settings.request_timeout_seconds,
                 runtime_state.instance_id,
+            ),
+            archive_cache=archive_cache,
+            archive_trust_domain=archive_trust_domain(
+                runtime_settings.artifact_api_url, trust_fingerprint
             ),
         ),
         enabled_runtime_adapters=settings.enabled_runtime_adapters,

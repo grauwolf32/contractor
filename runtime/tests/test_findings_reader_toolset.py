@@ -200,6 +200,7 @@ class Transport:
                             },
                             "mediaType": media_type,
                             "size": len(data),
+                            "contentCacheKey": "test_metadata_version",
                         }
                     ),
                 )

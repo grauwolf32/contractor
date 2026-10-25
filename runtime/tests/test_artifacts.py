@@ -349,6 +349,7 @@ def test_metadata_read_resolves_the_exact_revision_without_the_payload() -> None
             "artifact": {"namespace": "inputs", "name": "source", "revision": "revision-2"},
             "mediaType": "application/zip",
             "size": 70_000,
+            "contentCacheKey": "version_metadata",
         }
         transport = FakeTransport([json_response(200, metadata), json_response(200, metadata)])
         client = ArtifactClient("allocation-1", transport)
@@ -678,3 +679,42 @@ def json_response(
     if etag is not None:
         headers["etag"] = etag
     return ArtifactHTTPResponse(status, headers, body)
+
+
+@pytest.mark.parametrize("damage", ["duplicate", "nested-duplicate", "snake", "unknown", "missing"])
+def test_private_metadata_http_reader_is_strict_and_does_not_reflect_identity(damage):
+    import traceback
+
+    async def scenario():
+        token = "PRIVATE_CACHE_IDENTITY_CANARY"
+        document = {
+            "apiVersion": "contractor/v1alpha1",
+            "artifact": {"namespace": "inputs", "name": "source", "revision": "exact"},
+            "mediaType": "application/zip",
+            "size": 10,
+            "contentCacheKey": token,
+        }
+        if damage == "snake":
+            document["content_cache_key"] = document.pop("contentCacheKey")
+        if damage == "unknown":
+            document["unknown"] = token
+        if damage == "missing":
+            del document["contentCacheKey"]
+        raw = json.dumps(document).encode()
+        if damage == "duplicate":
+            raw = raw.replace(
+                b'"contentCacheKey":', b'"contentCacheKey":"other", "contentCacheKey":'
+            )
+        if damage == "nested-duplicate":
+            raw = raw.replace(b'"name":', b'"name":"other", "name":')
+        transport = FakeTransport(
+            [ArtifactHTTPResponse(200, {"content-type": "application/json"}, raw)]
+        )
+        client = ArtifactClient("allocation-1", transport)
+        with pytest.raises(ArtifactTransportError) as caught:
+            await client.read_artifact_metadata(ArtifactRef(namespace="inputs", name="source"))
+        rendered = "".join(traceback.format_exception(caught.value))
+        assert token not in rendered
+        assert len(transport.requests) == 1 and client.observation_cursor == 0
+
+    asyncio.run(scenario())

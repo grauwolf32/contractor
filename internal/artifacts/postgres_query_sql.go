@@ -34,13 +34,14 @@ LIMIT $11`
 
 // metadataSQL returns the metadata of one revision of binding $3/$4 in scope
 // ($1, $2): the binding's current revision when $5 is NULL, revision $5
-// otherwise. A row holds the revision, its media type, size and digest,
+// otherwise. A row holds the revision, its media type, size, digest and private
+// immutable version identity,
 // whether it is the current revision, the binding's frozen flag, the
 // revision's creation time and the version's Git source; no row means the
 // binding or revision does not exist. Used by PostgresRepository.Metadata.
 var metadataSQL = `
 SELECT revision.revision, version.media_type, blob.size_bytes,
-       'sha256:' || encode(blob.sha256, 'hex'),
+       'sha256:' || encode(blob.sha256, 'hex'), version.version_id,
        revision.revision = binding.current_revision, binding.frozen, revision.created_at, ` + gitSourceProjection + `
 FROM artifact_bindings AS binding
 JOIN artifact_binding_revisions AS revision
@@ -117,7 +118,7 @@ LIMIT $6`
 
 // listVersionsSQL returns one page of the revisions of binding $3/$4 in scope
 // ($1, $2), newest first, each with its namespace and name and the metadata
-// metadataSQL returns, except the digest. ($5, $6) is the (created_at,
+// metadataSQL returns, except the digest and private content identity. ($5, $6) is the (created_at,
 // revision) keyset cursor of the previous page; a NULL $5 starts at the first
 // page. At most $7 rows. Used by PostgresRepository.ListVersions.
 var listVersionsSQL = `

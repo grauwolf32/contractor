@@ -18,6 +18,8 @@
     "allocation-workspace-overlay.json": {"type": "AllocationWorkspaceSpec", "schema": "allocation.schema.json#/$defs/AllocationWorkspaceSpec"},
     "artifact-list-page.json": {"type": "ArtifactListResult", "schema": "artifact.schema.json"},
     "artifact-list-result.json": {"type": "ArtifactListResult", "schema": "artifact.schema.json"},
+    "artifact-metadata-result-boundary.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json"},
+    "artifact-metadata-result.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json"},
     "artifact-read-result.json": {"type": "ArtifactReadResult", "schema": "artifact.schema.json"},
     "finalize-allocation.json": {"type": "FinalizeAllocationRequest", "schema": "allocation.schema.json"},
     "heartbeat-response.json": {"type": "HeartbeatResponse", "schema": "agent-heartbeat.schema.json"},
@@ -41,6 +43,12 @@
     "workspace-capabilities.json": {"type": "WorkspaceCapabilities", "schema": "agent-registration.schema.json#/$defs/WorkspaceCapabilities"}
   },
   "invalid": {
+    "artifact-metadata-snake-key.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json", "strict": true},
+    "artifact-read-result-content-key.json": {"type": "ArtifactReadResult", "schema": "artifact.schema.json", "strict": true},
+    "artifact-metadata-key-newline.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json", "strict": true},
+    "artifact-metadata-key-non-ascii.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json", "strict": true},
+    "artifact-metadata-key-path.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json", "strict": true},
+    "artifact-metadata-key-empty.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json", "strict": true},
     "allocation-final-response-argument-float-overflow.json": {"type": "AllocationFinalResponse", "reason": "invariant", "strict": true},
     "allocation-final-response-argument-integer-above-range.json": {"type": "AllocationFinalResponse", "reason": "invariant", "strict": true},
     "allocation-final-response-argument-number-above-range.json": {"type": "AllocationFinalResponse", "reason": "invariant", "strict": true},

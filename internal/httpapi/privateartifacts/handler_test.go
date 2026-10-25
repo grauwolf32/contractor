@@ -82,7 +82,7 @@ func TestPrivateArtifactMetadataReadSkipsThePayload(t *testing.T) {
 	} {
 		response := read("/private/v1/allocations/allocation-1/artifacts/inputs/source/metadata" + test.query)
 		want := `{"apiVersion":"contractor/v1alpha1","artifact":{"namespace":"inputs","name":"source","revision":"` +
-			test.revision + `"},"mediaType":"text/plain","size":` + test.size + `}`
+			test.revision + `"},"mediaType":"text/plain","size":` + test.size + `,"contentCacheKey":"` + test.revision + `"}`
 		if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "application/json" ||
 			strings.TrimSpace(response.Body.String()) != want {
 			t.Fatalf("metadata read %q = %d %s", test.query, response.Code, response.Body.String())
@@ -1053,7 +1053,7 @@ func (m *memoryRepository) Metadata(
 	return artifacts.Metadata{
 		Ref:       artifacts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &revision},
 		MediaType: value.mediaType, Size: int64(len(value.data)),
-		Current: current.revision == revision, CreatedAt: value.revisionCreatedAt,
+		Current: current.revision == revision, CreatedAt: value.revisionCreatedAt, ContentCacheKey: revision,
 	}, nil
 }
 

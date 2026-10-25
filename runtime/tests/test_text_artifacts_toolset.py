@@ -22,7 +22,7 @@ from contractor_runtime.artifacts import (
 )
 from contractor_runtime.contracts import (
     API_VERSION,
-    ArtifactReadResult,
+    ArtifactMetadataResult,
     ArtifactRef,
     ArtifactWriteResult,
     RuntimeSettings,
@@ -807,13 +807,14 @@ class MemoryArtifactClient:
     def seed(self, namespace: str, name: str, media_type: str, data: bytes) -> ArtifactRef:
         return self._store(namespace, name, media_type, data)
 
-    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactReadResult:
+    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactMetadataResult:
         self.metadata_calls += 1
         if ref.revision is None:
             stored = self.bindings[(ref.namespace, ref.name)]
         else:
             stored = self.history[(ref.namespace, ref.name, ref.revision)]
-        return ArtifactReadResult(
+        return ArtifactMetadataResult(
+            contentCacheKey="test_metadata_version",
             apiVersion=API_VERSION,
             artifact=ArtifactRef(namespace=ref.namespace, name=ref.name, revision=stored.revision),
             mediaType=stored.media_type,

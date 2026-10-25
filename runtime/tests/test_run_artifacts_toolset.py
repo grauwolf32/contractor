@@ -22,7 +22,7 @@ from contractor_runtime.artifacts import (
 from contractor_runtime.contracts import (
     API_VERSION,
     ArtifactListResult,
-    ArtifactReadResult,
+    ArtifactMetadataResult,
     ArtifactRef,
     ArtifactWriteResult,
     RuntimeSettings,
@@ -528,11 +528,12 @@ class FakeArtifactClient:
             raise AssertionError(f"unexpected namespace {namespace!r}")
         return ArtifactListResult(api_version=API_VERSION, artifacts=refs)
 
-    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactReadResult:
+    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactMetadataResult:
         self.metadata_calls += 1
         assert ref.namespace == "inputs" and ref.name == "source"
         assert ref.revision in {None, "revision-read"}
-        return ArtifactReadResult(
+        return ArtifactMetadataResult(
+            contentCacheKey="test_metadata_version",
             apiVersion=API_VERSION,
             artifact=ArtifactRef(namespace="inputs", name="source", revision="revision-read"),
             mediaType=self.read_media_type,

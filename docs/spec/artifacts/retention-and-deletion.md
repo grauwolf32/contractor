@@ -503,7 +503,9 @@ release or cleanup work of Project deletion.
 **DEL-R51.** UserScope artifacts, global Skills and referenced
 RuntimeCredential records are outside Project ownership and are retained;
 deleting the Project only removes their Project and Run references
-(LIFE-DEL-8).
+(LIFE-DEL-8). Disposable Runtime archive bytes create no ArtifactStore pin and
+cannot prevent deletion/history eviction or authorize the next read. Their
+process/TTL/startup cleanup and offline residual-byte limits follow RTA-R123.
 
 **DEL-R52.** Native private eval storage is not left behind after the Project
 purge (LIFE-DEL-9).

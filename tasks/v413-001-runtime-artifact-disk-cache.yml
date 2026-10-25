@@ -5,7 +5,7 @@ milestone: runtime-artifact-cache-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python, json, markdown]
 goal: >-
@@ -16,7 +16,7 @@ context:
   authority: >-
     On 2026-10-24 the user approved a filesystem cache up to 1 GiB per Runtime,
     only when the existing startup workspace storage setting selects local.
-    This task records planned work; it does not authorize implementation now.
+    The user explicitly assigned implementation on 2026-10-25.
   proposal: docs/proposals/0042-live-project-sitemap.md#supporting-runtime-artifact-cache
   specification:
     - docs/spec/artifacts/artifact-store.md#ART-R9
@@ -27,6 +27,12 @@ context:
     - docs/spec/execution/runtime-agent.md#RTA-R19
     - docs/spec/execution/runtime-agent.md#RTA-R36
     - docs/spec/execution/runtime-agent.md#RTA-R37
+    - docs/spec/execution/runtime-agent.md#RTA-R119
+    - docs/spec/execution/runtime-agent.md#RTA-R120
+    - docs/spec/execution/runtime-agent.md#RTA-R121
+    - docs/spec/execution/runtime-agent.md#RTA-R122
+    - docs/spec/execution/runtime-agent.md#RTA-R123
+    - docs/spec/execution/runtime-agent.md#RTA-R124
     - docs/spec/tools/workspace.md#WSP-R71
     - docs/spec/tools/skills.md#SKL-R101
     - docs/spec/tools/skills.md#SKL-R103
@@ -340,3 +346,82 @@ test_prerequisites:
     Run the complete suites of every additionally touched Go/Python package;
     shared-fixture readers must include both Go and Python and prove that the
     private-only field does not alter public read/write contracts.
+implementation_notes:
+  - >-
+    ImmutableArchiveCache owns only bounded hashed byte identities, integrity
+    metadata and reservation/LRU state. Scoped aliases, binding timestamps and
+    grants are never retained. ArchiveValue reconstructs the consuming exact
+    binding from authenticated metadata; timestamp-bearing ArtifactValue and
+    public/shared read/write DTOs remain unchanged. Different binding timestamps
+    are the reason not to reuse an ArtifactValue across fork bindings.
+  - >-
+    Reuse version_id directly as the private opaque token, without a migration,
+    new identity store, receipt, lease or public API change. The effective TLS
+    CA/verification fingerprint and configured Artifact endpoint isolate trust
+    domains. Both production callers opt in explicitly; the general Artifact
+    client and allocation-local decoded-text cache retain their own behavior.
+  - >-
+    Same-key followers authorize independently and coalesce successful fills.
+    A cancelled/failed leader publishes no error or payload to another grant;
+    followers may use their own ordinary exact fetch, within their original
+    deadline. This deliberately permits duplicate fallback downloads and adds
+    neither an independent retry loop nor a background fill.
+  - >-
+    Logical accounting includes the owner marker and full 4-KiB metadata
+    reservations. Failed cleanup retains its entire charge and disables new
+    population. A single idempotent close finalizer joins maintenance and all
+    readers even when its caller is cancelled, before the root owner can exit.
+  - >-
+    The existing workspace process gate checks source-cache hits independently
+    on each specialist Runtime; the Skill process gate checks selected-package
+    hits across allocations on one local-storage Runtime. Its source ZIP is
+    consumed by Artifact tools, so it correctly remains outside cache eligibility.
+    Both gates assert owned cache cleanup and fixed scalar shutdown counters.
+  - >-
+    The actual private metadata HTTP reader uses decode_private, including
+    nested duplicate rejection, and the new DTO admits only camelCase wire
+    aliases. Safe protocol errors suppress response input and the opaque token;
+    actual-client regression tests verify duplicate, nested duplicate, missing,
+    unknown and snake-case responses without a raw fetch or identity in errors.
+verification:
+  date: '2026-10-26'
+  environment: >-
+    macOS arm64 with Go 1.26.9, Node 24.20.0, Python 3.13.16 and PostgreSQL
+    17.11; dedicated disposable contractor_test_v413 database with schema
+    create/drop authority. Full Runtime verification uses an isolated Debian
+    Linux arm64 container, Python 3.13.16, Go 1.26.9 and Node 24.20.0, running
+    as UID 1000 to preserve the non-root PodmanEngine contract. No live Gateway
+    is used. Tests use temporary real filesystems and fixture packages.
+  commands:
+    - >-
+      go test -tags=integration -count=1 ./internal/artifacts/...
+      ./internal/contracts/... ./internal/httpapi/privateartifacts/...
+      ./internal/httpapi/public/... passed with the database URL configured;
+      the new real-store fork/purge test also passed independently.
+    - >-
+      make test-runtime passed in Linux: 5083 passed, 55 skipped, 436.91s;
+      release_test_reports.py verify-runtime accepted its JUnit. Skips are
+      explicitly separate real-rootless/process gates, optional scanner or
+      validator executables, upstream Interactsh and live-model environments;
+      no cache test or required database check is skipped. Native macOS full
+      Runtime pass is not claimed. The touched cache/CLI/log modules passed
+      natively (47 tests); cache/artifact/contracts, including the actual strict
+      HTTP-reader regressions, passed natively (342 tests).
+    - >-
+      make test-project-workspaces-e2e test-agent-skills-mvp passed on the final
+      implementation: TestProjectWorkspaceLifecycleAcrossProductionProcesses
+      (163.824s), all four Python workspace process tests and
+      TestAgentSkillsMVPProcesses (164.374s). The real Runtime counters prove
+      source and Skill reuse through their owning callers, and both process
+      suites prove owned shutdown cleanup.
+    - >-
+      make test-wire-cross-language passed: 279 fixtures, 326 Go and 224 Python
+      shared tests; the complete Runtime contracts selection passed 323 tests.
+    - make verify-public-api passed; no public DTO or generated client change.
+    - >-
+      make lint passed, including generated dependency graph, public client,
+      staticcheck/testonlyexports, SQL ownership, release graph, spec/task
+      consistency, Ruff and all four Runtime import contracts.
+  artifacts: >-
+    Ignored reports/v413-linux-runtime.xml, reports/v413-linux-runtime.log and
+    reports/v413-required-gates.log retain the final complete verification.
