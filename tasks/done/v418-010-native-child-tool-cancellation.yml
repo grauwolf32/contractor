@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: MVP-012
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V418-002
 languages:
@@ -110,3 +110,4 @@ verification:
     remains unchanged.
   lint: make lint passes on the final production source; linked evidence retains original component checks,
     first failed Linux attempt, explicit external-origin repair, source/lock/report hashes and exact commands.
+implementation_commit: e80e17df9c91b84e7ba8a14e4db8fd4cb20cbbd5
