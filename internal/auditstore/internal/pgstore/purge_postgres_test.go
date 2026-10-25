@@ -21,6 +21,7 @@ const auditChildRunForeignKey = "workflow_runs_audit_submission_fkey"
 func TestPostgresPurgeRemovesCollectedFindingAssessments(t *testing.T) {
 	f := newCollectingAuditFixture(t, "purge-assessment", 1<<20)
 	findingID := collectPurgeFinding(t, f, "receipt-purge-assessment")
+	seedPublishedSnapshotForPurge(t, f)
 	claim := drainDeletedAuditForPurge(t, f)
 	if err := f.store.PurgeClaimed(f.ctx, claim, auditdomain.ArtifactNamespace(f.audit.AuditID)); err != nil {
 		t.Fatalf("purge Audit with collected finding %s: %v", findingID, err)
@@ -43,6 +44,7 @@ func TestPostgresPurgeCoversEveryAuditOwnedForeignKey(t *testing.T) {
 	duplicateProposal.MediaType, duplicateProposal.SizeBytes = "application/json", 128
 	duplicateID := insertAuditChildFinding(t, f, "receipt-purge-duplicate", duplicateProposal)
 	seedDecidedPurgeReviews(t, f, confirmedID, duplicateID)
+	seedPublishedSnapshotForPurge(t, f)
 
 	keys := auditOwnedForeignKeys(t, f)
 	for _, key := range keys {

@@ -498,7 +498,7 @@ the selected Workflow:
   type.
 
 Which mapping sources (`audit-input`, `prepare-output`, `item-package`,
-`execution-manifest`, `retained-output`) each consumer may use, the
+`execution-manifest`, `retained-output`, `round-results`) each consumer may use, the
 `inventory.source` and `inventory.settings` contract, prepare-role
 `maxRunAttempts`, and the per-profile bounds on roles, baseline inputs,
 mappings per binding, accepted output descriptors and retained output sizes

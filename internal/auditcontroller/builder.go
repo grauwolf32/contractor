@@ -43,8 +43,10 @@ type PreparationOutputLookup interface {
 }
 
 type PinnedSubmissionBuilder struct {
-	artifacts ArtifactAccess
-	outputs   RoleOutputLookup
+	artifacts    ArtifactAccess
+	outputs      RoleOutputLookup
+	roundResults RoundResultsStore
+	claim        auditstore.ControllerClaim
 }
 
 func NewPinnedSubmissionBuilder(
@@ -66,6 +68,7 @@ func NewPinnedSubmissionBuilder(
 func (b *PinnedSubmissionBuilder) WithClaim(claim auditstore.ControllerClaim) SubmissionBuilder {
 	bound := *b
 	bound.artifacts = b.artifacts.WithClaim(claim)
+	bound.claim = claim
 	return &bound
 }
 
@@ -181,6 +184,20 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 			preparation.Inputs[name] = input.Clone()
 		}
 	}
+	roundResults := make(map[string]auditstore.ExactArtifact)
+	for slot, mapping := range binding.Inputs {
+		if mapping.Source == auditprofile.AuditInputFromRoundResults {
+			roundResults[slot] = runInputs[slot].Clone()
+		}
+	}
+	var materializationID string
+	var materialize runservice.AuditInputMaterializer
+	if len(roundResults) > 0 {
+		materializationID, materialize, err = auditservice.RoundResultsInputMaterializer(roundResults)
+		if err != nil {
+			return PreparedSubmission{}, invalidSubmission("Round results materializer authority is invalid")
+		}
+	}
 	return PreparedSubmission{
 		Intent: auditstore.CreateExecutionIntentParams{
 			ExecutionID: executionID, RoundID: roundID, Role: kind, Preparation: preparation,
@@ -189,6 +206,7 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 			RequestDigest: requestDigest, Members: []auditstore.ExecutionMemberIntent{},
 		},
 		Run: runservice.AuditCreateParams{
+			RoundResults: roundResults, InputMaterializationID: materializationID, MaterializeInputs: materialize,
 			RequiredPlacementLabels: append([]string{}, baseline.RequiredPlacementLabels...),
 			ExecutionID:             executionID, Workflow: binding.Workflow,
 			RuntimeConfig: baseline.RuntimeConfig, Skills: skills,
@@ -237,6 +255,12 @@ func (b *PinnedSubmissionBuilder) resolveRoleInputs(
 				return nil, fmt.Errorf("resolve retained output for role %q: %w", workflowRole, err)
 			}
 			result[slot] = link.Artifact.Clone()
+		case auditprofile.AuditInputFromRoundResults:
+			artifact, err := b.prepareRoundResults(ctx, snapshot)
+			if err != nil {
+				return nil, err
+			}
+			result[slot] = artifact
 		case auditprofile.AuditInputFromItemPackage:
 			return nil, invalidSubmission("non-check Audit role cannot receive an item package")
 		default:

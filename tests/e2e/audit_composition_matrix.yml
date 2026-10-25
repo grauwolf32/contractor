@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "scope": "Current preparation/source-to-OpenAPI scan contracts; no model-quality or autonomous-audit claim.",
+  "scope": "Current preparation/source-to-scan and complete settled-Round snapshot transport contracts; no model-quality claim.",
   "prerequisites": [
     "disposable PostgreSQL",
     "locked Runtime",
@@ -50,6 +50,11 @@
       "TestPublicAuditPaginationBoundary",
       "TestPublicAuditSourceRunDeletionInvalidatesReadContexts",
       "TestAuditArtifactReadsExactReceiptAndValidatedMember"
+    ],
+    "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore": [
+      "TestPostgresRoundResultsCaptureRestartsBeforeSealAndPinsReviewGeneration",
+      "TestPostgresRoundResultsRejectUnsettledAndOversizeSources",
+      "TestPostgresRoundResultsCaptureAtRoundAndAuditCeilings"
     ]
   },
   "process": {
@@ -62,11 +67,20 @@
       "TestOpenAPIAuditScanAcrossProductionProcesses/lost_journal_ack_does_not_repeat_scan",
       "TestOpenAPIAuditScanAcrossProductionProcesses/publication_and_collection_faults_survive_restart",
       "TestOpenAPIAuditScanAcrossProductionProcesses/known_failure_has_bounded_cross_run_retries",
-      "TestOpenAPIAuditScanAcrossProductionProcesses/cancelled_scan_is_not_resubmitted"
+      "TestOpenAPIAuditScanAcrossProductionProcesses/cancelled_scan_is_not_resubmitted",
+      "TestAuditRoundResultsAcrossProductionProcesses"
     ]
   },
   "browser": {
-    "production": {"file": "ui/e2e/audit-composition.production.ts", "required_tests": 1, "owner": "TestAuditCompositionAcrossProductionProcesses/browser_preparation_approval_retention_and_failure"},
-    "mocked": {"file": "ui/e2e/audits.spec.ts", "required_tests": 6, "scope": "pending/failed inventory, A/B navigation, keyboard, themes and narrow viewport; verified by test-ui-stack"}
+    "production": {
+      "file": "ui/e2e/audit-composition.production.ts",
+      "required_tests": 1,
+      "owner": "TestAuditCompositionAcrossProductionProcesses/browser_preparation_approval_retention_and_failure"
+    },
+    "mocked": {
+      "file": "ui/e2e/audits.spec.ts",
+      "required_tests": 6,
+      "scope": "pending/failed inventory, A/B navigation, keyboard, themes and narrow viewport; verified by test-ui-stack"
+    }
   }
 }

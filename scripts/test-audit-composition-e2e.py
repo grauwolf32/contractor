@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MATRIX = ROOT / "tests/e2e/audit_composition_matrix.yml"
 PROCESS_TESTS = (
     "TestAuditCompositionAcrossProductionProcesses",
+    "TestAuditRoundResultsAcrossProductionProcesses",
     "TestOpenAPIAuditScanAcrossProductionProcesses",
 )
 

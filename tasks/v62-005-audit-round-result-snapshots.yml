@@ -5,7 +5,7 @@ milestone: audit-iterative-composition-2026-10
 epic: audits
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 reactivation:
   date: '2026-10-24'
   previous_status: deferred
@@ -301,3 +301,17 @@ lifecycle:
   retention: The accepted source snapshot stays immutable. A derived consumer descriptor pins exact local
     page revisions, protected through registered authoritative closure holders; a bare JSON mention is
     not a hold or a cross-scope access grant.
+
+implementation_notes:
+- Source capture seals a coherent complete item/review generation before immutable Artifact publication; later reviews do not rewrite that seal.
+- Construction keeps bounded source pages on the Round and one indexed next-page read. Publication verifies protected frozen exact bytes and drops the duplicate staging payload atomically.
+- The Audit-owned consumer materializer is integrated by the coordinator through the ordinary initializing child fence; generic Run creation does not traverse JSON.
+verification_progress:
+  date: '2026-10-26'
+  commands:
+  - go test ./internal/auditdomain ./internal/config/auditprofile -count=1 passed.
+  - go test ./internal/auditstore/internal/pgstore -run '^TestPostgresRoundResults' -count=1 passed against isolated PostgreSQL, including 4096 selected items inside a 100000-item Audit and more than 128 real captured pages.
+  - go test ./internal/persistence/postgres -run '^TestPostgresRoundResultsMigrationPreservesBusinessRows$' -count=1 passed against isolated PostgreSQL.
+  - go test -tags=e2e ./tests/e2e -run '^TestAuditRoundResultsAcrossProductionProcesses$' -count=1 -timeout=10m passed in 49.292 seconds with actual Server and locked Runtime; 129 full exact local page reads, restart, one child/mapping and no Stage before closure.
+  - Python shared Round fixture test and Ruff passed in the task's isolated locked environment.
+  remaining: Required complete touched-package suites, combined composition gate, cross-language gate and make lint remain for integrated coordinator verification; task is not completed.

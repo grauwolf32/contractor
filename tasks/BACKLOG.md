@@ -5,13 +5,14 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-130 open tasks: 4 in progress, 115 pending, 11 deferred. 1140 finished: 1130 completed, 10 archived.
+130 open tasks: 5 in progress, 114 pending, 11 deferred. 1140 finished: 1130 completed, 10 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
+| [V62-005](v62-005-audit-round-result-snapshots.yml) | audits | feature | P2 | Supply complete immutable settled-Round snapshots to declared consumers |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
@@ -113,7 +114,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V62-005](v62-005-audit-round-result-snapshots.yml) | feature | P2 | — | Supply complete immutable settled-Round snapshots to declared consumers |
 | [V62-006](v62-006-audit-retained-dependencies.yml) | feature | P2 | — | Retain exact item dependencies across Audit rounds |
 | [V62-007](v62-007-audit-check-routing.yml) | feature | P2 | V62-005, V62-006 | Route trusted typed check plans through explicit profile bindings |
 | [V62-013](v62-013-audit-iterative-composition-release.yml) | chore | P2 | V62-005, V62-006, V62-007 | Gate generic iterative Audit composition through real processes |

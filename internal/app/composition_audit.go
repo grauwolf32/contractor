@@ -69,6 +69,7 @@ func configureAudits(
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit Controller submissions: %w", err)
 	}
+	auditSubmissionBuilder = auditSubmissionBuilder.WithRoundResultsStore(auditClaims)
 	auditImportArtifacts, err := auditimport.NewArtifactAccess(catalogs.artifacts, hookstore.NewClaimedArtifacts(pool))
 	if err != nil {
 		return auditServices{}, fmt.Errorf("configure Audit import artifacts: %w", err)
