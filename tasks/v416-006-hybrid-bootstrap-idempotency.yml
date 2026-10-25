@@ -1,0 +1,92 @@
+schema_version: '1.0'
+id: V416-006
+title: Bind hybrid mutation keys to the complete conditional request
+milestone: main-review-2026-10-25
+epic: operations
+kind: defect
+priority: P1
+status: pending
+depends_on: []
+languages:
+- python
+goal: Hybrid bootstrap can rebind a Runtime label to an earlier config and reassign principal labels after
+  intervening edits, while exact retries retain the original request identity.
+context:
+  review: 2026-10-25 review of main at f9fda28f1c9ffa4baaf3052c141e652c8593a080, after the Project Web
+    scan merge.
+  severity: medium
+  specification:
+  - docs/spec/api/public-api.md#API-R69
+  - docs/spec/configuration/runtime-config.md#RCF-R124
+  - docs/spec/configuration/runtime-config.md#RCF-R125
+  finding: deploy/hybrid/bootstrap.py:44 computes Idempotency-Key from path plus JSON body only. configure():227-240
+    sends the same binding body initially with If-None-Match:* and later with a new If-Match after config1
+    -> config2 -> config1; the repeated key conflicts because the Server digest includes the precondition
+    (internal/runtimeconfig/management.go:277). Captured requests with preconditions *, "2" and "4" all
+    have the same key. assign():271 has the same problem after principal labels are removed and then reassigned.
+  siblings: All bootstrap API.request mutations, including RuntimeConfig label create/rebind and principal
+    label replacement, are in scope. Immutable publications may continue to use deterministic exact-request
+    identities. Read-only operations and other bundled clients are unaffected.
+  provenance: The method was added by baeb04eddf918141d342438eb66da5b2d573fcfa, which has no associated
+    task; V415-004 records the same provenance gap. introduced_by is deliberately omitted rather than
+    assigning an unrelated task.
+scope:
+  in:
+  - Derive mutation identity from the canonical complete semantic request, including method, path, body
+    and conditional headers that the server binds; exclude authorization secrets.
+  - Preserve the original body/precondition/key during reconciliation of an ambiguous request; a definite
+    new CAS operation gets a new key.
+  - Add request-capture tests and a real Server/PostgreSQL contract regression for label round-trip and
+    principal reassignment; update deployment docs.
+  out:
+  - New receipt tables, weakening Server idempotency/CAS, automatic unrelated retries or live cloud deployment.
+failure_outcomes:
+- operation: Bootstrap conditional mutation
+  success: Requested binding/labels are stored and reported.
+  permanent: Stale CAS or a different request under an old key fails visibly; no blind overwrite.
+  retryable: Existing bounded request behavior remains; callers retain the exact operation on explicit
+    retry.
+  ambiguous: Replay/reconcile the original method/body/precondition/key before issuing a changed operation;
+    never mint a random key per transport retry.
+  cancelled: Invocation stops without claiming success; existing committed remote state is retained for
+    reconciliation.
+  timeout: The existing 30-second HTTP deadline owns one request; timeout does not prove non-commit.
+acceptance_criteria:
+- id: A1
+  given: an existing label bound to config1
+  when: bootstrap rebinds it to config2 and back to config1 using current revisions
+  then: both CAS operations succeed with distinct keys, and a repeat of the identical request replays
+    without a second mutation
+- id: A2
+  given: a principal whose cloud-llm label was added, then removed by a separate valid mutation
+  when: assign runs against the current revision
+  then: it restores the label without idempotency_conflict and preserves unrelated labels
+- id: A3
+  given: identical bodies with different methods or conditional preconditions and a lost response
+  when: keys are generated and an uncertain operation is retried
+  then: different semantic requests have different keys; exact replay uses the same key and cannot duplicate
+    or overwrite a newer state
+- id: A4
+  given: the real RuntimeConfig service and disposable PostgreSQL
+  when: the regression suite runs
+  then: it fails on the original key generator, validates revision/replay outcomes and never logs token
+    or body secrets
+tests:
+- command: make test-hybrid
+  covers:
+  - A1
+  - A2
+  - A3
+- command: CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}"
+    go test -count=1 ./internal/runtimeconfig ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
