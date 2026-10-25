@@ -193,3 +193,9 @@ execution:
     batch is reserved together; implementation proceeds in dependency order,
     and dependent tasks do not start implementation before their prerequisites
     complete. Status records assignment, not completed implementation or tests.
+
+implementation_decisions:
+- date: 2026-10-26
+  decision: Preserve the user-requested isolation between tools and sitemap. Scanner execution and Caido tools
+    retain their own results and do not depend on sitemap persistence. Allocation composition wires optional
+    generic observation events to the separate collector; exact report imports remain explicit sitemap work.
