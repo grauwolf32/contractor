@@ -14,6 +14,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fakes.model import scripted_model, tool_call
+from fakes.process_markers import atomic_marker_source
 from fakes.spec import allocation_spec
 from test_likec4_toolset import BASE_DOCUMENT
 from test_likec4_toolset import MemoryArtifactClient as LikeC4ArtifactClient
@@ -177,8 +178,8 @@ def test_cancelled_validator_reaps_child_before_tool_and_workspace_close(
         "if child == 0:\n"
         "    time.sleep(60)\n"
         "else:\n"
-        f"    Path({str(marker)!r}).write_text(str(os.getpid()) + ' ' + str(child))\n"
-        "    time.sleep(60)\n"
+        + atomic_marker_source(marker, "str(os.getpid()) + ' ' + str(child)", indentation="    ")
+        + "    time.sleep(60)\n"
     )
     executable.chmod(0o700)
     monkeypatch.setenv("PATH", str(tmp_path))
@@ -237,8 +238,7 @@ def test_cancelled_validator_reaps_child_before_tool_and_workspace_close(
         pids: list[int] = []
         try:
             async with asyncio.timeout(3):
-                # write_text creates the file before it flushes both PIDs.
-                while not marker.exists() or len(marker.read_text().split()) != 2:
+                while not marker.exists():
                     await asyncio.sleep(0.01)
             pids = [int(value) for value in marker.read_text().split()]
             if stop == "cancel":

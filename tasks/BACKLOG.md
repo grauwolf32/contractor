@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-147 open tasks: 5 in progress, 131 pending, 11 deferred. 1118 finished: 1108 completed, 10 archived.
+148 open tasks: 6 in progress, 131 pending, 11 deferred. 1118 finished: 1108 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V418-008](v418-008-interrupted-history-outcome-truth.yml) | planner-worker | defect | P1 | Preserve uncertainty when repairing interrupted tool history |
+| [V418-009](v418-009-atomic-process-fixture-markers.yml) | quality | chore | P1 | Publish subprocess fixture readiness markers atomically |
 
 ## Pending
 
@@ -266,7 +267,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 10 | 19 | 16 | 5 | 17 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 17 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 7 | 40 |
@@ -277,4 +278,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 2 | 16 | 42 | 7 | 15 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 19 | 1 | 27 | 97 | 23 |
+| Quality, CI and process (`quality`) | 20 | 1 | 27 | 98 | 23 |

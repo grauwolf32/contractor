@@ -12,6 +12,7 @@ import pytest
 from a2a.client import ClientConfig, ClientFactory
 from a2a.types import AgentCard
 from a2a.utils.constants import TransportProtocol
+from fakes.process_markers import atomic_marker_source
 from google.protobuf.json_format import ParseDict
 from target_policy_fixtures import SCAN_TEST_POLICY
 from test_a2a_server import data_request, send
@@ -645,7 +646,7 @@ def test_shared_real_allocation_and_a2a_use_scanner_without_model(tmp_path, monk
         "import os, sys, time\n"
         "if '-version' not in sys.argv:\n"
         f"    open({str(marker)!r}, 'a').write('scan\\n')\n"
-        f"    open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
+        + atomic_marker_source(pid_file, "str(os.getpid())", indentation="    ")
         + ("    time.sleep(60)\n" if outcome == "lease_loss" else "")
         + "    print('{\"fixture\":true}')",
     )
@@ -697,7 +698,7 @@ def test_shared_real_allocation_and_a2a_use_scanner_without_model(tmp_path, monk
                 runtime = service._context.worker
                 invocation = asyncio.create_task(runtime.invoke(request(spec)))
                 async with asyncio.timeout(2):
-                    while not pid_file.exists() or not pid_file.read_text():
+                    while not pid_file.exists():
                         await asyncio.sleep(0.01)
                 await service.expire_control_lease(2)
                 with pytest.raises(asyncio.CancelledError):
