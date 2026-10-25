@@ -232,6 +232,16 @@ before invocation.
 
 **SCN-R15.** `timeoutSeconds` is an integer in 1–3600 (LIM-SCN-8). The Worker
 enforces it around the tool call, independently of the tool's own deadline.
+The required `StageContentRequest.deadline` ([WRK-R6](../execution/worker.md))
+is converted once to a monotonic deadline at invocation admission. New receipt
+creation and tool preparation/execution cannot outlive that deadline; the tool
+call uses the smaller remaining invocation budget and `timeoutSeconds`. Runtime
+checks expiry before creating a receipt, after its acknowledgement and after a
+call that returns without yielding to the deadline timer. Expired work launches
+no tool; in-flight expiry cancels and joins the tool before returning the
+nonretryable `tool_timeout`, without depending on best-effort A2A cancellation.
+The semantic timer closes before joining child cleanup, so it cannot interrupt
+cleanup of an externally cancelled invocation or relabel it as a timeout.
 
 **SCN-R16.** The bound arguments, artifact refs and output binding together are
 limited to 64 KiB of canonical JSON (LIM-SCN-9).
@@ -300,7 +310,7 @@ scenarios and needs no model.
 **SCN-R33.** The input digest covers the template ref, the resolved arguments
 and the output binding, plus any additional result bindings. A changed input
 under the same execution key fails as `tool_input_conflict`. The objective and
-instructions do not affect execution identity.
+instructions and the request deadline do not affect execution identity.
 
 **SCN-R34.** The receipt provides delivery deduplication within one
 StageExecution; an explicitly new Run or StageExecution is new work.
@@ -320,7 +330,12 @@ launch.
 Receipt replay on another allocation publishes fresh local WorkerState with
 zero new tool or model calls and reuses the exact report and additional
 artifacts. Repeated delivery therefore reuses the durable report and never
-automatically repeats an unknown scan.
+automatically repeats an unknown scan. This lookup and completed replay remain
+available after the request deadline: they do not launch semantic work. Receipt
+lookup and replay-reference verification each have a separate
+`requestTimeoutSeconds` budget; failure to establish a saved outcome remains
+`tool_outcome_unknown`. If no receipt exists after lookup, the original
+invocation deadline still applies without being reset.
 
 **SCN-R39.** Receipts contain no target, credentials or raw arguments.
 
@@ -367,7 +382,7 @@ mutable binding (FAIL-SCN-4).
 | Tool reports `failed` | Publish the diagnostic report; nonretryable WorkerFailure |
 | Invalid input | `tool_input_invalid`, no process launch |
 | Tool exception / invalid output | `tool_execution_failed` / `tool_output_invalid` |
-| Tool deadline | `tool_timeout`; await tool cancellation and cleanup |
+| Tool or effective invocation deadline | `tool_timeout`; await tool cancellation and cleanup; an unacknowledged started receipt remains a no-rescan fence |
 | User cancel, lease loss, abort | Cancel the task and join child cleanup; a `started` receipt prevents a rescan if final persistence is fenced |
 | Report publication fails | `tool_report_failed`; no rescan; the receipt retains the failure if writable |
 | Terminal receipt persistence is ambiguous | `tool_outcome_unknown`; no success declaration or rescan |
@@ -384,7 +399,16 @@ contain argument values or output.
 
 **SCN-R51.** Worker State revisions and tool counts are updated through
 WorkerStateStore. Model counters remain zero, and no ADK finalizer or
-summarizer is constructed.
+summarizer is constructed. Report-reference verification plus report publication
+and the terminal receipt update each use their own `requestTimeoutSeconds`
+budget after semantic work settles; the expired invocation deadline does not
+cancel these writes or authorize another scan. An unconfirmed terminal write
+returns `tool_outcome_unknown` and leaves the durable fence authoritative.
+State admission and terminal State publication each have a five-second budget
+(LIM-SCN-93); their tasks are joined after cancellation. A failed terminal State
+publication fences the Worker instead of returning success with an unclosed
+State. External cancellation keeps its own semantics and retains the started
+receipt when final persistence is fenced.
 
 ### Scan toolset
 

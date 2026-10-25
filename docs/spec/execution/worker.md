@@ -273,6 +273,10 @@ allocation and lifecycle facts the rendered task never contains, is owned by
 carries the Planner's effective Worker-call deadline: the Stage deadline for passthrough,
 the smaller of the Stage and Planner wall-clock deadlines for streamline and
 router, and the smaller of the Stage and scan-job deadlines for scan workers.
+Model-free `tool@1` Workers enforce it locally on new receipt creation and tool
+execution, independently of Server cancellation; their nonretryable timeout,
+completed replay and separate settlement budgets are specified by
+[SCN-R15, SCN-R38 and SCN-R51](../tools/scanners.md).
 
 **WRK-R7.** The deadline is Runtime control data and is not
 placed in the Worker model prompt.
@@ -825,6 +829,15 @@ Runner but reports its one model call through typed hooks on the same
 invocation plugin. It therefore updates the same normal budget, metrics and
 Contractor-owned State reducers and does not create a second uncorrelated
 instrumentation State. Its prompt and output are never retained in that State.
+
+The before-call hook owns its pending span until the hook returns successfully.
+If cancellation interrupts its State publication after registration, it closes
+that span synchronously under the plugin lock and propagates cancellation;
+no model call starts and no extra publication or cleanup task is required.
+Subsequent error callbacks and invocation teardown cannot close that span
+again. Teardown keeps the authoritative terminal invocation phase separate
+from auxiliary model phase names (WRK-R106, WRK-R125); the invocation's
+existing bounded cleanup owns terminal State publication (WRK-R168).
 
 **WRK-R84.** Model spans of the result-finalizer call mark
 `model.phase=result_finalizer`.

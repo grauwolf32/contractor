@@ -6,7 +6,7 @@ epic: scan-tools
 kind: defect
 introduced_by: V55-003
 priority: P1
-status: pending
+status: completed
 depends_on: []
 languages: [python, go]
 goal: A tool Worker never begins or continues scanner work after its effective invocation deadline merely because the Server's cancellation request did not arrive.
@@ -90,7 +90,7 @@ acceptance_criteria:
     when: The invocation settles
     then: WorkerState is terminal, cleanup budgets do not revive scanner work, no success is fabricated, and all sibling tool Workers use the same deadline boundary.
 tests:
-  - command: "cd runtime && uv run pytest tests/test_tool_worker.py tests/test_a2a_server.py tests/test_allocation.py tests/test_scan_toolset.py"
+  - command: "cd runtime && uv run pytest tests/test_tool_worker.py tests/test_tool_worker_deadline.py tests/test_a2a_server.py tests/test_allocation.py tests/test_scan_toolset.py"
     covers: [A1, A2, A3, A4]
   - command: "cd runtime && uv run pytest tests/test_adk_runtime.py"
     covers: [A3, A4]
@@ -100,3 +100,21 @@ tests:
     covers: [A1, A3, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+implementation_commit: 10c96ab71d2abb130588ccb44117c44c72419e01
+verification:
+  date: '2026-10-25'
+  environment: macOS arm64 isolated task worktree on 44469e3e; Python 3.13.16 with a local locked uv environment; Go from the pinned Darwin toolchain; Node 24.20; isolated PostgreSQL review_v416_tool_deadline database.
+  evidence:
+    - 'A1: the real ContractorAgentExecutor decodes an expired request and returns nonretryable tool_timeout with no scanner call, report or new receipt. Injected clock advances across receipt lookup and start acknowledgement also start no tool; an acknowledged receipt records timeout, and a lost start acknowledgement keeps the existing started fence.'
+    - 'A2: a controlled real Python child is terminated and joined when the 10-second effective deadline beats the 60-second configured timeout, without CancelTask. A separate configured-timeout case preserves the smaller tool limit. A cleanup gate proves ownership and the invocation lock are retained until cleanup settles. External cancellation crossing the Stage deadline remains cancellation.'
+    - 'A3: expired same-input memory and durable replay reuse the exact report; changed input remains tool_input_conflict. A newly converted deadline never enters the receipt digest, and unknown started receipts never launch. All selected tool callables share this Worker boundary; existing scanner, A2A and allocation suites cover their production adapters.'
+    - 'A4: report and terminal receipt publication continue after semantic expiry under separate requestTimeoutSeconds budgets. Their own expiry maps to tool_report_failed or tool_outcome_unknown and leaves no rescan path. A semantic timeout followed by terminal transport failure or timeout keeps a started receipt and terminal failed State. State publication uses a separate five-second budget; a broken State publication fences the Worker and raises rather than fabricating success.'
+    - 'Before/after proof: loading the original tool_runtime.py from base 44469e3e into the module namespace and running the final test_tool_worker_deadline.py produces 12 failures and 5 passes. The fixed implementation passes all 17 cases. All deadline decisions use AdvanceableClockLoop and synchronization events; short real-time guards only prevent a broken test from hanging.'
+    - 'SCN-R15/R33/R38/R48/R51, WRK-R6 and LIM-SCN-8/LIM-SCN-93 state the deadline, identity, replay and settlement boundaries. make docs-dependencies regenerated only the source fingerprint in the generated graph.'
+  commands:
+    - 'cd runtime && uv run pytest tests/test_tool_worker.py tests/test_tool_worker_deadline.py tests/test_a2a_server.py tests/test_allocation.py tests/test_scan_toolset.py: 266 passed.'
+    - 'cd runtime && uv run pytest tests/test_adk_runtime.py: 146 passed.'
+    - 'go test -count=1 ./internal/planner/a2a ./internal/planner/scan: both packages passed.'
+    - 'make test-wire-cross-language with the isolated PostgreSQL URL configured: passed; contract Runtime suites 313 passed, shared Runtime selection 1228 passed, 3566 deselected; 270 shared fixtures, 319 Go and 219 Python shared tests checked.'
+    - 'make lint: passed, including full Go, UI, deployment, specification, task, shared-fixture, Ruff and import-layer gates.'
+  database_tests_configured: true
