@@ -10,18 +10,8 @@
     group: root
     mode: "0644"
 
-- name: Derive uniform scope limits with the deployed Runtime parser
-  ansible.builtin.command:
-    argv: ["{{ __contractor_runtime_python }}", -I, "{{ contractor_runtime_prefix }}/tools/podman_scope_policy.py"]
-    stdin: "{{ __contractor_runtime_ready | map(attribute='argv') | list | to_json }}"
-  become: true
-  become_user: "{{ contractor_runtime_user }}"
-  changed_when: false
-  register: __contractor_runtime_scope_resolution
-
-- name: Record the validated scope policy
-  ansible.builtin.set_fact:
-    __contractor_runtime_scope_policy: "{{ __contractor_runtime_scope_resolution.stdout | from_json }}"
+- name: Resolve the shared Podman scope policy
+  ansible.builtin.include_tasks: scope_resolution.yml
 
 - name: Create the dedicated account's Podman scope directory
   ansible.builtin.file:

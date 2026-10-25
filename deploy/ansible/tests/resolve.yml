@@ -331,7 +331,7 @@
   connection: local
   gather_facts: false
   vars:
-    expected: "logs at 'warning'"
+    expected: "log_level/verification"
     contractor_runtime_log_level: warning
   tasks:
     - name: Expect the rejection
@@ -342,7 +342,7 @@
   connection: local
   gather_facts: false
   vars:
-    expected: 'BAD-NAME'
+    expected: 'environment_name'
     contractor_runtime_extra_environment: {'BAD-NAME': x}
   tasks:
     - name: Expect the rejection

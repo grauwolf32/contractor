@@ -26,6 +26,7 @@
   ansible.builtin.include_tasks: ca.yml
 
 - name: Complete instance settings with host values
+  no_log: true
   ansible.builtin.set_fact:
     __contractor_runtime_ready: >-
       {{ __contractor_runtime_ready + [__contractor_runtime_instance | combine({
@@ -53,10 +54,11 @@
 
 - name: Configure instances
   ansible.builtin.include_tasks: instance.yml
-  loop: "{{ __contractor_runtime_ready }}"
+  vars:
+    __contractor_runtime_instance: "{{ __contractor_runtime_ready | selectattr('name', 'equalto', __contractor_runtime_instance_name) | first }}"
+  loop: "{{ __contractor_runtime_ready | map(attribute='name') | list }}"
   loop_control:
-    loop_var: __contractor_runtime_instance
-    label: "{{ __contractor_runtime_instance.name }}"
+    loop_var: __contractor_runtime_instance_name
 
 - name: Configure shared Podman scope bounds
   ansible.builtin.include_tasks: podman_scope.yml
@@ -78,11 +80,11 @@
 
 - name: Start and verify instances
   ansible.builtin.include_tasks: start.yml
-  loop: "{{ __contractor_runtime_ready }}"
+  loop: "{{ __contractor_runtime_ready | map(attribute='name') | list }}"
   loop_control:
-    loop_var: __contractor_runtime_instance
-    label: "{{ __contractor_runtime_instance.name }}"
+    loop_var: __contractor_runtime_instance_name
   vars:
+    __contractor_runtime_instance: "{{ __contractor_runtime_ready | selectattr('name', 'equalto', __contractor_runtime_instance_name) | first }}"
     __contractor_runtime_marker: "{{ contractor_runtime_config_dir }}/restart-pending/{{ __contractor_runtime_instance.name }}"
 
 - name: Prune old releases
