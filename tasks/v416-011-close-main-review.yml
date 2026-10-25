@@ -1,6 +1,6 @@
 schema_version: "1.0"
 id: V416-011
-title: "Verify the fixes and simplifications from the October 25 main review"
+title: "Verify the fixes and simplifications from the October 25 main and current-system review"
 milestone: main-review-2026-10-25
 epic: quality
 kind: chore
@@ -17,24 +17,36 @@ depends_on:
   - V416-008
   - V416-009
   - V416-010
+  - V416-012
+  - V416-013
+  - V416-014
+  - V416-015
+  - V416-016
   - V414-004
   - V414-012
-languages: [go, python, typescript, markdown]
+languages: [go, python, typescript, yaml, markdown]
 goal: >-
-  Give every finding and accepted improvement from the two-day main review a
-  verified disposition and check the integrated result on the landing revision.
+  Give every finding and accepted improvement from the two-day main review and
+  expanded current-system review a verified disposition and check the integrated
+  result on the landing revision.
 context:
   review: >-
     User-requested review of changes merged into main in the preceding two days,
     completed on 2026-10-25 after the Web scan Audit merge:
     63aa62b4419d27957f7ac7777729ffaf9cfc18a5..f9fda28f1c9ffa4baaf3052c141e652c8593a080.
     The user requested task intake on 2026-10-25; all new work is pending.
+    The user then requested a broader review of Contractor as a whole, including
+    current paths that predate this range. The initial tasks were merged in
+    cce0f0a4b28527a1475656df095ec4453ad054c0 during the expanded investigation;
+    that merge changed task metadata only, preserving the reviewed production code.
   finding: >-
-    This is an integration/closure task, not another production defect. Seven
+    This is an integration/closure task, not another production defect. Eleven
     confirmed defects have dedicated tasks; the shared Audit form improvement
-    is part of the corresponding UI defect, and three additional chores own
+    is part of the corresponding UI defect, and four additional chores own
     common rulepack validation, the Nuclei preparation boundary and retention
-    wording. The reviewed revision reproduced the defects despite the existing
+    wording and the current Eval workspace UI. The initial diff contains 1,773
+    changed files; this count does not imply equal or exhaustive file coverage.
+    The reviewed revision reproduced the defects despite the existing
     focused suites passing. Future fixes need regressions that fail before the
     change; the passing review suites are not evidence that the fixes exist.
   dispositions:
@@ -48,6 +60,11 @@ context:
     - "One media/byte contract for rulepack admission, with scope ownership left explicit: V416-008 and the Eval boundary in V416-001."
     - "Extract Nuclei preparation from tool orchestration without a new framework: V416-009."
     - "Clarify post-publication current versus former current in retention: V416-010."
+    - "Pruning removes a release still referenced by an omitted Runtime instance: V416-012."
+    - "Tool Worker ignores the effective request deadline; this predates the two-day range: V416-013."
+    - "Consolidate current Eval workspace terminology and navigation without removing its capabilities: V416-014."
+    - "Normal Ansible failure diagnostics expose environment values: V416-015."
+    - "Cancellation or deadline during finalizer entry prevents terminal Worker State completion; this predates the two-day range: V416-016."
     - "Closed PostgreSQL connection classification and ambiguous commit recovery: existing V414-012; do not duplicate."
     - "Scan Audit BuildResult permanent versus retryable failures, also used by Web scan: existing V414-004; do not duplicate."
   delivery_order: >-
@@ -56,11 +73,43 @@ context:
     V416-009 and V416-010 are behavior-preserving improvements, not prerequisites
     for unrelated defect fixes. V416-002 and V416-003 share Web scan UI files;
     coordinate their landing and rerun both regressions after integration.
+    V416-012 and V416-015 share the Ansible role and tests; coordinate their
+    landing. V416-013 and V416-016 concern separate Worker implementations,
+    but both require deadline/cancel and allocation cleanup regressions.
     Existing project delivery focus remains unchanged by this intake.
+  coverage:
+    - "Storage: history admission, maintenance, hold acquire/release, purge ordering, current/exact reads, filesystem blobs and reference-safe collection."
+    - "Credentials: target material validation, safe metadata, encrypted identity, deletion fences and active-Server lease handover."
+    - "Execution: model/tool lane claims, Stage transitions, placement revalidation, Audit dispatch/collection/cancel, Eval submission/recovery/purge and Project deletion."
+    - "Runtime: allocation/tool cleanup, ADK cache release, workspaces, source filtering, HTTP transport, strict document parsing, Interactsh and tool invocation deadlines."
+    - "UI and operations: launch/repeat/recovery, previews, placement controls, Eval workspace callers, hybrid bootstrap, Ansible instance lifecycle and CI selection."
+  ruled_out:
+    - "Former-current history eviction is the deliberate V410-010 post-publication contract; V416-010 fixes ambiguous prose, not an alleged data-loss bug."
+    - "Audit ready pages are per Workflow role; a full model lane does not hide later tool items behind a shared page limit."
+    - "Final placement revalidates mutable labels/credentials under transaction locks; the optimistic compatibility cache alone is not allocation authority."
+    - "Eval projection writes check deletion and cannot republish projections after purge invalidation."
+    - "Runtime document-write/exporter maintenance-pending outcomes remain retryable and do not authorize replacement content or an unbounded loop; no additional defect was established."
+    - "The legacy-named Eval workspace routes serve current evaluation Projects; deleting them as dead code would remove current capabilities."
+  review_validation:
+    - "Full make lint passed on the unchanged reviewed production tree with the expanded task draft. Earlier attempts stopped on pnpm's dependency-directory symlink protection and then a backlog generated before the last task was added; the final run passed all stages. After retaining the concurrently merged intake, task/spec consistency and diff checks were repeated for the final metadata. The reused dependency tree emitted a pnpm enableGlobalVirtualStore metadata warning."
+    - "The expanded Runtime pass ran 375 existing tests successfully: six suites covering text artifacts, workspace/export/provider, source analysis, tool Worker and allocation, then test_adk_runtime.py, test_instrumentation.py, test_result_finalizer.py, test_worker_state.py and test_worker_summarizer.py. Separate controlled reproductions exposed V416-013/016 despite this green baseline."
+    - "Real disposable PostgreSQL: go test -tags=integration -p 1 -count=1 over scheduler, auditcontroller, evalcoordinator, evalservice, evalstore, planner and its subpackages, and controlplane passed. The Control Plane suite was rerun in full after making the locked Runtime environment available; Scheduler was rerun with a physical TMPDIR."
+    - "Real disposable PostgreSQL: go test -tags=integration -p 1 -count=1 ./internal/projectlifecycle ./internal/rundeletion ./internal/findingintake passed. A preceding five-package storage pass passed its real packages but its command exited nonzero because an extra selection, internal/projectservice, does not exist; this was corrected to projectlifecycle, not counted as a successful aggregate command."
+    - "Nine focused UI test files passed 98 tests around Workflow forms, repeat/idempotency, Markdown, decisions, scheduler settings and Evals; CI selection/report checks passed another 19 tests. This was not the full browser or UI-stack suite."
+    - "Production Ansible tasks were exercised on disposable localhost fixtures: pruning reproduced an omitted instance's missing release; two ordinary-verbosity failure cases exposed synthetic environment sentinels. These expected failures prove findings, not successful deployment checks."
+    - "Differential checks passed 8,400 CR/LF/UTF-8 line-index cases and 50,000 source-filter glob cases; they are bounded checks, not an equivalence proof."
+    - "Review verification is separate from future implementation acceptance. No finding task is completed by these baseline tests, and full release-verify was not run for this review."
+  limits: >-
+    This review is not a complete security audit, a live-model quality study,
+    a production load test or a proof of correctness. No remote deployment,
+    external target scan, demo migration or model selection was performed.
+    Tests and controlled reproductions establish the scenarios they exercise;
+    untested races and workload combinations remain possible.
 scope:
   in:
     - Verify every dependency is completed with its implementation commit and evidence, or has an explicit user-approved disposition reflected in this task; deferred or archived work never satisfies a dependency by itself.
     - Check task boundaries together, especially shared UI state plus early size checks, and Run admission plus Eval staging and failure reconciliation.
+    - Check deadline ownership, terminal Worker State, joined cancellation, release references and safe deployment diagnostics across the expanded findings.
     - Run the full deterministic release gate on the integrated revision with a disposable PostgreSQL database; record exact commands, revision, results and any environmental limits or skipped checks.
     - Record whether the implementation branch is merged into main and what remains; do not call filing these tasks implementation completion.
   out:
@@ -84,5 +133,7 @@ tests:
     covers: [A1, A2, A3]
   - command: cd runtime && uv run python ../scripts/check_tasks.py
     covers: [A1, A3]
+  - command: make test-ansible test-hybrid
+    covers: [A2, A3]
   - command: python3 scripts/check_spec.py
     covers: [A3]
