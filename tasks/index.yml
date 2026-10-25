@@ -98,6 +98,12 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: go-adk-26-upgrade-2026-10
+    exit_task: V419-005
+    outcome: The exact Go ADK v2.6.0 dependency closure preserves Planner tools, history, persistence, Gateway, A2A and telemetry through real-store and real-process release evidence, independently of Python ADK and compaction.
+  - id: planner-context-compaction-2026-10
+    exit_task: V420-005
+    outcome: Opt-in Streamline and Router compaction continues one bounded Planner invocation with exact evidence, cumulative budgets, fail-closed persistence and per-owner strategy exclusion, while Scheduler lifecycle and independent Worker terminal summarization remain unchanged.
   - id: adk-213-upgrade-2026-10
     exit_task: V418-007
     outcome: The exact ADK 2.13.0 dependency closure preserves logical Worker execution, strict tool admission, bounded lifecycle and telemetry through full Runtime and real-process release evidence, independently of compaction and model consultation.
