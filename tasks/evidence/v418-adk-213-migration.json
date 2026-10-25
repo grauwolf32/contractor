@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "task": "V418-002",
   "date": "2026-10-25",
-  "status": "locked_source_verified",
+  "status": "accepted",
   "source_before_atomic_migration": "0c4ba3393ae667f4c6e737d2b654caab6f8b2dc8",
   "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
   "dependency_changes": [
@@ -263,5 +263,15 @@
       "python_shared_tests": 224,
       "log_sha256": "99d5aa0f0100f13ca2d2238dcea11fe9650a0484c8332ee8be154eed5ba718b7"
     }
-  ]
+  ],
+  "committed_source_confirmation": {
+    "implementation_commit": "85bf48cc68752ca2318d3ed13a8da91f9bdeab3e",
+    "source_files_match_tested_hashes": true,
+    "fresh_uv_sync_locked_exit_code": 0,
+    "dependency_smoke_passed": 2,
+    "dependency_smoke_failed": 0,
+    "dependency_smoke_skipped": 0,
+    "sync_log_sha256": "6db42a0e113608d14839bf66146dba3c3cf16e8488bb2a8c19aeb961815dbd1a",
+    "junit_sha256": "c1668255acc9b5d7eaa0535e9779c2e94888b09293877aa27653c66857d3ab38"
+  }
 }

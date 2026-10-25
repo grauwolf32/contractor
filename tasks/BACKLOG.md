@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-145 open tasks: 5 in progress, 129 pending, 11 deferred. 1121 finished: 1111 completed, 10 archived.
+144 open tasks: 4 in progress, 129 pending, 11 deferred. 1122 finished: 1112 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V418-002](v418-002-adk-213-atomic-runtime-migration.yml) | planner-worker | chore | P1 | Upgrade ADK to 2.13 with atomic execution and tool-boundary adaptations |
 
 ## Pending
 
@@ -63,7 +62,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V418-003](v418-003-adk-213-allocation-and-skill-lifecycle.yml) | chore | P1 | V418-002 | Verify allocation cleanup and bounded Skills on ADK 2.13 |
+| [V418-003](v418-003-adk-213-allocation-and-skill-lifecycle.yml) | chore | P1 | — | Verify allocation cleanup and bounded Skills on ADK 2.13 |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -189,7 +188,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
-| [V418-004](v418-004-adk-213-gateway-and-telemetry-contracts.yml) | chore | P1 | V418-002 | Preserve Gateway and telemetry contracts across ADK 2.13 |
+| [V418-004](v418-004-adk-213-gateway-and-telemetry-contracts.yml) | chore | P1 | — | Preserve Gateway and telemetry contracts across ADK 2.13 |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -257,7 +256,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 5 | 41 | 55 | 19 | 81 |
-| Planners and the Worker model boundary (`planner-worker`) | 20 | 34 | 44 | 27 | 63 |
+| Planners and the Worker model boundary (`planner-worker`) | 19 | 34 | 44 | 27 | 63 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 1 | 11 | 4 | 2 | 4 |
