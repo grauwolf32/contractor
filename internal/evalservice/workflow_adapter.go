@@ -26,11 +26,14 @@ type runRequest struct {
 
 func (d *workflowAdapter) Create(ctx context.Context, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim) error {
 	op, err := prepareOperation(ctx, d.operations, e, m, c, "run-create", func() (runRequest, error) {
-		inputs, err := d.resources.inputs(ctx, e, m, c, e.ProjectID)
+		snapshot, err := d.resources.binding(ctx, e, m)
 		if err != nil {
 			return runRequest{}, err
 		}
-		snapshot, err := d.resources.binding(ctx, e, m)
+		if snapshot.Workflow == nil {
+			return runRequest{}, evaldomain.Failure("eval_pin_mismatch")
+		}
+		inputs, err := d.resources.inputs(ctx, e, m, c, e.ProjectID, snapshot.Workflow)
 		if err != nil {
 			return runRequest{}, err
 		}

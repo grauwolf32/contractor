@@ -38,6 +38,11 @@ Audit has a newly owned kind=project workspace, and inputs are copied atomically
 into a member-specific namespace. An Audit variant currently selects an exact
 AuditProfile: execution overrides are rejected because ordinary Audit creation
 has no override contract. Native Workflow variants use ordinary execution patches.
+Workflow inputs with `sourceScope: user` reuse the verified exact owner source
+without an Eval-owned UserScope copy; a ProjectScope case source mapped to such
+a slot is unsupported at preflight. Other Workflow inputs retain their Project
+staging. Definite input rejection after a creation intent resolves that intent
+and drains the member; unknown outcomes retain the same key for reconciliation.
 
 Audit output slots are `report`, `coverage` and `findings` (the exact JSON machine
 report, with a pointer for the latter two), plus `summary` (the Markdown report).

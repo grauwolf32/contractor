@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -30,7 +31,7 @@ func (d *memberResources) binding(ctx context.Context, e evalstore.Experiment, m
 	return wrapper.Settings.Snapshot, nil
 }
 
-func (d *memberResources) inputs(ctx context.Context, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim, projectID string) (map[string]contracts.ArtifactRef, error) {
+func (d *memberResources) inputs(ctx context.Context, e evalstore.Experiment, m evalstore.Member, c evalstore.Claim, projectID string, workflow *resolved.ResolvedWorkflow) (map[string]contracts.ArtifactRef, error) {
 	op, err := prepareOperation(ctx, d.operations, e, m, c, "inputs", func() (inputCopyRequest, error) {
 		inputs, err := MapInputs(evaldomain.Case{Inputs: m.Recipe.Case.Inputs}, m.Recipe.Variant)
 		return inputCopyRequest{Inputs: inputs, ProjectID: projectID}, err
@@ -61,6 +62,16 @@ func (d *memberResources) inputs(ctx context.Context, e evalstore.Experiment, m 
 		for slot, ref := range request.Inputs {
 			if err = verifyArtifact(ctx, tx, service, e.OwnerID, ref); err != nil {
 				return err
+			}
+			if workflow != nil && workflow.Inputs[slot].SourceScope == "user" {
+				if ref.Scope != "user" {
+					return evaldomain.Failure("eval_pin_mismatch")
+				}
+				// The ordinary Run service forks this exact owner source. There is
+				// no Eval-owned UserScope copy to retain or clean up, and replay
+				// never substitutes the source binding's mutable current revision.
+				refs[slot] = contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &ref.Revision}
+				continue
 			}
 			source, err := artifactScope(service, ref)
 			if err != nil {
