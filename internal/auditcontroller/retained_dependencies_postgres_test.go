@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -202,5 +203,91 @@ func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDelet
 	members, err := h.audits.ListExecutionItems(ctx, execution.ExecutionID)
 	if err != nil || len(members) != 1 || len(members[0].Inputs) < 3 {
 		t.Fatalf("complete closure was not durable intent authority: %+v %v", members, err)
+	}
+
+	// Deleting a fully materialized consumer releases its own progress and
+	// lineage obligations while the accepted Audit copies remain readable.
+	type retainedBeforeDeletion struct {
+		descriptor        auditstore.ExactArtifact
+		payload           []byte
+		holds, childEdges int
+	}
+	retainedBefore := map[string]retainedBeforeDeletion{}
+	for _, dependency := range deps.Dependencies {
+		descriptor := dependency.Retained
+		if _, exists := retainedBefore[descriptor.Ref.Key()]; exists {
+			continue
+		}
+		read, err := project.ReadExact(ctx, descriptor)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var holds, childEdges int
+		if err := h.pool.QueryRow(ctx, `SELECT revision.hold_count,
+    (SELECT count(*) FROM artifact_lineage AS edge
+     WHERE edge.source_scope_kind='project' AND edge.source_scope_id=$1
+       AND edge.source_namespace=$2 AND edge.source_name=$3 AND edge.source_revision=$4
+       AND edge.target_scope_kind='run' AND edge.target_scope_id=$5)
+   FROM artifact_binding_revisions AS revision
+   WHERE revision.scope_kind='project' AND revision.scope_id=$1
+     AND revision.namespace=$2 AND revision.name=$3 AND revision.revision=$4`, snapshot.Audit.ProjectID, descriptor.Ref.Namespace, descriptor.Ref.Name, *descriptor.Ref.Revision, child.Run.RunID).Scan(&holds, &childEdges); err != nil || childEdges < 1 {
+			t.Fatalf("consumer did not acquire exact source lineage: holds=%d edges=%d error=%v", holds, childEdges, err)
+		}
+		retainedBefore[descriptor.Ref.Key()] = retainedBeforeDeletion{descriptor: descriptor, payload: append([]byte{}, read.Payload.Data...), holds: holds, childEdges: childEdges}
+	}
+	var progressComplete bool
+	if err := h.pool.QueryRow(ctx, `SELECT audit_input_materialization IS NOT NULL AND (audit_input_materialization->>'complete')::boolean
+  FROM workflow_runs WHERE run_id=$1`, child.Run.RunID).Scan(&progressComplete); err != nil || !progressComplete {
+		t.Fatalf("consumer progress holder was not complete before deletion: %t %v", progressComplete, err)
+	}
+	if _, err := h.runs.RequestRunCancellation(ctx, child.Run.RunID, runstore.WorkflowRunCancellation{Code: runstore.CancellationUserRequested, RequestedAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	if err := artifactstest.FreezeOutputs(ctx, h.artifacts, child.Run.RunID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.runs.TransitionRun(ctx, child.Run.RunID, runstore.RunCancelling, runstore.RunCancelled, runstore.Reason{Code: "test_consumer_cancelled"}); err != nil {
+		t.Fatal(err)
+	}
+	cursor, err := h.runs.GetRunEventCursor(ctx, child.Run.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	observed, err := h.audits.ObserveTerminal(ctx, auditstore.ObserveTerminalParams{Claim: claim, ExecutionID: execution.ExecutionID, RunID: child.Run.RunID, Generation: cursor.Generation, Sequence: uint64(cursor.Sequence)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	collectionSnapshot, err := h.audits.GetReconcileSnapshot(ctx, claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := c.collector.Collect(ctx, claim, collectionSnapshot, observed); err != nil || !changed {
+		t.Fatalf("collect cancelled retained consumer: changed=%t error=%v", changed, err)
+	}
+	if err := rundeletion.New(h.pool).DeleteReleasedTerminalRun(ctx, snapshot.Audit.OwnerID, child.Run.RunID); err != nil {
+		t.Fatalf("delete collected retained consumer: %v", err)
+	}
+	var runs, progress, scopes, revisions, lineage int
+	if err := h.pool.QueryRow(ctx, `SELECT
+  (SELECT count(*) FROM workflow_runs WHERE run_id=$1),
+  (SELECT count(*) FROM workflow_runs WHERE run_id=$1 AND audit_input_materialization IS NOT NULL),
+  (SELECT count(*) FROM artifact_scopes WHERE scope_kind='run' AND scope_id=$1),
+  (SELECT count(*) FROM artifact_binding_revisions WHERE scope_kind='run' AND scope_id=$1),
+  (SELECT count(*) FROM artifact_lineage WHERE (source_scope_kind='run' AND source_scope_id=$1)
+    OR (target_scope_kind='run' AND target_scope_id=$1))`, child.Run.RunID).Scan(&runs, &progress, &scopes, &revisions, &lineage); err != nil {
+		t.Fatal(err)
+	}
+	if runs != 0 || progress != 0 || scopes != 0 || revisions != 0 || lineage != 0 {
+		t.Fatalf("deleted consumer left dangling state: runs=%d progress=%d scopes=%d revisions=%d lineage=%d", runs, progress, scopes, revisions, lineage)
+	}
+	for _, before := range retainedBefore {
+		read, err := project.ReadExact(ctx, before.descriptor)
+		if err != nil || string(read.Payload.Data) != string(before.payload) || auditdomain.DigestBytes(read.Payload.Data) != before.descriptor.Digest {
+			t.Fatalf("consumer deletion changed retained bytes: %+v %v", before.descriptor, err)
+		}
+		var holds int
+		if err := h.pool.QueryRow(ctx, `SELECT hold_count FROM artifact_binding_revisions WHERE scope_kind='project' AND scope_id=$1 AND namespace=$2 AND name=$3 AND revision=$4`, snapshot.Audit.ProjectID, before.descriptor.Ref.Namespace, before.descriptor.Ref.Name, *before.descriptor.Ref.Revision).Scan(&holds); err != nil || holds != before.holds-before.childEdges {
+			t.Fatalf("consumer exact hold release mismatch: before=%d child_edges=%d after=%d error=%v", before.holds, before.childEdges, holds, err)
+		}
 	}
 }
