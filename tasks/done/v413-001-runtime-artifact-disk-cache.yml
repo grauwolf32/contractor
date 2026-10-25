@@ -5,7 +5,8 @@ milestone: runtime-artifact-cache-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 0dac8542e79dadc8b4ecec6182935b11c214ee2a
 depends_on: []
 languages: [go, python, json, markdown]
 goal: >-
