@@ -6,7 +6,7 @@ epic: planner-worker
 kind: defect
 introduced_by: V83-001
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - python
@@ -87,3 +87,14 @@ lifecycle:
   delete: Released with invocation/session under existing ownership.
   cascade: No external effect or new entity.
   retention: No new retention; shared RAM conversation only.
+implementation_commit: 3b7a56d1a30a70291393c17f1906d47e9d35eb3d
+verification:
+  focused: 209passed in complete ADK/Gateway/new-characterization modules on baseline2.8, warnings as
+    errors.
+  full_runtime: Native Linux full make test-runtime plus required report verifier exited0:4797passed55allowed
+    optional skips; required affected cases executed.
+  lint: Complete make lint passed after integrating V418009 fixture correction.
+  negative_control: Isolated old-repair mutation failed exactly the real started/cancelled tool regression;
+    harness verified the expected error-code mismatch and exited0. No source mutation.
+  source: Primary fix3b7a56d1a30a70291393c17f1906d47e9d35eb3d, integrated native-Linux verification source7b5a1fd14cd7930b8a99d3d272ac4e09ce0b15bd;
+    safe provenance in V418001 characterization record.

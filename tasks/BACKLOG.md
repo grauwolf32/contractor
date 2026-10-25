@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-147 open tasks: 5 in progress, 131 pending, 11 deferred. 1119 finished: 1109 completed, 10 archived.
+146 open tasks: 4 in progress, 131 pending, 11 deferred. 1120 finished: 1110 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V418-008](v418-008-interrupted-history-outcome-truth.yml) | planner-worker | defect | P1 | Preserve uncertainty when repairing interrupted tool history |
 
 ## Pending
 
@@ -43,7 +42,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | feature | P1 | V417-003 | Preserve compacted context across shared-session invocations |
 | [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Resolve reference-only compactor model policy overrides |
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
-| [V418-001](v418-001-adk-213-regression-characterization.yml) | chore | P1 | V418-008 | Freeze ADK migration regressions and the logical execution contract |
+| [V418-001](v418-001-adk-213-regression-characterization.yml) | chore | P1 | — | Freeze ADK migration regressions and the logical execution contract |
 | [V418-002](v418-002-adk-213-atomic-runtime-migration.yml) | chore | P1 | V418-001 | Upgrade ADK to 2.13 with atomic execution and tool-boundary adaptations |
 | [V418-006](v418-006-adk-213-session-work-and-performance.yml) | chore | P1 | V418-003, V418-004 | Bound long-session and repeated-allocation work on ADK 2.13 |
 | [V419-001](v419-001-go-adk-26-compatibility-characterization.yml) | chore | P1 | — | Characterize Go ADK v1.6 to v2.6 compatibility on real Planner paths |
@@ -259,7 +258,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 5 | 41 | 55 | 19 | 81 |
-| Planners and the Worker model boundary (`planner-worker`) | 22 | 34 | 44 | 27 | 63 |
+| Planners and the Worker model boundary (`planner-worker`) | 21 | 34 | 44 | 27 | 63 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 1 | 11 | 4 | 2 | 4 |
