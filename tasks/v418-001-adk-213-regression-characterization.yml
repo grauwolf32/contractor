@@ -8,6 +8,7 @@ priority: P1
 status: pending
 depends_on:
 - V418-008
+- V418-009
 languages:
 - python
 - markdown
