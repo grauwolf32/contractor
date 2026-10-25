@@ -1,0 +1,89 @@
+schema_version: '1.0'
+id: V416-005
+title: Declare cloud placement labels in hybrid Runtime inventories
+milestone: main-review-2026-10-25
+epic: operations
+kind: defect
+introduced_by: V405-001
+priority: P2
+status: pending
+depends_on: []
+languages:
+- python
+goal: The hybrid deployment passes explicit cloud placement declarations to every intended Runtime and
+  keeps them distinct from RuntimeConfig labels.
+context:
+  review: 2026-10-25 review of main at f9fda28f1c9ffa4baaf3052c141e652c8593a080, after the Project Web
+    scan merge.
+  severity: medium
+  specification:
+  - docs/spec/execution/runtime-agent.md#RTA-R114
+  - docs/spec/execution/control-plane.md#CTL-R156
+  - docs/spec/execution/control-plane.md#CTL-R157
+  finding: deploy/hybrid/runtime.py:79 writes contractor_runtime_labels (default cloud-llm) but never
+    contractor_runtime_placement_labels or per-instance placement_labels. The Ansible role defaults placement
+    to [] at defaults/main.yml:76. inventory() therefore provisions ready cloud Runtimes with no declared
+    location, so a Run/Audit requiring cloud has no matching Runtime. The wrapper regenerates its inventory
+    on each run and offers no placement argument.
+  siblings: Hybrid generated inventories, role global/per-instance placement declarations, startup flags
+    and registration are in scope. Generic Ansible inventories already expose placement_labels; cloud-llm
+    selects RuntimeConfig and must not be reinterpreted as a location. Local Runtime defaults remain explicitly
+    unlabelled unless configured.
+  provenance: V405-001 introduced startup placement and updated the generic Ansible role (62ee2dc8; resolve
+    full hash before implementation), leaving the existing hybrid inventory producer unwired. V405-002
+    made required labels affect scheduling. The original hybrid producer baeb04eddf918141d342438eb66da5b2d573fcfa
+    has no task, as recorded in V415-004.
+scope:
+  in:
+  - Expose an explicit hybrid placement option with an intentional documented cloud default and pass it
+    to the existing role; preserve separate RuntimeConfig labels.
+  - Validate through the existing placement grammar and bounds before provisioning; keep inventory regeneration
+    deterministic and permit a documented explicit empty override.
+  - Cover inventory generation, Ansible argv resolution and Go/Python shared matcher behavior without
+    contacting cloud hosts.
+  - Document how existing deployments adopt the startup declaration through a new incarnation/restart
+    and how deferred restarts are reported.
+  out:
+  - Inferring cloud provider from hostname, relabelling a live incarnation, changing scheduler matching,
+    live deployment or model selection.
+acceptance_criteria:
+- id: A1
+  given: a hybrid cloud deployment using default settings
+  when: inventory and Runtime argv are generated
+  then: every intended process declares cloud separately from cloud-llm, and cloud-required matching succeeds
+- id: A2
+  given: explicit provider/site placement or explicitly empty selection
+  when: the same deployment inventory is regenerated
+  then: the declared values survive unchanged, RuntimeConfig labels stay independent, and malformed/oversized/incompatible
+    placement fails before remote changes
+- id: A3
+  given: a deferred restart or unchanged running incarnation
+  when: deployment completes
+  then: it does not claim the new placement is active until a restarted Runtime reports it; the operator
+    has a clear restart path
+- id: A4
+  given: temporary deployment files and the production role resolver
+  when: regression tests run
+  then: they reproduce the missing declaration on the old code and verify normalized startup args with
+    no real hosts or secrets
+tests:
+- command: make test-hybrid test-ansible
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: go test -count=1 ./internal/contracts
+  covers:
+  - A1
+  - A2
+- command: cd runtime && uv run pytest tests/test_settings.py tests/test_shared_placement_labels.py
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
