@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-132 open tasks: 5 in progress, 116 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+132 open tasks: 6 in progress, 115 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V416-003](v416-003-web-scan-shared-launch-state.yml) | ui | defect | P1 | Restore shared Audit launch options and state in Web scan |
+| [V416-005](v416-005-hybrid-placement-labels.yml) | operations | defect | P2 | Declare Runtime placement labels in hybrid deployment inventory |
 
 ## Pending
 
@@ -172,7 +173,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
-| [V416-005](v416-005-hybrid-placement-labels.yml) | defect | P2 | — | Declare Runtime placement labels in hybrid deployment inventory |
 | [V416-006](v416-006-hybrid-bootstrap-idempotency.yml) | defect | P1 | — | Bind hybrid bootstrap idempotency keys to the complete mutation |
 
 ### Public API and wire contracts (`api-contracts`)

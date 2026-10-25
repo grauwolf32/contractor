@@ -49,7 +49,12 @@ def init(args):
     if not 1024 <= args.port <= 65535:
         raise ValueError("invalid mesh UDP port")
     hosts = [
-        {"ssh": alias, "address": str(network.network_address + 11 + index), "slots": 1}
+        {
+            "ssh": alias,
+            "address": str(network.network_address + 11 + index),
+            "slots": 1,
+            "placement_labels": ["cloud"],
+        }
         for index, alias in enumerate(args.hosts)
     ]
     endpoints = [ssh_hostname(host["ssh"]) for host in hosts]

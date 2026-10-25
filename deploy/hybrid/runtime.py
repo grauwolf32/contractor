@@ -15,10 +15,19 @@ from pathlib import Path
 
 from common import DEFAULT_STATE, ROOT, load_state, run, secure_write, ssh
 
+from contractor_runtime.contracts.placement import validate_placement_labels
+
 ANSIBLE = ["uvx", "--from", "ansible-core==2.21.5", "ansible-playbook"]
 
 
 def inventory(args, state, doc):
+    # The deployment manifest is the durable operator input. Never infer a
+    # location from SSH aliases or infrastructure configuration labels.
+    for host in doc["hosts"]:
+        labels = host.get("placement_labels")
+        if not isinstance(labels, list) or any(not isinstance(label, str) for label in labels):
+            raise ValueError("set each deployment.json host's placement_labels to a list of paths")
+        validate_placement_labels(labels)
     binary = args.contractor.resolve()
     if not binary.is_file() or not os.access(binary, os.X_OK):
         raise ValueError("provide --contractor with the local release's executable")
@@ -59,6 +68,7 @@ def inventory(args, state, doc):
             "contractor_runtime_listen_host": host["address"],
             "contractor_runtime_advertise_host": host["address"],
             "contractor_runtime_instances": instances,
+            "contractor_runtime_placement_labels": list(host["placement_labels"]),
         }
     document = {
         "contractor_runtime": {
@@ -162,6 +172,8 @@ def main():
         raise RuntimeError(f"Ansible failed (exit {result.returncode}); deployment is incomplete")
     if not args.syntax_check:
         verify(args, doc)
+        if args.defer_restarts:
+            print("Restarts are deferred; running processes keep their previous placement labels.")
 
 
 if __name__ == "__main__":

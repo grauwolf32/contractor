@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V405-001
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [python, yaml]
 goal: >-
@@ -111,3 +111,16 @@ tests:
     covers: [A3, A4, A5]
   - command: "make lint"
     covers: [A1, A2, A3, A4, A5]
+validation:
+  environment: "Dedicated codex/v416-ui-ops-fixes worktree, locked Python 3.13 environment, and separate UTF-8 PostgreSQL v416_ui database."
+  decisions:
+    - "deployment.json hosts[].placement_labels is the durable operator input. mesh init explicitly chooses cloud; providers/sites are never inferred from SSH names. Missing or malformed declarations fail before generated-state replacement or remote work."
+    - "The wrapper imports the Runtime's placement validator and passes the canonical declaration through the existing Ansible role. cloud-llm remains a separate RuntimeConfig label. Deferred restarts retain the running incarnation's actual old declaration."
+  evidence:
+    - "The generated-inventory regression fails in all four minimal/full and deferred/immediate modes against original 3dedaf8bc0d00b90ff7555eb78bde51e7714340a because contractor_runtime_placement_labels is absent."
+    - "make test-hybrid test-ansible passed: 28 hybrid tests, Ruff, shell syntax, actual generated inventory through the Ansible role in minimal/full modes, and full role syntax/lint/resolution suites."
+    - "CONTRACTOR_TEST_DATABASE_URL set to the disposable database: go test -count=1 ./internal/controlplane passed, including real registration and immutable placement matching."
+    - "Runtime tests/test_shared_placement_labels.py and tests/test_settings.py passed all 38 tests."
+    - "make test-wire-cross-language passed: 313 wire tests, 1213 selected shared Runtime tests, and coverage of 270 fixtures through 319 Go and 211 Python shared tests."
+  remaining:
+    - "Integrated make lint is assigned to the parent implementation coordinator; retain in_progress until that required command passes and closure metadata is recorded."
