@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-134 open tasks: 8 in progress, 115 pending, 11 deferred. 1136 finished: 1126 completed, 10 archived.
+133 open tasks: 7 in progress, 115 pending, 11 deferred. 1137 finished: 1127 completed, 10 archived.
 
 ## In progress
 
@@ -18,7 +18,6 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V414-001](v414-001-openapi-inventory-string-bound.yml) | audits | defect | P2 | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | operations | defect | P2 | Bound allocation-history pages by page size at any cursor depth and Run filter |
-| [V414-032](v414-032-nul-escape-outside-evals.yml) | api-contracts | defect | P2 | Reject the NUL escape before Audit and finding writes reach a jsonb cast |
 
 ## Pending
 
@@ -208,7 +207,7 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
-| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
+| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 
@@ -252,6 +251,6 @@ tasks in `introduced_by`.
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 42 | 7 | 15 |
-| Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
+| Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
 | Quality, CI and process (`quality`) | 17 | 1 | 27 | 98 | 23 |

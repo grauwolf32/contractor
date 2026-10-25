@@ -20,8 +20,9 @@ import (
 // handleError answers err with the public error envelope of its Kind: the
 // Kind that the first classified error of its chain reports (apierror), the
 // retryable 503 storage_transaction_conflict for a definite database
-// transaction conflict, and the retryable 500 internal_error for any other
-// failure. The answer never carries the error's internal text.
+// transaction conflict, permanent 400 invalid_request for an unclassified
+// PostgreSQL data exception, and retryable 500 internal_error otherwise. The
+// answer never carries the error's internal text.
 func handleError(w http.ResponseWriter, err error) {
 	requestid.AnnotateFailure(w, "", diagnosticCause(err))
 	classified, ok := apierror.Of(err)

@@ -5,7 +5,8 @@ milestone: review-v407-v409-followups-2026-10
 epic: api-contracts
 kind: defect
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 5e9a7cc836cbfe304fd5e66f2eebc39c82f98faa
 depends_on: []
 languages: [go]
 goal: >-
@@ -148,6 +149,22 @@ verification_progress:
     decoder/intake/error/bytea round-trip regressions passed with real
     PostgreSQL. Literal backslash-u0000 is accepted by real stores and the same
     idempotency keys remain available after rejection.
-  remaining:
-    - Full required tagged owner-package command on the integrated changes.
-    - Integrated make lint and task closure.
+  remaining: []
+
+completion_verification:
+  date: "2026-10-25"
+  result: passed
+  base_revision: a7b1c76db989c1586fb3be2d9d068562cea04ddc
+  environment: Go 1.26.9, PostgreSQL 17 disposable databases, locked CPython 3.13 Runtime, canonical TMPDIR; bounded Go parallelism.
+  commands:
+    - "go test -tags=integration -count=1 ./internal/httpapi/... ./internal/auditservice/... ./internal/findingintake/... ./internal/strictjson/..."
+    - "make verify-public-api"
+    - "make lint"
+  evidence: >-
+    All listed commands completed successfully. Real-store regression-before
+    failures and focused after-fix evidence are recorded above. Integrated
+    lint, shared fixtures and full telemetry/public API checks passed after
+    assembling the four fixes; task metadata was validated again after closure.
+  precedence: >-
+    The owner-safe Project lookup before a Project Run body remains the
+    API-R112 precheck; NUL is rejected before mutation receipts or writes.
