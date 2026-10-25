@@ -30,6 +30,10 @@ func handleError(w http.ResponseWriter, err error) {
 		writeErrorDetails(w, classified.ErrorKind(), apierror.MessageOf(classified), errorDetails(classified))
 	case persistencepostgres.IsTransactionConflict(err):
 		writeError(w, apierror.StorageTransactionConflict, "")
+	case persistencepostgres.Classify(err) == persistencepostgres.ClassInvalid:
+		// A missed input boundary must not turn a permanent data exception
+		// (including PostgreSQL's rejection of a JSON NUL) into retryable 500.
+		writeError(w, apierror.InvalidRequest, "")
 	default:
 		writeError(w, apierror.InternalError, "")
 	}

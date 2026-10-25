@@ -59,6 +59,23 @@ func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maxim
 	if err != nil {
 		return err
 	}
+	return decodeRequestJSON(data, target)
+}
+
+// decodeOpaqueJSONBounded preserves arbitrary secret material, which is hashed
+// or encrypted as bytes rather than stored as jsonb. Login, Git SSH keys and
+// Runtime credential material use this exception; their identifiers are validated by
+// their owning contracts before storage.
+func decodeOpaqueJSONBounded(w http.ResponseWriter, r *http.Request, target any, maximum int64) error {
+	data, err := readBoundedBody(w, r, maximum)
+	if err != nil {
+		return err
+	}
+	defer clear(data)
+	return decodeRequestJSON(data, target)
+}
+
+func decodeRequestJSON(data []byte, target any) error {
 	switch err := strictjson.Decode(data, target); {
 	case errors.Is(err, strictjson.ErrTrailingData):
 		return fmt.Errorf("%w: multiple JSON values", errInvalidRequest)
@@ -74,6 +91,21 @@ func decodeJSONBounded(w http.ResponseWriter, r *http.Request, target any, maxim
 // before its declared length, is the client's 400 invalid_request, never a
 // retryable internal error (API-R112); the bytes read so far are cleared.
 func readJSONBody(w http.ResponseWriter, r *http.Request, maximum int64) ([]byte, error) {
+	data, err := readBoundedBody(w, r, maximum)
+	if err != nil {
+		return nil, err
+	}
+	// PostgreSQL cannot represent U+0000 in jsonb or text. Refuse it before
+	// a service can claim a mutation key, including JSON kept as bytes and
+	// cast by a later reader (API-R71). A literal backslash is still data.
+	if strictjson.HasNULEscape(data) {
+		clear(data)
+		return nil, fmt.Errorf("%w: JSON body contains a NUL escape", errInvalidRequest)
+	}
+	return data, nil
+}
+
+func readBoundedBody(w http.ResponseWriter, r *http.Request, maximum int64) ([]byte, error) {
 	if maximum <= 0 || r.ContentLength > maximum {
 		return nil, fmt.Errorf("%w: JSON body is too large", errRequestTooLarge)
 	}

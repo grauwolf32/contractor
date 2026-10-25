@@ -16,6 +16,13 @@ info:
     tagged `planned` reserve the first Operations/UI slice contract and return
     no implementation guarantee until their corresponding task lands.
 
+    JSON mutation metadata rejects U+0000 in strings and member names before
+    persistence, with the operation's permanent invalid-request response
+    (normally 400 invalid_request; Managed Evals use 422 eval_invalid).
+    Literal backslash-u0000 text remains valid. Opaque artifact payloads,
+    login passwords, Runtime credential material and Git SSH key bytes keep
+    their own byte-content contracts (API-R71).
+
     A standby Server, one that waits while another Server holds the
     database's single-active lease, answers every operation of this contract,
     the event upgrade included, without authenticating or routing the

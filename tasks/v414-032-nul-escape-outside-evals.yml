@@ -5,7 +5,7 @@ milestone: review-v407-v409-followups-2026-10
 epic: api-contracts
 kind: defect
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: >-
@@ -76,3 +76,78 @@ tests:
     covers: [A1]
   - command: make lint
     covers: [A1, A2, A3, A4]
+
+revalidation:
+  date: "2026-10-25"
+  revision: a7b1c76db989c1586fb3be2d9d068562cea04ddc
+  outcome: >-
+    Still valid. New real-PostgreSQL regressions against original production
+    sources fail with retryable 500 for ordinary and Project Run parameters,
+    finding import runId and an unclassified jsonb data exception. Audit scope,
+    Project metadata, finding proposal names and analyst rationale already
+    reject NUL in their domain validators; do not claim those were old-500
+    reproductions. They now share the request-boundary refusal before a service
+    or mutation receipt lookup.
+implementation_decisions:
+  - >-
+    Public JSON metadata uses readJSONBody, including the raw RuntimeConfig
+    publication path; private mutation envelopes use decodeBoundedJSON. Both
+    reuse strictjson.HasNULEscape rather than define another escape grammar.
+    Existing Eval codecs keep their 422 eval_invalid result.
+  - >-
+    An unclassified PostgreSQL ClassInvalid is the existing permanent
+    invalid_request at both HTTP boundaries. Classified domain errors and
+    definite transaction conflicts keep their owning codes. PER-R13 already
+    classifies data exceptions, including PostgreSQL's NUL rejection, as
+    ClassInvalid; no second SQLSTATE interpretation is added.
+  - >-
+    Login passwords, encrypted Runtime credential material and encrypted Git
+    SSH key bytes use bounded strict decoding without the metadata NUL gate.
+    Their identifiers and material kinds retain their owning validation. Raw
+    Artifact bodies are bytea/blob payloads, not mutation metadata, and keep
+    accepting raw NUL, JSON NUL escapes and literal backslashes exactly.
+sibling_dispositions:
+  - >-
+    Audit create, finding imports, collection publication, review requests and
+    decisions, Project create/update, Run create/repeat/cancel/resume, queue
+    controls, scanner sweeps, configuration publication, Operations settings,
+    Runtime bindings, credential metadata and agent-principal mutations use
+    the shared public metadata decoder. Real PostgreSQL regressions exercise
+    Audit, Project, ordinary/Project Run, cancellation, resumption and finding
+    import; the before-service tests additionally cover Audit and RuntimeConfig.
+  - >-
+    Audit start/resume use a separate strict optional body containing only the
+    numeric deadlineSeconds field: NUL member names are unknown and NUL string
+    values have the wrong type, so no free string can reach jsonb. Ruled out.
+  - >-
+    Private finding submission and Gateway recovery use the private bounded
+    metadata decoder; finding submission maps its rejection to the existing
+    invalid_finding_request code. The real intake regression proves no replay
+    or submit call and no receipt or Artifact binding is made.
+  - >-
+    Managed Eval documents are already protected by EVF-R236/V414-017, including
+    documents stored as bytes then cast by reads. WebSocket frames are not
+    stored JSON mutations. Raw artifacts and opaque authentication/encrypted
+    secrets are deliberate exceptions with regression coverage.
+verification_progress:
+  regression_before:
+    command: >-
+      go test -overlay=/private/tmp/contractor-v414-032-red-source/overlay.json
+      -tags=integration -count=1 ./internal/httpapi/public
+      -run '^(TestPostgresJSONNULFailureIsPermanent|TestPostgresPublicJSONNULEscapesBeforeSideEffects|TestPostgresFindingImportRejectsNULEscapeBeforeSideEffects)$'
+    outcome: >-
+      Failed as required against a7b1c76d production request/error sources:
+      ordinary/Project Run parameters, finding import and raw data exception
+      returned 500 internal_error retryable=true. New tests remain unchanged.
+    private_outcome: >-
+      The original private decoder accepts the NUL description and reaches
+      real FindReplay; the original private error handler answers a genuine
+      PostgreSQL jsonb NUL failure as 500 internal_error retryable=true.
+  focused_fixed: >-
+    Public NUL and opaque Git-key tests passed with real PostgreSQL. Private
+    decoder/intake/error/bytea round-trip regressions passed with real
+    PostgreSQL. Literal backslash-u0000 is accepted by real stores and the same
+    idempotency keys remain available after rejection.
+  remaining:
+    - Full required tagged owner-package command on the integrated changes.
+    - Integrated make lint and task closure.

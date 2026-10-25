@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-134 open tasks: 5 in progress, 118 pending, 11 deferred. 1136 finished: 1126 completed, 10 archived.
+134 open tasks: 7 in progress, 116 pending, 11 deferred. 1136 finished: 1126 completed, 10 archived.
 
 ## In progress
 
@@ -17,6 +17,7 @@ the epics are in [epics.yml](epics.yml).
 | [V371-010](v371-010-discarded-receipt-projection.yml) | findings | defect | P2 | Drop the report projection of a proposal receipt discarded by Run deletion |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | operations | defect | P2 | Bound allocation-history pages by page size at any cursor depth and Run filter |
+| [V414-032](v414-032-nul-escape-outside-evals.yml) | api-contracts | defect | P2 | Reject the NUL escape before Audit and finding writes reach a jsonb cast |
 
 ## Pending
 
@@ -181,7 +182,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-026](v372-026-request-digests-in-services.yml) | chore | P3 | — | Move the Project, Audit and review request digests out of the public handlers |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-010, V411-011, V411-012, V411-016, V411-006 | Expose pentest drafts progress surfaces and proof through API and CLI |
 | [V414-009](v414-009-machine-value-byte-bounds.yml) | chore | P3 | — | Declare the byte bounds of machine values in the public API and hold OpenAPI, Go and the UI to them |
-| [V414-032](v414-032-nul-escape-outside-evals.yml) | defect | P2 | — | Reject the NUL escape before Audit and finding writes reach a jsonb cast |
 
 ### PostgreSQL persistence and schema (`persistence`)
 
