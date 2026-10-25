@@ -233,6 +233,18 @@ identities are remembered in `cloud-routing.json`, so subsequent plain
 `configure` calls check that same route. A future change to selected models can
 require another credential/config version; it never changes model defaults.
 
+Bootstrap derives a stable mutation key from the HTTP method, resource, canonical
+body and `If-Match`/`If-None-Match` preconditions. Restoring an earlier binding or
+principal label set at a later revision therefore starts a distinct operation;
+an exact retry retains its original key. Explicit caller keys remain unchanged.
+After a timeout or lost response, rerun `configure` or `assign`: each first reads
+the current resource and only writes if the requested state is still absent.
+Cancellation does not undo a possibly committed write. Stale revisions,
+validation errors and idempotency conflicts remain failures; bootstrap does not
+discard the precondition or invent a fresh key to hide them. Requests retain the
+30-second timeout and bounded response reads, and error output suppresses
+provider bodies and credentials.
+
 ## Secrets and recovery
 
 Generated WireGuard keys and gateway master/salt/database keys live in

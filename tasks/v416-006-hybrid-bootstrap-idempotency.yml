@@ -5,7 +5,7 @@ milestone: main-review-2026-10-25
 epic: operations
 kind: defect
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [python, go]
 goal: >-
@@ -113,3 +113,16 @@ tests:
     covers: [A1, A2, A3, A5]
   - command: "make lint"
     covers: [A1, A2, A3, A4, A5]
+validation:
+  environment: "Dedicated codex/v416-ui-ops-fixes worktree, locked Python 3.13 tooling, and separate UTF-8 PostgreSQL v416_ui database."
+  decisions:
+    - "The existing API.request boundary derives one stable key from normalized method, resource path, canonical JSON body and both CAS headers. Header names are case insensitive; duplicate aliases fail before transport. Explicit caller keys remain unchanged, and bodyless mutations also receive a key."
+    - "No automatic retry, new receipt mechanism or Server digest change. Exact retries retain the same request; configure/assign reruns first read the existing resource. Timeout and cancellation do not imply rollback. Permanent HTTP failures remain visible without provider body or credential output."
+  evidence:
+    - "The real Python configure/assign regressions fail against original 4c8a09bc797919bfc0e3ca8774f79bcffcab8a39: both A -> B -> A and principal-label restoration reach HTTP 409. They pass with the fix through the actual public HTTP handlers and PostgreSQL mutation receipts. Only unrelated Gateway credential provisioning uses the existing test fake."
+    - "Real-store cases prove exact replay without revision advancement, lost responses after commit, preservation of unrelated principal labels, unchanged reruns doing reads only, stale CAS, invalid targets and explicit idempotency-key conflicts."
+    - "make test-hybrid passed all 34 tests plus Ruff, formatting and shell syntax. Identity cases cover methods, paths, canonical bodies, both preconditions, explicit keys, bodyless reads/mutations, timeout/cancellation and suppressed secret error content."
+    - "With CONTRACTOR_TEST_DATABASE_URL set to the disposable database, go test -count=1 ./internal/httpapi/public ./internal/runtimeconfig passed both full packages; database tests ran rather than skipped."
+    - "Specification consistency, task consistency, Python test-fixture Ruff/format checks and git diff --check passed."
+  remaining:
+    - "Integrated make lint is assigned to the parent implementation coordinator; retain in_progress until that required command passes and closure metadata is recorded."
