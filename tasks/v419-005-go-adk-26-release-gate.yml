@@ -5,7 +5,7 @@ milestone: go-adk-26-upgrade-2026-10
 epic: quality
 kind: chore
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V419-003
 - V419-004
@@ -39,6 +39,9 @@ context:
     No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
     Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only
     configuration plumbing, mechanical imports and regression fixtures may change there.
+  reuse: The exact five-parent command already passed once as004A2 atcommittedb46. All production/module/Runtime/process
+    inputs are unchanged;005attributes that actual passing record and does not rerun it. Only tracker/evidence
+    and three new unrelated owner-package test files differ.
 scope:
   in:
   - Targeted affected-owner, real-store, wire and selected process verification evidence for supported
@@ -72,6 +75,13 @@ tests:
   covers:
   - A1
   - A2
+  - A3
+- command: go vet -p=1 ./internal/planner/session ./internal/planner/streamline ./internal/telemetry
+  covers:
+  - A1
+  - A3
+- command: runtime/.venv/bin/python scripts/check_spec.py && runtime/.venv/bin/python scripts/check_tasks.py
+  covers:
   - A3
 requirements:
 - id: R1
