@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-128 open tasks: 13 in progress, 104 pending, 11 deferred. 1142 finished: 1132 completed, 10 archived.
+127 open tasks: 12 in progress, 104 pending, 11 deferred. 1143 finished: 1133 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V410-001](v410-001-project-sitemap-store.yml) | projects-artifacts | feature | P1 | Publish a bounded Project sitemap through one authorized reducer |
 | [V410-002](v410-002-project-sitemap-toolset.yml) | projects-artifacts | feature | P1 | Expose authorized live sitemap tools to Project allocations |
 | [V410-003](v410-003-http-sitemap-collection.yml) | http-tools | feature | P1 | Collect HTTP observations into the live Project sitemap |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
@@ -235,7 +234,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 8 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 35 | 33 | 7 | 40 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 35 | 33 | 7 | 40 |
 | Audits (`audits`) | 31 | 67 | 80 | 26 | 105 |
 | Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |

@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V410-010
 languages:
@@ -281,3 +281,53 @@ execution:
     batch is reserved together; implementation proceeds in dependency order,
     and dependent tasks do not start implementation before their prerequisites
     complete. Status records assignment, not completed implementation or tests.
+
+implementation_commit: a39cc43c9e1e7b642a1aa887c5bcca352a6902b5
+verification:
+  date: '2026-10-26'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Python 3.13 Runtime; Node 24.20.0 and
+    pnpm 11.24.0; dedicated PostgreSQL 17 test database contractor_v410_test
+    with per-test schemas and 47 migrations; canonical TMPDIR=/private/tmp.
+    Final integration includes main through 5e2787956064b88edcf44843f8cb8529650d983d.
+  commands:
+  - >-
+    make test-project-sitemap-postgres passed on the combined tree: 11 complete
+    packages and eight mandatory real-store cases with zero mandatory skips.
+    One producer Run accepted 257 updates and 360501946 cumulative encoded
+    publication bytes; ordinary retention kept two revisions / 2980786 bytes.
+    The package run also includes the real Run deletion regression preserving
+    Project metadata/receipts and the populated Project purge regression.
+  - >-
+    make verify-public-api verify-public-api-postgres passed, including owner
+    mutations, reserved-namespace refusal, exact/replayed/evicted outcomes,
+    generated clients, operation coverage and race-enabled PostgreSQL handlers.
+  - >-
+    make test-artifact-history-postgres test-artifact-history-e2e passed after
+    main integration; the production Server/Runtime history scenario ran in
+    34.6 seconds. Existing ordinary artifact protections and error adapters
+    remain authoritative.
+  - >-
+    make lint passed after main integration: generated clients, staticcheck,
+    testonlyexports, release graph, shared fixture sources, tasks/spec/ERD,
+    Runtime Ruff and import contracts. The new gate is registered with the
+    release graph from its actual package selection.
+  - >-
+    make ui-verify passed after main integration: generation check, formatting,
+    lint, both TypeScript projects, unit/static-server tests and production build.
+  - >-
+    go test -tags=integration -count=1 ./internal/projectlifecycle passed in full
+    with canonical TMPDIR before the final combined package gate. A direct run
+    using macOS /var/folders failed the existing filesystem symlink guard;
+    resolving TMPDIR as the repository documents fixed the environment.
+  limitations:
+  - >-
+    Allocation source-mode projections and Runtime tools belong to V410-002;
+    automatic collection and structured import callers belong to V410-003/004/005.
+    No Runtime collector, full traffic archive or full V410 release claim is made.
+  - >-
+    Complete-map selected context uses ordinary exact input-fork lineage. Narrow
+    projections require the authorized materializer in the dependent tool task.
+  - >-
+    Implementation is committed on codex/v410-sitemap and is not merged into
+    main. The seven-task assignment remains recorded in main.
