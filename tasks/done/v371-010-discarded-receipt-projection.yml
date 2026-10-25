@@ -6,7 +6,8 @@ epic: findings
 kind: defect
 introduced_by: V368-001
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 10b6d5fd00eb3fb6ea325721662a64c1241fcb89
 depends_on: []
 languages: [go, sql]
 goal: "A discarded finding proposal receipt keeps only bounded tombstone provenance, as FND-R154 and DEL-R29 require, not the proposal's report projection of up to 8 MiB."
@@ -115,5 +116,19 @@ implementation_notes:
       result: Passed; 47 specification documents are consistent.
     - command: python3 scripts/check_database_erd.py
       result: Passed; the diagram matches all 45 migrations.
-  remaining_verification:
-    - Integrated make lint is owned by the coordinator; keep the task in_progress until that succeeds.
+  remaining_verification: []
+
+completion_verification:
+  date: "2026-10-25"
+  result: passed
+  base_revision: a7b1c76db989c1586fb3be2d9d068562cea04ddc
+  environment: Go 1.26.9, PostgreSQL 17 disposable databases, locked CPython 3.13 Runtime, canonical TMPDIR; bounded Go parallelism.
+  commands:
+    - "go test -count=1 -tags integration ./internal/rundeletion ./internal/findingintake ./internal/auditimport ./internal/persistence/postgres"
+    - "go test -count=1 ./internal/persistence"
+    - "make lint"
+  evidence: >-
+    All listed commands completed successfully. Real-store regression-before
+    failures and focused after-fix evidence are recorded above. Integrated
+    lint, shared fixtures and full telemetry/public API checks passed after
+    assembling the four fixes; task metadata was validated again after closure.

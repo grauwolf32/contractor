@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-133 open tasks: 7 in progress, 115 pending, 11 deferred. 1137 finished: 1127 completed, 10 archived.
+132 open tasks: 6 in progress, 115 pending, 11 deferred. 1138 finished: 1128 completed, 10 archived.
 
 ## In progress
 
@@ -14,7 +14,6 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V371-010](v371-010-discarded-receipt-projection.yml) | findings | defect | P2 | Drop the report projection of a proposal receipt discarded by Run deletion |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V414-001](v414-001-openapi-inventory-string-bound.yml) | audits | defect | P2 | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | operations | defect | P2 | Bound allocation-history pages by page size at any cursor depth and Run filter |
@@ -243,7 +242,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 10 | 19 | 16 | 5 | 17 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
-| Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
+| Findings tools and collections (`findings`) | 8 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 7 | 40 |
 | Audits (`audits`) | 33 | 67 | 80 | 26 | 105 |
