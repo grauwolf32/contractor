@@ -5,7 +5,7 @@ milestone: adk-213-upgrade-2026-10
 epic: quality
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V418-005
 - V418-006
@@ -189,3 +189,4 @@ verification:
     live-model or deployment claim.
   delivery: Runtime implementation remains on local codex/adk-runtime-213, not merged to main. Proceed
     to the separately owned Go Server upgrade.
+implementation_commit: 2ff37d3042bcefcfc799dd252d53f8f3db748f91

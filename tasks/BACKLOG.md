@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-141 open tasks: 7 in progress, 123 pending, 11 deferred. 1129 finished: 1119 completed, 10 archived.
+140 open tasks: 6 in progress, 123 pending, 11 deferred. 1130 finished: 1120 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V418-007](v418-007-adk-213-release-gate.yml) | quality | chore | P1 | Accept ADK 2.13 with historical broad and final targeted verification |
 | [V419-001](v419-001-go-adk-26-compatibility-characterization.yml) | planner-worker | chore | P1 | Characterize Go ADK v1.6 to v2.6 compatibility on real Planner paths |
 | [V419-006](v419-006-finish-append-failure-precedence.yml) | planner-worker | defect | P1 | Fence Planner completion after a required ADK session write fails |
 
@@ -39,7 +38,7 @@ the epics are in [epics.yml](epics.yml).
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
 | [V414-007](v414-007-planner-session-state-limit.yml) | chore | P3 | — | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
 | [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | feature | P1 | — | Make terminal summarizer reasoning input explicitly configurable |
-| [V417-002](v417-002-adk-compaction-continuation-spike.yml) | chore | P1 | V418-007 | Prove safe context checkpoints and continuation on accepted ADK 2.13 |
+| [V417-002](v417-002-adk-compaction-continuation-spike.yml) | chore | P1 | — | Prove safe context checkpoints and continuation on accepted ADK 2.13 |
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | feature | P1 | V417-002 | Continue an isolated Worker through workflow-selected context compaction |
 | [V417-004](v417-004-shared-session-context-compaction.yml) | feature | P1 | V417-003 | Preserve compacted context across shared-session invocations |
 | [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Resolve reference-only compactor model policy overrides |
@@ -266,4 +265,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 42 | 7 | 15 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 19 | 1 | 27 | 98 | 23 |
+| Quality, CI and process (`quality`) | 18 | 1 | 27 | 98 | 23 |
