@@ -158,9 +158,10 @@ func (i *Importer) collectRole(
 
 // inputInitializationFailure reads at most one child, and only for failed
 // check executions, or assessment profiles declaring Audit-owned input work.
-// A permanent submission or initialization rejection is not a target failure
-// that another Run can retry. Storage failures leave collection pending, as for
-// every other collection read; labels and a bare reason establish no authority.
+// A permanent input rejection is not a target failure that another Run can
+// retry; closed-dispatch intent draining retains its ordinary semantics.
+// Storage failures leave collection pending, as for every other collection
+// read; labels and a bare reason establish no authority.
 func (i *Importer) inputInitializationFailure(
 	ctx context.Context,
 	snapshot auditstore.ReconcileSnapshot,
@@ -192,12 +193,30 @@ func (i *Importer) inputInitializationFailure(
 		if execution.RunID != nil {
 			return "", fmt.Errorf("%w: rejected submission has a child Run", ErrPermanent)
 		}
-		// Only definite permanent rejections settle an unbound submission intent.
-		// A transient error retains that same intent and never reaches collection.
+		code := "collection-contract-invalid"
 		if declaredSnapshot {
-			return runstore.AuditInputInitializationFailedReason, nil
+			code = runstore.AuditInputInitializationFailedReason
 		}
-		return "collection-contract-invalid", nil
+		if snapshot.Audit.Dispatch == auditstore.DispatchClosed {
+			// Closed dispatch also fails unbound intents so cancellation and
+			// finalization can drain them. That observation establishes no input
+			// rejection. Preserve a receipt already committed before closure,
+			// including a response the caller never received.
+			for _, receipts := range [][]auditstore.CollectionReceiptSummary{snapshot.Receipts, snapshot.RoleReceipts} {
+				for _, receipt := range receipts {
+					if receipt.AuditID == execution.AuditID && receipt.ExecutionID == execution.ExecutionID &&
+						receipt.TerminalOutcome == auditstore.TerminalSubmissionFailed && receipt.RunID == nil &&
+						receipt.TerminalRunGeneration == nil && receipt.TerminalRunSequence == nil &&
+						receipt.Disposition == auditstore.CollectionContractInvalid && receipt.ErrorCode != nil && *receipt.ErrorCode == code {
+						return code, nil
+					}
+				}
+			}
+			return "", nil
+		}
+		// With dispatch open, only a definite permanent rejection settles an
+		// unbound submission. Transient errors retain the same intent.
+		return code, nil
 	}
 	if execution.RunID == nil {
 		return "", fmt.Errorf("%w: failed execution has no child Run", ErrPermanent)
