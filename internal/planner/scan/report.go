@@ -224,7 +224,7 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 			}
 		}
 		if !found {
-			return stageresult.StageContentResult{}, scanError("scan_history_invalid", nil)
+			return stageresult.StageContentResult{}, p.scanError("scan_history_invalid", nil)
 		}
 		return p.finishAudit(ctx, identity, history)
 	}
@@ -251,17 +251,17 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 		case planner.ScanJobUnknown:
 			coverage.Unknown++
 		default:
-			return empty, scanError("scan_session_invalid", nil)
+			return empty, p.scanError("scan_session_invalid", nil)
 		}
 	}
 	coverage.Complete = coverage.Selected > 0 && coverage.Completed == coverage.Selected && coverage.Skipped == 0 && coverage.Unavailable == 0 && len(plan.PreparationGaps) == 0 && (plan.PreparationCoverage == nil || plan.PreparationCoverage.Complete)
 	if state.Plan == nil {
-		return empty, scanError("scan_session_invalid", nil)
+		return empty, p.scanError("scan_session_invalid", nil)
 	}
 	report := Report{SchemaVersion: 1, Plan: state.Plan.Clone(), PlanID: plan.ID, Jobs: state.Jobs, Coverage: coverage}
 	data, err := strictjson.Canonical(report)
 	if err != nil || len(data) > scanplan.MaxPlanBytes {
-		return empty, scanError("scan_report_invalid", err)
+		return empty, p.scanError("scan_report_invalid", err)
 	}
 	slot := p.invocation.Stage.Result.Artifacts["report"].From
 	target := contracts.ArtifactRef{Namespace: slot.Namespace, Name: slot.Name + "." + stableHash(p.invocation.StageExecutionID)[:16]}
@@ -271,7 +271,7 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 	defer cancel()
 	ref, err := p.factory.artifacts.Create(buildCtx, p.invocation.RunID, target, artifacts.Payload{MediaType: "application/json", Data: data})
 	if err != nil {
-		return empty, scanError("scan_report_write_failed", err)
+		return empty, p.scanError("scan_report_write_failed", err)
 	}
 	result := stageresult.StageContentResult{APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: fmt.Sprintf("Scan jobs: %d completed, %d failed, %d incomplete, %d unknown, %d unavailable; %d candidates skipped. Inspect reports for evidence and coverage limits.", coverage.Completed, coverage.Failed, coverage.Incomplete, coverage.Unknown, coverage.Unavailable, coverage.Skipped), Artifacts: map[string]contracts.ArtifactRef{"report": ref}}
 	if coverage.Selected == 0 || coverage.Completed != coverage.Selected {
@@ -279,10 +279,10 @@ func (p *execution) finish(ctx context.Context, identity planner.ScanSessionIden
 		result.Error = &contracts.TerminationError{Code: "scan_incomplete", Message: "The scan plan did not complete all selected jobs", Retryable: false}
 	}
 	if validation := planner.ValidateCandidate(buildCtx, p.invocation.RunID, p.invocation.Stage.Result.Artifacts, result, p.factory.inspector); validation != nil {
-		return empty, validation
+		return empty, p.resultError(validation)
 	}
 	if err := planner.CompleteScanSession(ctx, p.factory.sessions, identity, planner.Completion{Result: &result}); err != nil {
-		return empty, scanError("scan_completion_write_failed", err)
+		return empty, p.scanError("scan_completion_write_failed", err)
 	}
 	return result.Clone(), nil
 }
