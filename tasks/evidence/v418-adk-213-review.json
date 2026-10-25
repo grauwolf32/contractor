@@ -1,0 +1,117 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-25",
+  "status": "Exploratory compatibility evidence, not release acceptance",
+  "baseline_adk": "2.8.0",
+  "candidate_adk": "2.13.0",
+  "source_revision": "Not captured during the exploratory test run; V418-001 must establish a fresh exact revision before implementation.",
+  "python": "runtime/.venv/bin/python, CPython 3.13.16",
+  "total": {
+    "collected": 326,
+    "passed": 315,
+    "failed": 10,
+    "skipped": 1
+  },
+  "baseline_recheck": {
+    "selected_cases": [
+      "tests/test_adk_runtime.py::test_adk_worker_counts_unknown_model_tool_without_retaining_its_name",
+      "tests/test_adk_runtime.py::test_tool_budget_does_not_poison_next_invocation_payload[shared-False]",
+      "tests/test_adk_runtime.py::test_tool_budget_does_not_poison_next_invocation_payload[shared-True]",
+      "tests/test_adk_runtime.py::test_cancelled_tool_call_does_not_poison_next_shared_invocation",
+      "tests/test_adk_runtime.py::test_deadline_passing_at_a_step_boundary_starts_no_next_call[next_model_call]",
+      "tests/test_audit_completion_continuation.py::test_real_runner_continuation_preserves_one_invocation_and_tool_order",
+      "tests/test_audit_completion_runtime.py::test_real_runner_continues_once_with_one_owner_and_publishes_on_last_allowed_call",
+      "tests/test_audit_completion_runtime.py::test_missing_partial_invalid_results_cannot_be_bypassed_by_prose[missing]",
+      "tests/test_audit_completion_runtime.py::test_missing_partial_invalid_results_cannot_be_bypassed_by_prose[partial]",
+      "tests/test_audit_completion_runtime.py::test_missing_partial_invalid_results_cannot_be_bypassed_by_prose[invalid]"
+    ],
+    "result": "10 passed in 0.51s"
+  },
+  "minimal_recheck": {
+    "overrides": {
+      "google-adk": "2.13.0",
+      "google-genai": "2.33.0",
+      "authlib": "1.9.1"
+    },
+    "other_dependencies": "Existing runtime/.venv",
+    "result": "Same 10 failures"
+  },
+  "skipped": "test_audit_completion_e2e requires real Go Artifact API launched via make test-audit-completion-e2e",
+  "runs": [
+    {
+      "argv": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+        "tests/test_adk_runtime.py",
+        "tests/test_allocation.py",
+        "tests/test_worker_state.py",
+        "tests/test_openai_gateway_llm.py",
+        "tests/test_audit_completion_continuation.py",
+        "tests/test_audit_completion_runtime.py",
+        "tests/test_audit_completion_e2e.py",
+        "tests/test_telemetry_content.py",
+        "tests/test_shared_genai_telemetry.py",
+        "--tb=short"
+      ],
+      "result": {
+        "collected": 289,
+        "passed": 278,
+        "failed": 10,
+        "skipped": 1
+      }
+    },
+    {
+      "argv": [
+        ".venv/bin/python",
+        "-m",
+        "pytest",
+        "-p",
+        "no:cacheprovider",
+        "-q",
+        "tests/test_agent_skill_toolset.py",
+        "tests/test_agent_skill_package.py",
+        "tests/test_agent_skill_lifecycle.py",
+        "--tb=short"
+      ],
+      "result": {
+        "collected": 37,
+        "passed": 37,
+        "failed": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "additional_probes": [
+    {
+      "case": "Deadline admission",
+      "observed": "After deadline: two counted model callbacks/spans, second cancelled, but only one provider/model request."
+    },
+    {
+      "case": "Default raw argument coercion",
+      "input": "offset=0.0, values=[1.0,2.5], annotated int/list[int]",
+      "baseline": "0.0 and [1.0,2.5]",
+      "candidate": "0 and [1,2.5]",
+      "validation_feature": "Not enabled"
+    }
+  ],
+  "limits": [
+    "Not full Runtime/release gate",
+    "No live model benchmarks",
+    "All failing cases passed with existing dependency environment",
+    "Deadline failure records a second model callback/span; direct probe observed only one model request",
+    "No private logs or absolute temporary paths are prerequisites. Reproduce from test names and locked source."
+  ],
+  "upstream": {
+    "release": "https://github.com/google/adk-python/releases/tag/v2.13.0",
+    "duplicate_invocation_message": "https://github.com/google/adk-python/commit/d06a7fed56dff71cbfa709edb5bb1d72989eca8e",
+    "unknown_tool_callbacks": "https://github.com/google/adk-python/commit/f842a15cdbd3e4efb2ae205bbee111b0eca3b95d",
+    "cancelled_tool_callbacks": "https://github.com/google/adk-python/commit/2723a18919fbcf22ce45c61595e1c7d7f3538307",
+    "numeric_coercion": "https://github.com/google/adk-python/commit/adbee3cd86256dda90cfd3235a1b89b4720d3e80",
+    "empty_content": "https://github.com/google/adk-python/commit/dea81109d15066b89dd3447f7c20523cc06d5e6a",
+    "context_correlation": "https://github.com/google/adk-python/commit/0b75a66d17a8b8a251c5f2bd903d47a4bdf05dc1"
+  }
+}

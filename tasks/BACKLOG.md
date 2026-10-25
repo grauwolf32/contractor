@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-119 open tasks: 4 in progress, 104 pending, 11 deferred. 1118 finished: 1108 completed, 10 archived.
+136 open tasks: 4 in progress, 121 pending, 11 deferred. 1118 finished: 1108 completed, 10 archived.
 
 ## In progress
 
@@ -26,6 +26,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 | [V414-014](v414-014-standby-shutdown-race.yml) | defect | P3 | — | Exit a standby Server cleanly when shutdown races its readiness listener |
+| [V418-005](v418-005-adk-213-real-process-conformance.yml) | chore | P1 | V418-003, V418-004 | Verify ADK 2.13 across real Run and allocation processes |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -35,12 +36,27 @@ the epics are in [epics.yml](epics.yml).
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound, make its benchmark runnable and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
 | [V414-007](v414-007-planner-session-state-limit.yml) | chore | P3 | — | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
+| [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | feature | P1 | — | Make terminal summarizer reasoning input explicitly configurable |
+| [V417-002](v417-002-adk-compaction-continuation-spike.yml) | chore | P1 | V418-007 | Prove safe context checkpoints and continuation on accepted ADK 2.13 |
+| [V417-003](v417-003-isolated-worker-context-compaction.yml) | feature | P1 | V417-002 | Continue an isolated Worker through workflow-selected context compaction |
+| [V417-004](v417-004-shared-session-context-compaction.yml) | feature | P1 | V417-003 | Preserve compacted context across shared-session invocations |
+| [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Resolve reference-only compactor model policy overrides |
+| [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
+| [V418-001](v418-001-adk-213-regression-characterization.yml) | chore | P1 | — | Freeze ADK migration regressions and the logical execution contract |
+| [V418-002](v418-002-adk-213-atomic-runtime-migration.yml) | chore | P1 | V418-001 | Upgrade ADK to 2.13 with atomic execution and tool-boundary adaptations |
+| [V418-006](v418-006-adk-213-session-work-and-performance.yml) | chore | P1 | V418-003, V418-004 | Bound long-session and repeated-allocation work on ADK 2.13 |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | chore | P3 | — | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
+
+### Agent Skills (`agent-skills`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V418-003](v418-003-adk-213-allocation-and-skill-lifecycle.yml) | chore | P1 | V418-002 | Verify allocation cleanup and bounded Skills on ADK 2.13 |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -135,6 +151,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
 | [V414-001](v414-001-openapi-inventory-string-bound.yml) | defect | P2 | — | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
+| [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
 
 ### Evaluations (`evals`)
 
@@ -144,6 +161,8 @@ the epics are in [epics.yml](epics.yml).
 | [V411-019](v411-019-pentest-target-fixtures-and-proof-scorers.yml) | chore | P1 | V411-002 | Build paired pentest fixtures and independent proof scorers |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate pentest quality against a frozen repeated-sample baseline |
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | chore | P3 | — | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
+| [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | V417-001, V417-003 | Build frozen context-compaction evaluation fixtures and an opt-in harness |
+| [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-008, V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
 
 ### Podman sandbox (`sandbox`)
 
@@ -163,6 +182,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
+| [V418-004](v418-004-adk-213-gateway-and-telemetry-contracts.yml) | chore | P1 | V418-002 | Preserve Gateway and telemetry contracts across ADK 2.13 |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -201,6 +221,8 @@ the epics are in [epics.yml](epics.yml).
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
+| [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
+| [V418-007](v418-007-adk-213-release-gate.yml) | chore | P1 | V418-005, V418-006 | Close the ADK 2.13 migration with an integrated release gate |
 
 ## Deferred
 
@@ -225,11 +247,11 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 4 | 41 | 55 | 18 | 81 |
-| Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 43 | 17 | 62 |
+| Run execution core (`execution-core`) | 5 | 41 | 55 | 19 | 81 |
+| Planners and the Worker model boundary (`planner-worker`) | 13 | 32 | 43 | 21 | 62 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
-| Agent Skills (`agent-skills`) | 0 | 11 | 4 | 1 | 4 |
+| Agent Skills (`agent-skills`) | 1 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 10 | 19 | 16 | 5 | 17 |
@@ -237,11 +259,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 7 | 40 |
-| Audits (`audits`) | 32 | 66 | 80 | 26 | 105 |
-| Evaluations (`evals`) | 5 | 21 | 38 | 12 | 46 |
+| Audits (`audits`) | 33 | 67 | 80 | 26 | 105 |
+| Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 42 | 6 | 15 |
+| Operations, authentication, CLI and deployment (`operations`) | 2 | 16 | 42 | 7 | 15 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 15 | 1 | 27 | 93 | 23 |
+| Quality, CI and process (`quality`) | 17 | 1 | 27 | 95 | 23 |

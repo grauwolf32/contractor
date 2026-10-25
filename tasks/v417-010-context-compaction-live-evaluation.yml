@@ -1,0 +1,214 @@
+schema_version: '1.0'
+id: V417-010
+title: Measure compaction and reasoning choices with repeated frozen live experiments
+milestone: worker-context-compaction-quality-2026-10
+epic: evals
+kind: chore
+priority: P2
+status: pending
+depends_on:
+- V417-008
+- V417-009
+languages:
+- python
+- yaml
+- markdown
+goal: Produce a reproducible quality and total-cost comparison that recommends measured compaction parameters,
+  reasoning settings and pilot Workflows, including an honest no-improvement result when supported by
+  the evidence.
+context:
+  proposal: docs/proposals/0046-workflow-context-compaction.md
+  specification:
+  - docs/spec/evals/format.md#EVF-R1
+  - docs/spec/evals/format.md#EVF-R30
+  - docs/spec/evals/format.md#EVF-R39
+  - docs/spec/evals/format.md#EVF-R73
+  - docs/spec/evals/managed-evals.md#EVM-R1
+  - docs/spec/evals/managed-evals.md#EVM-R63
+  - docs/spec/evals/managed-evals.md#EVM-R75
+  - docs/spec/execution/worker.md
+  - docs/spec/configuration/agent-templates.md
+  - docs/spec/platform/observability.md
+  design: docs/testing/live-models.md
+  implementation_boundary: Execute the V417-008 opt-in harness only after deterministic conformance V417-009
+    is complete. Reuse existing configured models, Gateway selections, Eval services, receipt and result
+    contracts. This task closes the separate quality milestone and is not a prerequisite for the deterministic
+    exit.
+  adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
+    Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
+    not 2.8 callback/identity assumptions.
+scope:
+  in:
+  - Frozen repeated live comparisons covering terminal reasoning on/off, configured streamline handoff,
+    compaction reasoning on/off and test-only observation masking.
+  - Held-out source-review, OpenAPI/LikeC4 dependency and negative-result memory cases with independent
+    scorer evidence.
+  - Paired continuation from the same controlled checkpoint where reproducible, reported separately from
+    end-to-end comparisons.
+  - Retained safe manifests, per-sample outcomes, cost/latency coverage, uncertainty and a measured parameter/pilot
+    recommendation.
+  out:
+  - Automatic model replacement, enabling compaction in existing active Runs or deployment of a recommended
+    pilot.
+  - A new production masking strategy, learned compression policy or benchmark-specific prompt/Skill hints.
+  - Guaranteeing improvement or changing thresholds after seeing held-out results.
+  - Live execution as part of this planning change or as a dependency of lint, verify or release-verify.
+requirements:
+- id: R1
+  text: Before any live submission freeze exact cases, visible inputs, private truth/scorer revisions,
+    models and policy/Gateway refs and digests, instructions, tools/Skills, thresholds, repetitions, execution
+    order, intended differences and sample/aggregate limits. Keep the configured models; if a model is
+    slow, prepare a new equal-budget plan with a longer explicit timeout instead of substituting a model.
+    Missing upstream model revision is recorded as unavailable, not inferred from an alias. Freeze exact
+    accepted ADK version, dependency lock digest and Runtime build; all comparable arms use the same SDK
+    closure. Do not attribute a 2.8-to-2.13 change to compaction or includeReasoning.
+- id: R2
+  text: Run at least five repeats per declared case/variant on fresh isolated fixtures. Compare terminal
+    includeReasoning=false/true, existing configured terminal-to-streamline handoff, compact@1 includeReasoning=false/true
+    and isolated experimental masking through existing two-arm comparisons. Record actual start-context
+    digests and provider reasoning availability; an absent reasoning provider is not evidence for or against
+    its inclusion.
+- id: R3
+  text: Use equal visible inputs, capabilities, configured model selections and whole-task token/call/tool/time
+    limits across comparable arms. Count all main, terminal summarizer, compactor, finalizer, handoff
+    Planner and retry overhead exactly once, including failed samples. Do not alter terminal runtime budget
+    semantics to make an experiment look equal; aggregate its separately accounted summarizer spend into
+    the experiment total. All internal Runner turns count toward the same logical task/member; no extra
+    samples or budget arise at continuation.
+- id: R4
+  text: Report final success, independently verified artifacts/findings, retained side constraints and
+    IDs, uncertain versus observed facts, repeat actions, archive retrieval, total role-level calls/tokens,
+    elapsed time and cost per successful result where measured. Report missing token usage and missing
+    prices with coverage; never turn missing usage into zero or claim token savings from byte compression.
+    Include latency/quality distributions and paired uncertainty rather than only the best run or an aggregate
+    mean.
+- id: R5
+  text: Use matched controlled environment state immediately before a checkpoint for paired continuation
+    probes where supported by the harness, with independent side-effect fixtures. State unsupported pairing
+    explicitly. Include later questions unknown at compaction time and a misleading reasoning hypothesis;
+    judge recovered facts and domain evidence, not the fluency or self-reported completeness of the summary.
+- id: R6
+  text: Keep all expected members, including blocked, unsupported, failed, cancelled, timed-out and unrun
+    members, in the frozen denominator and retain observed retry cost. Infrastructure failure is distinct
+    from a quality miss. Required samples cannot be silently replaced by favorable reruns; a new experiment
+    has a new frozen identity and retains its relation to the original. Incomplete execution remains incomplete
+    evidence.
+- id: R7
+  text: Keep hidden ground truth, held-out questions and scorer hooks outside all model-visible inputs
+    and tool-readable workspaces. Tune only general instructions or parameters on a separate development
+    set, then freeze them before held-out evaluation. Preserve credential and raw-reasoning boundaries
+    in reports and never publish the hidden answer corpus as a Workflow input.
+- id: R8
+  text: Recommend includeReasoning separately for the existing terminal summarizer and compactor; do not
+    infer one consumer's benefit from the other. Recommend thresholds, keepRecentGroups, maxCompactions
+    and pilot Workflows only when frozen measurements support them. Publish regressions, no-improvement
+    and inconclusive results honestly. Recommendations do not mutate active Run models or enable the policy
+    automatically; any catalog change requires its own reviewed implementation with exact pins.
+failure_outcomes:
+- operation: Live experiment preflight, submission and observation
+  permanent: Missing/floating pins, unavailable configured model, incompatible capabilities or invalid
+    equal-budget plan blocks execution without substitution or dropped members.
+  retryable: Existing bounded Gateway/Eval retries apply within frozen attempts and deadlines; every observed
+    attempt remains in cost accounting.
+  ambiguous: Reconcile the existing submission key and member execution receipt before any repeat; do
+    not create an extra sample to resolve acknowledgement loss.
+  cancelled: Cancel through existing Eval/Run ownership, stop new scheduling and join release before cleaning
+    isolated member fixtures.
+  timeout: Frozen member and whole-experiment deadlines apply; timed-out and unrun members remain recorded
+    and later success does not rewrite the earlier outcome.
+- operation: Assessment, comparison and publication of the measured report
+  permanent: Scorer corruption, missing mandatory provenance or truth leakage fails verification; no quality
+    recommendation is accepted from those records.
+  retryable: Retry only existing bounded storage/collection operations against the same exact result identity,
+    never scoring until a favorable outcome appears.
+  ambiguous: Reconcile exact assessment/report identity and digest through existing result or artifact
+    publication mechanisms.
+  cancelled: Preserve already settled safe evidence and mark the planned comparison incomplete; do not
+    publish a completed-experiment claim.
+  timeout: Use finite collection/scoring limits separate from model execution; unavailable measurements
+    stay explicitly unavailable.
+cardinality:
+- collection: Repeated live case/variant samples
+  expected: At least five repeats per case/variant across all three pilot classes and the declared comparison
+    matrix
+  maximum: The frozen finite matrix obeys portable limits and the stricter 1000-member native experiment
+    ceiling where applicable; no adaptive unbounded sample extension
+  bound: Freeze concurrency, total tokens/calls/actions, member and experiment deadlines before dispatch;
+    page existing Eval members at current row/byte limits.
+- collection: Retained results, assessments and report evidence
+  expected: One attributed selected result per expected member plus exact scorer/provenance records and
+    bounded comparison summaries
+  maximum: Existing Eval/Artifact document, evidence-ref, page and retention limits; no full raw transcript
+    or reasoning copy in public reports
+  bound: Aggregate paged records without repeated whole-corpus reads; retain only allowlisted diagnostics
+    and coverage statistics in the published report.
+lifecycle:
+- entity: Live experiments, isolated execution Projects and retained safe reports
+  delete: Use existing Eval/Project cancellation, deletion and artifact-hold rules; delete only task-owned
+    disposable environments after release is confirmed.
+  cascade: Existing member/Run/result ownership and receipt mechanisms apply; no separate scheduling or
+    recovery subsystem is introduced.
+  retention: Preserve exact safe manifests, all sample outcomes and scorer evidence under existing retention;
+    credentials and temporary workspaces follow their existing cleanup lifecycle.
+acceptance_criteria:
+- id: A1
+  given: Frozen complete plans for all declared variants, held-out cases and at least five repeats
+  when: the live harness executes with configured models
+  then: Every required comparison has repeat evidence with matching start inputs, pinned provenance, actual
+    role-level overhead and honest coverage of unavailable measurements. SDK/lock/build provenance matches
+    across arms and is included in the safe report.
+- id: A2
+  given: Paired checkpoint probes, later questions and misleading reasoning controls
+  when: independent scorers assess continuation and final results
+  then: The report distinguishes constraint/ID retention, retrieval, false factual support and repeated
+    work from summary fluency, with paired uncertainty and unsupported probes identified.
+- id: A3
+  given: Failures, timeouts, missing usage or a variant that is slower or less accurate
+  when: experiment results are aggregated
+  then: All members and observed costs remain in the denominator, missing values stay unavailable and
+    the conclusion records regressions or inconclusive evidence without an unsupported improvement claim.
+- id: A4
+  given: Held-out truth and complete safe experiment records
+  when: the measured report and recommendations are reviewed
+  then: Truth and secrets are absent from model-visible inputs and reports; terminal and compactor reasoning
+    recommendations are separate and no configured active model or Workflow is changed.
+tests:
+- command: make test-context-compaction-eval-fixtures
+  covers:
+  - A2
+  - A3
+  - A4
+- command: make eval-context-compaction-live
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A4
+deliverables:
+- path: docs/research/context-compaction-evaluation.md
+  description: Actual repeated-sample results, exact safe experiment references, coverage, uncertainty,
+    overhead and separate terminal/compactor recommendations.
+- path: tests/eval/context_compaction
+  description: Frozen final experiment manifests and safe reproducible provenance or references to retained
+    managed Eval records; hidden truth remains evaluator-private.
+test_prerequisites:
+- The make targets are delivered by V417-008; V417-009 deterministic conformance must be complete before
+  this task starts.
+- Live runs require the configured Gateway, locked Runtime dependencies and disposable authorized execution
+  fixtures; PostgreSQL is required wherever the existing harness uses managed Eval persistence.
+- Missing credentials or infrastructure keep the live acceptance incomplete; do not report skipped or
+  fabricated samples as a passing experiment.
+- At least five repeats are required per frozen case/variant; preserve both unsuccessful and successful
+  attempts and report actual executed counts.
+- Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
+  and lock digest. No separate old-SDK compaction implementation or version-switching production path.
+verification_requirements:
+- Record exact commands, manifest digests, case/member/repetition counts, configured-model provenance
+  and evidence locations after real execution.
+- The quality milestone may conclude with measured no-improvement or consumer-specific recommendations;
+  it cannot conclude from deterministic fixtures alone.
+- Do not change normative specifications or claim quality results during this planning edit; do not populate
+  implementation_commit until actual completion.

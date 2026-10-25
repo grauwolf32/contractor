@@ -34,6 +34,16 @@ draft and does not enable the capability.
 the selected `cloud` and `local` namespaces, startup declarations and dynamic
 parent matching for WorkflowRun and Audit launches; it is not yet implemented.
 
+[Workflow context compaction](proposals/0046-workflow-context-compaction.md)
+proposes continuing a Worker within one invocation, an explicit Workflow
+binding policy, configurable reasoning input for summarization and compaction,
+and bounded history recovery. It is a draft and does not enable the capability.
+
+[Worker model consultation](proposals/0047-worker-model-consultation.md)
+proposes advice from an explicitly pinned tool-free model within the same
+Worker, with shared budgets, bounded context and repeated comparative Eval.
+It remains a proposal without implementation tasks or activation.
+
 Accepted contracts belong in the specification; implementation status belongs
 in [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml).
 The following are non-normative, and a historical report does not establish

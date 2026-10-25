@@ -1,0 +1,176 @@
+schema_version: '1.0'
+id: V417-004
+title: Preserve compacted context across shared-session invocations
+milestone: worker-context-compaction-2026-10
+epic: planner-worker
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V417-003
+languages:
+- go
+- python
+goal: Sequential Worker invocations in one shared allocation reuse the compacted context and scoped archive
+  while preserving per-invocation authority, budgets and cleanup boundaries.
+context:
+  authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
+    includeReasoning independently deliverable. This record plans work; it does not start implementation
+    or change existing delivery priorities.'
+  proposal: docs/proposals/0046-workflow-context-compaction.md
+  specification:
+  - docs/spec/execution/worker.md#WRK-R65
+  - docs/spec/configuration/workflows.md#WFL-R27
+  - docs/spec/tools/skills.md#SKL-R98
+  - docs/spec/platform/lifecycle.md
+  - docs/spec/platform/limits.md
+  implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
+    strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
+    clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,
+    speculative exports or new receipt store.
+  adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
+    Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
+    not 2.8 callback/identity assumptions.
+scope:
+  in:
+  - Enable compact@1 with shared sessions in config/wire validation and Runtime together, removing only
+    the explicit restriction introduced by V417-003.
+  - Session-level context generation, latest main usage provenance, archive index and allocation-level
+    bounds across multiple A2A invocations.
+  - Real-path isolation, cancellation, cleanup/release-fence, restart and maximum-size tests for shared
+    and isolated modes.
+  out:
+  - Durable sessions, context transfer between allocations/bindings, resetting hard budgets to buy more
+    context, Audit completion admission or new cleanup owners.
+requirements:
+- id: R1
+  text: A new accepted A2A request follows existing logical invocation budget/observed-ref ownership,
+    while session generation, compacted memory, retained raw events and last main prompt usage remain
+    scoped to the same shared allocation. An internal ADK Runner turn or repeated callback is not a new
+    accepted A2A invocation. Compaction never creates a new logical invocation or resets counters.
+- id: R2
+  text: Protected current task inputs come from the current request, not a previous task or summary. Historical
+    refs and observations are readable data only; only current trusted tool observations/receipts can
+    authorize the current result. Existing eligible State and Skill activation contracts remain unchanged.
+- id: R3
+  text: Bind latest main-model usage to the logical invocation, context generation and actual main-model
+    request across SDK turns and accepted invocations. A new request must not forget a large shared history
+    or reuse stale pre-checkpoint usage to compact repeatedly. Context selection requires a newly eligible
+    complete prefix and stops explicitly if no useful reduction is possible.
+- id: R4
+  text: Maintain the V417-003 per-invocation cycle bound and at most 32 compactions, 4096 groups/32 MiB
+    history per allocation. Apply ceilings across all subtasks and all raw/projection copies; do not reset
+    them when a new subtask starts or when groups are compacted.
+- id: R5
+  text: Bind marker identities, selected ordinals and archive cursors to the owning allocation/binding/session/branch/isolation
+    and permission projection. Inclusive ADK timestamp ranges must not absorb foreign events even when
+    timestamps coincide. No cross-binding/allocation access; isolated history/cursors expire at logical
+    invocation completion. Repeated Skill reads remain charged and redacted across subtasks.
+- id: R6
+  text: Use existing serial invocation ownership and joined off-event-loop work. Cancel/deadline/lease
+    loss at commit, continuation or cleanup cannot race another invocation into using uncertain state.
+    An incomplete cleanup keeps the existing allocation fence.
+- id: R7
+  text: Finalize, abort and release never initiate compaction and clear session data, pending input, history
+    indexes, model clients and reasoning. Runtime restart uses the existing interrupted/retry path; new
+    allocations do not adopt previous context. No new persistent table, receipt or session recovery path.
+failure_outcomes:
+- operation: Shared-session admission and next-invocation continuation
+  permanent: Invalid mode/shape remains a permanent config error; foreign/expired cursors return scoped
+    tool errors; deterministic allocation ceilings return worker_context_limit_exceeded.
+  retryable: Keep existing transport/storage retry classification; session policy is never silently changed.
+  ambiguous: Use the same pending marker inspection from V417-003; uncertain state fences the allocation
+    before another invocation.
+  cancelled: Invocation/allocation owner joins compactor, serializers and tool work before session deletion
+    or transfer of ownership.
+  timeout: Existing per-invocation deadline stays fixed; a new accepted request gets only its ordinary
+    deadline, never retroactively extends old work.
+- operation: Allocation finalize, abort, release and Runtime restart
+  permanent: Cleanup failure retains the existing fence and reports the owning failure; no fresh work
+    uses partially cleared context.
+  retryable: Reuse existing bounded lifecycle reconciliation, not a compaction-specific background retry
+    loop.
+  ambiguous: Observe existing allocation lifecycle and marker identity; no cleanup receipt table.
+  cancelled: Join first, then clear context and clients; no late marker or continuation after release.
+  timeout: Use the owning lifecycle timeout distinct from Worker execution; no unbounded cleanup wait.
+cardinality:
+- collection: Shared allocation transcript across subtasks
+  expected: Several sequential invocations and repeated checkpoints
+  maximum: Existing subtask/invocation bounds plus32 checkpoints, 4096 groups and 32 MiB across the allocation
+  bound: Incremental append/indexing, bounded retrieval pages and finite transient memory as registered
+    by V417-003; test realistic many-subtask distributions, not only two small requests.
+lifecycle:
+- entity: Shared context and archive
+  delete: Allocation owner removes it on finalize/abort/release; isolated mode still removes conversation
+    at invocation end.
+  cascade: All checkpoint metadata, cursors, reasoning and buffers go with their session; no hidden State
+    carry.
+  retention: Shared context lives only for that allocation. Retry/escalation/restart obtains no implicit
+    access to the previous archive.
+acceptance_criteria:
+- id: A1
+  given: Two sequential shared invocations and an isolated-mode control
+  when: The first invocation compacts and the second starts
+  then: Shared context is available only within the same allocation; exact current task and current result
+    authority are correct; isolated context/history never carries over.
+- id: A2
+  given: High previous prompt usage, two SDK continuations within one logical invocation, and a completed
+    checkpoint
+  when: A later accepted A2A invocation enters the same shared session
+  then: Usage provenance prevents stale re-triggers, SDK turns preserve cumulative budgets, and per-invocation
+    budgets reset only at the existing accepted A2A boundary.
+- id: A3
+  given: Many subtasks accumulating 4096 groups/32 MiB or 32 checkpoints
+  when: Another group or cycle is admitted and archive pages are read
+  then: The exact ceiling succeeds, one-over fails deterministically, and page work/copies remain bounded
+    without whole-history scans on each read.
+- id: A4
+  given: Foreign marker ranges/cursors and equal-timestamp events across bindings/branches, shared Skill
+    content and historical artifact refs
+  when: Later invocations read history and assemble results
+  then: Foreign events never enter a checkpoint or history result; no scope/disclosure bypass or promotion
+    of historical/model-authored refs to trusted current outputs occurs.
+- id: A5
+  given: Cancel, deadline, lease loss, failed cleanup and Runtime restart
+  when: Ownership changes at every checkpoint/continuation boundary
+  then: No late work, clients or buffers survive release; failed cleanup keeps a fence and replacement
+    allocations do not adopt old context.
+tests:
+- command: go test ./internal/config/... ./internal/contracts/... ./internal/controlplane/...
+  covers:
+  - A1
+  - A4
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-e2e
+  covers:
+  - A1
+  - A5
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- These are future implementation acceptance commands, not verification performed while creating tasks.
+  Implement every explicitly named new gate in its owning task; zero selected or skipped mandatory cases
+  fail.
+- Use locked Runtime dependencies, testdata catalogs and pseudo-Skills. Unit and integration tests never
+  read the live configs tree; make test-config validates the shipped catalog.
+- Persistence and immutable snapshot reads use disposable real PostgreSQL. Set CONTRACTOR_TEST_DATABASE_URL
+  for required gates; an unreachable configured database or skipped required case is a failure.
+- Run full suites for every touched package in addition to focused gates. Use injected clocks and deterministic
+  work counters for assertions, not wall-clock thresholds.
+- Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
+  and lock digest. No separate old-SDK compaction implementation or version-switching production path.
