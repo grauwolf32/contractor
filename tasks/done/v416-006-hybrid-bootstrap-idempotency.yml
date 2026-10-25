@@ -5,7 +5,7 @@ milestone: main-review-2026-10-25
 epic: operations
 kind: defect
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, go]
 goal: >-
@@ -124,5 +124,11 @@ validation:
     - "make test-hybrid passed all 34 tests plus Ruff, formatting and shell syntax. Identity cases cover methods, paths, canonical bodies, both preconditions, explicit keys, bodyless reads/mutations, timeout/cancellation and suppressed secret error content."
     - "With CONTRACTOR_TEST_DATABASE_URL set to the disposable database, go test -count=1 ./internal/httpapi/public ./internal/runtimeconfig passed both full packages; database tests ran rather than skipped."
     - "Specification consistency, task consistency, Python test-fixture Ruff/format checks and git diff --check passed."
-  remaining:
-    - "Integrated make lint is assigned to the parent implementation coordinator; retain in_progress until that required command passes and closure metadata is recorded."
+  integration: Full make lint passed on the integrated implementation.
+
+implementation_commit: 0945d826600434df7ff589b907ccc20784da86bf
+integration_verification:
+  date: "2026-10-25"
+  revision: c2b8774febc4750146ab9af6e03da054c18a46e5
+  command: make lint
+  result: passed
