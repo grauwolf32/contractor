@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-132 open tasks: 4 in progress, 117 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+137 open tasks: 4 in progress, 122 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
 
 ## In progress
 
@@ -35,6 +35,7 @@ the epics are in [epics.yml](epics.yml).
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound, make its benchmark runnable and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
 | [V414-007](v414-007-planner-session-state-limit.yml) | chore | P3 | — | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
+| [V416-016](v416-016-finalizer-cancel-terminal-state.yml) | defect | P1 | — | Close Worker State when finalizer startup is cancelled |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
@@ -68,6 +69,7 @@ the epics are in [epics.yml](epics.yml).
 | [V414-004](v414-004-scan-audit-result-failure-classes.yml) | defect | P2 | — | Classify Audit scan result building failures by cause instead of as invalid input |
 | [V416-008](v416-008-rulepack-metadata-contract.yml) | chore | P3 | — | Share the Nuclei rulepack media and byte admission contract |
 | [V416-009](v416-009-nuclei-preparation-boundary.yml) | chore | P3 | — | Extract the Nuclei preparation sequence into a private helper with an explicit result |
+| [V416-013](v416-013-tool-worker-stage-deadline.yml) | defect | P1 | — | Enforce the effective Stage deadline inside model-free tool Workers |
 
 ### Findings tools and collections (`findings`)
 
@@ -166,6 +168,7 @@ the epics are in [epics.yml](epics.yml).
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the autonomous HTTP pentest setup and evidence journey |
 | [V416-003](v416-003-web-scan-shared-launch-state.yml) | defect | P1 | — | Restore shared Audit launch options and state in Web scan |
+| [V416-014](v416-014-eval-workspace-surface.yml) | chore | P3 | — | Present evaluation workspace management as part of current Evals |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 
@@ -174,6 +177,8 @@ the epics are in [epics.yml](epics.yml).
 | [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
 | [V416-005](v416-005-hybrid-placement-labels.yml) | defect | P2 | — | Declare Runtime placement labels in hybrid deployment inventory |
 | [V416-006](v416-006-hybrid-bootstrap-idempotency.yml) | defect | P1 | — | Bind hybrid bootstrap idempotency keys to the complete mutation |
+| [V416-012](v416-012-hybrid-runtime-release-pruning.yml) | defect | P1 | — | Preserve Runtime releases referenced by instances outside the current inventory |
+| [V416-015](v416-015-ansible-environment-diagnostics.yml) | defect | P1 | — | Keep Runtime environment values out of Ansible diagnostics |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -213,7 +218,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
-| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-001, V416-002, V416-003, V416-004, V416-005, V416-006, V416-007, V416-008, V416-009, V416-010, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main review |
+| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-001, V416-002, V416-003, V416-004, V416-005, V416-006, V416-007, V416-008, V416-009, V416-010, V416-012, V416-013, V416-014, V416-015, V416-016, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main and current-system review |
 
 ## Deferred
 
@@ -239,22 +244,22 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 4 | 41 | 55 | 18 | 81 |
-| Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 42 | 17 | 61 |
+| Planners and the Worker model boundary (`planner-worker`) | 5 | 27 | 43 | 17 | 62 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 1 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 11 | 19 | 16 | 5 | 17 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 6 | 16 | 8 | 9 | 16 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 7 | 16 | 9 | 9 | 17 |
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 8 | 18 | 15 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 35 | 33 | 7 | 40 |
 | Audits (`audits`) | 33 | 66 | 80 | 26 | 105 |
-| Evaluations (`evals`) | 6 | 21 | 38 | 12 | 45 |
+| Evaluations (`evals`) | 6 | 21 | 38 | 12 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
-| Web UI (`ui`) | 3 | 25 | 63 | 13 | 57 |
-| Operations, authentication, CLI and deployment (`operations`) | 3 | 16 | 40 | 6 | 13 |
+| Web UI (`ui`) | 4 | 25 | 63 | 14 | 57 |
+| Operations, authentication, CLI and deployment (`operations`) | 5 | 16 | 42 | 6 | 15 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 7 | 0 | 24 | 42 | 13 |
 | Quality, CI and process (`quality`) | 16 | 1 | 27 | 93 | 23 |
