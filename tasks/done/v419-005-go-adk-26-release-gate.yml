@@ -5,7 +5,7 @@ milestone: go-adk-26-upgrade-2026-10
 epic: quality
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V419-003
 - V419-004
@@ -175,3 +175,4 @@ verification:
     explicit.
   delivery: Localcodex/adk-runtime-213 branch; allimplementation/evidencecommitted, notmergedtomain, notpushedordeployed.
     No fullfinalreleaseclaim.
+implementation_commit: b8b87b0f80ef9f7362110df23ec489a1dfd96bc2

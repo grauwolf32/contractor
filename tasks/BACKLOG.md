@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-135 open tasks: 5 in progress, 119 pending, 11 deferred. 1135 finished: 1125 completed, 10 archived.
+134 open tasks: 4 in progress, 119 pending, 11 deferred. 1136 finished: 1126 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V419-005](v419-005-go-adk-26-release-gate.yml) | quality | chore | P1 | Accept Go ADK v2.6 through targeted owner and process verification |
 
 ## Pending
 
@@ -42,7 +41,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | feature | P1 | V417-003 | Preserve compacted context across shared-session invocations |
 | [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Resolve reference-only compactor model policy overrides |
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
-| [V420-001](v420-001-planner-compaction-contract-spike.yml) | chore | P1 | V419-005 | Prove Planner compaction checkpoints and freeze the integration contract |
+| [V420-001](v420-001-planner-compaction-contract-spike.yml) | chore | P1 | — | Prove Planner compaction checkpoints and freeze the integration contract |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | V420-001 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
@@ -260,4 +259,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 42 | 7 | 15 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 18 | 1 | 27 | 98 | 23 |
+| Quality, CI and process (`quality`) | 17 | 1 | 27 | 98 | 23 |
