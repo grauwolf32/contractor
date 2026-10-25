@@ -938,7 +938,7 @@ pages, exact refs/digests/media/sizes, item counts and its source generation.
 Each page carries that identity and ordered complete items. Source root and
 consumer descriptor are each at most 256 KiB; pages are at most 256 KiB,
 128 items and 512 total descriptors. There are at most 256 pages and 64 MiB
-of retained snapshot metadata including root and consumer descriptor
+of source and derived snapshot metadata including root and consumer descriptor
 (LIM-ASC-14 to LIM-ASC-18). Tighter artifact/input/evidence limits apply.
 Oversize, missing or corrupt complete results fail explicitly without truncation.
 
@@ -959,6 +959,13 @@ foreign ref, source descriptor, provenance-only ref or JSON mention grants
 access. The consumer projection removes prohibited source-derived metadata
 and content before exposure, according to the pinned Audit authority; it
 never broadens a source mode or substitutes current content.
+
+The source pages and root debit the Audit's `maxEvidenceBytes` as retained
+Audit content. Derived Run-local pages and their consumer descriptor belong
+to the child input lifecycle and do not debit that Audit retention counter
+again. The independent 64 MiB materialization metadata budget includes both
+source and derived documents; rewriting an accepted closure cannot evade
+that work bound or charge an already retained source revision twice.
 
 **ASC-R160.** The Audit-owned materializer validates the accepted root and
 its complete exact page closure, then derives ordinary exact Run-local page
