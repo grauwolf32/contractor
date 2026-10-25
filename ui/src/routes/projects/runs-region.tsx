@@ -134,8 +134,8 @@ function EvaluationRunsRegion({ projectId }: { projectId: string }) {
         isEmpty={(data) => data.items.length === 0}
         empty={
           <div className="compact-empty">
-            <strong>No Workflow Runs belong to this Eval.</strong>
-            <p>Runs labelled with this workspace appear here once launched.</p>
+            <strong>No Runs belong to this workspace.</strong>
+            <p>Execution history appears here once launched.</p>
           </div>
         }
       >

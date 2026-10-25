@@ -4,7 +4,7 @@ import type { ArtifactArchiveScope } from "../../api/artifact-archive";
 export function artifactDetailPath(
   scope: ArtifactArchiveScope,
   ref: { namespace: string; name: string; revision?: string },
-  projectRoot: "/projects" | "/evals" = "/projects",
+  projectRoot: "/projects" | "/evals/workspaces" = "/projects",
 ): string {
   const owner =
     scope.kind === "user"

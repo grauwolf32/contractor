@@ -278,9 +278,11 @@ experiment membership, dispatch ownership or assessment authority. Managed
 experiments own explicit member registration and verified submission receipts
 separately.
 
-**EVM-R22.** Legacy labelled Runs remain inspectable, and the grouping of
-ordinary Runs by `eval.*` labels remains available as legacy history. Legacy
-labelled Runs do not acquire verified experiment membership by label matching.
+**EVM-R22.** Evaluation workspaces retain inspectable ordinary Run history,
+including grouping by `eval.*` labels. These are current workspaces holding
+datasets and experiments, managed through the same workspace list/detail and
+creation form reached from experiment setup and dataset pages. Labelled Runs
+do not acquire verified experiment membership by label matching.
 
 ### Ownership and identity
 

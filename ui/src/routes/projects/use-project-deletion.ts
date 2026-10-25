@@ -33,17 +33,19 @@ export const pollWhileAnyDeleting = pollInterval<ProjectPage>({
   settled: (page) => !page.items.some(isDeleting),
 });
 
-const DESTINATION: Readonly<Record<ProjectKind, "/projects" | "/evals">> = {
+const DESTINATION: Readonly<
+  Record<ProjectKind, "/projects" | "/evals/workspaces">
+> = {
   project: "/projects",
-  evaluation: "/evals",
+  evaluation: "/evals/workspaces",
 };
 
 /**
- * The project a workspace page shows (the Projects detail pane, or a legacy
- * evaluation workspace at /evals/:projectId) and its deletion flow. The page
+ * The project a workspace page shows (the Projects detail pane, or an
+ * evaluation workspace at /evals/workspaces/:projectId) and its deletion flow. The page
  * owns the sole Project query: it polls while the project is being deleted,
  * and once the Server answers 404 after a deletion was observed the page
- * returns to its list (`/projects` or `/evals`), unless the user already
+ * returns to its list (`/projects` or `/evals/workspaces`), unless the user already
  * left. A refused deletion (412: the project changed) is never retried; the
  * project is read again so a new confirmation shows its current name and
  * carries its current revision.

@@ -145,7 +145,7 @@ export function applicationRoutes(): RouteObject[] {
               ),
             },
             {
-              path: "/evals/legacy",
+              path: "/evals/workspaces",
               lazy: lazyRoute(
                 () => import("../routes/projects/list"),
                 "EvaluationListRoute",
@@ -187,14 +187,14 @@ export function applicationRoutes(): RouteObject[] {
               ),
             },
             {
-              path: "/evals/:projectId",
+              path: "/evals/workspaces/:projectId",
               lazy: lazyRoute(
                 () => import("../routes/projects/detail"),
                 "EvaluationDetailRoute",
               ),
             },
             {
-              path: "/evals/:projectId/artifacts/:namespace/:name",
+              path: "/evals/workspaces/:projectId/artifacts/:namespace/:name",
               lazy: lazyRoute(
                 () => import("../routes/projects/artifact-detail"),
                 "EvaluationArtifactDetailRoute",
