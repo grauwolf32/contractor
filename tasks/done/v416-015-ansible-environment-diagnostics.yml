@@ -6,7 +6,8 @@ epic: operations
 kind: defect
 introduced_by: V402-001
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 8e36da7da577ecdbefcbda05f7fc358167a55928
 depends_on: []
 languages: [yaml, python]
 goal: >-
