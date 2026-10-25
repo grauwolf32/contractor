@@ -987,8 +987,10 @@ descriptors without retaining a duplicate payload. A replay of a bound
 refresh a source revision or allocate a Stage before complete closure and
 the descriptor are committed. Skill initialization respects the same fence.
 The complete serialized wire JSON progress is at most 256 KiB, includes at most 1,024 unique exact local hold refs,
-and has an immutable deadline ten minutes after Run creation (LIM-ASC-20 to
-LIM-ASC-22). Materialization and assessment execution have independent clocks
+and has an immutable deadline ten minutes after the original durable execution
+intent was created (LIM-ASC-20 to
+LIM-ASC-22). A rolled-back first slice does not reset that deadline.
+Materialization and assessment execution have independent clocks
 (FAIL-ASC-9).
 
 **ASC-R162.** Pause, deadline and cancel fence new capture/materialization

@@ -51,14 +51,21 @@ func completeAuditInputSlice(ctx context.Context, writer AuditRunWriter, service
 	if err != nil {
 		return runstore.WorkflowRun{}, err
 	}
+	if intent.Execution.CreatedAt.IsZero() {
+		return runstore.WorkflowRun{}, fmt.Errorf("%w: Audit input intent has no creation time", ErrInvalid)
+	}
+	deadline := intent.Execution.CreatedAt.UTC().Add(runstore.AuditInputMaterializationTimeout)
 	state := runstore.AuditInputMaterialization{
-		Identity: params.InputMaterializationID, DeadlineAt: run.CreatedAt.UTC().Add(runstore.AuditInputMaterializationTimeout),
+		Identity: params.InputMaterializationID, DeadlineAt: deadline,
 		Checkpoint: []byte(`{}`), Refs: []contracts.ArtifactRef{},
 	}
 	if previous != nil {
 		state = *previous
 		if state.Identity != params.InputMaterializationID {
 			return runstore.WorkflowRun{}, fmt.Errorf("%w: Audit input identity changed during recovery", auditstore.ErrConflict)
+		}
+		if !state.DeadlineAt.Equal(deadline) {
+			return runstore.WorkflowRun{}, fmt.Errorf("%w: Audit input deadline differs from its original intent", ErrInvalid)
 		}
 		if state.Complete {
 			return run, nil

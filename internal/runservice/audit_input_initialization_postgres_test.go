@@ -112,7 +112,7 @@ func auditInputFixture(t *testing.T, ctx context.Context) (Options, AuditCreateP
 }
 
 func TestAuditInputPostgresResumesOneChildAndClassifiesFailures(t *testing.T) {
-	for _, outcome := range []string{"complete", "transient", "permanent", "deadline"} {
+	for _, outcome := range []string{"complete", "first-transient", "transient", "permanent", "deadline"} {
 		t.Run(outcome, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 			defer cancel()
@@ -120,8 +120,20 @@ func TestAuditInputPostgresResumesOneChildAndClassifiesFailures(t *testing.T) {
 			params.InputMaterializationID = testDigest("9")
 			transient := errors.New("injected unavailable storage")
 			calls := 0
-			params.MaterializeInputs = func(ctx context.Context, service *artifacts.Service, _ auditstore.RunCreationIntent, run runstore.WorkflowRun, state runstore.AuditInputMaterialization) (runstore.AuditInputMaterialization, error) {
+			var originalDeadline time.Time
+			params.MaterializeInputs = func(ctx context.Context, service *artifacts.Service, intent auditstore.RunCreationIntent, run runstore.WorkflowRun, state runstore.AuditInputMaterialization) (runstore.AuditInputMaterialization, error) {
 				calls++
+				if !state.DeadlineAt.Equal(intent.Execution.CreatedAt.Add(runstore.AuditInputMaterializationTimeout)) {
+					t.Fatal("input deadline did not use the original durable intent")
+				}
+				if calls == 1 {
+					originalDeadline = state.DeadlineAt
+				} else if !originalDeadline.Equal(state.DeadlineAt) {
+					t.Fatal("first slice rollback reset the input deadline")
+				}
+				if outcome == "first-transient" && calls == 1 {
+					return state, transient
+				}
 				if state.Revision != 0 {
 					if outcome == "permanent" {
 						return state, artifacts.ErrArtifactIntegrity
@@ -147,6 +159,15 @@ func TestAuditInputPostgresResumesOneChildAndClassifiesFailures(t *testing.T) {
 				t.Fatal(err)
 			}
 			first, err := service.CreateAudit(ctx, params)
+			if outcome == "first-transient" {
+				if !errors.Is(err, transient) {
+					t.Fatal("first transient outcome", err)
+				}
+				if _, err := runstore.NewPostgresStore(pool).GetRun(ctx, "run"); !errors.Is(err, runstore.ErrNotFound) {
+					t.Fatal("rolled back first slice retained a child", err)
+				}
+				first, err = service.CreateAudit(ctx, params)
+			}
 			if err != nil || first.Run.State != runstore.RunInitializing || first.Run.StateReason.Code != runstore.AuditInputInitializationPendingReason {
 				t.Fatalf("first slice: %+v %v", first, err)
 			}

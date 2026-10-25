@@ -233,7 +233,7 @@ its owning requirement.
 | `LIM-ASC-19` | 128 primary rows / 512 total descriptors / 1 MiB metadata; stale cleanup 128 rows | Snapshot construction transaction/tick slice | Audit snapshot/Run input materialization owner | [ASC-R158](../audits/scans.md) |
 | `LIM-ASC-20` | 256 KiB encoded state | Audit child input materialization checkpoint | Audit snapshot/Run input materialization owner | [ASC-R161](../audits/scans.md) |
 | `LIM-ASC-21` | 1,024 exact refs | Explicit Run-local input materialization holds | Audit snapshot/Run input materialization owner | [ASC-R161](../audits/scans.md) |
-| `LIM-ASC-22` | 10 minutes from child Run creation | Audit child input materialization deadline | Audit snapshot/Run input materialization owner | [ASC-R161](../audits/scans.md) |
+| `LIM-ASC-22` | 10 minutes from the original durable child submission intent | Audit child input materialization deadline | Audit snapshot/Run input materialization owner | [ASC-R161](../audits/scans.md) |
 | `LIM-AUD-1` | exactly 1 Project (project_id) and 1 owner per Audit | Audit | Audit API and the PostgreSQL Audit record | [AUD-R1](../audits/audits.md) |
 | `LIM-AUD-2` | exactly 1 mapping per required child input or parameter | AuditProfile Workflow role binding (inputs and parameters maps) | Configuration loader (AuditProfile validation) | [AUD-R35](../audits/audits.md) |
 | `LIM-AUD-3` | 64 items | AuditProfile execution.batchSize | Server AuditProfile validation and Audit Controller batching | [AUD-R46](../audits/audits.md) |
