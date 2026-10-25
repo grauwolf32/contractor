@@ -32,3 +32,21 @@ func TestSharedOpenAPIYAMLScalarCasesMatchRuntimeAuthoring(t *testing.T) {
 		})
 	}
 }
+
+func TestSharedOpenAPIJSONEscapeCasesMatchRuntimeAuthoring(t *testing.T) {
+	for _, tc := range contractstest.ReadOpenAPIJSONCases(t) {
+		t.Run(tc.Name, func(t *testing.T) {
+			document, err := parseDocument([]byte(tc.Document), tc.MediaType)
+			if !tc.Accepted {
+				var failure *PreparationError
+				if !errors.As(err, &failure) || failure.Code != "invalid_document" {
+					t.Fatalf("rejected JSON case = %v, %v; want invalid_document", document, err)
+				}
+				return
+			}
+			if err != nil || !contractstest.SameJSONValue(map[string]any(document), tc.Value) {
+				t.Fatalf("accepted JSON case = %#v, %v; want %#v", document, err, tc.Value)
+			}
+		})
+	}
+}

@@ -135,7 +135,8 @@ class _LikeC4Session(DocumentSession[str]):
         self._workspace = workspace
         self._launcher = launcher
 
-    def _decode_seed(self, data: bytes) -> str:
+    def _decode_seed(self, data: bytes, media_type: str) -> str:
+        del media_type  # Both accepted media types contain the same LikeC4 text.
         return _decode_document(data)
 
     def _serialize(self, document: str) -> bytes:

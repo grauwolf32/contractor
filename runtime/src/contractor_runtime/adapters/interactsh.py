@@ -222,23 +222,30 @@ class InteractshClient:
                     batch = item.reconciled
                     item.reconciled = None
                     return batch
-                if self._now() - item.last_poll < POLL_INTERVAL_SECONDS:
-                    raise InteractshError("interactsh_rate_limited", retryable=True)
-                item.last_poll = self._now()
-                try:
-                    batch = await self._poll(item)
-                    item.state = "registered"
-                    return batch
-                except BaseException:
-                    # Upstream drains its queue before returning the response.
-                    item.coverage_gap = True
-                    raise
+                batch = await self._poll(item)
+                item.state = "registered"
+                return batch
         except TimeoutError:
             raise InteractshError("interactsh_request_failed", retryable=True) from None
         finally:
             self._active.discard(task)
 
     async def _poll(self, item: Registration) -> PollBatch:
+        """Account for every network poll under the caller's registration lock."""
+
+        now = self._now()
+        if now - item.last_poll < POLL_INTERVAL_SECONDS:
+            raise InteractshError("interactsh_rate_limited", retryable=True)
+        item.last_poll = now
+        try:
+            return await self._request_poll(item)
+        except BaseException:
+            # Upstream drains its queue before returning the response, including
+            # polls that reconcile registration. Cancellation retains uncertainty.
+            item.coverage_gap = True
+            raise
+
+    async def _request_poll(self, item: Registration) -> PollBatch:
         result = await self._request(
             "GET",
             "/poll",

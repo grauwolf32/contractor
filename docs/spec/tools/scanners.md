@@ -1154,10 +1154,15 @@ It writes a string as a quoted scalar whenever SCN-R124 or YAML 1.1 would read
 the plain scalar as anything other than that string, and it accepts from
 mutations only numbers that SCN-R124 accepts, so every document it writes
 means the same JSON value to preparation, to the inventory and to a YAML 1.1
-reader. Its parser shares go-yaml's double-quoted escapes and rejects surrogate
+reader. Its YAML parser shares go-yaml's double-quoted escapes and rejects surrogate
 code points, which go-yaml also rejects; it remains stricter than go-yaml in
 some lexical details, such as a tab between a member name and its value, which
-it rejects and preparation accepts.
+it rejects and preparation accepts. An `application/json` seed uses JSON escape
+semantics: escaped solidus and valid UTF-16 surrogate pairs decode to their
+string values; lone or reversed surrogates reject. Invalid JSON never falls
+back to YAML. Duplicate decoded member names, numeric and document bounds
+remain subject to SCN-R124 and SCN-R253. Runtime authoring, preparation and the
+inventory agree on the [shared JSON cases](../../../api/testdata/openapi-json-escape-cases.json).
 
 **SCN-R125.** Preparation extracts concrete HTTP data on a best-effort basis.
 Schema type, format, dialect and validation constraints do not reject supplied

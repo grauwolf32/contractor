@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-132 open tasks: 5 in progress, 116 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+132 open tasks: 7 in progress, 114 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,8 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V416-004](v416-004-openapi-json-escapes.yml) | workflows | defect | P1 | Read OpenAPI JSON seeds with JSON escape semantics |
+| [V416-007](v416-007-interactsh-reconciliation-poll.yml) | http-tools | defect | P2 | Account for Interactsh reconciliation polls in the shared gap and rate rules |
 | [V416-008](v416-008-rulepack-metadata-contract.yml) | scan-tools | chore | P3 | Share the Nuclei rulepack media and byte admission contract |
 
 ## Pending
@@ -57,7 +59,6 @@ the epics are in [epics.yml](epics.yml).
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | V411-007, V411-008, V411-010 | Add a managed browser with isolated contexts and enforced target transport |
 | [V412-002](v412-002-browser-login-replay-recipes.yml) | feature | P2 | V412-001, V411-009 | Execute closed browser login and replay recipes with trusted markers |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-009, V411-012, V411-020 | Integrate trusted Interactsh callback evidence and its release gate |
-| [V416-007](v416-007-interactsh-reconciliation-poll.yml) | defect | P2 | — | Account for Interactsh reconciliation polls in the shared gap and rate rules |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -94,7 +95,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-007, V410-003, V410-006 | Discover URL-only targets and retain bounded source-aware surfaces |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-012, V411-013, V411-014, V411-011, V411-010, V411-016 | Publish exact HTTP API pentest Workflows and source-mode presets |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-002, V411-020, V410-009 | Publish optional browser programs behind their independent release gate |
-| [V416-004](v416-004-openapi-json-escapes.yml) | defect | P1 | — | Read OpenAPI JSON seeds with JSON escape semantics |
 
 ### Projects, artifacts and lifecycle controls (`projects-artifacts`)
 
