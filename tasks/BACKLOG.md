@@ -5,14 +5,13 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-129 open tasks: 14 in progress, 104 pending, 11 deferred. 1143 finished: 1133 completed, 10 archived.
+128 open tasks: 13 in progress, 104 pending, 11 deferred. 1144 finished: 1134 completed, 10 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
-| [V62-015](v62-015-align-snapshot-persistence-inventory.yml) | audits | chore | P3 | Align settled snapshot tests and persistence ownership inventory |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
@@ -111,7 +110,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V62-006](v62-006-audit-retained-dependencies.yml) | feature | P2 | — | Retain exact item dependencies across Audit rounds |
 | [V62-007](v62-007-audit-check-routing.yml) | feature | P2 | V62-006 | Route trusted typed check plans through explicit profile bindings |
-| [V62-013](v62-013-audit-iterative-composition-release.yml) | chore | P2 | V62-006, V62-007, V62-015 | Gate generic iterative Audit composition through real processes |
+| [V62-013](v62-013-audit-iterative-composition-release.yml) | chore | P2 | V62-006, V62-007 | Gate generic iterative Audit composition through real processes |
 | [V64-001](v64-001-audit-priority-contracts.yml) | feature | P2 | — | Specify optional Audit research contracts and deterministic bypass |
 | [V64-002](v64-002-audit-priority-store.yml) | feature | P2 | V64-001, V64-012 | Persist research cycles and exact selection decisions |
 | [V64-003](v64-003-planner-only-priority-execution.yml) | feature | P2 | V64-002 | Execute resumable research phases through ordinary Workflow Runs |
@@ -237,7 +236,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 8 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 35 | 33 | 7 | 40 |
-| Audits (`audits`) | 32 | 67 | 81 | 27 | 107 |
+| Audits (`audits`) | 31 | 67 | 81 | 27 | 107 |
 | Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |

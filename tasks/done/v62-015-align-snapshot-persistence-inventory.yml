@@ -6,8 +6,8 @@ epic: audits
 kind: chore
 introduced_by: V62-005
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: a9d1ffe3228a8bd558513f6d8e1029c81b26dfa6
 depends_on:
 - V62-005
 languages:
