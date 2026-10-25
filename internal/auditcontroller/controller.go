@@ -15,6 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/claimpass"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -167,6 +168,9 @@ func (c *Controller) reconcileRolePhase(
 		latest, found := latestRoleExecution(snapshot.RoleExecutions, kind, workflowRole)
 		if found {
 			if latest.State != auditstore.ExecutionCollected {
+				if changed, handled, resumeErr := c.resumeRoundResultsInput(ctx, claim, snapshot, profile.Workflows[workflowRole], latest); handled {
+					return changed, false, nil, resumeErr
+				}
 				return false, false, nil, nil
 			}
 			disposition, receiptFound := roleExecutionDisposition(snapshot, latest.ExecutionID)
@@ -297,6 +301,9 @@ func (c *Controller) dispatchRole(
 ) (bool, bool, *auditstore.StopReason, error) {
 	prepared, err := c.builder.WithClaim(claim).PrepareRole(ctx, snapshot, workflowRole, attempt)
 	if err != nil {
+		if errors.Is(err, errRoundResultsPending) {
+			return true, false, nil, nil
+		}
 		if errors.Is(err, ErrInvalidSubmission) {
 			return false, false, roleDispatchInvalid(), nil
 		}
@@ -827,9 +834,15 @@ func terminalRun(state runstore.WorkflowRunState) bool {
 // other error leaves the intent to retry.
 func permanentSubmissionError(err error) bool {
 	var skill *agentskills.RunSkillError
+	var document *auditdomain.ValidationError
 	return errors.Is(err, runservice.ErrInvalid) || errors.Is(err, runstore.ErrInvalid) ||
 		errors.Is(err, auditstore.ErrInvalid) || errors.Is(err, auditstore.ErrConflict) ||
-		errors.Is(err, artifacts.ErrArtifactNotFound) || errors.Is(err, artifacts.ErrArtifactIntegrity) ||
+		artifacts.IsExactReferenceRejection(err) || artifacts.IsExactRevisionMissing(err) ||
+		errors.Is(err, artifacts.ErrHistoryProtected) || errors.Is(err, artifacts.ErrArtifactConflict) ||
+		errors.Is(err, artifacts.ErrRunRevisionLimit) || errors.Is(err, artifacts.ErrArtifactFrozen) ||
+		errors.Is(err, artifacts.ErrReservedNamespace) || errors.Is(err, artifacts.ErrInvalidMediaType) ||
+		errors.Is(err, artifacts.ErrPayloadTooLarge) || errors.Is(err, artifacts.ErrVersionedWriteTarget) ||
+		errors.Is(err, contracts.ErrExactArtifactMismatch) || errors.As(err, &document) ||
 		errors.As(err, &skill) && !skill.Retryable
 }
 

@@ -6,6 +6,10 @@ package pgstore
 // tables use their Audit FK indexes; pointer resets use partial purge indexes.
 var purgeAuditDomainSQL = []string{
 	`WITH batch AS (
+  SELECT ctid FROM audit_round_result_pages WHERE audit_id = $1 LIMIT $2
+)
+DELETE FROM audit_round_result_pages AS target USING batch WHERE target.ctid = batch.ctid`,
+	`WITH batch AS (
   SELECT ctid FROM audit_findings WHERE audit_id = $1 AND (current_assessment_id IS NOT NULL OR current_decision_id IS NOT NULL OR duplicate_target_id IS NOT NULL) LIMIT $2
 )
 UPDATE audit_findings AS target SET state = 'proposed', rejection_reason = NULL, duplicate_target_id = NULL, current_assessment_id = NULL, current_decision_id = NULL

@@ -16,6 +16,7 @@ from contractor_runtime.artifacts import (
 )
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.contracts.artifacts import (
+    AUDIT_CONTEXT_NAMESPACE,
     FINDING_PROPOSAL_NAMESPACE,
     PURPOSE_RESERVED_NAMESPACES,
     RUN_SYSTEM_NAMESPACE,
@@ -211,7 +212,7 @@ def test_finding_transport_loss_retries_byte_identical_submission() -> None:
 # (ART-R25), which no Runtime code names. inputs, outputs and skills are
 # ordinary words of other rules and are not scanned.
 RESERVED_NAMESPACES = frozenset(
-    {FINDING_PROPOSAL_NAMESPACE, RUN_SYSTEM_NAMESPACE, "audit-standards"}
+    {FINDING_PROPOSAL_NAMESPACE, RUN_SYSTEM_NAMESPACE, AUDIT_CONTEXT_NAMESPACE, "audit-standards"}
 )
 
 

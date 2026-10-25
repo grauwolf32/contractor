@@ -21,6 +21,7 @@
     "audit-composition/prepared-openapi-scan.yaml": {"readers": ["go"], "reason": "a catalog-valid Audit profile for the Server's preparation, storage and public tests; the Runtime and the UI never parse profiles"},
     "audit-composition/profile-cases.json": {"readers": ["go"], "reason": "authoring cases of the Server-side Audit profile loader; no other implementation loads profiles"},
     "audit-composition/public-cases.json": {"readers": ["go", "ui"]},
+    "audit-composition/round-results-cases.json": {"readers": ["go", "python"]},
     "evals/": {"readers": ["go"], "reason": "managed Eval conformance examples for the Server's codecs and independent public API clients; no second implementation parses these documents"},
     "evals/lifecycle-states.json": {"readers": ["go", "ui"]},
     "evals/plan-size-cases.json": {"readers": ["go", "ui"]},

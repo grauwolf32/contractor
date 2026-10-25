@@ -25,6 +25,7 @@ var reservedNamespaceOwners = map[string]string{
 	AuditStandardCatalogNamespace: "artifactpolicy.AuditStandardCatalogNamespace",
 	FindingProposalNamespace:      "artifactpolicy.FindingProposalNamespace",
 	RunSystemNamespace:            "artifactpolicy.RunSystemNamespace",
+	AuditContextNamespace:         "artifactpolicy.AuditContextNamespace",
 }
 
 // reservedNamespaceCopy is one string literal that spells a reserved Namespace.

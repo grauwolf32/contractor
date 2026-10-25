@@ -1,0 +1,175 @@
+{
+  "description": "Complete exact settled-Round source and Run-local consumer contract; provenance refs grant no authority.",
+  "limits": {
+    "documentBytes": 262144,
+    "pages": 256,
+    "totalBytes": 67108864,
+    "pageItems": 128,
+    "sliceDescriptors": 512,
+    "sliceBytes": 1048576
+  },
+  "page": {
+    "schema": "contractor.audit.round-results-page.v1",
+    "audit_id": "audit-fixture",
+    "round_id": "round-fixture",
+    "source_generation": 17,
+    "ordinal": 0,
+    "items": [
+      {
+        "item_id": "item-fixture",
+        "item_key": "check-fixture",
+        "ordinal": 0,
+        "kind": "checklist",
+        "subject_key": "subject-fixture",
+        "final_disposition": "accepted-result",
+        "coverage": {
+          "status": "inconclusive",
+          "requested": [
+            "check"
+          ],
+          "completed": [],
+          "gaps": [
+            "scanner-observation"
+          ]
+        },
+        "selected_attempt": {
+          "execution_id": "execution-fixture",
+          "execution_item_id": "member-fixture",
+          "attempt": 2,
+          "receipt_id": "receipt-fixture",
+          "collection_disposition": "accepted-result",
+          "terminal_outcome": "succeeded",
+          "run_id": "deleted-producer",
+          "source_result": {
+            "ref": {
+              "namespace": "outputs",
+              "name": "result",
+              "revision": "source-r1"
+            },
+            "digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a"
+          }
+        },
+        "result": {
+          "ref": {
+            "namespace": "audit-snapshot-fixture",
+            "name": "retained-result",
+            "revision": "r1"
+          },
+          "digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+          "mediaType": "application/json",
+          "sizeBytes": 2
+        },
+        "attachments": [
+          {
+            "logical_key": "evidence/execution-fixture/report",
+            "classification": "accepted-attachment",
+            "kind": "scanner-report",
+            "evidence_id": "report",
+            "content_member_id": "report-body",
+            "display_ref": "member:report-body",
+            "artifact": {
+              "ref": {
+                "namespace": "audit-snapshot-fixture",
+                "name": "retained-result",
+                "revision": "r1"
+              },
+              "digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+              "mediaType": "application/json",
+              "sizeBytes": 2
+            }
+          }
+        ],
+        "findings": [
+          {
+            "finding_id": "finding-fixture",
+            "revision": 3,
+            "state": "proposed",
+            "assessment_id": "assessment-fixture",
+            "semantic_assessment": "supported"
+          }
+        ]
+      }
+    ]
+  },
+  "manifest": {
+    "schema": "contractor.audit.round-results.v1",
+    "audit_id": "audit-fixture",
+    "round_id": "round-fixture",
+    "source_generation": 17,
+    "item_count": 1,
+    "metadata_bytes": 1642,
+    "pages": [
+      {
+        "ordinal": 0,
+        "item_count": 1,
+        "artifact": {
+          "ref": {
+            "namespace": "audit-snapshot-fixture",
+            "name": "page-0",
+            "revision": "r1"
+          },
+          "digest": "sha256:1df9861cc4bac366e2b7fc76cbb6c117c839d7a33b9ed76a30f9f380cd0c3bee",
+          "mediaType": "application/json",
+          "sizeBytes": 1642
+        }
+      }
+    ]
+  },
+  "consumer": {
+    "schema": "contractor.audit.round-results-consumer.v1",
+    "source": {
+      "ref": {
+        "namespace": "audit-snapshot-fixture",
+        "name": "root",
+        "revision": "r1"
+      },
+      "digest": "sha256:fefe38e2fc2aef7d195cc36fe960396260b580f38e31736ff568c363983b24d5",
+      "mediaType": "application/json",
+      "sizeBytes": 420
+    },
+    "audit_id": "audit-fixture",
+    "round_id": "round-fixture",
+    "source_generation": 17,
+    "item_count": 1,
+    "pages": [
+      {
+        "ordinal": 0,
+        "item_count": 1,
+        "artifact": {
+          "ref": {
+            "namespace": "audit-context",
+            "name": "local-page-0",
+            "revision": "r1"
+          },
+          "digest": "sha256:1df9861cc4bac366e2b7fc76cbb6c117c839d7a33b9ed76a30f9f380cd0c3bee",
+          "mediaType": "application/json",
+          "sizeBytes": 1642
+        }
+      }
+    ],
+    "mappings": [
+      {
+        "source": {
+          "ref": {
+            "namespace": "audit-snapshot-fixture",
+            "name": "page-0",
+            "revision": "r1"
+          },
+          "digest": "sha256:1df9861cc4bac366e2b7fc76cbb6c117c839d7a33b9ed76a30f9f380cd0c3bee",
+          "mediaType": "application/json",
+          "sizeBytes": 1642
+        },
+        "consumer": {
+          "ref": {
+            "namespace": "audit-context",
+            "name": "local-page-0",
+            "revision": "r1"
+          },
+          "digest": "sha256:1df9861cc4bac366e2b7fc76cbb6c117c839d7a33b9ed76a30f9f380cd0c3bee",
+          "mediaType": "application/json",
+          "sizeBytes": 1642
+        }
+      }
+    ]
+  }
+}

@@ -40,6 +40,8 @@ type PublicRunWriter interface {
 }
 
 type AuditRunWriter interface {
+	GetAuditInputMaterialization(context.Context, string) (*runstore.AuditInputMaterialization, error)
+	SetAuditInputMaterialization(context.Context, string, uint32, runstore.AuditInputMaterialization) error
 	SetAuditCompletion(context.Context, string, runstore.AuditCompletionSnapshot) error
 	CreateAuditRun(context.Context, runstore.CreateAuditRunParams) (runstore.WorkflowRun, error)
 	GetRun(context.Context, string) (runstore.WorkflowRun, error)
@@ -48,6 +50,7 @@ type AuditRunWriter interface {
 }
 
 type AuditExecutionWriter interface {
+	GetAcceptedRoundResults(context.Context, string, string) (auditstore.ExactArtifact, error)
 	GetRunCreationIntent(context.Context, auditstore.ControllerClaim, string) (auditstore.RunCreationIntent, error)
 	BindRun(context.Context, auditstore.BindRunParams) (auditstore.Execution, error)
 }
@@ -148,7 +151,15 @@ type AuditCreateParams struct {
 	ExecutionManifest       auditstore.ExactArtifact
 	RequestDigest           string
 	NewRunID                func() (string, error)
+	RoundResults            map[string]auditstore.ExactArtifact
+	InputMaterializationID  string
+	MaterializeInputs       AuditInputMaterializer
 }
+
+// AuditInputMaterializer is trusted Audit-owned work over an accepted exact
+// closure. It performs one bounded slice in the existing creation transaction;
+// generic Run creation never interprets its checkpoint or payload references.
+type AuditInputMaterializer func(context.Context, *artifacts.Service, auditstore.RunCreationIntent, runstore.WorkflowRun, runstore.AuditInputMaterialization) (runstore.AuditInputMaterialization, error)
 
 type CreateResult struct {
 	Run      runstore.WorkflowRun

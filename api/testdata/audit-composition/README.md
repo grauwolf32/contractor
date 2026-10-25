@@ -15,3 +15,8 @@ delete/failure states; actual controller transitions belong to V62-003.
 
 The single current schema rejects `sourceInput` and `settingsInput`. Profile
 snapshot tests round-trip current canonical bytes; no old-schema reader exists.
+
+`round-results-cases.json` pins the complete source manifest, exact pages,
+conservative provenance and derived Run-local descriptor for the Go writer
+and ordinary Runtime reader. Both sides check the same cardinality and byte
+bounds, digests and exact source-to-consumer references.

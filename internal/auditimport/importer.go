@@ -95,6 +95,13 @@ func (i *Importer) collect(
 	if execution.Role != auditstore.ExecutionCheck {
 		return i.collectRole(ctx, claim, snapshot, execution)
 	}
+	inputFailureCode, err := i.inputInitializationFailure(ctx, snapshot, execution)
+	if err != nil {
+		return false, err
+	}
+	if inputFailureCode != "" {
+		return i.commitContractInvalidMembers(ctx, claim, execution, members, inputFailureCode)
+	}
 	prepared, err := i.prepareMembers(ctx, snapshot, members)
 	if err != nil {
 		return false, err
@@ -128,6 +135,13 @@ func (i *Importer) collectRole(
 		(!preparing && (execution.RoundID == nil || snapshot.Round == nil || snapshot.Round.RoundID != *execution.RoundID)) {
 		return false, fmt.Errorf("%w: role execution identity is invalid", ErrPermanent)
 	}
+	inputFailureCode, err := i.inputInitializationFailure(ctx, snapshot, execution)
+	if err != nil {
+		return false, err
+	}
+	if inputFailureCode != "" {
+		return i.commitCollection(ctx, claim, execution, auditstore.CollectionContractInvalid, nil, nil, &inputFailureCode, nil)
+	}
 	switch *execution.TerminalOutcome {
 	case auditstore.TerminalFailed, auditstore.TerminalSubmissionFailed:
 		code := "execution-failed"
@@ -140,6 +154,69 @@ func (i *Importer) collectRole(
 	default:
 		return false, fmt.Errorf("%w: terminal role outcome is unsupported", ErrPermanent)
 	}
+}
+
+// inputInitializationFailure reads at most one child, and only for failed
+// check executions, or assessment profiles declaring Audit-owned input work.
+// A permanent submission or initialization rejection is not a target failure
+// that another Run can retry. Storage failures leave collection pending, as for
+// every other collection read; labels and a bare reason establish no authority.
+func (i *Importer) inputInitializationFailure(
+	ctx context.Context,
+	snapshot auditstore.ReconcileSnapshot,
+	execution auditstore.Execution,
+) (string, error) {
+	if execution.TerminalOutcome == nil ||
+		(*execution.TerminalOutcome != auditstore.TerminalFailed && *execution.TerminalOutcome != auditstore.TerminalSubmissionFailed) {
+		return "", nil
+	}
+	declaredSnapshot := false
+	if execution.Role == auditstore.ExecutionAssessment {
+		profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(snapshot.Audit.ProfileSnapshot)
+		if err != nil || profile.Ref.Name != snapshot.Audit.Profile.Name ||
+			profile.Ref.Version != snapshot.Audit.Profile.Version || profile.Ref.Digest != snapshot.Audit.Profile.Digest {
+			return "", fmt.Errorf("%w: pinned AuditProfile is invalid", ErrPermanent)
+		}
+		binding, exists := profile.Workflows[execution.WorkflowRole]
+		if !exists || binding.Kind != auditprofile.AuditWorkflowAssessment {
+			return "", fmt.Errorf("%w: assessment input binding is invalid", ErrPermanent)
+		}
+		for _, mapping := range binding.Inputs {
+			declaredSnapshot = declaredSnapshot || mapping.Source == auditprofile.AuditInputFromRoundResults
+		}
+	}
+	if execution.Role != auditstore.ExecutionCheck && !declaredSnapshot {
+		return "", nil
+	}
+	if *execution.TerminalOutcome == auditstore.TerminalSubmissionFailed {
+		if execution.RunID != nil {
+			return "", fmt.Errorf("%w: rejected submission has a child Run", ErrPermanent)
+		}
+		// Only definite permanent rejections settle an unbound submission intent.
+		// A transient error retains that same intent and never reaches collection.
+		if declaredSnapshot {
+			return runstore.AuditInputInitializationFailedReason, nil
+		}
+		return "collection-contract-invalid", nil
+	}
+	if execution.RunID == nil {
+		return "", fmt.Errorf("%w: failed execution has no child Run", ErrPermanent)
+	}
+	run, err := i.runs.GetRun(ctx, *execution.RunID)
+	if err != nil {
+		return "", err
+	}
+	if run.StateReason.Code != runstore.AuditInputInitializationFailedReason {
+		return "", nil
+	}
+	if run.RunID != *execution.RunID || run.OwnerID != snapshot.Audit.OwnerID ||
+		run.ProjectID == nil || *run.ProjectID != snapshot.Audit.ProjectID ||
+		run.PublicationMode != runstore.PublicationAuditManaged ||
+		run.AuditExecutionID == nil || *run.AuditExecutionID != execution.ExecutionID ||
+		run.AuditSubmissionKey == nil || *run.AuditSubmissionKey != execution.SubmissionKey || run.State != runstore.RunFailed {
+		return "", fmt.Errorf("%w: failed Audit input child identity is invalid", ErrPermanent)
+	}
+	return runstore.AuditInputInitializationFailedReason, nil
 }
 
 func (i *Importer) collectSucceededRole(
@@ -409,7 +486,20 @@ func (i *Importer) collectContractInvalid(
 	if len(members) > auditstore.MaxCollectionItems {
 		return false, fmt.Errorf("%w: collection membership exceeds the durable receipt bound", ErrPermanent)
 	}
-	const code = "collection-contract-invalid"
+	return i.commitContractInvalidMembers(ctx, claim, execution, members, "collection-contract-invalid")
+}
+
+func (i *Importer) commitContractInvalidMembers(
+	ctx context.Context,
+	claim auditstore.ControllerClaim,
+	execution auditstore.Execution,
+	members []auditstore.ExecutionItem,
+	code string,
+) (bool, error) {
+	rationale := "Trusted collection could not validate its pinned contract."
+	if code == runstore.AuditInputInitializationFailedReason {
+		rationale = technicalRationale(code)
+	}
 	items := make([]auditstore.CollectionItem, len(members))
 	for index, member := range members {
 		items[index] = auditstore.CollectionItem{
@@ -418,7 +508,7 @@ func (i *Importer) collectContractInvalid(
 			FinalDisposition: auditstore.FinalInvalidResult,
 			Coverage: auditstore.Coverage{
 				Status: auditstore.CoverageBlocked, Requested: []string{}, Completed: []string{},
-				Gaps: []string{code}, Rationale: "Trusted collection could not validate its pinned contract.",
+				Gaps: []string{code}, Rationale: rationale,
 			},
 		}
 	}
@@ -908,6 +998,8 @@ func technicalRationale(code string) string {
 		return "The child Run failed before an acceptable semantic result was collected."
 	case "execution-cancelled":
 		return "The child Run was cancelled before an acceptable semantic result was collected."
+	case runstore.AuditInputInitializationFailedReason:
+		return "The child Run could not initialize its exact declared inputs."
 	default:
 		return "The child Run output failed bounded result validation."
 	}

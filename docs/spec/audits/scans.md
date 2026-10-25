@@ -63,7 +63,7 @@ document owns are:
   prepare role, retained with its exact revision and accepted atomically with
   the role's other mapped outputs.
 - **Mapping source.** The kind of a mapping reference: `audit-input`,
-  `prepare-output`, `item-package`, `execution-manifest` or `retained-output`.
+  `prepare-output`, `item-package`, `execution-manifest`, `retained-output` or `round-results`.
 - **Generated inventory.** An inventory built in the `inventory` phase from
   accepted preparation outputs instead of from the original baseline.
 - **`initial-inventory` link.** The protected Artifact link that pins the
@@ -206,6 +206,7 @@ consumers, and with the scope, that this table allows:
 | `item-package` | forbidden | forbidden | check item context ([AUD-R39](audits.md)) | Assigned execution |
 | `execution-manifest` | forbidden | forbidden | the item execution manifest ([AUD-R40](audits.md)) | Assigned execution |
 | `retained-output` | forbidden | forbidden | the discovery and assessment dependency rules ([AUD-R41](audits.md)) | Same Round |
+| `round-results` | forbidden | forbidden | required assessment input (ASC-R154) | Complete immutable settled current Round |
 
 **ASC-R18.** A prepare output cannot be consumed as
 `retained-output`; a check, discovery or assessment output cannot be consumed
@@ -904,6 +905,104 @@ No new controller, persistence table, receipt or lease is introduced. The
 Web scan profile bounds its inventory to one item, one job per attempt and
 three item attempts, within the existing scanner and Audit limits.
 
+### Complete settled-Round inputs
+
+**ASC-R154.** An assessment binding may declare one required JSON Workflow
+input mapping `{source: round-results}`. It forbids `name` and `role`; other
+role kinds and inventories cannot consume it. Profiles without this mapping,
+including direct Runs and deterministic Audits, keep their existing path.
+
+**ASC-R155.** Before dispatching that assessment, the Audit owner captures
+exactly one settled current Round, in immutable item ordinal order. Every item
+appears once with its final disposition, coverage and gaps, exact selected
+attempt and collection receipt or explicit absence. An accepted result pins
+its retained exact descriptor. Accepted typed attachment descriptors retain
+attribution and conservative classification; they confer no authority and
+unknown schemas are not interpreted as research or finding confirmation.
+Finding state, current machine assessment and human decision are pinned to
+the captured revision.
+
+**ASC-R156.** Capture reads only indexed rows of the selected Round, under
+the existing Audit claim and Audit/review mutation lock. Unaccepted pages
+belong to one Audit revision. A changed revision discards their bounded
+staging and restarts; no staged ArtifactRef or partial root is consumable.
+The final capture verifies expected membership and seals that coherent source
+generation before immutable Artifact publication. A sealed generation is never
+refreshed by later reviews. Interrupted capture and publication reuse the
+Round, generation and exact page digests (FAIL-ASC-8).
+
+**ASC-R157.** The strict versioned documents are
+`contractor.audit.round-results.v1`, `contractor.audit.round-results-page.v1`
+and `contractor.audit.round-results-consumer.v1`. The source root names all
+pages, exact refs/digests/media/sizes, item counts and its source generation.
+Each page carries that identity and ordered complete items. Source root and
+consumer descriptor are each at most 256 KiB; pages are at most 256 KiB,
+128 items and 512 total descriptors. There are at most 256 pages and 64 MiB
+of source and derived snapshot metadata including root and consumer descriptor
+(LIM-ASC-14 to LIM-ASC-18). Tighter artifact/input/evidence limits apply.
+Oversize, missing or corrupt complete results fail explicitly without truncation.
+
+**ASC-R158.** One changing construction slice reads at most 128 primary
+records, 512 primary/attempt/result/related descriptors and 1 MiB metadata.
+Stored conservative JSON sizes select rows before loading their coverage or
+attachment metadata. The indexed per-attempt related reads share the remaining
+slice budget; a cut closure leaves its whole item for the next slice. Stale
+staging cleanup deletes at most 128 rows per slice. Publication progress lives
+on its owning Round with one indexed next-page read; it does not rescan the
+containing Audit or every staged page each tick (LIM-ASC-19).
+
+**ASC-R159.** The source snapshot remains immutable under protected Audit
+retention, with the existing distinct-revision evidence debit and natural
+ArtifactLink publication identity. Selected results and attachments must
+already be exact authorized retained Audit content before acceptance. No raw
+foreign ref, source descriptor, provenance-only ref or JSON mention grants
+access. The consumer projection removes prohibited source-derived metadata
+and content before exposure, according to the pinned Audit authority; it
+never broadens a source mode or substitutes current content.
+
+The source pages and root debit the Audit's `maxEvidenceBytes` as retained
+Audit content. Derived Run-local pages and their consumer descriptor belong
+to the child input lifecycle and do not debit that Audit retention counter
+again. The independent 64 MiB materialization metadata budget includes both
+source and derived documents; rewriting an accepted closure cannot evade
+that work bound or charge an already retained source revision twice.
+
+**ASC-R160.** The Audit-owned materializer validates the accepted root and
+its complete exact page closure, then derives ordinary exact Run-local page
+artifacts and required dependencies behind the existing `initializing`
+input fence. One declared descriptor consumes one Workflow mapping; pages
+consume none. The derived pages and consumer descriptor rewrite required
+refs to exact Run-local refs and preserve explicit original-to-retained-to-
+consumer mappings and digests. Provenance-only refs stay inert. Generic Run
+creation keeps ART-R80 and never recursively follows JSON.
+
+**ASC-R161.** Materialization records bounded durable progress on its
+existing child Run, using the immutable Audit execution/accepted root and
+Run identities. Its explicit exact Run-local page, descriptor and declared-input closure refs register strict
+history holds in the same transaction as progress; ordinary dependency forks
+already hold both ends through existing lineage. Publication verifies frozen exact bytes before transferring the staged page
+payload to its protected Artifact; staging keeps immutable byte counts and
+descriptors without retaining a duplicate payload. A replay of a bound
+`initializing` child resumes missing work and cannot create another child,
+refresh a source revision or allocate a Stage before complete closure and
+the descriptor are committed. Skill initialization respects the same fence.
+The complete serialized wire JSON progress is at most 256 KiB, includes at most 1,024 unique exact local hold refs,
+and has an immutable deadline ten minutes after the original durable execution
+intent was created (LIM-ASC-20 to
+LIM-ASC-22). A rolled-back first slice does not reset that deadline.
+Materialization and assessment execution have independent clocks
+(FAIL-ASC-9).
+
+**ASC-R162.** Pause, deadline and cancel fence new capture/materialization
+work under existing Audit ownership; in-flight transactions join before
+cleanup. Required foreign, denied, missing, corrupt or incompatible content
+fails input initialization permanently, and protected-history conflict is
+permanent. Shared storage/history backpressure stays within its existing
+three-attempt original deadline. Recovery never reruns a target check merely
+to rebuild context. Pending and accepted snapshot rows/links and incomplete
+Run-local copies purge through existing Audit/Run lifecycle, with no new TTL,
+receipt table or independent holder service (LIFE-ASC-3, LIFE-ASC-4).
+
 ## Interfaces
 
 - AuditProfile fields owned here: `inventory.source` and `inventory.settings`
@@ -1035,13 +1134,12 @@ The `auditTask` executor declaration is shown with ASC-R72.
 
 ## Non-goals
 
-- The preparation contract introduces no `finalize`, no `round-results`, no
-  proposed-check routing and no additional retained source kind.
+- The preparation contract introduces no `finalize` or proposed-check routing.
+  The separate settled-Round mapping is owned by ASC-R154 to ASC-R162.
 - Profiles whose preparation requires classified active-check tools before
   item approval (ASC-R9).
-- The OpenAPI scan adapter does not provide Round result snapshots, retained
-  dependencies, proposed-check routing or standalone project-analysis
-  preparation.
+- The OpenAPI scan adapter does not interpret snapshot attachments, retained
+  dependencies or proposed-check routing, or add standalone project-analysis preparation.
 - Implicit whole-document scans (ASC-R98), synthetic GET
   serialization of fixed URL targets (ASC-R118) and
   conclusive security verdicts from scan tasks (ASC-R134).

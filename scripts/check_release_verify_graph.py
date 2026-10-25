@@ -81,6 +81,10 @@ OPT_IN_E2E_TESTS = {
         "test-audit-composition-e2e",
         "requires the real nuclei/sqlmap scanners and Chromium",
     ),
+    "TestAuditRoundResultsAcrossProductionProcesses": (
+        "test-audit-composition-e2e",
+        "the mandatory composition matrix also requires real scanners and Chromium",
+    ),
     "TestArtifactBlobBackendsContainers": (
         "test-artifact-blob-backends",
         "requires Podman to run the production containers",

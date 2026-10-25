@@ -587,6 +587,8 @@ Assembled from every document.
 | `scorer_error` | — | yes | Core diagnostic for a scorer or validator failure, recorded separately from execution state; scoring may be retried under a new Assessment without rerunning the model. | [EVF-R223](../evals/format.md) |
 | `skill_archive_invalid` | — | no | Malformed, encrypted or unsupported Skill ZIP structure; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
 | `skill_digest_mismatch` | — | no | Skill digest mismatch in allocation preparation; non-retryable for the recorded Run snapshot | [ERR-R9](errors.md) |
+| `audit_input_initialization_pending` | — | yes | Internal initializing Run reason while the Audit materializer prepares an exact complete local snapshot closure; Scheduler cannot allocate it. | [ASC-R161](../audits/scans.md) |
+| `audit_input_initialization_failed` | — | no | Internal terminal Run reason for a permanently invalid/missing/denied snapshot closure or exhausted input deadline; no partial Run becomes schedulable. | [ASC-R162](../audits/scans.md) |
 | `skill_fork_conflict` | — | no | Terminal WorkflowRun initialization code: Skill fork conflict | [ERR-R5](errors.md) |
 | `skill_fork_failed` | — | yes | Transient exact Skill fork at Run initialization; the Run stays `initializing` and follows input-fork Scheduler recovery | [ERR-R6](errors.md) |
 | `skill_manifest_invalid` | — | no | Skill manifest encoding, frontmatter or body violation; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |

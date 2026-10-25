@@ -225,6 +225,15 @@ its owning requirement.
 | `LIM-ASC-11` | 256 KiB | Scan settings artifact (contractor.audit.openapi-scan-settings.v1) | scanplan.DecodeAuditScanSettings | [ASC-R95](../audits/scans.md) |
 | `LIM-ASC-12` | 1,000 operations | operations map of the scan settings artifact | scanplan.DecodeAuditScanSettings | [ASC-R99](../audits/scans.md) |
 | `LIM-ASC-13` | 1..64 distinct names | SQLMap testParameters list in the scan settings artifact | scanplan.DecodeAuditScanSettings | [ASC-R101](../audits/scans.md) |
+| `LIM-ASC-14` | 256 KiB each | Source root and consumer descriptor encoded bytes | Audit snapshot/Run input materialization owner | [ASC-R157](../audits/scans.md) |
+| `LIM-ASC-15` | 256 KiB / 128 items / 512 descriptors | One settled-Round metadata page | Audit snapshot/Run input materialization owner | [ASC-R157](../audits/scans.md) |
+| `LIM-ASC-16` | 256 | Pages of one complete settled-Round snapshot | Audit snapshot/Run input materialization owner | [ASC-R157](../audits/scans.md) |
+| `LIM-ASC-17` | 64 MiB | Total snapshot metadata including source and consumer roots | Audit snapshot/Run input materialization owner | [ASC-R157](../audits/scans.md) |
+| `LIM-ASC-18` | Existing admitted inventory ceiling 4,096 and tighter pinned Round/remaining-total limits | Selected Round item count | Audit snapshot/Run input materialization owner | [ASC-R157](../audits/scans.md) |
+| `LIM-ASC-19` | 128 primary rows / 512 total descriptors / 1 MiB metadata; stale cleanup 128 rows | Snapshot construction transaction/tick slice | Audit snapshot/Run input materialization owner | [ASC-R158](../audits/scans.md) |
+| `LIM-ASC-20` | 256 KiB encoded state | Audit child input materialization checkpoint | Audit snapshot/Run input materialization owner | [ASC-R161](../audits/scans.md) |
+| `LIM-ASC-21` | 1,024 exact refs | Explicit Run-local input materialization holds | Audit snapshot/Run input materialization owner | [ASC-R161](../audits/scans.md) |
+| `LIM-ASC-22` | 10 minutes from the original durable child submission intent | Audit child input materialization deadline | Audit snapshot/Run input materialization owner | [ASC-R161](../audits/scans.md) |
 | `LIM-AUD-1` | exactly 1 Project (project_id) and 1 owner per Audit | Audit | Audit API and the PostgreSQL Audit record | [AUD-R1](../audits/audits.md) |
 | `LIM-AUD-2` | exactly 1 mapping per required child input or parameter | AuditProfile Workflow role binding (inputs and parameters maps) | Configuration loader (AuditProfile validation) | [AUD-R35](../audits/audits.md) |
 | `LIM-AUD-3` | 64 items | AuditProfile execution.batchSize | Server AuditProfile validation and Audit Controller batching | [AUD-R46](../audits/audits.md) |
