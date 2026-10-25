@@ -349,6 +349,7 @@ func (s *Service) selectDraftInputs(
 	}
 	sort.Strings(names)
 	result := make(map[string]auditstore.ExactArtifact, len(names))
+	rulepacks := auditRulepackInputs(profile)
 	for _, name := range names {
 		ref := selected[name]
 		if err := ref.ValidateExact(); err != nil {
@@ -360,6 +361,11 @@ func (s *Service) selectDraftInputs(
 		}
 		if !contracts.AcceptsMediaType(profile.Inputs[name].MediaTypes, metadata.MediaType) {
 			return nil, fmt.Errorf("%w: Audit input media type is incompatible", ErrInvalid)
+		}
+		if rulepacks[name] {
+			if err := validateAuditRulepackMetadata(name, metadata.MediaType, metadata.Size); err != nil {
+				return nil, err
+			}
 		}
 		result[name] = auditstore.ExactArtifact{
 			Ref: metadata.Ref, Digest: metadata.Digest,

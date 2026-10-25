@@ -569,7 +569,7 @@ func readAndVerifyInputs(
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[string]artifacts.ReadResult, len(selection.Inputs))
+	names := make([]string, 0, len(selection.Inputs))
 	for name, selected := range selection.Inputs {
 		contract, exists := profile.Inputs[name]
 		if !exists || !contracts.AcceptsMediaType(contract.MediaTypes, selected.MediaType) {
@@ -578,6 +578,40 @@ func readAndVerifyInputs(
 		if selected.Validate() != nil || !selected.HasMetadata() {
 			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation", ErrInvalid)
 		}
+		names = append(names, name)
+	}
+	for name, contract := range profile.Inputs {
+		if _, exists := selection.Inputs[name]; contract.Required && !exists {
+			return nil, fmt.Errorf("%w: required Audit input is missing", ErrInvalid)
+		}
+	}
+	sort.Strings(names)
+	refs := make([]contracts.ArtifactRef, len(names))
+	for index, name := range names {
+		refs[index] = selection.Inputs[name].Ref
+	}
+	// Verify all exact metadata before any payload is materialized. The
+	// bounded metadata batch does not load blobs, including oversized packs
+	// selected by a previously stored draft. Exact revisions are immutable.
+	described, err := store.DescribeExact(ctx, refs)
+	if err != nil {
+		return nil, err
+	}
+	rulepacks := auditRulepackInputs(profile)
+	for index, name := range names {
+		metadata := described[index]
+		if err := selection.Inputs[name].Verify(metadata); err != nil {
+			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation: %v", ErrInvalid, err)
+		}
+		if rulepacks[name] {
+			if err := validateAuditRulepackMetadata(name, metadata.MediaType, metadata.SizeBytes); err != nil {
+				return nil, err
+			}
+		}
+	}
+	result := make(map[string]artifacts.ReadResult, len(names))
+	for _, name := range names {
+		selected := selection.Inputs[name]
 		read, err := store.ReadExact(ctx, selected)
 		if errors.Is(err, contracts.ErrExactArtifactMismatch) {
 			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation: %v", ErrInvalid, err)
@@ -586,11 +620,6 @@ func readAndVerifyInputs(
 			return nil, err
 		}
 		result[name] = read
-	}
-	for name, contract := range profile.Inputs {
-		if _, exists := result[name]; contract.Required && !exists {
-			return nil, fmt.Errorf("%w: required Audit input is missing", ErrInvalid)
-		}
 	}
 	return result, nil
 }

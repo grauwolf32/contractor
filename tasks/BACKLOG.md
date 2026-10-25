@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-129 open tasks: 7 in progress, 111 pending, 11 deferred. 1108 finished: 1098 completed, 10 archived.
+129 open tasks: 8 in progress, 110 pending, 11 deferred. 1108 finished: 1098 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V416-002](v416-002-web-scan-rulepack-admission.yml) | audits | defect | P1 | Reject oversized Web scan rulepacks before accepting an Audit start |
 | [V416-005](v416-005-hybrid-placement-labels.yml) | operations | defect | P2 | Declare Runtime placement labels in hybrid deployment inventory |
 | [V416-006](v416-006-hybrid-bootstrap-idempotency.yml) | operations | defect | P1 | Bind hybrid bootstrap idempotency keys to the complete mutation |
 | [V416-009](v416-009-nuclei-preparation-boundary.yml) | scan-tools | chore | P3 | Extract the Nuclei preparation sequence into a private helper with an explicit result |
@@ -140,7 +141,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
 | [V414-001](v414-001-openapi-inventory-string-bound.yml) | defect | P2 | — | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
-| [V416-002](v416-002-web-scan-rulepack-admission.yml) | defect | P1 | — | Reject oversized Web scan rulepacks before accepting an Audit start |
 
 ### Evaluations (`evals`)
 

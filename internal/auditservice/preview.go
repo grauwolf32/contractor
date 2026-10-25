@@ -16,6 +16,7 @@ func ValidateInputPreview(profile auditprofile.ResolvedAuditProfile, scope Scope
 	if !ProfileCompatibility(profile).ServerCompatible {
 		return unsupported(ProfileCompatibility(profile).Reasons)
 	}
+	rulepacks := auditRulepackInputs(profile)
 	for name, slot := range profile.Inputs {
 		input, ok := inputs[name]
 		if slot.Required && !ok {
@@ -23,6 +24,11 @@ func ValidateInputPreview(profile auditprofile.ResolvedAuditProfile, scope Scope
 		}
 		if ok && !contracts.AcceptsMediaType(slot.MediaTypes, input.Payload.MediaType) {
 			return fmt.Errorf("%w: Audit input media type is incompatible", ErrInvalid)
+		}
+		if ok && rulepacks[name] {
+			if err := validateAuditRulepackMetadata(name, input.Payload.MediaType, int64(len(input.Payload.Data))); err != nil {
+				return err
+			}
 		}
 	}
 	for name := range inputs {
