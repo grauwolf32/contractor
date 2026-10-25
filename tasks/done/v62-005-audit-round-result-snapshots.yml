@@ -5,7 +5,7 @@ milestone: audit-iterative-composition-2026-10
 epic: audits
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 reactivation:
   date: '2026-10-24'
   previous_status: deferred
@@ -17,7 +17,7 @@ previous_deferral:
   reason: Iterative assessment snapshots are not required for the first OpenAPI-to-scan journey.
   reactivate_when: Explicit user approval after the first scan slice demonstrates useful results; define
     the snapshot contract in this task before execution.
-implementation_commit: null
+implementation_commit: dde27360126ef1f6b2e93a2616142f44fe73f3cf
 depends_on:
 - V62-004
 - V410-010
@@ -315,3 +315,59 @@ verification_progress:
   - go test -tags=e2e ./tests/e2e -run '^TestAuditRoundResultsAcrossProductionProcesses$' -count=1 -timeout=10m passed in 49.292 seconds with actual Server and locked Runtime; 129 full exact local page reads, restart, one child/mapping and no Stage before closure.
   - Python shared Round fixture test and Ruff passed in the task's isolated locked environment.
   remaining: Required complete touched-package suites, combined composition gate, cross-language gate and make lint remain for integrated coordinator verification; task is not completed.
+
+verification:
+  date: '2026-10-26'
+  result: passed
+  environment: >-
+    Go 1.26.9 with GOMAXPROCS=2 and GOFLAGS=-p=2; locked CPython 3.13 Runtime;
+    Node 24.20 and locked pnpm; dedicated disposable PostgreSQL 17 databases.
+    Initial base e452486d51128612d20e6b866f422406017fec96; integrated current
+    main 0e7d2b54295c41b323b8ccf60a64f7626b39a935 before delivery.
+  actuality: >-
+    The base had no accepted settled-Round manifest/page contract, declared
+    round-results dispatch reader or durable exact page-to-Run initialization
+    fence. Existing claims, artifact lineage and child submission identities
+    were reused; no receipt, lease or broad cross-scope reader was added.
+  commands:
+  - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller ./internal/auditimport ./internal/artifacts ./internal/runservice ./internal/artifactpolicy ./internal/config/...
+    result: passed with real PostgreSQL enabled for every store case.
+  - command: go test -count=1 ./internal/runstore
+    result: passed.
+  - command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditimport
+    result: passed again after exact dependency recovery and permanent collection classification changes.
+  - command: go test -count=1 ./internal/persistence/postgres
+    result: passed after registering the new column-scoped triggers and qualifiers in the schema inventory.
+  - command: make test-audit-composition-e2e
+    result: passed; 40 mandatory store cases, 10 mandatory process cases, a real browser journey and zero skips.
+  - command: make test-wire-cross-language
+    result: passed; repeated after main integration with 280 fixtures, 329 Go and 225 Python shared tests.
+  - command: make lint
+    result: passed; repeated after main integration, including layers, test-only exports, generated documents and task checks.
+  - command: make ui-verify
+    result: passed; 195 UI test files, 2427 passing tests and one expected-failure assertion, server tests and production build.
+  - command: make verify-public-api
+    result: passed with complete selected public-operation coverage.
+  - command: go test -tags=e2e ./tests/e2e -run '^TestAuditRoundResultsAcrossProductionProcesses$' -count=1 -timeout=10m
+    result: passed again after integrating the Runtime archive cache from main.
+  - command: go test -count=1 ./internal/artifacts ./internal/httpapi/privateartifacts
+    result: passed after main integration.
+  - command: cd runtime && uv run pytest tests/test_security_findings_toolset.py tests/test_shared_round_results.py
+    result: passed, 33 tests.
+  - command: go test -count=1 ./internal/runservice
+    result: passed again after anchoring input timeout to the original durable intent; first-slice rollback cannot reset it.
+  - command: go vet ./internal/runservice ./internal/auditdomain ./internal/auditservice
+    result: passed after the deadline correction, together with gofmt, specification and shared-fixture source checks.
+  evidence: >-
+    Indexed capture includes all 4096 selected items inside a 100000-item Audit
+    and 205 actual pages. Concurrent review capture, publication replay, populated
+    and interrupted purge, metadata bounds and exact retention are covered on
+    PostgreSQL. The process consumer reads every byte of 129 local pages through
+    ordinary scoped tools, uses one declared input, and allocates no Stage before
+    the complete closure; Server restart reuses the child. A separate real-store
+    65-dependency test commits 32 forks, loses acknowledgement, rolls back the
+    next chunk, then completes 64/65 exact forks with verified payloads and one
+    child/debit. Generic fence cases cover transient and permanent failure,
+    restart, original deadline, exact 262144-byte state, oversize, immutable
+    identity and stale CAS. Permanent input failures settle once without a
+    target retry or changed collection receipt.

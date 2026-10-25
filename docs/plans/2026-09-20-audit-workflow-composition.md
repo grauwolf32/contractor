@@ -231,7 +231,7 @@ Minimal no-Round public lifecycle support ships in 003; 010 adds richer provenan
 | [002](../../tasks/done/v62-002-audit-preparation-store.yml) | **Accepted:** durable preparation state, executions, retention and migration 98 | 001 |
 | [003](../../tasks/done/v62-003-audit-preparation-controller.yml) | Prepare Runs, recovery and minimal public controls before a Round exists | 002 |
 | [004](../../tasks/done/v62-004-audit-prepared-inventory.yml) | Atomic generated inventory and a profile using existing source-to-OpenAPI Workflow | 003 |
-| [005](../../tasks/v62-005-audit-round-result-snapshots.yml) | **Pending:** settled round snapshots | 004 |
+| [005](../../tasks/done/v62-005-audit-round-result-snapshots.yml) | **Completed:** complete immutable settled round snapshots and exact local consumer inputs | 004 |
 | [006](../../tasks/v62-006-audit-retained-dependencies.yml) | **Pending:** cross-round item dependencies | 004 |
 | [007](../../tasks/v62-007-audit-check-routing.yml) | **Pending:** proposed-check routing | 005, 006 |
 | [008](../../tasks/v62-008-project-analysis-preparation.yml) | **Deferred:** standalone analysis and two-Workflow preparation | 004 |
