@@ -9,6 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -18,9 +19,10 @@ func TestControllerClassifiesExactInputInitializationFailures(t *testing.T) {
 		artifacts.ErrHistoryProtected, artifacts.ErrReservedNamespace, artifacts.ErrRunRevisionLimit, artifacts.ErrInvalidMediaType,
 		artifacts.ErrPayloadTooLarge, artifacts.ErrVersionedWriteTarget, contracts.ErrValidation, contracts.ErrExactArtifactMismatch,
 		&auditdomain.ValidationError{Code: auditdomain.CodeLimitExceeded},
-		&pgconn.PgError{Code: "23503", ConstraintName: "artifact_exact_hold"}}
+		&pgconn.PgError{Code: persistencepostgres.SQLStateForeignKeyViolation, ConstraintName: "artifact_exact_hold"}}
 	transient := []error{context.Canceled, context.DeadlineExceeded, errors.New("temporary storage outage"), artifacts.ErrBlobIO,
-		artifacts.ErrHistoryMaintenancePending, &pgconn.PgError{Code: "40001"}, &pgconn.PgError{Code: "23503", ConstraintName: "unrelated_foreign_key"}}
+		artifacts.ErrHistoryMaintenancePending, &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure},
+		&pgconn.PgError{Code: persistencepostgres.SQLStateForeignKeyViolation, ConstraintName: "unrelated_foreign_key"}}
 	for _, failure := range permanent {
 		t.Run("permanent-"+failure.Error(), func(t *testing.T) {
 			if !permanentSubmissionError(fmt.Errorf("prepare declared input: %w", failure)) {
