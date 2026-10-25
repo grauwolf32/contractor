@@ -96,17 +96,21 @@ test("Evals and Skills stay separate Project/UserScope UI projections", async ({
 }) => {
   await installAPI(page);
 
-  await page.goto("/evals/legacy");
-  await expect(page.getByRole("heading", { name: "Evals" })).toBeVisible();
+  await page.goto("/evals/workspaces");
+  await expect(
+    page.getByRole("heading", { name: "Evaluation workspaces", exact: true }),
+  ).toBeVisible();
   await page.getByRole("link", { name: "Browser evaluation" }).click();
   await expect(page.getByRole("heading", { name: "Eval Runs" })).toBeVisible();
   await expect(page.getByText("eval-browser-01")).toBeVisible();
   await expect(
     page.getByRole("link", { name: "run-browser-leg-a" }),
   ).toBeVisible();
-  // Legacy workspaces keep history and a read-only artifact list only.
+  // Evaluation workspaces keep history and a read-only artifact list only.
   const sections = page.getByRole("navigation", { name: "Project sections" });
   await expect(sections.getByRole("link")).toHaveText([
+    "Experiments",
+    "Datasets",
     "Runs",
     "Artifacts",
     "Workspace settings",
@@ -126,3 +130,76 @@ test("Evals and Skills stay separate Project/UserScope UI projections", async ({
     "/artifacts/skills/architecture-review",
   );
 });
+
+for (const width of [390, 1280]) {
+  for (const theme of ["light", "dark", "black"]) {
+    test(`current evaluation workspace at ${width}px in ${theme}`, async ({
+      page,
+    }, info) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.addInitScript(
+        (value) => localStorage.setItem("contractor.theme", value),
+        theme,
+      );
+      await installAPI(page);
+      await page.goto("/evals/workspaces");
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      await expect(
+        page.getByRole("heading", {
+          name: "Evaluation workspaces",
+          exact: true,
+        }),
+      ).toBeVisible();
+      await page
+        .getByRole("button", { name: "New workspace", exact: true })
+        .click();
+      const dialog = page.getByRole("dialog", {
+        name: "New evaluation workspace",
+      });
+      await expect(dialog.getByLabel("Name", { exact: true })).toHaveAttribute(
+        "maxlength",
+        "160",
+      );
+      await expect(
+        dialog.getByRole("button", { name: "Create workspace" }),
+      ).toBeVisible();
+      await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      await page
+        .getByRole("link", { name: "Browser evaluation", exact: true })
+        .click();
+      await expect(page).toHaveURL(`/evals/workspaces/${EVAL_ID}`);
+      await page.reload();
+      const sections = page.getByRole("navigation", {
+        name: "Project sections",
+      });
+      await expect(
+        sections.getByRole("link", { name: "Experiments", exact: true }),
+      ).toHaveAttribute("href", `/evals?projectId=${EVAL_ID}`);
+      await expect(
+        sections.getByRole("link", { name: "Datasets", exact: true }),
+      ).toHaveAttribute("href", `/evals/datasets?project=${EVAL_ID}`);
+      await expect(
+        page.getByRole("link", { name: "run-browser-leg-a" }),
+      ).toBeVisible();
+      await page
+        .getByText("Workspace settings", { exact: true })
+        .last()
+        .click();
+      await expect(
+        page.getByRole("heading", { name: "Live target", exact: true }),
+      ).toBeVisible();
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth,
+          ),
+        )
+        .toBe(true);
+      await page.screenshot({
+        path: info.outputPath(`workspace-${width}-${theme}.png`),
+        fullPage: true,
+      });
+    });
+  }
+}

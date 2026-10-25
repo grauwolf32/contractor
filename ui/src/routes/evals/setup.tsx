@@ -7,7 +7,6 @@ import {
   type EvalDraft,
   type EvalExperiment,
 } from "../../api/evals";
-import { createProject } from "../../api/projects";
 import { queryKeys } from "../../api/query-keys";
 import { useDocumentTitle } from "../../app/document-title";
 import { Button, ButtonLink, Facts, Field, TechnicalDetails } from "../../ui";
@@ -36,6 +35,7 @@ import {
 } from "./setup-model";
 import { VariantEditor } from "./variants";
 import { useGuardedNavigate } from "../../app/page-location";
+import { EvaluationWorkspaceDialog } from "./workspace-dialog";
 
 const STEPS = [
   "Variants",
@@ -76,7 +76,7 @@ export function EvalSetupForm({
   );
   const [step, setStep] = useState(0);
   const [author, setAuthor] = useState(false);
-  const [workspaceName, setWorkspaceName] = useState("");
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [validation, setValidation] = useState<Error | null>(null);
   const keyValues = useKeyValueValidity();
@@ -90,19 +90,6 @@ export function EvalSetupForm({
     onDirtyChange?.(true);
     setValidation(null);
   }
-  const createWorkspace = useMutation({
-    mutationFn: async () => {
-      const body = { kind: "evaluation" as const, name: workspaceName };
-      return recoverableMutation(owner, "workspace", body, (idempotencyKey) =>
-        createProject(api, { request: body, idempotencyKey }),
-      );
-    },
-    onSuccess: async (result) => {
-      await cache.invalidateQueries({ queryKey: queryKeys.evals.projects });
-      setProjectId(result.projectId);
-      setWorkspaceName("");
-    },
-  });
   const save = useMutation({
     mutationFn: async () => {
       if (keyValues.invalid)
@@ -219,32 +206,38 @@ export function EvalSetupForm({
                   )}
                 </Field>
               </div>
-              {!experiment ? (
-                <details className="eval-disclosure">
-                  <summary>Create an evaluation workspace</summary>
-                  <div className="eval-disclosure-body">
-                    <Field label="New workspace name">
-                      {(control) => (
-                        <input
-                          {...control}
-                          value={workspaceName}
-                          onChange={(e) => setWorkspaceName(e.target.value)}
-                        />
-                      )}
-                    </Field>
-                    <div className="ui-toolbar">
-                      <Button
-                        size="sm"
-                        disabled={!workspaceName.trim()}
-                        pending={createWorkspace.isPending}
-                        onClick={() => createWorkspace.mutate()}
-                      >
-                        Create workspace
-                      </Button>
-                    </div>
-                    <EvalError error={createWorkspace.error} />
-                  </div>
-                </details>
+              <div className="ui-toolbar">
+                {projectId ? (
+                  <ButtonLink
+                    size="sm"
+                    to={`/evals/workspaces/${encodeURIComponent(projectId)}`}
+                  >
+                    Manage workspace
+                  </ButtonLink>
+                ) : (
+                  <ButtonLink size="sm" to="/evals/workspaces">
+                    Workspaces
+                  </ButtonLink>
+                )}
+                {!experiment ? (
+                  <Button size="sm" onClick={() => setWorkspaceOpen(true)}>
+                    New workspace
+                  </Button>
+                ) : null}
+              </div>
+              {workspaceOpen ? (
+                <EvaluationWorkspaceDialog
+                  onClose={() => setWorkspaceOpen(false)}
+                  onCreated={(workspace) => {
+                    setWorkspaceOpen(false);
+                    setProjectId(workspace.projectId);
+                    update({
+                      ...draft,
+                      dataset: { id: "", revision: "" },
+                      caseIds: [],
+                    });
+                  }}
+                />
               ) : null}
               <div className="eval-grid">
                 <Field label="Execution kind">

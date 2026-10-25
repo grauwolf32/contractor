@@ -1320,9 +1320,11 @@ describe("Evaluation workspaces", () => {
   });
 
   it("keep their list, sections and wording", async () => {
-    const { user } = renderAt({ projects: [evaluation] }, "/evals/legacy");
-    expect(await screen.findByRole("heading", { name: "Evals" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "New Eval" })).toBeVisible();
+    const { user } = renderAt({ projects: [evaluation] }, "/evals/workspaces");
+    expect(
+      await screen.findByRole("heading", { name: "Evaluation workspaces" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "New workspace" })).toBeVisible();
     await user.click(
       await screen.findByRole("link", { name: "Regression eval" }),
     );
@@ -1336,8 +1338,14 @@ describe("Evaluation workspaces", () => {
       within(sections)
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["Runs", "Artifacts", "Workspace settings"]);
-    expect(screen.getByLabelText("Eval actions")).toBeVisible();
+    ).toEqual([
+      "Experiments",
+      "Datasets",
+      "Runs",
+      "Artifacts",
+      "Workspace settings",
+    ]);
+    expect(screen.getByLabelText("Workspace actions")).toBeVisible();
     expect(screen.getByRole("heading", { name: "Artifacts" })).toBeVisible();
   });
 });

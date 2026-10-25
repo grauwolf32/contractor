@@ -127,7 +127,7 @@ export function EvalListRoute() {
         <div className="ui-stack eval-list-toolbar" data-gap="2">
           <nav className="eval-collections" aria-label="Evaluation collections">
             <Link to="/evals/datasets">Datasets</Link>
-            <Link to="/evals/legacy">Legacy evaluation workspaces</Link>
+            <Link to="/evals/workspaces">Workspaces</Link>
           </nav>
           <details className="eval-filters" open={filtered}>
             <summary>
@@ -216,7 +216,7 @@ export function EvalListRoute() {
               {filtered
                 ? "Create an experiment here or show all workspaces."
                 : "Create an experiment to compare two variants."}{" "}
-              Earlier evaluation workspaces remain in legacy history.
+              Manage datasets and recorded history in evaluation workspaces.
             </p>
           </EmptyState>
         }

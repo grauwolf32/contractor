@@ -179,10 +179,12 @@ owner-safe `404` (FAIL-PRJ-1, FAIL-PRJ-2).
 execution composition as `project`, with a distinct UI entry point; it must not
 create an eval-only Scheduler path.
 
-**PRJ-R95.** The legacy Evals view uses Project kind plus the generic
+**PRJ-R95.** Evaluation workspace management lists current Projects of kind
+`evaluation` and retains ordinary execution history with the generic
 `purpose=eval` and `eval.*` Run-label convention ([Runs](../execution/runs.md)).
+Workspace creation and management are distinct from experiment creation.
 
-How legacy labelled Runs relate to experiments is specified in
+How labelled Runs relate to experiments is specified in
 [Managed Evals](../evals/managed-evals.md).
 
 **PRJ-R7.** Managed Eval experiments are added explicitly inside

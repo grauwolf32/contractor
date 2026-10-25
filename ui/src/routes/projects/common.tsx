@@ -48,7 +48,7 @@ export function ProjectRegion({
 }
 
 /**
- * Read-only bindings table for legacy evaluation workspaces: the recorded
+ * Read-only bindings table for evaluation workspaces: the recorded
  * inputs of a workspace without upload shortcuts or Git import.
  */
 export function ProjectArtifactBindings({
@@ -56,7 +56,7 @@ export function ProjectArtifactBindings({
   detailRoot,
 }: {
   projectId: string;
-  detailRoot: "/projects" | "/evals";
+  detailRoot: "/projects" | "/evals/workspaces";
 }) {
   const api = usePublicAPI();
   const pages = useCursorStack();

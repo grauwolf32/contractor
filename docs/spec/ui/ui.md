@@ -384,8 +384,12 @@ surfaces; their contents follow
 
 **UI-R48.** Evals renders evaluation Projects and eval-specific label
 grouping. The [experiment journey](../../evals-experience-design.md) makes
-experiments the Evals entry point while preserving legacy workspace routes and
-ordinary Run and Audit execution.
+experiments the Evals entry point. Current evaluation workspaces have one
+management surface at `/evals/workspaces` and `/evals/workspaces/:projectId`,
+reachable from experiments, setup and datasets. Creating a workspace is named
+separately from creating an experiment; both workspace entry points reuse the
+same creation form. Ordinary Run and Audit execution and recorded materials
+remain inspectable, with shared Project editing and confirmed deletion.
 
 Browser Evals setup, launch and comparison, their chart projections and
 evidence navigation, and the support for both Workflow and Audit experiments

@@ -43,7 +43,7 @@ export function ProjectWorkflowRunRoute() {
   );
   const evaluation = project.data?.kind === "evaluation";
   const backPath = evaluation
-    ? `/evals/${encodeURIComponent(projectId)}`
+    ? `/evals/workspaces/${encodeURIComponent(projectId)}`
     : `/projects/${encodeURIComponent(projectId)}/workflows`;
 
   if (!valid) {
@@ -63,7 +63,7 @@ export function ProjectWorkflowRunRoute() {
         breadcrumb={
           evaluation
             ? [
-                { label: "Evals", to: "/evals" },
+                { label: "Evals", to: "/evals/workspaces" },
                 { label: project.data?.name ?? projectId, to: backPath },
                 { label: "Configure Run" },
               ]

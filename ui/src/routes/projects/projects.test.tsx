@@ -882,7 +882,7 @@ describe("Project routes", () => {
     ).toBeEnabled();
   });
 
-  it.each(["projects", "evals"])(
+  it.each(["projects", "evals/workspaces"])(
     "keeps contextual return navigation after a %s Artifact version upload",
     async (scope) => {
       const original = {

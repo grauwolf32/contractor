@@ -13,8 +13,14 @@ describe("artifactDetailPath", () => {
       "/projects/project_a/artifacts/inputs/spec%20v1?revision=r%2F1",
     );
     expect(
-      artifactDetailPath({ kind: "project", id: "project_a" }, ref, "/evals"),
-    ).toBe("/evals/project_a/artifacts/inputs/spec%20v1?revision=r%2F1");
+      artifactDetailPath(
+        { kind: "project", id: "project_a" },
+        ref,
+        "/evals/workspaces",
+      ),
+    ).toBe(
+      "/evals/workspaces/project_a/artifacts/inputs/spec%20v1?revision=r%2F1",
+    );
     expect(artifactDetailPath({ kind: "run", id: "run-1" }, ref)).toBe(
       "/runs/run-1/artifacts/inputs/spec%20v1?revision=r%2F1",
     );

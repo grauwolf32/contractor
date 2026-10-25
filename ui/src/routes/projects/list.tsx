@@ -15,8 +15,7 @@ import { RecordedTime } from "../../app/recorded-time";
 import { RefreshButton } from "../../app/refresh-button";
 import { Button } from "../../ui";
 import { EvaluationActivity } from "./evaluation-activity";
-import { NewProjectDialog } from "./new-project-dialog";
-import { useNewProjectKeys } from "./new-project-keys";
+import { EvaluationWorkspaceDialog } from "../evals/workspace-dialog";
 import { ProjectsRoute } from "./projects-route";
 import { pollWhileAnyDeleting } from "./use-project-deletion";
 
@@ -29,17 +28,16 @@ import "./collection.css";
 export const ProjectListRoute = ProjectsRoute;
 
 /**
- * Legacy evaluation workspaces at /evals/legacy: Projects of kind
+ * Evaluation workspaces at /evals/workspaces: Projects of kind
  * `evaluation` that hold experiments and datasets. They keep their own
  * layout and wording (S06: "Eval workspaces retain their existing layout").
  */
 export function EvaluationListRoute() {
-  useDocumentTitle("Evals");
+  useDocumentTitle("Evaluation workspaces");
   const api = usePublicAPI();
   const navigate = useGuardedNavigate();
   const pages = useCursorStack();
   const [createOpen, setCreateOpen] = useState(false);
-  const createKeys = useNewProjectKeys();
   const cursor = pages.cursor;
   const query = useQuery({
     queryKey: queryKeys.projects.list("evaluation", cursor),
@@ -56,31 +54,25 @@ export function EvaluationListRoute() {
       <header className="route-header-row">
         <div>
           <p className="eyebrow">Evaluation workspaces</p>
-          <h2>Evals</h2>
+          <h2>Evaluation workspaces</h2>
           <p className="lede">
-            Compare execution history across evaluation workspaces. A succeeded
-            Run is an execution status; review outputs for the evaluation
-            result.
+            Manage the workspaces that hold experiments, datasets and recorded
+            execution history.
           </p>
         </div>
         <Button variant="primary" onClick={() => setCreateOpen(true)}>
-          New Eval
+          New workspace
         </Button>
       </header>
 
       {createOpen ? (
-        <NewProjectDialog
-          kind="evaluation"
-          keys={createKeys}
-          wording={{
-            title: "New Eval",
-            closeLabel: "Close New Eval form",
-            submitLabel: "Create Eval",
-          }}
+        <EvaluationWorkspaceDialog
           onClose={() => setCreateOpen(false)}
           onCreated={(project) => {
             setCreateOpen(false);
-            void navigate(`/evals/${encodeURIComponent(project.projectId)}`);
+            void navigate(
+              `/evals/workspaces/${encodeURIComponent(project.projectId)}`,
+            );
           }}
         />
       ) : null}
@@ -88,7 +80,7 @@ export function EvaluationListRoute() {
       <div className="project-list-heading">
         <div>
           <p className="eyebrow">Project kind</p>
-          <h3>Evaluation workspaces</h3>
+          <h3>Workspaces</h3>
         </div>
         <RefreshButton
           isFetching={query.isFetching}
@@ -101,22 +93,22 @@ export function EvaluationListRoute() {
         query={query}
         loading={
           <p className="loading-copy" role="status">
-            Loading Evals…
+            Loading workspaces…
           </p>
         }
-        errorContext="Could not load Eval workspaces"
+        errorContext="Could not load evaluation workspaces"
         onRetry={() => void query.refetch()}
         isEmpty={(data) => data.items.length === 0}
         empty={
           <div className="empty-state ui-panel">
             <p className="eyebrow">Nothing here yet</p>
-            <h3>Create your first Eval</h3>
+            <h3>Create your first evaluation workspace</h3>
             <p>
-              An Eval is a Project workspace whose ordinary Runs use
-              purpose=eval and eval.* metadata labels.
+              A workspace holds datasets and experiments. Create an experiment
+              inside it to compare two variants.
             </p>
             <Button variant="primary" onClick={() => setCreateOpen(true)}>
-              New Eval
+              New workspace
             </Button>
           </div>
         }
@@ -124,7 +116,7 @@ export function EvaluationListRoute() {
         {(data) => (
           <div className="project-card-grid">
             {data.items.map((project) => {
-              const path = `/evals/${encodeURIComponent(project.projectId)}`;
+              const path = `/evals/workspaces/${encodeURIComponent(project.projectId)}`;
               return (
                 <article
                   className={`ui-panel project-card ${project.lifecycle === "deleting" ? "is-deleting" : ""}`}
@@ -166,7 +158,7 @@ export function EvaluationListRoute() {
                     <Link className="project-card-open" to={path}>
                       {project.lifecycle === "deleting"
                         ? "View deletion status →"
-                        : "Open Eval →"}
+                        : "Open workspace →"}
                     </Link>
                   </div>
                 </article>
@@ -177,7 +169,7 @@ export function EvaluationListRoute() {
       </QueryView>
 
       <CursorControls
-        label="Evals pages"
+        label="Workspace pages"
         {...pages.controls(query.data?.page)}
       />
     </section>

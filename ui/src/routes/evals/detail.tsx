@@ -12,7 +12,7 @@ import { useDocumentTitle } from "../../app/document-title";
 import { formatTimestamp } from "../../app/format";
 import { MobileSectionPicker } from "../../app/mobile-section-picker";
 import { QueryView } from "../../app/query-view";
-import { Button, FilterChips, IdChip } from "../../ui";
+import { Button, ButtonLink, FilterChips, IdChip } from "../../ui";
 import { ArmKey, EvalError, EvalFrame, EvalStateChip } from "./common";
 import { EvalComparison } from "./comparison";
 import { EvalControls } from "./controls";
@@ -237,6 +237,16 @@ export function EvalDetailRoute() {
         { label: name },
       ]}
       status={data ? <EvalStateChip state={data.state} /> : undefined}
+      action={
+        data ? (
+          <ButtonLink
+            size="sm"
+            to={`/evals/workspaces/${encodeURIComponent(data.projectId)}`}
+          >
+            Manage workspace
+          </ButtonLink>
+        ) : undefined
+      }
       description={
         data ? (
           <>

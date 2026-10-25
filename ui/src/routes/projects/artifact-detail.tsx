@@ -14,12 +14,12 @@ import "../artifacts/materials.css";
 function ProjectArtifactDetailRouteView({
   detailRoot,
 }: {
-  detailRoot: "/projects" | "/evals";
+  detailRoot: "/projects" | "/evals/workspaces";
 }) {
   const { projectId = "", namespace = "", name = "" } = useParams();
   const [searchParams] = useSearchParams();
   const revision = searchParams.get("revision") ?? undefined;
-  const evaluation = detailRoot === "/evals";
+  const evaluation = detailRoot === "/evals/workspaces";
   useDocumentTitle(
     name
       ? `${namespace}/${name} · ${evaluation ? "Eval workspace" : "Materials"}`
@@ -55,7 +55,7 @@ function ProjectArtifactDetailRouteView({
         <ReturnLink
           to={
             evaluation
-              ? `/evals/${project}#project-artifacts`
+              ? `/evals/workspaces/${project}#project-artifacts`
               : `/projects/${project}/artifacts`
           }
           label={evaluation ? "Eval workspace" : "Materials"}
@@ -70,7 +70,7 @@ export function ProjectArtifactDetailRoute() {
   return <ProjectArtifactDetailRouteView detailRoot="/projects" />;
 }
 
-/** The same page for a material of a legacy evaluation workspace. */
+/** The same page for a material of an evaluation workspace. */
 export function EvaluationArtifactDetailRoute() {
-  return <ProjectArtifactDetailRouteView detailRoot="/evals" />;
+  return <ProjectArtifactDetailRouteView detailRoot="/evals/workspaces" />;
 }

@@ -118,7 +118,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
         <ErrorNotice
           error={new Error("Evaluation workspaces are available in Evals.")}
         />
-        <Link to={`/evals/${encodeURIComponent(projectId)}`}>
+        <Link to={`/evals/workspaces/${encodeURIComponent(projectId)}`}>
           Open this workspace in Evals
         </Link>
       </>
