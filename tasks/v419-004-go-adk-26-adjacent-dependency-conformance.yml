@@ -42,6 +42,8 @@ context:
   process_verification: The five existing real-process parents declared byV419-005 run once as targeted004A2
     verification in an independent Linux clone; reuse their exact source/module/lock records for005 if
     unchanged. No global E2E/release run.
+  owner_wire_evidence: tasks/evidence/v419-go-adk-26-adjacent-owner-wire.json
+  process_evidence: tasks/evidence/v419-go-adk-26-selected-processes.json
 scope:
   in:
   - Dependency-consumer conformance, custom adapter regressions and honest optional Collector evidence.
@@ -151,3 +153,17 @@ test_prerequisites:
   disposable PostgreSQL database. Validate nonzero executed case inventories from Go JSON reports; a command
   exit alone is not proof. The only ordinary optional skips are the two named live-Gateway tests and the
   explicitly optional real-Collector test. Do not retry failed gates until green without a diagnosed change.
+verification:
+  owners: Scoped4package race union107top/300passrecords/264passedleaves;1explicitoptionalCollector skip.
+    Afternewtelemetrytest onlyfullchangedtelemetryrace repeated:50top/122records/109leavesPASS+sameoptionalCollector
+    skip. ScopedvetPASS.
+  wire: make test-wire-cross-language PASS:271fixtures326Go224Pythonsharedfunctions; Go contracts821passrecords786leaves,
+    Runtimecontracts313, sharedRuntime1240cases. No unrelated fullRuntime/UIrun.
+  process: Five whole selected parents onclean committedb46/Linuxarm64 withfreshGo2.6Server+patchedRuntime
+    lock:5parents27passrecords22requiredleaves0fail/skip. All6047capturedfiles unchanged; Rootproduction/module/Runtime/processfixtures
+    unchanged afterward. Reuse this actual record in005, do not repeat it.
+  contracts: Raised264module graph matches accepteda7e89eca; customGateway/schema owner evidence attributed
+    to exactunchanged002source. Newproxypositivecontrol+twoactualHTTPsinks prove direct isolated single
+    export and no repeat emptyFlush.
+  limits: No fullrepository/release/allE2E verification; optionalexternalCollector and liveGateway unexecuted.
+    No native exporter/A2Adelegation/compaction activation or Schedulerproductionchange.
