@@ -5,7 +5,7 @@ milestone: adk-213-upgrade-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V418-001
 languages:
@@ -42,6 +42,8 @@ context:
     owns instrumentation assumptions; V39-005 introduced common completion continuation. The current 2.8
     implementation passed the ten-case control: this is a compatibility migration, not evidence that every
     path is defective on its supported pin.'
+  execution_authority: 'User authorized implementation on2026-10-25: Runtime V418 first, then Server V419.
+    V418001 baseline characterization and baseline fixes008/009 are complete.'
 scope:
   in:
   - One atomic change to runtime/pyproject.toml, generated uv.lock, exact-version smoke, production adapters,
