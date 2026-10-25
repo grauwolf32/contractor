@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-132 open tasks: 4 in progress, 117 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+132 open tasks: 5 in progress, 116 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V416-003](v416-003-web-scan-shared-launch-state.yml) | ui | defect | P1 | Restore shared Audit launch options and state in Web scan |
 
 ## Pending
 
@@ -165,7 +166,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the autonomous HTTP pentest setup and evidence journey |
-| [V416-003](v416-003-web-scan-shared-launch-state.yml) | defect | P1 | — | Restore shared Audit launch options and state in Web scan |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 

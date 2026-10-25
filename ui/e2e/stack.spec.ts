@@ -1134,6 +1134,33 @@ test("widget: launches a Web scan Audit with custom project rules through the re
     const session = (await (
       await fetch(`${origin}/v1/auth/session`, { credentials: "include" })
     ).json()) as { csrfToken: string };
+    const defaultBinding = await fetch(
+      `${origin}/v1/operations/runtime-labels/default`,
+      { credentials: "include" },
+    );
+    if (defaultBinding.status !== 200)
+      throw new Error(
+        `Could not read default Runtime configuration: ${defaultBinding.status}`,
+      );
+    const binding = (await defaultBinding.json()) as { config: unknown };
+    const configSelection = await fetch(
+      `${origin}/v1/operations/runtime-labels/webscan-test`,
+      {
+        method: "PUT",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": session.csrfToken,
+          "Idempotency-Key": crypto.randomUUID(),
+          "If-None-Match": "*",
+        },
+        body: JSON.stringify({ config: binding.config }),
+      },
+    );
+    if (configSelection.status !== 201)
+      throw new Error(
+        `Could not bind Web scan Runtime configuration: ${configSelection.status}`,
+      );
     const response = await fetch(`${origin}/v1/projects`, {
       method: "POST",
       credentials: "include",
@@ -1164,6 +1191,15 @@ test("widget: launches a Web scan Audit with custom project rules through the re
       "id: project-rule\ninfo:\n  name: Project fixture\n  author: contractor\n  severity: info\nhttp:\n  - method: GET\n    path:\n      - '{{BaseURL}}/'\n",
     ),
   });
+  await page.getByText("Advanced options", { exact: true }).click();
+  await page.getByRole("button", { name: "+ cloud", exact: true }).click();
+  await page.getByLabel("Label value 1").fill("aws");
+  const options = page
+    .locator("details.start-advanced")
+    .filter({ hasText: "Labels, version and check limits." });
+  await options.getByText("Technical details", { exact: true }).click();
+  await page.getByLabel("Runtime configuration labels").fill("webscan-test");
+  await page.getByLabel("Time limit", { exact: true }).selectOption("604800");
   const creation = page.waitForResponse(
     (response) =>
       response.url() === `${apiURL}/v1/projects/${projectId}/audits` &&
@@ -1182,15 +1218,26 @@ test("widget: launches a Web scan Audit with custom project rules through the re
     auditId: string;
     profile: { name: string };
     inputs: Record<string, { ref: { namespace: string } }>;
+    labels: Record<string, string>;
+    runtimeLabels: string[];
   };
   expect(audit.profile.name).toBe("web-scan");
+  expect(audit.labels).toEqual({ cloud: "aws" });
+  expect(audit.runtimeLabels).toEqual(["webscan-test"]);
   expect(Object.keys(audit.inputs).sort()).toEqual([
     "rulepack",
     "settings",
     "target",
   ]);
   expect(audit.inputs.rulepack?.ref.namespace).toBe("scan-inputs");
-  expect((await starting).status()).toBe(200);
+  const started = await starting;
+  expect(started.status()).toBe(200);
+  const startedBody = await started.json();
+  // Exact submitted seconds are checked by the client regression; this gate
+  // verifies persisted admission without comparing independent wall clocks.
+  expect(startedBody.audit.deadlineAt).toEqual(expect.any(String));
+  expect(startedBody.audit.baseline.labels).toEqual({ cloud: "aws" });
+  expect(startedBody.audit.baseline.runtimeLabels).toEqual(["webscan-test"]);
   await expect(page).toHaveURL(
     new RegExp(`/projects/${projectId}/audits/${audit.auditId}$`),
   );

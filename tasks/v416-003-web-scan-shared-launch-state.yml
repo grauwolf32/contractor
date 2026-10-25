@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V406-018
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages: [typescript]
 goal: >-
@@ -112,3 +112,17 @@ tests:
     covers: [A2, A3, A4, A5, A6]
   - command: "make lint"
     covers: [A1, A2, A3, A4, A5, A6]
+validation:
+  environment: "Dedicated codex/v416-ui-ops-fixes worktree; Node 24.20.0 and pinned pnpm; own locked Python 3.13 environment; separate UTF-8 PostgreSQL v416_ui database."
+  decisions:
+    - "useStartCheck owns shared options and the only useLaunch; Web scan supplies validated exact inputs. One common footer, request builder and recovery UI serve both forms."
+    - "The launch guard covers preparation and mutation. Navigation or type/version/Project changes invalidate the attempt; the current artifact call is joined before exit, without further publication or launch. Retained content stays under the ordinary Project lifecycle."
+  evidence:
+    - "The two shared-options regressions fail against original cce0f0a4b28527a1475656df095ec4453ad054c0 because Advanced options is absent; they pass with this implementation."
+    - "All 55 focused start/Web scan tests pass, including installed/custom options, invalid metadata/deadline, shared options through type switches, pending preparation across type/Project/navigation changes, and exact ambiguous-start replay."
+    - "make ui-verify passed: 193 files, 2398 passing tests and one expected failure; 17 Node tests; generation, formatting, lint, typecheck and build."
+    - "make ui-browser-mocked passed all 91 cases in 23 specs. Six additional retained screenshots at 390/1440px in light/dark/black passed; light/black narrow and dark desktop screenshots inspected without overflow."
+    - "make test-web-scan-ui-stack passed with the real Server, Runtime and disposable PostgreSQL. cloud:aws and the selected RuntimeConfig binding are present in the retained baseline; the selected bounded deadline is persisted."
+    - "make docs-dependencies-check, specification consistency and task consistency passed."
+  remaining:
+    - "Integrated make lint is assigned to the parent implementation coordinator; retain in_progress until that required command passes and closure metadata is recorded."

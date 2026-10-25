@@ -44,6 +44,7 @@ import {
   type ProjectMaterials,
 } from "./data";
 import { useLaunch, type Launch } from "./launch";
+import { useWebScanDraft, type WebScanDraft } from "./web-scan-state";
 import {
   createRequest,
   MAX_RUNTIME_LABELS,
@@ -142,6 +143,7 @@ function usesOf(profile: AuditProfile, needsLiveTarget: boolean): string[] {
 const NO_CHOICES: Readonly<Record<string, string>> = {};
 
 export interface StartCheck {
+  readonly webScan: WebScanDraft | undefined;
   readonly labels: readonly LabelEntry[];
   readonly setLabels: (value: LabelEntry[]) => void;
   readonly labelError: string | undefined;
@@ -213,7 +215,6 @@ export function useStartCheck(
   const project = projectQuery.data;
   const catalog = useCheckTypeCatalog();
   const materials = useProjectMaterials(projectId);
-  const launch = useLaunch(projectId);
 
   const [objective, setObjective] = useState(initialObjective);
   const [versions, setVersions] = useState<Readonly<Record<string, string>>>(
@@ -359,6 +360,17 @@ export function useStartCheck(
     versionKey(detail.data) === versionKey(selectedProfile)
       ? detail.data
       : undefined;
+  const launch = useLaunch(
+    projectId,
+    `${projectId}:${selectedProfile === undefined ? "" : versionKey(selectedProfile)}`,
+  );
+  const usesWebScan = exact !== undefined && isWebScanProfile(exact);
+  const scanInputs = useWebScanDraft(
+    projectId,
+    project,
+    usesWebScan ? exact : undefined,
+  );
+  const webScan = usesWebScan ? scanInputs : undefined;
   const contractProfile = exact ?? selectedProfile;
   const scopeFields = useMemo(
     () =>
@@ -455,20 +467,23 @@ export function useStartCheck(
       detail.error === null
         ? "Loading the check type…"
         : "The check type could not be loaded.";
-  else if (materialItems === undefined)
+  else if (webScan !== undefined && webScan.blocker !== undefined)
+    draftBlocker = webScan.blocker;
+  else if (webScan === undefined && materialItems === undefined)
     draftBlocker =
       materials.error === null
         ? "Loading the project's materials…"
         : "The project's materials could not be loaded.";
-  else if (materials.loading) draftBlocker = "Loading the project's materials…";
-  else if (missingSlot !== undefined)
+  else if (webScan === undefined && materials.loading)
+    draftBlocker = "Loading the project's materials…";
+  else if (webScan === undefined && missingSlot !== undefined)
     draftBlocker =
       missingSlot.candidates.length === 0
         ? `Add ${inSentence(missingSlot.label)} (${missingSlot.formats}) to the project first.`
         : `Choose the ${inSentence(missingSlot.label)} material.`;
   else if (scopeFields.has("objective") && objective.trim() === "")
     draftBlocker = "Write your objective; this check type uses it.";
-  else if (usesTarget && effectiveTarget.trim() === "")
+  else if (webScan === undefined && usesTarget && effectiveTarget.trim() === "")
     draftBlocker = "Enter the target to test.";
   else if (
     scopeFields.has("authorizationScope") &&
@@ -482,22 +497,32 @@ export function useStartCheck(
   else if (parsedLabels.labels.length > MAX_RUNTIME_LABELS)
     draftBlocker = `Use at most ${MAX_RUNTIME_LABELS} runtime labels.`;
 
+  function requestFor(
+    inputs: Record<string, ExactArtifactRef>,
+  ): CreateAuditRequest {
+    if (exact === undefined) throw new Error("The check type is not loaded");
+    return createRequest({
+      profile: exact.ref,
+      inputs,
+      objective,
+      target: webScan?.target ?? effectiveTarget,
+      authorizationScope,
+      runtimeLabels: parsedLabels.labels,
+      labels: parsedAuditLabels.labels,
+    });
+  }
   let request: CreateAuditRequest | undefined;
-  if (draftBlocker === undefined && exact !== undefined) {
+  if (
+    draftBlocker === undefined &&
+    exact !== undefined &&
+    (webScan === undefined || webScan.inputs !== undefined)
+  ) {
     const inputs: Record<string, ExactArtifactRef> = {};
     for (const slot of slots) {
       if (slot.selected !== undefined)
         inputs[slot.name] = slot.selected.artifact;
     }
-    request = createRequest({
-      profile: exact.ref,
-      inputs,
-      objective,
-      target: effectiveTarget,
-      authorizationScope,
-      runtimeLabels: parsedLabels.labels,
-      labels: parsedAuditLabels.labels,
-    });
+    request = requestFor(webScan?.inputs ?? inputs);
   }
   // What the page's earlier attempts mean for this one.
   const created = launch.draft;
@@ -515,7 +540,6 @@ export function useStartCheck(
     saveBlocked = true;
   } else if (
     (failure?.kind === "lost" || failure?.kind === "unconfirmed") &&
-    request !== undefined &&
     !sameAsCreated
   ) {
     // A changed form makes a second check, and the first may be running.
@@ -537,7 +561,25 @@ export function useStartCheck(
     });
   }
 
+  function submit(intent: "start" | "draft"): void {
+    if (
+      (intent === "start" ? startBlocker : saveBlocker) !== undefined ||
+      launch.pending !== undefined
+    )
+      return;
+    const seconds = deadlineSeconds ?? 0;
+    if (webScan !== undefined) {
+      launch.launch(intent, {
+        prepare: async (ensureCurrent) =>
+          requestFor(await webScan.prepare(ensureCurrent)),
+        deadlineSeconds: seconds,
+      });
+    } else if (request !== undefined)
+      launch.launch(intent, { request, deadlineSeconds: seconds });
+  }
+
   return {
+    webScan,
     projectId,
     project,
     href: (changes) => hrefWith(params, changes),
@@ -597,25 +639,7 @@ export function useStartCheck(
     saveBlocker,
     startBlocker,
     launch,
-    start: () => {
-      if (
-        startBlocker === undefined &&
-        launch.pending === undefined &&
-        request !== undefined &&
-        deadlineSeconds !== undefined
-      )
-        launch.launch("start", { request, deadlineSeconds });
-    },
-    saveDraft: () => {
-      if (
-        saveBlocker === undefined &&
-        launch.pending === undefined &&
-        request !== undefined
-      )
-        launch.launch("draft", {
-          request,
-          deadlineSeconds: deadlineSeconds ?? 0,
-        });
-    },
+    start: () => submit("start"),
+    saveDraft: () => submit("draft"),
   };
 }
