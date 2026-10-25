@@ -6,7 +6,8 @@ epic: scan-tools
 kind: defect
 introduced_by: V62-009
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 654707c8f8da8384a87a555517a8d9eee656b569
 depends_on: []
 languages: [go, markdown]
 goal: >-
