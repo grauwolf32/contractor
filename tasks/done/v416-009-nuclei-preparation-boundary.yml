@@ -6,7 +6,7 @@ epic: scan-tools
 kind: chore
 introduced_by: V406-003
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: >-
@@ -183,7 +183,16 @@ verification:
       Changed Runtime source passes Ruff check and format checks; lint-imports
       --no-cache --no-logo passes all four contracts. Task, specification and
       shared-fixture source checks pass after running their generators.
-  remaining: >-
-    The required test-nuclei-web-e2e process gate is running against the isolated
-    disposable PostgreSQL database; integrated make lint is owned by the
-    coordinating branch. Keep in_progress until both outcomes are confirmed.
+  integration: Full make lint passed on the integrated implementation.
+
+process_verification:
+  command: make test-nuclei-web-e2e
+  environment: Dedicated UTF-8 PostgreSQL v416_runtime, real Server and Runtime processes.
+  result: passed (tests/e2e 174.970s).
+
+implementation_commit: d22ca2b8e12bdbbdb2fdd73d710933016f760c5f
+integration_verification:
+  date: "2026-10-25"
+  revision: c2b8774febc4750146ab9af6e03da054c18a46e5
+  command: make lint
+  result: passed
