@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-136 open tasks: 4 in progress, 121 pending, 11 deferred. 1118 finished: 1108 completed, 10 archived.
+146 open tasks: 4 in progress, 131 pending, 11 deferred. 1118 finished: 1108 completed, 10 archived.
 
 ## In progress
 
@@ -45,6 +45,14 @@ the epics are in [epics.yml](epics.yml).
 | [V418-001](v418-001-adk-213-regression-characterization.yml) | chore | P1 | — | Freeze ADK migration regressions and the logical execution contract |
 | [V418-002](v418-002-adk-213-atomic-runtime-migration.yml) | chore | P1 | V418-001 | Upgrade ADK to 2.13 with atomic execution and tool-boundary adaptations |
 | [V418-006](v418-006-adk-213-session-work-and-performance.yml) | chore | P1 | V418-003, V418-004 | Bound long-session and repeated-allocation work on ADK 2.13 |
+| [V419-001](v419-001-go-adk-26-compatibility-characterization.yml) | chore | P1 | — | Characterize Go ADK v1.6 to v2.6 compatibility on real Planner paths |
+| [V419-002](v419-002-go-adk-26-atomic-migration.yml) | chore | P1 | V419-001 | Upgrade Go ADK to v2.6.0 with atomic API and dependency adaptations |
+| [V419-003](v419-003-go-adk-26-runner-session-conformance.yml) | chore | P1 | V419-002 | Verify Go ADK v2 tool history and Planner session lifecycle |
+| [V419-004](v419-004-go-adk-26-adjacent-dependency-conformance.yml) | chore | P1 | V419-002 | Verify Gateway A2A and telemetry contracts on the Go ADK dependency closure |
+| [V420-001](v420-001-planner-compaction-contract-spike.yml) | chore | P1 | V419-005 | Prove Planner compaction checkpoints and freeze the integration contract |
+| [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | V420-001 | Implement opt-in bounded compaction for Streamline and Router Planners |
+| [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
+| [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
@@ -223,6 +231,8 @@ the epics are in [epics.yml](epics.yml).
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V418-007](v418-007-adk-213-release-gate.yml) | chore | P1 | V418-005, V418-006 | Close the ADK 2.13 migration with an integrated release gate |
+| [V419-005](v419-005-go-adk-26-release-gate.yml) | chore | P1 | V419-003, V419-004 | Accept Go ADK v2.6 through an integrated deterministic release gate |
+| [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 
 ## Deferred
 
@@ -248,7 +258,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 5 | 41 | 55 | 19 | 81 |
-| Planners and the Worker model boundary (`planner-worker`) | 13 | 32 | 43 | 21 | 62 |
+| Planners and the Worker model boundary (`planner-worker`) | 21 | 34 | 43 | 27 | 62 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 1 | 11 | 4 | 2 | 4 |
@@ -266,4 +276,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 2 | 16 | 42 | 7 | 15 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 17 | 1 | 27 | 95 | 23 |
+| Quality, CI and process (`quality`) | 19 | 1 | 27 | 97 | 23 |
