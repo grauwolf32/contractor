@@ -165,7 +165,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the autonomous HTTP pentest setup and evidence journey |
-| [V416-003](v416-003-web-scan-shared-launch-state.yml) | defect | P1 | — | Preserve common Audit launch settings in Web scan |
+| [V416-003](v416-003-web-scan-shared-launch-state.yml) | defect | P1 | — | Restore shared Audit launch options and state in Web scan |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 
