@@ -33,6 +33,7 @@ context:
     No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
     Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only
     configuration plumbing, mechanical imports and regression fixtures may change there.
+  evidence: tasks/evidence/v419-go-adk-26-atomic-migration.json
 scope:
   in:
   - go.mod/go.sum, all ADK imports and required callback/tool/event adaptations, exact-version assertions
@@ -159,3 +160,14 @@ test_prerequisites:
 - No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the
   currently supported Runtime lock. New shared grammar or wire changes, if actually needed, must update
   all implementations and shared fixtures in the owning task.
+verification:
+  pin: Committedv2.6.0 graph264modules exactly matches accepted001candidate canonicalSHAa7e89eca; all27adaptedGo
+    consumers and go.sum identical. Go minimum1.26.6, existingtoolchain1.26.9 kept; ordinarygo.mod/go.sum,
+    nooverlays/replacements.
+  owners: All12affected owner packages pass:574top-level/1354passrecords,534uniquePlanner leaves, all84requiredmanifestcases
+    and16candidateprojectionobservations. RealownedPG configured. Exactly2namedliveGateway optins+1optionalCollector
+    skip.
+  static: go mod verify, tidy-diff, productionbuild, scopedvet, architecturalboundary, spec/tracker checks
+    PASS.
+  scope: No globaltest-go/lint/release/Runtime/UI/allE2Ererun; compactionoff, Schedulerproductionunchanged.003/004/005remain
+    for their separate targeted boundaries.
