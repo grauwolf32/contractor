@@ -7,6 +7,7 @@ kind: chore
 priority: P3
 status: pending
 depends_on:
+  - V416-008
   - V414-004
   - V414-012
 languages: [go, python, typescript, markdown]
