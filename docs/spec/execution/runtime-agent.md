@@ -820,31 +820,43 @@ container removal before disposing mounted files.
 **RTA-R116.** After release, nothing in the Runtime process reaches the
 allocation's tool instances, their ArtifactClient and Toolset sessions, Worker
 State or MetricsState, including references that a library keeps in a
-process-wide cache (LIFE-WRK-3, SEC-R32). google-adk keeps two such caches:
-the module-level LRU caches of `context_utils.find_context_parameter` and
-`function_tool._build_declaration_cached` hold every callable that
-`FunctionTool` wraps strongly, as part of their key. The Runtime clears both
-during release, after it has closed every Toolset and dropped State and
-RuntimeSettings, and when a failed prepare rolls back the tools of a Worker it
-had already built. A failure to clear them is a release cleanup failure that
+process-wide cache (LIFE-WRK-3, SEC-R32). google-adk keeps three relevant LRU
+caches. `context_utils.find_context_parameter` and
+`function_tool._build_declaration_cached` retain wrapped callable keys;
+`_callable_utils._get_type_hints_for_unwrapped` retains the underlying function.
+An ordinary callable instance unwraps to its class's static `__call__` function,
+but an allocation-local function can retain the allocation through its closure.
+The Runtime clears all three during release, after it has closed every Toolset
+and dropped State and RuntimeSettings, and when a failed prepare rolls back the
+tools of a Worker it had already built. A failure to clear them is a release cleanup failure that
 keeps the slot fenced, and the idempotent release retry repeats the step
-(RTA-R91, FAIL-RTA-5). The Runtime resolves both cache functions when it
+(RTA-R91, FAIL-RTA-5). The Runtime resolves all three cache functions when it
 starts, so a google-adk version that renames or removes one fails startup.
 
 Rationale: the Runtime has one allocation slot, so the caches hold no other
 allocation's entries when release clears them, and a new allocation's tool
 instances would miss them anyway; the cost is one declaration build per tool
-per allocation. The caches belong to google-adk (2.8.0 is pinned), which the
+per allocation. The caches belong to google-adk (2.13.0 is pinned), which the
 Runtime does not patch. Handing `FunctionTool` an allocation-agnostic wrapper
 that reaches the tool through a weak reference was rejected: ADK derives the
 declaration and the call from the wrapped callable's signature, type hints,
 docstring and coroutine kind, so the wrapper would have to reproduce ADK's
 introspection, and the cached declarations would still keep
-allocation-specific descriptions. A `FunctionTool` subclass that bypasses both
-caches was rejected because it re-implements more private ADK code than one
-cache name. Revisit this when a google-adk release keys these caches weakly or
-per instance; the guard test named in the invariants fails when ADK stops
-retaining a wrapped callable.
+allocation-specific descriptions. A `FunctionTool` subclass that bypasses these
+caches was rejected because it re-implements more private ADK code than clearing
+their guarded cache handles. Revisit this when a google-adk release keys these
+caches weakly or per instance; the guard tests named in the invariants fail when
+ADK stops retaining a wrapped callable or an allocation captured by a tool function.
+
+The Runtime capability probe and Worker construction reject the effective
+`FUNCTION_TOOL_ARG_VALIDATION`, `IN_MEMORY_SESSION_SERVICE_LIGHT_COPY` and
+`SKILL_LIFECYCLE` feature flags through ADK's public feature API before creating
+ADK Worker resources. These modes are not part of the supported integration:
+raw argument admission belongs to Contractor, session snapshots must remain
+independent, and the Skill surface follows its existing three-tool contract.
+Environment and programmatic activation are both checked. A warning promoted
+to an exception also rejects startup; suppressing a warning never permits an
+unsupported feature to run.
 
 **RTA-R111.** The private release retains the allocation identity and cached
 report in `fenced` state (LIFE-RTA-5).
@@ -1097,11 +1109,13 @@ The security model, mutual TLS and the trust boundary are specified in
    MetricsState reachable, and no live object holds a RuntimeSettings secret
    or a session credential (RTA-R116). Owning tests:
    `test_release_leaves_no_allocation_tool_reachable_after_an_invocation`,
+   `test_release_collects_allocation_graph_captured_by_declared_tool_closure`,
    `test_failed_prepare_rollback_leaves_no_allocation_tool_reachable`,
    `test_release_retains_no_adapter_secret_or_session_credential`,
    `test_failed_cache_release_keeps_the_slot_fenced_until_the_retry_repeats_it`
    and `test_next_allocation_rebuilds_identical_tool_declarations`, with the
-   google-adk guard `test_adk_tool_caches_keep_wrapped_callables_until_released`,
+   google-adk guards `test_adk_tool_caches_keep_wrapped_callables_until_released`
+   and `test_adk_type_hint_cache_retains_an_allocation_captured_by_a_tool_function`,
    in [runtime/tests/test_allocation.py](../../../runtime/tests/test_allocation.py).
 
 The invariants on one slot and one Worker per process, immutability of the

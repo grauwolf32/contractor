@@ -310,6 +310,23 @@ deadline under their own bounded, cancellation-shielded cleanup budget
 (FAIL-WRK-4). A release that exceeds that budget fences the Worker exactly as
 it does without a deadline.
 
+**WRK-R170.** Immediately before admitting a main model, tool,
+result-finalizer or terminal-summarizer call, Runtime checks the active
+logical invocation, authorized SDK turn where applicable, absolute deadline,
+cancellation, allocation admission and sandbox state. A rejected admission
+starts no new semantic attempt, budget charge, metric span or provider/tool
+dispatch. Continuation grants no new budget or deadline. Already dispatched
+remote work may have committed and keeps its existing receipt reconciliation;
+terminal cleanup follows WRK-R168.
+
+**WRK-R171.** Contractor tool admission preserves the model's original
+values for integer and integer-list arguments, including optional forms,
+before the SDK can cast them. The owning callable or its raw-argument guard
+therefore sees a float, boolean, string, null or invalid list element as
+supplied, and applies that tool's strict validation before effects. This
+boundary preserves the declared schema and injected context and does not
+change the owning tool's missing-field, unknown-field or domain-error policy.
+
 How the Audit strategy converts and applies the deadline is owned by
 [Audit Worker completion](../audits/worker-completion.md).
 
@@ -670,6 +687,16 @@ configuration.
 **WRK-R59.** Deterministic size, secret-retention and invalid
 binding violations are non-retryable.
 
+**WRK-R172.** Empty, whitespace-only or thought-only `STOP` output cannot
+authorize a successful result. The ordinary completion path returns its
+missing or invalid result failure without another main model call or a
+finalizer call on missing or blank text. An empty result-finalizer response
+fails its existing result validation without repair. The Audit completion
+boundary still decides from its trusted submitted results: it may finish or
+issue only its existing bounded incomplete-result reminder. Known usage is
+accounted even when the SDK reports `MODEL_RETURNED_NO_CONTENT`; output-limit
+and provider safety failures keep their own classification and precedence.
+
 **WRK-R60.** The secret-retention scan (`unsafe_worker_result`)
 covers every allocation RuntimeSettings credential: the LLM Gateway token,
 telemetry header values, HTTP proxy credentials, the Caido bearer token and
@@ -704,6 +731,17 @@ original deadline remain the same. SDK-local identifiers never replace the
 logical invocation identity seen by business tools or trusted results. Model
 and tool admission is bound to the currently authorized turn; a stale callback
 cannot start unaccounted work.
+
+**WRK-R173.** Every additional Runner turn uses a fresh SDK invocation ID
+in the same selected session, so its Runtime-authored reminder is appended
+and reaches the next model request exactly once. SDK callbacks retain that
+turn identity for admission and history correlation; business tool context,
+metrics, observations, completion ownership and `WorkerCompletion` retain the
+original logical Worker invocation ID. A turn starts only after the preceding
+Runner, tool callbacks and interrupted-history settlement have joined.
+At most 1,001 SDK turn identities are retained per logical invocation
+(LIM-WRK-24), including the final turn that may be refused by the 1,000-call
+ModelPolicy ceiling.
 
 **WRK-R63.** The shared boundary lives in `core/worker_completion.py`;
 the Audit implementation lives with `toolsets/audit_results`. Worker
@@ -807,6 +845,52 @@ carried values, app and user maps and session identifiers are cleared. If
 bounded cleanup cannot prove this before the control deadline, the allocation
 remains fenced and the Runtime process is not reused (LIFE-WRK-2).
 
+### Interrupted tool history
+
+**WRK-R174.** Before another SDK turn or shared-session invocation can use
+the conversation, Runtime settles each unresolved persisted tool call after
+joining the Runner and its tools. It retains each known completed result
+exactly once, using an immutable JSON snapshot rather than rerunning the tool.
+Only a call whose tool callback was never admitted receives
+`tool_call_not_executed`. An admitted call interrupted by cancellation receives
+`tool_call_cancelled`; an admitted call without a known result or proven
+cancellation receives `tool_call_outcome_unknown`. Neither dispatched outcome
+claims that a remote effect was rolled back or absent. Existing operation
+receipts remain authoritative before any retry of an uncertain effect.
+
+**WRK-R175.** The invocation-local history ledger admits at most 10,000
+observed tool-call identities cumulatively across SDK turns (LIM-WRK-22),
+even after earlier results have settled. Unresolved call metadata and immutable
+result snapshots together admit at most 32 MiB of UTF-8 data (LIM-WRK-23).
+Raw tool arguments already stored in the SDK session are not copied into the
+ledger. Resolved entries are released immediately. Snapshot encoding is
+bounded before allocation, runs off the event loop and joins before cleanup;
+it holds no instrumentation accounting lock. These ledger bounds do not bound
+or compact the SDK session's retained conversation.
+
+**WRK-R176.** History settlement uses the public SessionService and reads
+at most twice the unresolved call count plus three recent events
+(LIM-WRK-25). It preserves selecting call IDs, source-event identity, SDK turn,
+session and branch/isolation scope. Existing saved responses win over missing
+callback acknowledgements. A synthetic response group has a deterministic
+identity and is never blindly appended again after an uncertain write:
+Runtime accepts a lost acknowledgement only after a bounded read proves that
+the identical event committed. Missing acknowledged source history, mismatched
+scope, malformed or unencodable data, or an exceeded ledger bound fail closed
+instead of dropping required context or inventing nonexecution.
+
+**WRK-R177.** History settlement has its own five-second,
+cancellation-shielded, joined cleanup budget (LIM-WRK-26). Failure, timeout or
+unprovable settlement fences the allocation before any later semantic work;
+it does not override an earlier cancellation or failure merely to report a
+successful cleanup. If this boundary supplies the Worker failure, it uses
+`worker_session_lifecycle_failed`: `invalid_tool_history` and
+`tool_history_limit_exceeded` are non-retryable, while
+`tool_history_unavailable` is retryable only through a fresh StageExecution.
+Every case still fences this allocation. Release clears the transient ledger,
+pending seal events and SDK turn identities after owned work has joined
+(FAIL-WRK-7, LIFE-WRK-5).
+
 ### Secrets
 
 **WRK-R78.** RuntimeSettings secrets supplied by Control Plane
@@ -864,6 +948,15 @@ content-free fact. Unknown tools have metrics counts but contribute no domain
 observation. An extractor failure is a safe instrumentation error: it sets
 observation completeness false and cannot change or fabricate the tool result
 (FAIL-WRK-5).
+
+**WRK-R179.** Before retaining a tool name in metrics, spans or Worker
+State, the plugin checks the allocation's selected tool-name set; an unknown
+placeholder is recorded only as `unknown_tool`. Every admitted callback
+attempt has one outcome and releases its correlation context once, including
+raw-argument rejection, domain failure and parallel sibling cancellation.
+`asyncio.CancelledError` reaching the SDK's tool-error callback closes the
+attempt with `tool_call_cancelled` under OBS-R24 and is re-raised, so that
+callback cannot recover cancelled execution or create a second attempt.
 
 **WRK-R86.** Only a completed callback changes semantic
 observations. A failed or cancelled call increments safe metrics but does not
@@ -1260,6 +1353,15 @@ retryable by wrapping them (FAIL-WRK-6).
 **WRK-R153.** Runtime never resumes the normal Worker or attempts
 semantic repair after a failed summary.
 
+**WRK-R178.** Empty, whitespace-only or thought-only terminal summary
+output produces `worker_summarization_failed` through the existing bounded
+missing/invalid-result cause. The one-shot model wrapper prevents SDK repair
+from making another provider call, including after an empty structured
+response, and known usage is retained. A `MAX_TOKENS` response keeps the
+`output_limit_exceeded` summary cause; provider safety and Gateway failures
+keep their own classification. No summary failure resumes the normal loop or
+invokes the ordinary finalizer.
+
 #### State, metrics and lifecycle
 
 **WRK-R154.** Runtime does not retain the summarizer transcript or a separate
@@ -1380,6 +1482,16 @@ Limits ([registry](../platform/limits.md)):
   (WRK-R147).
 - LIM-WRK-21: one logical summarizer call per invocation
   (WRK-R151).
+- LIM-WRK-22: 10,000 observed tool-call identities cumulatively per logical
+  invocation (WRK-R175).
+- LIM-WRK-23: 32 MiB of unresolved call metadata and result snapshots
+  (WRK-R175).
+- LIM-WRK-24: 1,001 SDK turn identities per logical invocation
+  (WRK-R173).
+- LIM-WRK-25: at most twice the unresolved call count plus three recent
+  SessionService events per history reconciliation read (WRK-R176).
+- LIM-WRK-26: five-second joined history-settlement cleanup budget
+  (WRK-R177).
 
 Errors ([registry](../platform/errors.md)):
 
@@ -1394,6 +1506,10 @@ Errors ([registry](../platform/errors.md)):
   `worker_budget_exhausted` and domain and runtime failures
   (WRK-R57 to WRK-R61);
 - `worker_summarization_failed` (WRK-R152);
+- `worker_session_lifecycle_failed` and its bounded history causes
+  (WRK-R177);
+- `tool_call_not_executed`, `tool_call_cancelled` and
+  `tool_call_outcome_unknown` in interrupted history (WRK-R174);
 - `allocation_not_found`, `agent_state_unavailable` (WRK-R121).
 
 `worker_busy` and `worker_execution_failed` are owned by
@@ -1413,6 +1529,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   (WRK-R85, WRK-R129).
 - FAIL-WRK-6: the terminal summarizer call
   (WRK-R152, WRK-R156).
+- FAIL-WRK-7: interrupted tool-history reconciliation and settlement
+  (WRK-R174 to WRK-R177).
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 
@@ -1423,6 +1541,8 @@ Lifecycle ([registry](../platform/lifecycle.md)):
 - LIFE-WRK-3: the Contractor-owned Worker State
   (WRK-R111, WRK-R128).
 - LIFE-WRK-4: summarizer input and output (WRK-R154).
+- LIFE-WRK-5: the transient interrupted-history ledger and SDK turn
+  identities (WRK-R175, WRK-R177).
 
 ## Security
 
@@ -1438,6 +1558,8 @@ The security-relevant rules of this document are:
   WRK-R61, WRK-R78,
   WRK-R79, WRK-R74, WRK-R146;
 - identity separation: WRK-R69;
+- semantic admission, raw arguments and interrupted history: WRK-R170,
+  WRK-R171, WRK-R173 to WRK-R177;
 - the read-only endpoint and Planner access: WRK-R110,
   WRK-R115, WRK-R116, WRK-R122,
   WRK-R123, WRK-R97.
@@ -1448,7 +1570,7 @@ mTLS peer identity itself is owned by [Security](../platform/security.md).
 
 - Instrumentation plugin, reducers and `ExecutionReport`: WRK-R80,
   WRK-R81, WRK-R82, WRK-R85,
-  WRK-R86.
+  WRK-R86, WRK-R179.
 - Result-finalizer accounting and the `model.phase=result_finalizer` span:
   WRK-R49, WRK-R83, WRK-R84.
 - Token usage accounting: WRK-R16, WRK-R24,
@@ -1499,6 +1621,19 @@ These properties follow from the cited requirements, which are authoritative.
     (WRK-R155).
 17. Finalize, abort and release never invoke the summarizer
     (WRK-R156).
+18. A completion reminder uses a fresh SDK turn while business tools and
+    results retain the logical invocation identity (WRK-R173); tested by
+    `test_real_runner_continuation_preserves_one_invocation_and_tool_order`
+    in `runtime/tests/test_audit_completion_continuation.py`.
+19. Interrupted history preserves known sibling results and never changes an
+    admitted uncertain call into proven nonexecution (WRK-R174, WRK-R176);
+    tested by
+    `test_real_runner_next_request_keeps_completed_sibling_and_truthful_interrupted_call`
+    in `runtime/tests/test_worker_history.py`.
+20. SDK preprocessing cannot replace raw integer arguments before their
+    owning validation (WRK-R171); tested by
+    `test_function_tool_keeps_raw_numbers_and_native_structured_conversion`
+    in `runtime/tests/test_worker_function_tools.py`.
 
 ## Non-goals
 

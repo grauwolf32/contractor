@@ -1066,7 +1066,7 @@ def test_unexpected_caido_failure_reaches_tool_error_callback_unclassified(
             tmp_path, handler, FakeArtifactClient(), selected={tool_name}
         )
         tool = tools[tool_name]
-        callbacks = await WorkerToolCallbacks.start(state)
+        callbacks = await WorkerToolCallbacks.start(state, tools)
         arguments = (
             {}
             if tool_name == "caido_history"

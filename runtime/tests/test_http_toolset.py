@@ -592,7 +592,7 @@ def test_unexpected_send_exception_reaches_tool_error_callback_unclassified(
                 settings=proxy_runtime_settings(),
                 adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(proxy_client)),
             )
-        callbacks = await WorkerToolCallbacks.start(state)
+        callbacks = await WorkerToolCallbacks.start(state, tools)
         try:
             request = tools["http_request"]
             # Even an idempotent request is not retried: the exception keeps
@@ -780,7 +780,7 @@ def test_project_target_token_is_sent_unchanged_over_real_tls(
         tools = await make_tools(
             HTTPToolsetFactory(target.client), tmp_path, state=state, settings=settings
         )
-        callbacks = await WorkerToolCallbacks.start(state)
+        callbacks = await WorkerToolCallbacks.start(state, tools)
         try:
             response, raised = await callbacks.call(
                 tools["http_request"], url="https://target.example/"
@@ -920,7 +920,7 @@ def test_tls_record_failure_from_a_target_is_a_classified_transport_failure(
                 settings=proxy_runtime_settings(),
                 adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(proxy_client)),
             )
-        callbacks = await WorkerToolCallbacks.start(state)
+        callbacks = await WorkerToolCallbacks.start(state, tools)
         try:
             response, raised = await callbacks.call(
                 tools["http_request"], url="https://target.example/"
@@ -1280,17 +1280,19 @@ class WorkerToolCallbacks:
     def __init__(self, plugin: WorkerInstrumentationPlugin, invocation_id: str) -> None:
         self._plugin = plugin
         self._context = SimpleNamespace(
-            invocation_id=invocation_id, session=SimpleNamespace(id="session", state={})
+            invocation_id=invocation_id,
+            session=SimpleNamespace(id="session", app_name="http-tools", user_id="user", state={}),
         )
 
     @classmethod
-    async def start(cls, state: WorkerState) -> WorkerToolCallbacks:
+    async def start(cls, state: WorkerState, tools: dict[str, Any]) -> WorkerToolCallbacks:
         plugin = WorkerInstrumentationPlugin(
             state=state,
             budget=lambda: None,
             instrumentation=None,
             model_alias="model",
             observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset(tools),
         )
         callbacks = cls(plugin, "worker-tool-errors")
         plugin.prepare_invocation(invocation_id="worker-tool-errors", subtask_id="1")

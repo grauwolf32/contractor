@@ -40,12 +40,14 @@ def test_model_tool_and_finalizer_capture_opt_in(enabled: bool) -> None:
         adapter = await OTLPHTTPAdapterFactory(httpx.MockTransport(collector)).create(
             adapter_context(), settings
         )
+        tool = FakeTool("probe", FakeOwner())
         plugin = WorkerInstrumentationPlugin(
             state=WorkerStateStore(),
             budget=lambda: None,
             observe_artifacts=lambda _owner, _cursor: None,
             instrumentation=adapter.handles.instrumentation,
             model_alias="test-model",
+            allowed_tool_names=frozenset({tool.name}),
         )
         context = FakeContext("capture-test")
         plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="1")
@@ -63,7 +65,6 @@ def test_model_tool_and_finalizer_capture_opt_in(enabled: bool) -> None:
             callback_context=context,
             llm_response=SimpleNamespace(content={"text": "response-canary"}, usage_metadata=None),
         )
-        tool = FakeTool("probe", FakeOwner())
         await plugin.before_tool_callback(
             tool=tool, tool_args={"secret": "tool-input-canary"}, tool_context=context
         )

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
+import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -43,6 +44,18 @@ class InvocationBudget(Protocol):
     def should_summarize(self) -> bool: ...
 
 
+class ToolHistory(Protocol):
+    """Invocation-local history bookkeeping, independent of plugin locking."""
+
+    def observe_event(self, event: Any) -> None: ...
+
+    def admitted(self, tool_context: Any) -> None: ...
+
+    async def completed(self, tool_context: Any, result: Any) -> None: ...
+
+    async def failed(self, tool_context: Any, result: Any, *, cancelled: bool = False) -> None: ...
+
+
 class WorkerSummarizationRequested(RuntimeError):
     """Content-free control signal used to unwind the normal ADK Runner."""
 
@@ -61,6 +74,7 @@ class _PendingTool:
     ordinal: int
     observation_cursor: int | None
     metric_token: Any
+    known: bool
     error: Exception | None = None
 
 
@@ -82,6 +96,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
         instrumentation: RuntimeInstrumentation | None,
         model_alias: str,
         observe_artifacts: Callable[[Any, int], None],
+        allowed_tool_names: frozenset[str],
+        check_admission: Callable[[], None] | None = None,
+        history: ToolHistory | None = None,
         workspace_observation_source: WorkspaceObservationSource | None = None,
         summarizer_enabled: bool = False,
     ) -> None:
@@ -92,20 +109,27 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._instrumentation = instrumentation
         self._model_alias = model_alias
         self._observe_artifacts = observe_artifacts
+        self._allowed_tool_names = frozenset(allowed_tool_names)
+        self._check_admission = check_admission
+        self._history = history
         self._workspace_observation_source = workspace_observation_source
         self._summarizer_enabled = summarizer_enabled
         self._lock = asyncio.Lock()
         self._prepared: tuple[str, str] | None = None
-        self._continuation: str | None = None
+        self._continuation: tuple[str, str] | None = None
         self._active_session_identity: tuple[Any, ...] | None = None
         self._active_invocation_id: str | None = None
+        self._active_sdk_invocation_id: str | None = None
+        self._used_sdk_invocation_ids: set[str] = set()
         self._invocation_metrics: InvocationMetricsReducer | None = None
         self._workspace_observations: WorkspaceObservationReducer | None = None
         self._pending_models: list[RuntimeSpan | None] = []
         self._pending_auxiliary_models: dict[str, RuntimeSpan | None] = {}
         self._pending_tools: dict[int, _PendingTool] = {}
+        self._settling_tools: set[int] = set()
         self._next_tool_ordinal = 1
         self._projection_failed = False
+        self._model_output_limited = False
         self._closed = False
 
     def prepare_invocation(self, *, invocation_id: str, subtask_id: str) -> None:
@@ -116,7 +140,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._projection_failed = False
         self._prepared = (invocation_id, subtask_id)
 
-    def prepare_continuation(self, *, invocation_id: str) -> None:
+    def prepare_continuation(self, *, invocation_id: str, sdk_invocation_id: str) -> None:
         """Authorize one more Runner turn of the active logical invocation.
 
         The Runtime completion boundary calls this only after the prior turn has
@@ -131,21 +155,28 @@ class WorkerInstrumentationPlugin(BasePlugin):
             or self._pending_models
             or self._pending_auxiliary_models
             or self._pending_tools
+            or self._settling_tools
+            or not isinstance(sdk_invocation_id, str)
+            or not sdk_invocation_id
+            or sdk_invocation_id in self._used_sdk_invocation_ids
         ):
             raise RuntimeError("Worker instrumentation cannot continue this invocation")
-        self._state.execution.check()
-        self._continuation = invocation_id
+        self._admit_call()
+        self._continuation = (invocation_id, sdk_invocation_id)
 
     async def before_run_callback(self, *, invocation_context: Any) -> None:
         async with self._lock:
             if self._continuation is not None:
                 if (
-                    self._continuation != invocation_context.invocation_id
-                    or not self._is_active(invocation_context.invocation_id)
+                    self._continuation[1] != invocation_context.invocation_id
+                    or not self._is_active(self._continuation[0])
                     or self._active_session_identity != _session_identity(invocation_context)
                 ):
                     raise RuntimeError("Worker instrumentation continuation is stale")
                 self._state.execution.check()
+                self._model_output_limited = False
+                self._active_sdk_invocation_id = self._continuation[1]
+                self._used_sdk_invocation_ids.add(self._continuation[1])
                 self._continuation = None
                 _install_session_snapshot(invocation_context, await self._state.snapshot())
                 return
@@ -165,7 +196,10 @@ class WorkerInstrumentationPlugin(BasePlugin):
             if prepared is None or prepared[0] != invocation_context.invocation_id:
                 raise RuntimeError("Worker instrumentation invocation is not prepared")
             self._prepared = None
+            self._model_output_limited = False
             self._active_invocation_id = prepared[0]
+            self._active_sdk_invocation_id = invocation_context.invocation_id
+            self._used_sdk_invocation_ids = {invocation_context.invocation_id}
             self._active_session_identity = _session_identity(invocation_context)
             self._invocation_metrics = InvocationMetricsReducer()
             self._workspace_observations = workspace_observations
@@ -185,15 +219,16 @@ class WorkerInstrumentationPlugin(BasePlugin):
 
     async def before_model_callback(self, *, callback_context: Any, llm_request: Any) -> None:
         async with self._lock:
-            self._state.execution.check()
-            if not self._is_active(callback_context.invocation_id):
-                return
+            self._require_sdk_context(callback_context)
+            self._admit_call()
+            if self._pending_tools or self._settling_tools:
+                raise RuntimeError("Worker model call overlapped unfinished tools")
             budget = self._budget()
             if budget is not None and budget.should_summarize():
                 if self._pending_tools:
                     raise RuntimeError("Worker model call overlapped unfinished tools")
                 snapshot = await self._state.request_summarization(
-                    invocation_id=callback_context.invocation_id
+                    invocation_id=self._require_logical_invocation_id()
                 )
                 _install_session_snapshot(callback_context, snapshot)
                 raise WorkerSummarizationRequested()
@@ -219,8 +254,14 @@ class WorkerInstrumentationPlugin(BasePlugin):
 
     async def after_model_callback(self, *, callback_context: Any, llm_response: Any) -> None:
         async with self._lock:
-            if not self._is_active(callback_context.invocation_id) or not self._pending_models:
+            self._require_sdk_context(callback_context)
+            if not self._pending_models:
                 return
+            content = getattr(llm_response, "content", None)
+            for part in getattr(content, "parts", None) or ():
+                function_call = getattr(part, "function_call", None)
+                if function_call is not None and not function_call.id:
+                    function_call.id = f"contractor-tool-{uuid.uuid4().hex}"
             span = self._pending_models.pop(0)
             usage = llm_response.usage_metadata
             capture_span_content(span, output=lambda: llm_response.content)
@@ -228,6 +269,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._require_reducer().record_model_usage(usage)
             attributes = usage_attributes(usage)
             limited = output_limit_reached(llm_response)
+            self._model_output_limited = self._model_output_limited or limited
             if limited:
                 attributes["error.type"] = "OutputTokenLimitExceeded"
             end_isolated_span(
@@ -249,7 +291,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
     ) -> None:
         del llm_request
         async with self._lock:
-            if not self._is_active(callback_context.invocation_id) or not self._pending_models:
+            self._require_sdk_context(callback_context)
+            if not self._pending_models:
                 return
             span = self._pending_models.pop(0)
             try:
@@ -275,6 +318,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         async with self._lock:
             if not self._is_active(invocation_id):
                 raise RuntimeError("Worker result finalizer invocation is stale")
+            self._admit_call()
             phase = "result_finalizer"
             if phase in self._pending_auxiliary_models:
                 raise RuntimeError("Worker result finalizer already has a model call")
@@ -365,6 +409,18 @@ class WorkerInstrumentationPlugin(BasePlugin):
             finally:
                 await self._publish_locked(None)
 
+    async def on_event_callback(self, *, invocation_context: Any, event: Any) -> None:
+        async with self._lock:
+            self._require_sdk_context(invocation_context)
+            if self._history is not None:
+                self._history.observe_event(event)
+
+    def logical_invocation_id_for_tool(self, tool_context: Any) -> str:
+        """Resolve one native tool context to its active Contractor invocation."""
+
+        self._require_sdk_context(tool_context)
+        return self._require_logical_invocation_id()
+
     async def before_tool_callback(
         self,
         *,
@@ -373,39 +429,47 @@ class WorkerInstrumentationPlugin(BasePlugin):
         tool_context: Any,
     ) -> dict[str, Any] | None:
         async with self._lock:
-            self._state.execution.check()
-            invocation_id = tool_context.invocation_id
-            if not self._is_active(invocation_id):
-                return None
+            self._require_sdk_context(tool_context)
+            self._admit_call()
+            if id(tool_context) in self._pending_tools or id(tool_context) in self._settling_tools:
+                raise RuntimeError("Worker tool callback was already admitted")
             budget = self._budget()
             if budget is not None:
                 budget.before_tool_call()
+            invocation_id = self._require_logical_invocation_id()
             owner = getattr(tool, "func", tool)
+            raw_name = getattr(tool, "name", None)
+            known = isinstance(raw_name, str) and raw_name in self._allowed_tool_names
+            name = raw_name if known else "unknown_tool"
             ordinal = self._next_tool_ordinal
             self._next_tool_ordinal += 1
             correlation_id = f"{invocation_id}:tool:{ordinal}"
             metric_token = bind_tool_metric_correlation(correlation_id)
-            cursor = getattr(owner, "artifact_observation_cursor", None)
+            cursor = getattr(owner, "artifact_observation_cursor", None) if known else None
             pending = _PendingTool(
                 correlation_id=correlation_id,
                 invocation_id=invocation_id,
-                name=str(tool.name),
+                name=name,
                 started_ns=time.perf_counter_ns(),
                 span=start_isolated_span(
                     self._instrumentation,
                     "contractor.worker.tool",
-                    {"operation.kind": "tool", "tool.name": str(tool.name)},
+                    {"operation.kind": "tool", "tool.name": name},
                 ),
                 owner=owner,
                 ordinal=ordinal,
                 observation_cursor=cursor if type(cursor) is int and cursor >= 0 else None,
                 metric_token=metric_token,
+                known=known,
             )
             self._pending_tools[id(tool_context)] = pending
-            capture_span_content(pending.span, input=lambda: tool_args)
+            if self._history is not None:
+                self._history.admitted(tool_context)
+            if known:
+                capture_span_content(pending.span, input=lambda: tool_args)
             rejection = None
             raw_argument_error = getattr(owner, "contractor_raw_argument_error", None)
-            if callable(raw_argument_error):
+            if known and callable(raw_argument_error):
                 try:
                     rejection = raw_argument_error(tool_args)
                 except asyncio.CancelledError:
@@ -433,19 +497,30 @@ class WorkerInstrumentationPlugin(BasePlugin):
     ) -> None:
         del tool
         async with self._lock:
+            self._require_sdk_context(tool_context)
             pending = self._pending_tools.pop(id(tool_context), None)
             if pending is None:
                 return
-            failed = pending.error is not None or _result_is_failure(result)
-            capture_span_content(pending.span, output=lambda: result)
-            await self._finish_tool_locked(
-                pending,
-                failed=failed,
-                error=pending.error,
-                callback_context=tool_context,
-                tool_args=tool_args,
-                result=result,
-            )
+            self._settling_tools.add(id(tool_context))
+        try:
+            # Large result copies belong to the history owner. Its asynchronous
+            # serialization must never hold the plugin's accounting lock.
+            if self._history is not None:
+                await self._history.completed(tool_context, result)
+        finally:
+            async with self._lock:
+                self._settling_tools.discard(id(tool_context))
+                failed = pending.error is not None or _result_is_failure(result)
+                if pending.known:
+                    capture_span_content(pending.span, output=lambda: result)
+                await self._finish_tool_locked(
+                    pending,
+                    failed=failed,
+                    error=pending.error,
+                    callback_context=tool_context,
+                    tool_args=tool_args,
+                    result=result,
+                )
 
     async def on_tool_error_callback(
         self,
@@ -453,47 +528,56 @@ class WorkerInstrumentationPlugin(BasePlugin):
         tool: Any,
         tool_args: dict[str, Any],
         tool_context: Any,
-        error: Exception,
+        error: BaseException,
     ) -> dict[str, Any]:
         del tool_args
+        cancelled = isinstance(error, asyncio.CancelledError)
+        safe_error = (
+            _RecordedToolFailure("tool_call_cancelled", retryable=True)
+            if cancelled
+            else error
+            if isinstance(error, Exception)
+            else RuntimeError("tool failed")
+        )
         async with self._lock:
+            self._require_sdk_context(tool_context)
             pending = self._pending_tools.pop(id(tool_context), None)
             if pending is None:
-                invocation_id = tool_context.invocation_id
-                if not self._is_active(invocation_id):
-                    return _safe_tool_response("unknown_tool", error)
-                owner = getattr(tool, "func", tool)
-                ordinal = self._next_tool_ordinal
-                self._next_tool_ordinal += 1
-                correlation_id = f"{invocation_id}:tool:{ordinal}"
-                pending = _PendingTool(
-                    correlation_id=correlation_id,
-                    invocation_id=invocation_id,
-                    # The absence of a matching before callback is the ADK
-                    # unknown-tool path. Its name came from model output and
-                    # must not become a State key or telemetry attribute.
-                    name="unknown_tool",
-                    started_ns=time.perf_counter_ns(),
-                    span=start_isolated_span(
-                        self._instrumentation,
-                        "contractor.worker.tool",
-                        {"operation.kind": "tool", "tool.name": "unknown_tool"},
-                    ),
-                    owner=owner,
-                    ordinal=ordinal,
-                    observation_cursor=None,
-                    metric_token=bind_tool_metric_correlation(correlation_id),
+                # A duplicate/error cleanup callback cannot create another
+                # semantic attempt, metric or span after its owner settled.
+                if cancelled:
+                    raise error
+                raw_name = getattr(tool, "name", None)
+                known = isinstance(raw_name, str) and raw_name in self._allowed_tool_names
+                name = raw_name if known else "unknown_tool"
+                return _safe_tool_response(name, safe_error)
+            pending.error = safe_error
+            response = _safe_tool_response(pending.name, safe_error)
+            self._settling_tools.add(id(tool_context))
+        try:
+            if self._history is not None:
+                await self._history.failed(tool_context, response, cancelled=cancelled)
+        except (asyncio.CancelledError, Exception):
+            if not cancelled:
+                raise
+            # Cancellation owns this outcome. The history owner retains the
+            # admitted call for conservative sealing when its cleanup fails;
+            # neither a cleanup exception nor a second cancellation recovers it.
+        finally:
+            async with self._lock:
+                self._settling_tools.discard(id(tool_context))
+                await self._finish_tool_locked(
+                    pending,
+                    failed=True,
+                    error=safe_error,
+                    callback_context=tool_context,
+                    tool_args=None,
+                    result=None,
+                    cancelled=cancelled,
                 )
-            pending.error = error
-            await self._finish_tool_locked(
-                pending,
-                failed=True,
-                error=error,
-                callback_context=tool_context,
-                tool_args=None,
-                result=None,
-            )
-            return _safe_tool_response(pending.name, error)
+        if cancelled:
+            raise error
+        return response
 
     def _record_spent_usage_locked(self, usage: Any | None) -> None:
         """Account a Gateway response that was received but rejected.
@@ -527,6 +611,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 return None
             if not self._is_active(invocation_id):
                 raise RuntimeError("Worker instrumentation completion is stale")
+            if self._settling_tools:
+                raise RuntimeError("Worker tool history is still settling")
             while self._pending_models:
                 end_isolated_span(self._pending_models.pop(0), outcome="cancelled")
             for auxiliary_phase, span in tuple(self._pending_auxiliary_models.items()):
@@ -543,6 +629,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     callback_context=None,
                     tool_args=None,
                     result=None,
+                    cancelled=True,
                 )
             snapshot = await self._state.complete_invocation(
                 invocation_id=invocation_id,
@@ -551,6 +638,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 workspace=self._workspace_snapshot(),
             )
             self._active_invocation_id = None
+            self._active_sdk_invocation_id = None
+            self._used_sdk_invocation_ids.clear()
             self._active_session_identity = None
             self._continuation = None
             self._invocation_metrics = None
@@ -567,6 +656,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
         async with self._lock:
             if self._closed:
                 return
+            if self._settling_tools:
+                raise RuntimeError("Worker tool history is still settling")
             self._closed = True
             self._prepared = None
             self._continuation = None
@@ -591,10 +682,17 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     reset_tool_metric_correlation(pending.metric_token)
             self._pending_tools.clear()
             self._active_invocation_id = None
+            self._active_sdk_invocation_id = None
+            self._used_sdk_invocation_ids.clear()
             self._active_session_identity = None
             self._continuation = None
             self._invocation_metrics = None
             self._workspace_observations = None
+
+    @property
+    def model_output_limited(self) -> bool:
+        """Remember a limited response even when ADK emits no corresponding event."""
+        return self._model_output_limited
 
     @property
     def projection_failed(self) -> bool:
@@ -609,6 +707,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         callback_context: Any | None,
         tool_args: Mapping[str, Any] | None,
         result: Any,
+        cancelled: bool = False,
     ) -> None:
         failed = self._record_tool_metric_locked(pending, failed=failed, error=error) or failed
         self._require_reducer().record_tool_call(pending.name, failed=failed)
@@ -632,7 +731,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     self._projection_failed = True
         end_isolated_span(
             pending.span,
-            outcome="failed" if failed else "succeeded",
+            outcome="cancelled" if cancelled else "failed" if failed else "succeeded",
             attributes=(
                 {"error.type": span_error_type(error)} if failed and error is not None else None
             ),
@@ -698,6 +797,29 @@ class WorkerInstrumentationPlugin(BasePlugin):
 
     def _is_active(self, invocation_id: str) -> bool:
         return self._active_invocation_id == invocation_id
+
+    def _is_active_sdk_context(self, context: Any) -> bool:
+        return (
+            self._active_invocation_id is not None
+            and self._continuation is None
+            and self._active_sdk_invocation_id == getattr(context, "invocation_id", None)
+            and self._active_session_identity == _session_identity(context)
+        )
+
+    def _require_sdk_context(self, context: Any) -> None:
+        if not self._is_active_sdk_context(context):
+            raise RuntimeError("Worker SDK callback is stale or belongs to another session")
+
+    def _require_logical_invocation_id(self) -> str:
+        invocation_id = self._active_invocation_id
+        if invocation_id is None:
+            raise RuntimeError("Worker invocation is unavailable")
+        return invocation_id
+
+    def _admit_call(self) -> None:
+        self._state.execution.check()
+        if self._check_admission is not None:
+            self._check_admission()
 
     def _require_reducer(self) -> InvocationMetricsReducer:
         reducer = self._invocation_metrics

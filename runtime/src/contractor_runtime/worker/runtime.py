@@ -18,7 +18,7 @@ from google.adk.events import Event, EventActions
 from google.adk.models.base_llm import BaseLlm
 from google.adk.runners import Runner
 from google.adk.sessions import BaseSessionService
-from google.adk.tools import FunctionTool
+from google.adk.sessions.session import Session
 from google.genai import types
 from pydantic import ValidationError
 from starlette.types import ASGIApp
@@ -31,6 +31,7 @@ from contractor_runtime.a2a_server import (
 from contractor_runtime.adapters import RuntimeInstrumentation
 from contractor_runtime.adapters.instrumentation import end_isolated_span, start_isolated_span
 from contractor_runtime.agent_skills.runtime import (
+    EXACT_SKILL_TOOL_NAMES,
     PreparedAgentSkills,
 )
 from contractor_runtime.contracts import (
@@ -81,11 +82,14 @@ from contractor_runtime.telemetry.execution import (
     ContentFreeInstrumentation,
     declares_sensitive_output,
 )
+from contractor_runtime.worker.adk_features import require_supported_adk_features
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
 from contractor_runtime.worker.finalizer import (
     ResultFinalizerFailure,
     WorkerResultFinalizer,
 )
+from contractor_runtime.worker.function_tools import ContractorFunctionTool
+from contractor_runtime.worker.history import ToolHistory, ToolHistoryError
 from contractor_runtime.worker.instrumentation import (
     WorkerInstrumentationPlugin,
     WorkerSummarizationRequested,
@@ -165,6 +169,7 @@ class AdkWorkerRuntime:
         workspace_exporter: WorkspaceAutoExporter | None = None,
         session_service: BaseSessionService | None = None,
     ) -> None:
+        require_supported_adk_features()
         self.allocation_id = context.allocation_id
         self._context = context
         self._completion = bind_worker_completion(
@@ -195,6 +200,8 @@ class AdkWorkerRuntime:
         self._runner: Runner | None = None
         self._agent: LlmAgent | None = None
         self._active_budget: _InvocationBudget | None = None
+        self._active_deadline: _InvocationDeadline | None = None
+        self._tool_history = ToolHistory(self._app_name, self._user_id)
         self._invocation_observed_refs: list[ArtifactRef] = []
         self._agent_skills: PreparedAgentSkills | None = context.agent_skills
         self._workspace_exporter = workspace_exporter
@@ -204,8 +211,13 @@ class AdkWorkerRuntime:
 
         policy = context.model_policy
         generation = generation_config(policy)
-        adk_tools = [FunctionTool(tool) for tool in context.tools.values()]
+        adk_tools = [
+            ContractorFunctionTool(tool, logical_invocation_id=self._logical_tool_invocation)
+            for tool in context.tools.values()
+        ]
+        allowed_tool_names = frozenset(tool.name for tool in adk_tools)
         if self._agent_skills is not None:
+            allowed_tool_names |= frozenset(EXACT_SKILL_TOOL_NAMES)
             adk_tools.append(
                 self._agent_skills.build_adapter(
                     metrics=self._metrics,
@@ -219,6 +231,9 @@ class AdkWorkerRuntime:
             observe_artifacts=self._observe_tool_artifacts,
             workspace_observation_source=context.project_workspace,
             summarizer_enabled=context.summarizer is not None,
+            allowed_tool_names=allowed_tool_names,
+            check_admission=self._admit_semantic_work,
+            history=self._tool_history,
         )
         if self._completion is not None:
             self._completion.phase_sink = self._plugin.record_completion
@@ -551,6 +566,13 @@ class AdkWorkerRuntime:
             if sandbox_failure is not None:
                 self._accepting = False
                 outcome = _failure(sandbox_failure.value, "Sandbox execution failed", False)
+            elif (session_error := _chained_error(error, WorkerSessionLifecycleError)) is not None:
+                self._accepting = False
+                outcome = _failure(
+                    "worker_session_lifecycle_failed",
+                    f"Worker session lifecycle failed ({session_error.code})",
+                    session_error.code == "tool_history_unavailable",
+                )
             elif gateway_error is not None:
                 outcome = _gateway_worker_failure(gateway_error)
             else:
@@ -652,6 +674,8 @@ class AdkWorkerRuntime:
         # or Audit (WRK-R158, WRK-R167). The request timeout still applies
         # independently inside model/tool clients (WRK-R157).
         deadline = _InvocationDeadline(request.deadline)
+        self._active_deadline = deadline
+        sdk_invocation_id = invocation_id
         try:
             if completion is not None:
                 failure = completion.validate_request(request)
@@ -662,18 +686,14 @@ class AdkWorkerRuntime:
                 # An expired request starts no model or tool work.
                 deadline.check()
                 while True:
+                    self._admit_semantic_work()
                     candidate: str | None = None
                     try:
                         # An early return must close ADK's generator in this task:
                         # its tracing contexts cannot be detached by GC in another one.
                         async with contextlib.aclosing(
-                            runner.run_async(
-                                user_id=self._user_id,
-                                session_id=session_id,
-                                invocation_id=invocation_id,
-                                new_message=types.Content(
-                                    role="user", parts=[types.Part(text=prompt)]
-                                ),
+                            self._adk_turn_events(
+                                runner, invocation_id, sdk_invocation_id, session_id, prompt
                             )
                         ) as events:
                             async for event in events:
@@ -687,7 +707,9 @@ class AdkWorkerRuntime:
                                         "Worker model response reached its output token limit",
                                         True,
                                     ), False
-                                if completion is not None and getattr(event, "error_code", None):
+                                if completion is not None and getattr(
+                                    event, "error_code", None
+                                ) not in (None, "MODEL_RETURNED_NO_CONTENT"):
                                     return _failure(
                                         "worker_execution_failed",
                                         "Worker model returned an error",
@@ -701,6 +723,14 @@ class AdkWorkerRuntime:
                         # Work that ends after the deadline, including a
                         # summarization request, ends with the deadline.
                         deadline.check()
+                        if _chained_error(error, WorkerSessionLifecycleError) is not None:
+                            raise
+                        if self._plugin.model_output_limited:
+                            return _failure(
+                                "worker_output_limit_exceeded",
+                                "Worker model response reached its output token limit",
+                                True,
+                            ), False
                         if _chained_error(error, WorkerSummarizationRequested) is not None:
                             return await self._run_terminal_summarizer(
                                 request=request,
@@ -721,6 +751,13 @@ class AdkWorkerRuntime:
                             ),
                             False,
                         )
+                    self._tool_history.check()
+                    if self._plugin.model_output_limited:
+                        return _failure(
+                            "worker_output_limit_exceeded",
+                            "Worker model response reached its output token limit",
+                            True,
+                        ), False
                     if completion is None:
                         # No finalizer call starts once the deadline has passed.
                         deadline.check()
@@ -733,7 +770,10 @@ class AdkWorkerRuntime:
                     if not isinstance(outcome, ContinueCompletion):
                         return outcome, exportable
                     self._check_active()
-                    self._plugin.prepare_continuation(invocation_id=invocation_id)
+                    sdk_invocation_id = f"{invocation_id}-turn-{uuid.uuid4().hex}"
+                    self._plugin.prepare_continuation(
+                        invocation_id=invocation_id, sdk_invocation_id=sdk_invocation_id
+                    )
                     prompt = outcome.reminder
         except WorkerBudgetExceeded as error:
             self._metrics.record_worker_budget_exhausted(error.dimension)
@@ -752,10 +792,83 @@ class AdkWorkerRuntime:
                 raise
             return completion.failure(error), False
         finally:
+            self._active_deadline = None
+            self._tool_history.clear()
             if completion is not None:
                 await completion.end()
             self._invocation_observed_refs.clear()
             _clear_artifact_observation_logs(self._context.tools)
+
+    def _logical_tool_invocation(self, tool_context: Any) -> str:
+        return self._plugin.logical_invocation_id_for_tool(tool_context)
+
+    def _admit_semantic_work(self) -> None:
+        self._check_active()
+        self._tool_history.check()
+        if self._active_deadline is None:
+            raise RuntimeError("Worker has no active invocation deadline")
+        self._active_deadline.check()
+
+    async def _adk_turn_events(
+        self, runner: Runner, logical_id: str, sdk_id: str, session_id: str, prompt: str
+    ) -> AsyncGenerator[Event]:
+        cancelled = False
+        try:
+            self._tool_history.begin_turn(logical_id, sdk_id, session_id)
+            async with contextlib.aclosing(
+                runner.run_async(
+                    user_id=self._user_id,
+                    session_id=session_id,
+                    invocation_id=sdk_id,
+                    new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
+                )
+            ) as events:
+                async for event in events:
+                    # Runner yields only after SessionService accepted this event.
+                    self._tool_history.persisted(event)
+                    yield event
+        except asyncio.CancelledError:
+            cancelled = True
+            raise
+        finally:
+            try:
+                await self._seal_tool_history()
+            except (Exception, asyncio.CancelledError):
+                if not cancelled:
+                    raise
+
+    async def _seal_tool_history(self) -> None:
+        async def seal() -> None:
+            self._tool_history.check()
+            if self._tool_history.needs_seal:
+                session_id = self._session_lifecycle.active_session_id
+                if session_id is None:
+                    raise WorkerSessionLifecycleError("session_absent")
+                # Supply the owner's identity only. The ledger obtains its
+                # bounded event suffix through the public SessionService itself.
+                session = Session(app_name=self._app_name, user_id=self._user_id, id=session_id)
+                await self._tool_history.seal(self._session_service, session)
+
+        async def bounded_seal() -> None:
+            try:
+                await asyncio.wait_for(seal(), timeout=INVOCATION_CLEANUP_TIMEOUT_SECONDS)
+            except ToolHistoryError as error:
+                self._accepting = False
+                self._session_lifecycle.fence()
+                raise WorkerSessionLifecycleError(error.code) from None
+            except (Exception, asyncio.CancelledError):
+                self._accepting = False
+                self._session_lifecycle.fence()
+                raise WorkerSessionLifecycleError("tool_history_unavailable") from None
+
+        task = asyncio.create_task(bounded_seal(), name="worker-tool-history-seal")
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            # Cleanup owns no semantic work and must join before session release.
+            with contextlib.suppress(Exception, asyncio.CancelledError):
+                await task
+            raise
 
     def _check_active(self):
         self._worker_state.execution.check()
@@ -812,6 +925,10 @@ class AdkWorkerRuntime:
                 observed_refs=tuple(self._invocation_observed_refs),
             )
         except Exception as error:
+            # ADK wraps callback exceptions. The absolute invocation deadline
+            # still owns a refusal in the finalizer's actual model callback.
+            if self._active_deadline is not None:
+                self._active_deadline.check()
             budget_error = _chained_error(error, WorkerBudgetExceeded)
             if budget_error is not None:
                 self._metrics.record_worker_budget_exhausted(budget_error.dimension)
@@ -944,6 +1061,7 @@ class AdkWorkerRuntime:
                 policy=config.model_policy,
                 instructions=config.instructions.text if config.instructions is not None else None,
                 instrumentation=self._instrumentation,
+                check_admission=self._admit_semantic_work,
             )
             candidate = await summarizer.run(prompt=prompt, invocation_id=invocation_id)
             usage = summarizer.usage
@@ -974,6 +1092,19 @@ class AdkWorkerRuntime:
                 )
             )
             raise
+        except TimeoutError:
+            usage = summarizer.usage if summarizer is not None else usage
+            if self._active_deadline is not None and self._active_deadline.passed():
+                await _await_safely(
+                    self._complete_summarizer_attempt(
+                        invocation_id=invocation_id,
+                        succeeded=False,
+                        usage=usage,
+                        failure_code="cancelled",
+                    )
+                )
+                raise
+            failure_code = "runtime_failed"
         except SummarizerFailure as error:
             usage = summarizer.usage if summarizer is not None else usage
             failure_code = error.code

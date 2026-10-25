@@ -862,6 +862,11 @@ its owning requirement.
 | `LIM-WRK-19` | 1 active invocation | Worker invocations per allocation | Runtime Agent single-invocation lock | [WRK-R124](../execution/worker.md) |
 | `LIM-WRK-20` | 512 KiB | Terminal summarizer event projection | Runtime | [WRK-R147](../execution/worker.md) |
 | `LIM-WRK-21` | exactly 1 logical call | Terminal summarizer per invocation | Runtime | [WRK-R151](../execution/worker.md) |
+| `LIM-WRK-22` | 10,000 observed tool-call identities, cumulative across SDK turns | Interrupted-history ledger for one logical Worker invocation; settled calls still count | Runtime history admission before selecting-event persistence | [WRK-R175](../execution/worker.md) |
+| `LIM-WRK-23` | 32 MiB of combined UTF-8 metadata and immutable JSON result snapshots | Unresolved calls in the invocation-local history ledger; excludes arguments and the retained SDK conversation | Runtime history metadata admission and bounded result serialization | [WRK-R175](../execution/worker.md) |
+| `LIM-WRK-24` | 1,001 SDK turn identities | One logical Worker invocation, including a final turn refused by the 1,000-model-call ceiling | Runtime history turn admission | [WRK-R173](../execution/worker.md) |
+| `LIM-WRK-25` | at most 2 × unresolved call count + 3 recent events per read | SessionService read during interrupted tool-history reconciliation | Runtime history settlement through GetSessionConfig | [WRK-R176](../execution/worker.md) |
+| `LIM-WRK-26` | 5 seconds | Cancellation-shielded, joined interrupted tool-history settlement | Runtime invocation coordinator; failure fences the allocation | [WRK-R177](../execution/worker.md) |
 | `LIM-WSP-1` | 1 to 32 sources | WorkspaceContext.sources of a Stage context.workspace | Workflow configuration validation | [WSP-R11](../tools/workspace.md) |
 | `LIM-WSP-2` | 32 path components | each workspace source target | Workflow configuration validation | [WSP-R13](../tools/workspace.md) |
 | `LIM-WSP-3` | 1024 UTF-8 bytes | each workspace source target | Workflow configuration validation | [WSP-R13](../tools/workspace.md) |

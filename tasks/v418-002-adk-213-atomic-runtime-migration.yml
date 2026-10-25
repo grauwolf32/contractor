@@ -18,6 +18,8 @@ context:
     change, adjust the existing compaction series, and keep model consultation as a proposal. These pending
     tasks do not start implementation or change the current delivery focus.'
   review: tasks/evidence/v418-adk-213-review.json
+  migration_evidence: tasks/evidence/v418-adk-213-migration.json
+  boundary_probes: tasks/evidence/v418-adk-213-boundary-probes.json
   specification:
   - docs/spec/execution/worker.md#WRK-R106
   - docs/spec/execution/worker.md#WRK-R158

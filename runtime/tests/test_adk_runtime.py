@@ -395,7 +395,7 @@ def test_adk_worker_sessions_mirror_the_canonical_contractor_state(
 
 
 def adk_system_instruction(instruction: str, *, agent: str, description: str) -> str:
-    """The exact system instruction ADK 2.8 sends: the text, then its identity line."""
+    """The exact system instruction the supported ADK sends: the text, then its identity line."""
 
     identity = f'You are an agent. Your internal name is "{agent}".'
     return f'{instruction}\n\n{identity} The description about you is "{description}".'
@@ -2048,8 +2048,9 @@ def test_tool_budget_does_not_poison_next_invocation_payload(
                 for message in payload["messages"]
                 if message["role"] == "tool"
                 and json.loads(message["content"]).get("error", {}).get("code")
-                == "tool_call_outcome_unknown"
+                == "tool_call_not_executed"
             ]
+            # The callback budget rejected this call before its function was dispatched.
             assert "unanswered-call" in {message["tool_call_id"] for message in synthetic}
         else:
             assert not carried_ids
@@ -2100,7 +2101,7 @@ def test_cancelled_tool_call_does_not_poison_next_shared_invocation(tmp_path: Pa
             for message in payload["messages"]
             if message["role"] == "tool" and message["tool_call_id"] == "cancelled-call"
         )
-        assert json.loads(cancelled["content"])["error"]["code"] == "tool_call_outcome_unknown"
+        assert json.loads(cancelled["content"])["error"]["code"] == "tool_call_cancelled"
         assert any(
             call["id"] == "cancelled-call"
             for message in payload["messages"]
@@ -3377,7 +3378,7 @@ def test_interrupted_callback_startup_closes_terminal_state(
             for span in instrumentation.spans
             if span.name in {"contractor.worker.model", "contractor.worker.tool"}
         ]
-        assert callback_spans[-1].outcome == ("failed" if phase == "tool" else "cancelled")
+        assert callback_spans[-1].outcome == "cancelled"
         assert_slot_released(runtime)
         assert (await runtime.agent_state_snapshot()).state.current_invocation is None
         sessions = await runtime._session_service.list_sessions(
@@ -3420,9 +3421,10 @@ def test_deadline_passing_at_a_step_boundary_starts_no_next_call(
             tmp_path, state, {"probe": probe}, model, instrumentation=instrumentation
         )
         if boundary == "next_model_call":
+            original_on_event = runtime._plugin.on_event_callback
 
             async def on_event(*, invocation_context: Any, event: Any) -> None:
-                del invocation_context
+                await original_on_event(invocation_context=invocation_context, event=event)
                 if event.get_function_responses():
                     advance_clock(PAST_STAGE_DEADLINE_SECONDS)
 
@@ -3542,6 +3544,50 @@ def test_an_invocation_ending_before_its_summarizer_starts_closes_the_request(
         else:
             assert_slot_released(runtime)
             await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_summary_factory_crossing_deadline_starts_no_summary_call(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        async def probe() -> dict[str, bool]:
+            return {"ok": True}
+
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        main = scripted_model([tool_call("probe", {}, call_id="before-summary-deadline")])
+        summary = scripted_model([structured_result("late")], model="worker-summary-model")
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            main,
+            summary_model=summary,
+            cumulative_budget=10,
+            instrumentation=instrumentation,
+        )
+
+        def expired_summary_factory(context: WorkerBuildContext) -> BaseLlm:
+            assert context.model_policy.model == "worker-summary-model"
+            advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+            return summary
+
+        runtime._model_factory = expired_summary_factory
+        completion = await runtime.invoke(stage_request())
+        assert_worker_timeout(completion)
+        assert len(main.requests) == 1
+        assert summary.requests == []
+        completed = (await state.snapshot())["lastCompletedInvocation"]
+        assert completed["summarizer"]["phase"] == "failed"
+        assert completed["summarizer"]["failureCode"] == "cancelled"
+        assert completed["summarizer"]["modelCalls"] == 0
+        model_spans = [
+            span for span in instrumentation.spans if span.name == "contractor.worker.model"
+        ]
+        assert len(model_spans) == 1
+        assert model_spans[0].outcome == "succeeded"
+        assert_slot_released(runtime)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     run_with_advanceable_clock(scenario())
 

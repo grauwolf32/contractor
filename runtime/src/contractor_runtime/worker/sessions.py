@@ -65,6 +65,10 @@ class WorkerSessionLifecycle:
     def failed(self) -> bool:
         return self._failed
 
+    def fence(self) -> None:
+        """Prevent reuse after the owner cannot establish complete tool history."""
+        self._failed = True
+
     async def begin_invocation(self, contractor_state: dict[str, Any]) -> str:
         if self._closed:
             raise WorkerSessionLifecycleError("closed")

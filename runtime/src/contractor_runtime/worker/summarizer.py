@@ -8,7 +8,7 @@ import json
 import math
 import re
 from collections import Counter, deque
-from collections.abc import AsyncGenerator, Mapping, Sequence
+from collections.abc import AsyncGenerator, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -203,11 +203,13 @@ class TerminalSummarizer:
         policy: ResolvedModelPolicy,
         instructions: str | None = None,
         instrumentation: RuntimeInstrumentation | None = None,
+        check_admission: Callable[[], None] | None = None,
     ) -> None:
         self._policy = policy
         self._instructions = _SYSTEM_INSTRUCTION if instructions is None else instructions
         self._model = _OneShotModel(model)
         self._instrumentation = instrumentation
+        self._check_admission = check_admission
 
     @property
     def usage(self) -> SummarizerUsage:
@@ -218,6 +220,8 @@ class TerminalSummarizer:
 
         def before_model(callback_context: Any, llm_request: LlmRequest) -> None:
             nonlocal span
+            if self._check_admission is not None:
+                self._check_admission()
             span = start_isolated_span(
                 self._instrumentation,
                 "contractor.worker.model",
@@ -259,6 +263,11 @@ class TerminalSummarizer:
                 except SummarizerFailure:
                     raise
                 except Exception as error:
+                    # SDK workflow wrappers may carry a deadline exception.
+                    # Preserve the owning invocation's expired/cancelled result
+                    # instead of turning it into a generic summarizer failure.
+                    if self._check_admission is not None:
+                        self._check_admission()
                     code = (
                         "gateway_unavailable"
                         if isinstance(getattr(error, "provider_error_type", None), str)
