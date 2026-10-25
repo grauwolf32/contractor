@@ -6,7 +6,7 @@ epic: scan-tools
 kind: defect
 introduced_by: V55-003
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, go]
 goal: A tool Worker never begins or continues scanner work after its effective invocation deadline merely because the Server's cancellation request did not arrive.
@@ -100,6 +100,7 @@ tests:
     covers: [A1, A3, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+implementation_commit: 10c96ab71d2abb130588ccb44117c44c72419e01
 verification:
   date: '2026-10-25'
   environment: macOS arm64 isolated task worktree on 44469e3e; Python 3.13.16 with a local locked uv environment; Go from the pinned Darwin toolchain; Node 24.20; isolated PostgreSQL review_v416_tool_deadline database.
