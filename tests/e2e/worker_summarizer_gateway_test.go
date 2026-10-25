@@ -229,12 +229,25 @@ func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 			}, "stop", summarizerUsage(13, 5, 18))
 			return
 		}
+		if mode == "empty-summary" || mode == "thought-summary" {
+			message := map[string]any{"role": "assistant", "content": ""}
+			if mode == "thought-summary" {
+				message["content"] = nil
+				message["reasoning_content"] = summarizerTranscriptCanary
+			}
+			g.writeCompletion(w, model, message, "stop", summarizerUsage(13, 5, 18))
+			return
+		}
 		message, resultErr := summarizerResultMessage(request, "Terminal summary for "+mode)
 		if resultErr != nil {
 			g.fail(w, http.StatusBadRequest, resultErr.Error())
 			return
 		}
-		g.writeCompletion(w, model, message, "stop", summarizerUsage(13, 5, 18))
+		finish := "stop"
+		if mode == "limited-summary" {
+			finish = "length"
+		}
+		g.writeCompletion(w, model, message, finish, summarizerUsage(13, 5, 18))
 		return
 	}
 
@@ -370,7 +383,7 @@ func normalUsage(mode string, call int) map[string]any {
 			return summarizerUsage(100, 19900, 20000)
 		}
 		return summarizerUsage(7, 3, 10)
-	case "cumulative", "invalid-summary", "cancel-summary", "provider-timeout":
+	case "cumulative", "invalid-summary", "cancel-summary", "provider-timeout", "empty-summary", "thought-summary", "limited-summary":
 		return summarizerUsage(100, 19_900, 20_000)
 	case "context-window":
 		return summarizerUsage(7168, 3, 7171)
@@ -414,6 +427,7 @@ func summarizerRequestMode(request map[string]any) (string, error) {
 		"cumulative": true, "context-window": true, "normal-final": true,
 		"missing-usage": true, "disabled": true, "invalid-summary": true,
 		"cancel-summary": true, "provider-timeout": true,
+		"empty-summary": true, "thought-summary": true, "limited-summary": true,
 		"reuse-after-failure": true, "reuse-after-cancel": true,
 		"continuation": true,
 	}

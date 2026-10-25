@@ -3,6 +3,7 @@
 package e2e
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -45,12 +46,21 @@ type workerSessionGateway struct {
 	finalized   map[string]int
 	observed    []string
 	failures    []string
+	probeCalls  map[string]int
+	probeTools  map[string]int
+	probeFinal  map[string]int
+	probeStart  map[string]chan struct{}
+	probeJoined map[string]chan struct{}
+	probeRefs   map[string]artifactRef
 }
 
 func newWorkerSessionGateway(token string) *workerSessionGateway {
 	gateway := &workerSessionGateway{
 		token: token, plannerStep: map[string]int{}, primarySeen: map[string]int{},
-		finalized: map[string]int{},
+		finalized:  map[string]int{},
+		probeCalls: map[string]int{}, probeTools: map[string]int{}, probeFinal: map[string]int{},
+		probeStart: map[string]chan struct{}{}, probeJoined: map[string]chan struct{}{},
+		probeRefs: map[string]artifactRef{},
 	}
 	gateway.server = httptest.NewServer(http.HandlerFunc(gateway.serveHTTP))
 	return gateway
@@ -114,6 +124,9 @@ func (g *workerSessionGateway) serveHTTP(w http.ResponseWriter, r *http.Request)
 	var request map[string]any
 	if err := decoder.Decode(&request); err != nil {
 		g.writeFailure(w, http.StatusBadRequest, "invalid session Gateway request")
+		return
+	}
+	if handled := g.serveADKProbe(w, r, request); handled {
 		return
 	}
 	message, finishReason, model, err := g.next(request)
@@ -367,4 +380,226 @@ func (g *workerSessionGateway) writeFailure(w http.ResponseWriter, status int, m
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"error": map[string]any{"message": message, "type": "invalid_request_error"},
 	})
+}
+
+const adkProbeResultPrefix = "ADK213_RESULT:"
+const adkProbeUnknownName = "ADK213_UNKNOWN_TOOL_NAME_CANARY"
+const adkProbeArtifactBody = "ADK213 committed artifact body"
+
+func (g *workerSessionGateway) armADKProbe(mode string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.probeStart[mode] = make(chan struct{})
+	g.probeJoined[mode] = make(chan struct{})
+}
+
+func (g *workerSessionGateway) waitADKProbe(ctx context.Context, mode string, joined bool) error {
+	g.mu.Lock()
+	channel := g.probeStart[mode]
+	if joined {
+		channel = g.probeJoined[mode]
+	}
+	g.mu.Unlock()
+	select {
+	case <-channel:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (g *workerSessionGateway) adkProbeCounts(mode string) (normal, finalizer, tools int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.probeCalls[mode], g.probeFinal[mode], g.probeTools[mode]
+}
+
+func (g *workerSessionGateway) adkProbeReceipt(mode string) (artifactRef, bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	ref, ok := g.probeRefs[mode]
+	return ref, ok
+}
+
+// serveADKProbe handles only the staged test-only Workflow. It counts actual
+// provider HTTP requests, independently from Runtime callback admission.
+func (g *workerSessionGateway) serveADKProbe(w http.ResponseWriter, r *http.Request, request map[string]any) bool {
+	mode := ""
+	walkDomainJSON(request, func(value map[string]any) {
+		if current, _ := value["mode"].(string); strings.HasPrefix(current, "adk213-") {
+			mode = current
+		}
+		parameters, _ := value["parameters"].(map[string]any)
+		if current, _ := parameters["mode"].(string); strings.HasPrefix(current, "adk213-") {
+			mode = current
+		}
+	})
+	input, finalizer, decodeErr := decodeWorkerResultFinalizerRequest(request)
+	if finalizer && strings.HasPrefix(input.ResultText, adkProbeResultPrefix) {
+		mode = strings.TrimPrefix(input.ResultText, adkProbeResultPrefix)
+	}
+	if mode == "" {
+		return false
+	}
+	if decodeErr != nil {
+		g.writeFailure(w, http.StatusBadRequest, "invalid ADK probe finalizer")
+		return true
+	}
+	model, _ := request["model"].(string)
+	if model != "worker-model" || requestInteger(request, "max_tokens", "max_completion_tokens") != 4096 {
+		g.writeFailure(w, http.StatusBadRequest, "ADK probe model/policy pin changed")
+		return true
+	}
+	parts := strings.SplitN(strings.TrimPrefix(mode, "adk213-"), "-", 2)
+	if len(parts) != 2 {
+		g.writeFailure(w, http.StatusBadRequest, "invalid ADK probe mode")
+		return true
+	}
+	kind := parts[1]
+	g.mu.Lock()
+	if finalizer {
+		g.probeFinal[mode]++
+	} else {
+		g.probeCalls[mode]++
+	}
+	normalCount, finalizerCount := g.probeCalls[mode], g.probeFinal[mode]
+	started, joined := g.probeStart[mode], g.probeJoined[mode]
+	g.observed = append(g.observed, fmt.Sprintf("adk213:%s:%t:%d:%d", mode, finalizer, normalCount, finalizerCount))
+	g.mu.Unlock()
+	maximumNormal := 2
+	if kind == "raw-arguments" {
+		maximumNormal = 4
+	}
+	if finalizerCount > 1 || normalCount > maximumNormal {
+		g.writeFailure(w, http.StatusBadRequest, "ADK probe repeated a semantic request")
+		return true
+	}
+	if finalizer {
+		if !requestHasNoModelTools(request) {
+			g.writeFailure(w, http.StatusBadRequest, "ADK finalizer received tools")
+			return true
+		}
+	} else {
+		names, err := optionalRequestToolNames(request)
+		if err != nil || strings.Join(names, ",") != "read_artifact,write_text_artifact" {
+			g.writeFailure(w, http.StatusBadRequest, "ADK main tool schema changed")
+			return true
+		}
+		encoded, _ := json.Marshal(request)
+		if !strings.Contains(string(encoded), "{literal_probe}") {
+			g.writeFailure(w, http.StatusBadRequest, "ADK instruction braces were templated")
+			return true
+		}
+	}
+	if (kind == "main-cancel" && !finalizer) || (kind == "finalizer-cancel" && finalizer) {
+		if started == nil || joined == nil {
+			g.writeFailure(w, http.StatusBadRequest, "ADK cancellation barrier not armed")
+			return true
+		}
+		close(started)
+		// Never retain the Gateway lock while waiting for a transport cancellation.
+		<-r.Context().Done()
+		close(joined)
+		return true
+	}
+	message := map[string]any{"role": "assistant", "content": adkProbeResultPrefix + mode}
+	finish := "stop"
+	if finalizer {
+		var err error
+		message, err = workerResultFinalizerMessage(input)
+		if err != nil {
+			g.writeFailure(w, http.StatusBadRequest, "invalid ADK finalizer projection")
+			return true
+		}
+	}
+	terminalKind := strings.TrimPrefix(kind, "main-")
+	if finalizer {
+		terminalKind = strings.TrimPrefix(kind, "finalizer-")
+	}
+	if (!finalizer && strings.HasPrefix(kind, "main-")) || (finalizer && strings.HasPrefix(kind, "finalizer-")) {
+		switch terminalKind {
+		case "empty":
+			message = map[string]any{"role": "assistant", "content": ""}
+		case "thought":
+			message = map[string]any{"role": "assistant", "content": nil, "reasoning_content": "ADK213 private thought only"}
+		case "limit":
+			finish = "length"
+		}
+	}
+	if !finalizer && normalCount == 1 {
+		name, args := "", map[string]any{}
+		switch kind {
+		case "unknown":
+			name = adkProbeUnknownName
+		case "artifact-pair":
+			name, args = "write_text_artifact", map[string]any{"name": "spine", "text": adkProbeArtifactBody, "media_type": "text/plain", "expected_revision": nil}
+		}
+		if name != "" {
+			message, finish = toolCallMessage("probe-"+mode+"-1", name, args), "tool_calls"
+		}
+	}
+	if !finalizer && kind == "raw-arguments" && normalCount <= 3 {
+		value := []any{json.Number("1.0"), json.Number("1.5"), true}[normalCount-1]
+		message = toolCallMessage(fmt.Sprintf("probe-%s-%d", mode, normalCount), "read_artifact", map[string]any{"namespace": "inputs", "name": "source", "offset": value})
+		finish = "tool_calls"
+	}
+	if !finalizer && normalCount > 1 {
+		response, err := adkProbeToolResponse(request, fmt.Sprintf("probe-%s-%d", mode, normalCount-1))
+		if err != nil {
+			g.writeFailure(w, http.StatusBadRequest, err.Error())
+			return true
+		}
+		if kind == "artifact-pair" {
+			ref, _ := response["artifact"].(map[string]any)
+			revision, _ := ref["revision"].(string)
+			if ref["namespace"] != "builder" || ref["name"] != "spine" || revision == "" {
+				g.writeFailure(w, http.StatusBadRequest, "completed artifact receipt was not retained")
+				return true
+			}
+			g.mu.Lock()
+			g.probeRefs[mode] = artifactRef{Namespace: "builder", Name: "spine", Revision: &revision}
+			g.mu.Unlock()
+		} else {
+			failure, _ := response["error"].(map[string]any)
+			want := "tool_input_invalid"
+			if kind == "unknown" {
+				want = "tool_call_failed"
+			}
+			if failure["code"] != want {
+				g.writeFailure(w, http.StatusBadRequest, "raw/unknown tool failure changed")
+				return true
+			}
+		}
+		g.mu.Lock()
+		g.probeTools[mode]++
+		g.mu.Unlock()
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"model": model, "choices": []any{map[string]any{"message": message, "finish_reason": finish}},
+		"usage": map[string]any{"prompt_tokens": 9, "completion_tokens": 4, "total_tokens": 13},
+	})
+	return true
+}
+
+func adkProbeToolResponse(request map[string]any, callID string) (map[string]any, error) {
+	messages, _ := request["messages"].([]any)
+	var found map[string]any
+	for _, raw := range messages {
+		message, _ := raw.(map[string]any)
+		if message["role"] != "tool" || message["tool_call_id"] != callID {
+			continue
+		}
+		if found != nil {
+			return nil, errors.New("duplicate ADK tool receipt in history")
+		}
+		content, _ := message["content"].(string)
+		if err := json.Unmarshal([]byte(content), &found); err != nil {
+			return nil, errors.New("invalid ADK tool receipt")
+		}
+	}
+	if found == nil {
+		return nil, errors.New("missing ADK tool receipt in next actual request")
+	}
+	return found, nil
 }

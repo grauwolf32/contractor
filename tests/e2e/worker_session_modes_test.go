@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,7 +34,7 @@ func TestWorkerSessionModesAcrossProductionProcesses(t *testing.T) {
 	}
 	repositoryRoot := repoRoot(t)
 	temporaryRoot := t.TempDir()
-	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 420*time.Second)
 	defer cancel()
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
@@ -70,6 +72,7 @@ func TestWorkerSessionModesAcrossProductionProcesses(t *testing.T) {
 		t, filepath.Join(repositoryRoot, "configs", "e2e"),
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
+	stageWorkerSessionADKFixtures(t, repositoryRoot, configRoot)
 	publicAddress := freeAddress(t)
 	privateAddress := freeAddress(t)
 	publicBaseURL := "http://" + publicAddress
@@ -176,6 +179,12 @@ func TestWorkerSessionModesAcrossProductionProcesses(t *testing.T) {
 		}
 	}
 
+	runWorkerSessionADKProbes(t, workerSessionProbeHarness{
+		ctx: ctx, server: server, runtimes: runtimes, gateway: gateway,
+		publicClient: publicClient, controlClient: controlClient, publicURL: publicBaseURL,
+		runtimeURLs: runtimeURLs, workRoots: workRoots, pool: pool, store: store,
+		knownInstances: sharedInstances,
+	})
 	gateway.assertComplete(t)
 	if failures := gateway.Failures(); len(failures) != 0 {
 		t.Fatalf("worker-session Gateway failures: %v", failures)
@@ -295,4 +304,200 @@ func workerSessionDiagnostics(
 	result.WriteString(fmt.Sprintf("\ngateway observations=%v failures=%v",
 		gateway.Observations(), gateway.Failures()))
 	return result.String()
+}
+
+func stageWorkerSessionADKFixtures(t *testing.T, repositoryRoot, target string) {
+	t.Helper()
+	for _, relative := range []string{
+		"agent-templates/session_tools_worker.yaml", "model-policies/session_tools_worker.yaml",
+		"instructions/session-tools-worker.md", "workflows/worker_session_adk.yaml",
+	} {
+		data, err := os.ReadFile(filepath.Join(repositoryRoot, "tests/e2e/testdata/adk213", relative))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(target, relative), data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if relative == "workflows/worker_session_adk.yaml" {
+			shared := strings.ReplaceAll(string(data), "worker-session-adk-isolated", "worker-session-adk-shared")
+			shared = strings.Replace(shared, "session: isolated", "session: shared", 1)
+			if err := os.WriteFile(filepath.Join(target, "workflows/worker_session_adk_shared.yaml"), []byte(shared), 0600); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}
+
+type workerSessionProbeHarness struct {
+	ctx                         context.Context
+	server                      *childProcess
+	runtimes                    []*childProcess
+	gateway                     *workerSessionGateway
+	publicClient, controlClient *http.Client
+	publicURL                   string
+	runtimeURLs, workRoots      []string
+	pool                        *pgxpool.Pool
+	store                       *runstore.PostgresStore
+	knownInstances              map[string]bool
+}
+
+type workerSessionProbeExpectation struct {
+	kind, failure, tool        string
+	modelCalls, spentResponses int64
+	toolFailed                 bool
+	cancel                     bool
+}
+
+func runWorkerSessionADKProbes(t *testing.T, h workerSessionProbeHarness) {
+	t.Helper()
+	input := uploadInput(t, h.publicClient, h.publicURL)
+	seenAllocations := map[string]bool{}
+	for _, session := range []string{"isolated", "shared"} {
+		cases := []workerSessionProbeExpectation{
+			{kind: "artifact-pair", tool: "write_text_artifact", modelCalls: 3, spentResponses: 3},
+			{kind: "unknown", tool: "unknown_tool", toolFailed: true, modelCalls: 3, spentResponses: 3},
+			{kind: "raw-arguments", tool: "read_artifact", toolFailed: true, modelCalls: 5, spentResponses: 5},
+		}
+		if session == "isolated" {
+			cases = append(cases,
+				workerSessionProbeExpectation{kind: "main-empty", failure: "worker_gateway_unavailable", modelCalls: 1, spentResponses: 1},
+				workerSessionProbeExpectation{kind: "main-thought", failure: "worker_result_missing", modelCalls: 1, spentResponses: 1},
+				workerSessionProbeExpectation{kind: "main-limit", failure: "worker_output_limit_exceeded", modelCalls: 1, spentResponses: 1},
+				workerSessionProbeExpectation{kind: "finalizer-empty", failure: "worker_gateway_unavailable", modelCalls: 2, spentResponses: 2},
+				workerSessionProbeExpectation{kind: "finalizer-thought", failure: "worker_result_missing", modelCalls: 2, spentResponses: 2},
+				workerSessionProbeExpectation{kind: "finalizer-limit", failure: "worker_output_limit_exceeded", modelCalls: 2, spentResponses: 2},
+				workerSessionProbeExpectation{kind: "main-cancel", cancel: true, modelCalls: 1},
+				workerSessionProbeExpectation{kind: "reuse-after-main-cancel", modelCalls: 2, spentResponses: 2},
+				workerSessionProbeExpectation{kind: "finalizer-cancel", cancel: true, modelCalls: 2, spentResponses: 1},
+				workerSessionProbeExpectation{kind: "reuse-after-finalizer-cancel", modelCalls: 2, spentResponses: 2},
+			)
+		}
+		for _, want := range cases {
+			if !t.Run("adk213/"+session+"/"+want.kind, func(t *testing.T) {
+				mode := "adk213-" + session + "-" + want.kind
+				if want.cancel {
+					h.gateway.armADKProbe(mode)
+				}
+				runID := createWorkflowRunWithParameters(t, h.publicClient, h.publicURL,
+					"worker-session-adk-"+session+"@1", mode, input, map[string]string{"mode": mode})
+				state := "succeeded"
+				if want.failure != "" {
+					state = "failed"
+				}
+				if want.cancel {
+					if err := h.gateway.waitADKProbe(h.ctx, mode, false); err != nil {
+						t.Fatalf("provider admission: %v", err)
+					}
+					cancelWorkflowRun(t, h.publicClient, h.publicURL, runID)
+					if err := h.gateway.waitADKProbe(h.ctx, mode, true); err != nil {
+						t.Fatalf("provider cancellation join: %v", err)
+					}
+					state = "cancelled"
+				}
+				status := waitForRunStateAcross(t, h.ctx, h.server, h.runtimes, h.publicClient, h.publicURL, runID, state)
+				if failures := h.gateway.Failures(); len(failures) != 0 {
+					t.Fatalf("Gateway fixture failures: %v", failures)
+				}
+				if len(status.Attempts) != 1 || status.Attempts[0].State != state {
+					t.Fatalf("authoritative attempt = %+v", status.Attempts)
+				}
+				attempt := status.Attempts[0]
+				if !want.cancel {
+					var result stageresult.StageContentResult
+					if err := json.Unmarshal(attempt.Result, &result); err != nil {
+						t.Fatal(err)
+					}
+					if want.failure == "" {
+						if result.Outcome != stageresult.StageSucceeded || result.Error != nil || result.Summary != adkProbeResultPrefix+mode {
+							t.Fatalf("successful result = %+v", result)
+						}
+					} else if result.Outcome != stageresult.StageFailed || result.Error == nil || result.Error.Code != want.failure || !result.Error.Retryable {
+						t.Fatalf("failed result = %+v, want %s", result, want.failure)
+					}
+				}
+				report := loadSummarizerProcessReport(t, h.ctx, h.pool, runID)
+				metrics := report.Report.Worker.Metrics
+				if !report.Report.Worker.Complete || !report.Report.Runtime.Complete || metrics.ModelCalls == nil || *metrics.ModelCalls != want.modelCalls || metrics.WorkerBudget == nil || metrics.WorkerBudget.ObservedModelCalls != want.modelCalls {
+					t.Fatalf("trusted reports incomplete or wrong attempt counts: %+v", report)
+				}
+				tokens := int64(0)
+				if metrics.TotalTokens != nil {
+					tokens = *metrics.TotalTokens
+				}
+				if tokens != want.spentResponses*13 || metrics.WorkerBudget.ObservedTotalTokens != tokens {
+					t.Fatalf("spent usage = %+v, want %d", metrics, want.spentResponses*13)
+				}
+				if attempt.Metrics == nil || !attempt.Metrics.ReportsComplete || attempt.Metrics.ModelCalls != want.modelCalls || attempt.Metrics.TotalTokens != tokens {
+					t.Fatalf("public metrics differ from persisted report: %+v", attempt.Metrics)
+				}
+				wantTools := int64(1)
+				if want.kind == "raw-arguments" {
+					wantTools = 3
+				}
+				if want.tool != "" {
+					tool := metrics.Tools[want.tool]
+					if tool.Calls == nil || *tool.Calls != wantTools || metrics.WorkerBudget.ObservedToolCalls != wantTools || len(report.Report.Worker.ToolCalls) != int(wantTools) {
+						t.Fatalf("tool accounting = %+v / %+v", metrics, report.Report.Worker.ToolCalls)
+					}
+					if want.toolFailed && (tool.Failed == nil || *tool.Failed != wantTools) {
+						t.Fatalf("rejection counted as success: %+v", tool)
+					}
+					if !want.toolFailed && (tool.Succeeded == nil || *tool.Succeeded != wantTools) {
+						t.Fatalf("completed tool lost: %+v", tool)
+					}
+				} else if metrics.WorkerBudget.ObservedToolCalls != 0 || len(report.Report.Worker.ToolCalls) != 0 {
+					t.Fatal("terminal scenario dispatched a tool")
+				}
+				encoded, _ := json.Marshal(report)
+				for _, forbidden := range []string{llmGatewayToken, publicToken, adkProbeUnknownName, "ADK213 private thought only"} {
+					if strings.Contains(string(encoded), forbidden) {
+						t.Fatal("private/provider content reached the stored report")
+					}
+				}
+				executions := requireExecutions(t, h.ctx, h.store, runID, 1)
+				allocations, err := h.store.ListStageAllocations(h.ctx, executions[0].StageExecutionID)
+				if err != nil || len(allocations) != 1 {
+					t.Fatalf("allocations = (%+v,%v)", allocations, err)
+				}
+				allocation := allocations[0]
+				if seenAllocations[allocation.AllocationID] || !h.knownInstances[allocation.RuntimeAgentInstanceID] {
+					t.Fatalf("slot reuse or release identity invalid: %+v", allocation)
+				}
+				seenAllocations[allocation.AllocationID] = true
+				stage, err := resolved.DecodeResolvedStageSnapshot(executions[0].StageSpecSnapshot)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if stage.Session != contracts.WorkerSessionMode(session) || allocation.AgentTemplateRef != stage.Agents["builder"].Template.Ref || allocation.RuntimeConfiguration == nil || allocation.RuntimeConfiguration.ModelPolicy != stage.Agents["builder"].Template.ModelPolicy.Ref {
+					t.Fatal("resolved template/model/session pin changed between snapshot and allocation")
+				}
+				for index := range h.runtimes {
+					waitForRuntimeReleased(t, h.ctx, h.runtimes[index], h.controlClient, h.runtimeURLs[index], allocation.AllocationID, h.workRoots[index])
+				}
+				allocations, err = h.store.ListStageAllocations(h.ctx, executions[0].StageExecutionID)
+				if err != nil || len(allocations) != 1 || allocations[0].ReleaseCompletedAt == nil {
+					t.Fatalf("release is not durably acknowledged: (%+v,%v)", allocations, err)
+				}
+				normal, finalizer, responses := h.gateway.adkProbeCounts(mode)
+				if int64(normal+finalizer) != want.modelCalls || (want.tool != "" && int64(responses) != wantTools) {
+					t.Fatalf("provider/receipt counts = %d/%d/%d", normal, finalizer, responses)
+				}
+				if want.kind == "artifact-pair" {
+					ref, ok := h.gateway.adkProbeReceipt(mode)
+					if !ok || ref.Revision == nil {
+						t.Fatal("completed tool receipt is absent")
+					}
+					// Read the exact tool-returned revision after release; a latest
+					// binding read could hide a corrupted or replaced receipt.
+					body, mediaType := download(t, h.publicClient, h.publicURL+"/v1/runs/"+runID+"/artifacts/builder/spine?revision="+url.QueryEscape(*ref.Revision))
+					if string(body) != adkProbeArtifactBody || mediaType != "text/plain" {
+						t.Fatal("completed tool artifact was not durably readable after release")
+					}
+				}
+			}) {
+				t.FailNow()
+			}
+		}
+	}
 }

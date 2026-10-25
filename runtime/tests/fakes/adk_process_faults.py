@@ -30,6 +30,8 @@ MODES = (
     "native_cleanup_failure_fences_until_release",
     "native_lease_expiry_joins_active_adk",
     "native_terminal_cleanup_budget_expires",
+    "native_failed_prepare_rollback",
+    "native_successful_release_replay",
 )
 
 
@@ -57,6 +59,7 @@ class NativeFaults:
         directory.mkdir(parents=True)
         self.events: list[str] = []
         self.dispatch: dict[str, int] = {}
+        self.created: dict[str, int] = {}
         self.closed: dict[str, int] = {}
         self.active = 0
         self.workspace = ""
@@ -78,6 +81,7 @@ class NativeFaults:
                 {
                     "events": self.events,
                     "dispatch": self.dispatch,
+                    "created": self.created,
                     "closed": self.closed,
                     "active": self.active,
                     "callbackEntries": self.callback_entries,
@@ -104,8 +108,16 @@ class NativeFaults:
                 return await delegate.probe()
 
             async def create(self, context):
-                worker = await delegate.create(context)
                 controller.workspace = str(context.workspace.path)
+                if (
+                    controller.mode == "native_failed_prepare_rollback"
+                    and "prepare_failure_injected" not in controller.events
+                ):
+                    if set(context.tools) != FaultTools.exported_tools:
+                        raise RuntimeError("Prepare fault did not follow exact local tool creation")
+                    await controller.record("prepare_failure_injected")
+                    raise RuntimeError("controlled process Worker creation failure")
+                worker = await delegate.create(context)
                 before_model = worker._plugin.before_model_callback
                 before_tool = worker._plugin.before_tool_callback
                 after_tool = worker._plugin.after_tool_callback
@@ -329,4 +341,6 @@ class FaultTools:
             tool.name = name
             tool.close = close
             result[name] = tool
+            controller.created[name] = controller.created.get(name, 0) + 1
+        await controller.record("tools_created")
         return result

@@ -78,7 +78,7 @@ test-worker-session-modes-hardening: test-wire-cross-language test-worker-sessio
 	$(call run-family-test,go test -race -count=1 ./internal/config/... ./internal/contracts/... ./internal/controlplane/... ./internal/scheduler/... ./internal/httpapi/public/...)
 
 test-worker-session-modes-e2e: test-worker-session-modes-hardening require-database runtime-venv
-	$(call run-family-test,go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestWorkerSessionModesAcrossProductionProcesses$$')
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestWorkerSessionModesAcrossProductionProcesses$$')
 
 test-memory-contracts:
 	$(call run-family-test,go test ./internal/memory/...)

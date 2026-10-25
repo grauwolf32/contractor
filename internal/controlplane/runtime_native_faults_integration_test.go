@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -41,6 +42,8 @@ func TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults(t *testing.T) {
 		"native_cleanup_failure_fences_until_release",
 		"native_lease_expiry_joins_active_adk",
 		"native_terminal_cleanup_budget_expires",
+		"native_failed_prepare_rollback",
+		"native_successful_release_replay",
 	} {
 		t.Run(mode, func(t *testing.T) { testNativeADKProcessFault(t, mode) })
 	}
@@ -49,6 +52,7 @@ func TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults(t *testing.T) {
 type nativeSnapshot struct {
 	Events          []string       `json:"events"`
 	Dispatch        map[string]int `json:"dispatch"`
+	Created         map[string]int `json:"created"`
 	Closed          map[string]int `json:"closed"`
 	Active          int            `json:"active"`
 	CallbackEntries map[string]int `json:"callbackEntries"`
@@ -152,6 +156,7 @@ type nativeHarness struct {
 	settings    runtimesettings.WorkerExecutionSettings
 	exited      <-chan struct{}
 	output      *nativeProcessLog
+	toolsets    int
 }
 
 func startNativeHarness(t *testing.T, mode string) *nativeHarness {
@@ -249,8 +254,56 @@ func startNativeHarness(t *testing.T, mode string) *nativeHarness {
 	reservation.WorkerSessionMode = contracts.WorkerSessionShared
 	settings := runtimesettings.WorkerExecutionSettings{ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()}
 	settings.RuntimeSettings.LLMGatewayURL = server.URL + "/v1"
-	h := &nativeHarness{t: t, ctx: ctx, client: client, invoker: invoker, reservation: reservation, directory: directory, gateway: gateway, settings: settings, exited: exited, output: output}
+	h := &nativeHarness{t: t, ctx: ctx, client: client, invoker: invoker, reservation: reservation, directory: directory, gateway: gateway, settings: settings, exited: exited, output: output, toolsets: 1}
 	h.wait("fault_harness_ready")
+	if mode == "native_failed_prepare_rollback" {
+		// Observe listener readiness without consuming the one failing Prepare.
+		for {
+			response, readyErr := client.doRequest(ctx, http.MethodGet, endpoint+"/healthz", nil, principal, nil)
+			if readyErr == nil {
+				_ = response.Body.Close()
+				if response.StatusCode == http.StatusOK {
+					break
+				}
+			}
+			select {
+			case <-ctx.Done():
+				t.Fatalf("native failed-prepare fixture readiness: %v", ctx.Err())
+			case <-time.After(25 * time.Millisecond):
+			}
+		}
+		_, err := client.Prepare(ctx, reservation, settings)
+		var api *RuntimeAPIError
+		if !errors.As(err, &api) || api.StatusCode != http.StatusServiceUnavailable || api.Code != "allocation_preparation_failed" || !api.Retryable {
+			t.Fatalf("injected partial prepare = %v", err)
+		}
+		value := h.wait("prepare_failure_injected")
+		if value.Active != 0 || len(value.Dispatch) != 0 || value.CallbackEntries["model"] != 0 || value.CallbackEntries["tool"] != 0 {
+			t.Fatalf("failed prepare started native work: %+v", value)
+		}
+		assertNativeToolCounts(t, value, 1)
+		if _, err := os.Stat(value.Workspace); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("failed prepare retained its workspace: %v", err)
+		}
+		main, finalizer := gateway.counts()
+		if main != 0 || finalizer != 0 {
+			t.Fatal("failed prepare reached the Gateway")
+		}
+		failedHandle := contracts.WorkerHandle{
+			AllocationID: reservation.Grant.AllocationID, RuntimeAgentID: principal,
+			AgentCard: map[string]any{"supportedInterfaces": []any{map[string]any{
+				"url": endpoint + "/private/v1/allocations/" + reservation.Grant.AllocationID + "/a2a",
+			}}},
+		}
+		_, stateErr := client.ReadWorkerState(ctx, failedHandle, "")
+		var stateFailure *reporting.WorkerStateReadError
+		if !errors.As(stateErr, &stateFailure) || stateFailure.StatusCode != http.StatusNotFound || stateFailure.Code != "allocation_not_found" || stateFailure.Retryable {
+			t.Fatalf("failed prepare Worker State read = %v", stateErr)
+		}
+		reservation.Grant.AllocationID = "allocation_after_failed_prepare"
+		h.reservation = reservation
+		h.toolsets = 2
+	}
 	for {
 		h.handle, err = client.Prepare(ctx, reservation, settings)
 		if err == nil {
@@ -347,20 +400,58 @@ func (h *nativeHarness) assertReleased() {
 	if value.Active != 0 {
 		h.t.Fatal("native work survived release")
 	}
-	for _, name := range []string{"list_artifacts", "read_artifact", "write_artifact"} {
-		if value.Closed[name] != 1 {
-			h.t.Fatalf("released tool %s closed %d times", name, value.Closed[name])
-		}
-	}
+	assertNativeToolCounts(h.t, value, h.toolsets)
 	if _, err := os.Stat(value.Workspace); !errors.Is(err, os.ErrNotExist) {
 		h.t.Fatalf("released workspace still present: %v", err)
 	}
+}
+
+func assertNativeToolCounts(t *testing.T, value nativeSnapshot, generations int) {
+	t.Helper()
+	for _, name := range []string{"list_artifacts", "read_artifact", "write_artifact"} {
+		if value.Created[name] != generations || value.Closed[name] != generations {
+			t.Fatalf("tool %s create/close = %d/%d, want %d/%d", name, value.Created[name], value.Closed[name], generations, generations)
+		}
+	}
+}
+
+func (h *nativeHarness) assertSuccessfulReleaseReplay() {
+	h.t.Helper()
+	before := h.snapshot()
+	mainBefore, finalizerBefore := h.gateway.counts()
+	if err := h.client.Release(h.ctx, h.reservation); err != nil {
+		h.t.Fatalf("successful Release replay: %v", err)
+	}
+	after := h.snapshot()
+	mainAfter, finalizerAfter := h.gateway.counts()
+	if !reflect.DeepEqual(before.Created, after.Created) || !reflect.DeepEqual(before.Closed, after.Closed) ||
+		!reflect.DeepEqual(before.Dispatch, after.Dispatch) || !reflect.DeepEqual(before.CallbackEntries, after.CallbackEntries) ||
+		!reflect.DeepEqual(before.Admitted, after.Admitted) || before.Active != after.Active || before.Workspace != after.Workspace ||
+		mainBefore != mainAfter || finalizerBefore != finalizerAfter {
+		h.t.Fatal("successful Release replay repeated cleanup or semantic work")
+	}
+	if len(after.Events) != len(before.Events)+2 || after.Events[len(before.Events)] != "release_requested" || after.Events[len(before.Events)+1] != "release_finished" {
+		h.t.Fatal("successful Release replay emitted an unexpected local side effect")
+	}
+	h.assertReleased()
 }
 
 func testNativeADKProcessFault(t *testing.T, mode string) {
 	h := startNativeHarness(t, mode)
 	request := nativeStage("0")
 	switch mode {
+	case "native_failed_prepare_rollback", "native_successful_release_replay":
+		completion, err := h.invoker.Invoke(h.ctx, "builder", h.handle, request)
+		if err != nil || completion.Result == nil {
+			t.Fatalf("healthy native allocation = (%+v,%v)", completion, err)
+		}
+		if h.snapshot().Dispatch["read"] != 1 {
+			t.Fatal("healthy allocation did not execute its local tool exactly once")
+		}
+		h.finishAndRelease()
+		if mode == "native_successful_release_replay" {
+			h.assertSuccessfulReleaseReplay()
+		}
 	case "expired_deadline_no_admission":
 		request.Deadline = time.Now().Add(-time.Minute)
 		completion, err := h.invoker.Invoke(h.ctx, "builder", h.handle, request)
