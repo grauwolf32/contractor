@@ -197,3 +197,9 @@ execution:
     batch is reserved together; implementation proceeds in dependency order,
     and dependent tasks do not start implementation before their prerequisites
     complete. Status records assignment, not completed implementation or tests.
+
+implementation_decisions:
+- date: 2026-10-26
+  decision: Required sitemap persistence is checked by deterministic completion code at the declared boundary,
+    outside the model-visible HTTP result. Run owners receive collection status; a failed final required report
+    is an execution failure and never relabels target transport or repeats target traffic.
