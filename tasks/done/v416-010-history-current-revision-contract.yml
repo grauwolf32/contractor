@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V410-010
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [markdown]
 goal: >-
@@ -82,3 +82,11 @@ verification:
     independent maintenance and caller-owned transaction limits. No algorithm,
     SQL, limits or test assertions changed; wording now names the same
     post-publication state and the ART-R127 exception.
+
+implementation_commit: 4923b9000d57cfa042733c6f5bf512f5e01444f5
+integration_verification:
+  date: "2026-10-25"
+  revision: 4923b9000d57cfa042733c6f5bf512f5e01444f5
+  command: make lint
+  result: passed
+  scope: Integrated implementation and required task-specific suites passed; no platform-limited full Runtime result is substituted for this task's required checks.
