@@ -697,6 +697,14 @@ allocation drain or finalize. The boundary returns exactly one of:
 - `complete`: a trusted `WorkerResult` ready for normal lifecycle processing;
 - `fail`: a bounded `WorkerFailure`, with no fabricated successful result.
 
+Internal SDK turns do not create another logical Worker invocation. Every
+Runtime-authored reminder reaches the next actual model request exactly once;
+the logical invocation, completion owner, State, observations, budgets and
+original deadline remain the same. SDK-local identifiers never replace the
+logical invocation identity seen by business tools or trusted results. Model
+and tool admission is bound to the currently authorized turn; a stale callback
+cannot start unaccounted work.
+
 **WRK-R63.** The shared boundary lives in `core/worker_completion.py`;
 the Audit implementation lives with `toolsets/audit_results`. Worker
 orchestration binds a prepared completion implementation to the identical
