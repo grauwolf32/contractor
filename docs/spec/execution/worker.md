@@ -1101,8 +1101,12 @@ every snapshot that leaves the store remains an independent deep copy
 (WRK-R160). Copying the retained references stays linear in the retained
 detail.
 
-**WRK-R161.** Counters saturate and detail admission stops at the declared
-bounds rather than evicting facts and changing earlier ordering.
+**WRK-R161.** Counters saturate at their declared bounds. Semantic
+observation detail preserves its first-observation admission order and stops
+admitting entries at its bounds (WRK-R97 to WRK-R102). Allocation metric
+tool-call and error detail follows the rolling retention policy of OBS-R41:
+overflow removes the oldest detail, preserves aggregate counters and sets
+`truncated`. Its cached State projections follow WRK-R169.
 
 **WRK-R110.** "Full state" always means the complete
 Contractor-owned, versioned and bounded subtree. It excludes arbitrary or

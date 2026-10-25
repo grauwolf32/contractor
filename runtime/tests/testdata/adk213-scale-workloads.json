@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "main_turns": [50, 150],
+  "session_modes": ["shared", "isolated"],
+  "sequential_subtasks": 3,
+  "calls_per_tool_turn": 2,
+  "allocation_cycles": 1025,
+  "ceilings": {
+    "model_calls": 1000,
+    "tool_calls": 10000,
+    "total_tokens": 100000000,
+    "tool_records": 1000,
+    "error_records": 100,
+    "tool_names": 256,
+    "report_bytes": 1048576,
+    "state_bytes": 4194304,
+    "carried_state_bytes": 4194304
+  }
+}
