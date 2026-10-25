@@ -3291,6 +3291,101 @@ def test_deadline_during_an_ordinary_phase_cancels_and_joins_its_work(
     run_with_advanceable_clock(scenario())
 
 
+@pytest.mark.parametrize("mode", list(WorkerSessionMode))
+@pytest.mark.parametrize("phase", ["model", "tool", "result_finalizer"])
+@pytest.mark.parametrize("ending", ["cancellation", "deadline"])
+def test_interrupted_callback_startup_closes_terminal_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: WorkerSessionMode,
+    phase: str,
+    ending: str,
+) -> None:
+    async def scenario() -> None:
+        tool_calls: list[str] = []
+
+        async def probe() -> dict[str, bool]:
+            tool_calls.append("probe")
+            return {"ok": True}
+
+        state = WorkerState()
+        instrumentation = RecordingInstrumentation()
+        responses = (
+            [tool_call("probe", {}, call_id="unstarted-probe"), terminal_text("Recovered")]
+            if phase == "tool"
+            else [terminal_text("Ready"), terminal_text("Recovered")]
+        )
+        model = scripted_model(responses)
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"probe": probe},
+            model,
+            instrumentation=instrumentation,
+            session_mode=mode,
+        )
+        entered = asyncio.Event()
+        publish = state.publish_invocation_metrics
+
+        async def gated_publish(**kwargs: Any) -> Any:
+            pending = {
+                "model": runtime._plugin._pending_models,
+                "tool": runtime._plugin._pending_tools,
+                "result_finalizer": runtime._plugin._pending_auxiliary_models,
+            }[phase]
+            if pending and not entered.is_set():
+                entered.set()
+                await asyncio.Event().wait()
+            return await publish(**kwargs)
+
+        monkeypatch.setattr(state, "publish_invocation_metrics", gated_publish)
+        invocation = asyncio.create_task(runtime.invoke(stage_request()))
+        await asyncio.wait_for(entered.wait(), timeout=1)
+        if ending == "cancellation":
+            runtime.cancel_active(invocation)
+            with pytest.raises(asyncio.CancelledError):
+                await invocation
+        else:
+            advance_clock(PAST_STAGE_DEADLINE_SECONDS)
+            completion = await asyncio.wait_for(invocation, timeout=1)
+            assert_worker_timeout(completion)
+
+        snapshot = await state.snapshot()
+        assert snapshot["currentInvocation"] is None
+        completed = snapshot["lastCompletedInvocation"]
+        assert completed["phase"] == ("cancelled" if ending == "cancellation" else "failed")
+        assert len(model.requests) == (0 if phase == "model" else 1)
+        assert tool_calls == []
+        assert completed["metrics"]["modelCalls"] == (2 if phase == "result_finalizer" else 1)
+        assert completed["metrics"]["modelErrors"] == 0
+        assert runtime._plugin._active_invocation_id is None
+        assert not runtime._plugin._pending_models
+        assert not runtime._plugin._pending_auxiliary_models
+        assert not runtime._plugin._pending_tools
+        assert all(span.end_calls == 1 for span in instrumentation.spans)
+        callback_spans = [
+            span
+            for span in instrumentation.spans
+            if span.name in {"contractor.worker.model", "contractor.worker.tool"}
+        ]
+        assert callback_spans[-1].outcome == ("failed" if phase == "tool" else "cancelled")
+        assert_slot_released(runtime)
+        assert (await runtime.agent_state_snapshot()).state.current_invocation is None
+        sessions = await runtime._session_service.list_sessions(
+            app_name=runtime._app_name, user_id=runtime._user_id
+        )
+        assert len(sessions.sessions) == (1 if mode == WorkerSessionMode.SHARED else 0)
+        # A cancelled callback does not leave pending instrumentation or fence a healthy slot.
+        later = await runtime.invoke(stage_request())
+        assert later.result is not None
+        assert later.failure is None
+        assert_slot_released(runtime)
+        assert all(span.end_calls == 1 for span in instrumentation.spans)
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    run_with_advanceable_clock(scenario())
+
+
 @pytest.mark.parametrize("boundary", ["next_model_call", "result_finalizer"])
 def test_deadline_passing_at_a_step_boundary_starts_no_next_call(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, boundary: str
@@ -3837,6 +3932,7 @@ class RecordingSpan:
         self.name = name
         self.attributes = dict(attributes)
         self.outcome: str | None = None
+        self.end_calls = 0
 
     def end(
         self,
@@ -3844,6 +3940,7 @@ class RecordingSpan:
         outcome: str,
         attributes: dict[str, TelemetryAttribute] | None = None,
     ) -> None:
+        self.end_calls += 1
         self.outcome = outcome
         if attributes is not None:
             self.attributes.update(attributes)
