@@ -80,7 +80,23 @@ Then check placement in **Operations → Runtime Agents** or with
 7. **Start.** Stops and removes instances marked `state: absent`, then starts
    stopped instances and restarts changed ones one at a time, each verified
    from its journal before the next.
-8. **Prune.** Removes releases beyond `contractor_runtime_keep_releases`.
+8. **Prune.** Checks every retained Contractor unit against the supplied inventory
+   before removing unreferenced releases. An omitted unit refuses cleanup; include
+   it or explicitly retire it with `state: absent`. A retained restart marker
+   defers all cleanup, including when a rewritten unit names the new release
+   but its process still uses the old one. Otherwise unit and live process
+   references are protected. `contractor_runtime_keep_releases` is a total
+   retention target; protected releases may exceed it.
+
+Deployment is an exclusive host operation: do not concurrently apply inventories
+or edit managed units/releases. Cleanup reads at most 4,096 entries per metadata
+directory, 256 Contractor units and 64 KiB per unit/process metadata file; the
+manager scan has a 30-second deadline and a five-second timeout per query.
+Unsupported units/drop-ins, symlinks, missing references, incomplete inventories,
+failed reads or exceeded bounds refuse cleanup before any deletion. It never
+stops an omitted instance. Explicit retirement keeps certificates, keys and work
+roots. Host tools remain installed; per-instance bin cleanup runs only after that
+instance has restarted.
 
 ## Capabilities
 
