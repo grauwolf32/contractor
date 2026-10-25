@@ -1,0 +1,178 @@
+schema_version: '1.0'
+id: V417-007
+title: Report compaction progress and costs without exposing context content
+milestone: worker-context-compaction-2026-10
+epic: planner-worker
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V417-003
+languages:
+- go
+- python
+- typescript
+goal: Operators can distinguish ongoing context compaction from terminal summarization and see its measured
+  cost through coherent Runtime State, reports, public API and UI.
+context:
+  authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
+    includeReasoning independently deliverable. This record plans work; it does not start implementation
+    or change existing delivery priorities.'
+  proposal: docs/proposals/0046-workflow-context-compaction.md
+  specification:
+  - docs/spec/execution/worker.md#WRK-R107
+  - docs/spec/platform/observability.md#OBS-R54
+  - docs/spec/api/public-api.md
+  - docs/spec/ui/ui.md
+  - docs/spec/ui/journeys.md
+  implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
+    strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
+    clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,
+    speculative exports or new receipt store.
+  adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
+    Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
+    not 2.8 callback/identity assumptions.
+scope:
+  in:
+  - Bounded numeric compaction State and report/telemetry breakdown, strict schemas and shared fixtures,
+    server projections and client generation.
+  - Actual UI rendering of confirmed phases/generation/cost and correct refresh behavior; no content viewer
+    or archive endpoint.
+  out:
+  - Changing terminal summarizer monotone state, exposing summary/raw reasoning/history, enabling telemetry
+    content capture or claiming semantic preservation/token savings before measurement.
+  - An unbounded per-cycle history, new storage table, speculative public fields with no Runtime producer
+    or UI/API consumer.
+requirements:
+- id: R1
+  text: Define one closed compaction section for current generation, idle/requested/running/applied/failed
+    phase, bounded attempt/applied/failure counters, usage and last bounded cause. Keep the terminal summarizer
+    section independent; do not reset it between compactions. Implement every producer and reader together
+    with fixtures. Counters belong to logical Contractor invocations and compaction cycles, not SDK context
+    instances or callback counts.
+- id: R2
+  text: Report main/compactor/finalizer costs with no double counting; compactor calls/tokens/time, missing
+    usage, bytes, archive reads and available/included/truncated reasoning counts are numeric metadata
+    only. Preserve total hard-budget accounting from V417-003. Multiple SDK turns neither duplicate charges
+    nor create a new report owner.
+- id: R3
+  text: Before/after prompt measurements identify their main-model generation. After value stays unavailable
+    until a completed main-model response from the new generation supplies usage. Missing data is unavailable,
+    not zero; never infer token savings from byte counts. Bind each measurement to the actual main request,
+    logical invocation and context generation across internal Runner turns.
+- id: R4
+  text: Keep summary, raw reasoning, tool bodies, full archive, credentials/private paths and detailed
+    provider error content out of State API, ExecutionReport and public events. Content capture continues
+    to obey OBS-R54-R60 independently, including forced metadata-only for sensitive outputs.
+- id: R5
+  text: UI may show Контекст сжат, работа продолжается only from a confirmed applied state. Compaction
+    alone cannot set completed, create a subtask or mark summarized=true. Handle multiple cycles, terminal
+    refetch, stale reads, failed polling and stable final state according to existing UI rules. Native
+    SDK skip/None, abort, error or an uncommitted marker cannot produce applied or the continuing-success
+    message.
+- id: R6
+  text: Use existing bounded read models/events and snapshot retention; evolve strict versioned state/report
+    shape coherently without legacy readers. Regenerate clients, update public/private schemas, numeric
+    limits/error fixtures and editor/runtime projections together.
+- id: R7
+  text: Validate the UI at 390 px and in light/dark/black themes using existing tokens/components. Expose
+    implementation details only where the user needs them; no whole transcript or unbounded phase timeline.
+failure_outcomes:
+- operation: State/report emission, persistence and public/UI reads
+  permanent: Malformed counters/phase/metadata fail strict validation; no fallback state or fabricated
+    completion.
+  retryable: Use existing report delivery and storage_transaction_conflict/503 policy; UI backs off failed
+    reads.
+  ambiguous: Reuse existing report identity/revision handling and current read model; no duplicate phase
+    event or new receipt store.
+  cancelled: Existing allocation/Run owner stops producers and joins work; terminal UI refetch reflects
+    only confirmed state.
+  timeout: Existing report and request timeouts stay distinct from Worker deadline.
+cardinality:
+- collection: Compaction state and metrics per Worker
+  expected: One current section and fixed numeric breakdown
+  maximum: Constant field count; counters bounded by admitted cycles/calls and existing safe integer rules
+  bound: No append-only attempt list or context text; existing state/report/event size bounds include
+    the new section.
+- collection: UI status reads
+  expected: Current visible Run/Worker read model
+  maximum: Existing pagination and polling bounds
+  bound: Stop polling settled objects, refetch terminal state and avoid scanning history for each card.
+lifecycle:
+- entity: Compaction metadata in existing State/report/Run projections
+  delete: Existing allocation/Run purge and report retention own deletion.
+  cascade: No new table or raw-context artifact; metadata follows the existing parent.
+  retention: Temporary active State clears with allocation; retained safe counters follow existing Run/report
+    retention.
+acceptance_criteria:
+- id: A1
+  given: Two compactions followed by normal completion or failure, with multiple internal SDK turns and
+    rejected/None compactor outputs
+  when: Runtime emits State/reports and public readers/UI refresh
+  then: Phases and bounded counters agree; no terminal summarizer state reset, premature completion or
+    duplicate usage occurs. Repeated callbacks do not inflate counters; a native skip or failure never
+    appears as applied.
+- id: A2
+  given: A successful checkpoint with no next main usage, and then actual next usage
+  when: Metrics are projected before and after the response
+  then: After/savings fields remain unavailable until measured and carry correct generation; missing usage
+    is not zero.
+- id: A3
+  given: Secret/reasoning/summary canaries and sensitive-output tools
+  when: Every default State/report/public event and enabled telemetry mode is inspected
+  then: Prohibited surfaces contain only bounded metadata; independent content capture and sensitive-output
+    policy are unchanged.
+- id: A4
+  given: Malformed phases/counters and interrupted polling
+  when: Go/Python/public fixtures and the actual UI run
+  then: Strict validation agrees, UI backs off errors and refetches terminal state, and 390-px/theme checks
+    pass.
+tests:
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-go
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A4
+- command: make verify-public-api
+  covers:
+  - A1
+  - A3
+  - A4
+- command: make ui-verify
+  covers:
+  - A1
+  - A2
+  - A4
+- command: make ui-browser-mocked
+  covers:
+  - A1
+  - A2
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+test_prerequisites:
+- These are future implementation acceptance commands, not verification performed while creating tasks.
+  Implement every explicitly named new gate in its owning task; zero selected or skipped mandatory cases
+  fail.
+- Use locked Runtime dependencies, testdata catalogs and pseudo-Skills. Unit and integration tests never
+  read the live configs tree; make test-config validates the shipped catalog.
+- Persistence and immutable snapshot reads use disposable real PostgreSQL. Set CONTRACTOR_TEST_DATABASE_URL
+  for required gates; an unreachable configured database or skipped required case is a failure.
+- Run full suites for every touched package in addition to focused gates. Use injected clocks and deterministic
+  work counters for assertions, not wall-clock thresholds.
+- Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
+  and lock digest. No separate old-SDK compaction implementation or version-switching production path.

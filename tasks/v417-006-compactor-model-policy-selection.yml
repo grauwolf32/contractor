@@ -1,0 +1,157 @@
+schema_version: '1.0'
+id: V417-006
+title: Resolve reference-only compactor model policy overrides
+milestone: worker-context-compaction-2026-10
+epic: planner-worker
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V417-003
+languages:
+- go
+- python
+- typescript
+- yaml
+goal: Authors and operators can select an exact compactor ModelPolicy through existing executionConfig
+  layering without changing the Workflow context strategy or weakening its pinned limits.
+context:
+  authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
+    includeReasoning independently deliverable. This record plans work; it does not start implementation
+    or change existing delivery priorities.'
+  proposal: docs/proposals/0046-workflow-context-compaction.md
+  specification:
+  - docs/spec/configuration/agent-templates.md#TPL-R72
+  - docs/spec/configuration/runtime-config.md
+  - docs/spec/configuration/workflows.md
+  - docs/spec/evals/managed-evals.md
+  implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
+    strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
+    clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,
+    speculative exports or new receipt store.
+  adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
+    Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
+    not 2.8 callback/identity assumptions.
+scope:
+  in:
+  - compactorModelPolicy as a reference-only selection through applicable existing Workflow/binding, deployment
+    role, Run override and escalation resolution paths.
+  - Strict applicability and policy validation, exact dependency pinning, Run/Eval snapshots, public/editor/CLI
+    surfaces and generated clients.
+  out:
+  - A new strategy merge hierarchy, overriding reasoning/instructions/cycle limits at Run launch, per-call
+    adaptive model changes or changing models in active Runs.
+  - Creating a separate override storage/lifecycle, adding inline ModelPolicy values or weakening terminal/no-model
+    selection validation.
+requirements:
+- id: R1
+  text: Extend the existing executionConfig leaf grammar with compactorModelPolicy, valid only when the
+    effective binding strategy is compact@1. Only exact supported ModelPolicy references are allowed.
+    Reject summarizerModelPolicy on compact bindings and compactorModelPolicy on terminal/none/model-free
+    bindings at the applicable existing selection scope; never silently ignore a selection.
+- id: R2
+  text: Apply the existing executionConfig precedence and scope rules without introducing a new merge
+    engine. A Workflow with multiple bindings must resolve each effective consumer independently, including
+    mixed Router strategies; reject any scope whose selection is inapplicable under the owning contract.
+- id: R3
+  text: Validate compactor policy constraints established by V417-003 and retain the effective Worker
+    Gateway/credential. The override changes only the model policy selection, not strategy, instruction
+    text, includeReasoning, cycle/recent-history bounds, identities or the Worker hard budget.
+- id: R4
+  text: Pin selected refs, exact content digests and effective policy into Run/allocation and Eval selections;
+    immutable snapshots never re-resolve mutable catalog content. Changed or missing exact dependencies
+    fail strictly on write/read with the current error classification.
+- id: R5
+  text: Update every public/private schema, Go/Python model, editor descriptor, API client and CLI consumer
+    of this constrained field. Extend shared fixtures with valid/inapplicable/malformed and mixed-binding
+    cases, and regenerate clients through supported commands.
+- id: R6
+  text: Only expose the field with a real resolver and Runtime consumer from V417-003 in the same change.
+    Existing Runs and configured models are not mutated by this task; existing receipt and catalog retention
+    semantics remain unchanged.
+failure_outcomes:
+- operation: Selection validation, pinning and Run/Eval publication
+  permanent: Malformed/inapplicable or unavailable policy returns the owning validation error (public
+    400 where applicable), with no partial accepted snapshot.
+  retryable: Reuse storage_transaction_conflict/503 and bounded existing lookup/admission retries.
+  ambiguous: Reconcile the same existing Run/Eval/publication key and exact selection, not a replacement
+    snapshot or new model.
+  cancelled: Request/controller owner joins accepted writes and normal cancellation cleanup.
+  timeout: Existing config/admission request timeouts apply; an override never extends Worker execution.
+cardinality:
+- collection: Model selection layers and bindings
+  expected: A few existing layers and Worker bindings
+  maximum: Existing Workflow/binding/selection and snapshot byte limits
+  bound: Resolve only bounded published bindings/dependencies; no whole-catalog scan per binding and no
+    new unrestricted list in the snapshot.
+lifecycle:
+- entity: Pinned compactor selection on existing Run/Eval/allocation snapshots
+  delete: The existing parent owns deletion and catalog reference holds.
+  cascade: No new side table or independent selector entity.
+  retention: Exact snapshots persist under current retention; authoring changes apply only to new selections.
+acceptance_criteria:
+- id: A1
+  given: Applicable compact bindings and explicit selectors at each existing precedence level
+  when: Authoring and Run/Eval resolution execute
+  then: Exactly the selected policy reaches the compactor; Worker model/Gateway and immutable behavior
+    fields remain unchanged.
+- id: A2
+  given: Mixed Router strategies, model-free/terminal bindings, inline policy attempts and malformed refs
+  when: Every writer/reader validates the selection
+  then: Inapplicable and invalid values fail consistently rather than being ignored; normal selectors
+    still work.
+- id: A3
+  given: Exact pinned policy and subsequent catalog drift or missing dependency
+  when: Real PostgreSQL snapshot/Eval read and replay paths execute
+  then: Selection preserves exact content or fails strictly; no mutable re-resolution or fallback occurs.
+- id: A4
+  given: Public API/editor/CLI and Go/Python allocation consumers
+  when: Shared fixtures and end-to-end resolution execute
+  then: All field grammars and generated clients agree, and the actual compactor call uses the resolved
+    selection.
+tests:
+- command: go test ./internal/config/... ./internal/contracts/... ./internal/controlplane/...
+  covers:
+  - A1
+  - A2
+  - A4
+- command: make test-runtime
+  covers:
+  - A1
+  - A4
+- command: make test-postgres
+  covers:
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A2
+  - A4
+- command: make verify-public-api
+  covers:
+  - A2
+  - A4
+- command: make ui-verify
+  covers:
+  - A4
+- command: make test-config
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+test_prerequisites:
+- These are future implementation acceptance commands, not verification performed while creating tasks.
+  Implement every explicitly named new gate in its owning task; zero selected or skipped mandatory cases
+  fail.
+- Use locked Runtime dependencies, testdata catalogs and pseudo-Skills. Unit and integration tests never
+  read the live configs tree; make test-config validates the shipped catalog.
+- Persistence and immutable snapshot reads use disposable real PostgreSQL. Set CONTRACTOR_TEST_DATABASE_URL
+  for required gates; an unreachable configured database or skipped required case is a failure.
+- Run full suites for every touched package in addition to focused gates. Use injected clocks and deterministic
+  work counters for assertions, not wall-clock thresholds.
+- Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
+  and lock digest. No separate old-SDK compaction implementation or version-switching production path.

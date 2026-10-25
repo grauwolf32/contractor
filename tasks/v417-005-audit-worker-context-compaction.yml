@@ -1,0 +1,175 @@
+schema_version: '1.0'
+id: V417-005
+title: Admit compaction without bypassing trusted Audit completion
+milestone: worker-context-compaction-2026-10
+epic: audits
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V417-003
+- V417-004
+languages:
+- go
+- python
+goal: An Audit Worker can continue an unfinished check after compaction while the existing completeness
+  gate, trusted result collection and publication receipts remain authoritative.
+context:
+  authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
+    includeReasoning independently deliverable. This record plans work; it does not start implementation
+    or change existing delivery priorities.'
+  proposal: docs/proposals/0046-workflow-context-compaction.md
+  specification:
+  - docs/spec/audits/worker-completion.md#AWC-R3
+  - docs/spec/audits/worker-completion.md#AWC-R12
+  - docs/spec/audits/worker-completion.md#AWC-R20
+  - docs/spec/audits/execution.md
+  - docs/spec/execution/worker.md#WRK-R54
+  - docs/spec/platform/persistence.md
+  implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
+    strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
+    clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,
+    speculative exports or new receipt store.
+  adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
+    Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
+    not 2.8 callback/identity assumptions.
+scope:
+  in:
+  - Effective context-policy validation for Audit Worker completion and every reachable escalation, replacing
+    only the compact-mode restriction from V417-003.
+  - Completion priority, collector/receipt preservation, incomplete-check continuation, result publication
+    and real-store/process tests in both supported session modes.
+  out:
+  - Changing Audit collection schemas, item identity, evidence predicates, findings proof rules, retry
+    engine or result authority.
+  - Enabling terminal summarization with Audit completion, making compactor output a finding/evidence
+    receipt, or mass-enabling compact mode in shipped Audit profiles.
+requirements:
+- id: R1
+  text: 'Audit admission uses the resolved effective context policy: compact@1 is allowed after this task,
+    terminal@1 remains prohibited by the completion contract. A template summarizer wholly replaced by
+    compact@1 must not cause a false rejection; template@1 selecting that summarizer still fails. Validate
+    snapshots and all reachable escalation paths identically.'
+- id: R2
+  text: Existing trusted completion runs before context-pressure handling at an ordinary completion boundary.
+    A fully complete check finishes without an unnecessary compactor call. An incomplete check keeps its
+    collector and continuation contract; compaction may shorten history but cannot report the check complete.
+- id: R3
+  text: Preserve the exact current task manifest, required items, evidence requirements, revisions, submitted
+    results, trusted observations and publication receipts outside the summary under one logical completion
+    collector across all ADK turns. Repeated SDK before_run callbacks must not begin/reset the collector
+    again. No synthesized submission/activation, extra publication or extra Run/A2A task occurs at a checkpoint.
+- id: R4
+  text: Model-authored summaries and reasoning remain untrusted text. An incorrect hypothesis or invented
+    artifact/evidence ref cannot satisfy required evidence or become a confirmed finding. History access
+    does not substitute for the collector or grant cross-task scope.
+- id: R5
+  text: Charge main/compactor/finalizer calls and tools under the existing invocation budget and original
+    effective deadline. Cancel/deadline/lease loss prevents new model/tool/publication work, while existing
+    authorized reconciliation follows the current Audit contract. Synthetic ADK abort/cancel/function-response
+    messages are request-history data, never trusted observations, receipts, evidence of completion or
+    successful tool execution.
+- id: R6
+  text: Reuse existing natural keys and publication receipts for ambiguous writes. Real PostgreSQL tests
+    cover accepted publication with lost acknowledgement and continued execution; no new receipt table
+    or semantic retry is added.
+- id: R7
+  text: Include both isolated and shared modes supported by V417-004, plus retry/replacement allocation
+    behavior. Keep ordinary Worker completion unchanged and update owning AWC/WRK specs and strict wire/shared
+    fixtures with implementation.
+failure_outcomes:
+- operation: Audit admission and trusted completion/publication around compaction
+  permanent: Invalid strategy combinations fail the owning admission validation before dispatch; invalid
+    evidence remains a domain tool/result error and never becomes success.
+  retryable: Use existing bounded Audit storage/Gateway classifications and deadlines; never retry deterministic
+    compaction limits indefinitely.
+  ambiguous: Reconcile the existing result/publication receipt and same context marker independently;
+    never publish a second collection to repair missing acknowledgement.
+  cancelled: Audit/Run owner joins Worker work; no new dispatch or publication after the existing fence.
+  timeout: Existing effective Worker/Stage deadlines own work; compaction does not renew them.
+cardinality:
+- collection: Audit items, evidence refs and compaction history
+  expected: The current bounded item task/manifest and a few checkpoints
+  maximum: Existing AWC item/evidence limits plus registered compaction history/cycle bounds
+  bound: Do not copy all Audit Runs/rounds into compactor input; preserve exact task-local state and use
+    existing bounded real-store reads.
+lifecycle:
+- entity: Audit Worker context and existing collection receipts
+  delete: Compaction data follows the allocation; Audit/Run deletion and collection retention retain their
+    existing owner.
+  cascade: Checkpoint deletion does not delete published evidence or authoritative collection receipts.
+  retention: No durable summary/archive is attached to the Audit; retained canonical results follow existing
+    Audit retention rules.
+acceptance_criteria:
+- id: A1
+  given: An incomplete Audit check with accepted partial submissions
+  when: It compacts twice, resumes, supplies remaining evidence and completes
+  then: The same collector/revisions/receipts survive; result is accepted only after ordinary completeness,
+    without duplicate submission or publication. Several internal SDK turns and repeated callbacks still
+    use one logical collector; completion begin is not re-entered.
+- id: A2
+  given: A complete check, and a separate false hypothesis/invented-ref summary
+  when: Completion and evidence gates run near a context threshold
+  then: The complete check skips unnecessary compaction; invented/unsupported evidence does not pass even
+    if reasoning included it.
+- id: A3
+  given: Effective compact policy over a summarizer template, terminal policy and every reachable escalation
+  when: Authoring, snapshot reads and Runtime binding validate
+  then: Compact is admitted consistently; terminal remains rejected; invalid alternate routes cannot bypass
+    completion restrictions.
+- id: A4
+  given: Real PostgreSQL, a publication acknowledgement loss and cancel/deadline/lease loss, synthetic
+    abort/cancel responses and interrupted parallel calls
+  when: Audit execution continues or is fenced around a checkpoint
+  then: Existing receipts reconcile once, no new schema/receipt owner appears, and no unauthorized late
+    result is published. Synthetic responses cannot satisfy evidence, mark a tool successful or advance
+    completeness.
+- id: A5
+  given: Isolated/shared sessions and a replacement allocation
+  when: Compaction and current Audit task transitions execute
+  then: Exact current task authority and all existing completion semantics remain intact; historical data
+    never completes another task.
+tests:
+- command: make test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A5
+- command: make test-postgres
+  covers:
+  - A3
+  - A4
+- command: make test-e2e
+  covers:
+  - A1
+  - A4
+  - A5
+- command: make test-wire-cross-language
+  covers:
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+test_prerequisites:
+- These are future implementation acceptance commands, not verification performed while creating tasks.
+  Implement every explicitly named new gate in its owning task; zero selected or skipped mandatory cases
+  fail.
+- Use locked Runtime dependencies, testdata catalogs and pseudo-Skills. Unit and integration tests never
+  read the live configs tree; make test-config validates the shipped catalog.
+- Persistence and immutable snapshot reads use disposable real PostgreSQL. Set CONTRACTOR_TEST_DATABASE_URL
+  for required gates; an unreachable configured database or skipped required case is a failure.
+- Run full suites for every touched package in addition to focused gates. Use injected clocks and deterministic
+  work counters for assertions, not wall-clock thresholds.
+- Run integration acceptance on the exact ADK 2.13.0 closure accepted by V418-007; record Runtime revision
+  and lock digest. No separate old-SDK compaction implementation or version-switching production path.

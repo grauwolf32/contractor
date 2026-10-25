@@ -98,6 +98,18 @@ execution_policy:
     P3: Low-impact correction with no user-visible failure, such as documentation, dead code or test hygiene.
 
 milestones:
+  - id: adk-213-upgrade-2026-10
+    exit_task: V418-007
+    outcome: The exact ADK 2.13.0 dependency closure preserves logical Worker execution, strict tool admission, bounded lifecycle and telemetry through full Runtime and real-process release evidence, independently of compaction and model consultation.
+  - id: terminal-summarizer-reasoning-2026-10
+    exit_task: V417-001
+    outcome: The existing terminal summarizer accepts an explicitly pinned includeReasoning option with bounded redacted input and unchanged terminal behavior, independently of compaction implementation or quality experiments.
+  - id: worker-context-compaction-2026-10
+    exit_task: V417-009
+    outcome: Workflow-selected compact@1 continues ordinary and Audit Workers in isolated and shared sessions with bounded history recovery, preserved budgets and completion authority, truthful metadata and passing real-process deterministic release evidence.
+  - id: worker-context-compaction-quality-2026-10
+    exit_task: V417-010
+    outcome: Frozen repeated experiments compare terminal reasoning, compaction reasoning, configured handoff and experimental masking under equal total budgets, producing measured consumer-specific recommendations without blocking deterministic delivery.
   - id: main-review-2026-10-25
     exit_task: V416-011
     outcome: Confirmed defects and scoped simplifications from the October 25 two-day main and expanded current-system review are resolved with real-path regressions, explicit dispositions and a verified integrated release gate.
