@@ -92,7 +92,7 @@ document owns are:
   the cohort of one displayed chart bin for drill-down.
 - **Evaluation label convention** — the eval subsystem's use of the generic
   `purpose=eval` and `eval.*` WorkflowRun labels for correlation and discovery.
-- **Legacy labelled Run** — an ordinary WorkflowRun grouped only by evaluation
+- **Unassociated Run** — an ordinary WorkflowRun grouped only by evaluation
   labels, outside any managed experiment's verified membership.
 
 Member, sample, pair, end-to-end pass and conditional quality have the meanings
@@ -1417,8 +1417,10 @@ It retains hidden truth and scorer code locally, collects exact outputs through
 the normal public artifact APIs and sends attributed results and assessments.
 It requires no reverse connection, SQL access or internal Go imports.
 
-**EVM-R232.** The optional client's previous direct Run/Audit mode remains
-usable and is labelled legacy/unassociated.
+**EVM-R232.** Ordinary Run and Audit execution remains independent of managed
+Evals. Evaluation labels alone never establish verified experiment membership.
+Managed ingestion accepts only the current registration and receipt contracts;
+previous optional-client protocols are unsupported.
 
 **EVM-R233.** Importing a report does not silently authorize native takeover,
 invent a missing journal or resolve ambiguous receipt membership.
@@ -1764,5 +1766,5 @@ The shortened example illustrates the projection, not a full schema fixture.
 - Arbitrary target provisioning and private Playground oracle protocols; they
   are not native capabilities.
 - Historical trends across different experiments.
-- Native takeover of, or migration from, the optional client's legacy direct
-  mode (EVM-R232, EVM-R233).
+- Inferring experiment membership or native execution authority from ordinary
+  Run/Audit labels (EVM-R232, EVM-R233).

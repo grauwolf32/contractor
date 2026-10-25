@@ -20,6 +20,7 @@ from test_likec4_toolset import BASE_DOCUMENT
 from test_likec4_toolset import MemoryArtifactClient as LikeC4ArtifactClient
 from test_likec4_toolset import make_tools as make_likec4_tools
 from test_openapi_toolset import MemoryArtifactClient as OpenAPIArtifactClient
+from test_openapi_toolset import StaticWorkspaceReader
 from test_source_analysis_toolset import ReadOnlyArtifactClient, make_zip
 
 import contractor_runtime.toolsets.likec4.tools as likec4_tools
@@ -227,6 +228,7 @@ def test_cancelled_validator_reaps_child_before_tool_and_workspace_close(
                 requestTimeoutSeconds=30,
             ),
             adapter_handles=AdapterHandles(tool_subprocess=launcher),
+            **({"project_workspace": StaticWorkspaceReader({})} if validator == "vacuum" else {}),
         )
         if validator == "likec4":
             await tools["write_likec4"](BASE_DOCUMENT)

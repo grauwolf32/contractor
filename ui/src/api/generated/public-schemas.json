@@ -10501,6 +10501,7 @@
         "objective",
         "instructions",
         "planner",
+        "session",
         "agents",
         "executionConfig",
         "contextArtifacts",

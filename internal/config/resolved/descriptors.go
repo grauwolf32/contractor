@@ -214,6 +214,7 @@ func builtInDescriptors() descriptorTable {
 				},
 			},
 			"openapi@1": {
+				RequiresWorkspace: true,
 				Tools: []string{
 					"get_openapi_component", "get_openapi_info", "get_openapi_path",
 					"initialize_openapi", "list_openapi_components", "list_openapi_paths",

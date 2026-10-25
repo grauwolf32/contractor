@@ -199,7 +199,7 @@ func archiveSnapshot(ctx context.Context, objects map[plumbing.Hash]*gitObject, 
 			},
 		}
 	}
-	archive, err := sourcezip.Encode(ctx, members, sourcezip.Options{ModifiedField: true, Limits: &limits})
+	archive, err := sourcezip.Encode(ctx, members, sourcezip.Options{Limits: &limits})
 	if errors.Is(err, sourcezip.ErrLimit) {
 		return nil, plumbing.ZeroHash, nil, ErrBudget
 	}

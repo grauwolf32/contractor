@@ -128,6 +128,10 @@ func TestWorkspaceToolsetAndResultCrossValidation(t *testing.T) {
 	if err := resolved.ValidateStageWorkspace(resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{}}, resolved.StageResultContract{}, workspaceAgents("filesystem")); err == nil {
 		t.Fatal("filesystem Toolset without workspace was accepted")
 	}
+	if err := resolved.ValidateStageWorkspace(resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{}}, resolved.StageResultContract{}, workspaceAgents("openapi")); err == nil ||
+		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
+		t.Fatalf("openapi@1 without workspace error = %v", err)
+	}
 	if err := resolved.ValidateStageWorkspace(resolved.StageContext{Artifacts: map[string]resolved.ContextArtifact{}}, resolved.StageResultContract{}, workspaceAgents("code-analysis")); err == nil ||
 		!strings.Contains(err.Error(), "workspace-dependent Toolsets require context.workspace") {
 		t.Fatalf("code-analysis@1 without workspace error = %v", err)

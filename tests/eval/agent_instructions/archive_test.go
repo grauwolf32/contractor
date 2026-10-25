@@ -1,7 +1,7 @@
 package agentinstructions
 
 import (
-	"io/fs"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,31 +10,97 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-// Archived profiles are checked as frozen experiment data. Loading them through
-// today's strict profile parser would require keeping obsolete production schemas.
-func copyArchivedExecutionConfigs(t *testing.T, destination, source string) {
+// Archive documents remain data: no alias rewriting or current catalog loading.
+func archiveDocument(t *testing.T, data []byte) map[string]any {
 	t.Helper()
-	if err := os.MkdirAll(filepath.Join(destination, "audit-profiles"), 0700); err != nil {
+	var document map[string]any
+	if err := yaml.Unmarshal(data, &document); err != nil {
 		t.Fatal(err)
 	}
-	err := fs.WalkDir(os.DirFS(source), ".", func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
+	return document
+}
+
+// Keep raw bytes so each comparison gets its own detached document.
+func archivedCatalog(t *testing.T, frozen map[string]string, overlays ...string) map[string][]byte {
+	t.Helper()
+	catalog := map[string][]byte{}
+	add := func(data []byte) {
+		document := archiveDocument(t, data)
+		metadata := document["metadata"].(map[string]any)
+		key := fmt.Sprintf("%s/%s@%s", document["kind"], metadata["name"], metadata["version"])
+		if _, exists := catalog[key]; exists {
+			t.Fatalf("duplicate archived identity %s", key)
 		}
-		if entry.IsDir() {
-			if path == "audit-profiles" {
-				return fs.SkipDir
+		catalog[key] = data
+	}
+	for path, raw := range frozen {
+		if filepath.Ext(path) == ".yaml" {
+			add([]byte(raw))
+		}
+	}
+	for _, directory := range overlays {
+		paths, err := filepath.Glob(filepath.Join(directory, "*", "*.yaml"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range paths {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
 			}
-			return os.MkdirAll(filepath.Join(destination, path), 0700)
+			add(data)
 		}
-		data, err := os.ReadFile(filepath.Join(source, path))
-		if err != nil {
-			return err
+	}
+	return catalog
+}
+
+func archivedSelection(t *testing.T, catalog map[string][]byte, kind, selector string) map[string]any {
+	t.Helper()
+	raw, ok := catalog[kind+"/"+selector]
+	if !ok {
+		t.Fatalf("missing archived %s %s", kind, selector)
+	}
+	return archiveDocument(t, raw)
+}
+
+func assertArchivedTemplateContract(t *testing.T, before, after map[string]any) {
+	t.Helper()
+	// Different versions and instruction references are the only template changes.
+	after["metadata"].(map[string]any)["version"] = before["metadata"].(map[string]any)["version"]
+	after["spec"].(map[string]any)["instructions"] = before["spec"].(map[string]any)["instructions"]
+	if !reflect.DeepEqual(before, after) {
+		t.Fatalf("%v changes archived execution capabilities or policy beyond instructions", after["metadata"])
+	}
+}
+
+func assertArchivedWorkflowContract(t *testing.T, catalog map[string][]byte, before, after map[string]any) {
+	t.Helper()
+	after["metadata"] = before["metadata"]
+	beforeStages := before["spec"].(map[string]any)["stages"].(map[string]any)
+	afterStages := after["spec"].(map[string]any)["stages"].(map[string]any)
+	for name, raw := range afterStages {
+		stage := raw.(map[string]any)
+		priorRaw, ok := beforeStages[name]
+		if !ok {
+			t.Fatalf("unexpected archived Stage %s", name)
 		}
-		return os.WriteFile(filepath.Join(destination, path), data, 0600)
-	})
-	if err != nil {
-		t.Fatal(err)
+		prior := priorRaw.(map[string]any)
+		stage["instructions"] = prior["instructions"]
+		for role, bindingRaw := range stage["agents"].(map[string]any) {
+			binding := bindingRaw.(map[string]any)
+			oldRaw, ok := prior["agents"].(map[string]any)[role]
+			if !ok {
+				t.Fatalf("unexpected archived Agent role %s", role)
+			}
+			old := oldRaw.(map[string]any)
+			assertArchivedTemplateContract(t,
+				archivedSelection(t, catalog, "AgentTemplate", old["template"].(string)),
+				archivedSelection(t, catalog, "AgentTemplate", binding["template"].(string)))
+			binding["template"] = old["template"]
+		}
+	}
+	if !reflect.DeepEqual(before, after) {
+		t.Fatal("archived A/B differs beyond instructions and dependent refs")
 	}
 }
 

@@ -99,6 +99,7 @@ BASE_DOCUMENT: dict[str, Any] = {
 class OpenAPIToolsetFactory:
     ref = "openapi@1"
     workspace_access = "read"
+    requires_workspace = True
     exported_tools = frozenset(
         {
             "load_openapi",
@@ -147,8 +148,10 @@ class OpenAPIToolsetFactory:
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: WorkspaceReader | None = None,
     ) -> Mapping[str, Any]:
-        del run_id
+        del run_id, workspace
         require_selected_tools(selected, self.exported_tools)
+        if project_workspace is None:
+            raise ValueError("openapi@1 requires a project workspace")
         metrics = require_metrics(state, "openapi@1")
         client = self._client_factory(allocation_id, runtime_settings)
         launcher = adapter_handles.tool_subprocess
@@ -157,7 +160,6 @@ class OpenAPIToolsetFactory:
         session = _OpenAPISession(
             client,
             namespace,
-            workspace,
             launcher,
             project_workspace=project_workspace,
         )
@@ -214,13 +216,11 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
         self,
         client: ArtifactClient,
         namespace: str,
-        workspace: AllocationWorkspace,
         launcher: ProxySubprocessLauncher | None,
         *,
-        project_workspace: WorkspaceReader | None = None,
+        project_workspace: WorkspaceReader,
     ) -> None:
         super().__init__(client, namespace)
-        self._source_root = workspace.path / "source"
         self._project_workspace = project_workspace
         self._launcher = launcher
 
@@ -547,9 +547,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
                 self._validate_evidence_from_paths, evidence_files, project_evidence_paths
             )
 
-    async def _project_evidence_paths(self) -> frozenset[str] | None:
-        if self._project_workspace is None:
-            return None
+    async def _project_evidence_paths(self) -> frozenset[str]:
         try:
             snapshot = await self._project_workspace.snapshot()
         except WorkspaceStorageError:
@@ -559,17 +557,12 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
     def _validate_evidence_from_paths(
         self,
         evidence_files: list[str],
-        project_evidence_paths: frozenset[str] | None,
+        project_evidence_paths: frozenset[str],
     ) -> list[str]:
         if not isinstance(evidence_files, list) or not evidence_files:
             raise ToolInputError("evidence_files must be a JSON array of at least one source path")
         if len(evidence_files) > 100:
             raise ToolInputError("source evidence exceeds the 100-file limit")
-        root = None
-        if project_evidence_paths is None:
-            root = self._source_root.resolve()
-            if self._source_root.is_symlink() or not self._source_root.is_dir():
-                raise ToolInputError("open_source_archive must materialize source before mutation")
         result: list[str] = []
         seen: set[str] = set()
         for raw in evidence_files:
@@ -580,20 +573,8 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
                 )
             if normalized in seen:
                 continue
-            if project_evidence_paths is not None:
-                if normalized not in project_evidence_paths:
-                    raise ToolInputError(f"source evidence file does not exist: {normalized}")
-            else:
-                if not (root is not None):
-                    raise RuntimeError("Expected root is not None")
-                candidate = self._source_root.joinpath(*PurePosixPath(normalized).parts)
-                resolved = candidate.resolve()
-                if (
-                    not resolved.is_relative_to(root)
-                    or candidate.is_symlink()
-                    or not candidate.is_file()
-                ):
-                    raise ToolInputError(f"source evidence file does not exist: {normalized}")
+            if normalized not in project_evidence_paths:
+                raise ToolInputError(f"source evidence file does not exist: {normalized}")
             seen.add(normalized)
             result.append(normalized)
         return result
@@ -601,7 +582,7 @@ class _OpenAPISession(DocumentSession[dict[str, Any]]):
     def _validate_current_provenance(
         self,
         document: dict[str, Any],
-        project_evidence_paths: frozenset[str] | None,
+        project_evidence_paths: frozenset[str],
     ) -> None:
         for path_item in document["paths"].values():
             self._validate_evidence_from_paths(path_item["x-path-files"], project_evidence_paths)
@@ -917,7 +898,7 @@ class UpsertOpenAPIPathTool(_BaseOpenAPITool):
         path_item: Structured Path Item object with operations; pass an object,
             not a JSON string.
         evidence_files: Non-empty list of existing relative implementation source paths
-            in the project workspace or opened source archive. Files ending in
+            in the project workspace. Files ending in
             .json, .yaml, .yml, .md or .c4 are rejected.
 
     Returns:
@@ -1022,7 +1003,7 @@ class UpsertOpenAPIComponentTool(_BaseOpenAPITool):
         name: Component name within the section.
         component: Structured component object; pass an object, not a JSON string.
         evidence_files: Non-empty list of existing relative implementation source paths
-            in the project workspace or opened source archive. Files ending in
+            in the project workspace. Files ending in
             .json, .yaml, .yml, .md or .c4 are rejected.
 
     Returns:

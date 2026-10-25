@@ -113,7 +113,7 @@ carries the infrastructure channels that tool consumes:
 Registered descriptors and their Runtime counterparts are also where
 SandboxProfile/tool compatibility lives; that compatibility is specified in
 [Code execution](code-execution.md). Workspace access that a Toolset declares,
-such as the optional read access of `openapi@1` for provenance checks, is
+such as the required read access of `openapi@1` for provenance checks, is
 specified in [Workspace](workspace.md).
 
 ### Authority boundary

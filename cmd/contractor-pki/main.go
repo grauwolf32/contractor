@@ -17,7 +17,7 @@ func main() {
 }
 
 // Keep the standalone entry point on the same command table, defaults and
-// validation as contractor pki. Both issue-agent and issue-runtime are aliases.
+// validation as contractor pki.
 func run(args []string, stdout, stderr io.Writer) error {
 	return cli.New(nil, stdout, stderr, nil).Run(context.Background(), append([]string{"pki"}, args...))
 }
