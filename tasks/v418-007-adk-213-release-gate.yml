@@ -1,6 +1,6 @@
 schema_version: '1.0'
 id: V418-007
-title: Close the ADK 2.13 migration with an integrated release gate
+title: Accept ADK 2.13 with historical broad and final targeted verification
 milestone: adk-213-upgrade-2026-10
 epic: quality
 kind: chore
@@ -17,9 +17,8 @@ goal: Close the ADK2.13 migration after the prior broad evidence and user-author
   the patched final dependency closure are honestly reconciled; do not claim a repeated full release after
   the last dependency update.
 context:
-  authority: 'User request on 2026-10-25: plan the ADK 2.13 upgrade with every identified compatibility
-    change, adjust the existing compaction series, and keep model consultation as a proposal. These pending
-    tasks do not start implementation or change the current delivery focus.'
+  authority: User authorized Runtime upgrade before Server upgrade, then explicitly prohibited a full
+    rerun after the final certifi/OTel update. The final acceptance scope is the targeted profile below.
   review: tasks/evidence/v418-adk-213-review.json
   specification:
   - docs/testing/README.md
@@ -42,6 +41,7 @@ context:
     explicitly.'
   user_scope_change: User expressly waived a full rerun after the final certifi/OTel update on2026-10-25;
     this overrides the earlier full-release plan without falsifying completed tests.
+  evidence: tasks/evidence/v418-final-migration-acceptance.json
 scope:
   in:
   - Integrated release verification, dependency advisory evidence, ownership/disposition reconciliation
@@ -139,9 +139,9 @@ requirements:
 test_prerequisites:
 - Commands below are future implementation acceptance gates, not checks already passed by this planning
   change. A required command, selected case or dependency setup must not be skipped or match zero tests.
-- Run full suites of every touched package/module, in addition to focused regressions. Use real ADK dispatch
-  and controlled Gateway responses; persistence/process claims require disposable real PostgreSQL and
-  real Server/Runtime processes. Never read live configs from unit tests; use testdata and pseudo-Skills.
+- The later explicit no-full-rerun instruction limits the final closure to the listed targeted profile.
+  All earlier full-suite/process evidence retains its original source/lock; no final full-release claim
+  is made. Actual process/store claims retain their real fixture boundary.
 - Use injected clocks, synchronization barriers, work/row/byte counters and bounded fixture sizes. Timing
   samples are informational, never flaky wall-clock pass thresholds. Keep configured live models unchanged;
   no live Gateway is part of these deterministic tasks.
@@ -177,3 +177,15 @@ lifecycle:
     required publication receipts through their existing owner.
   retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
     results under existing retention policies.
+verification:
+  final: Reuse the actual012checks on exact patched lockfeb5a55a:323RuntimePASS0skip/fail;11nativeleavesPASS;49Go
+    telemetry top-level/121recordsPASS+1optionalCollector skip; live advisory positive canary then0production
+    advisories. No repeated command run.
+  historical: Old lock5b8a1177fullRuntime5031pass55allowedskip and globalprocess26parents/68records0skip/fail
+    retained as historical only. UI actualPASS on871oldinputs. Eight fullrelease stages never started
+    and none rerun after patch.
+  disposition: Every identified migration finding is mapped to its completed owning task and regression
+    evidence; supported-version documentation and exact OTel exception agree. No compaction, Consult,
+    live-model or deployment claim.
+  delivery: Runtime implementation remains on local codex/adk-runtime-213, not merged to main. Proceed
+    to the separately owned Go Server upgrade.
