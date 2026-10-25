@@ -7,7 +7,7 @@ kind: defect
 introduced_by: V1-006
 priority: P1
 status: completed
-implementation_commit: 360ae86aca038f68b5938367fdcb23f78e28f094
+implementation_commit: 3918c7756f41b704e98596389ac8adff887e32a3
 depends_on: []
 languages: [go, markdown]
 goal: A validated in-memory finish never hides a required session-write failure, and both modeled Planners preserve the owning persistence and cancellation outcomes.
