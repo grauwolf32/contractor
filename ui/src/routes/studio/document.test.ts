@@ -132,6 +132,42 @@ describe("workflow graph rules", () => {
     );
     expect(validateDraft(draft)).toEqual([]);
   });
+  it("validates settled result inputs by consumer kind", () => {
+    const base = starter("AuditProfile");
+    expect(
+      validateDraft(
+        patchDraft(base, ["spec", "workflows", "check", "inputs", "source"], {
+          source: "round-results",
+        }),
+      ).length,
+    ).toBeGreaterThan(0);
+    const assessment = patchDraft(base, ["spec", "workflows", "assess"], {
+      kind: "assessment",
+      ref: "assess@1",
+      inputs: { context: { source: "round-results" } },
+      parameters: {},
+      outputs: { result: "report" },
+    });
+    expect(validateDraft(assessment)).toEqual([]);
+    expect(
+      validateDraft(
+        patchDraft(
+          assessment,
+          ["spec", "workflows", "assess", "inputs", "other"],
+          { source: "round-results" },
+        ),
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      validateDraft(
+        patchDraft(
+          assessment,
+          ["spec", "workflows", "assess", "inputs", "context", "name"],
+          "forbidden",
+        ),
+      ).length,
+    ).toBeGreaterThan(0);
+  });
   it("distinguishes attempt retry from next cycles and unreachable drafts", () => {
     let draft = starter("Workflow");
     draft = patchDraft(draft, ["spec", "stages", "start", "on", "failed"], {

@@ -559,16 +559,19 @@ export function validateDraft(draft: Draft): Problem[] {
             "execution-manifest",
             "prepare-output",
             "retained-output",
+            "round-results",
           ].includes(textValue(row.source))
         )
           error([...path, "source"], "Choose a supported input source.");
         if (
-          ["item-package", "execution-manifest"].includes(
+          ["item-package", "execution-manifest", "round-results"].includes(
             textValue(row.source),
           ) &&
           (row.name || row.role)
         )
           error(path, "This input source forbids name and role.");
+        if (row.source === "round-results" && role.kind !== "assessment")
+          error(path, "round-results requires an assessment role.");
         if (row.source === "audit-input" && row.role)
           error(path, "audit-input forbids role.");
         if (
@@ -605,6 +608,12 @@ export function validateDraft(draft: Draft): Problem[] {
           deps.push(textValue(row.role));
         }
       }
+      if (
+        Object.values(record(role.inputs)).filter(
+          (input) => record(input).source === "round-results",
+        ).length > 1
+      )
+        error([...p, "inputs"], "Choose at most one round-results input.");
       dependencies.set(name, deps);
     }
     const active = new Set<string>(),

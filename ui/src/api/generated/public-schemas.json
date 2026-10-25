@@ -4544,7 +4544,8 @@
             "item-package",
             "execution-manifest",
             "retained-output",
-            "prepare-output"
+            "prepare-output",
+            "round-results"
           ]
         },
         "name": {
@@ -4562,7 +4563,9 @@
         },
         {
           "properties": {
-            "source": { "enum": ["item-package", "execution-manifest"] }
+            "source": {
+              "enum": ["item-package", "execution-manifest", "round-results"]
+            }
           },
           "not": {
             "anyOf": [{ "required": ["name"] }, { "required": ["role"] }]
