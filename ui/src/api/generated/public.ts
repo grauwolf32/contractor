@@ -3873,7 +3873,7 @@ export interface components {
         };
         AuditWorkflowInputMapping: {
             /** @enum {unknown} */
-            source: "audit-input" | "item-package" | "execution-manifest" | "retained-output" | "prepare-output";
+            source: "audit-input" | "item-package" | "execution-manifest" | "retained-output" | "prepare-output" | "round-results";
             name?: components["schemas"]["ArtifactName"];
             role?: components["schemas"]["ArtifactName"];
         } & ({
@@ -3881,7 +3881,7 @@ export interface components {
             source?: "audit-input";
         } | {
             /** @enum {unknown} */
-            source?: "item-package" | "execution-manifest";
+            source?: "item-package" | "execution-manifest" | "round-results";
         } | {
             /** @enum {unknown} */
             source?: "retained-output" | "prepare-output";

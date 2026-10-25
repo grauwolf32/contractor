@@ -183,6 +183,8 @@ type completionOptions struct {
 	// items, when set, replaces the two checklist items with that many, all
 	// in the one batch the fixture executes.
 	items int
+	// skipInitialRun keeps the accepted Round available for submission-failure tests.
+	skipInitialRun bool
 }
 
 func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options completionOptions) *completionFixture {
@@ -312,7 +314,9 @@ func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options c
 		},
 	})
 	mustCompletion(t, err)
-	f.createRun(t, 1)
+	if !options.skipInitialRun {
+		f.createRun(t, 1)
+	}
 	return f
 }
 

@@ -13082,14 +13082,14 @@ components:
       additionalProperties: false
       required: [source]
       properties:
-        source: {enum: [audit-input, item-package, execution-manifest, retained-output, prepare-output]}
+        source: {enum: [audit-input, item-package, execution-manifest, retained-output, prepare-output, round-results]}
         name: {$ref: '#/components/schemas/ArtifactName'}
         role: {$ref: '#/components/schemas/ArtifactName'}
       oneOf:
         - properties: {source: {const: audit-input}}
           required: [name]
           not: {required: [role]}
-        - properties: {source: {enum: [item-package, execution-manifest]}}
+        - properties: {source: {enum: [item-package, execution-manifest, round-results]}}
           not:
             anyOf: [{required: [name]}, {required: [role]}]
         - properties: {source: {enum: [retained-output, prepare-output]}}

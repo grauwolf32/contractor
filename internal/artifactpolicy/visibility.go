@@ -16,6 +16,9 @@ const (
 	AuditManagedProjectNamespacePrefix = "audit-"
 	AuditStandardCatalogNamespace      = "audit-standards"
 	FindingProposalNamespace           = "finding-proposals"
+	// AuditContextNamespace holds frozen, authorized Run-local Audit context.
+	// Models may read its exact refs; only the trusted materializer writes it.
+	AuditContextNamespace = "audit-context"
 	// RunSystemNamespace is owned by trusted Control Plane services. Its
 	// bindings are not part of the Worker or owner-facing Artifact library.
 	RunSystemNamespace        = "contractor-system"
@@ -39,7 +42,7 @@ func IsAuditStandardCatalogNamespace(namespace string) bool {
 // Runtime's contracts.artifacts.PURPOSE_RESERVED_NAMESPACES is the same list;
 // api/testdata/v1alpha1/memory-reservation-cases.json pins both.
 func PurposeReservedNamespaces() []string {
-	return []string{"inputs", "outputs", "skills", FindingProposalNamespace, RunSystemNamespace}
+	return []string{"inputs", "outputs", "skills", FindingProposalNamespace, RunSystemNamespace, AuditContextNamespace}
 }
 
 // IsPurposeReservedNamespace reports whether a Run Namespace is one of

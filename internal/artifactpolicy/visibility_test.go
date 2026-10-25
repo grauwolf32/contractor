@@ -45,7 +45,7 @@ func TestAuditStandardCatalogNamespaceIsExact(t *testing.T) {
 }
 
 func TestPurposeReservedNamespaceIsClosed(t *testing.T) {
-	for _, namespace := range []string{"inputs", "outputs", "skills", FindingProposalNamespace} {
+	for _, namespace := range []string{"inputs", "outputs", "skills", FindingProposalNamespace, AuditContextNamespace} {
 		if !IsPurposeReservedNamespace(namespace) {
 			t.Errorf("namespace %q is not purpose-reserved", namespace)
 		}

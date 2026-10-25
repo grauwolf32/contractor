@@ -99,6 +99,10 @@ var rowTriggerInventory = map[string]map[string]rowTrigger{
 			retained: "every execution write changes the state, Run, terminal outcome, collection or Run deletion that Eval inventory reads, and the function's work is one indexed probe of eval_submissions"},
 	},
 	"workflow_runs": {
+		"workflow_runs_hold_audit_inputs_on_insert":         {definition: "CREATE TRIGGER workflow_runs_hold_audit_inputs_on_insert AFTER INSERT ON workflow_runs FOR EACH ROW WHEN ((new.audit_input_materialization IS NOT NULL)) EXECUTE FUNCTION contractor_hold_audit_run_inputs()"},
+		"workflow_runs_hold_audit_inputs_on_update":         {definition: "CREATE TRIGGER workflow_runs_hold_audit_inputs_on_update AFTER UPDATE OF audit_input_materialization ON workflow_runs FOR EACH ROW WHEN (((old.audit_input_materialization)::text IS DISTINCT FROM (new.audit_input_materialization)::text)) EXECUTE FUNCTION contractor_hold_audit_run_inputs()"},
+		"workflow_runs_protect_audit_input_materialization": {definition: "CREATE TRIGGER workflow_runs_protect_audit_input_materialization BEFORE UPDATE OF audit_input_materialization ON workflow_runs FOR EACH ROW WHEN (((old.audit_input_materialization)::text IS DISTINCT FROM (new.audit_input_materialization)::text)) EXECUTE FUNCTION contractor_protect_audit_input_materialization()"},
+		"workflow_runs_release_audit_inputs":                {definition: "CREATE TRIGGER workflow_runs_release_audit_inputs AFTER DELETE ON workflow_runs FOR EACH ROW WHEN ((old.audit_input_materialization IS NOT NULL)) EXECUTE FUNCTION contractor_hold_audit_run_inputs()"},
 		"eval_runs_projection": {definition: "CREATE TRIGGER eval_runs_projection AFTER DELETE OR UPDATE OF state, finished_at ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_eval_execution_changed()",
 			retained: "deleting a Run removes the execution its Eval members, or those of its Audit, project"},
 		"workflow_runs_capture_lifecycle_event":            {definition: "CREATE TRIGGER workflow_runs_capture_lifecycle_event AFTER INSERT ON workflow_runs FOR EACH ROW EXECUTE FUNCTION contractor_capture_workflow_run_lifecycle_event()"},

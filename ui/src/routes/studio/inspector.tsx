@@ -503,9 +503,11 @@ export function Inspector({
                           const document = draft.document.clone();
                           document.setIn([...path, "source"], source);
                           if (
-                            ["item-package", "execution-manifest"].includes(
-                              source,
-                            )
+                            [
+                              "item-package",
+                              "execution-manifest",
+                              "round-results",
+                            ].includes(source)
                           )
                             document.deleteIn([...path, "name"]);
                           if (
@@ -523,6 +525,7 @@ export function Inspector({
                           "execution-manifest",
                           "prepare-output",
                           "retained-output",
+                          "round-results",
                         ].map((source) => (
                           <option key={source}>{source}</option>
                         ))}

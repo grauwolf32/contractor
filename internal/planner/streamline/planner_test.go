@@ -1269,7 +1269,15 @@ func (w *fakeWorkerInvoker) Invoke(
 		return contracts.WorkerCompletion{}, failures[0]
 	}
 	if completion, ok := w.completions[binding]; ok {
-		return planner.CloneWorkerCompletion(completion), nil
+		if completion.Result != nil {
+			result := planner.CloneWorkerResult(*completion.Result)
+			completion.Result = &result
+		}
+		if completion.Failure != nil {
+			failure := *completion.Failure
+			completion.Failure = &failure
+		}
+		return completion, nil
 	}
 	result, ok := w.results[binding]
 	if !ok {

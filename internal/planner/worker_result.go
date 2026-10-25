@@ -74,22 +74,6 @@ func StageCandidateFromWorkerCompletion(
 	}, nil
 }
 
-// CloneWorkerCompletion detaches all mutable Worker result maps.
-func CloneWorkerCompletion(input contracts.WorkerCompletion) contracts.WorkerCompletion {
-	result := input
-	if input.Result != nil {
-		workerResult := *input.Result
-		workerResult.Artifacts = contracts.CloneArtifactRefs(input.Result.Artifacts)
-		workerResult.Observations = cloneWorkerObservations(input.Result.Observations)
-		result.Result = &workerResult
-	}
-	if input.Failure != nil {
-		failure := *input.Failure
-		result.Failure = &failure
-	}
-	return result
-}
-
 // CloneWorkerResult detaches all mutable maps and slices in the safe
 // model-facing Worker result projection.
 func CloneWorkerResult(input contracts.WorkerResult) contracts.WorkerResult {

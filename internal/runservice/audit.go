@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -44,6 +45,9 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			if validationErr := validateAuditIntent(intent, normalized); validationErr != nil {
 				return validationErr
 			}
+			if err := validateRoundResultsAuthority(ctx, audits, intent, normalized); err != nil {
+				return err
+			}
 			if intent.Execution.RunID != nil {
 				run, getErr := runs.GetRun(ctx, *intent.Execution.RunID)
 				if getErr != nil {
@@ -51,6 +55,14 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 				}
 				if !matchingAuditRun(run, intent) {
 					return fmt.Errorf("%w: stored Audit Run association is inconsistent", ErrInvalid)
+				}
+				if run.State == runstore.RunInitializing && normalized.MaterializeInputs != nil {
+					run, getErr = completeAuditInputSlice(ctx, runs, artifactService, intent, normalized, run, time.Now())
+					if getErr != nil {
+						return getErr
+					}
+				} else if run.State == runstore.RunInitializing && run.StateReason.Code == runstore.AuditInputInitializationPendingReason {
+					return fmt.Errorf("%w: Audit input initialization has no declared materializer", ErrInvalid)
 				}
 				result = CreateResult{Run: run, Replayed: true}
 				return nil
@@ -121,6 +133,11 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 			}
 			forks := make(map[string]contracts.ArtifactRef, len(normalized.Inputs))
 			for _, slot := range sortedInputSlots(normalized.Inputs) {
+				if _, materialized := normalized.RoundResults[slot]; materialized {
+					// The Audit-owned initializer writes the consumer descriptor
+					// only after every required local page is present.
+					continue
+				}
 				descriptor := normalized.Inputs[slot]
 				if _, metadataErr := verifyExactProjectArtifact(
 					ctx, artifactService, intent.ProjectID, descriptor,
@@ -144,7 +161,12 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 				}
 				run.AuditCompletion = completion
 			}
-			if len(normalized.Skills) == 0 {
+			if normalized.MaterializeInputs != nil {
+				run, err = completeAuditInputSlice(ctx, runs, artifactService, intent, normalized, run, time.Now())
+				if err != nil {
+					return err
+				}
+			} else if len(normalized.Skills) == 0 {
 				run, err = runs.TransitionRun(
 					ctx, runID, runstore.RunInitializing, runstore.RunPending,
 					runstore.Reason{Code: "initialized"},
@@ -161,12 +183,26 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 		})
 	})
 	if err != nil {
+		if normalized.MaterializeInputs != nil && permanentAuditInputFailure(err) {
+			failed, handled, recoveryErr := s.failBoundAuditInput(ctx, normalized)
+			if recoveryErr != nil {
+				return CreateResult{}, recoveryErr
+			}
+			if handled {
+				return failed, nil
+			}
+		}
 		return CreateResult{}, err
 	}
 	return result, nil
 }
 
 func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.RawMessage, error) {
+	if (params.MaterializeInputs == nil) != (params.InputMaterializationID == "") ||
+		params.InputMaterializationID != "" && !contentdigest.Valid(params.InputMaterializationID) ||
+		len(params.RoundResults) > 1 || len(params.RoundResults) != 0 && params.MaterializeInputs == nil {
+		return AuditCreateParams{}, nil, fmt.Errorf("%w: Audit input materialization identity is invalid", ErrInvalid)
+	}
 	if err := contracts.ValidatePlacementLabels(params.RequiredPlacementLabels); err != nil {
 		return AuditCreateParams{}, nil, fmt.Errorf("%w: Audit placement requirements are invalid", ErrInvalid)
 	}
@@ -211,6 +247,7 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 		return AuditCreateParams{}, nil, err
 	}
 	params.ExecutionManifest = params.ExecutionManifest.Clone()
+	params.RoundResults = contracts.CloneExactArtifacts(params.RoundResults)
 	params.ProjectHTTPTarget = params.ProjectHTTPTarget.Clone()
 	params.Skills = agentskills.CloneRunSkills(params.Skills)
 	workflowSkillRefs, err := resolved.WorkflowSkillRefs(params.Workflow)
@@ -265,6 +302,11 @@ func validateAuditIntent(intent auditstore.RunCreationIntent, params AuditCreate
 		}
 	}
 	for slot, input := range params.Inputs {
+		if root, materialized := params.RoundResults[slot]; materialized && sameExactIdentity(root, input) {
+			// validateRoundResultsAuthority proves this additional role input
+			// against the exact accepted Round root before any Run is created.
+			continue
+		}
 		if digest, ok := allowed[input.Ref.Key()]; !ok || digest != input.Digest {
 			return fmt.Errorf("%w: Audit input %q is outside immutable execution intent", auditstore.ErrConflict, slot)
 		}

@@ -93,6 +93,9 @@ func ValidateAuditPreparationProfile(profile ResolvedAuditProfile) error {
 	}
 	for _, role := range slices.Sorted(maps.Keys(profile.Workflows)) {
 		binding := profile.Workflows[role]
+		if err := ValidateRoundResultsBinding(binding); err != nil {
+			return err
+		}
 		if len(binding.Inputs) > MaxAuditWorkflowMappings || len(binding.Parameters) > MaxAuditWorkflowMappings || len(binding.Outputs) == 0 || len(binding.Outputs) > MaxAuditWorkflowMappings {
 			return fmt.Errorf("workflows.%s mappings exceed bounds or have no output", role)
 		}

@@ -135,10 +135,6 @@ class CodeAnalysisToolsetFactory:
         self._graph_probe_succeeded = False
         self._available_tools = SHALLOW_TOOLS
 
-    @property
-    def graph_probe_succeeded(self) -> bool:
-        return self._graph_probe_succeeded
-
     async def probe(self) -> frozenset[str]:
         self._graph_probe_succeeded = False
         self._available_tools = frozenset()

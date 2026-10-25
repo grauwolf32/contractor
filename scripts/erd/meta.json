@@ -763,6 +763,15 @@
     "Постраничные результаты с фактическим состоянием Run",
     "Ограниченная отмена, восстановление и purge"
    ]
+  ],
+  "audit_round_result_pages": [
+   "audits",
+   "Immutable settled-Round snapshot construction pages",
+   "Captures one coherent settled Round in bounded slices, then publishes exact protected pages and one accepted manifest.",
+   [
+    "Audit Controller capture and publication",
+    "Audit purge after drain"
+   ]
   ]
  },
  "flags": {

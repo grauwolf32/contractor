@@ -300,6 +300,7 @@ const UI_ROOT = join(__dirname, "..", "..");
 const RESERVED_NAMESPACES = new Set([
   FINDING_PROPOSAL_NAMESPACE,
   "contractor-system",
+  "audit-context",
   "audit-standards",
 ]);
 const NAMESPACE_DEFINITION = "src/api/artifacts.ts";
