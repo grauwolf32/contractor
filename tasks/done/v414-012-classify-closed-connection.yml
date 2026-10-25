@@ -6,7 +6,7 @@ epic: persistence
 kind: defect
 introduced_by: V368-003
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: >-
@@ -151,3 +151,4 @@ verification:
     - "After adding explicit typed-domain wrapper precedence cases, go test -count=1 ./internal/httpapi/public/... passed again (public 98.572s; events 3.996s)."
     - "make lint passed, including Go vet/staticcheck, test-only export checks, UI gates, repository validators, deployment tests, Runtime lint and import contracts. The dependency graph was current and required no regeneration."
     - "make tasks-backlog, scripts/check_tasks.py, scripts/check_spec.py and git diff --check passed."
+implementation_commit: 1e78341d44193aac141c6ff18bad98639f7633ba
