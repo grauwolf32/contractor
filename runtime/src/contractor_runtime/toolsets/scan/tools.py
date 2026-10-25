@@ -732,7 +732,7 @@ class SQLMapTool(ScanTool):
     loopback and link-local ones unless the operator allows the network.
 
     Args:
-        url: HTTP(S) URL for legacy URL mode; omit when using request_ref.
+        url: HTTP(S) target URL; omit when using request_ref.
         parameter: Optional comma-separated parameter names to test.
         data: Optional POST body, at most 16384 UTF-8 bytes; empty sends GET.
         cookie: Optional Cookie header, at most 4096 UTF-8 bytes.

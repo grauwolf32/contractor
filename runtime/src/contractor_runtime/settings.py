@@ -53,10 +53,6 @@ class Settings:
     log_level: str = "info"
     certificate_expiry_warning_days: float = 30.0
 
-    @property
-    def listen_address(self) -> str:
-        return f"{self.host}:{self.port}"
-
 
 def parse_settings(
     argv: Sequence[str] | None = None,

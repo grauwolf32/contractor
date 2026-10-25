@@ -59,21 +59,6 @@ type Factory struct {
 
 type InvocationModelFactory func(planner.ModelAccess) (model.LLM, error)
 
-func NewConfiguredFactory(
-	sessions planner.PlanSessionService,
-	adkSessions ADKSessionFactory,
-	invoker planner.WorkerInvoker,
-	inspector planner.ArtifactInspector,
-	stateReader planner.WorkerStateReader,
-	modelFactory InvocationModelFactory,
-	limits Limits,
-) (*Factory, error) {
-	return newFactory(
-		streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader,
-		nil, modelFactory, limits,
-	)
-}
-
 func NewConfiguredFactoryWithMemory(
 	sessions planner.PlanSessionService,
 	adkSessions ADKSessionFactory,
@@ -87,22 +72,6 @@ func NewConfiguredFactoryWithMemory(
 	return newFactory(
 		streamlineProfile, sessions, adkSessions, invoker, inspector, stateReader,
 		memoryStore, modelFactory, limits,
-	)
-}
-
-// NewConfiguredRouterDelegate creates the shared engine for router@1.
-func NewConfiguredRouterDelegate(
-	sessions planner.PlanSessionService,
-	adkSessions ADKSessionFactory,
-	invoker planner.WorkerInvoker,
-	inspector planner.ArtifactInspector,
-	stateReader planner.WorkerStateReader,
-	modelFactory InvocationModelFactory,
-	limits Limits,
-) (*Factory, error) {
-	return newFactory(
-		routerProfile, sessions, adkSessions, invoker, inspector, stateReader,
-		nil, modelFactory, limits,
 	)
 }
 

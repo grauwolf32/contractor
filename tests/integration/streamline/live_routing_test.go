@@ -44,8 +44,8 @@ func TestLiveRouterWorkflow(t *testing.T) {
 	}
 	sessions := newLiveRouterSessions()
 	worker := &liveRouterWorker{}
-	factory, err := router.NewConfiguredFactory(
-		sessions, sessions, worker, liveRouterInspector{}, unavailableWorkerStateReader{}, modelFactory,
+	factory, err := router.NewConfiguredFactoryWithMemory(
+		sessions, sessions, worker, liveRouterInspector{}, unavailableWorkerStateReader{}, nil, modelFactory,
 		router.Limits{MaxWallTime: 90 * time.Second},
 	)
 	if err != nil {

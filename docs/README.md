@@ -30,9 +30,9 @@ cross-Run context and the revised V64 direction. Direct deterministic execution
 remains independent; attack trees are an optional analytical layer. It is a
 draft and does not enable the capability.
 
-[Runtime placement labels](proposals/0043-runtime-placement-labels.md) records
-the selected `cloud` and `local` namespaces, startup declarations and dynamic
-parent matching for WorkflowRun and Audit launches; it is not yet implemented.
+Runtime placement labels are implemented: see the [Control Plane contract](spec/execution/control-plane.md)
+for `cloud` and `local` namespaces, startup declarations and matching for Run
+and Audit launches.
 
 [Workflow context compaction](proposals/0046-workflow-context-compaction.md)
 proposes continuing a Worker within one invocation, an explicit Workflow
@@ -58,8 +58,9 @@ current readiness:
   [optional hypothesis search](plans/2026-10-24-audit-hypothesis-search.md) (revised V64 and shared V62 dependencies),
   [schema reduction](plans/2026-10-04-schema-reduction.md) (V365)
   and [schema reduction, round two](plans/2026-10-23-schema-reduction-round-2.md) (analysis, no task yet).
-- [Research](research/README.md) holds dated reviews that open or deferred
-  tasks still cite.
+- [Research](research/README.md) holds dated reviews and experiment planning.
+- [Historical documents](history/README.md) preserve completed proposals and
+  superseded plans/reviews; original paths remain available for task references.
 - [Evals experience design](evals-experience-design.md) records the selected
   full browser journey and independent producer boundary. V38-001–010 are
   delivered, including collection, comparison, the native UI and the release

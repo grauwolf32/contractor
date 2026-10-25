@@ -541,7 +541,7 @@ def test_shared_read_and_submit_use_only_pinned_bytes_and_return_safe_copies(mon
         second = await read(CONTEXT)
         assert second["task"]["checklist"]["required_evidence"] == ["source-trace"]
         assert second["taskArtifact"]["revision"] == "r1"
-        assert second["executionManifestDigest"] == inputs.execution_manifest_sha256
+        assert second["executionManifestDigest"] == digest(inputs.execution_manifest)
         item = replace(expected.items[0].value, evidence=())
         assert (await submit(CONTEXT, **arguments(item)))["status"] == "error"
         stale = await read(SimpleNamespace(invocation_id="invocation-2"))

@@ -93,7 +93,7 @@ coordinators, enforce pin checks and deletion fences, exercise native/external
 ownership, and verify eight-member plans without duplicate effects. Regression
 checks cover deadline/token cancellation of eight active members already in
 settling (Workflow and Audit), a real PostgreSQL preparation failure followed by
-recovery, safe diagnostics, legacy receipt replay and dataset role names that
+recovery, safe diagnostics, rejection of legacy receipt formats and dataset role names that
 coincide with Summary fields.
 
 Public authoring/control and bounded observation routes are provided through the

@@ -393,29 +393,30 @@ var (
 		link("SKL-R117", skillsSpec)+", "+link("ERR-R4", "errors.md"))
 )
 
-// Audits and their packages.
+// Audits and their packages. Package codes are looked up by string; register
+// those entries without an unused exported Kind for each code.
 var (
 	AuditProfileUnsupported = define("audit_profile_unsupported", http.StatusUnprocessableEntity, false,
 		"AuditProfile requires unsupported Server capabilities",
 		"The pinned AuditProfile requires Server capabilities that are missing; bounded reason codes in the "+
 			"details name them and do not describe transient Worker availability.",
 		link("AUD-R88", "../audits/audits.md"))
-	AuditDocumentInvalid   = auditPackage("audit_document_invalid", "an Audit document is invalid")
-	AuditSchemaUnsupported = auditPackage("audit_schema_unsupported",
+	AuditDocumentInvalid = auditPackage("audit_document_invalid", "an Audit document is invalid")
+	_                    = auditPackage("audit_schema_unsupported",
 		"an Audit document has an unsupported schema version")
-	AuditLimitExceeded      = auditPackage("audit_limit_exceeded", "an Audit document or package exceeds a bound")
-	AuditPackageInvalid     = auditPackage("audit_package_invalid", "an Audit package is invalid")
-	AuditPackagePathInvalid = auditPackage("audit_package_path_invalid",
+	_ = auditPackage("audit_limit_exceeded", "an Audit document or package exceeds a bound")
+	_ = auditPackage("audit_package_invalid", "an Audit package is invalid")
+	_ = auditPackage("audit_package_path_invalid",
 		"an Audit package member path is invalid")
-	AuditPackageMemberForbidden = auditPackage("audit_package_member_forbidden",
+	_ = auditPackage("audit_package_member_forbidden",
 		"an Audit package contains a forbidden member")
-	AuditDigestMismatch = auditPackage("audit_digest_mismatch",
+	_ = auditPackage("audit_digest_mismatch",
 		"an Audit document or package member does not match its digest")
-	AuditReferenceInvalid = auditPackage("audit_reference_invalid", "an Audit reference is invalid")
-	AuditRemoteReference  = auditPackage("audit_remote_reference",
+	_ = auditPackage("audit_reference_invalid", "an Audit reference is invalid")
+	_ = auditPackage("audit_remote_reference",
 		"an Audit document references remote content")
-	AuditInventoryInvalid = auditPackage("audit_inventory_invalid", "an Audit inventory is invalid")
-	AuditResultSetInvalid = auditPackage("audit_result_set_invalid", "an Audit result set is invalid")
+	_ = auditPackage("audit_inventory_invalid", "an Audit inventory is invalid")
+	_ = auditPackage("audit_result_set_invalid", "an Audit result set is invalid")
 )
 
 // auditPackage registers one Audit package codec code.
@@ -429,58 +430,59 @@ func auditPackage(code, failure string) Kind {
 
 // Managed Evals. Every Eval failure is answered with retryable false: its
 // recovery action in the details tells the client what to do instead.
+// Domain failures look these entries up by code.
 var (
 	EvalInvalid = evalCode("eval_invalid", http.StatusUnprocessableEntity, "Invalid evaluation document.",
 		"An Eval request or document is invalid.", link("EVM-R229", managedEval))
-	EvalLimitExceeded = evalCode("eval_limit_exceeded", http.StatusUnprocessableEntity,
+	_ = evalCode("eval_limit_exceeded", http.StatusUnprocessableEntity,
 		"Evaluation document exceeds format bounds.",
 		"An Eval document or a native experiment matrix exceeds its bound: above 1,000 expanded members or a "+
 			"conservative serialized-plan estimate above 1 MiB.",
 		link("EVM-R63", managedEval)+", "+link("API-R6", publicAPI))
-	EvalNotFound = evalCode("eval_not_found", http.StatusNotFound, "Evaluation resource not found.",
+	_ = evalCode("eval_not_found", http.StatusNotFound, "Evaluation resource not found.",
 		"The Eval resource does not exist or is not visible to the principal.", link("EVM-R229", managedEval))
-	EvalPreconditionRequired = evalCode("eval_precondition_required", http.StatusPreconditionRequired,
+	_ = evalCode("eval_precondition_required", http.StatusPreconditionRequired,
 		"An evaluation revision is required.",
 		"A revision-guarded Eval mutation was sent without its If-Match revision.", link("EVM-R35", managedEval))
-	EvalRevisionMismatch = evalCode("eval_revision_mismatch", http.StatusPreconditionFailed,
+	_ = evalCode("eval_revision_mismatch", http.StatusPreconditionFailed,
 		"The evaluation revision has changed.",
 		"The If-Match revision is not the current experiment revision.", link("EVM-R36", managedEval))
-	EvalIdempotencyConflict = evalCode("eval_idempotency_conflict", http.StatusConflict,
+	_ = evalCode("eval_idempotency_conflict", http.StatusConflict,
 		"The operation key is already bound to another request.",
 		"The Eval form of idempotency_conflict: the key is bound to another request, and only a new key can "+
 			"carry the changed one (recovery retry_same_request).", link("API-R69", publicAPI))
-	EvalNotReady = evalCode("eval_not_ready", http.StatusConflict, "The experiment is not ready.",
+	_ = evalCode("eval_not_ready", http.StatusConflict, "The experiment is not ready.",
 		"A command that the experiment's state rules out, such as a stop that progress has since ruled out; it "+
 			"passed the ETag check, and the browser refetches instead of replaying it.", link("EVM-R37", managedEval))
-	EvalPreparationUnavailable = evalCode("eval_preparation_unavailable", http.StatusServiceUnavailable,
+	_ = evalCode("eval_preparation_unavailable", http.StatusServiceUnavailable,
 		"Experiment preparation is temporarily unavailable.",
 		"An unknown infrastructure failure during Prepare: the experiment reports it as its diagnostic with "+
 			"recovery wait while the coordinator retries Prepare by itself.", link("EVM-R90", managedEval))
-	EvalPinMismatch = evalCode("eval_pin_mismatch", http.StatusConflict, "Required evaluation pins do not match.",
+	_ = evalCode("eval_pin_mismatch", http.StatusConflict, "Required evaluation pins do not match.",
 		"A stop names another plan than the current one, or a required pin differs; a new plan is needed "+
 			"(recovery duplicate).", link("EVM-R37", managedEval))
-	EvalExternalControl = evalCode("eval_external_control", http.StatusConflict,
+	_ = evalCode("eval_external_control", http.StatusConflict,
 		"The experiment has a different execution controller.",
 		"The request needs another execution controller (native or external) than the experiment has.",
 		link("EVM-R227", managedEval))
-	EvalViewChanged = evalCode("eval_view_changed", http.StatusConflict, "The selected evaluation view has changed.",
+	_ = evalCode("eval_view_changed", http.StatusConflict, "The selected evaluation view has changed.",
 		"The view snapshot bound to a page or chart request changed; the client keeps its filters and restarts "+
 			"pagination.", link("EVM-R215", managedEval))
-	EvalMemberConflict = evalCode("eval_member_conflict", http.StatusConflict,
+	_ = evalCode("eval_member_conflict", http.StatusConflict,
 		"The evaluation member has conflicting records.",
 		"Member records conflict, such as two executions claiming one member before receipts adjudicate it.",
 		link("EVM-R227", managedEval))
-	EvalEvidenceUnavailable = evalCode("eval_evidence_unavailable", http.StatusConflict,
+	_ = evalCode("eval_evidence_unavailable", http.StatusConflict,
 		"Required evaluation evidence is unavailable.",
 		"Evidence that the request needs is unavailable or was deleted.", link("EVM-R227", managedEval))
-	EvalProducerStale = evalCode("eval_producer_stale", http.StatusConflict,
+	_ = evalCode("eval_producer_stale", http.StatusConflict,
 		"The external producer has no recent observation.",
 		"An external producer's observation is too old for the request.", link("EVM-R227", managedEval))
-	EvalBudgetExhausted = evalCode("eval_budget_exhausted", http.StatusConflict,
+	_ = evalCode("eval_budget_exhausted", http.StatusConflict,
 		"The frozen experiment allowance is exhausted.",
 		"The experiment's frozen allowance is exhausted; a new plan is needed (recovery duplicate).",
 		link("EVM-R227", managedEval))
-	EvalProjectDeleting = evalCode("eval_project_deleting", http.StatusConflict,
+	_ = evalCode("eval_project_deleting", http.StatusConflict,
 		"The evaluation workspace is being deleted.",
 		"The evaluation Project or experiment is being deleted, so the request is refused (recovery wait); "+
 			"a member-level read of an experiment whose purge is in progress is refused instead of answered in "+
