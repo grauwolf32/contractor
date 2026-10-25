@@ -5,7 +5,7 @@ milestone: adk-213-upgrade-2026-10
 epic: execution-core
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V418-003
 - V418-004
@@ -198,3 +198,4 @@ verification:
   auxiliary: Earlier jq-helper skips preserved, prerequisite installed and exact helper subsequently passes.
     Optional externalCollector skip remains labelled; package-only no-test events are not case passes.
     Full source/lock/command/report hashes are retained.
+implementation_commit: 4120f6426cadcf0f1167a4b4d3f56adc4131d7df
