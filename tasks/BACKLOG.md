@@ -172,7 +172,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
-| [V416-005](v416-005-hybrid-placement-labels.yml) | defect | P2 | — | Declare cloud placement labels in hybrid Runtime inventories |
+| [V416-005](v416-005-hybrid-placement-labels.yml) | defect | P2 | — | Declare Runtime placement labels in hybrid deployment inventory |
 | [V416-006](v416-006-hybrid-bootstrap-idempotency.yml) | defect | P1 | — | Bind hybrid mutation keys to the complete conditional request |
 
 ### Public API and wire contracts (`api-contracts`)
