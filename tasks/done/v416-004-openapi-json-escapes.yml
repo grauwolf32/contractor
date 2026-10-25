@@ -188,10 +188,7 @@ verification:
       Runtime Ruff checks and all four import contracts passed. make
       docs-dependencies regenerated the implementation-derived graph;
       scripts/check_spec.py and shared_fixture_gate.py --sources-only passed.
-  remaining: >-
-    Integrated make lint is owned by the coordinating branch. Keep in_progress
-    until all listed commands are confirmed for the integrated implementation.
-
+  integration: The coordinating branch completed the required make lint; see integration_verification.
 implementation_commit: 3d90aeb95c46d260dc050320ad46a0346ede2ccf
 integration_verification:
   date: "2026-10-25"
