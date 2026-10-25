@@ -5,7 +5,7 @@ milestone: go-adk-26-upgrade-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V419-006
 languages:
@@ -170,3 +170,4 @@ verification:
   findings: Required append failures discovered on supported1.6 are fixed by completedV419-006; candidate001observations
     are not a pin migration, race/process acceptance or compaction implementation.
   delivery: Production Go pin remains1.6; Runtime completed first; actual atomic Server migration is V419-002.
+implementation_commit: 5705637c8d03e284c4ec91e522d66a3bd41b00d9

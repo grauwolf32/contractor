@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-139 open tasks: 5 in progress, 123 pending, 11 deferred. 1131 finished: 1121 completed, 10 archived.
+138 open tasks: 4 in progress, 123 pending, 11 deferred. 1132 finished: 1122 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V419-001](v419-001-go-adk-26-compatibility-characterization.yml) | planner-worker | chore | P1 | Characterize Go ADK v1.6 to v2.6 compatibility on real Planner paths |
 
 ## Pending
 
@@ -42,7 +41,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | feature | P1 | V417-003 | Preserve compacted context across shared-session invocations |
 | [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Resolve reference-only compactor model policy overrides |
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
-| [V419-002](v419-002-go-adk-26-atomic-migration.yml) | chore | P1 | V419-001 | Upgrade Go ADK to v2.6.0 with atomic API and dependency adaptations |
+| [V419-002](v419-002-go-adk-26-atomic-migration.yml) | chore | P1 | — | Upgrade Go ADK to v2.6.0 with atomic API and dependency adaptations |
 | [V419-003](v419-003-go-adk-26-runner-session-conformance.yml) | chore | P1 | V419-002 | Verify Go ADK v2 tool history and Planner session lifecycle |
 | [V419-004](v419-004-go-adk-26-adjacent-dependency-conformance.yml) | chore | P1 | V419-002 | Verify Gateway A2A and telemetry contracts on the Go ADK dependency closure |
 | [V420-001](v420-001-planner-compaction-contract-spike.yml) | chore | P1 | V419-005 | Prove Planner compaction checkpoints and freeze the integration contract |
@@ -246,7 +245,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 4 | 41 | 56 | 19 | 84 |
-| Planners and the Worker model boundary (`planner-worker`) | 18 | 34 | 47 | 27 | 63 |
+| Planners and the Worker model boundary (`planner-worker`) | 17 | 34 | 47 | 27 | 63 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
