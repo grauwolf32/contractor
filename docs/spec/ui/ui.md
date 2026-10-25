@@ -1269,6 +1269,14 @@ create/start keys, revision fences, reconciliation and check result pages.
 An incompatible contract remains on the generic material-based form. No
 dynamic plugin loader or Studio editing is required.
 
+The common Audit start model owns ordinary labels, Runtime configuration,
+deadline, request identity and recovery for every bundled form. A specialized
+form supplies its validated exact inputs to that model; it does not create a
+second launch lifecycle. One pending guard covers input preparation through
+create/start. After navigation or a change of Project, type or version,
+in-flight preparation settles its current call but cannot publish further
+inputs, create/start a stale check or navigate from a late response.
+
 **UI-R205.** A custom Nuclei rule check is the custom-rule mode of Web scan,
 inside one selected Project. The form explains its scope, permits one YAML
 rule or ZIP rulepack, retains exact rule revisions and displays actual Audit

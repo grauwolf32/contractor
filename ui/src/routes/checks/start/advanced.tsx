@@ -24,7 +24,8 @@ export function AdvancedOptions({ model }: { model: StartCheck }) {
   const selectable = family.versions.length > 1;
   const kind = checkItemKind(profile);
   const standardSelection = profile.inventory.standardSelection;
-  const usesTarget = model.scopeFields.has("target");
+  const usesTarget =
+    model.webScan !== undefined || model.scopeFields.has("target");
   const usesAuthorizationScope = model.scopeFields.has("authorizationScope");
   const invalidLabels = model.parsedLabels.invalid;
   return (

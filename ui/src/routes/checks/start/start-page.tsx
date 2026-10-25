@@ -6,12 +6,10 @@ import {
   PaneLayout,
   useListNavigation,
 } from "../../../ui";
-import { SetupBody, SetupFooter, SetupHeader } from "./setup";
+import { SetupBody, SetupFooter, SetupHeader, SetupOptions } from "./setup";
 import { TypeList } from "./type-list";
 import { useStartCheck } from "./use-start-check";
-import { isWebScanProfile } from "./web-scan-contract";
-import { useWebScanDraft } from "./web-scan-state";
-import { WebScanSetup, WebScanFooter } from "./web-scan-setup";
+import { WebScanSetup } from "./web-scan-setup";
 
 /**
  * Start a check on one project: check types on the left, grouped by
@@ -28,12 +26,6 @@ export function StartCheckPage({
   const navigate = useNavigate();
   const model = useStartCheck(projectId, initialObjective);
   const { ordered, selection } = model;
-  const webScan = model.exact !== undefined && isWebScanProfile(model.exact);
-  const webDraft = useWebScanDraft(
-    projectId,
-    model.project,
-    webScan ? model.exact : undefined,
-  );
   const { containerProps } = useListNavigation({
     count: model.listReady ? ordered.length : 0,
     index: ordered.findIndex((row) => row.selected),
@@ -62,11 +54,7 @@ export function StartCheckPage({
           header={<SetupHeader model={model} />}
           footer={
             model.listReady && selection !== undefined ? (
-              webScan ? (
-                <WebScanFooter model={webDraft} />
-              ) : (
-                <SetupFooter model={model} />
-              )
+              <SetupFooter model={model} />
             ) : undefined
           }
         >
@@ -85,8 +73,15 @@ export function StartCheckPage({
             <EmptyState title="No check type to set up">
               This server lists no check types yet.
             </EmptyState>
-          ) : webScan ? (
-            <WebScanSetup model={webDraft} materials={model.materials} />
+          ) : model.webScan !== undefined ? (
+            <>
+              <WebScanSetup
+                model={model.webScan}
+                materials={model.materials}
+                busy={model.launch.pending !== undefined}
+              />
+              <SetupOptions model={model} />
+            </>
           ) : (
             <SetupBody model={model} />
           )}

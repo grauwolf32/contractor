@@ -413,9 +413,20 @@ export function SetupBody({ model }: { model: StartCheck }) {
         <ScopeCard model={model} />
       </div>
       <LiveTargetFields model={model} />
+      <SetupOptions model={model} />
+    </>
+  );
+}
+
+export function SetupOptions({ model }: { model: StartCheck }) {
+  return (
+    <fieldset
+      className="start-web-fields"
+      disabled={model.launch.pending !== undefined}
+    >
       <TimeLimitField model={model} />
       <AdvancedOptions model={model} />
-    </>
+    </fieldset>
   );
 }
 
@@ -471,7 +482,7 @@ function UnconfirmedStartNotice({
   );
 }
 
-export function LaunchNotices({
+function LaunchNotices({
   model,
 }: {
   model: Pick<StartCheck, "launch" | "request" | "projectId">;
@@ -479,10 +490,19 @@ export function LaunchNotices({
   const { launch, request } = model;
   const draft = launch.draft;
   if (launch.pending !== undefined) return null;
+  if (launch.preparationError !== undefined)
+    return (
+      <ErrorNotice
+        error={launch.preparationError}
+        context="Could not save the scan inputs."
+      />
+    );
   const createError = launch.createError;
   const failure = launch.startFailure;
   // The form no longer matches the check this page created.
-  const changed = request !== undefined && !launch.isDraftRequest(request);
+  const changed =
+    draft !== undefined &&
+    (request === undefined || !launch.isDraftRequest(request));
   if (createError !== null && isLostResponse(createError)) {
     const same = request !== undefined && launch.isLastRequest(request);
     return (
@@ -607,13 +627,15 @@ export function SetupFooter({ model }: { model: StartCheck }) {
   const status =
     launch.pending === undefined
       ? ""
-      : launch.step === "verify"
-        ? "Checking whether the check started…"
-        : launch.step === "start"
-          ? "Starting the check…"
-          : launch.pending === "draft"
-            ? "Saving the draft…"
-            : "Creating the check…";
+      : launch.step === "prepare"
+        ? "Saving scan inputs…"
+        : launch.step === "verify"
+          ? "Checking whether the check started…"
+          : launch.step === "start"
+            ? "Starting the check…"
+            : launch.pending === "draft"
+              ? "Saving the draft…"
+              : "Creating the check…";
   const hint = pending ? undefined : model.startBlocker;
   const projectName = model.project?.name ?? "this project";
   return (

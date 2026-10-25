@@ -22,7 +22,8 @@
  * are invalidated and refetched after every answer.
  */
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLocation } from "react-router";
 
 import {
   auditMutationAudit,
@@ -37,7 +38,10 @@ import { invalidateCrossProject } from "../../../api/cross-project";
 import { PublicAPIError } from "../../../api/error";
 import { queryKeys } from "../../../api/query-keys";
 import { writeConflict } from "../../../app/conflict";
-import { useGuardedNavigate } from "../../../app/page-location";
+import {
+  useGuardedNavigate,
+  usePageLocationNow,
+} from "../../../app/page-location";
 import {
   canonicalMutationRequest,
   MutationDraftKeyring,
@@ -49,6 +53,11 @@ type LaunchIntent = "start" | "draft";
 interface LaunchRequest {
   request: CreateAuditRequest;
   /** Seconds for the start request; 0 means no time limit. */
+  deadlineSeconds: number;
+}
+
+interface PreparedLaunchRequest {
+  prepare: (ensureCurrent: () => void) => Promise<CreateAuditRequest>;
   deadlineSeconds: number;
 }
 
@@ -112,7 +121,10 @@ function isServerFailure(error: unknown): boolean {
 
 export interface Launch {
   /** Creates (unless this page already created it) and optionally starts. */
-  launch: (intent: LaunchIntent, input: LaunchRequest) => void;
+  launch: (
+    intent: LaunchIntent,
+    input: LaunchRequest | PreparedLaunchRequest,
+  ) => void;
   /** Sends the last create request again, with its key. */
   retryCreate: () => void;
   /** Sends the start request that failed without an outcome again, unchanged. */
@@ -120,7 +132,8 @@ export interface Launch {
   /** The action in flight. */
   pending: LaunchIntent | undefined;
   /** The request in flight, or the read that follows a failed start. */
-  step: "create" | "start" | "verify" | undefined;
+  step: "prepare" | "create" | "start" | "verify" | undefined;
+  preparationError: Error | undefined;
   createError: Error | null;
   /** The last start failure, once the page has looked at the check again. */
   startFailure: StartFailure | undefined;
@@ -135,9 +148,16 @@ export interface Launch {
   isLastRequest: (request: CreateAuditRequest) => boolean;
 }
 
-export function useLaunch(projectId: string): Launch {
+export function useLaunch(projectId: string, contextKey: string): Launch {
   const api = usePublicAPI();
   const navigate = useGuardedNavigate();
+  const pageNow = usePageLocationNow();
+  const location = useLocation();
+  const context = useRef({ contextKey, locationKey: location.key });
+  useLayoutEffect(() => {
+    // A return to the same type or URL must not revive abandoned work.
+    context.current = { contextKey, locationKey: location.key };
+  }, [contextKey, location.key]);
   const queryClient = useQueryClient();
   const [createKeys] = useState(
     () => new MutationDraftKeyring<CreateVariables>("create-audit"),
@@ -156,6 +176,8 @@ export function useLaunch(projectId: string): Launch {
     input: LaunchRequest;
   }>();
   const [pending, setPending] = useState<LaunchIntent>();
+  const [preparing, setPreparing] = useState(false);
+  const [preparationError, setPreparationError] = useState<Error>();
   const inFlight = useRef(false);
   const mounted = useRef(true);
   useEffect(() => {
@@ -258,7 +280,10 @@ export function useLaunch(projectId: string): Launch {
     setFailed({ failure, attempt });
   }
 
-  async function startDraft(attempt: StartAttempt): Promise<void> {
+  async function startDraft(
+    attempt: StartAttempt,
+    ensureCurrent: () => void,
+  ): Promise<void> {
     try {
       const started = auditMutationAudit(
         await start.mutateAsync({
@@ -266,16 +291,24 @@ export function useLaunch(projectId: string): Launch {
           deadlineSeconds: attempt.deadlineSeconds,
         }),
       );
+      setDraft({ canonical: attempt.record.canonical, audit: started });
       refresh(started.auditId);
+      ensureCurrent();
       open(started.auditId);
     } catch (error) {
+      ensureCurrent();
       // The notice explains the answer; the draft stays for another try.
       await settle(attempt, error);
       refresh(attempt.record.audit.auditId);
     }
   }
 
-  async function run(intent: LaunchIntent, input: LaunchRequest) {
+  async function run(
+    intent: LaunchIntent,
+    input: LaunchRequest,
+    ensureCurrent: () => void,
+  ) {
+    ensureCurrent();
     const variables = { projectId, request: input.request };
     const canonical = canonicalMutationRequest(variables);
     let record = draft?.canonical === canonical ? draft : undefined;
@@ -297,29 +330,74 @@ export function useLaunch(projectId: string): Launch {
       record = { canonical, audit };
       setDraft(record);
     }
+    ensureCurrent();
     if (intent === "draft") {
       refresh(record.audit.auditId);
       open(record.audit.auditId);
       return;
     }
-    await startDraft({ record, deadlineSeconds: input.deadlineSeconds });
+    await startDraft(
+      { record, deadlineSeconds: input.deadlineSeconds },
+      ensureCurrent,
+    );
   }
 
-  function guarded(intent: LaunchIntent, work: () => Promise<void>): void {
+  function guarded(
+    intent: LaunchIntent,
+    work: (ensureCurrent: () => void) => Promise<void>,
+  ): void {
     if (inFlight.current) return;
+    const startedContext = context.current;
+    const page = pageNow();
+    const current = () =>
+      mounted.current &&
+      context.current === startedContext &&
+      page !== undefined &&
+      pageNow()?.key === page.key;
+    const ensureCurrent = () => {
+      if (!current())
+        throw new DOMException("The check setup changed", "AbortError");
+    };
     inFlight.current = true;
     setPending(intent);
-    void work().finally(() => {
-      inFlight.current = false;
-      if (mounted.current) setPending(undefined);
-    });
+    setPreparationError(undefined);
+    void work(ensureCurrent)
+      .catch((error: unknown) => {
+        if (current())
+          setPreparationError(
+            error instanceof Error
+              ? error
+              : new Error("Could not prepare check inputs"),
+          );
+      })
+      .finally(() => {
+        inFlight.current = false;
+        if (mounted.current) {
+          setPending(undefined);
+          setPreparing(false);
+        }
+      });
   }
 
   return {
-    launch: (intent, input) => guarded(intent, () => run(intent, input)),
+    launch: (intent, input) =>
+      guarded(intent, async (ensureCurrent) => {
+        if ("request" in input) return run(intent, input, ensureCurrent);
+        setPreparing(true);
+        const request = await input.prepare(ensureCurrent);
+        ensureCurrent();
+        setPreparing(false);
+        await run(
+          intent,
+          { request, deadlineSeconds: input.deadlineSeconds },
+          ensureCurrent,
+        );
+      }),
     retryCreate: () => {
       if (last !== undefined)
-        guarded(last.intent, () => run(last.intent, last.input));
+        guarded(last.intent, (ensureCurrent) =>
+          run(last.intent, last.input, ensureCurrent),
+        );
     },
     retryStart: () => {
       if (
@@ -329,20 +407,23 @@ export function useLaunch(projectId: string): Launch {
       )
         return;
       const { attempt } = failed;
-      guarded("start", async () => {
+      guarded("start", async (ensureCurrent) => {
         start.reset();
         setFailed(undefined);
-        await startDraft(attempt);
+        await startDraft(attempt, ensureCurrent);
       });
     },
     pending,
-    step: create.isPending
-      ? "create"
-      : start.isPending
-        ? "start"
-        : verifying
-          ? "verify"
-          : undefined,
+    preparationError,
+    step: preparing
+      ? "prepare"
+      : create.isPending
+        ? "create"
+        : start.isPending
+          ? "start"
+          : verifying
+            ? "verify"
+            : undefined,
     createError: create.error,
     startFailure: failed?.failure,
     draft: draft?.audit,

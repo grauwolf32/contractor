@@ -1,18 +1,19 @@
-import { useId, useRef } from "react";
+import { useId } from "react";
 import { ErrorNotice } from "../../../app/error-notice";
 import { formatBytes } from "../../../app/format";
 import { schemaLimit } from "../../../api/contract";
-import { Button, Field, TechnicalDetails, useShortcuts } from "../../../ui";
+import { Button, Field, TechnicalDetails } from "../../../ui";
 import type { ProjectMaterials } from "./data";
-import { LaunchNotices } from "./setup";
 import type { WebScanDraft } from "./web-scan-state";
 
 export function WebScanSetup({
   model,
   materials,
+  busy,
 }: {
   model: WebScanDraft;
   materials: ProjectMaterials;
+  busy: boolean;
 }) {
   const id = useId();
   const packs = (materials.items ?? []).filter((item) =>
@@ -30,7 +31,7 @@ export function WebScanSetup({
   )
     packs.push(selectedPack);
   return (
-    <fieldset className="start-web-fields" disabled={model.busy}>
+    <fieldset className="start-web-fields" disabled={busy}>
       <section className="start-card">
         <div className="start-card-head">
           <h3>Scan this project's website</h3>
@@ -253,77 +254,5 @@ export function WebScanSetup({
         <p>Web scan · web-scan@1 · Nuclei · no model required</p>
       </TechnicalDetails>
     </fieldset>
-  );
-}
-
-export function WebScanFooter({ model }: { model: WebScanDraft }) {
-  const startButton = useRef<HTMLButtonElement>(null);
-  useShortcuts({
-    "mod+enter": {
-      when: (event) =>
-        !(
-          event.target instanceof Element &&
-          event.target.closest("a[href]") !== null
-        ),
-      handler: () => {
-        const button = startButton.current;
-        if (
-          button !== null &&
-          (typeof button.checkVisibility !== "function" ||
-            button.checkVisibility())
-        )
-          model.submit("start");
-      },
-    },
-  });
-  return (
-    <div className="start-footer">
-      <LaunchNotices model={model} />
-      {model.error === undefined ? null : (
-        <ErrorNotice
-          error={model.error}
-          context="Could not save the scan inputs."
-        />
-      )}
-      <div className="start-footer-row">
-        <p className="start-summary">
-          <strong>Web scan on {model.project?.name ?? "this project"}.</strong>
-          <span className="ui-caption">
-            {" "}
-            {model.custom ? "Your Nuclei rules" : "Installed Nuclei rules"} ·
-            one target
-          </span>
-        </p>
-        <div className="start-actions">
-          <Button
-            pending={model.launch.pending === "draft"}
-            pendingLabel="Saving…"
-            disabled={model.busy || model.blocker !== undefined}
-            onClick={() => model.submit("draft")}
-          >
-            Save as draft
-          </Button>
-          <Button
-            ref={startButton}
-            aria-keyshortcuts="Control+Enter Meta+Enter"
-            variant="primary"
-            pending={model.launch.pending === "start"}
-            pendingLabel="Starting…"
-            disabled={model.busy || model.blocker !== undefined}
-            onClick={() => model.submit("start")}
-          >
-            Start check
-          </Button>
-        </div>
-      </div>
-      {model.blocker === undefined ? null : (
-        <p className="ui-caption">{model.blocker}</p>
-      )}
-      {model.preparing ? (
-        <p className="ui-caption" role="status">
-          Saving scan inputs…
-        </p>
-      ) : null}
-    </div>
   );
 }
