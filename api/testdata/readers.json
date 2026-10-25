@@ -3,7 +3,7 @@
   "readers": {
     "audit-web-scan-settings.json": {"readers": ["go", "ui"]},
     "nuclei-package-manifest.json": {"readers": ["go", "python"]},
-    "nuclei-input-cases.json": {"readers": ["go", "python"]},
+    "nuclei-input-cases.json": {"readers": ["go", "python", "ui"]},
     "tool-parameter-binding-cases.json": {"readers": ["go", "python", "ui"]},
     "public/finding-correlation-cases.json": {"readers": ["go", "ui"]},
     "finding-anchor-cases.json": {"readers": ["go", "python"]},

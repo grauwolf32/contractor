@@ -872,6 +872,26 @@ and the existing scan coverage/result shape. Source, settings and baseline
 retain their exact identities. Dispatch re-prepares and compares the entire
 assignment before any scanner invocation.
 
+Audit admission discovers custom rulepack inputs through each resolved role's
+Workflow, the tool Worker's `rulepack_ref` argument and its Stage context input
+binding; profile, role and input names do not grant scanner semantics. Draft
+selection rejects incompatible Project metadata. Start verifies every selected
+exact descriptor and applies SCN-R239's encoded media/size predicate before
+reading input payloads or accepting the baseline. A rejected start leaves the
+draft editable and creates no child Run. Preview applies the same predicate to
+its already verified bytes. Successful keyed start replay returns the original
+receipt before looking up mutable catalog or artifact state. Original Audit
+inputs remain ProjectScope; ordinary owner-rulepack Run inputs retain their
+SCN-R238 scope contract.
+
+A role may instead consume an accepted preparation or retained role output,
+whose bytes do not exist at original start. Once that exact output is resolved,
+the submission builder verifies its Project metadata and applies the same
+predicate before creating a role/check execution intent or submitting a Run.
+Permanent refusal follows the existing dispatch-contract failure path; read
+failures preserve their classification. Independently retained materials are
+not deleted by either refusal. Runtime still owns YAML/ZIP content validation.
+
 **ASC-R153.** The trusted scan executor supports a closed set of Nuclei
 parameter bindings (`template_ids`, `tags`, `severity`, integer-parsed
 `rate_limit`) and the optional `rulepack_ref` artifact binding. Only exact

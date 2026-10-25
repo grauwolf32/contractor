@@ -153,7 +153,7 @@ export function WebScanSetup({
             )}
             <Field
               label="Upload Nuclei rules"
-              hint="YAML for one rule, or ZIP for a rulepack. Saved in this project when you save or start the check."
+              hint="YAML for one rule (up to 1 MiB), or ZIP for a rulepack (up to 16 MiB). Saved in this project when you save or start the check."
             >
               {(control) => (
                 <input

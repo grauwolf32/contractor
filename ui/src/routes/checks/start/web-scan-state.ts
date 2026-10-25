@@ -14,7 +14,10 @@ import {
 } from "../../../api/project-artifacts";
 import type { Project } from "../../../api/projects";
 
-const RULEPACK_ZIP = "application/vnd.contractor.nuclei-rulepack+zip";
+import {
+  NUCLEI_RULEPACK_ZIP,
+  rulepackMetadataError,
+} from "./rulepack-metadata";
 
 async function digest(data: ArrayBuffer): Promise<string> {
   const hash = await crypto.subtle.digest("SHA-256", data);
@@ -92,6 +95,15 @@ export function useWebScanDraft(
   else if (custom && file !== undefined && !/\.(ya?ml|zip)$/i.test(file.name))
     blocker = "Choose a YAML or ZIP file.";
   else if (custom && file?.size === 0) blocker = "The rule file is empty.";
+  else if (custom && file !== undefined)
+    blocker = rulepackMetadataError(
+      file.name.toLowerCase().endsWith(".zip")
+        ? NUCLEI_RULEPACK_ZIP
+        : "application/yaml",
+      file.size,
+    );
+  else if (custom && pack !== undefined)
+    blocker = rulepackMetadataError(pack.mediaType, pack.size);
 
   async function retain(
     name: string,
@@ -143,6 +155,9 @@ export function useWebScanDraft(
 
   async function prepare(ensureCurrent: () => void) {
     ensureCurrent();
+    // Guard the preparation boundary as well as the visible controls: no
+    // target/settings writes or file read may precede input admission.
+    if (blocker !== undefined) throw new Error(blocker);
     let inputs =
       prepared?.canonical === canonical ? prepared.inputs : undefined;
     if (inputs === undefined) {
@@ -161,7 +176,7 @@ export function useWebScanDraft(
       let rulepack = custom ? pack?.artifact : undefined;
       if (custom && file !== undefined) {
         const mediaType = file.name.toLowerCase().endsWith(".zip")
-          ? RULEPACK_ZIP
+          ? NUCLEI_RULEPACK_ZIP
           : "application/yaml";
         rulepack = await retain(
           "rulepack",

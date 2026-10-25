@@ -1,7 +1,7 @@
 import { webcrypto } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { act, screen, waitFor } from "@testing-library/react";
-import { failure, json } from "../../../test/responses";
+import { failure, json, page } from "../../../test/responses";
 import {
   draftAudit,
   projectFixture,
@@ -11,6 +11,8 @@ import {
   webScanProfile,
 } from "./test-fixtures";
 import { renderStart } from "./test-support";
+import { renderWithAPI } from "../../../test/render";
+import { useWebScanDraft, type WebScanDraft } from "./web-scan-state";
 import settingsCases from "../../../../../api/testdata/audit-web-scan-settings.json";
 import { conformsTo } from "../../../api/contract";
 import { deferred } from "../../../test/deferred";
@@ -23,6 +25,196 @@ const start = "/checks/new?project=project_shop&type=web-scan";
 const project = projectFixture({ httpTarget: { url: "https://shop.test/" } });
 
 describe("Web scan Audit", () => {
+  it.each([
+    { name: "rules.yaml", size: 1048577, limit: "1 MiB" },
+    { name: "rules.zip", size: 16777217, limit: "16 MiB" },
+  ])(
+    "refuses oversized $name before reading or preparing inputs",
+    async ({ name, size, limit }) => {
+      const view = renderStart(start, { profiles: [webScanProfile], project });
+      await screen.findByLabelText(/Target URL/);
+      await view.user.click(
+        screen.getByRole("radio", { name: /Custom Nuclei rules/ }),
+      );
+      const file = new File(["x"], name);
+      const read = vi.fn(async () => new ArrayBuffer(1));
+      Object.defineProperties(file, {
+        size: { value: size },
+        arrayBuffer: { value: read },
+      });
+      const hash = vi.spyOn(crypto.subtle, "digest");
+      try {
+        await view.user.upload(
+          screen.getByLabelText("Upload Nuclei rules"),
+          file,
+        );
+        expect(
+          screen.getByRole("button", { name: "Start check" }),
+        ).toBeDisabled();
+        expect(
+          screen.getByRole("button", { name: "Save as draft" }),
+        ).toBeDisabled();
+        expect(
+          screen.getByText(new RegExp(`at most ${limit}`)),
+        ).toBeInTheDocument();
+        await view.user.click(screen.getByLabelText(/Target URL/));
+        await view.user.keyboard("{Control>}{Enter}{/Control}");
+        expect(read).not.toHaveBeenCalled();
+        expect(hash).not.toHaveBeenCalled();
+        expect(
+          view.requests.filter(
+            (request) => request.method === "PUT" || request.method === "POST",
+          ),
+        ).toHaveLength(0);
+      } finally {
+        hash.mockRestore();
+      }
+    },
+  );
+
+  it.each([
+    { mediaType: "application/yaml", size: 1048577, limit: "1 MiB" },
+    {
+      mediaType: "application/vnd.contractor.nuclei-rulepack+zip",
+      size: 16777217,
+      limit: "16 MiB",
+    },
+  ])(
+    "refuses oversized selected $mediaType metadata",
+    async ({ mediaType, size, limit }) => {
+      const pack = artifactMetadata("rules", "oversized", { mediaType, size });
+      const view = renderStart(start, {
+        profiles: [webScanProfile],
+        project,
+        materials: [pack],
+      });
+      await screen.findByLabelText(/Target URL/);
+      await view.user.click(
+        screen.getByRole("radio", { name: /Custom Nuclei rules/ }),
+      );
+      await view.user.selectOptions(
+        screen.getByLabelText("Project rulepack"),
+        `${pack.artifact.namespace}/${pack.artifact.name}@${pack.artifact.revision}`,
+      );
+      expect(
+        screen.getByRole("button", { name: "Start check" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Save as draft" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByText(new RegExp(`at most ${limit}`)),
+      ).toBeInTheDocument();
+      expect(
+        view.requests.filter(
+          (request) => request.method === "PUT" || request.method === "POST",
+        ),
+      ).toHaveLength(0);
+    },
+  );
+
+  it.each([
+    { name: "rules.yaml", mediaType: "application/yaml", size: 1048576 },
+    {
+      name: "rules.zip",
+      mediaType: "application/vnd.contractor.nuclei-rulepack+zip",
+      size: 16777216,
+    },
+  ])(
+    "keeps boundary-sized $name selectable from file and later material pages",
+    async ({ name, mediaType, size }) => {
+      const pack = artifactMetadata("rules", "boundary", { mediaType, size });
+      const tooBig = artifactMetadata("rules", "later-oversized", {
+        mediaType,
+        size: size + 1,
+      });
+      const view = renderStart(start, {
+        profiles: [webScanProfile],
+        project,
+        materials: (_request, url) => {
+          const index = Number(url.searchParams.get("cursor") ?? "0");
+          return json(
+            page(
+              index === 4
+                ? [tooBig]
+                : index === 0
+                  ? [pack]
+                  : [
+                      artifactMetadata("other", `page-${index}`, {
+                        mediaType: "text/plain",
+                      }),
+                    ],
+              index < 4 ? String(index + 1) : undefined,
+            ),
+          );
+        },
+      });
+      await screen.findByLabelText(/Target URL/);
+      await view.user.click(
+        screen.getByRole("radio", { name: /Custom Nuclei rules/ }),
+      );
+      const file = new File(["x"], name);
+      Object.defineProperty(file, "size", { value: size });
+      await view.user.upload(
+        screen.getByLabelText("Upload Nuclei rules"),
+        file,
+      );
+      expect(screen.getByRole("button", { name: "Start check" })).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: "Save as draft" }),
+      ).toBeEnabled();
+      await view.user.selectOptions(
+        screen.getByLabelText("Project rulepack"),
+        `${pack.artifact.namespace}/${pack.artifact.name}@${pack.artifact.revision}`,
+      );
+      expect(screen.getByRole("button", { name: "Start check" })).toBeEnabled();
+      await view.user.click(
+        screen.getByRole("button", { name: "Load more project rules" }),
+      );
+      const key = `${tooBig.artifact.namespace}/${tooBig.artifact.name}@${tooBig.artifact.revision}`;
+      await screen.findByRole("option", {
+        name: new RegExp("later-oversized"),
+      });
+      await view.user.selectOptions(
+        screen.getByLabelText("Project rulepack"),
+        key,
+      );
+      expect(
+        screen.getByRole("button", { name: "Start check" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Save as draft" }),
+      ).toBeDisabled();
+      expect(
+        view.requests.filter(
+          (request) => request.method === "PUT" || request.method === "POST",
+        ),
+      ).toHaveLength(0);
+    },
+  );
+
+  it("guards direct preparation before target writes and file reads", async () => {
+    let draft: WebScanDraft | undefined;
+    function Probe() {
+      draft = useWebScanDraft(project.projectId, project, webScanProfile);
+      return null;
+    }
+    const view = renderWithAPI(<Probe />);
+    const file = new File(["x"], "rules.yaml");
+    const read = vi.fn(async () => new ArrayBuffer(1));
+    Object.defineProperties(file, {
+      size: { value: 1048577 },
+      arrayBuffer: { value: read },
+    });
+    act(() => {
+      draft!.setCustom(true);
+      draft!.setFile(file);
+    });
+    await expect(draft!.prepare(() => {})).rejects.toThrow(/at most 1 MiB/);
+    expect(read).not.toHaveBeenCalled();
+    expect(view.requests).toHaveLength(0);
+  });
+
   it.each([false, true])(
     "retains shared launch options for custom=%s",
     async (custom) => {

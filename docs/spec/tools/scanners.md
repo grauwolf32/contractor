@@ -644,8 +644,8 @@ names. Names contain at most 128 UTF-8 bytes, no leading dot, surrounding
 whitespace, separators, colon or controls (LIM-SCN-85). ZIP entry preflight and
 streaming expansion enforce limits before unbounded allocation or writes.
 The encoded media/size predicate is owned by `contracts/scan` and shared
-fixtures cover Run, sweep, Audit dispatch and Runtime checks. Metadata admits
-zero bytes; content validation separately rejects an empty pack (SCN-R240).
+fixtures cover Run, sweep, Audit admission/dispatch, UI and Runtime checks.
+Metadata admits zero bytes; content validation separately rejects an empty pack (SCN-R240).
 The predicate grants no source authority: ordinary Workflow admission uses
 SCN-R238's per-slot scope, Project Audit admission uses its exact Project inputs
 (ASC-R152), and Runtime reads only the forked RunScope input.
