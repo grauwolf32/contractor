@@ -646,6 +646,12 @@ func buildInventoryFromSources(profile auditprofile.ResolvedAuditProfile, select
 		ApprovalRequirement: approval, Scope: selection.Scope.Values(),
 	}
 	switch profile.Inventory.Implementation {
+	case auditprofile.AuditInventoryWebScans:
+		if settings.Payload.MediaType != "application/json" {
+			return auditdomain.Inventory{}, fmt.Errorf("%w: web scan settings must be JSON", ErrInvalid)
+		}
+		return auditdomain.BuildWebScanInventory(source.Payload.Data, source.Payload.MediaType, settings.Payload.Data,
+			auditdomain.ExactInput{Name: profile.Inventory.Settings.Name, Ref: settings.Ref, Digest: auditdomain.DigestBytes(settings.Payload.Data)}, options)
 	case auditprofile.AuditInventoryOpenAPIScans:
 		if settings.Ref.Revision == nil || settings.Payload.MediaType != "application/json" {
 			return auditdomain.Inventory{}, fmt.Errorf("%w: scan settings input is missing or invalid", ErrInvalid)

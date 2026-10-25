@@ -60,6 +60,11 @@ export function isOpaqueSubject(subjectKey: string): boolean {
 export function auditCheckTitle(
   row: Pick<AuditCoverageRow, "subjectKey" | "ordinal" | "details">,
 ): string {
+  if (
+    row.details?.scan?.operation === "target" &&
+    row.details.scan.targetUrl !== undefined
+  )
+    return row.details.scan.targetUrl;
   const operation = itemOperation(row);
   if (operation !== undefined) return `${operation.method} ${operation.path}`;
   return isOpaqueSubject(row.subjectKey)

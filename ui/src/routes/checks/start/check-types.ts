@@ -1,3 +1,4 @@
+import { isWebScanProfile } from "./web-scan-contract";
 /**
  * Check types (AuditProfiles) as the Start page shows them: families of
  * versions, rows that fold scope variants together, plain-language labels,
@@ -148,6 +149,12 @@ export interface CheckTypePresentation {
  * contract, never a guess about their purpose.
  */
 const KNOWN: Readonly<Record<string, CheckTypePresentation>> = {
+  "web-scan": {
+    label: "Web scan",
+    description:
+      "Checks a project URL with installed Nuclei rules or your custom YAML or ZIP rulepack.",
+    order: 65,
+  },
   "openapi-operation-trace": {
     label: "API endpoint trace",
     description:
@@ -536,6 +543,7 @@ export function readinessOf(
 ): Readiness {
   if (!profile.serverCompatible)
     return { state: "unavailable", reasons: profile.compatibilityReasons };
+  if (isWebScanProfile(profile)) return { state: "ready" };
   const missing = missingInputs(
     orderedInputs(profile).filter(([, input]) => input.required),
     context.materials,
@@ -628,6 +636,11 @@ export function scopeSummary(profile: AuditProfile): ScopeSummary {
       return {
         size: "Every endpoint in the API spec",
         detail: `At most ${itemCount("endpoint", limit)}.`,
+      };
+    case "web-scans@1":
+      return {
+        size: "One website target",
+        detail: "Installed Nuclei rules or your custom rules, fixed at start.",
       };
     case "openapi-scans@1":
       return {

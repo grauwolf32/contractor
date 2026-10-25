@@ -25,6 +25,6 @@ test-ui-stack: ui-install ui-browser-install require-database runtime-venv
 test-ui-stack-operations: ui-install ui-browser-install require-database runtime-venv
 	$(UI_STACK_TEST_FLAGS) ./tests/ui-stack -run '^TestBrowserOperationsStack$$'
 
-# Focused basic scan/sweep widgets; same real Server/Runtime/browser harness.
+# Focused project Web scan Audit form; same real Server/Runtime/browser harness.
 test-web-scan-ui-stack: ui-install ui-browser-install require-database runtime-venv
 	$(UI_STACK_TEST_FLAGS) ./tests/ui-stack -run '^TestBrowserScanWidgetsStack$$'

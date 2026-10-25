@@ -624,16 +624,19 @@ label editor and repeat copies those labels. RuntimeConfig controls remain
 separate and are titled Runtime configuration.
 
 
-Checks exposes a basic web scan launcher at `/checks/web/new`,
-with optional `project` context. It selects an ordinary Project or standalone
-execution, submits the reviewed target URL explicitly, and offers rule IDs,
-tags, severity and an optional request rate without coercing supplied strings.
-Rulepacks are selected or uploaded in the owner's library and submitted as exact
-refs even for Project Runs. Pickers page through the Server inventory, retain
-selected exact refs across refreshes, and show read/write errors. A pending
-submission disables editing; an unchanged retry reuses its request key. Success
-opens the existing Run detail and result lifecycle. This basic launcher does
-not require the configuration editor.
+Checks exposes **Web scan** as one Audit check type through
+`/checks/new?type=web-scan`, with ordinary Project selection. Its bundled form
+asks for a reviewed HTTP(S) URL, prefilled from the Project, and a rule source:
+installed Nuclei rules or custom Nuclei YAML/ZIP. Custom rules are selected from
+paged Project materials or uploaded in the form. Filters and request rate are
+optional scan settings. The form authors exact bounded target and settings
+artifacts and retains uploaded rules in ProjectScope using create-only,
+content-addressed bindings. Ambiguous writes reconcile the exact retained
+content before reuse. It then uses the ordinary Audit create/start keys,
+revision fence, draft recovery and check detail/result lifecycle. All inputs
+are fixed by the Audit baseline. No source-code or OpenAPI upload is needed.
+The Checks page has one primary **Start a check** action; it has no separate
+Web scan Run launcher or cross-Project sweep control.
 
 **UI-R95.** The Run-create UI presents Runtime labels separately, as
 infrastructure configuration.
@@ -1258,25 +1261,21 @@ authoritative REST snapshot (UI-R29). Shared rules are in
 - Audit WebSocket subscriptions, their authorization, cursor and sequence
   replay, and resync are deferred as one complete later transport feature.
 
-**UI-R204.** Workflow-specific controls live in bundled widgets, selected by
-an explicit registry and checked against the exact published Workflow version,
-required parameters and input source/media contracts. A widget owns domain
-field labels and controls. Shared hosts own Project and material pickers,
-authenticated API writes, request keys, navigation and execution lifecycle.
-An incompatible contract cannot launch through the widget; the generic
-Workflow form remains available. A widget may be reused by single-Run and
-sweep launchers. No dynamic plugin loader or Studio editing is required.
+**UI-R204.** Bundled check-specific forms are selected by an explicit exact
+AuditProfile version and compatible required input/media contracts. The Web
+scan form owns target, Nuclei rule-source and selection controls; its host
+owns ordinary Project selection and navigation, and it reuses shared Audit
+create/start keys, revision fences, reconciliation and check result pages.
+An incompatible contract remains on the generic material-based form. No
+dynamic plugin loader or Studio editing is required.
 
-**UI-R205.** Basic rule sweeps at `/checks/sweeps` share the registered scan
-widget with single-Run launch. Creation selects explicit paged Projects or all
-owner Projects, captures targets on the Server and pins exact library inputs;
-unchanged retries keep one creation key. The view pages parents and members,
-polls only the selected active parent and visible member page with read-error
-backoff, refreshes members once on settlement and links ordinary Runs/results.
-It reports actual Server admission and Run states, without interpreting a
-completed sweep as clean coverage. Cancellation retains Server state; terminal
-purge requires confirmation and preserves child Runs/reports and owner inputs.
-Reads reuse the response ceiling LIM-SCN-79 and no page fetches the full sweep.
+**UI-R205.** A custom Nuclei rule check is the custom-rule mode of Web scan,
+inside one selected Project. The form explains its scope, permits one YAML
+rule or ZIP rulepack, retains exact rule revisions and displays actual Audit
+states and evidence through the shared check pages. It never interprets scan
+completion as a clean security verdict. The separate CLI/API for cross-Project
+scan batches retains the scanner contract; it is not a basic check type or an
+alternate Web UI launch path.
 
 **UI-R206.** Specialized scanner result and Audit input views are bundled
 widgets too. Result dispatch uses the report's tool and supported schema,

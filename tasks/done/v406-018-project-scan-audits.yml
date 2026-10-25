@@ -1,0 +1,110 @@
+schema_version: "1.0"
+id: V406-018
+title: "Unify installed and custom Nuclei rules in project Web scan Audits"
+milestone: web-nuclei-rule-sweeps-2026-10
+epic: audits
+kind: feature
+priority: P1
+status: completed
+implementation_commit: c23e2350fa4e086fc614ddbc18c57fd822e1b724
+depends_on: [V406-005, V406-006]
+languages: [go, typescript]
+goal: >-
+  Give Web scan and Rule sweep the same Project-bound Audit lifecycle,
+  progress, evidence and results as other check types. Custom rules are a mode of Web scan inside one Project, following the user's later unification request.
+context:
+  specification: docs/spec/audits/scans.md
+  design: docs/design/ui/README.md
+  user_direction: "2026-10-25: Web scan is an Audit type; Rule sweep applies a custom rule within a Project. Improve the UI."
+scope:
+  in:
+    - Project-bound Audit launch and ordinary Audit result collection for direct URL Nuclei checks.
+    - Project-local custom rule check selection and launch through the shared check surface.
+    - Clear type descriptions, target and rule controls, errors and responsive themes.
+    - Regression tests, normative contracts and fixture catalog updates.
+  out:
+    - Removing the independent CLI and API for existing cross-Project scan batches.
+    - Changing configured models or running real scans against external targets.
+requirements:
+  - id: R1
+    text: Web scan launches a Project Audit without requiring the user to author OpenAPI or use the Run configuration editor.
+  - id: R2
+    text: Web scan custom-rule mode selects exactly one Project and an explicit custom Nuclei rulepack; results use the ordinary Audit lifecycle.
+  - id: R3
+    text: Shared launch receipts, immutable input snapshots, active-check policy and cancellation remain authoritative.
+  - id: R4
+    text: The common start page lists one Web scan type with two rule sources and the Checks page has one primary start action; technical execution is hidden behind Audit details.
+failure_outcomes:
+  - operation: Create and start an Audit with retained exact inputs
+    permanent: Strict invalid inputs and incompatible profiles remain classified refusals; no Run is launched.
+    retryable: Existing Audit and artifact request error handling applies; retry is explicit in the UI.
+    ambiguous: Unchanged retries retain exact inputs and existing create/start request keys; a retained draft is reused.
+    cancelled: Ordinary Audit cancellation fences child creation and joins child Runs before settlement.
+    timeout: Existing scanner, Worker and Audit deadline owners remain separate.
+cardinality:
+  - collection: Projects, rule inputs and check types
+    expected: One selected Project and one exact rule selection.
+    maximum: Existing paged picker and Audit input bounds; one selected Project per launch.
+    bound: No all-Project read or fan-out; inputs and reports retain existing byte limits.
+lifecycle:
+  - entity: Web scan and Rule sweep Audits
+    delete: Existing owner-authorized Audit deletion and Project deletion fences.
+    cascade: Existing Audit inventory, execution, evidence and review cleanup.
+    retention: Exact baseline and result artifacts use existing Audit retention; owner rule sources retain their own lifecycle.
+acceptance_criteria:
+  - id: A1
+    given: An active ordinary Project and a valid HTTP target
+    when: The owner starts Web scan
+    then: A real Audit starts and opens the common check detail, with retained target and rules and no required OpenAPI upload.
+  - id: A2
+    given: One Project and an explicit custom rule
+    when: The owner starts Web scan with Custom Nuclei rules
+    then: Only that Project is checked through an Audit and the shared result UI; there is no multi-Project selector.
+  - id: A3
+    given: Invalid inputs, a prohibited active-check policy, or an ambiguous create/start response
+    when: Admission or launch is retried
+    then: Strict rejection and existing receipt/draft reconciliation prevent duplicate execution or false success.
+  - id: A4
+    given: The common check start and result pages in light, dark and black themes at desktop and 390px widths
+    when: The new types are selected and launched
+    then: The UI explains what will be checked and exposes actual Audit states, evidence and outcomes without overflowing.
+tests:
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+  - command: make ui-verify
+    covers: [A1, A2, A3, A4]
+  - command: go test ./internal/auditdomain ./internal/auditservice ./internal/auditimport ./internal/config/... ./internal/contracts/scan ./internal/planner/scan ./internal/planner/session ./internal/scanplan ./internal/auditscan
+    covers: [A1, A2, A3]
+  - command: make verify-public-api verify-public-api-postgres
+    covers: [A1, A2, A3]
+  - command: make test-wire-cross-language
+    covers: [A1, A2, A3]
+  - command: make test-web-scan-ui-stack
+    covers: [A1, A2, A3, A4]
+  - command: make ui-browser-mocked
+    covers: [A1, A2, A3, A4]
+  - command: go run ./cmd/contractor server config validate --root ./configs
+    covers: [A1, A2, A3]
+validation:
+  environment: Isolated PostgreSQL 17 database with UTF-8 encoding; Node 24.20 and pinned pnpm 11.24.0; no demo business data or live models used.
+  decisions:
+    - "The user combined Nuclei custom checks with Web scan: one AuditProfile and one form, with installed/custom rule modes."
+    - "Direct URL inventory has an explicit web-scan@1 task contract; it reuses scan-plan@1, Audit admission, journals, receipts, collection, active-check policy and deletion. No synthetic OpenAPI, new tables or second controller."
+    - "Cross-Project scan batches retain their existing CLI/API callers; the basic UI has no batch route or controls."
+  evidence:
+    - "Full Go suites passed for every touched package, including real PostgreSQL Audit baseline/start/replay tests."
+    - "Shared fixtures validate the settings in Go and UI; scanner arguments reuse the existing Go/Runtime Nuclei grammar."
+    - "Planner regressions cover installed/custom rules and reject missing or changed retained rulepacks before traffic."
+    - "UI regressions cover uploads, ambiguous create reconciliation, keyboard start and different rule bytes with identical file metadata."
+    - "The real browser/Server/Runtime gate creates a Project and starts the Web scan Audit; it verifies zero model calls."
+    - "All 91 mocked browser cases across 23 specs passed; Web scan has six 390/1440px light/dark/black cases, with screenshots inspected."
+  initial_failures:
+    - "Temporary PostgreSQL initially used SQL_ASCII; two unrelated Unicode Eval fixtures failed. The final gate uses a new isolated UTF-8 database."
+    - "Local restricted runs could not bind Node test listeners or download pinned staticcheck; checks were rerun with ordinary test-network permissions."
+  final_results:
+    - "make lint and make ui-verify passed (193 UI files, 2390 passing tests plus one expected failure; 17 Node tests)."
+    - "make verify-public-api verify-public-api-postgres passed."
+    - "make test-wire-cross-language passed: 270 shared fixtures, 319 Go and 211 Python shared tests; Runtime selection ran 1213 tests."
+    - "make test-web-scan-ui-stack passed against real Server, Runtime and UTF-8 PostgreSQL."
+    - "make ui-browser-mocked passed all 91 browser cases; the six Web scan responsive/theme cases also passed separately after the final build."
+    - "Shipped catalog validation passed: 23 Workflows, 28 AgentTemplates and 14 AuditProfiles."

@@ -4,8 +4,7 @@ import { useLocation, useNavigate } from "react-router";
 import type { WorkflowResource } from "../../api/workflows";
 import { plural } from "../../app/format";
 import { RefreshButton } from "../../app/refresh-button";
-import { resolveWorkflowWidget } from "../../workflow-widgets/registry";
-import { Button, ButtonLink, DetailHeader, DetailPane, IdChip } from "../../ui";
+import { Button, DetailHeader, DetailPane, IdChip } from "../../ui";
 import { formatLabel } from "../artifacts/kinds";
 import { groupWorkflowVersions, hasNumericVersions } from "./families";
 import { useWorkflowInventory } from "./inventory";
@@ -101,7 +100,6 @@ export function WorkflowOverview({
   const numericVersions = knownVersion && hasNumericVersions(family.versions);
   const latest = family.versions[0]?.ref.version === workflow.ref.version;
   const selector = workflowSelector(workflow);
-  const widget = resolveWorkflowWidget(workflow);
   const stages = Object.entries(workflow.stages).sort(
     ([a], [b]) =>
       Number(b === workflow.entryStage) - Number(a === workflow.entryStage) ||
@@ -308,11 +306,7 @@ export function WorkflowOverview({
               >
                 Configure Run <span aria-hidden="true">→</span>
               </Button>
-              {widget === undefined ? null : (
-                <ButtonLink to={widget.path}>
-                  Open {widget.title.toLowerCase()} widget
-                </ButtonLink>
-              )}
+
               <small>Review the input revisions before starting.</small>
             </aside>
           </div>

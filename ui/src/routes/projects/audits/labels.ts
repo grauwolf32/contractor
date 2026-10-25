@@ -11,6 +11,7 @@ const profileLabels: Record<string, string> = {
   "source-checklist": "Source checklist",
   "source-openapi-sqlmap-scan": "Source code → API spec → SQLMap",
   "openapi-sqlmap-scan": "SQLMap · Request checks",
+  "web-scan": "Web scan · Nuclei",
   "openapi-nuclei-scan": "Nuclei · URL template checks",
 };
 

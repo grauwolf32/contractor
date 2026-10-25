@@ -1426,7 +1426,8 @@ with:
 scanner may have only one Worker. Workers use `tool@1`, `scan@1` and the
 `report` result slot. No Planner model configuration is accepted.
 
-**SCN-R174.** All extra tool arguments are pinned scalar literals in the
+**SCN-R174.** Except for the closed exact-input Nuclei selection bindings of
+[ASC-R153](../audits/scans.md), extra tool arguments are pinned scalar literals in the
 resolved AgentTemplate, so policy cannot override template-owned scanner flags.
 The fixed dynamic-input bindings have no parser or default; the Planner owns
 and supplies those exact per-job values.

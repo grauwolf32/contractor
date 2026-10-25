@@ -1,0 +1,329 @@
+import { useId, useRef } from "react";
+import { ErrorNotice } from "../../../app/error-notice";
+import { formatBytes } from "../../../app/format";
+import { schemaLimit } from "../../../api/contract";
+import { Button, Field, TechnicalDetails, useShortcuts } from "../../../ui";
+import type { ProjectMaterials } from "./data";
+import { LaunchNotices } from "./setup";
+import type { WebScanDraft } from "./web-scan-state";
+
+export function WebScanSetup({
+  model,
+  materials,
+}: {
+  model: WebScanDraft;
+  materials: ProjectMaterials;
+}) {
+  const id = useId();
+  const packs = (materials.items ?? []).filter((item) =>
+    [
+      "application/yaml",
+      "application/vnd.contractor.nuclei-rulepack+zip",
+    ].includes(item.mediaType),
+  );
+  const key = (ref: { namespace: string; name: string; revision: string }) =>
+    `${ref.namespace}/${ref.name}@${ref.revision}`;
+  const selectedPack = model.pack;
+  if (
+    selectedPack !== undefined &&
+    !packs.some((pack) => key(pack.artifact) === key(selectedPack.artifact))
+  )
+    packs.push(selectedPack);
+  return (
+    <fieldset className="start-web-fields" disabled={model.busy}>
+      <section className="start-card">
+        <div className="start-card-head">
+          <h3>Scan this project's website</h3>
+        </div>
+        <p className="ui-caption start-tight">
+          Nuclei checks one HTTP or HTTPS target using the rules you select.
+          Progress, evidence and results are saved in this project's check
+          history.
+        </p>
+        <Field
+          label="Target URL"
+          required
+          hint={
+            model.project?.httpTarget === undefined
+              ? "Enter the address to check."
+              : "Filled from the project. Review the address before starting."
+          }
+        >
+          {(control) => (
+            <input
+              {...control}
+              type="url"
+              value={model.target}
+              onChange={(event) => model.setTarget(event.target.value)}
+              placeholder="https://staging.example.com"
+              maxLength={schemaLimit(
+                "AuditWebTarget",
+                "maxLength",
+                "properties",
+                "url",
+              )}
+            />
+          )}
+        </Field>
+      </section>
+      <section className="start-card">
+        <div className="start-card-head">
+          <h3>Rules to run</h3>
+        </div>
+        <div
+          className="start-rule-options"
+          role="radiogroup"
+          aria-label="Rule source"
+        >
+          {[
+            {
+              custom: false,
+              title: "Installed rules",
+              text: "Use the installed Nuclei package. Narrow the selection by rule ID, tags or severity.",
+            },
+            {
+              custom: true,
+              title: "Custom Nuclei rules",
+              text: "Check this project with your own YAML rule or ZIP rulepack.",
+            },
+          ].map((option) => (
+            <label
+              key={option.title}
+              className="start-rule-option"
+              data-selected={model.custom === option.custom}
+            >
+              <input
+                type="radio"
+                name={`${id}-rules`}
+                checked={model.custom === option.custom}
+                onChange={() => model.setCustom(option.custom)}
+              />
+              <span>
+                <strong>{option.title}</strong>
+                <span className="ui-caption">{option.text}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        {model.custom ? (
+          <div className="ui-stack">
+            <Field
+              label="Project rulepack"
+              hint="Choose an exact revision already saved in this project, or upload a rule file below."
+            >
+              {(control) => (
+                <select
+                  {...control}
+                  value={
+                    model.file !== undefined || model.pack === undefined
+                      ? ""
+                      : key(model.pack.artifact)
+                  }
+                  onChange={(event) => {
+                    model.setFile(undefined);
+                    model.setPack(
+                      packs.find(
+                        (pack) => key(pack.artifact) === event.target.value,
+                      ),
+                    );
+                  }}
+                >
+                  <option value="">Choose project rules</option>
+                  {packs.map((pack) => (
+                    <option key={key(pack.artifact)} value={key(pack.artifact)}>
+                      {pack.artifact.namespace}/{pack.artifact.name} ·{" "}
+                      {pack.artifact.revision}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+            {!materials.complete ? (
+              <Button
+                size="sm"
+                onClick={() => void materials.loadMore()}
+                disabled={materials.loading || materials.loadingMore}
+              >
+                Load more project rules
+              </Button>
+            ) : null}
+            {materials.error === null ? null : (
+              <ErrorNotice error={materials.error} onRetry={materials.retry} />
+            )}
+            <Field
+              label="Upload Nuclei rules"
+              hint="YAML for one rule, or ZIP for a rulepack. Saved in this project when you save or start the check."
+            >
+              {(control) => (
+                <input
+                  {...control}
+                  type="file"
+                  accept=".yaml,.yml,.zip"
+                  onChange={(event) => {
+                    model.setFile(event.target.files?.[0]);
+                    model.setPack(undefined);
+                  }}
+                />
+              )}
+            </Field>
+            {model.file === undefined ? null : (
+              <p className="ui-caption">
+                Selected: {model.file.name} · {formatBytes(model.file.size)}
+              </p>
+            )}
+          </div>
+        ) : null}
+      </section>
+      <details className="start-advanced">
+        <summary>
+          Scan options{" "}
+          <span className="ui-caption">Rule filters and request rate</span>
+        </summary>
+        <div className="start-advanced-body start-fields">
+          <Field
+            label="Rule IDs"
+            hint="Optional comma-separated Nuclei IDs or patterns. Empty uses all eligible rules in your selected package."
+          >
+            {(control) => (
+              <input
+                {...control}
+                value={model.templateIds}
+                maxLength={schemaLimit("NucleiRuleFilter", "maxLength")}
+                onChange={(event) => model.setTemplateIds(event.target.value)}
+              />
+            )}
+          </Field>
+          <Field label="Tags" hint="Optional comma-separated tags.">
+            {(control) => (
+              <input
+                {...control}
+                value={model.tags}
+                maxLength={schemaLimit("NucleiRuleFilter", "maxLength")}
+                onChange={(event) => model.setTags(event.target.value)}
+              />
+            )}
+          </Field>
+          <Field
+            label="Severity"
+            hint="Optional: info, low, medium, high, critical or unknown (comma-separated)."
+          >
+            {(control) => (
+              <input
+                {...control}
+                value={model.severity}
+                onChange={(event) => model.setSeverity(event.target.value)}
+              />
+            )}
+          </Field>
+          <Field
+            label="Requests per second"
+            hint="Default 10. Applies to this scan."
+          >
+            {(control) => (
+              <input
+                {...control}
+                type="number"
+                inputMode="numeric"
+                min={schemaLimit(
+                  "AuditWebScanSettings",
+                  "minimum",
+                  "properties",
+                  "rateLimit",
+                )}
+                max={schemaLimit(
+                  "AuditWebScanSettings",
+                  "maximum",
+                  "properties",
+                  "rateLimit",
+                )}
+                step={1}
+                value={model.rate}
+                onChange={(event) => model.setRate(event.target.value)}
+              />
+            )}
+          </Field>
+        </div>
+      </details>
+      <p className="ui-caption">
+        The scan sends live requests and follows this project's active-check
+        policy. Its target and rule inputs are fixed at start. Results record
+        what ran and any gaps; scanner observations still need review.
+      </p>
+      <TechnicalDetails>
+        <p>Web scan · web-scan@1 · Nuclei · no model required</p>
+      </TechnicalDetails>
+    </fieldset>
+  );
+}
+
+export function WebScanFooter({ model }: { model: WebScanDraft }) {
+  const startButton = useRef<HTMLButtonElement>(null);
+  useShortcuts({
+    "mod+enter": {
+      when: (event) =>
+        !(
+          event.target instanceof Element &&
+          event.target.closest("a[href]") !== null
+        ),
+      handler: () => {
+        const button = startButton.current;
+        if (
+          button !== null &&
+          (typeof button.checkVisibility !== "function" ||
+            button.checkVisibility())
+        )
+          model.submit("start");
+      },
+    },
+  });
+  return (
+    <div className="start-footer">
+      <LaunchNotices model={model} />
+      {model.error === undefined ? null : (
+        <ErrorNotice
+          error={model.error}
+          context="Could not save the scan inputs."
+        />
+      )}
+      <div className="start-footer-row">
+        <p className="start-summary">
+          <strong>Web scan on {model.project?.name ?? "this project"}.</strong>
+          <span className="ui-caption">
+            {" "}
+            {model.custom ? "Your Nuclei rules" : "Installed Nuclei rules"} ·
+            one target
+          </span>
+        </p>
+        <div className="start-actions">
+          <Button
+            pending={model.launch.pending === "draft"}
+            pendingLabel="Saving…"
+            disabled={model.busy || model.blocker !== undefined}
+            onClick={() => model.submit("draft")}
+          >
+            Save as draft
+          </Button>
+          <Button
+            ref={startButton}
+            aria-keyshortcuts="Control+Enter Meta+Enter"
+            variant="primary"
+            pending={model.launch.pending === "start"}
+            pendingLabel="Starting…"
+            disabled={model.busy || model.blocker !== undefined}
+            onClick={() => model.submit("start")}
+          >
+            Start check
+          </Button>
+        </div>
+      </div>
+      {model.blocker === undefined ? null : (
+        <p className="ui-caption">{model.blocker}</p>
+      )}
+      {model.preparing ? (
+        <p className="ui-caption" role="status">
+          Saving scan inputs…
+        </p>
+      ) : null}
+    </div>
+  );
+}

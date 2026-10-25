@@ -149,7 +149,7 @@ func (p ScanPlan) Validate() error {
 			return bad()
 		}
 		parts := strings.Split(job.TemplateRef, "@")
-		if len(parts) != 2 || (contracts.AgentTemplateRef{TemplateID: parts[0], Version: parts[1], Digest: job.TemplateDigest}).ValidateRef() != nil || !validPlanExecution(job.Execution) || job.Parameters == nil || job.Artifacts == nil || len(job.Parameters) > 1 || len(job.Artifacts) > 1 {
+		if len(parts) != 2 || (contracts.AgentTemplateRef{TemplateID: parts[0], Version: parts[1], Digest: job.TemplateDigest}).ValidateRef() != nil || !validPlanExecution(job.Execution) || job.Parameters == nil || job.Artifacts == nil || len(job.Parameters) > 5 || len(job.Artifacts) > 1 {
 			return bad()
 		}
 		if owner, ok := seenTools[job.Tool]; ok && owner != job.Worker {
@@ -182,7 +182,7 @@ func (p ScanPlan) Validate() error {
 				return bad()
 			}
 		case "scan_nuclei", "scan_ffuf":
-			if job.Request != nil || len(job.Parameters) != 1 {
+			if job.Request != nil || (job.Tool == "scan_ffuf" && len(job.Parameters) != 1) {
 				return bad()
 			}
 			u, code := scanURL(job.Parameters["target"])
@@ -193,7 +193,7 @@ func (p ScanPlan) Validate() error {
 				if len(job.Artifacts) != 1 || job.Artifacts["wordlist"].Revision == nil || strings.Contains(job.Parameters["target"], "FFUFHASH") || strings.Contains(u.Host, "FUZZ") || !strings.Contains(u.EscapedPath()+u.RawQuery, "FUZZ") {
 					return bad()
 				}
-			} else if len(job.Artifacts) != 0 {
+			} else if !validNucleiJob(job) {
 				return bad()
 			}
 		}
@@ -280,7 +280,8 @@ func validPlanExecution(execution contracts.ToolExecutionConfig) bool {
 		}
 	}
 	for name, actual := range execution.Arguments {
-		if _, exists := dynamic[name]; !exists && actual.Source != "literal" {
+		if _, exists := dynamic[name]; !exists && actual.Source != "literal" &&
+			!(execution.Tool == "scan_nuclei" && scan.IsNucleiSelectionBinding(name, actual)) {
 			return false
 		}
 	}

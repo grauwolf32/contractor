@@ -835,7 +835,7 @@ func encodeTaskOrigin(task auditdomain.ItemTask) (json.RawMessage, error) {
 		EntryKey                 string                           `json:"entryKey"`
 		EntryVersion             string                           `json:"entryVersion,omitempty"`
 		Standard                 *auditdomain.StandardMappingTask `json:"standard,omitempty"`
-		Scan                     *auditdomain.OpenAPIScanTask     `json:"scan,omitempty"`
+		Scan                     *auditdomain.ScanTask            `json:"scan,omitempty"`
 	}{
 		SourceRef: task.SourceRef, SourceContentDigest: task.SourceContentDigest,
 		CanonicalInventoryDigest: task.CanonicalInventoryDigest,

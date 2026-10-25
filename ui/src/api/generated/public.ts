@@ -3650,9 +3650,23 @@ export interface components {
             required: boolean;
             mediaTypes: components["schemas"]["MediaType"][];
         };
+        AuditWebTarget: {
+            /** @constant */
+            schema: "contractor.audit.web-target.v1";
+            url: string;
+        };
+        AuditWebScanSettings: {
+            /** @constant */
+            schema: "contractor.audit.web-scan-settings.v1";
+            templateIds: components["schemas"]["NucleiRuleFilter"];
+            tags: components["schemas"]["NucleiRuleFilter"];
+            severity: string;
+            rateLimit: number;
+        };
+        NucleiRuleFilter: string;
         AuditInventory: {
             /** @enum {unknown} */
-            implementation: "checklist@1" | "openapi-operations@1" | "openapi-scans@1" | "finding-candidates@1" | "standard-mappings@1";
+            implementation: "checklist@1" | "openapi-operations@1" | "openapi-scans@1" | "web-scans@1" | "finding-candidates@1" | "standard-mappings@1";
             source?: components["schemas"]["AuditInventoryArtifact"];
             settings?: components["schemas"]["AuditInventoryArtifact"];
             itemWorkflowRole: components["schemas"]["ArtifactName"];
@@ -3661,8 +3675,8 @@ export interface components {
             /** @constant */
             implementation?: "standard-mappings@1";
         } | {
-            /** @constant */
-            implementation?: "openapi-scans@1";
+            /** @enum {unknown} */
+            implementation?: "openapi-scans@1" | "web-scans@1";
         } | {
             /** @enum {unknown} */
             implementation?: "checklist@1" | "openapi-operations@1" | "finding-candidates@1";

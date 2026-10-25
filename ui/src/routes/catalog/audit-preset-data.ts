@@ -38,6 +38,8 @@ export function presetScope(profile: AuditProfile): string {
       return `${capitalize(itemNoun(checkItemKind(profile), 2))} defined by the referenced standard.`;
     case "checklist@1":
       return "Items from your uploaded checklist.";
+    case "web-scans@1":
+      return "A website URL, with installed or custom Nuclei rules";
     case "openapi-scans@1":
       return "Scanner tests for the endpoints you select in your OpenAPI document.";
     case "openapi-operations@1":

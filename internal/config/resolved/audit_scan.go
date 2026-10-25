@@ -2,6 +2,7 @@ package resolved
 
 import (
 	"fmt"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 )
 
 // AuditScanConfig opts scan-plan@1 into trusted single-item preparation and
@@ -46,8 +47,8 @@ func validateAuditScanStage(stage ResolvedStage) error {
 	if value.Scanner == "nuclei" {
 		templates, ok := binding.Template.Execution.Arguments["template_ids"]
 		text, isString := templates.Value.(string)
-		if !ok || templates.Source != "literal" || !isString || text == "" {
-			return fmt.Errorf("auditScan Nuclei requires a fixed literal template_ids selection")
+		if !ok || !(templates.Source == "literal" && isString && text != "" || scan.IsNucleiSelectionBinding("template_ids", templates)) {
+			return fmt.Errorf("auditScan Nuclei requires a literal or exact-settings template selection")
 		}
 	}
 	return validateAuditScanContext(stage)
@@ -56,14 +57,29 @@ func validateAuditScanStage(stage ResolvedStage) error {
 func validateAuditScanContext(stage ResolvedStage) error {
 	value := stage.AuditScan
 	slots := []string{stage.ScanPlan.InputArtifact, value.SettingsArtifact, value.TaskArtifact, value.ManifestArtifact}
+	for _, agent := range stage.Agents {
+		if binding, exists := agent.Template.Execution.Arguments["rulepack_ref"]; exists && scan.IsNucleiSelectionBinding("rulepack_ref", binding) {
+			slots = append(slots, binding.Name)
+		}
+	}
 	seen := map[string]bool{}
 	for _, name := range slots {
 		if seen[name] {
 			return fmt.Errorf("auditScan artifact slots must be distinct")
 		}
 		seen[name] = true
-		if err := scanPlanContextArtifact(stage, name); err != nil {
-			return err
+		context, exists := stage.Context.Artifacts[name]
+		if !exists {
+			return fmt.Errorf("auditScan context input is absent")
+		}
+		if name == "rulepack" && !context.Required {
+			if ValidateArtifactComponent("rulepack context", context.Name) != nil {
+				return fmt.Errorf("invalid rulepack context")
+			}
+		} else {
+			if err := scanPlanContextArtifact(stage, name); err != nil {
+				return err
+			}
 		}
 		if stage.Context.Artifacts[name].Namespace != "inputs" {
 			return fmt.Errorf("auditScan requires direct immutable Workflow inputs")

@@ -21,6 +21,32 @@ const OPENAPI_AND_SOURCE: Inputs = {
   },
 };
 
+export const webScanProfile = profileFixture("web-scan", {
+  inputs: {
+    target: { required: true, mediaTypes: ["application/json"] },
+    settings: { required: true, mediaTypes: ["application/json"] },
+    rulepack: {
+      required: false,
+      mediaTypes: [
+        "application/yaml",
+        "application/vnd.contractor.nuclei-rulepack+zip",
+      ],
+    },
+  },
+  inventory: {
+    implementation: "web-scans@1",
+    source: { source: "audit-input", name: "target" },
+    settings: { source: "audit-input", name: "settings" },
+    itemWorkflowRole: "scan",
+  },
+  interaction: {
+    activeChecks: "approval-required",
+    findingConfirmation: "disabled",
+    notApplicable: "profile-rule",
+    reportAcceptance: "automatic",
+  },
+});
+
 function limits(total: number, attempts = 3) {
   return {
     roundMode: "fixed-barrier" as const,

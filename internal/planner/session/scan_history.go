@@ -39,7 +39,7 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 	if err != nil {
 		return nil, err
 	}
-	if workflow.AuditTask == nil || workflow.AuditTask.Contract != resolved.AuditTaskOpenAPIScanV1 {
+	if workflow.AuditTask == nil || (workflow.AuditTask.Contract != resolved.AuditTaskOpenAPIScanV1 && workflow.AuditTask.Contract != resolved.AuditTaskWebScanV1) {
 		return nil, fmt.Errorf("Run does not declare a scan task executor")
 	}
 	stages, err := store.ListStageExecutions(ctx, runID)

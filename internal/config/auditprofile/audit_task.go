@@ -47,7 +47,7 @@ func validateAuditTaskBinding(profile ResolvedAuditProfile, binding ResolvedAudi
 	execution := binding.Workflow.AuditTask
 	stage := binding.Workflow.Stages[execution.Stage]
 	switch execution.Contract {
-	case resolved.AuditTaskOpenAPIScanV1:
+	case resolved.AuditTaskOpenAPIScanV1, resolved.AuditTaskWebScanV1:
 		// This executor handles one item and one scanner invocation. The
 		// restriction belongs to the consumer, not to its inventory producer.
 		if profile.Execution.BatchSize != 1 {

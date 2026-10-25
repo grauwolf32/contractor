@@ -29,7 +29,7 @@ func validateInventoryTaskExecution(profile auditprofile.ResolvedAuditProfile, i
 			return fmt.Errorf("%w: task contract differs from Workflow executor", ErrInvalid)
 		}
 		switch contract {
-		case resolved.AuditTaskOpenAPIScanV1:
+		case resolved.AuditTaskOpenAPIScanV1, resolved.AuditTaskWebScanV1:
 			stage, exists := binding.Workflow.Stages[execution.Stage]
 			if !exists || stage.AuditScan == nil || task.Scan == nil || stage.AuditScan.Scanner != task.Scan.Scanner {
 				return fmt.Errorf("%w: assigned scanner differs from task executor", ErrInvalid)

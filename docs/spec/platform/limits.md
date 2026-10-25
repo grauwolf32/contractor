@@ -219,7 +219,7 @@ its owning requirement.
 | `LIM-ASC-6` | 0..64 MiB | Size of a public retained output descriptor (cumulative bytes also consume the evidence budget and are bounded by the artifact layer and chosen parser) | Server acceptance of retained outputs | [ASC-R26](../audits/scans.md) |
 | `LIM-ASC-7` | 1 submission key and at most 1 Run | Each preparation attempt | Audit Controller | [ASC-R30](../audits/scans.md) |
 | `LIM-ASC-8` | at most 1 accepted attempt | Each prepare role | Audit Controller (atomic acceptance of preparation outputs) | [ASC-R37](../audits/scans.md) |
-| `LIM-ASC-9` | 1 assigned item and 1 scanner Worker | The openapi-scan@1 executor Stage named by auditTask.stage | Configuration catalog validation of the selected executor | [ASC-R75](../audits/scans.md) |
+| `LIM-ASC-9` | 1 assigned item and 1 scanner Worker | The openapi-scan@1 and web-scan@1 executor Stage named by auditTask.stage | Configuration catalog validation of the selected executor | [ASC-R75](../audits/scans.md) |
 | `LIM-ASC-10` | 1 source operation | Each accepted OpenAPI scan item | auditdomain.BuildOpenAPIScanInventory and PrepareOpenAPIScanTask | [ASC-R85](../audits/scans.md) |
 | `LIM-ASC-11` | 256 KiB | Scan settings artifact (contractor.audit.openapi-scan-settings.v1) | scanplan.DecodeAuditScanSettings | [ASC-R95](../audits/scans.md) |
 | `LIM-ASC-12` | 1,000 operations | operations map of the scan settings artifact | scanplan.DecodeAuditScanSettings | [ASC-R99](../audits/scans.md) |

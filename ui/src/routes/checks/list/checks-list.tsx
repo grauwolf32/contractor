@@ -204,19 +204,6 @@ export function ChecksListPane({
           <ButtonLink variant="primary" size="sm" to={startHref}>
             Start a check
           </ButtonLink>
-          <ButtonLink
-            size="sm"
-            to={
-              projectId === undefined
-                ? "/checks/web/new"
-                : `/checks/web/new?${new URLSearchParams({ project: projectId })}`
-            }
-          >
-            Web scan
-          </ButtonLink>
-          <ButtonLink size="sm" to="/checks/sweeps">
-            Rule sweeps
-          </ButtonLink>
         </div>
       }
       toolbar={

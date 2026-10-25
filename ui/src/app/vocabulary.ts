@@ -343,6 +343,7 @@ const IMPLEMENTATION_KINDS: Readonly<
 > = {
   "openapi-operations@1": "endpoint",
   "openapi-scans@1": "endpoint",
+  "web-scans@1": "endpoint",
   // Refined by the standards the check type references.
   "standard-mappings@1": "requirement",
   "checklist@1": "item",
@@ -353,6 +354,7 @@ const IMPLEMENTATION_KINDS: Readonly<
 const WORK_ITEM_KINDS: Readonly<Record<string, ItemKind>> = {
   "operation-trace": "endpoint",
   "openapi-scan": "endpoint",
+  "web-scan": "endpoint",
   "standard-mapping": "requirement",
   checklist: "item",
   "finding-verification": "item",

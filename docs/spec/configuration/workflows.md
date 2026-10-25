@@ -106,7 +106,7 @@ flowchart TB
 A Workflow `spec` may also carry `executionConfig` defaults
 ([AgentTemplates](agent-templates.md)) and, for an Audit scan Workflow, an
 `auditTask` declaration with `auditTask.contract` (for example
-`openapi-scan@1`) and `auditTask.stage` ([Audit scans](../audits/scans.md)).
+`openapi-scan@1` or `web-scan@1`) and `auditTask.stage` ([Audit scans](../audits/scans.md)).
 
 ### Outcomes and transition actions
 

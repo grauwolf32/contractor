@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -41,7 +42,11 @@ func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *aud
 	if err != nil {
 		t.Fatal(err)
 	}
-	workflow, err := snapshot.Workflow("audit-openapi-" + scanner + "-scan@1")
+	selector := "audit-openapi-" + scanner + "-scan@1"
+	if scanner == "web" {
+		selector = "audit-web-nuclei-scan@1"
+	}
+	workflow, err := snapshot.Workflow(selector)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,9 +67,28 @@ func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *aud
 		}
 		return data
 	}
-	source, settings := read("openapi.json"), read(scanner+"-settings.json")
+	var source, settings []byte
+	sourceSlot := "openapi"
+	if scanner == "web" {
+		var readErr error
+		source, readErr = os.ReadFile("../../../testdata/configs-scan/audit-web-scan/target.json")
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		settings, readErr = os.ReadFile("../../../testdata/configs-scan/audit-web-scan/settings.json")
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		sourceSlot = "target"
+	} else {
+		source, settings = read("openapi.json"), read(scanner+"-settings.json")
+	}
 	sourceRef, settingsRef := factoryExactRef("project", "api-document"), factoryExactRef("project", "scan-options")
-	inventory, err := auditdomain.BuildOpenAPIScanInventory(source, auditdomain.JSONMediaType, settings,
+	builder := auditdomain.BuildOpenAPIScanInventory
+	if scanner == "web" {
+		builder = auditdomain.BuildWebScanInventory
+	}
+	inventory, err := builder(source, auditdomain.JSONMediaType, settings,
 		auditdomain.ExactInput{Name: "scan_options", Ref: settingsRef, Digest: "sha256:" + stableHash(string(settings))},
 		auditdomain.InventoryOptions{Round: 1, WorkflowRole: "check", SourceInputName: "api_document", SourceRef: sourceRef, ApprovalRequirement: auditdomain.ApprovalActiveCheck})
 	if err != nil {
@@ -77,15 +101,16 @@ func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *aud
 	// Stage may consume another immutable input that the scan never receives.
 	manifest.Items[0].Inputs = []auditdomain.ExactInput{
 		{Name: "notes", Ref: factoryExactRef("project", "notes"), Digest: "sha256:" + stableHash("operator notes")},
-		{Name: "openapi", Ref: sourceRef, Digest: inventory.Tasks[0].Document.SourceContentDigest},
+		{Name: sourceSlot, Ref: sourceRef, Digest: inventory.Tasks[0].Document.SourceContentDigest},
 		{Name: "settings", Ref: settingsRef, Digest: inventory.Tasks[0].Document.Scan.Settings.Digest},
 	}
+	sort.Slice(manifest.Items[0].Inputs, func(i, j int) bool { return manifest.Items[0].Inputs[i].Name < manifest.Items[0].Inputs[j].Name })
 	manifestBytes, err := auditdomain.EncodeExecutionManifest(manifest)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for slot, payload := range map[string]artifacts.Payload{
-		"openapi":            {MediaType: auditdomain.JSONMediaType, Data: source},
+		sourceSlot:           {MediaType: auditdomain.JSONMediaType, Data: source},
 		"settings":           {MediaType: auditdomain.JSONMediaType, Data: settings},
 		"task":               {MediaType: auditdomain.PackageMediaType, Data: inventory.Tasks[0].Package},
 		"execution_manifest": {MediaType: auditdomain.JSONMediaType, Data: manifestBytes},
@@ -93,9 +118,15 @@ func newAuditFactoryHarness(t *testing.T, scanner string) (*factoryHarness, *aud
 		ref := h.artifacts.put(contracts.ArtifactRef{Namespace: "inputs", Name: slot}, payload)
 		h.invocation.Context.Artifacts[slot] = &ref
 	}
+	if scanner == "web" {
+		h.invocation.Context.Artifacts["rulepack"] = nil
+	}
 	history := &auditFactoryHistory{factorySessions: h.sessions, stageID: h.invocation.StageExecutionID}
 	h.factory.sessions = history
 	h.invoker.tool = "scan_" + scanner
+	if scanner == "web" {
+		h.invoker.tool = "scan_nuclei"
+	}
 	return h, history
 }
 

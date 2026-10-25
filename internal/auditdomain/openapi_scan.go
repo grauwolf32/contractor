@@ -11,10 +11,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/scanplan"
 )
 
-// OpenAPIScanTask records an assigned scan, separately from operation tracing.
+// ScanTask records an assigned scan, separately from operation tracing.
 // Concrete request bytes and credentials stay in the exact supplied inputs.
 // Re-preparation must match this identity before a scanner can be invoked.
-type OpenAPIScanTask struct {
+type ScanTask struct {
 	Scanner           string     `json:"scanner"`
 	Operation         string     `json:"operation"`
 	Settings          ExactInput `json:"settings"`
@@ -26,7 +26,7 @@ type OpenAPIScanTask struct {
 	Gaps              []string   `json:"gaps"`
 }
 
-func (s OpenAPIScanTask) CoverageRequirement() string {
+func (s ScanTask) CoverageRequirement() string {
 	if s.Scanner == "nuclei" {
 		return "nuclei-url-template-scan"
 	}
@@ -74,9 +74,9 @@ func BuildOpenAPIScanInventory(source []byte, sourceMediaType string, settingsDa
 	return finishInventory(source, sourceMediaType, basis, subjects, options)
 }
 
-func openAPIScanTask(settings scanplan.AuditScanSettings, input ExactInput, prepared scanplan.PreparedAuditOperation) OpenAPIScanTask {
+func openAPIScanTask(settings scanplan.AuditScanSettings, input ExactInput, prepared scanplan.PreparedAuditOperation) ScanTask {
 	input.Ref = input.Ref.Clone()
-	task := OpenAPIScanTask{Scanner: settings.Scanner(), Operation: prepared.Operation, Settings: input,
+	task := ScanTask{Scanner: settings.Scanner(), Operation: prepared.Operation, Settings: input,
 		PreparationDigest: prepared.PreparationDigest, Runnable: prepared.Runnable,
 		TestParameters: settings.TestParameters(), Gaps: []string{}}
 	if prepared.RequestSet != nil && len(prepared.RequestSet.Requests) == 1 {
@@ -120,8 +120,12 @@ func openAPIScanKey(inventoryDigest, pointer string) string {
 	return "scan-" + strings.TrimPrefix(DigestBytes([]byte(inventoryDigest+"\x00"+pointer)), "sha256:")
 }
 
-func validateOpenAPIScanTask(value OpenAPIScanTask) error {
-	if value.Scanner != "sqlmap" && value.Scanner != "nuclei" || !scanplan.ValidOperationPointer(value.Operation) ||
+func validateScanTask(value ScanTask, web bool) error {
+	operationValid := scanplan.ValidOperationPointer(value.Operation)
+	if web {
+		operationValid = value.Scanner == "nuclei" && value.Operation == "target" && value.Runnable
+	}
+	if value.Scanner != "sqlmap" && value.Scanner != "nuclei" || !operationValid ||
 		validateIdentifier(value.Settings.Name, "scan.settings.name") != nil || value.Settings.Ref.ValidateExact() != nil ||
 		!contentdigest.Valid(value.Settings.Digest) || !contentdigest.Valid(value.PreparationDigest) ||
 		validateSortedStrings(value.Gaps, MaximumCoverageValues, "scan.gaps", false) != nil ||

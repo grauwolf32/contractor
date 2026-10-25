@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"reflect"
+	"strconv"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -132,7 +133,22 @@ func (p *execution) prepare(ctx context.Context, start planner.ScanSessionStart)
 	}
 	bindings := map[string]scanplan.ToolBinding{}
 	for name, binding := range p.invocation.Stage.Agents {
-		bindings[name] = scanplan.ToolBinding{Namespace: binding.Namespace, Template: binding.Template}
+		tool := scanplan.ToolBinding{Namespace: binding.Namespace, Template: binding.Template}
+		if p.audit != nil && p.audit.selection != nil {
+			selection := p.audit.selection
+			tool.Parameters = map[string]string{"template_ids": selection.TemplateIDs, "tags": selection.Tags,
+				"severity": selection.Severity, "rate_limit": strconv.Itoa(selection.RateLimit)}
+			if argument, exists := binding.Template.Execution.Arguments["rulepack_ref"]; exists {
+				ref := p.invocation.Context.Artifacts[argument.Name]
+				if ref == nil && !argument.Optional {
+					return emptyPlan, emptyState, scanError("audit_scan_input_missing", nil)
+				}
+				if ref != nil {
+					tool.Artifacts = map[string]contracts.ArtifactRef{argument.Name: ref.Clone()}
+				}
+			}
+		}
+		bindings[name] = tool
 	}
 	wordlists := map[string]contracts.ArtifactRef{}
 	for _, tool := range policy.Tools {

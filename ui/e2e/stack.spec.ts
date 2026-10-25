@@ -1119,220 +1119,79 @@ test("operates the real single-VM stack without crossing secret boundaries", asy
   });
 });
 
-// The specialized widget uses the ordinary Run API and owner library even
-// without a scanner-capable allocation. Loopback is intentionally denied by
-// Runtime policy: this browser journey proves admission/input wiring, while
-// the focused scanner process gate proves execution against its own fixture.
-test("widget: launches the web scan widget with one owner rulepack through the real API", async ({
+// The direct URL form creates an ordinary Project Audit through the real API.
+test("widget: launches a Web scan Audit with custom project rules through the real API", async ({
   page,
 }) => {
   const apiURL = requiredEnvironment("CONTRACTOR_UI_E2E_API_URL");
-  await page.goto("/checks/web/new");
+  await page.goto("/checks/new?type=web-scan");
   await login(
     page,
     requiredEnvironment("CONTRACTOR_UI_E2E_USERNAME"),
     requiredEnvironment("CONTRACTOR_UI_E2E_PASSWORD"),
   );
-  await page.getByLabel("Rule source").selectOption("custom");
-  await page
-    .getByRole("button", { name: "Upload rulepack", exact: true })
-    .click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Drop a file here").setInputFiles({
-    name: "widget-process-rule.yaml",
-    mimeType: "application/yaml",
-    buffer: Buffer.from(
-      "id: widget-process-rule\ninfo:\n  name: Widget fixture\n  author: contractor\n  severity: info\nhttp:\n  - method: GET\n    path:\n      - '{{BaseURL}}/'\n",
-    ),
-  });
-  await dialog.getByRole("button", { name: "Upload and select" }).click();
-  await expect(dialog).toHaveCount(0);
-  await page.getByLabel("Target URL").fill("http://127.0.0.1:1/");
-  let widgetRequest: string | null = null;
-  await page.route("**/v1/runs", async (route) => {
-    if (route.request().method() === "POST")
-      widgetRequest = route.request().postData();
-    await route.continue();
-  });
-  const responsePromise = page.waitForResponse(
-    (response) =>
-      response.url() === `${apiURL}/v1/runs` &&
-      response.request().method() === "POST",
-  );
-  await page.getByRole("button", { name: "Start scan", exact: true }).click();
-  const response = await responsePromise;
-  expect(response.status()).toBe(202);
-  const request = JSON.parse(widgetRequest ?? "null") as {
-    artifacts: {
-      rulepack: { namespace: string; name: string; revision: string };
-    };
-  };
-  expect(request.artifacts.rulepack).toMatchObject({
-    namespace: "inputs",
-    name: "widget-process-rule",
-  });
-  expect(request.artifacts.rulepack.revision).not.toBe("");
-  const run = (await response.json()) as { runId: string };
-  await expect(page).toHaveURL(new RegExp(`/runs/${run.runId}$`));
-  const cancelled = await page.evaluate(
-    async ({ apiURL, runId }) => {
-      const session = (await (
-        await fetch(`${apiURL}/v1/auth/session`, { credentials: "include" })
-      ).json()) as { csrfToken: string };
-      return (
-        await fetch(`${apiURL}/v1/runs/${runId}/cancel`, {
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": session.csrfToken,
-          },
-          body: JSON.stringify({ reason: "Browser fixture cleanup" }),
-        })
-      ).status;
-    },
-    { apiURL, runId: run.runId },
-  );
-  expect([202, 409]).toContain(cancelled);
-});
-
-test("widget: launches and purges a sweep while retaining its Project scan", async ({
-  page,
-}) => {
-  const apiURL = requiredEnvironment("CONTRACTOR_UI_E2E_API_URL");
-  await page.goto("/checks/sweeps/new");
-  await login(
-    page,
-    requiredEnvironment("CONTRACTOR_UI_E2E_USERNAME"),
-    requiredEnvironment("CONTRACTOR_UI_E2E_PASSWORD"),
-  );
-  const ids = await page.evaluate(async (apiURL) => {
+  const projectId = await page.evaluate(async (origin) => {
     const session = (await (
-      await fetch(`${apiURL}/v1/auth/session`, { credentials: "include" })
+      await fetch(`${origin}/v1/auth/session`, { credentials: "include" })
     ).json()) as { csrfToken: string };
-    const create = async (name: string, key: string) => {
-      const response = await fetch(`${apiURL}/v1/projects`, {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": session.csrfToken,
-          "Idempotency-Key": key,
-        },
-        body: JSON.stringify({ kind: "project", name }),
-      });
-      if (response.status !== 201)
-        throw new Error(`fixture Project create: ${response.status}`);
-      return response.json() as Promise<{
-        projectId: string;
-        revision: string;
-      }>;
-    };
-    const targeted = await create("Widget target", "widget-target-project");
-    const targetless = await create(
-      "Widget no target",
-      "widget-targetless-project",
-    );
-    const update = await fetch(`${apiURL}/v1/projects/${targeted.projectId}`, {
-      method: "PATCH",
+    const response = await fetch(`${origin}/v1/projects`, {
+      method: "POST",
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
         "X-CSRF-Token": session.csrfToken,
-        "If-Match": `"${targeted.revision}"`,
+        "Idempotency-Key": crypto.randomUUID(),
       },
-      body: JSON.stringify({ httpTarget: { url: "http://127.0.0.1:1/" } }),
+      body: JSON.stringify({
+        kind: "project",
+        name: "Web scan Project",
+      }),
     });
-    if (update.status !== 200)
-      throw new Error(`fixture Project target: ${update.status}`);
-    return [targeted.projectId, targetless.projectId];
+    if (response.status !== 201)
+      throw new Error(`Could not create test Project: ${response.status}`);
+    const body = (await response.json()) as { projectId: string };
+    return body.projectId;
   }, apiURL);
-  await page.reload();
+  await page.goto(`/checks/new?project=${projectId}&type=web-scan`);
   await page
-    .getByRole("checkbox", {
-      name: /Widget target ·|Widget targethttp|Widget target/,
-    })
-    .first()
-    .check();
-  await page.getByRole("checkbox", { name: /Widget no target/ }).check();
-  await page.getByLabel("Rule source").selectOption("custom");
-  await page
-    .getByRole("button", { name: "Upload rulepack", exact: true })
-    .click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Drop a file here").setInputFiles({
-    name: "widget-sweep-rule.yaml",
+    .getByLabel("Target URL", { exact: false })
+    .fill("http://127.0.0.1:1/");
+  await page.getByRole("radio", { name: /Custom Nuclei rules/ }).check();
+  await page.getByLabel("Upload Nuclei rules").setInputFiles({
+    name: "project-rule.yaml",
     mimeType: "application/yaml",
     buffer: Buffer.from(
-      "id: widget-sweep-rule\ninfo:\n  name: Widget sweep fixture\n  author: contractor\n  severity: info\nhttp:\n  - method: GET\n    path:\n      - '{{BaseURL}}/'\n",
+      "id: project-rule\ninfo:\n  name: Project fixture\n  author: contractor\n  severity: info\nhttp:\n  - method: GET\n    path:\n      - '{{BaseURL}}/'\n",
     ),
   });
-  await dialog.getByRole("button", { name: "Upload and select" }).click();
-  await expect(dialog).toHaveCount(0);
-  let sent: string | null = null;
-  await page.route("**/v1/scan-sweeps", async (route) => {
-    if (route.request().method() === "POST") sent = route.request().postData();
-    await route.continue();
-  });
-  const created = page.waitForResponse(
+  const creation = page.waitForResponse(
     (response) =>
-      response.url() === `${apiURL}/v1/scan-sweeps` &&
+      response.url() === `${apiURL}/v1/projects/${projectId}/audits` &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: "Start sweep", exact: true }).click();
-  const response = await created;
-  expect(response.status()).toBe(201);
-  const body = JSON.parse(sent ?? "null") as {
-    projectIds: string[];
-    rulepack: { namespace: string; name: string; revision: string };
-    parameters: Record<string, string>;
-  };
-  expect(body.projectIds).toEqual([...ids].sort());
-  expect(body.rulepack).toMatchObject({
-    namespace: "inputs",
-    name: "widget-sweep-rule",
-  });
-  expect(body.parameters).not.toHaveProperty("target");
-  const parent = (await response.json()) as { sweepId: string };
-  await expect(page).toHaveURL(new RegExp(`/checks/sweeps/${parent.sweepId}$`));
-  const child = page
-    .getByRole("link", { name: "Open scan and results" })
-    .first();
-  await expect(child).toBeVisible({ timeout: 30_000 });
-  const href = await child.getAttribute("href");
-  expect(href).toMatch(/^\/runs\//);
-  const cancel = page.getByRole("button", {
-    name: "Cancel sweep",
-    exact: true,
-  });
-  if (await cancel.isEnabled()) await cancel.click();
-  await expect(
-    page.getByRole("button", { name: "Delete sweep", exact: true }),
-  ).toBeVisible({ timeout: 45_000 });
-  await page.getByRole("button", { name: "Delete sweep", exact: true }).click();
-  const purge = page.waitForResponse(
+  const starting = page.waitForResponse(
     (response) =>
-      response.url() === `${apiURL}/v1/scan-sweeps/${parent.sweepId}` &&
-      response.request().method() === "DELETE",
+      response.url().startsWith(`${apiURL}/v1/audits/`) &&
+      response.url().endsWith("/start") &&
+      response.request().method() === "POST",
   );
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "Delete sweep", exact: true })
-    .click();
-  expect((await purge).status()).toBe(204);
-  await expect(page).toHaveURL(/\/checks\/sweeps$/);
-  const retained = await page.evaluate(
-    async ({ apiURL, href, pack }) => {
-      const run = await fetch(`${apiURL}/v1${href}`, {
-        credentials: "include",
-      });
-      const source = await fetch(
-        `${apiURL}/v1/artifacts/${pack.namespace}/${pack.name}/metadata?revision=${pack.revision}`,
-        { credentials: "include" },
-      );
-      return [run.status, source.status];
-    },
-    { apiURL, href, pack: body.rulepack },
+  await page.getByRole("button", { name: "Start check", exact: true }).click();
+  const response = await creation;
+  expect(response.status()).toBe(201);
+  const audit = (await response.json()) as {
+    auditId: string;
+    profile: { name: string };
+    inputs: Record<string, { ref: { namespace: string } }>;
+  };
+  expect(audit.profile.name).toBe("web-scan");
+  expect(Object.keys(audit.inputs).sort()).toEqual([
+    "rulepack",
+    "settings",
+    "target",
+  ]);
+  expect(audit.inputs.rulepack?.ref.namespace).toBe("scan-inputs");
+  expect((await starting).status()).toBe(200);
+  await expect(page).toHaveURL(
+    new RegExp(`/projects/${projectId}/audits/${audit.auditId}$`),
   );
-  expect(retained).toEqual([200, 200]);
 });
