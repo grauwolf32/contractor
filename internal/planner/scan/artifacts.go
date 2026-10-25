@@ -51,7 +51,7 @@ func (s *ServiceArtifacts) Resolve(ctx context.Context, runID string, target con
 
 func (s *ServiceArtifacts) Read(ctx context.Context, runID string, ref contracts.ArtifactRef, limit int) (artifacts.Payload, error) {
 	if ref.ValidateExact() != nil || limit < 1 || limit > planner.MaxScanArtifactBytes {
-		return artifacts.Payload{}, fmt.Errorf("invalid exact scan artifact read")
+		return artifacts.Payload{}, fmt.Errorf("invalid exact scan artifact read: %w", contracts.ErrValidation)
 	}
 	store, err := s.service.Run(runID)
 	if err != nil {
@@ -61,15 +61,18 @@ func (s *ServiceArtifacts) Read(ctx context.Context, runID string, ref contracts
 	if err != nil {
 		return artifacts.Payload{}, err
 	}
-	if !metadata.Ref.SameExact(ref) || metadata.Size < 0 || metadata.Size > int64(limit) {
-		return artifacts.Payload{}, fmt.Errorf("scan artifact metadata differs or exceeds its bound")
+	if !metadata.Ref.SameExact(ref) || metadata.Size < 0 {
+		return artifacts.Payload{}, fmt.Errorf("scan artifact metadata differs: %w", artifacts.ErrArtifactIntegrity)
+	}
+	if metadata.Size > int64(limit) {
+		return artifacts.Payload{}, fmt.Errorf("scan artifact exceeds its bound: %w", artifacts.ErrPayloadTooLarge)
 	}
 	result, err := store.Read(ctx, ref.Clone())
 	if err != nil {
 		return artifacts.Payload{}, err
 	}
 	if !result.Ref.SameExact(ref) || result.Payload.MediaType != metadata.MediaType || int64(len(result.Payload.Data)) != metadata.Size || len(result.Payload.Data) > limit {
-		return artifacts.Payload{}, fmt.Errorf("scan artifact revision or content differs")
+		return artifacts.Payload{}, fmt.Errorf("scan artifact revision or content differs: %w", artifacts.ErrArtifactIntegrity)
 	}
 	return artifacts.Payload{MediaType: result.Payload.MediaType, Data: append([]byte(nil), result.Payload.Data...)}, nil
 }
@@ -78,8 +81,11 @@ func (s *ServiceArtifacts) Read(ctx context.Context, runID string, ref contracts
 // be recovered by comparing the existing immutable payload, never by overwriting
 // an artifact that another invocation or Worker may have changed.
 func (s *ServiceArtifacts) Create(ctx context.Context, runID string, target contracts.ArtifactRef, payload artifacts.Payload) (contracts.ArtifactRef, error) {
-	if target.Validate() != nil || target.Revision != nil || len(payload.Data) > planner.MaxScanArtifactBytes {
-		return contracts.ArtifactRef{}, fmt.Errorf("invalid scan artifact creation")
+	if target.Validate() != nil || target.Revision != nil {
+		return contracts.ArtifactRef{}, fmt.Errorf("invalid scan artifact creation: %w", contracts.ErrValidation)
+	}
+	if len(payload.Data) > planner.MaxScanArtifactBytes {
+		return contracts.ArtifactRef{}, artifacts.ErrPayloadTooLarge
 	}
 	store, err := s.service.Run(runID)
 	if err != nil {
@@ -88,7 +94,7 @@ func (s *ServiceArtifacts) Create(ctx context.Context, runID string, target cont
 	result, err := store.Write(ctx, target, payload, nil)
 	if err == nil {
 		if result.Ref.ValidateExact() != nil || result.Ref.Namespace != target.Namespace || result.Ref.Name != target.Name || result.MediaType != payload.MediaType || result.Size != int64(len(payload.Data)) {
-			return contracts.ArtifactRef{}, fmt.Errorf("scan artifact creation returned inconsistent metadata")
+			return contracts.ArtifactRef{}, fmt.Errorf("scan artifact creation returned inconsistent metadata: %w", artifacts.ErrArtifactIntegrity)
 		}
 		return result.Ref.Clone(), nil
 	}
@@ -100,14 +106,14 @@ func (s *ServiceArtifacts) Create(ctx context.Context, runID string, target cont
 		return contracts.ArtifactRef{}, err
 	}
 	if metadata.Ref.ValidateExact() != nil || metadata.Ref.Namespace != target.Namespace || metadata.Ref.Name != target.Name || metadata.MediaType != payload.MediaType || metadata.Size != int64(len(payload.Data)) {
-		return contracts.ArtifactRef{}, fmt.Errorf("existing scan artifact does not match its immutable input")
+		return contracts.ArtifactRef{}, fmt.Errorf("existing scan artifact does not match its immutable input: %w", artifacts.ErrArtifactIntegrity)
 	}
 	current, err := s.Read(ctx, runID, metadata.Ref, max(1, len(payload.Data)))
 	if err != nil {
 		return contracts.ArtifactRef{}, err
 	}
 	if current.MediaType != payload.MediaType || !bytes.Equal(current.Data, payload.Data) {
-		return contracts.ArtifactRef{}, fmt.Errorf("existing scan artifact content differs")
+		return contracts.ArtifactRef{}, fmt.Errorf("existing scan artifact content differs: %w", artifacts.ErrArtifactIntegrity)
 	}
 	return metadata.Ref.Clone(), nil
 }

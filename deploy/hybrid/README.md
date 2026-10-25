@@ -138,7 +138,7 @@ configuration again. An interrupted restart still requires operator inspection.
 
 ```sh
 python3 deploy/hybrid/bootstrap.py --token-file /absolute/path/api-token configure
-python3 deploy/hybrid/runtime.py \
+uv run --locked --project runtime python deploy/hybrid/runtime.py \
   --contractor /absolute/path/existing/bin/contractor \
   --pki-root /absolute/path/existing/pki \
   --version FULL_RUNTIME_COMMIT
@@ -150,6 +150,28 @@ The Runtime revision must contain `runtime/scripts/prefetch_parsers.py`, require
 by the current Ansible role. Pin a compatible Server/Runtime revision; do not
 assume arbitrary versions interoperate. The wrapper checks machine identities
 and remote reachability of the local private API before deployment.
+
+`runtime.py` uses the locked Runtime environment to validate location labels
+with the same grammar as registration. `mesh.py init` explicitly writes
+`"placement_labels": ["cloud"]` on each host in `deployment.json`. Before
+deploying, review these declarations in that source manifest. Use, for example,
+`["cloud/aws"]` for an AWS host or `["cloud/hetzner/site-a"]` for a narrower
+location. Each host may declare its own location; its slots share it. No provider
+is inferred from its address or SSH alias. Labels must be sorted, unique and
+form one ancestor chain (at most 32 paths of 63 ASCII bytes). An explicit empty
+list declares no location and cannot serve a check constrained to `cloud`.
+Missing, null or malformed declarations fail before inventory replacement or
+remote changes; add the explicit field to a manifest that lacks it.
+
+The wrapper reads those source declarations on every invocation, including
+`--inventory-only` and `--syntax-check`; do not edit `runtime-inventory.yml`.
+They become `--placement-label` arguments independently of `--labels cloud-llm`,
+which selects Runtime configuration. Changing a declaration requires an ordinary
+Runtime restart/new incarnation. With `--defer-restarts`, ready processes still
+have their previous labels until restarted; Operations shows their actual
+registered declarations. Drain affected slots and rerun without that flag to
+apply the new declaration. A failed or interrupted deployment can be rerun from
+the same source manifest without changing the desired location.
 
 Start with one slot per host: these VPS have only 2 CPUs and 4 GB RAM, and
 cloudru1 also hosts LiteLLM. The default profile provides source analysis with
@@ -169,7 +191,7 @@ must use the same resource bounds. Ansible prepares cold keep-id image layers
 before starting the Runtime, without starting a container or binding host data.
 
 ```sh
-python3 deploy/hybrid/runtime.py \
+uv run --locked --project runtime python deploy/hybrid/runtime.py \
   --contractor /absolute/path/existing/bin/contractor \
   --pki-root /absolute/path/existing/pki \
   --version FULL_RUNTIME_COMMIT --full-capabilities
@@ -178,10 +200,10 @@ python3 deploy/hybrid/runtime.py \
 Keep that flag on subsequent wrapper runs; omitting it selects the minimal
 profile again. Drain the affected slots before applying changed capabilities.
 Ansible verifies the startup probes, and the wrapper checks every mTLS
-readiness endpoint, including unchanged instances. For a test on one specific
-cloud host, a Runtime label alone provides no scheduling affinity: temporarily
-stop other compatible idle cloud slots, wait for their Control Plane leases
-to expire, and restore them after the test. Local Runtime Agents without a
+readiness endpoint, including unchanged instances. To constrain a test to a
+particular declared site, use the ordinary check label `cloud:aws/site-a` with
+a host declaration such as `cloud/aws/site-a`. The `cloud-llm` RuntimeConfig
+label alone provides no scheduling affinity. Local Runtime Agents without a
 Podman capability cannot receive a Podman Workflow.
 
 New cloud principals register with the initial `cloud-llm` label. Create it
@@ -210,6 +232,18 @@ The explicit rebind uses the label's current revision. Successful routing
 identities are remembered in `cloud-routing.json`, so subsequent plain
 `configure` calls check that same route. A future change to selected models can
 require another credential/config version; it never changes model defaults.
+
+Bootstrap derives a stable mutation key from the HTTP method, resource, canonical
+body and `If-Match`/`If-None-Match` preconditions. Restoring an earlier binding or
+principal label set at a later revision therefore starts a distinct operation;
+an exact retry retains its original key. Explicit caller keys remain unchanged.
+After a timeout or lost response, rerun `configure` or `assign`: each first reads
+the current resource and only writes if the requested state is still absent.
+Cancellation does not undo a possibly committed write. Stale revisions,
+validation errors and idempotency conflicts remain failures; bootstrap does not
+discard the precondition or invent a fresh key to hide them. Requests retain the
+30-second timeout and bounded response reads, and error output suppresses
+provider bodies and credentials.
 
 ## Secrets and recovery
 

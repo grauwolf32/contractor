@@ -36,12 +36,28 @@ class API:
         self.opener = build_opener(NoRedirect())
 
     def request(self, method, path, body=None, headers=None, missing=False):
-        values = {"Authorization": "Bearer " + self.token, **(headers or {})}
+        method = method.upper()
+        values = {"authorization": "Bearer " + self.token}
+        supplied = {}
+        for name, value in (headers or {}).items():
+            name = name.lower()
+            if name in supplied:
+                raise ValueError("duplicate API request header")
+            supplied[name] = value
+        values.update(supplied)
         raw = None
         if body is not None:
             raw = json.dumps(body, sort_keys=True, separators=(",", ":")).encode()
-            values["Content-Type"] = "application/json"
-            values["Idempotency-Key"] = "hybrid-" + hashlib.sha256(path.encode() + raw).hexdigest()
+            values["content-type"] = "application/json"
+        if method not in {"GET", "HEAD", "OPTIONS"} and "idempotency-key" not in values:
+            # A later CAS write is a new mutation even when it restores the same
+            # body. An exact retry must retain the original receipt identity.
+            identity = json.dumps(
+                [method, path, body, values.get("if-match"), values.get("if-none-match")],
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode()
+            values["idempotency-key"] = "hybrid-" + hashlib.sha256(identity).hexdigest()
         req = Request(self.url + path, data=raw, method=method, headers=values)
         try:
             with self.opener.open(req, timeout=30) as response:

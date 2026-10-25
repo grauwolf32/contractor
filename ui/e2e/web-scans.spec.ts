@@ -32,7 +32,12 @@ for (const theme of ["light", "dark", "black"]) {
       });
       const draft = draftAudit(webScanProfile);
       let submitted:
-        | { profile: { name: string }; inputs: Record<string, unknown> }
+        | {
+            profile: { name: string };
+            inputs: Record<string, unknown>;
+            labels: Record<string, string>;
+            runtimeLabels: string[];
+          }
         | undefined;
       const writes: string[] = [];
       await mockAPI(
@@ -101,6 +106,17 @@ for (const theme of ["light", "dark", "black"]) {
       await expect(
         page.getByRole("button", { name: "Start check", exact: true }),
       ).toBeEnabled();
+      await page.getByText("Advanced options", { exact: true }).click();
+      await page.getByRole("button", { name: "+ cloud", exact: true }).click();
+      await page.getByLabel("Label value 1").fill("aws");
+      const options = page
+        .locator("details.start-advanced")
+        .filter({ hasText: "Labels, version and check limits." });
+      await options.getByText("Technical details", { exact: true }).click();
+      await page.getByLabel("Runtime configuration labels").fill("debug");
+      await page
+        .getByLabel("Time limit", { exact: true })
+        .selectOption("604800");
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -117,6 +133,8 @@ for (const theme of ["light", "dark", "black"]) {
         new RegExp(`/projects/project_shop/audits/${draft.auditId}$`),
       );
       expect(submitted?.profile.name).toBe("web-scan");
+      expect(submitted?.labels).toEqual({ cloud: "aws" });
+      expect(submitted?.runtimeLabels).toEqual(["debug"]);
       expect(submitted?.inputs.rulepack).toEqual(rules.artifact);
       expect(Object.keys(submitted?.inputs ?? {}).sort()).toEqual([
         "rulepack",

@@ -646,6 +646,12 @@ unsupported entries, duplicate IDs and duplicate or Unicode/case-fold-colliding
 names. Names contain at most 128 UTF-8 bytes, no leading dot, surrounding
 whitespace, separators, colon or controls (LIM-SCN-85). ZIP entry preflight and
 streaming expansion enforce limits before unbounded allocation or writes.
+The encoded media/size predicate is owned by `contracts/scan` and shared
+fixtures cover Run, sweep, Audit admission/dispatch, UI and Runtime checks.
+Metadata admits zero bytes; content validation separately rejects an empty pack (SCN-R240).
+The predicate grants no source authority: ordinary Workflow admission uses
+SCN-R238's per-slot scope, Project Audit admission uses its exact Project inputs
+(ASC-R152), and Runtime reads only the forked RunScope input.
 
 **SCN-R240.** Parse every template, rejecting duplicate/non-string YAML
 mapping keys, aliases, anchors, explicit tags, multiple documents, invalid IDs,
@@ -1175,10 +1181,15 @@ It writes a string as a quoted scalar whenever SCN-R124 or YAML 1.1 would read
 the plain scalar as anything other than that string, and it accepts from
 mutations only numbers that SCN-R124 accepts, so every document it writes
 means the same JSON value to preparation, to the inventory and to a YAML 1.1
-reader. Its parser shares go-yaml's double-quoted escapes and rejects surrogate
+reader. Its YAML parser shares go-yaml's double-quoted escapes and rejects surrogate
 code points, which go-yaml also rejects; it remains stricter than go-yaml in
 some lexical details, such as a tab between a member name and its value, which
-it rejects and preparation accepts.
+it rejects and preparation accepts. An `application/json` seed uses JSON escape
+semantics: escaped solidus and valid UTF-16 surrogate pairs decode to their
+string values; lone or reversed surrogates reject. Invalid JSON never falls
+back to YAML. Duplicate decoded member names, numeric and document bounds
+remain subject to SCN-R124 and SCN-R253. Runtime authoring, preparation and the
+inventory agree on the [shared JSON cases](../../../api/testdata/openapi-json-escape-cases.json).
 
 **SCN-R125.** Preparation extracts concrete HTTP data on a best-effort basis.
 Schema type, format, dialect and validation constraints do not reject supplied
@@ -1616,6 +1627,80 @@ persisted plan and the derived input Artifact refs; changed bytes, revisions or
 ownership fail explicitly. A durably completed session returns its previously
 validated aggregate result (FAIL-SCN-11).
 
+#### Planner failure classification
+
+**SCN-R258.** A `scan-plan@1` failure classifies the cause separately from
+whether a new Stage execution can safely retry the work. The codes below use
+cause-based retry only for transient PostgreSQL classes, cancellation, an expired
+operation budget or unavailable Artifact/blob I/O. PostgreSQL classification is
+central (PER-R13); other database classes, exact-reference rejections, immutable
+content conflicts, size/revision limits, active ownership and deterministic
+validation failures are permanent. An absent cause does not authorize retry.
+Nested classified failures retain their cause's retryability within this scope.
+
+Audit retries consult the durable cross-Stage attempt history (ASC-R137,
+ASC-R138, ASC-R139, ASC-R141): completed and unknown attempts are reused without
+another scanner call. A result-building rejection reported by
+`auditscan.ErrInvalid` is `audit_scan_result_invalid`; other result-building
+failures use `audit_scan_result_unavailable` and the cause rule. Missing retained
+plan/report artifacts keep their existing coverage-gap outcome. Assembly,
+publication and verification share a five-second result-building budget and
+honor caller cancellation. Completion journaling has its own existing bounded
+budget and transient retry (FAIL-SCN-16).
+
+Ordinary retries create a new session and new report bindings (SCN-R210), so only
+plan publication, derived input publication and session initialization can retry
+by cause: all precede the first dispatch. Ordinary session/source reads can also
+run during recovery, while a failed claim can follow earlier jobs. They remain
+non-retryable, as do post-dispatch writes and shared result-verification failures
+(including recovered completions). Recovery distinguishes an unread saved plan
+or input from a deterministic content mismatch; only Audit recovery may retry
+those read causes. Reopen this conservative ordinary-scan rule only when durable
+cross-Stage attempt reuse exists or the failure carries proof that no job was
+dispatched. Changing a generic storage failure to retryable is insufficient.
+
+| Code | Retryable | Meaning |
+| --- | --- | --- |
+| `audit_scan_assignment_invalid` | no | The manifest assignment does not match the exact task, source, settings or rulepack. |
+| `audit_scan_input_invalid` | no | The Audit source or settings media type differs from the assigned contract. |
+| `audit_scan_input_missing` | no | A required assigned Audit input is absent. |
+| `audit_scan_manifest_invalid` | no | The execution manifest is malformed or has an invalid assignment count. |
+| `audit_scan_manifest_unavailable` | cause-based for Audit; no for ordinary scans | The exact execution manifest could not be read. |
+| `audit_scan_preparation_invalid` | no | The assigned operation or prepared request cannot be validated or encoded. |
+| `audit_scan_preparation_write_failed` | cause-based for Audit; no for ordinary scans | The create-only prepared Audit input could not be published. |
+| `audit_scan_result_invalid` | no | Audit result assembly rejected retained content, bounds or assignment with auditscan.ErrInvalid. |
+| `audit_scan_result_unavailable` | cause-based for Audit; no for ordinary scans | Retained evidence could not be read or result assembly was cancelled or exhausted its budget. |
+| `audit_scan_result_write_failed` | cause-based for Audit; no for ordinary scans | The create-only Audit result package could not be published. |
+| `audit_scan_settings_unavailable` | cause-based for Audit; no for ordinary scans | The exact Audit settings could not be read. |
+| `audit_scan_source_unavailable` | cause-based for Audit; no for ordinary scans | The exact assigned source or selected rulepack could not be read. |
+| `audit_scan_task_invalid` | no | The assigned task package, member, document or scanner identity is invalid. |
+| `audit_scan_task_unavailable` | cause-based for Audit; no for ordinary scans | The exact assigned task package could not be read. |
+| `scan_completion_write_failed` | cause-based for Audit; no for ordinary scans | The completed scan result could not be recorded within the separate completion budget. |
+| `scan_failed` | yes, known Audit outcome only | An Audit scan has a known failed or unavailable current-attempt outcome; the retained package preserves coverage and evidence. |
+| `scan_history_invalid` | no | The current scan attempt is missing from the bounded Audit journal history. |
+| `scan_history_unavailable` | cause-based for Audit; no for ordinary scans | The bounded Audit scan history could not be read. |
+| `scan_incomplete` | no | An ordinary scan selected no job or not all selected jobs completed; its aggregate report is retained. |
+| `scan_input_write_failed` | cause-based, before dispatch | A derived job input could not be published before any job dispatch. |
+| `scan_job_claim_unavailable` | cause-based for Audit; no for ordinary scans | The durable job claim failed or was not acquired; no call follows that failed claim. |
+| `scan_job_result_unavailable` | cause-based for Audit; no for ordinary scans | The observed job result could not be recorded; further dispatch stops. |
+| `scan_plan_invalid` | no | The source, policy or bindings cannot produce a valid canonical plan. |
+| `scan_plan_record_failed` | cause-based, before dispatch | The prepared plan and pending jobs could not be initialized before any dispatch. |
+| `scan_plan_write_failed` | cause-based, before dispatch | The canonical plan could not be published before any job dispatch. |
+| `scan_prior_attempt_active` | no | A prior Audit attempt is still active and cannot be consumed as terminal history. |
+| `scan_report_invalid` | no | The aggregate ordinary scan report cannot be encoded. |
+| `scan_report_write_failed` | no | The aggregate ordinary scan report could not be published after execution. |
+| `scan_saved_input_invalid` | no | A retained derived input has changed bindings, media type, bytes or references. |
+| `scan_saved_input_unavailable` | cause-based for Audit; no for ordinary scans | A retained derived input could not be read during session recovery. |
+| `scan_saved_plan_invalid` | no | A retained plan has changed media type, bytes, digest or job identities. |
+| `scan_saved_plan_unavailable` | cause-based for Audit; no for ordinary scans | A retained plan could not be read during session recovery. |
+| `scan_session_invalid` | no | The ordinary scan session has no complete, terminal plan and job state. |
+| `scan_session_unavailable` | cause-based for Audit; no for ordinary scans | The scan session could not be opened or did not grant invocation ownership. |
+| `scan_source_unavailable` | cause-based for Audit; no for ordinary scans | A required source/wordlist binding is absent or the exact source could not be read. |
+
+The shared Planner result-verification codes remain owned by
+[Planners](../execution/planners.md); SCN-R258 narrows their retry scope for
+ordinary scans without changing their code or meaning.
+
 #### Results and coverage
 
 **SCN-R209.** The Stage publishes one required `application/json` aggregate
@@ -1693,7 +1778,8 @@ receipt updates (FAIL-SCN-2), tool invocation (FAIL-SCN-5), report publication
 (FAIL-SCN-3), receipt replay (FAIL-SCN-4), the scanner target-policy check
 (FAIL-SCN-6), the SQLMap request input (FAIL-SCN-7), the ffuf wordlist input
 and scan (FAIL-SCN-8), scan-plan Artifact writes (FAIL-SCN-9), scan job
-dispatch (FAIL-SCN-10) and scan-plan recovery (FAIL-SCN-11) are registered in
+dispatch (FAIL-SCN-10), scan-plan recovery (FAIL-SCN-11) and Audit result
+assembly (FAIL-SCN-16) are registered in
 the [failure model](../platform/failure-model.md).
 
 The retention of SQLMap temporary files (LIFE-SCN-3), ffuf wordlist scratch

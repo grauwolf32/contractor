@@ -203,9 +203,10 @@ def test_exact_evidence_ownership_empty_and_lost_artifact_response():
 
 def test_lost_registration_response_reconciles_same_identity_and_empty_is_explicit():
     async def scenario():
+        now = [0]
         collector = Collector()
         collector.lose_registration = True
-        handle = client(collector)
+        handle = client(collector, lambda: now[0])
         item = await handle.register()
         assert item.state == "registered"
         assert collector.calls == ["/register", "/poll"]
@@ -214,6 +215,17 @@ def test_lost_registration_response_reconciles_same_identity_and_empty_is_explic
         session.actions[item.handle] = "intended check"
         result = await session.poll(item.handle)
         assert result["state"] == "no_interaction" and not result["coverage_gap"]
+        assert collector.calls == ["/register", "/poll"]
+        assert item.last_poll == 0
+        now[0] = 1.999
+        with pytest.raises(InteractshError, match="interactsh_rate_limited"):
+            await session.poll(item.handle)
+        assert collector.calls == ["/register", "/poll"]
+        assert not item.coverage_gap
+        now[0] = 2
+        result = await session.poll(item.handle)
+        assert result["state"] == "no_interaction" and not result["coverage_gap"]
+        assert collector.calls == ["/register", "/poll", "/poll"]
         await handle.close()
 
     asyncio.run(scenario())
@@ -232,12 +244,125 @@ def test_unknown_registration_is_reconciled_later_without_new_register():
             "state": "outcome_unknown",
         }
         collector.poll_response = None
+        now[0] = 2
         await handle.poll(item.handle)
         assert item.state == "registered" and collector.calls.count("/register") == 1
         now[0] = REGISTRATION_TTL_SECONDS
         with pytest.raises(InteractshError, match="interactsh_registration_expired"):
             await handle.poll(item.handle)
         await handle.close()
+
+    asyncio.run(scenario())
+
+
+def test_reconciled_batch_republishes_pending_evidence_without_network_poll():
+    async def scenario():
+        class EventCollector(Collector):
+            async def request(self, request):
+                if request.url.path == "/poll" and "/poll" not in self.calls:
+                    self.events = [event(next(iter(handle._registrations.values())))]
+                return await super().request(request)
+
+        collector, artifacts = EventCollector(), Artifacts()
+        collector.lose_registration = True
+        handle = client(collector)
+        session = _Session(handle, artifacts, "worker", ())
+        registered = await session.register("authorized callback check")
+        item = handle.registration(registered["handle"])
+        artifacts.unavailable = True
+        with pytest.raises(InteractshError, match="interactsh_evidence_unconfirmed"):
+            await session.poll(item.handle)
+        artifacts.unavailable = False
+        result = await session.poll(item.handle)
+        assert len(result["events"]) == 1 and not result["coverage_gap"]
+        assert len(artifacts.rows) == 1 and not session.pending
+        assert collector.calls == ["/register", "/poll"]
+        assert item.last_poll == 0
+        with pytest.raises(InteractshError, match="interactsh_rate_limited"):
+            await session.poll(item.handle)
+        assert collector.calls == ["/register", "/poll"]
+        await session.close()
+        await handle.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("failure", ["lost", "malformed", "transport-timeout"])
+def test_reconciliation_network_poll_preserves_gap_and_spacing(failure):
+    class LostPollCollector(Collector):
+        async def request(self, request):
+            response = await super().request(request)
+            if request.url.path == "/poll" and self.calls.count("/poll") == 1:
+                # The collector has already drained the owned queue.
+                if failure == "lost":
+                    raise httpx.ReadError("private lost response", request=request)
+                if failure == "transport-timeout":
+                    raise httpx.ReadTimeout("private timeout", request=request)
+                return httpx.Response(200, content=b"not-json")
+            return response
+
+    async def scenario():
+        now = [0]
+        collector, artifacts = LostPollCollector(), Artifacts()
+        collector.lose_registration = True
+        handle = client(collector, lambda: now[0])
+        session = _Session(handle, artifacts, "worker", ())
+        registered = await session.register("authorized check")
+        item = handle.registration(registered["handle"])
+        assert registered["state"] == "outcome_unknown"
+        assert item.coverage_gap
+        assert item.last_poll == 0
+        for time in (0, 1.999):
+            now[0] = time
+            with pytest.raises(InteractshError, match="interactsh_rate_limited"):
+                await session.poll(item.handle)
+            assert collector.calls == ["/register", "/poll"]
+        now[0] = 2
+        result = await session.poll(item.handle)
+        assert result["state"] == "no_interaction" and result["coverage_gap"]
+        assert collector.calls == ["/register", "/poll", "/poll"]
+        assert list(collector.sessions) == [item.correlation]
+        await session.close()
+        await handle.close()
+        assert not collector.sessions and item.key is None and not item.secret
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("outcome", ["cancelled", "deadline"])
+def test_interrupted_reconciliation_keeps_gap_and_owned_identity(monkeypatch, outcome):
+    async def scenario():
+        collector = Collector()
+        collector.lose_registration = True
+        collector.block_poll = asyncio.Event()
+        handle = client(collector)
+        timeout = asyncio.timeout
+        deadlines = []
+
+        def controlled_timeout(_seconds):
+            deadline = timeout(None)
+            deadlines.append(deadline)
+            return deadline
+
+        monkeypatch.setattr(asyncio, "timeout", controlled_timeout)
+        registering = asyncio.create_task(handle.register())
+        await collector.poll_started.wait()
+        item = next(iter(handle._registrations.values()))
+        if outcome == "cancelled":
+            registering.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await registering
+        else:
+            # Expire the owning registration deadline on the next loop turn.
+            deadlines[0].reschedule(0)
+            assert await registering is item
+        assert collector.cancelled.is_set()
+        assert item.state == "outcome_unknown" and item.coverage_gap
+        assert item.last_poll == 0
+        assert not handle._active
+        await handle.close()
+        assert collector.calls == ["/register", "/poll", "/deregister"]
+        assert not collector.sessions and item.key is None and not item.secret
 
     asyncio.run(scenario())
 

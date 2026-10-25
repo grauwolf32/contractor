@@ -1407,6 +1407,21 @@ spec:
     reportAcceptance: automatic
 `,
 	}
+	for _, name := range []string{"agent-templates/nuclei.yaml", "workflows/nuclei.yaml"} {
+		data, err := os.ReadFile(filepath.Join("testdata", "source-scope", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		files[name] = string(data)
+	}
+	for _, name := range []string{"audit-profiles/web_scan.yaml", "workflows/audit_web_nuclei_scan.yaml", "agent-templates/audit_web_nuclei_scan.yaml"} {
+		data, err := os.ReadFile(filepath.Join("..", "auditservice", "testdata", "catalog", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		files[name] = string(data)
+	}
+	files["instructions/audit-openapi-scan.md"] = "Execute the exact scan assignment."
 	for _, directory := range []string{
 		"instructions", "llm-gateways", "model-policies", "execution-configs",
 		"agent-templates", "workflows", "audit-profiles", "skills",

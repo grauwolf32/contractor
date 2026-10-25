@@ -116,6 +116,9 @@ func caseEligibility(c evaldomain.Case, v evaldomain.Variant, s BindingSnapshot,
 		if !ok || !slices.Contains(slot.MediaTypes, ref.MediaType) {
 			return unavailable("An input slot or media type is incompatible.")
 		}
+		if slot.SourceScope == "user" && ref.Scope != "user" {
+			return unavailable("This Workflow input requires an exact artifact from the owner's UserScope.")
+		}
 	}
 	for name, slot := range slots {
 		if _, ok := inputs[name]; slot.Required && !ok {

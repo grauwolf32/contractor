@@ -5,7 +5,7 @@ milestone: main-review-2026-10-25
 epic: quality
 kind: chore
 priority: P3
-status: pending
+status: completed
 depends_on:
   - V416-001
   - V416-002
@@ -34,7 +34,7 @@ context:
     User-requested review of changes merged into main in the preceding two days,
     completed on 2026-10-25 after the Web scan Audit merge:
     63aa62b4419d27957f7ac7777729ffaf9cfc18a5..f9fda28f1c9ffa4baaf3052c141e652c8593a080.
-    The user requested task intake on 2026-10-25; all new work is pending.
+    The user requested task intake on 2026-10-25; new work was initially pending.
     The user then requested a broader review of Contractor as a whole, including
     current paths that predate this range. The initial tasks were merged in
     cce0f0a4b28527a1475656df095ec4453ad054c0 during the expanded investigation;
@@ -137,3 +137,83 @@ tests:
     covers: [A2, A3]
   - command: python3 scripts/check_spec.py
     covers: [A3]
+verification:
+  date: "2026-10-25"
+  verified_revision: 954084d0304f3b5f5317700500de4a2e6a45c8d6
+  environment: >-
+    Native Linux arm64 in a disposable local runner, normal user UID 1001,
+    Go 1.26.9, locked Python 3.13 Runtime environment, Node 24.20.0,
+    pnpm 11.24.0 and PostgreSQL 17.11. The full run used the fresh disposable
+    contractor_v416_release_7bc46d_rerun2 database, bounded package parallelism
+    and its own source clone, editable environment and browser cache.
+  dependency_audit: >-
+    All 17 dependencies are completed under tasks/done. Their full
+    implementation_commit hashes exist and are ancestors of the verified
+    revision. Independent read-only integration review found no missing task
+    links or unresolved interaction between rulepack admission, Eval input
+    scope, Scan Audit recovery and PostgreSQL failure classification.
+  command: >-
+    With CONTRACTOR_TEST_DATABASE_URL set to the disposable PostgreSQL
+    database, make -k release-verify.
+  result: >-
+    Exit 0 on 2026-10-25 at 09:45:02 UTC. All 12 release stages passed.
+    The source HEAD remained the verified revision, and both tracked and
+    staged source diffs were empty after the run.
+  results:
+    - "Lint, builds, shipped configuration and all release graph, task, specification, dependency and import checks passed."
+    - "Go unit suites passed in 101 packages: 8971 successful test events, including 2867 top-level tests, and 7 declared skips; 25 packages have no tests. Both race stages passed in another 101 package runs (45 explicitly selected and 56 discovered), with no races."
+    - "Runtime passed 4780 tests with 55 declared skips; verify-runtime passed. Shared fixture verification passed for 271 fixtures, 326 Go shared tests and 222 Python shared tests."
+    - "UI verification passed: 195 test files, 2426 passed tests, one declared expected failure, 17 Node server tests, generation, lint, typecheck and production build; integrated UI version is 0.10.3."
+    - "The 97 mocked Chromium cases and both real browser stages passed. Native and External Eval journeys verified exact evidence, restart and receipt recovery; browser report checks accepted the actual executed selections."
+    - "PostgreSQL integration with race detection passed 515 test events, including 207 top-level tests in 19 packages, with zero skips; verify-audit passed. Finding collection under ordinary production time budgets and filesystem-backed artifact/finding suites also passed."
+    - "All process shards passed: 6 top-level tests in A, 7 in B and 13 in C. The final findings report verifier passed; no selected process test failed or skipped."
+    - "The separately listed check_tasks, make test-ansible test-hybrid and check_spec commands all exited 0 on the same revision."
+  runtime_skips: >-
+    The 55 skips comprise 34 explicit opt-in real rootless/Podman tests,
+    14 optional scanner binary tests, two unavailable Vacuum tests, three
+    live Gateway tests, one separately launched Go Artifact API process test
+    and one pinned upstream Interactsh protocol test. These are not reported
+    as successful checks. No live model, external target scan or deployment
+    was performed.
+  go_skips: >-
+    The seven unit skips are the unconfigured pinned LiteLLM contract,
+    optional local NVIDIA GPU, root-only foreign-owner file check,
+    unconfigured OTLP collector and three live Gateway/Workflow checks.
+    Integration and all three process shards had zero skips. No database
+    test or zero-match selection is reported as a pass.
+  environment_attempts: >-
+    Earlier full Linux attempts were stopped and retained as unsuccessful
+    attempts after runner setup failures: missing ripgrep, then a pinned
+    Chromium cache outside the default path used by sanitized Go browser
+    subprocesses. The runner was corrected without changing source code.
+    Both complete browser stages passed as a preflight, then the final full
+    release command was rerun from the beginning on the same revision and
+    a fresh database. No tests or assertions were weakened or filtered.
+  artifacts:
+    directory: /private/tmp/contractor-v416-fixes-7bc46d
+    log: release-verify-954084d0-rerun2.log
+    reports: release-verify-954084d0-rerun2-final-reports.tar.gz
+    reports_sha256: 4b346107bb25d06f8fe94164d988c348b4f4a31c01a8932f0b0d356f8521b10e
+    summary: release-verify-954084d0-rerun2-summary.json
+    raw_archive: release-verify-954084d0-rerun2-reports.tar.gz
+    raw_archive_sha256: ba06d19d7124006b51fdc7aea433c6ff4572c410c9a20bfe0097f83ed268704e
+    source_status: release-verify-954084d0-rerun2-source-status.txt
+    listed_commands: task011-required-954084d0.log
+    browser_evidence: >-
+      The canonical archive includes the current Operations report
+      ui-stack/run-40459635 (93 passed) and Web scan report
+      ui-stack/run-1763030071 (one passed), both with zero skipped,
+      unexpected or flaky cases. Native and External Eval JSON reports
+      were removed by normal Go temporary-directory cleanup; their
+      executed-selection assertions and successful 506.53/477.68-second
+      journeys are recorded in the full Go log. The separate raw archive
+      retains two older failed browser reports from the aborted cache
+      setup attempt; these are excluded from the canonical archive.
+  delivery: >-
+    The verified implementation is on codex/v416-review-fixes, including
+    the completed fork findings already present in main. Only verification
+    and closing task metadata follow the tested revision. Delivery proceeds
+    through a no-ff merge into main; the final delivery reply records the
+    actual merge outcome. The unrelated, uncommitted V417 intake in the
+    primary checkout is preserved separately from this implementation.
+implementation_commit: 5f191f72be6e38529ef5be45e7073ea98efedc5a

@@ -6,7 +6,7 @@ epic: workflows
 kind: defect
 introduced_by: V414-003
 priority: P1
-status: pending
+status: completed
 depends_on: []
 languages: [python, go]
 goal: >-
@@ -133,8 +133,9 @@ acceptance_criteria:
     given: A held off-loop decode and an already loaded document
     when: The call is cancelled or the session closes
     then: >-
-      Preparation is joined before cleanup, no candidate is adopted or written,
-      and no background work outlives the session; use deterministic synchronization.
+      Cancellation joins preparation without adopting or writing the candidate.
+      Close waits for an ordinary in-flight load before clearing session state;
+      no preparation outlives cleanup. Use deterministic synchronization.
   - id: A4
     given: The regression cases and unchanged reviewed Runtime parser
     when: The new production-path tests run against the unfixed code
@@ -150,3 +151,48 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2, A3, A4]
+verification:
+  date: '2026-10-25'
+  decisions:
+    - >-
+      Declared application/json selects strict JSON decoding; all accepted YAML
+      media types keep the existing YAML reader. Source numeric spelling is
+      checked before conversion, while integer tokens keep unchanged YAML output.
+    - >-
+      A3 follows RTA-R115: ordinary load preparation is joined by close, not
+      cancelled by it. Cancellation of the load prevents adoption and write;
+      close then clears state after preparation finishes. The task wording was
+      corrected to distinguish these existing guarantees, without changing the
+      shared DocumentSession shutdown contract.
+  commands:
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py
+      tests/test_likec4_toolset.py tests/test_tool_operation_ownership.py
+      tests/test_local_direct_tool_consumers.py -o addopts='' --tb=short passed:
+      140 tests, including cancelled load with and without concurrent close,
+      and close joining an uncancelled load before clearing its state.
+    - >-
+      Before production changes, cd runtime && uv run --locked pytest -q
+      tests/test_openapi_toolset.py -k json_seed_escapes --tb=short failed all
+      four cases: escaped solidus and a surrogate pair, each loaded at the same
+      binding and copied to a different binding.
+    - >-
+      go test -count=1 ./internal/scanplan/... ./internal/auditdomain/... passed;
+      each reader exercises the 20 shared declared-JSON escape and strictness cases.
+    - >-
+      CONTRACTOR_TEST_DATABASE_URL set to an isolated disposable PostgreSQL
+      database: make test-wire-cross-language passed (271 fixtures, 321 Go and
+      212 Python shared tests; 313 wire tests and 1214 fixture-selected Runtime
+      tests passed).
+    - >-
+      Runtime Ruff checks and all four import contracts passed. make
+      docs-dependencies regenerated the implementation-derived graph;
+      scripts/check_spec.py and shared_fixture_gate.py --sources-only passed.
+  integration: The coordinating branch completed the required make lint; see integration_verification.
+implementation_commit: 3d90aeb95c46d260dc050320ad46a0346ede2ccf
+integration_verification:
+  date: "2026-10-25"
+  revision: 4923b9000d57cfa042733c6f5bf512f5e01444f5
+  command: make lint
+  result: passed
+  scope: Integrated implementation and required task-specific suites passed; no platform-limited full Runtime result is substituted for this task's required checks.

@@ -61,6 +61,9 @@ DOCUMENT_BOUNDS = Path(__file__).resolve().parents[2] / "api/testdata/openapi-do
 OPENAPI_YAML_CASES = (
     Path(__file__).resolve().parents[2] / "api/testdata/openapi-yaml-scalar-cases.json"
 )
+OPENAPI_JSON_CASES = (
+    Path(__file__).resolve().parents[2] / "api/testdata/openapi-json-escape-cases.json"
+)
 
 
 def test_openapi_tools_build_validate_and_expose_exact_refs(
@@ -284,6 +287,40 @@ def test_exact_seed_is_copied_and_later_stage_resumes_same_binding(
         updated = await later_stage["set_openapi_info"]("Updated API")
         assert updated["artifact"]["revision"] != copied["artifact"]["revision"]
         assert client.write_count == writes_after_copy + 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("same_binding", [False, True])
+@pytest.mark.parametrize(
+    ("fragment", "key", "value"),
+    [
+        (r'"x-\/url":"https:\/\/example.test"', "x-/url", "https://example.test"),
+        (r'"x-\ud83d\ude00":"\ud83d\ude00"', "x-😀", "😀"),
+    ],
+)
+def test_json_seed_escapes_survive_load_edit_and_yaml_reload(
+    tmp_path: Path, same_binding: bool, fragment: str, key: str, value: str
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        namespace = "openapi" if same_binding else "inputs"
+        payload = json.dumps(minimal_document("Seed"))[:-1] + "," + fragment + "}"
+        seed = client.seed(namespace, "openapi", "application/json", payload.encode())
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        loaded = await tools["load_openapi"](namespace, "openapi", seed.revision)
+        assert loaded["copied"] is True
+        assert tools["load_openapi"]._session._document[key] == value
+        await tools["set_openapi_info"]("Edited")
+        written = client.bindings[("openapi", "openapi")]
+        assert written.media_type == "application/yaml"
+        assert yaml.safe_load(written.data)[key] == value
+        resumed = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        writes = client.write_count
+        assert (await resumed["load_openapi"]("openapi", "openapi"))["copied"] is False
+        assert resumed["load_openapi"]._session._document[key] == value
+        assert (await resumed["get_openapi_info"]())["info"]["title"] == "Edited"
+        assert client.write_count == writes
 
     asyncio.run(scenario())
 
@@ -525,6 +562,34 @@ def test_shared_openapi_yaml_scalar_cases_match_server_readers() -> None:
             assert rejected.value.retryable is False, label
             continue
         assert same_json(openapi_module._parse_document(document.encode()), expected), label
+
+
+def test_shared_openapi_json_escape_cases_match_server_readers(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        fixture = json.loads(OPENAPI_JSON_CASES.read_text(encoding="utf-8"))
+        assert fixture["cases"]
+        for case in fixture["cases"]:
+            client = MemoryArtifactClient()
+            tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+            await tools["initialize_openapi"]("Before")
+            session = tools["load_openapi"]._session
+            before = session._document
+            writes = client.write_count
+            seed = client.seed("inputs", "seed", case["mediaType"], case["document"].encode())
+            if not case["accepted"]:
+                with pytest.raises(ToolInputError) as rejected:
+                    await tools["load_openapi"]("inputs", "seed", seed.revision)
+                assert rejected.value.code == "tool_input_invalid", case["name"]
+                assert rejected.value.retryable is False, case["name"]
+                assert client.write_count == writes, case["name"]
+                assert session._document is before, case["name"]
+                continue
+            await tools["load_openapi"]("inputs", "seed", seed.revision, target_name="copy")
+            assert same_json(session._document, case["value"]), case["name"]
+            written = client.bindings[("openapi", "copy")]
+            assert same_json(openapi_module._parse_document(written.data), case["value"])
+
+    asyncio.run(scenario())
 
 
 def test_shared_openapi_yaml_writer_emits_the_scalars_every_reader_reads_back() -> None:
@@ -1700,6 +1765,7 @@ def test_openapi_seed_is_parsed_and_validated_once(
         session = tools["load_openapi"]._session
         parses = 0
         start_reader = yaml.reader.Reader.__init__
+        json_loads = json.loads
 
         def counted_reader(self: Any, stream: Any) -> None:
             # Every PyYAML pass over the text, a parse or a load, starts a Reader.
@@ -1707,7 +1773,13 @@ def test_openapi_seed_is_parsed_and_validated_once(
             parses += 1
             start_reader(self, stream)
 
+        def counted_json(*args: Any, **kwargs: Any) -> Any:
+            nonlocal parses
+            parses += 1
+            return json_loads(*args, **kwargs)
+
         monkeypatch.setattr(yaml.reader.Reader, "__init__", counted_reader)
+        monkeypatch.setattr(json, "loads", counted_json)
         calls = record_calls(
             monkeypatch,
             {
@@ -1800,6 +1872,59 @@ def test_accepted_upsert_validates_its_merged_document_once(
         assert [value is changed for value in calls[entries]].count(True) == 1
         assert len(calls["_validate_path_item"]) == len(document["paths"]) == 2
         assert len(calls["_validate_component"]) == 2
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("cancel_load,close_session", [(True, False), (True, True), (False, True)])
+def test_json_load_cancellation_and_close_join_decode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancel_load: bool, close_session: bool
+) -> None:
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState(), namespace="openapi")
+        initialized = await tools["initialize_openapi"]("Before")
+        session = tools["load_openapi"]._session
+        before = session._document
+        seed = client.seed(
+            "inputs", "seed", "application/json", json.dumps(minimal_document("After")).encode()
+        )
+        writes = client.write_count
+        order: list[str] = []
+        gate = PreparationGate(openapi_module._parse_document, "decoded", order)
+        monkeypatch.setattr(openapi_module, "_parse_document", gate)
+
+        async def close() -> None:
+            await tools["load_openapi"].close()
+            order.append("closed")
+
+        loading = asyncio.create_task(
+            tools["load_openapi"]("inputs", "seed", seed.revision, target_name="copy")
+        )
+        closing = None
+        try:
+            await gate.wait_entered(loading)
+            if cancel_load:
+                loading.cancel()
+            if close_session:
+                closing = asyncio.create_task(close())
+            await yield_to_loop()
+            assert not loading.done()
+            assert closing is None or not closing.done()
+            assert session._document is before
+            assert session._revision == initialized["artifact"]["revision"]
+        finally:
+            gate.release.set()
+        if cancel_load:
+            with pytest.raises(asyncio.CancelledError):
+                await loading
+        else:
+            await loading
+        if closing is not None:
+            await closing
+        assert order == (["decoded", "closed"] if close_session else ["decoded"])
+        assert client.write_count == writes + (not cancel_load)
+        assert session._document is (None if close_session else before)
 
     asyncio.run(scenario())
 

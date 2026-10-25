@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/runservice"
 )
 
@@ -123,6 +124,9 @@ func (b *PinnedSubmissionBuilder) PrepareRole(
 	}
 	runInputs, err := b.resolveRoleInputs(ctx, snapshot, workflowRole, binding, baseline, manifestArtifact)
 	if err != nil {
+		return PreparedSubmission{}, err
+	}
+	if err := b.validateRulepackInputs(ctx, audit.ProjectID, binding.Workflow, runInputs); err != nil {
 		return PreparedSubmission{}, err
 	}
 	parameters, err := resolveRoleParameters(binding, baseline.Scope)
@@ -252,6 +256,26 @@ func (b *PinnedSubmissionBuilder) preparationOutput(ctx context.Context, auditID
 		return auditstore.ExactArtifact{}, err
 	}
 	return output.Output.Retained, nil
+}
+
+// Prepared and retained outputs do not exist at original Audit admission.
+// Check their exact metadata once resolved, before an execution intent or Run
+// can be submitted. The same boundary covers every Audit role and source kind.
+func (b *PinnedSubmissionBuilder) validateRulepackInputs(ctx context.Context, projectID string, workflow resolved.ResolvedWorkflow, inputs map[string]auditstore.ExactArtifact) error {
+	for _, slot := range resolved.NucleiRulepackInputs(workflow) {
+		expected, exists := inputs[slot]
+		if !exists {
+			continue
+		}
+		metadata, err := b.artifacts.ResolveProjectExact(ctx, projectID, expected)
+		if err != nil {
+			return err
+		}
+		if !scan.ValidNucleiRulepackMetadata(metadata.MediaType, metadata.SizeBytes) {
+			return invalidSubmission("Audit rulepack input has unsupported media or exceeds its byte limit")
+		}
+	}
+	return nil
 }
 
 func resolveRoleParameters(
@@ -417,6 +441,9 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 			ItemID: member.Item.ItemID, BatchOrdinal: index, ItemAttempt: member.Attempt,
 			Task: tasks[index], Inputs: memberInputs,
 		}
+	}
+	if err := b.validateRulepackInputs(ctx, audit.ProjectID, binding.Workflow, runInputs); err != nil {
+		return PreparedSubmission{}, err
 	}
 	skills, err := selectSkills(binding.Workflow, baseline.Skills)
 	if err != nil {

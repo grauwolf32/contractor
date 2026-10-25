@@ -38,6 +38,7 @@ func TestCredentialFailuresClassifyRetryabilityAndLogSafeCause(t *testing.T) {
 		{"serialization", &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}, true, "storage_unavailable"},
 		{"lock-timeout", &pgconn.PgError{Code: persistencepostgres.SQLStateLockNotAvailable}, true, "storage_unavailable"},
 		{"lost-connection", fmt.Errorf("query %s: %w", secret, io.ErrUnexpectedEOF), true, "storage_unavailable"},
+		{"closed-connection", fmt.Errorf("query %s: %w", secret, pgconn.ErrConnClosed), true, "storage_unavailable"},
 		{"constraint", &pgconn.PgError{Code: persistencepostgres.SQLStateUniqueViolation}, false, "configuration_unavailable"},
 		{"unclassified", errors.New(secret), false, "configuration_unavailable"},
 	} {
@@ -100,6 +101,7 @@ func TestCompositeCredentialFailuresKeepRetryableCauses(t *testing.T) {
 		{"serialization", &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure, Message: secret}, "storage_unavailable"},
 		{"deadlock", &pgconn.PgError{Code: persistencepostgres.SQLStateDeadlockDetected, Message: secret}, "storage_unavailable"},
 		{"connection", &pgconn.PgError{Code: persistencepostgres.SQLStateConnectionFailure, Message: secret}, "storage_unavailable"},
+		{"closed-connection", pgconn.ErrConnClosed, "storage_unavailable"},
 		{"shutdown", context.Canceled, "context_ended"},
 	} {
 		t.Run(test.name, func(t *testing.T) {

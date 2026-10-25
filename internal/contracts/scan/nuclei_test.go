@@ -22,6 +22,12 @@ func TestSharedNucleiInputs(t *testing.T) {
 			Arguments map[string]any
 			Valid     bool
 		}
+		RulepackMetadataCases []struct {
+			Name      string
+			MediaType string
+			Size      int64
+			Valid     bool
+		}
 	}
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
@@ -33,6 +39,13 @@ func TestSharedNucleiInputs(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			if err := ValidateNucleiArguments(c.Arguments); (err == nil) != c.Valid {
 				t.Fatalf("valid=%v err=%v", c.Valid, err)
+			}
+		})
+	}
+	for _, c := range fixture.RulepackMetadataCases {
+		t.Run(c.Name, func(t *testing.T) {
+			if valid := ValidNucleiRulepackMetadata(c.MediaType, c.Size); valid != c.Valid {
+				t.Fatalf("valid=%v, want %v", valid, c.Valid)
 			}
 		})
 	}

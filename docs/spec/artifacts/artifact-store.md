@@ -730,14 +730,18 @@ A failed CAS, a rejected write and a keyed receipt replay add no charge.
 This bound is separate from the lifetime insert limit of a RunScope
 (ART-R118): removing history never gives inserted revisions back.
 
-**ART-R124.** A write that would leave its binding over the limit first
-removes the oldest unprotected historical revisions, ordered by their
-immutable creation time and then by revision, inside the same transaction.
-The current revision, the new revision and every revision that an
-exact-reference holder protects are never removed. Which holders protect a
-revision, and which references are only provenance, is owned by
+**ART-R124.** A write admits the binding's post-publication state. If that
+state would exceed a limit, it removes the oldest unprotected historical
+revisions, ordered by immutable creation time and then revision, in the
+publication transaction. The new current revision and every revision an
+independent exact-reference holder protects are never removed. Once the write
+advances the pointer, the former current is historical and may be removed in
+that same transaction if no other holder protects it. Until commit, other
+readers still see the prior current. Which holders protect a revision, and
+which references are only provenance, is owned by
 [Retention and deletion](retention-and-deletion.md#automatic-history-retention).
-A write that fails stores nothing and removes nothing.
+A failed publication rolls back its pointer, holds, accounting and removals;
+the separately committed maintenance pass in ART-R127 is the explicit exception.
 
 **ART-R125.** One database transaction examines at most 64 history
 candidates and removes at most 64 revisions across every binding it admits,
@@ -745,7 +749,7 @@ and loads no payload (LIM-ART-10). The versions and blobs that the removed
 revisions leave unreferenced are reclaimed in the same pass, at most 64
 candidates and 64 MiB of encoded payload per pass (LIM-ART-11).
 
-**ART-R126.** When the current revision, the new revision and the protected
+**ART-R126.** When the post-publication current and independently protected
 revisions alone exceed the limit, the write fails with
 `artifact_history_protected` (HTTP 409, `retryable` false). Nothing changes;
 only the release of a protecting reference or a higher configured limit lets

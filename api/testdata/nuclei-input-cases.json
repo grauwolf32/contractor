@@ -463,6 +463,116 @@
       "valid": false
     }
   ],
+  "rulepackMetadataCases": [
+    {
+      "name": "yaml-empty",
+      "mediaType": "application/yaml",
+      "size": 0,
+      "valid": true
+    },
+    {
+      "name": "yaml-single-byte",
+      "mediaType": "application/yaml",
+      "size": 1,
+      "valid": true
+    },
+    {
+      "name": "yaml-limit",
+      "mediaType": "application/yaml",
+      "size": 1048576,
+      "valid": true
+    },
+    {
+      "name": "yaml-over-limit",
+      "mediaType": "application/yaml",
+      "size": 1048577,
+      "valid": false
+    },
+    {
+      "name": "yaml-zip-limit",
+      "mediaType": "application/yaml",
+      "size": 16777216,
+      "valid": false
+    },
+    {
+      "name": "yaml-negative",
+      "mediaType": "application/yaml",
+      "size": -1,
+      "valid": false
+    },
+    {
+      "name": "zip-empty",
+      "mediaType": "application/vnd.contractor.nuclei-rulepack+zip",
+      "size": 0,
+      "valid": true
+    },
+    {
+      "name": "zip-single-byte",
+      "mediaType": "application/vnd.contractor.nuclei-rulepack+zip",
+      "size": 1,
+      "valid": true
+    },
+    {
+      "name": "zip-limit",
+      "mediaType": "application/vnd.contractor.nuclei-rulepack+zip",
+      "size": 16777216,
+      "valid": true
+    },
+    {
+      "name": "zip-over-limit",
+      "mediaType": "application/vnd.contractor.nuclei-rulepack+zip",
+      "size": 16777217,
+      "valid": false
+    },
+    {
+      "name": "zip-negative",
+      "mediaType": "application/vnd.contractor.nuclei-rulepack+zip",
+      "size": -1,
+      "valid": false
+    },
+    {
+      "name": "unsupported-empty",
+      "mediaType": "application/json",
+      "size": 0,
+      "valid": false
+    },
+    {
+      "name": "unsupported-yaml",
+      "mediaType": "text/yaml",
+      "size": 1,
+      "valid": false
+    },
+    {
+      "name": "generic-zip",
+      "mediaType": "application/zip",
+      "size": 1,
+      "valid": false
+    },
+    {
+      "name": "noncanonical-media",
+      "mediaType": "Application/Yaml",
+      "size": 1,
+      "valid": false
+    },
+    {
+      "name": "parameterized-media",
+      "mediaType": "application/yaml; charset=utf-8",
+      "size": 1,
+      "valid": false
+    },
+    {
+      "name": "empty-media",
+      "mediaType": "",
+      "size": 1,
+      "valid": false
+    },
+    {
+      "name": "large-integer",
+      "mediaType": "application/yaml",
+      "size": 2147483647,
+      "valid": false
+    }
+  ],
   "rulepackLimits": {
     "zipBytes": 16777216,
     "fileBytes": 1048576,

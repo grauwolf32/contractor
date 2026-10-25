@@ -118,7 +118,11 @@ Cancellation retains remote ownership for allocation cleanup and joins work.
 **FAIL-INT-2.** Poll drains upstream data, so transport, malformed-response and
 timeout failures set a sticky coverage gap and are never automatically retried.
 A later successful empty poll cannot clear that gap. Explicit subsequent polls
-are rate bounded. HTTP 429 supplies a bounded Retry-After hint; other retryable
+are rate bounded. These attempt and gap rules also apply to the authenticated
+poll used for registration reconciliation. Returning its cached batch performs
+no network poll and does not reset the interval or create a new gap. A local
+interval refusal does not contact the collector or create uncertainty.
+HTTP 429 supplies a bounded Retry-After hint; other retryable
 failures carry no provider text. Auth, invalid/expired handles, malformed
 protocol and oversized responses are classified separately. Cancellation joins
 in-flight work; cleanup uses its own budget. A lost deregistration response

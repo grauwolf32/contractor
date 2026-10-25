@@ -108,7 +108,10 @@ refs and timestamps carried by read and write results are specified in
 historical revisions outside a controlled scope purge. It applies the
 retained-history policy of [artifact-store](artifact-store.md) (ART-R122 to
 ART-R127) and removes a revision only when it is not the current revision of
-its binding and no exact-reference holder protects it. Retention never cuts
+its binding at removal and no exact-reference holder protects it. Successful
+publication may therefore remove the unheld former current in the same
+transaction (ART-R124); a maintenance pass without publication preserves the
+unchanged current (ART-R127). Retention never cuts
 lineage, never removes a revision of a frozen binding's current pointer, and
 grants no write or delete authority.
 

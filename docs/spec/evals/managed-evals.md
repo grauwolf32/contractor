@@ -851,6 +851,30 @@ importer authority is allowed.
 **EVM-R129.** Normal Run creation retains the immutable input, Workflow and
 Runtime snapshots and labels.
 
+**EVM-R249.** Input preparation uses the frozen executable's per-slot source
+contract in native and external submissions. An optional Workflow input with
+`sourceScope: user` (WFL-R88) requires an exact case input in the authenticated
+owner's UserScope. Preflight marks a ProjectScope source mapped to that slot
+unsupported, with a scope diagnostic. Preparation verifies and reuses the
+original exact owner reference; it does not make an Eval-owned UserScope copy
+or accept a caller-selected owner. Ordinary Workflow inputs are still copied
+to the evaluation Project, and Audit inputs, including a Web Audit rulepack,
+are copied to that member's owned execution Project. The normal Run create
+transaction forks each selected exact source into RunScope (SCN-R238).
+Until that fork, source availability follows DEL-R64: plan and journal refs
+are not new retention holds, and a missing revision never selects the current
+revision instead. No new resource needs a separate cleanup lifecycle.
+
+**EVM-R250.** A creation call that definitively rejects an exact input or
+configuration resolves its journaled suboperation as rejected with the
+existing safe Eval diagnostic, then settles the member. Missing or corrupt
+exact inputs use `eval_evidence_unavailable`. The rejected intent cannot
+keep cancellation or deletion outstanding. Run and Audit services check their
+existing creation receipt before mutable inputs, so response loss after a
+successful commit still reconciles the same accepted execution. Unknown
+database or I/O failures and timeouts retain the intent and original key;
+they never become proof of non-acceptance (FAIL-EVM-5).
+
 **EVM-R130.** A verified member association is durable before it is exposed as
 successful. Submission POST acknowledges the durable request; the member view
 exposes an execution only after the common submission service verifies its

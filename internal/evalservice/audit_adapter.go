@@ -37,7 +37,7 @@ func (d *auditAdapter) Create(ctx context.Context, e evalstore.Experiment, m eva
 		if err != nil {
 			return auditRequest{}, err
 		}
-		inputs, err := d.resources.inputs(ctx, e, m, c, projectID)
+		inputs, err := d.resources.inputs(ctx, e, m, c, projectID, nil)
 		if err != nil {
 			return auditRequest{}, err
 		}

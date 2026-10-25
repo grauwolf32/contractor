@@ -95,8 +95,4 @@ func (execution) Format(state fmt.State, _ rune) {
 	_, _ = io.WriteString(state, "scan.execution([REDACTED])")
 }
 
-func scanError(code string, cause error) *planner.Error {
-	return planner.NewError(code, "Scan planning or execution could not be completed", false, cause)
-}
-
 var _ planner.Factory = (*Factory)(nil)
