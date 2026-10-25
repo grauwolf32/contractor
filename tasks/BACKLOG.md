@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-142 open tasks: 6 in progress, 125 pending, 11 deferred. 1124 finished: 1114 completed, 10 archived.
+143 open tasks: 7 in progress, 125 pending, 11 deferred. 1124 finished: 1114 completed, 10 archived.
 
 ## In progress
 
@@ -17,6 +17,7 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V418-005](v418-005-adk-213-real-process-conformance.yml) | execution-core | chore | P1 | Verify ADK 2.13 across real Run and allocation processes |
 | [V418-006](v418-006-adk-213-session-work-and-performance.yml) | planner-worker | chore | P1 | Bound long-session and repeated-allocation work on ADK 2.13 |
+| [V418-010](v418-010-native-child-tool-cancellation.yml) | planner-worker | defect | P1 | Preserve child-tool cancellation across native SDK and A2A completion |
 
 ## Pending
 
@@ -248,8 +249,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 41 | 55 | 19 | 81 |
-| Planners and the Worker model boundary (`planner-worker`) | 19 | 34 | 44 | 27 | 63 |
+| Run execution core (`execution-core`) | 5 | 41 | 55 | 19 | 82 |
+| Planners and the Worker model boundary (`planner-worker`) | 20 | 34 | 45 | 27 | 63 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
