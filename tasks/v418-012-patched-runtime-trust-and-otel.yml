@@ -38,6 +38,7 @@ context:
   siblings: Runtime lock/constraint, SDK/API coupling, independent hashed audit-tool CA bundle, dependency
     smoke/ADK native execution, custom OTLP wire/redaction, private mTLS. Go/Node CA stores are independent;
     no Go SDK pin or Scheduler change.
+  evidence: tasks/evidence/v418-patched-dependency-acceptance.json
 scope:
   in:
   - Target certifi>=2026.10.19 and exact OTel API/SDK1.45.1; record a narrow explicit uv override of only
@@ -128,3 +129,13 @@ lifecycle:
   cascade: No new persisted entity or protocol operation.
   retention: Version/checksum/safe command outcomes retained; old broad records keep their original source/lock
     identities.
+verification:
+  source: Base275a708197626b2b07d122f3a9b5d3d25b37b9c0 plus exact seven-file patch; all6035captured source
+    files unchanged after targeted acceptance. Final lockfeb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027.
+  targeted: Fresh locked Linux smoke5 and listed10-module profile323PASS0skip/fail; native11leaves/13recordsPASS0skip;
+    telemetry121passrecords+1explicitoptionalCollector skip; scanner6testsPASS; live advisory canary then
+    production0advisories; Ruff/format/spec/trackerPASS.
+  controls: Both CA fingerprint and public oversized-tracestate regressions fail on old dependencies,
+    without timing assertions or expensive regex.
+  limit: Per explicit user direction no full Runtime, release graph or global E2E rerun after the patch.
+    Earlier broad evidence remains attributed to the old lock.

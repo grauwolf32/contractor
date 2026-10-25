@@ -209,6 +209,16 @@ preparation before the Planner starts (FAIL-RTA-3).
 **RTA-R5.** The Worker runtime may use ADK or another future
 in-process adapter without changing Workflow Scheduler or Planner contracts.
 
+**RTA-R118.** The supported Runtime dependency closure is installed from the
+committed uv lock. For ADK 2.13.0 it selects OpenTelemetry API and SDK 1.45.1
+through exactly two explicit resolver overrides of ADK's declared upper cap;
+this does not patch the SDK or install a second runtime. The custom OTLP proto
+cohort and public telemetry schema remain independently pinned. Dependency
+checks record the known metadata exception and reject unexpected mismatches.
+Certifi is at least 2026.10.19 in both the Runtime closure and the independently
+hash-pinned advisory scanner. The override is reconsidered when an accepted
+ADK release permits the patched API/SDK cohort.
+
 **RTA-R103.** The Worker runtime's dependencies live in the Runtime Agent
 deployment, not in Contractor Server.
 

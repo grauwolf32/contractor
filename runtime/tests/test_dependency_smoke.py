@@ -129,3 +129,86 @@ class SmokeWorker:
 
     def cancel_active(self, owner: asyncio.Task[object]) -> None:
         del owner
+
+
+def test_fixed_certifi_bundle_excludes_compromised_emsign_root() -> None:
+    import hashlib
+    import re
+    import ssl
+    from pathlib import Path
+
+    import certifi
+
+    # Compare the affected DER fingerprint, not subject names or validation of
+    # unrelated historical certificates in the public bundle.
+    bundle = Path(certifi.where()).read_bytes()
+    blocks = re.findall(rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----", bundle, re.S)
+    fingerprints = {
+        hashlib.sha256(ssl.PEM_cert_to_DER_cert(block.decode("ascii"))).hexdigest()
+        for block in blocks
+    }
+    assert fingerprints
+    assert "86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b" not in fingerprints
+
+
+def test_fixed_otel_refuses_oversized_tracestate_before_regex_or_raw_logging(
+    monkeypatch, caplog
+) -> None:
+    from opentelemetry import trace
+    from opentelemetry.trace import TraceState
+    from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+    header = "a=b" + " " * 100_000 + "x"
+    parsed = []
+
+    def forbidden_parse(cls, values):
+        parsed.append(True)
+        raise AssertionError("Oversized untrusted header reached the vulnerable parser")
+
+    # The fix's length boundary is in the public propagator, before the lower
+    # level TraceState parser. Old dependencies fail without running the regex.
+    monkeypatch.setattr(TraceState, "from_header", classmethod(forbidden_parse))
+    context = TraceContextTextMapPropagator().extract(
+        {
+            "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+            "tracestate": header,
+        }
+    )
+    span_context = trace.get_current_span(context).get_span_context()
+    assert span_context.is_valid
+    assert len(span_context.trace_state) == 0
+    assert parsed == []
+    assert header not in caplog.text
+
+
+def test_patched_otel_cohort_has_only_the_documented_adk_metadata_overrides() -> None:
+    import tomllib
+    from importlib.metadata import distributions
+    from pathlib import Path
+
+    from packaging.requirements import Requirement
+    from packaging.version import Version
+
+    project = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())
+    overrides = {
+        Requirement(value).name: Requirement(value)
+        for value in project["tool"]["uv"].get("override-dependencies", [])
+    }
+    assert set(overrides) == {"opentelemetry-api", "opentelemetry-sdk"}
+    assert version("opentelemetry-api") == version("opentelemetry-sdk") == "1.45.1"
+    assert Version(version("certifi")) >= Version("2026.10.19")
+    # The custom OTLP encoder has an independent, unchanged protobuf cohort.
+    assert version("opentelemetry-proto") == "1.42.1"
+    conflicts = set()
+    for distribution in distributions():
+        for text in distribution.requires or []:
+            requirement = Requirement(text)
+            if requirement.marker is not None and not requirement.marker.evaluate({"extra": ""}):
+                continue
+            installed = Version(version(requirement.name))
+            if installed not in requirement.specifier:
+                assert distribution.metadata["Name"] == "google-adk"
+                assert requirement.name in overrides
+                conflicts.add(requirement.name)
+                assert installed in overrides[requirement.name].specifier
+    assert conflicts == set(overrides)
