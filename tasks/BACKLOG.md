@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-130 open tasks: 4 in progress, 115 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+131 open tasks: 4 in progress, 116 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
 
 ## In progress
 
@@ -67,6 +67,7 @@ the epics are in [epics.yml](epics.yml).
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020, V410-004 | Gate controlled ffuf execution through the pentest transport |
 | [V414-004](v414-004-scan-audit-result-failure-classes.yml) | defect | P2 | — | Classify Audit scan result building failures by cause instead of as invalid input |
 | [V416-008](v416-008-rulepack-metadata-contract.yml) | chore | P3 | — | Share the Nuclei rulepack media and byte admission contract |
+| [V416-009](v416-009-nuclei-preparation-boundary.yml) | chore | P3 | — | Extract the Nuclei preparation sequence into a private helper with an explicit result |
 
 ### Findings tools and collections (`findings`)
 
@@ -211,7 +212,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
-| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-001, V416-002, V416-003, V416-004, V416-005, V416-006, V416-007, V416-008, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main review |
+| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-001, V416-002, V416-003, V416-004, V416-005, V416-006, V416-007, V416-008, V416-009, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main review |
 
 ## Deferred
 
@@ -244,7 +245,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 11 | 19 | 16 | 5 | 17 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 5 | 16 | 8 | 8 | 15 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 6 | 16 | 8 | 9 | 16 |
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 8 | 18 | 15 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 6 | 39 |
