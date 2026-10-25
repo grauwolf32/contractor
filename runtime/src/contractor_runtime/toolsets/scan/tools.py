@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -364,6 +365,270 @@ class JSONLinesScanTool(ScanTool):
         return response
 
 
+@dataclass(slots=True)
+class _NucleiPreparationResult:
+    """Prepared target argv and the facts confirmed before success or failure.
+
+    Source fields are set after argument admission, digests after materialization,
+    engine version after its probe, and manifest fields only after publication.
+    A failed later step retains earlier facts for the existing observation.
+    """
+
+    argv: list[str] = field(default_factory=list)
+    source: str | None = None
+    rulepack_artifact: dict[str, str] | None = None
+    expected_package_digest: str | None = None
+    actual_package_digest: str | None = None
+    source_content_digest: str | None = None
+    engine_version: str | None = None
+    template_manifest: dict[str, str] | None = None
+    selected_template_count: int | None = None
+
+    def provenance(self) -> dict[str, Any]:
+        values = {
+            "source": self.source,
+            "rulepackArtifact": self.rulepack_artifact,
+            "expectedPackageDigest": self.expected_package_digest,
+            "actualPackageDigest": self.actual_package_digest,
+            "sourceContentDigest": self.source_content_digest,
+            "engineVersion": self.engine_version,
+            "templateManifest": self.template_manifest,
+            "selectedTemplateCount": self.selected_template_count,
+        }
+        return {name: value for name, value in values.items() if value is not None}
+
+
+@dataclass(slots=True)
+class _NucleiPreparation:
+    """One invocation's source admission, selection and manifest publication.
+
+    Exact source verification precedes native selection; create-only manifest
+    publication precedes target scanning. Any failure escapes to _ScanSession,
+    which never launches a target scan after failed preparation. That session
+    keeps the lock, shared deadline and scratch ownership; all blocking helpers
+    keep their joined worker-thread boundaries. No state survives this call.
+    """
+
+    session: _ScanSession
+    url: str
+    template_ids: str
+    tags: str
+    severity: str
+    rate_limit: int
+    timeout_seconds: int
+    templates_digest: str
+    rulepack_ref: dict[str, str] | None
+    result: _NucleiPreparationResult = field(default_factory=_NucleiPreparationResult, init=False)
+    manifest_ref: ArtifactRef = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.manifest_ref = ArtifactRef(namespace=self.session.namespace, name="template-manifest")
+
+    @property
+    def publishes_manifest(self) -> bool:
+        return bool(self.templates_digest or self.rulepack_ref is not None)
+
+    def arguments(self) -> list[str]:
+        values = dict(
+            url=self.url,
+            template_ids=self.template_ids,
+            tags=self.tags,
+            severity=self.severity,
+            rate_limit=self.rate_limit,
+            timeout_seconds=self.timeout_seconds,
+            templates_digest=self.templates_digest,
+        )
+        if self.rulepack_ref is not None:
+            values["rulepack_ref"] = self.rulepack_ref
+        try:
+            validate_nuclei_arguments(values)
+        except ToolInputError as error:
+            raise ScanInputError(str(error)) from None
+        if self.rulepack_ref is not None:
+            self.result.source = "rulepack"
+            self.result.rulepack_artifact = self.rulepack_ref
+        elif self.templates_digest:
+            self.result.source = "installed"
+            self.result.expected_package_digest = self.templates_digest
+        command = [
+            "-jsonl",
+            "-silent",
+            "-no-color",
+            "-disable-update-check",
+            "-no-interactsh",
+            "-type",
+            "http",
+            "-omit-raw",
+            "-omit-template",
+            "-disable-redirects",
+            "-rate-limit",
+            str(self.rate_limit),
+            "-concurrency",
+            "5",
+            "-timeout",
+            "10",
+            "-retries",
+            "1",
+        ]
+        for flag, value in (
+            ("-id", self.template_ids),
+            ("-tags", self.tags),
+            ("-severity", self.severity),
+        ):
+            if value:
+                command += [flag, value]
+        return command
+
+    async def prepare(self, directory: Path, deadline: float) -> _NucleiPreparationResult:
+        templates = self.session.templates
+        identifiers = None
+        source = None
+        if self.rulepack_ref is not None:
+            exact_ref = ArtifactRef.model_validate(self.rulepack_ref).require_exact()
+            try:
+                metadata = await self.session.artifact_client.read_artifact_metadata(exact_ref)
+                if metadata.media_type not in {"application/yaml", RULEPACK_MEDIA_TYPE}:
+                    raise PackageError("nuclei_rulepack_invalid")
+                maximum = (
+                    MAX_FILE_BYTES if metadata.media_type == "application/yaml" else MAX_ZIP_BYTES
+                )
+                if metadata.size > maximum:
+                    raise PackageError("nuclei_rulepack_invalid")
+                artifact = await self.session.artifact_client.read_artifact(
+                    exact_ref, max_bytes=maximum
+                )
+                if (
+                    artifact.media_type != metadata.media_type
+                    or len(artifact.data) != metadata.size
+                ):
+                    raise PackageError("nuclei_rulepack_invalid")
+            except PackageError:
+                raise
+            except Exception:
+                raise ScannerUnavailable("scan_artifact_unavailable") from None
+            snapshot, identifiers, digest = await threads.to_thread_until_done(
+                materialize_rulepack,
+                artifact.data,
+                artifact.media_type,
+                directory / "nuclei-templates",
+                deadline,
+                name="nuclei-rulepack-materialize",
+            )
+            self.result.actual_package_digest = snapshot.digest
+            self.result.source_content_digest = digest
+            source = {
+                "kind": "rulepack",
+                "artifact": exact_ref.model_dump(by_alias=True),
+                "contentDigest": digest,
+            }
+        else:
+            if not await threads.to_thread_until_done(
+                templates.is_dir, name="nuclei-templates-check"
+            ):
+                raise ScannerUnavailable("nuclei_templates_unavailable")
+            if self.templates_digest:
+                snapshot = await threads.to_thread_until_done(
+                    snapshot_package,
+                    templates,
+                    directory / "nuclei-templates",
+                    deadline,
+                    name="nuclei-package-snapshot",
+                )
+                self.result.actual_package_digest = snapshot.digest
+                if snapshot.digest != self.templates_digest:
+                    raise PackageError("nuclei_package_mismatch")
+        if self.templates_digest or self.rulepack_ref is not None:
+            templates = snapshot.root
+            await self.session.require_output_name_free(self.manifest_ref)
+            executable = self.session.executables["scan_nuclei"]
+            try:
+                version = await run_command(
+                    [executable, "-version"],
+                    cwd=directory,
+                    env=child_environment(directory),
+                    timeout=min(2.0, max(0.001, deadline - time.monotonic())),
+                    max_output_bytes=8192,
+                )
+                match = re.search(
+                    rb"(?:Nuclei Engine Version|Current [Vv]ersion):\s*"
+                    rb"(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?)",
+                    version.stdout + version.stderr,
+                )
+                if version.returncode or match is None:
+                    raise PackageError("nuclei_selection_invalid")
+                engine_version = match[1].decode("ascii")
+                self.result.engine_version = engine_version
+                if self.rulepack_ref is not None:
+                    validation = await run_command(
+                        [
+                            executable,
+                            "-validate",
+                            "-t",
+                            str(templates),
+                            "-disable-update-check",
+                            "-no-interactsh",
+                            "-no-color",
+                            "-silent",
+                        ],
+                        cwd=directory,
+                        env=child_environment(directory),
+                        timeout=max(0.001, deadline - time.monotonic()),
+                        max_output_bytes=MAX_MANIFEST_BYTES,
+                    )
+                    if validation.returncode:
+                        raise PackageError("nuclei_rulepack_invalid")
+                listing = await run_command(
+                    [executable, *self.arguments(), "-t", str(templates), "-tl"],
+                    cwd=directory,
+                    env=child_environment(directory),
+                    timeout=max(0.001, deadline - time.monotonic()),
+                    max_output_bytes=MAX_MANIFEST_BYTES,
+                )
+                if listing.returncode:
+                    raise PackageError("nuclei_selection_invalid")
+                data, count = await threads.to_thread_until_done(
+                    selected_manifest,
+                    snapshot,
+                    listing.stdout,
+                    engine_version,
+                    deadline,
+                    identifiers,
+                    source,
+                    name="nuclei-selected-manifest",
+                )
+            except ProcessTimeoutError:
+                raise PackageError("scan_timeout") from None
+            except (ProcessOutputLimitError, OSError):
+                raise PackageError("nuclei_selection_invalid") from None
+            try:
+                written = await self.session.artifact_client.write_artifact(
+                    self.manifest_ref,
+                    data=data,
+                    media_type=MANIFEST_MEDIA_TYPE,
+                    expected_revision=None,
+                )
+                exact = written.artifact.require_exact()
+                if (
+                    exact.namespace != self.manifest_ref.namespace
+                    or exact.name != self.manifest_ref.name
+                ):
+                    raise ValueError
+            except Exception:
+                raise ScannerUnavailable("scan_artifact_failed") from None
+            self.result.template_manifest = exact.model_dump(by_alias=True)
+            self.result.selected_template_count = count
+        # A one-line file preserves commas in the supplied URL.
+        target = directory / "target.txt"
+        await threads.to_thread_until_done(
+            _write_private,
+            target,
+            (self.url + "\n").encode("utf-8"),
+            name="nuclei-target-materialize",
+        )
+        self.result.argv = ["-l", str(target), "-t", str(templates)]
+        return self.result
+
+
 class NucleiTool(JSONLinesScanTool):
     name = "scan_nuclei"
     binary = "nuclei"
@@ -413,219 +678,41 @@ class NucleiTool(JSONLinesScanTool):
         templates_digest: str = "",
         rulepack_ref: dict[str, str] | None = None,
     ) -> dict:
-        provenance: dict = {}
-        manifest_ref = ArtifactRef(namespace=self._session.namespace, name="template-manifest")
-
-        def arguments():
-            values = dict(
-                url=url,
-                template_ids=template_ids,
-                tags=tags,
-                severity=severity,
-                rate_limit=rate_limit,
-                timeout_seconds=timeout_seconds,
-                templates_digest=templates_digest,
-            )
-            if rulepack_ref is not None:
-                values["rulepack_ref"] = rulepack_ref
-            try:
-                validate_nuclei_arguments(values)
-            except ToolInputError as error:
-                raise ScanInputError(str(error)) from None
-            if rulepack_ref is not None:
-                provenance.update(source="rulepack", rulepackArtifact=rulepack_ref)
-            elif templates_digest:
-                provenance.update(source="installed", expectedPackageDigest=templates_digest)
-            command = [
-                "-jsonl",
-                "-silent",
-                "-no-color",
-                "-disable-update-check",
-                "-no-interactsh",
-                "-type",
-                "http",
-                "-omit-raw",
-                "-omit-template",
-                "-disable-redirects",
-                "-rate-limit",
-                str(rate_limit),
-                "-concurrency",
-                "5",
-                "-timeout",
-                "10",
-                "-retries",
-                "1",
-            ]
-            for flag, value in (("-id", template_ids), ("-tags", tags), ("-severity", severity)):
-                if value:
-                    command += [flag, value]
-            return command
+        preparation = _NucleiPreparation(
+            session=self._session,
+            url=url,
+            template_ids=template_ids,
+            tags=tags,
+            severity=severity,
+            rate_limit=rate_limit,
+            timeout_seconds=timeout_seconds,
+            templates_digest=templates_digest,
+            rulepack_ref=rulepack_ref,
+        )
 
         async def prepare_target(directory: Path, deadline: float) -> list[str]:
-            templates = self._session.templates
-            identifiers = None
-            source = None
-            if rulepack_ref is not None:
-                exact_ref = ArtifactRef.model_validate(rulepack_ref).require_exact()
-                try:
-                    metadata = await self._session.artifact_client.read_artifact_metadata(exact_ref)
-                    if metadata.media_type not in {"application/yaml", RULEPACK_MEDIA_TYPE}:
-                        raise PackageError("nuclei_rulepack_invalid")
-                    maximum = (
-                        MAX_FILE_BYTES
-                        if metadata.media_type == "application/yaml"
-                        else MAX_ZIP_BYTES
-                    )
-                    if metadata.size > maximum:
-                        raise PackageError("nuclei_rulepack_invalid")
-                    artifact = await self._session.artifact_client.read_artifact(
-                        exact_ref, max_bytes=maximum
-                    )
-                    if (
-                        artifact.media_type != metadata.media_type
-                        or len(artifact.data) != metadata.size
-                    ):
-                        raise PackageError("nuclei_rulepack_invalid")
-                except PackageError:
-                    raise
-                except Exception:
-                    raise ScannerUnavailable("scan_artifact_unavailable") from None
-                snapshot, identifiers, digest = await threads.to_thread_until_done(
-                    materialize_rulepack,
-                    artifact.data,
-                    artifact.media_type,
-                    directory / "nuclei-templates",
-                    deadline,
-                    name="nuclei-rulepack-materialize",
-                )
-                provenance.update(actualPackageDigest=snapshot.digest, sourceContentDigest=digest)
-                source = {
-                    "kind": "rulepack",
-                    "artifact": exact_ref.model_dump(by_alias=True),
-                    "contentDigest": digest,
-                }
-            else:
-                if not await threads.to_thread_until_done(
-                    templates.is_dir, name="nuclei-templates-check"
-                ):
-                    raise ScannerUnavailable("nuclei_templates_unavailable")
-                if templates_digest:
-                    snapshot = await threads.to_thread_until_done(
-                        snapshot_package,
-                        templates,
-                        directory / "nuclei-templates",
-                        deadline,
-                        name="nuclei-package-snapshot",
-                    )
-                    provenance["actualPackageDigest"] = snapshot.digest
-                    if snapshot.digest != templates_digest:
-                        raise PackageError("nuclei_package_mismatch")
-            if templates_digest or rulepack_ref is not None:
-                templates = snapshot.root
-                await self._session.require_output_name_free(manifest_ref)
-                executable = self._session.executables[self.name]
-                try:
-                    version = await run_command(
-                        [executable, "-version"],
-                        cwd=directory,
-                        env=child_environment(directory),
-                        timeout=min(2.0, max(0.001, deadline - time.monotonic())),
-                        max_output_bytes=8192,
-                    )
-                    match = re.search(
-                        rb"(?:Nuclei Engine Version|Current [Vv]ersion):\s*"
-                        rb"(v[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?)",
-                        version.stdout + version.stderr,
-                    )
-                    if version.returncode or match is None:
-                        raise PackageError("nuclei_selection_invalid")
-                    engine_version = match[1].decode("ascii")
-                    provenance["engineVersion"] = engine_version
-                    if rulepack_ref is not None:
-                        validation = await run_command(
-                            [
-                                executable,
-                                "-validate",
-                                "-t",
-                                str(templates),
-                                "-disable-update-check",
-                                "-no-interactsh",
-                                "-no-color",
-                                "-silent",
-                            ],
-                            cwd=directory,
-                            env=child_environment(directory),
-                            timeout=max(0.001, deadline - time.monotonic()),
-                            max_output_bytes=MAX_MANIFEST_BYTES,
-                        )
-                        if validation.returncode:
-                            raise PackageError("nuclei_rulepack_invalid")
-                    listing = await run_command(
-                        [executable, *arguments(), "-t", str(templates), "-tl"],
-                        cwd=directory,
-                        env=child_environment(directory),
-                        timeout=max(0.001, deadline - time.monotonic()),
-                        max_output_bytes=MAX_MANIFEST_BYTES,
-                    )
-                    if listing.returncode:
-                        raise PackageError("nuclei_selection_invalid")
-                    data, count = await threads.to_thread_until_done(
-                        selected_manifest,
-                        snapshot,
-                        listing.stdout,
-                        engine_version,
-                        deadline,
-                        identifiers,
-                        source,
-                        name="nuclei-selected-manifest",
-                    )
-                except ProcessTimeoutError:
-                    raise PackageError("scan_timeout") from None
-                except (ProcessOutputLimitError, OSError):
-                    raise PackageError("nuclei_selection_invalid") from None
-                try:
-                    written = await self._session.artifact_client.write_artifact(
-                        manifest_ref,
-                        data=data,
-                        media_type=MANIFEST_MEDIA_TYPE,
-                        expected_revision=None,
-                    )
-                    exact = written.artifact.require_exact()
-                    if exact.namespace != manifest_ref.namespace or exact.name != manifest_ref.name:
-                        raise ValueError
-                except Exception:
-                    raise ScannerUnavailable("scan_artifact_failed") from None
-                provenance.update(
-                    templateManifest=exact.model_dump(by_alias=True), selectedTemplateCount=count
-                )
-            # A one-line file preserves commas in the supplied URL.
-            target = directory / "target.txt"
-            await threads.to_thread_until_done(
-                _write_private,
-                target,
-                (url + "\n").encode("utf-8"),
-                name="nuclei-target-materialize",
-            )
-            return ["-l", str(target), "-t", str(templates)]
+            prepared = await preparation.prepare(directory, deadline)
+            return prepared.argv
 
         def observation(result: ProcessResult) -> dict:
             value = self.observation(result)
-            if templates_digest or rulepack_ref is not None:
+            if preparation.publishes_manifest:
+                prepared = preparation.result
                 value.update(
-                    **provenance,
+                    **prepared.provenance(),
                     rateLimit=rate_limit,
                     filters={"templateIds": template_ids, "tags": tags, "severity": severity},
                 )
                 value["artifacts"] = (
-                    {"template_manifest": provenance["templateManifest"]}
-                    if "templateManifest" in provenance
+                    {"template_manifest": prepared.template_manifest}
+                    if prepared.template_manifest is not None
                     else {}
                 )
             return value
 
         return await self._call(
             timeout_seconds,
-            arguments,
+            preparation.arguments,
             destination=lambda: _url_destination(url),
             prepare=prepare_target,
             observation=observation,

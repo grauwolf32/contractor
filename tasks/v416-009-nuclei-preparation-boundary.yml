@@ -6,7 +6,7 @@ epic: scan-tools
 kind: chore
 introduced_by: V406-003
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [python]
 goal: >-
@@ -147,3 +147,43 @@ tests:
     covers: [A2, A3]
   - command: make lint
     covers: [A1, A2, A3, A4]
+verification:
+  date: '2026-10-25'
+  decisions:
+    - >-
+      One adjacent private _NucleiPreparation collaborator owns each invocation.
+      Its explicit _NucleiPreparationResult carries target argv and optional
+      confirmed provenance fields; fields are populated at the same successful
+      steps as before, so later failure keeps the earlier evidence without
+      implying an unconfirmed manifest was published. NucleiTool.__call__ only
+      coordinates it with the existing _ScanSession and observation format.
+    - >-
+      The helper stays in scan/tools.py to avoid a new cross-module abstraction
+      or moving shared scanner exceptions and process injection points. Existing
+      package, rulepack and input modules remain the policy owners. The full
+      sequence, error mappings, per-call manifest ref, argv, shared deadline,
+      thread submissions and publication-before-scan order are preserved.
+    - >-
+      V416-008 was applied before extraction. This chore does not change its
+      rulepack metadata helper, fixture or validation semantics. No tests were
+      edited and no helper-only tests replace existing real adapter/process tests.
+  commands:
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_scan_toolset.py
+      tests/test_scan_error_codes.py tests/test_tool_worker.py tests/test_threads.py
+      -o addopts='' --tb=short passed all 204 tests on the final extraction.
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_scan_katana.py
+      tests/test_scan_katana_lifecycle.py tests/test_scan_katana_live.py
+      tests/test_scan_ffuf.py tests/test_scan_ffuf_live.py
+      tests/test_scan_sqlmap_request.py tests/test_scan_sqlmap_live.py
+      tests/test_scan_wordlist.py tests/test_scan_http_request.py
+      -o addopts='' --tb=short passed all 356 tests.
+    - >-
+      Changed Runtime source passes Ruff check and format checks; lint-imports
+      --no-cache --no-logo passes all four contracts. Task, specification and
+      shared-fixture source checks pass after running their generators.
+  remaining: >-
+    The required test-nuclei-web-e2e process gate is running against the isolated
+    disposable PostgreSQL database; integrated make lint is owned by the
+    coordinating branch. Keep in_progress until both outcomes are confirmed.
