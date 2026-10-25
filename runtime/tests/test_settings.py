@@ -34,7 +34,7 @@ def test_settings_use_environment_and_cli_override(tmp_path: Path) -> None:
         ],
         environment,
     )
-    assert settings.listen_address == "127.0.0.1:9001"
+    assert (settings.host, settings.port) == ("127.0.0.1", 9001)
     assert settings.log_level == "debug"
     assert settings.control_plane_url == "https://control.example:8443"
     assert settings.initial_labels == ("site_proxy",)
