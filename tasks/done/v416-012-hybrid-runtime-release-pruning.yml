@@ -6,7 +6,8 @@ epic: operations
 kind: defect
 introduced_by: V402-001
 priority: P1
-status: pending
+status: completed
+implementation_commit: 28dea4ee912595b33e7a0c8f10ee22c7bf30d215
 depends_on: []
 languages: [yaml, python]
 goal: >-
@@ -87,3 +88,13 @@ tests:
     covers: [A1, A2, A3, A4, A5]
   - command: make lint
     covers: [A1, A2, A3, A4, A5]
+implementation_notes:
+  - "Cleanup requires a complete retained-unit inventory; omission or unsupported metadata refuses before deletion. Explicit absent remains the only retirement authority."
+  - "Protect current release, literal unit references (executable, arguments, environment), live process references, and all releases while a validated restart marker remains."
+  - "Bounds: 256 units, 4096 entries per metadata directory, 65536 bytes per metadata read, 30-second manager scan and 5-second query timeout; unsupported drop-ins/symlinks/missing references fail conservatively."
+  - "keep_releases counts protected releases in its total target; protected references may exceed it. Host tools and retired instance data/certificates/keys remain untouched."
+validation_notes:
+  - "Fail-before: the localhost omitted-unit regression against HEAD's original prune.yml failed because old release aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa was removed while its unit remained."
+  - "Pass-after: 17 ownership/localhost-role regressions cover omitted/stopped/deferred instances, rewritten unit with old process, literal argument/environment references, total retention, repeated cleanup, malformed metadata, real cardinality limits, manager failure/timeout, oversized stdout/stderr with kill-and-join, and cancellation."
+  - "The real Ansible role runs against disposable localhost filesystem fixtures and a manager fixture; live Linux systemd and cloud deployment were not invoked."
+  - "Verification on the final reviewed candidate: make test-ansible test-hybrid lint PASS (including 17 pruning regressions and 23 hybrid tests); targeted Ruff check/format and git diff --check PASS. Go concurrency was limited with GOFLAGS=-p=2. No database tests or remote deployments are part of these deployment changes."

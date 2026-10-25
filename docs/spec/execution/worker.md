@@ -273,6 +273,10 @@ allocation and lifecycle facts the rendered task never contains, is owned by
 carries the Planner's effective Worker-call deadline: the Stage deadline for passthrough,
 the smaller of the Stage and Planner wall-clock deadlines for streamline and
 router, and the smaller of the Stage and scan-job deadlines for scan workers.
+Model-free `tool@1` Workers enforce it locally on new receipt creation and tool
+execution, independently of Server cancellation; their nonretryable timeout,
+completed replay and separate settlement budgets are specified by
+[SCN-R15, SCN-R38 and SCN-R51](../tools/scanners.md).
 
 **WRK-R7.** The deadline is Runtime control data and is not
 placed in the Worker model prompt.
