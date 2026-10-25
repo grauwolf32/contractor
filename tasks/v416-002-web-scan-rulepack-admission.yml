@@ -1,0 +1,93 @@
+schema_version: "1.0"
+id: V416-002
+title: "Reject oversized Web scan rulepacks before accepting an Audit start"
+milestone: main-review-2026-10-25
+epic: audits
+kind: defect
+introduced_by: V406-018
+priority: P1
+status: pending
+depends_on: [V416-008]
+languages: [go, typescript]
+goal: >-
+  Enforce the existing Nuclei YAML and ZIP byte limits before Web scan accepts
+  a start, and before the browser reads or uploads a known-oversized rulepack.
+context:
+  review: "2026-10-25 main review, 63aa62b4419d27957f7ac7777729ffaf9cfc18a5..f9fda28f1c9ffa4baaf3052c141e652c8593a080; oversized Web scan rulepack reproduction."
+  severity: medium
+  specification:
+    - docs/spec/tools/scanners.md#SCN-R239
+    - docs/spec/audits/scans.md#ASC-R152
+    - docs/spec/audits/scans.md#ASC-R153
+    - docs/spec/ui/ui.md#UI-R204
+    - docs/spec/ui/ui.md#UI-R205
+  finding: >-
+    ui/src/routes/checks/start/web-scan-state.ts:96-100 checks a chosen file's
+    suffix and emptiness but not its size; submit reads it with arrayBuffer,
+    copies it into a Blob and retain reads and hashes it again. Existing
+    Project rulepack selection also lacks the scanner byte ceiling.
+    internal/auditservice/start.go:573-588 checks media and exact identity;
+    buildInventoryFromSources at 649-654 checks target and settings only.
+    On the reviewed revision, a real PostgreSQL reproduction created and
+    started a Web scan with a YAML rulepack larger than 2 MiB; start replay
+    also succeeded and the active baseline retained the oversized pack.
+    The Planner rejects it later at internal/planner/scan/audit_inputs.go:150-157.
+    The contract already limits single YAML to 1 MiB and compressed ZIP to
+    16 MiB. A UI reproduction confirmed upload and create/start requests were
+    sent for the oversized file.
+  siblings: >-
+    Cover new upload and paged existing Project material selection, save-draft
+    and start, stored-draft restart/replay, public API and CLI Audit starts,
+    and any scanner Audit role that binds rulepack_ref. Ordinary Run and remote
+    sweep admission already apply these byte limits; V416-008 shares that
+    metadata rule. Preserve their scope differences: Web scan Audit inputs are
+    ProjectScope, whereas an ordinary owner-rulepack Workflow uses UserScope.
+    Eval source staging is V416-001; launch-state reuse is V416-003.
+scope:
+  in:
+    - Reject oversized file selections using File.size before arrayBuffer, hashing, retained-input writes or create/start requests; validate selected exact material metadata with the same media-specific limits.
+    - Apply the shared rulepack metadata contract at the authoritative Audit start boundary before baseline acceptance, child Runs or scanner traffic; also reject earlier where draft validation already has authoritative metadata.
+    - Make server reads bounded before materializing payloads; determine the scanner role from the resolved profile and bindings rather than hard-coding the bundled profile name.
+    - Preserve exact-ref integrity checks and classified permanent refusals, and document the admission point in the owning Audit specification.
+    - Add real PostgreSQL and actual form regressions with testdata catalog fixtures, including valid boundaries and oversized inputs.
+  out:
+    - Changing scanner limits, parsing ZIP entries or invoking native Nuclei in the browser or Server.
+    - Changing generic ArtifactStore upload limits or deleting the user's selected Project materials.
+failure_outcomes:
+  - operation: Validate and retain a selected rulepack, then start an Audit
+    permanent: Oversized or unsupported rulepack metadata produces a stable invalid-input refusal before start commits; no active baseline or child Run is created and an existing draft remains editable.
+    retryable: Metadata or artifact read failures retain existing storage/read classification and bounded retries; failed reads never substitute installed rules.
+    ambiguous: A successful start whose response was lost replays its existing receipt and retained exact inputs; validation does not turn replay into another start or a re-read of mutable current content.
+    cancelled: Request cancellation joins owned work and rolls back uncommitted start effects; it does not delete independently retained user materials.
+    timeout: Existing request and storage budgets bound validation and reads; no new timeout or background validator is added.
+cardinality:
+  - collection: Optional Nuclei rulepack input
+    expected: Zero or one exact rulepack per Web scan; existing profile input and role limits bound other scanner profiles.
+    maximum: Single YAML 1048576 bytes; compressed ZIP 16777216 bytes, with Runtime expansion limits unchanged.
+    bound: Metadata admission precedes payload materialization; no whole-Project listing or unbounded browser read for a known-oversized file.
+acceptance_criteria:
+  - id: A1
+    given: A chosen YAML file of 1048577 bytes, a ZIP of 16777217 bytes, or equivalent exact Project material metadata
+    when: The owner selects it and attempts save or start
+    then: The form explains the applicable limit and sends no payload read, upload, create or start request; valid boundary-sized metadata remains selectable.
+  - id: A2
+    given: A direct API caller or stored draft with an oversized selected rulepack
+    when: Audit start runs against PostgreSQL
+    then: The existing classified invalid-input response is returned and no active baseline or child Run is committed; the regression fails on the reviewed revision.
+  - id: A3
+    given: Valid exact rulepacks at each byte boundary, omitted installed mode, a wrong media type and a changed or unavailable exact source
+    when: All sibling admission paths run
+    then: Valid inputs retain their current behavior and invalid/unavailable inputs keep the appropriate failure class without installed-rule fallback.
+  - id: A4
+    given: A successful start with a lost response, a rejected start, or a cancelled/failed artifact read
+    when: The caller retries or inspects the draft
+    then: Existing receipts, revisions and cleanup rules prevent duplicate execution, false success and mutation of retained user materials.
+tests:
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -count=1 ./internal/auditservice ./internal/auditstore/... ./internal/planner/scan ./internal/runservice ./internal/scanservice'
+    covers: [A2, A3, A4]
+  - command: make ui-verify
+    covers: [A1, A3, A4]
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" make verify-public-api-postgres test-web-scan-ui-stack'
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]

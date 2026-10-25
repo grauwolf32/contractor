@@ -1,0 +1,88 @@
+schema_version: "1.0"
+id: V416-011
+title: "Verify the fixes and simplifications from the October 25 main review"
+milestone: main-review-2026-10-25
+epic: quality
+kind: chore
+priority: P3
+status: pending
+depends_on:
+  - V416-001
+  - V416-002
+  - V416-003
+  - V416-004
+  - V416-005
+  - V416-006
+  - V416-007
+  - V416-008
+  - V416-009
+  - V416-010
+  - V414-004
+  - V414-012
+languages: [go, python, typescript, markdown]
+goal: >-
+  Give every finding and accepted improvement from the two-day main review a
+  verified disposition and check the integrated result on the landing revision.
+context:
+  review: >-
+    User-requested review of changes merged into main in the preceding two days,
+    completed on 2026-10-25 after the Web scan Audit merge:
+    63aa62b4419d27957f7ac7777729ffaf9cfc18a5..f9fda28f1c9ffa4baaf3052c141e652c8593a080.
+    The user requested task intake on 2026-10-25; all new work is pending.
+  finding: >-
+    This is an integration/closure task, not another production defect. Seven
+    confirmed defects have dedicated tasks; the shared Audit form improvement
+    is part of the corresponding UI defect, and three additional chores own
+    common rulepack validation, the Nuclei preparation boundary and retention
+    wording. The reviewed revision reproduced the defects despite the existing
+    focused suites passing. Future fixes need regressions that fail before the
+    change; the passing review suites are not evidence that the fixes exist.
+  dispositions:
+    - "Eval user-scoped rulepack staging, unresolved create and stuck cancellation: V416-001."
+    - "Web scan rulepack admission after rather than before start: V416-002."
+    - "Web scan loses common labels and Runtime configuration; share the Audit launch model: V416-003."
+    - "Valid escaped JSON rejected by Runtime OpenAPI YAML loader: V416-004."
+    - "Hybrid Runtime inventory omits placement labels: V416-005."
+    - "Hybrid bootstrap reuses keys across different CAS preconditions: V416-006."
+    - "Interactsh registration reconciliation bypasses destructive-poll bookkeeping: V416-007."
+    - "One media/byte contract for rulepack admission, with scope ownership left explicit: V416-008 and the Eval boundary in V416-001."
+    - "Extract Nuclei preparation from tool orchestration without a new framework: V416-009."
+    - "Clarify post-publication current versus former current in retention: V416-010."
+    - "Closed PostgreSQL connection classification and ambiguous commit recovery: existing V414-012; do not duplicate."
+    - "Scan Audit BuildResult permanent versus retryable failures, also used by Web scan: existing V414-004; do not duplicate."
+  delivery_order: >-
+    Fix correctness in V416-001/003/004/005/006/007 independently. V416-008
+    precedes V416-002 because the latter consumes its shared validator.
+    V416-009 and V416-010 are behavior-preserving improvements, not prerequisites
+    for unrelated defect fixes. V416-002 and V416-003 share Web scan UI files;
+    coordinate their landing and rerun both regressions after integration.
+    Existing project delivery focus remains unchanged by this intake.
+scope:
+  in:
+    - Verify every dependency is completed with its implementation commit and evidence, or has an explicit user-approved disposition reflected in this task; deferred or archived work never satisfies a dependency by itself.
+    - Check task boundaries together, especially shared UI state plus early size checks, and Run admission plus Eval staging and failure reconciliation.
+    - Run the full deterministic release gate on the integrated revision with a disposable PostgreSQL database; record exact commands, revision, results and any environmental limits or skipped checks.
+    - Record whether the implementation branch is merged into main and what remains; do not call filing these tasks implementation completion.
+  out:
+    - Implementing child tasks within this exit task or silently dropping a finding because a narrow suite passes.
+    - Live external-target scans, live-model experiments, deployment or changing demo data.
+acceptance_criteria:
+  - id: A1
+    given: All reviewed findings and proposals in context.dispositions
+    when: This task is closed
+    then: Each has a completed owning task with evidence or an explicit user-approved decision; every remaining dependency is completed and existing V414 tasks have not been duplicated.
+  - id: A2
+    given: The integrated landing revision and a disposable PostgreSQL database
+    when: The deterministic release gate runs
+    then: It passes and the recorded results identify actual tests, revision and commands; a skipped database test or a zero-test selection is not reported as a pass.
+  - id: A3
+    given: The final task records and implementation branch
+    when: Delivery is reported
+    then: The generated backlog and specification checks agree, and merge status plus any remaining work are explicit.
+tests:
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" make release-verify'
+    covers: [A1, A2, A3]
+  - command: cd runtime && uv run python ../scripts/check_tasks.py
+    covers: [A1, A3]
+  - command: python3 scripts/check_spec.py
+    covers: [A3]

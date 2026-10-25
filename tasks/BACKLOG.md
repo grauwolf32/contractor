@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-121 open tasks: 4 in progress, 106 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+132 open tasks: 4 in progress, 117 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
 
 ## In progress
 
@@ -56,6 +56,7 @@ the epics are in [epics.yml](epics.yml).
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | V411-007, V411-008, V411-010 | Add a managed browser with isolated contexts and enforced target transport |
 | [V412-002](v412-002-browser-login-replay-recipes.yml) | feature | P2 | V412-001, V411-009 | Execute closed browser login and replay recipes with trusted markers |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-009, V411-012, V411-020 | Integrate trusted Interactsh callback evidence and its release gate |
+| [V416-007](v416-007-interactsh-reconciliation-poll.yml) | defect | P2 | — | Account for Interactsh reconciliation polls in the shared gap and rate rules |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -65,6 +66,8 @@ the epics are in [epics.yml](epics.yml).
 | [V410-004](v410-004-sitemap-structured-imports.yml) | feature | P1 | V410-002 | Import bounded scanner and selected Caido observations |
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020, V410-004 | Gate controlled ffuf execution through the pentest transport |
 | [V414-004](v414-004-scan-audit-result-failure-classes.yml) | defect | P2 | — | Classify Audit scan result building failures by cause instead of as invalid input |
+| [V416-008](v416-008-rulepack-metadata-contract.yml) | chore | P3 | — | Share the Nuclei rulepack media and byte admission contract |
+| [V416-009](v416-009-nuclei-preparation-boundary.yml) | chore | P3 | — | Extract the Nuclei preparation sequence into a private helper with an explicit result |
 
 ### Findings tools and collections (`findings`)
 
@@ -91,6 +94,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-007, V410-003, V410-006 | Discover URL-only targets and retain bounded source-aware surfaces |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-012, V411-013, V411-014, V411-011, V411-010, V411-016 | Publish exact HTTP API pentest Workflows and source-mode presets |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-002, V411-020, V410-009 | Publish optional browser programs behind their independent release gate |
+| [V416-004](v416-004-openapi-json-escapes.yml) | defect | P1 | — | Read OpenAPI JSON seeds with JSON escape semantics |
 
 ### Projects, artifacts and lifecycle controls (`projects-artifacts`)
 
@@ -100,6 +104,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-002](v410-002-project-sitemap-toolset.yml) | feature | P1 | V410-001 | Expose authorized live sitemap tools to Project allocations |
 | [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | V410-002 | Reconcile exact OpenAPI declarations with live sitemap members |
 | [V413-001](v413-001-runtime-artifact-disk-cache.yml) | feature | P2 | — | Reuse authorized immutable archives in a bounded Runtime disk cache |
+| [V416-010](v416-010-history-current-revision-contract.yml) | chore | P3 | — | Clarify current-revision protection during history admission |
 
 ### Audits (`audits`)
 
@@ -136,6 +141,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
 | [V414-001](v414-001-openapi-inventory-string-bound.yml) | defect | P2 | — | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
+| [V416-002](v416-002-web-scan-rulepack-admission.yml) | defect | P1 | V416-008 | Reject oversized Web scan rulepacks before accepting an Audit start |
 
 ### Evaluations (`evals`)
 
@@ -145,6 +151,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-019](v411-019-pentest-target-fixtures-and-proof-scorers.yml) | chore | P1 | V411-002 | Build paired pentest fixtures and independent proof scorers |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate pentest quality against a frozen repeated-sample baseline |
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | chore | P3 | — | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
+| [V416-001](v416-001-eval-input-source-scope.yml) | defect | P1 | — | Honor Workflow input source scopes in Eval submissions and drain definite creation failures |
 
 ### Podman sandbox (`sandbox`)
 
@@ -158,12 +165,15 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the autonomous HTTP pentest setup and evidence journey |
+| [V416-003](v416-003-web-scan-shared-launch-state.yml) | defect | P1 | — | Restore shared Audit launch options and state in Web scan |
 
 ### Operations, authentication, CLI and deployment (`operations`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
+| [V416-005](v416-005-hybrid-placement-labels.yml) | defect | P2 | — | Declare Runtime placement labels in hybrid deployment inventory |
+| [V416-006](v416-006-hybrid-bootstrap-idempotency.yml) | defect | P1 | — | Bind hybrid bootstrap idempotency keys to the complete mutation |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -203,6 +213,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
+| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-001, V416-002, V416-003, V416-004, V416-005, V416-006, V416-007, V416-008, V416-009, V416-010, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main review |
 
 ## Deferred
 
@@ -227,23 +238,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 4 | 41 | 55 | 18 | 80 |
+| Run execution core (`execution-core`) | 4 | 41 | 55 | 18 | 81 |
 | Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 42 | 17 | 61 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 1 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
-| HTTP and Caido tools (`http-tools`) | 10 | 19 | 15 | 5 | 16 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 4 | 16 | 8 | 7 | 13 |
+| HTTP and Caido tools (`http-tools`) | 11 | 19 | 16 | 5 | 17 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 6 | 16 | 8 | 9 | 16 |
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
-| Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 6 | 39 |
-| Audits (`audits`) | 32 | 66 | 79 | 26 | 103 |
-| Evaluations (`evals`) | 5 | 21 | 37 | 12 | 45 |
+| Workflow catalog and document workflows (`workflows`) | 8 | 18 | 15 | 12 | 18 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 5 | 35 | 33 | 7 | 40 |
+| Audits (`audits`) | 33 | 66 | 80 | 26 | 105 |
+| Evaluations (`evals`) | 6 | 21 | 38 | 12 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
-| Web UI (`ui`) | 2 | 25 | 62 | 13 | 57 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 38 | 6 | 13 |
-| Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 11 |
+| Web UI (`ui`) | 3 | 25 | 63 | 13 | 57 |
+| Operations, authentication, CLI and deployment (`operations`) | 3 | 16 | 40 | 6 | 13 |
+| Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 7 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 15 | 1 | 27 | 92 | 23 |
+| Quality, CI and process (`quality`) | 16 | 1 | 27 | 93 | 23 |
