@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-120 open tasks: 5 in progress, 104 pending, 11 deferred. 1117 finished: 1107 completed, 10 archived.
+119 open tasks: 4 in progress, 104 pending, 11 deferred. 1118 finished: 1108 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V416-011](v416-011-close-main-review.yml) | quality | chore | P3 | Verify the fixes and simplifications from the October 25 main and current-system review |
 
 ## Pending
 
@@ -245,4 +244,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 42 | 6 | 15 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 16 | 1 | 27 | 93 | 23 |
+| Quality, CI and process (`quality`) | 15 | 1 | 27 | 93 | 23 |
