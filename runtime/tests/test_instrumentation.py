@@ -78,6 +78,7 @@ class RecordingSpan:
         self.name = name
         self.attributes = dict(attributes)
         self.outcome: str | None = None
+        self.end_calls = 0
 
     def end(
         self,
@@ -85,6 +86,7 @@ class RecordingSpan:
         outcome: str,
         attributes: dict[str, TelemetryAttribute] | None = None,
     ) -> None:
+        self.end_calls += 1
         self.outcome = outcome
         if attributes is not None:
             self.attributes.update(attributes)
@@ -447,6 +449,8 @@ def test_plugin_close_records_pending_tool_calls_as_cancelled() -> None:
             "self_recorded_probe", arguments={}, error=ToolFailure("cancelled")
         )
 
+        await plugin.before_result_finalizer_call(invocation_id=context.invocation_id)
+        await plugin.close()
         await plugin.close()
 
         report = state.metrics.build_report(report_id="worker-close", duration_ms=1)
@@ -459,7 +463,8 @@ def test_plugin_close_records_pending_tool_calls_as_cancelled() -> None:
         assert cancelled.error.code == "tool_call_cancelled"
         assert cancelled.error.retryable is True
         assert len(report.tool_calls) == 2
-        assert [span.outcome for span in instrumentation.spans] == ["cancelled", "cancelled"]
+        assert [span.outcome for span in instrumentation.spans] == ["cancelled"] * 3
+        assert all(span.end_calls == 1 for span in instrumentation.spans)
 
     asyncio.run(scenario())
 
@@ -552,3 +557,83 @@ def test_invocation_and_allocation_metrics_key_a_tool_by_one_identifier(
 
     assert list(invocation.snapshot()["tools"]) == [identifier]
     assert list(report.metrics.tools) == [identifier]
+
+
+@pytest.mark.parametrize("phase", ["succeeded", "failed", "cancelled"])
+@pytest.mark.parametrize("auxiliary_completed", [False, True])
+def test_terminal_phase_survives_auxiliary_cleanup(phase: str, auxiliary_completed: bool) -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        sink = RecordingInstrumentation()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=sink,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+        )
+        context = FakeContext("worker-auxiliary")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        await plugin.before_result_finalizer_call(invocation_id=context.invocation_id)
+        if auxiliary_completed:
+            await plugin.after_result_finalizer_call(
+                invocation_id=context.invocation_id, usage=None
+            )
+        snapshot = await plugin.complete_invocation(
+            invocation_id=context.invocation_id, phase=phase
+        )
+        assert snapshot["currentInvocation"] is None
+        assert snapshot["lastCompletedInvocation"]["phase"] == phase
+        assert snapshot["lastCompletedInvocation"]["metrics"]["modelCalls"] == 1
+        assert snapshot["lastCompletedInvocation"]["metrics"]["modelErrors"] == 0
+        await plugin.on_result_finalizer_error(
+            invocation_id=context.invocation_id, error=asyncio.CancelledError()
+        )
+        await plugin.close()
+        await plugin.close()
+        assert len(sink.spans) == 1
+        assert sink.spans[0].end_calls == 1
+        assert sink.spans[0].outcome == ("succeeded" if auxiliary_completed else "cancelled")
+
+    asyncio.run(scenario())
+
+
+def test_finalizer_startup_owns_partial_registration(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        sink = RecordingInstrumentation()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=sink,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+        )
+        context = FakeContext("worker-startup")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        publish = state.publish_invocation_metrics
+        error = asyncio.CancelledError()
+
+        async def reject_publication(**_kwargs: Any) -> None:
+            raise error
+
+        monkeypatch.setattr(state, "publish_invocation_metrics", reject_publication)
+        with pytest.raises(type(error)) as raised:
+            await plugin.before_result_finalizer_call(invocation_id=context.invocation_id)
+        assert raised.value is error
+        # No caller received successful before-call ownership: cleanup must already be done.
+        assert plugin._pending_auxiliary_models == {}
+        assert sink.spans[0].end_calls == 1
+        assert sink.spans[0].outcome == "cancelled"
+        monkeypatch.setattr(state, "publish_invocation_metrics", publish)
+        await plugin.on_result_finalizer_error(invocation_id=context.invocation_id, error=error)
+        snapshot = await plugin.complete_invocation(
+            invocation_id=context.invocation_id, phase="cancelled"
+        )
+        assert snapshot["lastCompletedInvocation"]["metrics"]["modelErrors"] == 0
+        await plugin.close()
+        assert sink.spans[0].end_calls == 1
+
+    asyncio.run(scenario())

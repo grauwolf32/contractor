@@ -100,7 +100,7 @@ execution_policy:
 milestones:
   - id: main-review-2026-10-25
     exit_task: V416-011
-    outcome: Confirmed defects and scoped simplifications from the October 25 two-day main review are resolved with real-path regressions, explicit dispositions and a verified integrated release gate.
+    outcome: Confirmed defects and scoped simplifications from the October 25 two-day main and expanded current-system review are resolved with real-path regressions, explicit dispositions and a verified integrated release gate.
   - id: review-v407-v409-followups-2026-10
     exit_task: V414-027
     outcome: Defects and gaps found while implementing and reviewing V407/V409 are fixed with real-path regressions or closed by recorded decisions.

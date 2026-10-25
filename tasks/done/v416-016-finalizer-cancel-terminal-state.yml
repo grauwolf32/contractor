@@ -1,0 +1,146 @@
+schema_version: "1.0"
+id: V416-016
+title: "Close Worker State when finalizer startup is cancelled"
+milestone: main-review-2026-10-25
+epic: planner-worker
+kind: defect
+introduced_by: V21-001
+priority: P1
+status: completed
+implementation_commit: c09c52a94b910b5c298588cc2186e0936645b926
+depends_on: []
+languages: [python]
+goal: Every terminal ADK invocation closes its canonical Worker State even when cancellation interrupts the finalizer's before-call callback.
+context:
+  review: "2026-10-25 expanded review of current main f9fda28f1c9ffa4baaf3052c141e652c8593a080; the shadowed terminal phase predates the two-day merge window."
+  specification:
+    - docs/spec/execution/worker.md#WRK-R105
+    - docs/spec/execution/worker.md#WRK-R106
+    - docs/spec/execution/worker.md#WRK-R124
+    - docs/spec/execution/worker.md#WRK-R125
+    - docs/spec/execution/worker.md#WRK-R167
+    - docs/spec/execution/worker.md#WRK-R168
+    - docs/spec/execution/worker.md#WRK-R169
+  severity: medium
+  finding: >-
+    runtime/src/contractor_runtime/worker/instrumentation.py:524 iterates
+    pending auxiliary model spans with the same phase variable as the terminal
+    invocation phase, and line 539 passes its last value, result_finalizer,
+    into WorkerStateStore.complete_invocation, which rejects it at state.py:209.
+    This is reachable: before_result_finalizer_call records a pending span at
+    instrumentation.py:286 and then awaits State publication at line 295.
+    Cancellation during that await exits finalizer.py:110 before call_started
+    becomes true, so its finally does not call on_result_finalizer_error.
+    The invocation's central cleanup therefore encounters a pending span and
+    raises WorkerStateError instead of committing terminal State.
+  reproduction: >-
+    A real AdkWorkerRuntime with the repository's scripted model returns normal
+    final text, then a synchronization gate in publish_invocation_metrics
+    pauses the before-result-finalizer publication after pending span insertion.
+    Cancelling the invocation yields CancelledError, but currentInvocation.phase
+    remains running, lastCompletedInvocation is null, the plugin remains active
+    and the Runtime stops accepting new work. Repeating with the existing
+    AdvanceableClockLoop and advancing beyond the request deadline, without
+    CancelTask, raises WorkerStateError (Worker invocation completion phase is
+    invalid) rather than returning worker_timeout, with the same stale State.
+    Both reproductions release the invoke lock; this is not a claim that scanner
+    or model execution continues, or that unsafe reuse remains enabled.
+  impact: >-
+    Expected cancellation leaves a false running invocation until allocation
+    destruction. Expected local deadline expiry can escape as a Python failure
+    instead of the stable Worker timeout result. Draining the allocation is a
+    safe fallback, but does not fulfill the canonical terminal-State contract.
+  siblings: >-
+    Review the before/after/error callback pair for result_finalizer in both
+    shared and isolated sessions, all terminal phases in complete_invocation,
+    and the analogous pending-span cleanup in close. The close loop has no
+    terminal phase parameter, so its matching variable name does not itself
+    cause this bug. The terminal summarizer uses separate callbacks and
+    _complete_summarizer_attempt; it does not add entries to
+    _pending_auxiliary_models and was not reproduced as affected. Ordinary
+    model/tool callbacks also publish after registration, so their central
+    cleanup must keep the terminal phase intact on interrupted startup.
+  provenance: "6631c606209240e2713d51c34c343b4714903303 (V21-001) introduced the auxiliary loop with phase shadowing."
+scope:
+  in:
+    - Keep the requested terminal invocation phase independent of auxiliary span names during instrumentation teardown.
+    - Define and implement cancellation-safe ownership of a partially registered finalizer before-call callback; clean up each pending span at most once.
+    - Preserve cancellation, deadline and ordinary failure classification and the existing bounded cleanup ownership.
+    - Regress the real ADK Worker runtime with a gate at the State publication boundary, using both CancelTask-style cancellation and an injected deadline.
+    - Verify shared and isolated sessions, finalizer startup rejection, interrupted model/tool startup and already completed auxiliary callbacks.
+  out:
+    - Replacing the finalizer or summarizer model architecture, introducing a generic observer framework or changing the configured model.
+    - New retries, new timeout codes or relaxing WorkerState validation to accept auxiliary phase names.
+failure_outcomes:
+  - operation: Finalizer startup and terminal invocation teardown
+    permanent: A genuine invalid phase or programming defect remains distinguishable from an expected cancellation or timeout.
+    retryable: Existing Worker result retryability is preserved; cleanup never repeats the finalizer model call.
+    ambiguous: A partially registered callback is reconciled through the invocation's existing pending-span ownership, without starting another call.
+    cancelled: Cancellation remains cancellation and closes canonical State as cancelled after bounded cleanup; no stale running invocation remains.
+    timeout: The local deadline returns the existing worker_timeout outcome and closes canonical State as failed even when it lands inside before-call publication.
+cardinality:
+  - collection: Pending auxiliary model calls for one invocation
+    bound: Existing one-shot finalizer limit; each pending entry is removed and closed at most once, without another model request or unbounded cleanup retry.
+acceptance_criteria:
+  - id: A1
+    given: A normal ADK response that enters finalizer startup and pauses after pending-span registration during State publication
+    when: The invocation is externally cancelled
+    then: Cancellation remains observable, currentInvocation is null, lastCompletedInvocation is cancelled, no finalizer model call starts and cleanup is joined before the slot is released.
+  - id: A2
+    given: The same startup boundary with no externally delivered cancellation
+    when: An injected clock passes the effective request deadline
+    then: The invocation returns worker_timeout, lastCompletedInvocation is failed, the exported State validates and no WorkerStateError replaces the timeout.
+  - id: A3
+    given: Shared and isolated sessions, ordinary model/tool startup cancellation, finalizer budget rejection and completed auxiliary callbacks
+    when: The invocation terminates or its observer closes
+    then: Terminal phases remain authoritative, spans and metrics are not completed twice, sessions release correctly and subsequent work follows the documented acceptance or draining policy.
+  - id: A4
+    given: The current unfixed implementation
+    when: The new real-runtime startup-boundary regressions run with deterministic events and injected clock advancement
+    then: They fail on stale terminal State and timeout misclassification, without timing-dependent wall-clock assertions or a live model.
+tests:
+  - command: "cd runtime && uv run pytest tests/test_adk_runtime.py tests/test_instrumentation.py tests/test_result_finalizer.py tests/test_worker_state.py tests/test_worker_summarizer.py"
+    covers: [A1, A2, A3, A4]
+  - command: "cd runtime && uv run pytest tests/test_a2a_server.py tests/test_allocation.py"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+
+verification:
+  implementation: >-
+    The finalizer before-call hook owns partial registration until it returns;
+    cancellation closes that span synchronously while holding the plugin lock,
+    with no additional task, timer or State publication. Invocation completion
+    and close use auxiliary_phase instead of overwriting the terminal phase.
+    WRK-R83 states the ownership boundary; ordinary cleanup budgets are unchanged.
+  regression: >-
+    On base 44469e3e352b57d15d44bf0f14b614d37842cad0, a fresh pytest process
+    restored the original before_result_finalizer_call, complete_invocation and
+    close methods from that revision through a temporary import overlay. The
+    final 20-case selection produced 8 failures and 12 passes: four real ADK
+    finalizer startup cases (cancel/deadline, shared/isolated), three pending
+    auxiliary terminal-phase cases, and partial-registration cleanup failed.
+    The identical selection with the fixed production module passes all 20.
+    The temporary overlay is not part of the implementation or its test inputs.
+  siblings: >-
+    Real ADK regressions also interrupt ordinary model and tool startup before
+    their semantic calls, validate canonical terminal State, count one span end,
+    verify isolated-session release/shared-session retention and execute later
+    work successfully. Completed auxiliary callbacks, every terminal phase,
+    budget-rejected finalizer startup, and idempotent observer close remain
+    covered. The separate summarizer callbacks and existing deadline/session
+    cleanup owners are unchanged and their full suites pass.
+  checks:
+    - command: "cd runtime && uv sync --locked"
+      result: "Passed in this worktree's independent .venv."
+    - command: "cd runtime && uv run pytest tests/test_adk_runtime.py tests/test_instrumentation.py -k 'interrupted_callback_startup or terminal_phase_survives or startup_owns_partial or plugin_close_records'"
+      result: "20 passed; injected monotonic clock and synchronization gates, no wall-clock assertions or live model."
+    - command: "cd runtime && uv run pytest tests/test_adk_runtime.py tests/test_instrumentation.py tests/test_result_finalizer.py tests/test_worker_state.py tests/test_worker_summarizer.py"
+      result: "206 passed."
+    - command: "cd runtime && uv run pytest tests/test_a2a_server.py tests/test_allocation.py"
+      result: "54 passed."
+    - command: "GOFLAGS=-p=2 TMPDIR=/private/tmp make lint"
+      result: >-
+        Passed with Go 1.26, Node 24.20 and locked local dependencies. The first
+        invocation stopped at the dependent documentation graph digest;
+        make docs-dependencies regenerated it, and the complete rerun passed.

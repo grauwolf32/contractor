@@ -292,7 +292,15 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     "model.phase": phase,
                 },
             )
-            await self._publish_locked(None)
+            try:
+                await self._publish_locked(None)
+            except asyncio.CancelledError:
+                # Before-call has not returned ownership to the finalizer yet.
+                # Close its partial registration under this lock, without another
+                # publication/await that cancellation could interrupt again.
+                span = self._pending_auxiliary_models.pop(phase)
+                end_isolated_span(span, outcome="cancelled", attributes={"model.phase": phase})
+                raise
 
     async def after_result_finalizer_call(self, *, invocation_id: str, usage: Any | None) -> None:
         async with self._lock:
@@ -521,9 +529,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 raise RuntimeError("Worker instrumentation completion is stale")
             while self._pending_models:
                 end_isolated_span(self._pending_models.pop(0), outcome="cancelled")
-            for phase, span in tuple(self._pending_auxiliary_models.items()):
-                self._pending_auxiliary_models.pop(phase, None)
-                end_isolated_span(span, outcome="cancelled", attributes={"model.phase": phase})
+            for auxiliary_phase, span in tuple(self._pending_auxiliary_models.items()):
+                self._pending_auxiliary_models.pop(auxiliary_phase, None)
+                end_isolated_span(
+                    span, outcome="cancelled", attributes={"model.phase": auxiliary_phase}
+                )
             for key, pending in tuple(self._pending_tools.items()):
                 self._pending_tools.pop(key, None)
                 await self._finish_tool_locked(
@@ -562,9 +572,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._continuation = None
             while self._pending_models:
                 end_isolated_span(self._pending_models.pop(0), outcome="cancelled")
-            for phase, span in tuple(self._pending_auxiliary_models.items()):
-                self._pending_auxiliary_models.pop(phase, None)
-                end_isolated_span(span, outcome="cancelled", attributes={"model.phase": phase})
+            for auxiliary_phase, span in tuple(self._pending_auxiliary_models.items()):
+                self._pending_auxiliary_models.pop(auxiliary_phase, None)
+                end_isolated_span(
+                    span, outcome="cancelled", attributes={"model.phase": auxiliary_phase}
+                )
             for pending in self._pending_tools.values():
                 # A tool still running when the Worker closes was cancelled; the
                 # allocation report records it like any other tool call.
