@@ -9,6 +9,7 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Any
 
 from google.adk.agents import LlmAgent
+from google.adk.agents.run_config import RunConfig
 from google.adk.apps import App
 from google.adk.events import Event
 from google.adk.models.base_llm import BaseLlm
@@ -23,6 +24,8 @@ from contractor_runtime.contracts import ResolvedModelPolicy
 from contractor_runtime.llm.response import output_limit_reached
 
 _USER_ID = "contractor_runtime"
+# Let OneShotModel classify a refused repair attempt before any second provider call.
+_ONE_SHOT_SDK_CALL_LIMIT = 2
 
 
 def generation_config(policy: ResolvedModelPolicy) -> types.GenerateContentConfig:
@@ -104,6 +107,7 @@ class OneShotSession:
             user_id=_USER_ID,
             session_id=self._session_id,
             invocation_id=invocation_id,
+            run_config=RunConfig(max_llm_calls=_ONE_SHOT_SDK_CALL_LIMIT),
             new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
         ):
             text = candidate_text(event)

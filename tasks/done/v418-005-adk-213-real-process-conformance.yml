@@ -5,10 +5,11 @@ milestone: adk-213-upgrade-2026-10
 epic: execution-core
 kind: chore
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V418-003
 - V418-004
+- V418-010
 languages:
 - go
 - python
@@ -36,6 +37,7 @@ context:
     registries and affected implementations together when an explicit clarification is necessary. No ADK-version
     branches, legacy readers, dual production runtimes, model replacement, silent retries, new receipt
     store or speculative public API. Read current code and re-establish the dated evidence before implementation.
+  process_evidence: tasks/evidence/v418-adk-213-process-spine.json
 scope:
   in:
   - Extend existing process fixtures/gates with the migrated continuation, parallel-tool, deadline and
@@ -186,3 +188,14 @@ lifecycle:
     required publication receipts through their existing owner.
   retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
     results under existing retention policies.
+verification:
+  required_commands: All8targets covered:7actual Linux make executions on clean a308 and verified actual
+    integrated host make lint reused after13owned-file equivalence. No required case skipped or zero matched.
+  process_cases: Native11leaves; session16leaves; summarizer6leaves; routing/escalation and Skill MVP
+    actual parents all pass. Canonical test-e2e26required parents/68total unique test records pass,0fail/skip.
+  audit: Real Go Artifact API/Runtime ZIPImporter executed:203Go passrecords and469Runtimecases, all60requiredGo
+    entries/117requiredPython names satisfied,0fail/skip.
+  auxiliary: Earlier jq-helper skips preserved, prerequisite installed and exact helper subsequently passes.
+    Optional externalCollector skip remains labelled; package-only no-test events are not case passes.
+    Full source/lock/command/report hashes are retained.
+implementation_commit: 4120f6426cadcf0f1167a4b4d3f56adc4131d7df

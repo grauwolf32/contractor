@@ -1,0 +1,338 @@
+{
+  "schema_version": "1.0",
+  "task": "V418-004",
+  "date": "2026-10-25",
+  "status": "accepted focused and common native Linux verification",
+  "source_revision": "965e3dee188d66683a9987f69aafa4ed147ace78",
+  "platform": "darwin/arm64",
+  "python": "3.13.16",
+  "go": "go1.26.9 darwin/arm64",
+  "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+  "dependency_versions": {
+    "google-adk": "2.13.0",
+    "a2a-sdk": "1.1.2",
+    "google-genai": "2.33.0",
+    "authlib": "1.9.1",
+    "protobuf": "6.33.6",
+    "opentelemetry-api": "1.42.1",
+    "opentelemetry-proto": "1.42.1",
+    "starlette": "1.6.0",
+    "pydantic": "2.13.5"
+  },
+  "dependency_change_inventory": "tasks/evidence/v418-adk-213-migration.json",
+  "source_sha256": {
+    "runtime/tests/test_adk_gateway_conformance.py": "a9b0bba9023f9ad50453e23795f0f14ac5bb9e2d0e5c0607b56de4ef33427344",
+    "runtime/src/contractor_runtime/llm/openai.py": "f46eb5c6a1486b93396ecddd83ffdc4c7345fb528db24babce6b103946ef74b0",
+    "runtime/src/contractor_runtime/llm/client.py": "0f9930cc3a085cf263548b5a9a317590846bd104c85cb3512056fd8eac6e60b6",
+    "runtime/src/contractor_runtime/worker/instrumentation.py": "9317b18e63a19341402bf7a2ec04126ebd53a3753d6ccfafa8b22aca27086f5a",
+    "runtime/src/contractor_runtime/adapters/otlp_http.py": "56972a3e566f3fcf0061534d6cafd92816600cec9004d3de2647d85bf3a057c9"
+  },
+  "production_changes": [],
+  "shared_genai": {
+    "semconv_version": "1.41.1",
+    "corpus": "api/testdata/telemetry-genai-cases.json",
+    "corpus_sha256": "9981ff09f77adec1ccd21004dedb6a9929f1e32dfdf2d072a7baaeb98748e6db",
+    "modified": false
+  },
+  "runs": [
+    {
+      "command": "cd runtime && uv sync --locked",
+      "exit_code": 0,
+      "result": "Fresh worktree virtual environment; committed lock installed without overlay or provider extras."
+    },
+    {
+      "command": "cd runtime && uv run --locked pytest -W error tests/test_dependency_smoke.py tests/test_openai_gateway_llm.py tests/test_telemetry_content.py tests/test_shared_genai_telemetry.py tests/test_instrumentation.py tests/test_metrics.py tests/test_sensitive_output_tools.py tests/test_adk_gateway_conformance.py tests/test_agent_skill_toolset.py tests/test_adk_runtime_history.py",
+      "exit_code": 0,
+      "passed": 201,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "cd runtime && uv run --locked pytest -W error tests/test_adk_runtime.py tests/test_gateway_client.py tests/test_gateway_recovery.py tests/test_gateway_error_classification.py tests/test_shared_gateway_recovery_participant.py tests/test_otlp_adapter.py tests/test_tool_call_metrics.py tests/test_result_finalizer.py tests/test_worker_summarizer.py",
+      "exit_code": 0,
+      "passed": 312,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "cd runtime && uv run --locked pytest -W error tests/test_adk_gateway_conformance.py",
+      "exit_code": 0,
+      "passed": 20,
+      "failed": 0,
+      "skipped": 0,
+      "included_in_201": true
+    },
+    {
+      "command": "go test -count=1 ./internal/telemetry/...",
+      "exit_code": 0,
+      "top_level_passed": 49,
+      "top_level_skipped": 1,
+      "passed_including_subtests": 121,
+      "failed": 0,
+      "optional_skip": {
+        "test": "TestPlannerOTLPCollectorProjection",
+        "reason": "CONTRACTOR_TEST_OTLP_ENDPOINT unset; external Collector smoke was not provisioned or claimed. Actual OTLP protobuf HTTP serialization runs against controlled collectors in both languages."
+      }
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "exit_code": 0,
+      "fixtures": 271,
+      "go_shared_test_functions": 326,
+      "python_shared_test_functions": 224,
+      "runtime_contract_cases_passed": 313,
+      "runtime_shared_selected_cases_passed": 1240,
+      "runtime_shared_deselected": 3770,
+      "required_skips": 0,
+      "prerequisites": "Own disposable PostgreSQL database with CREATEDB-capable role, canonical temporary root and locked Runtime dependencies; no primary/demo database used."
+    },
+    {
+      "command": "cd runtime && uv run --locked ruff check tests/test_adk_gateway_conformance.py && uv run --locked ruff format --check tests/test_adk_gateway_conformance.py",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "new_regression_matrix": [
+    {
+      "case": "test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy",
+      "parameter_cases": 6,
+      "covers": [
+        "A1",
+        "A2",
+        "A4"
+      ],
+      "proof": "Real main-tool-main-finalizer and main-tool-summary HTTP paths preserve literal braces, exact required/nullable/default schema, hidden context omission, main tools without output schema, tool-free strict terminal schemas and selected model aliases. Reasoning is captured only by authorized telemetry and never replayed to later model requests. Overlapping reasoning/completion tokens are charged once. Serialized protobuf enforces off/on/sensitive-forced-off content and excludes credentials, private Gateway configuration, collector headers and ignored envelope extensions. The global OTel provider is unchanged and only Contractor span names reach the controlled sink."
+    },
+    {
+      "case": "test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend",
+      "parameter_cases": 6,
+      "covers": [
+        "A3"
+      ],
+      "proof": "Main, finalizer and summary each cancel while awaiting an actual HTTP response or recovery authority. The request joins, no semantic resend follows, invocation ownership is released and closing clears each Gateway credential/client URL."
+    },
+    {
+      "case": "test_actual_summary_gateway_keeps_strict_errors_and_spent_usage",
+      "parameter_cases": 3,
+      "covers": [
+        "A2",
+        "A3"
+      ],
+      "proof": "Actual summary HTTP length with malformed tool JSON rejects without execution; malformed tool JSON keeps its classified failure and known usage; omitted usage remains unavailable while a valid summary succeeds. Main and independent summary counters remain separate."
+    },
+    {
+      "case": "test_actual_gateway_documents_last_duplicate_argument_and_ignores_envelope_extensions",
+      "parameter_cases": 1,
+      "covers": [
+        "A2"
+      ],
+      "proof": "The existing provider JSON parser accepts extension fields and uses the last duplicate argument value. This characterizes current provider parsing and does not relax Contractor-owned strict result/wire models."
+    },
+    {
+      "case": "test_actual_parallel_dispatch_preserves_self_recorded_correlation_for_every_error_path",
+      "parameter_cases": 1,
+      "covers": [
+        "A5"
+      ],
+      "proof": "An actual five-call SDK batch includes self-recorded success/domain error under a concurrency barrier, infrastructure exception, raw admission rejection and unknown tool. Exactly five records/spans, unique call identities, bounded unknown_tool key, per-tool outcomes and State totals prove prepare/execute task ContextVar propagation avoids duplicate tool-owned accounting."
+    },
+    {
+      "case": "test_native_skill_content_reaches_only_the_authorized_serialized_sink",
+      "parameter_cases": 3,
+      "covers": [
+        "A4",
+        "A5"
+      ],
+      "proof": "A test-only pseudo-Skill is loaded and its reference read through native SDK tools and the actual custom HTTP model. Skill instruction/reference contents reach serialized OTLP only with explicit ordinary capture; any selected sensitive tool suppresses them allocation-wide even without executing that tool. Extraction is removed on release."
+    }
+  ],
+  "existing_coverage_reused": {
+    "A1": [
+      "test_pinned_adk_and_a2a_dependencies_construct_used_classes",
+      "test_adk_gateway_invocation_does_not_load_optional_provider_sdks"
+    ],
+    "A2": [
+      "test_malformed_gateway_responses_fail_without_transport_retries",
+      "test_output_limit_retains_usage_without_executable_tool_calls",
+      "test_adk_worker_accounts_usage_of_a_rejected_gateway_response",
+      "test_terminal_summarizer_accounts_usage_of_a_rejected_gateway_response",
+      "test_adk_worker_reports_finalizer_output_limit"
+    ],
+    "A3": [
+      "test_unanswered_request_is_not_resent_and_releases_its_grant",
+      "test_gateway_retries_preserve_route_payload_and_server_delay",
+      "test_cancelled_probe_releases_its_grant_before_propagating",
+      "test_deadline_during_an_ordinary_phase_cancels_and_joins_its_work"
+    ],
+    "A4": [
+      "test_shared_genai_telemetry",
+      "test_otlp_protobuf_is_bounded_content_free_and_header_scoped",
+      "TestPlannerOTLPHTTPExportsOnlyClosedSafeProjection",
+      "TestSharedGenAITelemetry"
+    ],
+    "A5": [
+      "test_plugin_correlates_every_callback_path_without_double_counting",
+      "test_cancelled_tool_error_is_accounted_once_and_releases_correlation",
+      "test_parallel_interruption_keeps_real_completed_sibling_and_no_repeated_effects"
+    ]
+  },
+  "optional_provider_sdks": {
+    "openai": "absent and not imported by actual custom invocation",
+    "litellm": "absent and not imported by actual custom invocation",
+    "anthropic": "absent and not imported by actual custom invocation"
+  },
+  "known_limits": [
+    {
+      "id": "SCHEMA-NAMED-NULLABLE",
+      "source": "runtime/src/contractor_runtime/llm/openai.py:392",
+      "finding": "_normalize_schema recursively visits the properties-name map and pops an entry literally named nullable as if it were the schema keyword. A preliminary representative fixture with that argument name exposed this pre-existing limitation.",
+      "provenance_task": "V42-001",
+      "provenance_commit": "530b0072a3d358d997755ad9330f19a126ea23f8",
+      "caller_audit": "AST inspection of every production Runtime function signature found zero parameters named nullable; toolset and native Skill declaration review found no current named property caller. Supported nullable semantics are covered with optional_note, including actual default application.",
+      "disposition": "No production change or migration waiver: no current production caller. Owner is the Runtime Gateway schema converter. Reopen before adding a production tool/result schema property literally named nullable."
+    }
+  ],
+  "aggregate_acceptance": {
+    "make_test_runtime": "Passed in common native Linux run: 4984 passed, 55 existing allowed skips, zero failures.",
+    "make_lint": "Passed on integrated verification source.",
+    "live_gateway": "Not run or needed for deterministic conformance.",
+    "full_external_collector": "Optional and not provisioned.",
+    "deployment_or_demo_migration": "Not performed."
+  },
+  "common_aggregate_acceptance": {
+    "commands": [
+      "cd runtime && uv sync --locked",
+      "make test-runtime",
+      "python3 scripts/release_test_reports.py verify-runtime --report REPORT"
+    ],
+    "runtime": {
+      "executable": "/work/runtime/.venv-v418002-fresh/bin/python",
+      "machine": "aarch64",
+      "optional_provider_sdks_present": {
+        "anthropic": false,
+        "litellm": false,
+        "openai": false
+      },
+      "python": "3.13.5",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      }
+    },
+    "runtime_uid": 1000,
+    "runtime_gid": 1000,
+    "result": {
+      "errors": 0,
+      "expected_count_matches": true,
+      "failed": 0,
+      "passed": 4984,
+      "skip_policy_matches_baseline": true,
+      "skip_reasons": {
+        "Vacuum executable is unavailable": 2,
+        "explicit real Podman release gate": 5,
+        "explicit real gate: make test-podman-supervisor": 11,
+        "explicit real-rootless command execution gate": 12,
+        "explicit real-rootless deployment/workflow gate": 1,
+        "explicit real-rootless owner-process gate": 3,
+        "explicit real-rootless startup capability gate": 2,
+        "launched by make test-audit-completion-e2e with a real Go Artifact API": 1,
+        "live LLM Gateway environment is not configured": 3,
+        "optional Katana binary is absent": 5,
+        "optional ffuf binary is absent": 3,
+        "optional nuclei binary is absent": 3,
+        "optional sqlmap binary is absent": 3,
+        "run make test-interactsh-protocol for the pinned upstream server": 1
+      },
+      "skipped": 55,
+      "total": 5039
+    },
+    "sync_exit_code": 0,
+    "runtime_metadata_exit_code": 0,
+    "make_exit_code": 0,
+    "verify_runtime_exit_code": 0,
+    "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+    "source_revision": "965e3dee188d66683a9987f69aafa4ed147ace78",
+    "source_manifest_sha256": "d3bfb3eedeb26d1c27287063922ad626144e45168673cb2ba0bf77926aa374cc",
+    "archive_sha256": "5b41446792c89f606587ef3edf2cedbd54c97c51b5c03c0a894b41f1bcdd8af3",
+    "tracked_patch_sha256": "bb15aa5522eda1c67494d76171226fc59c8bf2cb13efc8e759c9eccd6867ee7f",
+    "artifact_hashes": {
+      "runtime-metadata.json": "d15c21d69fd40f0bdf193f3116eddb3f661c04d53b30cd3c044ddc090a3a2c15",
+      "runtime.log": "365afbe39b5d095f54400cada8cb091288511eb063fd299a04f7b4c45829628d",
+      "runtime.xml": "ffa7347a82787166e4915acc9560619068260076246e5496545f0f03c3607340",
+      "shared-fixture-reads.log": "0e2a7c3791ddb6dc973c2664617d1e6eebf1a3d835b6da7c56e4f739adb0242d",
+      "sync.log": "d6111c64aad6cf762ef650cf25e7c89efbcc04cda0608cdd1abd178a59c067e6",
+      "verify-runtime.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "case_delta_from_accepted_v418002": {
+      "added": 41,
+      "added_by_module": {
+        "tests.test_adk_gateway_conformance": 20,
+        "tests.test_agent_skill_lifecycle": 13,
+        "tests.test_agent_skill_toolset": 8
+      },
+      "added_cases": [
+        "tests.test_adk_gateway_conformance::test_actual_gateway_documents_last_duplicate_argument_and_ignores_envelope_extensions",
+        "tests.test_adk_gateway_conformance::test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend[recovery-finalizer]",
+        "tests.test_adk_gateway_conformance::test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend[recovery-main]",
+        "tests.test_adk_gateway_conformance::test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend[recovery-summarizer]",
+        "tests.test_adk_gateway_conformance::test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend[request-finalizer]",
+        "tests.test_adk_gateway_conformance::test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend[request-main]",
+        "tests.test_adk_gateway_conformance::test_actual_gateway_role_cancellation_joins_request_or_recovery_without_resend[request-summarizer]",
+        "tests.test_adk_gateway_conformance::test_actual_parallel_dispatch_preserves_self_recorded_correlation_for_every_error_path",
+        "tests.test_adk_gateway_conformance::test_actual_summary_gateway_keeps_strict_errors_and_spent_usage[length]",
+        "tests.test_adk_gateway_conformance::test_actual_summary_gateway_keeps_strict_errors_and_spent_usage[malformed_arguments]",
+        "tests.test_adk_gateway_conformance::test_actual_summary_gateway_keeps_strict_errors_and_spent_usage[missing_usage]",
+        "tests.test_adk_gateway_conformance::test_native_skill_content_reaches_only_the_authorized_serialized_sink[False-False]",
+        "tests.test_adk_gateway_conformance::test_native_skill_content_reaches_only_the_authorized_serialized_sink[True-False]",
+        "tests.test_adk_gateway_conformance::test_native_skill_content_reaches_only_the_authorized_serialized_sink[True-True]",
+        "tests.test_adk_gateway_conformance::test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy[False-False-finalizer]",
+        "tests.test_adk_gateway_conformance::test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy[False-False-summarizer]",
+        "tests.test_adk_gateway_conformance::test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy[True-False-finalizer]",
+        "tests.test_adk_gateway_conformance::test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy[True-False-summarizer]",
+        "tests.test_adk_gateway_conformance::test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy[True-True-finalizer]",
+        "tests.test_adk_gateway_conformance::test_real_gateway_roles_preserve_schemas_reasoning_and_serialized_capture_policy[True-True-summarizer]",
+        "tests.test_agent_skill_lifecycle::test_cancelled_release_joins_one_cleanup_before_skill_slot_reuse",
+        "tests.test_agent_skill_lifecycle::test_failed_prepare_after_skill_and_declaration_build_collects_graph[hashable]",
+        "tests.test_agent_skill_lifecycle::test_failed_prepare_after_skill_and_declaration_build_collects_graph[unhashable]",
+        "tests.test_agent_skill_lifecycle::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced[cancelled-native]",
+        "tests.test_agent_skill_lifecycle::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced[cancelled-plugin]",
+        "tests.test_agent_skill_lifecycle::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced[cancelled-runner]",
+        "tests.test_agent_skill_lifecycle::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced[error-native]",
+        "tests.test_agent_skill_lifecycle::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced[error-plugin]",
+        "tests.test_agent_skill_lifecycle::test_interrupted_adk_skill_cleanup_keeps_the_slot_fenced[error-runner]",
+        "tests.test_agent_skill_lifecycle::test_used_skill_graph_is_collected_and_next_allocation_is_independent[abort-hashable]",
+        "tests.test_agent_skill_lifecycle::test_used_skill_graph_is_collected_and_next_allocation_is_independent[abort-unhashable]",
+        "tests.test_agent_skill_lifecycle::test_used_skill_graph_is_collected_and_next_allocation_is_independent[finalize-hashable]",
+        "tests.test_agent_skill_lifecycle::test_used_skill_graph_is_collected_and_next_allocation_is_independent[finalize-unhashable]",
+        "tests.test_agent_skill_toolset::test_all_32_skills_use_lazy_native_dispatch_and_are_erased",
+        "tests.test_agent_skill_toolset::test_multibyte_disclosure_reaches_16_mib_without_seed_or_refund",
+        "tests.test_agent_skill_toolset::test_native_probe_rejects_expanded_or_executing_surfaces[environment]",
+        "tests.test_agent_skill_toolset::test_native_probe_rejects_expanded_or_executing_surfaces[executor]",
+        "tests.test_agent_skill_toolset::test_native_probe_rejects_expanded_or_executing_surfaces[registry]",
+        "tests.test_agent_skill_toolset::test_native_probe_rejects_expanded_or_executing_surfaces[surface]",
+        "tests.test_agent_skill_toolset::test_native_probe_rejects_expanded_or_executing_surfaces[tools]",
+        "tests.test_agent_skill_toolset::test_native_probe_rejects_expanded_or_executing_surfaces[toolsets]"
+      ],
+      "all_added_passed": true,
+      "removed": 0,
+      "removed_cases": []
+    },
+    "new_module_results": {
+      "runtime/tests/test_adk_gateway_conformance.py": {
+        "failed_or_skipped": 0,
+        "total": 20
+      }
+    },
+    "postrun_nontask_sources_unchanged": true,
+    "provenance_sha256": "deeb624d2ab2bb3615560403662e19c86f58a12b0e48c00b0541a5f5eee204fa",
+    "make_lint": {
+      "exit_code": 0,
+      "log_sha256": "d8001d0a76ed5f9d0deb1dd08a0a8050af45504ab4d8c5214a5f38009aa73a1e"
+    }
+  }
+}

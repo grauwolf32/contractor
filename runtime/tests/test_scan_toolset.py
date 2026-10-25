@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from urllib.parse import urlsplit
 
 import pytest
+from fakes.process_markers import atomic_marker_source
 from fakes.worker_runtime import StubADKWorkerRuntimeFactory
 from google.adk.tools import FunctionTool
 from target_policy_fixtures import SCAN_TEST_POLICY
@@ -542,8 +543,8 @@ def test_cancellation_and_close_reap_process_group(tmp_path, monkeypatch, stop):
         "if child == 0:\n"
         "    time.sleep(60)\n"
         "else:\n"
-        f"    open({str(marker)!r}, 'w').write(str(child))\n"
-        "    time.sleep(60)\n",
+        + atomic_marker_source(marker, "str(child)", indentation="    ")
+        + "    time.sleep(60)\n",
     )
     monkeypatch.setenv("PATH", str(tmp_path))
 
@@ -764,8 +765,8 @@ def install_pin_scanner(tmp_path, monkeypatch, *, mode="completed", mutate=False
         "    print('\\n'.join(str(p.relative_to(root)) for p in sorted(root.rglob('*.yaml'))))\n"
         "else:\n"
         f"    pathlib.Path({str(marker)!r}).open('a').write('scan\\n')\n"
-        f"    pathlib.Path({str(pid)!r}).write_text(str(os.getpid()))\n"
-        "    root = pathlib.Path(sys.argv[sys.argv.index('-t')+1])\n"
+        + atomic_marker_source(pid, "str(os.getpid())", indentation="    ")
+        + "    root = pathlib.Path(sys.argv[sys.argv.index('-t')+1])\n"
     )
     if mutate:
         source += (
@@ -1087,7 +1088,7 @@ def test_shared_nuclei_cancel_joins_process_and_never_rescans(tmp_path, monkeypa
         runtime = await worker(tmp_path, store, tool, spec=spec)
         task = asyncio.create_task(runtime.invoke(value))
         async with asyncio.timeout(5):
-            while not pid.exists() or not pid.read_text():
+            while not pid.exists():
                 await asyncio.sleep(0.01)
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=5))
         with pytest.raises(asyncio.CancelledError):
@@ -2052,7 +2053,7 @@ def test_create_only_scanner_output_is_checked_by_metadata_without_payload(
         else:
             from contractor_runtime.artifacts import ArtifactClient
 
-            marker, _ = install_pin_scanner(tmp_path, monkeypatch)
+            _, pid = install_pin_scanner(tmp_path, monkeypatch)
             tools, _ = await make_tools(tmp_path, selected=["scan_nuclei"])
             tool = tools["scan_nuclei"]
             tool._session.artifact_client = ArtifactClient("allocation", store)
@@ -2062,7 +2063,7 @@ def test_create_only_scanner_output_is_checked_by_metadata_without_payload(
             def call():
                 return tool("http://target.invalid/", templates_digest=digest, timeout_seconds=30)
 
-            launched = marker.exists
+            launched = pid.exists
         try:
             result = await call()
         finally:

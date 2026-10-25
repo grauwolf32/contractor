@@ -25,6 +25,7 @@ from contractor_runtime.projectfs import (
     OverlayWorkspaceSession,
     WorkspaceAutoExporter,
 )
+from contractor_runtime.worker.adk_features import require_supported_adk_features
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
 
 if TYPE_CHECKING:
@@ -45,11 +46,13 @@ class AdkWorkerRuntimeFactory:
         self._artifact_client_factory = artifact_client_factory
 
     async def probe(self) -> bool:
+        require_supported_adk_features()
         # Gateway/model availability remains allocation-scoped, but advertising
         # adk@1 also promises the exact native Agent Skills APIs used below.
         return await probe_native_agent_skills()
 
     async def create(self, context: WorkerBuildContext) -> AdkWorkerRuntime:
+        require_supported_adk_features()
         if context.runtime_settings.llm_recovery:
             if self._artifact_client_factory is None:
                 raise RuntimeError("Model recovery requires the allocation control transport")

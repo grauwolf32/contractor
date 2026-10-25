@@ -5,7 +5,7 @@ milestone: adk-213-upgrade-2026-10
 epic: agent-skills
 kind: chore
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V418-002
 languages:
@@ -18,6 +18,7 @@ context:
     change, adjust the existing compaction series, and keep model consultation as a proposal. These pending
     tasks do not start implementation or change the current delivery focus.'
   review: tasks/evidence/v418-adk-213-review.json
+  verification_evidence: tasks/evidence/v418-adk-213-skills-lifecycle.json
   specification:
   - docs/spec/execution/runtime-agent.md#RTA-R90
   - docs/spec/execution/runtime-agent.md#RTA-R91
@@ -178,3 +179,9 @@ lifecycle:
     required publication receipts through their existing owner.
   retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
     results under existing retention policies.
+verification:
+  focused: Required selected modules161pass and make test-agent-skills-runtime-hardening76pass, warnings strict,
+    zero skips; 21 new real-path cases and a cache-release mutation control prove the tests can fail.
+  aggregate: Common native Linux make test-runtime and report verifier pass4984,55unchanged allowed skips,
+    zero failures; all21newSkill/lifecyclecases executed. Full make lint passes; exact hashes in linked evidence.
+implementation_commit: 18ad3a14aabb58a686419e3aee88de39adffe9fa

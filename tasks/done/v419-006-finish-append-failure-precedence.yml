@@ -1,0 +1,132 @@
+schema_version: '1.0'
+id: V419-006
+title: Fence Planner completion after a required ADK session write fails
+milestone: go-adk-26-upgrade-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: V1-006
+priority: P1
+status: completed
+implementation_commit: 3918c7756f41b704e98596389ac8adff887e32a3
+depends_on: []
+languages: [go, markdown]
+goal: A validated in-memory finish never hides a required session-write failure, and both modeled Planners preserve the owning persistence and cancellation outcomes.
+context:
+  severity: medium
+  baseline_evidence: tasks/evidence/v419-finish-append-baseline.json
+  repair_evidence: tasks/evidence/v419-finish-append-repair.json
+  authority: >-
+    User requested faster parallel delivery on 2026-10-25. After the committed
+    supported-baseline RED proof and separate V419-001 fixture handoff, the
+    coordinator authorizes preparing and verifying the minimal Server repair
+    in this isolated worktree on the supported ADK1.6 pin while Runtime gates
+    finish. Integration into the primary Runtime revision still waits for
+    V418-007 completion. Dependency pin/API migration remains outside this task.
+  finding: >-
+    Supported-v1.6 baseline reproduced with the real Runner and PostgreSQL:
+    internal/planner/streamline/tools.go:507-530 records finish_requested and
+    sets an in-memory completion before ADK emits its final FunctionResponse.
+    Runner.AppendEvent may then fail, but planner.go:189-196 accepts terminal()
+    before examining iterationErr at210, calls CompleteSession, and returns the
+    candidate. All twelve accepted-finish profile/outcome/failure rows hide the
+    real redacted-event rejection this way. Both ordinary ADK append outage
+    rows become planner_execution_failed instead of planner_session_unavailable.
+    The original twenty baseline leaves ran: fourteen intended failures, six controls
+    passed and none skipped. The source/module hashes and actual case IDs are
+    retained in baseline_evidence; this RED proof is not task acceptance.
+  provenance: >-
+    V1-006/aacda4b36be505201f0f95aecc7d586107ba68a5 introduced both the
+    terminal-before-iteration-error branch and finish's in-memory setCompletion.
+    V414-006/39c37b3c3f8bcc811fbe19375ba9134697334148 repairs CompleteSession
+    write/report outcomes, not the preceding final FunctionResponse append.
+    V414-008/74d2283ab828bc70fff2a28fd5c5a6bfa1e36cfa classifies ErrInvalid
+    in the later iteration-error branch, which an accepted finish bypasses.
+    This task proves the supported baseline before attributing anything to v2.
+  specification:
+    - docs/spec/execution/planners.md#PLN-R79
+    - docs/spec/execution/planners.md#PLN-R85
+    - docs/spec/execution/planners.md#PLN-R94
+    - docs/spec/execution/planners.md#PLN-R105
+    - docs/spec/execution/planners.md#PLN-R106
+    - docs/spec/execution/planners.md#PLN-R107
+    - docs/spec/execution/planners.md#PLN-R120
+    - docs/spec/platform/persistence.md#PER-R13
+    - docs/spec/platform/persistence.md#PER-R24
+    - docs/spec/platform/errors.md
+    - docs/spec/platform/failure-model.md
+    - docs/spec/platform/limits.md
+    - docs/spec/platform/lifecycle.md
+  siblings: >-
+    Streamline and Router share this execution engine. Cover successful,
+    retryable-failed and final-failed finish candidates, ordinary pre-finish ADK
+    events, invalid/unavailable writes, caller cancellation and independently
+    bounded completion. Passthrough has no SDK event append and keeps its
+    existing completion-write behavior. V419-003 and V420-001/003 reuse these
+    regressions for v2/compaction; they do not duplicate this baseline repair.
+scope:
+  in:
+    - Supported-pin actual Runner and production PostgreSQL adapter regressions before production changes.
+    - A classified required-write failure blocks subsequent semantic calls and candidate completion, including after an accepted finish or iterator stop.
+    - Preserve exact failure retryability, report coherence, completed recovery and cancellation ownership in both modeled profiles.
+    - Minimal isolated production repair and owning contract clarification, verified on the supported pin; primary integration waits for the Runtime exit gate.
+  out:
+    - Go ADK pin/API migration, compaction, new receipts, Scheduler algorithms or a new generic e2e runner.
+    - Treating an in-memory finish or finish_requested fact as a durable full candidate receipt.
+    - Blindly moving all context/deadline checks ahead of valid terminal outcomes or changing the independent completion-write budget.
+acceptance_criteria:
+  - id: A1
+    text: An actual PostgreSQL CHECK rejects only the final finish FunctionResponse event while allowing the finish fact and later completion/failure writes; both profiles return no candidate and nonretryable planner_session_rejected wrapping runstore.ErrInvalid.
+  - id: A2
+    text: A final-response-only injected PostgreSQL connection-failure condition yields planner_session_unavailable instead of planner_execution_failed or a candidate; successful and retryable-failed outcomes stay retryable, while a final failed candidate cannot become retryable.
+  - id: A3
+    text: Ordinary pre-finish ADK event rejection and outage use the same owning classes; no additional model or Worker is dispatched, and the stored completion and report match the returned failure.
+  - id: A4
+    text: Genuine caller cancellation before finish remains planner_cancelled, and cancellation during the independent completion write after a successfully persisted final FunctionResponse does not shorten that write's budget or duplicate the outcome.
+  - id: A5
+    text: Baseline probes fail for the intended current defect with observed real PostgreSQL rejection and exact case IDs; those failures remain evidence until the repair makes the same assertions pass without xfail or weakened expectations.
+  - id: A6
+    text: Full owner-package/race/store gates pass after repair; completed recovery invokes no model or Worker, unfinished recovery remains planner_invocation_in_progress, and no raw arguments, candidate text or database credentials enter evidence.
+  - id: A7
+    text: After an actual final FunctionResponse PostgreSQL failure, a barrier-driven caller cancellation keeps planner_cancelled but cannot make a known final failed candidate retryable. Both profiles retain the original store cause and cancellation cause, persist the same nonretryable failure, and recover without another model or Worker call. The shared deadline-selection path obeys the same retryability rule.
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=\"${CONTRACTOR_TEST_DATABASE_URL:?Set an owned disposable PostgreSQL URL}\" GOMAXPROCS=1 go test -p=1 -count=1 ./internal/planner/streamline -run '^(TestPostgresModeledPlannerAppendFailurePrecedence|TestModeledPlannerCancellationKeepsCompletionOwnership|TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation)$'"
+    covers: [A1, A2, A3, A4, A5, A7]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=\"${CONTRACTOR_TEST_DATABASE_URL:?Set an owned disposable PostgreSQL URL}\" GOMAXPROCS=1 go test -p=1 -count=1 ./internal/planner/... ./internal/scheduler/..."
+    covers: [A1, A2, A3, A4, A6, A7]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=\"${CONTRACTOR_TEST_DATABASE_URL:?Set an owned disposable PostgreSQL URL}\" GOMAXPROCS=1 go test -p=1 -race -count=1 ./internal/planner/..."
+    covers: [A1, A2, A3, A4, A6, A7]
+  - command: make test-streamline
+    covers: [A1, A2, A3, A4, A6, A7]
+  - command: make lint
+    covers: [A5, A6]
+test_prerequisites:
+  - The committed RED supported-baseline proof is not task completion. Isolated repair is now authorized; every listed acceptance command must pass before completion, and primary integration waits for Runtime V418-007.
+  - Use exact supported go.mod/go.sum, real ADK Runner and an owned disposable PostgreSQL database with CREATEDB; configured unreachable storage fails and a zero/required skipped case is not acceptance.
+  - The forwarding ADK service observes calls/errors only. The migrated test schema's CHECK or trigger produces the persistence failure; a wrapper-synthesized error is not PostgreSQL conformance.
+  - Generate injected SQLSTATE values from the existing persistencepostgres constants. Record injected SQLSTATE outage honestly rather than claiming a real PostgreSQL server outage.
+  - Use synchronization barriers and bounded finite fixtures, not elapsed-time assertions. Run at GOMAXPROCS=1 with Go package parallelism1 during concurrent Runtime verification; do not synchronize a shared Runtime virtual environment.
+failure_outcomes:
+  - operation: Required redacted ADK event append after an ordinary turn or valid finish
+    permanent: A definite invalid/rejected PostgreSQL write returns planner_session_rejected with retryable false, no candidate and no further semantic dispatch.
+    retryable: An unavailable session returns planner_session_unavailable; retain the owning final-outcome retryability and the existing bounded completion-write policy.
+    ambiguous: Preserve existing session identity/sequence and reconcile only through that owner; do not append a fresh semantic effect, redispatch a Worker or invent another receipt.
+    cancelled: Genuine caller cancellation retains its owning cancellation code and cause, while a known final outcome or definite store rejection remains nonretryable and the original write cause remains in the private error chain. The same rule applies to a deadline selected by the shared stop helper. Close and join SDK iteration before return; do not reinterpret arbitrary SDK failures as storage failures.
+    timeout: Keep execution deadline, append/transport failure, completion-write budget and harness timeout distinct; no detached persistence or cleanup may outlive the Planner.
+cardinality:
+  - collection: Probe cases, model turns, event writes and retained observations
+    expected: Two modeled profiles, three finish outcomes and two storage failure classes, plus ordinary-event and cancellation control rows.
+    maximum: Twenty-four leaf cases; each uses at most three model calls, one Worker call and one injected matching event failure under existing item/byte limits.
+    bound: Preserve the 256-KiB Planner input, 4-MiB Gateway request, 2-MiB submitted/stored session and event bounds and 256 fact digests. Test-only event guards select the exact finish response instead of globally lowering a state bound that also masks the completion write.
+lifecycle:
+  - entity: Planner invocation, session adapter and disposable probe schema
+    delete: The test owner closes its pools and removes only its own schema/database after all Runner iterations and callbacks join.
+    cascade: No durable entity or protocol operation is added; existing session completion and Run-event transactions remain the owners.
+    retention: Safe evidence stores revision/module digests, case IDs, expected/actual codes and counts, never raw provider content, candidate payloads or environment values.
+verification:
+  baseline: Original supported-v1.6 source produced14 intended failures and6passing controls; the first isolated repair additionally failed4real-store caller-stop rows before retryability/cause refinement. Both negative controls and source hashes are retained.
+  focused: All24required leaves passed,3parents/27total records,0skips/failures, including original PostgreSQL rejection/outage and all cancellation controls.
+  owners: Full Planner/Scheduler PostgreSQL suites passed9packages,433top-level/1014total records,0skips/failures.
+  race: Full Planner race suites passed8packages,218top-level/570total records,0skips/failures.
+  streamline: make test-streamline passed97top-level/223total records; only TestLiveGatewayToolCall and TestLiveRouterWorkflow were skipped as explicit live Gateway opt-ins, never counted as required acceptance.
+  lint: Complete make lint passed on the frozen implementation source; the generated dependency graph was regenerated with its owning Make target.
+  delivery: Completed and committed in the isolated worktree. Primary integration and merge remain gated on Runtime V418-007 exit; no primary Server pin change is included.

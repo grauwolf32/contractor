@@ -1,0 +1,174 @@
+schema_version: '1.0'
+id: V419-002
+title: Upgrade Go ADK to v2.6.0 with atomic API and dependency adaptations
+milestone: go-adk-26-upgrade-2026-10
+epic: planner-worker
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V419-001
+languages:
+- go
+- markdown
+goal: Land one buildable Go ADK v2.6.0 migration while keeping existing Planner behavior and native compaction
+  disabled.
+context:
+  authority: User authorized implementing Runtime first then Server. RuntimeV418-007 is complete. User
+    subsequently directed no full rerun after the dependency update, so this task verifies full affected
+    owner packages and scoped static/build/module checks, without global test-go/lint/release/Runtime/UI
+    reruns.
+  review: tasks/evidence/v419-go-adk-26-review.json
+  specification:
+  - docs/spec/execution/planners.md#PLN-R1
+  - docs/spec/execution/planners.md#PLN-R81
+  - docs/spec/execution/planners.md#PLN-R94
+  - docs/spec/execution/planners.md#PLN-R106
+  - docs/spec/execution/planners.md#PLN-R107
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/platform/failure-model.md
+  implementation_boundary: Update owning numbered specifications, limits/errors/failure/lifecycle registries
+    and every affected reader/writer with implementation. A planned extension is not current shipped behavior.
+    No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
+    Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only
+    configuration plumbing, mechanical imports and regression fixtures may change there.
+  evidence: tasks/evidence/v419-go-adk-26-atomic-migration.json
+scope:
+  in:
+  - go.mod/go.sum, all ADK imports and required callback/tool/event adaptations, exact-version assertions
+    and supported-version documentation.
+  out:
+  - Compaction, SDK resumability, new Stage states/retries/queues/leases, replacing custom Gateway or
+    exporting native SDK traces.
+acceptance_criteria:
+- id: A1
+  given: Fresh supported Go environment and committed module graph
+  when: Build and module verification run
+  then: Only the supported ADK/v2 2.6.0 path is used and all production packages compile without shims
+    or module drift.
+- id: A2
+  given: Both modeled Planners and core/Memory/State tools
+  when: Full suites and actual tool dispatch execute
+  then: Existing schemas, strict admission, finish, budgets, Gateway behavior and error outcomes pass
+    unchanged.
+- id: A3
+  given: Session adapters and Scheduler consumers
+  when: Real-store full affected owner packages and scoped static checks run
+  then: NewEvent contexts and redacted facts work, framework-neutral boundaries remain intact and compaction
+    is still disabled.
+tests:
+- command: go mod verify
+  covers:
+  - A1
+- command: go mod tidy -diff
+  covers:
+  - A1
+- command: go build -p=1 ./cmd/... ./internal/...
+  covers:
+  - A1
+- command: go test -p=1 -json -count=1 -timeout=20m ./internal/planner/... ./internal/telemetry ./internal/app
+    ./internal/scheduler ./tests/integration/streamline
+  covers:
+  - A2
+  - A3
+- command: go vet -p=1 ./internal/planner/... ./internal/telemetry ./internal/app ./internal/scheduler
+    ./tests/integration/streamline
+  covers:
+  - A1
+  - A3
+- command: go test -p=1 -count=1 ./internal/archtest
+  covers:
+  - A1
+  - A3
+- command: runtime/.venv/bin/python scripts/check_spec.py && runtime/.venv/bin/python scripts/check_tasks.py
+  covers:
+  - A1
+  - A3
+requirements:
+- id: R1
+  text: Replace the root module dependency and every import with google.golang.org/adk/v2 v2.6.0 in one
+    commit. All model/session/tool types share the v2 package identity; remove obsolete v1 module references
+    when no caller remains. No aliases, shims, dual runners or version-conditional behavior.
+- id: R2
+  text: Migrate model callbacks and all functiontool/custom Memory/State Run and ProcessRequest signatures
+    to agent.Context. Hidden tool interfaces must be exercised through real dispatch, not only a tool.Tool
+    compile assertion. Leave instruction providers on ReadonlyContext.
+- id: R3
+  text: Update every NewEvent test call in the fresh inventory with the existing context or t.Context();
+    re-inventory all constructors and direct event/response serialization. New camelCase/omitempty LLMResponse
+    JSON tags must not leak into or redefine our durable reduced-fact contract.
+- id: R4
+  text: Raise the go directive to at least 1.26.6 without gratuitously changing the existing sufficient
+    toolchain 1.26.9. Resolve and commit go.mod/go.sum using Go tools; record every required direct/transitive
+    change including shared A2A/v2. Do not independently upgrade unrelated packages.
+- id: R5
+  text: Preserve the custom OpenAI-compatible Gateway, direct Contractor A2A client, in-memory ADK session
+    plus durable reduced facts, current Runner nonstreaming behavior and all configured models. Compaction
+    remains nil/off; no native OpenAI/A2A/OTel adapter activation.
+- id: R6
+  text: Keep framework types below PlannerFactory. Scheduler production behavior remains unchanged; the
+    known Scheduler test import is a mechanical migration only. The module change and all required adaptations/tests
+    land together; later conformance tasks do not permit knowingly broken behavior.
+- id: R7
+  text: Run complete affected owner-package suites on the committed module graph with required real PostgreSQL.
+    Confirm go mod verify, stable go mod tidy -diff, scoped vet and architectural boundaries. User explicitly
+    excludes repeating the global Go/release/Runtime/UI gates after this update. An overlay-only pass
+    is insufficient.
+failure_outcomes:
+- operation: Verification, model/tool execution and existing session mutations covered by this task
+  permanent: Invalid input and deterministic store rejection keep their existing safe nonretryable class.
+    A required verification failure blocks completion; do not relax assertions or add permanent xfails.
+  retryable: Use only the existing bounded transport/recovery policy within the original deadline; no
+    migration-specific retry or rerun-until-green.
+  ambiguous: Reconcile through the existing receipt/session sequence and same operation identity. A lost
+    reply does not prove nonexecution; never blindly repeat a Worker call or append.
+  cancelled: Invocation/test owner cancels and joins local work before teardown; already-dispatched remote
+    effects follow existing reconciliation.
+  timeout: Keep invocation, transport, completion-write, cleanup and test-harness deadlines distinct;
+    expiration admits no new semantic attempt.
+cardinality:
+- collection: Planner calls, plan, event history and their containing serialized requests/session state
+  expected: Default 32 model calls and 32 subtasks, one active dispatch and one executed tool per model
+    turn.
+  maximum: 'Existing ceilings: 1000 model calls, 1000 subtasks, 10000 Worker calls, 256-KiB initial input,
+    4-MiB Gateway request, 2-MiB session JSON and 256 recorded fact digests; inventory the current constants
+    before writing scale fixtures.'
+  bound: Respect both item and containing byte/work limits. Independent maxima need not fit simultaneously;
+    a containing limit must reject honestly before side effects. No unbounded callback scans or copies.
+lifecycle:
+- entity: Invocation-local SDK sessions, tools, clients, test fixtures and safe verification evidence
+  delete: Existing invocation owner or isolated test harness tears down only its own resources.
+  cascade: Join all goroutines/iterators before erasing context and releasing Worker handles; retain existing
+    durable result/receipt ownership.
+  retention: No new durable entity or raw transcript. Safe evidence records versions, cases and outcomes
+    without credentials, raw prompts or temporary-path prerequisites.
+test_prerequisites:
+- Commands are future implementation acceptance, not checks completed by this planning change. Record
+  exact revision, Go/ADK versions, module graph/checksums, commands, executed case counts, skips and outcomes.
+  Required cases cannot be skipped or match zero tests.
+- Use disposable real PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set for persistence acceptance; an
+  unreachable configured database fails. Canonicalize TMPDIR as Makefile does. Full package suites accompany
+  focused regressions. make test-streamline does not cover Router, so run all internal/planner packages
+  too.
+- Use actual pinned ADK Runner/tool dispatch and controlled Gateway responses. tests/integration/streamline
+  uses a fake WorkerInvoker and does not prove a real Server/Runtime process. Register new process cases
+  in the release graph and provide their fixtures/prerequisites.
+- Use testdata and test-only pseudo-Skills rather than reading live configs. Use injected clocks, synchronization
+  barriers and work/byte/row counters, not wall-clock assertions. Live Gateway benchmarks are outside
+  deterministic acceptance; keep configured models unchanged.
+- No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the
+  currently supported Runtime lock. New shared grammar or wire changes, if actually needed, must update
+  all implementations and shared fixtures in the owning task.
+verification:
+  pin: Committedv2.6.0 graph264modules exactly matches accepted001candidate canonicalSHAa7e89eca; all27adaptedGo
+    consumers and go.sum identical. Go minimum1.26.6, existingtoolchain1.26.9 kept; ordinarygo.mod/go.sum,
+    nooverlays/replacements.
+  owners: All12affected owner packages pass:574top-level/1354passrecords,534uniquePlanner leaves, all84requiredmanifestcases
+    and16candidateprojectionobservations. RealownedPG configured. Exactly2namedliveGateway optins+1optionalCollector
+    skip.
+  static: go mod verify, tidy-diff, productionbuild, scopedvet, architecturalboundary, spec/tracker checks
+    PASS.
+  scope: No globaltest-go/lint/release/Runtime/UI/allE2Ererun; compactionoff, Schedulerproductionunchanged.003/004/005remain
+    for their separate targeted boundaries.
+implementation_commit: 65d8345ae8aef506ac90043060d8337fb91ee250

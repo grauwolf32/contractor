@@ -22,6 +22,18 @@ SECRET = "instrumentation-secret-canary"
 PROMPT = "prompt-body-that-must-not-survive"
 SOURCE = "source-body-that-must-not-survive"
 PRIVATE_URL = f"https://user:{SECRET}@private.example/api?token={SECRET}"
+ALLOWED_TOOL_NAMES = frozenset(
+    {
+        "probe",
+        "generic_probe",
+        "rejected_probe",
+        "adk_validation_probe",
+        "validator_failure_probe",
+        "cancelled_probe",
+        "pending_probe",
+        "self_recorded_probe",
+    }
+)
 
 
 class ToolFailure(RuntimeError):
@@ -32,12 +44,16 @@ class ToolFailure(RuntimeError):
 @dataclass
 class FakeSession:
     state: dict[str, Any] = field(default_factory=dict)
+    id: str = "session"
+    app_name: str = "app"
+    user_id: str = "user"
 
 
 @dataclass
 class FakeContext:
     invocation_id: str
     session: FakeSession = field(default_factory=FakeSession)
+    function_call_id: str | None = None
 
 
 class FakeOwner:
@@ -100,6 +116,7 @@ def test_plugin_correlates_every_callback_path_without_double_counting(
         instrumentation = RecordingInstrumentation()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            allowed_tool_names=ALLOWED_TOOL_NAMES,
             budget=lambda: None,
             instrumentation=instrumentation,
             model_alias="safe-model-alias",
@@ -274,8 +291,12 @@ def test_plugin_correlates_every_callback_path_without_double_counting(
         )
 
         unknown_context = FakeContext(run_context.invocation_id)
+        unknown_tool = FakeTool(SECRET, FakeOwner())
+        await plugin.before_tool_callback(
+            tool=unknown_tool, tool_args={"body": SOURCE}, tool_context=unknown_context
+        )
         unknown_response = await plugin.on_tool_error_callback(
-            tool=FakeTool(SECRET, FakeOwner()),
+            tool=unknown_tool,
             tool_args={"body": SOURCE},
             tool_context=unknown_context,
             error=ToolFailure(f"unknown model tool {SECRET}"),
@@ -372,6 +393,7 @@ def test_raised_tool_exception_is_a_bounded_failed_tool_result(
         state = WorkerStateStore()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            allowed_tool_names=ALLOWED_TOOL_NAMES,
             budget=lambda: None,
             instrumentation=RecordingInstrumentation(),
             model_alias="model",
@@ -424,6 +446,7 @@ def test_plugin_close_records_pending_tool_calls_as_cancelled() -> None:
         instrumentation = RecordingInstrumentation()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            allowed_tool_names=ALLOWED_TOOL_NAMES,
             budget=lambda: None,
             instrumentation=instrumentation,
             model_alias="model",
@@ -474,6 +497,7 @@ def test_plugin_retains_only_latest_sequential_invocation() -> None:
         state = WorkerStateStore()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            allowed_tool_names=ALLOWED_TOOL_NAMES,
             budget=lambda: None,
             instrumentation=None,
             model_alias="model",
@@ -567,6 +591,7 @@ def test_terminal_phase_survives_auxiliary_cleanup(phase: str, auxiliary_complet
         sink = RecordingInstrumentation()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            allowed_tool_names=ALLOWED_TOOL_NAMES,
             budget=lambda: None,
             instrumentation=sink,
             model_alias="model",
@@ -605,6 +630,7 @@ def test_finalizer_startup_owns_partial_registration(monkeypatch: pytest.MonkeyP
         sink = RecordingInstrumentation()
         plugin = WorkerInstrumentationPlugin(
             state=state,
+            allowed_tool_names=ALLOWED_TOOL_NAMES,
             budget=lambda: None,
             instrumentation=sink,
             model_alias="model",
@@ -635,5 +661,754 @@ def test_finalizer_startup_owns_partial_registration(monkeypatch: pytest.MonkeyP
         assert snapshot["lastCompletedInvocation"]["metrics"]["modelErrors"] == 0
         await plugin.close()
         assert sink.spans[0].end_calls == 1
+
+    asyncio.run(scenario())
+
+
+class CountingBudget:
+    def __init__(self, *, summarize: bool = False) -> None:
+        self.model_calls = 0
+        self.tool_calls = 0
+        self.usage: list[Any] = []
+        self.summarize_checks = 0
+        self.summarize = summarize
+
+    def before_model_call(self) -> None:
+        self.model_calls += 1
+
+    def before_tool_call(self) -> None:
+        self.tool_calls += 1
+
+    def after_model_response(self, usage: Any) -> None:
+        self.usage.append(usage)
+
+    def should_summarize(self) -> bool:
+        self.summarize_checks += 1
+        return self.summarize
+
+
+class RecordingHistory:
+    def __init__(self) -> None:
+        self.plugin: WorkerInstrumentationPlugin | None = None
+        self.events: list[Any] = []
+        self.admissions: list[FakeContext] = []
+        self.completions: list[tuple[FakeContext, Any]] = []
+        self.failures: list[tuple[FakeContext, Any, bool]] = []
+
+    def observe_event(self, event: Any) -> None:
+        self.events.append(event)
+
+    def admitted(self, context: FakeContext) -> None:
+        self.admissions.append(context)
+
+    async def completed(self, context: FakeContext, result: Any) -> None:
+        assert self.plugin is not None and not self.plugin._lock.locked()
+        self.completions.append((context, result))
+
+    async def failed(self, context: FakeContext, result: Any, *, cancelled: bool = False) -> None:
+        assert self.plugin is not None and not self.plugin._lock.locked()
+        self.failures.append((context, result, cancelled))
+
+
+def test_sdk_turns_keep_one_logical_state_budget_and_tool_identity() -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        budget = CountingBudget()
+        history = RecordingHistory()
+        sink = RecordingInstrumentation()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: budget,
+            instrumentation=sink,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+            history=history,
+        )
+        history.plugin = plugin
+        logical = "worker-logical"
+        first = FakeContext(logical)
+        plugin.prepare_invocation(invocation_id=logical, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=first)
+        tool = FakeTool("probe", FakeOwner())
+        for context in (first, FakeContext("sdk-second", session=first.session)):
+            if context is not first:
+                plugin.prepare_continuation(invocation_id=logical, sdk_invocation_id="sdk-second")
+                with pytest.raises(RuntimeError, match="stale"):
+                    await plugin.before_model_callback(callback_context=first, llm_request=PROMPT)
+                await plugin.before_run_callback(invocation_context=context)
+            await plugin.before_model_callback(callback_context=context, llm_request=PROMPT)
+            await plugin.after_model_callback(
+                callback_context=context,
+                llm_response=SimpleNamespace(usage_metadata=None),
+            )
+            event = object()
+            await plugin.on_event_callback(invocation_context=context, event=event)
+            assert history.events[-1] is event
+            tool_context = FakeContext(
+                context.invocation_id,
+                session=context.session,
+                function_call_id=f"call-{budget.tool_calls}",
+            )
+            assert plugin.logical_invocation_id_for_tool(tool_context) == logical
+            assert (
+                await plugin.before_tool_callback(
+                    tool=tool, tool_args={}, tool_context=tool_context
+                )
+                is None
+            )
+            pending = plugin._pending_tools[id(tool_context)]
+            assert pending.invocation_id == logical
+            assert pending.correlation_id == f"{logical}:tool:{budget.tool_calls}"
+            result = {"ok": True, "exact": "result"}
+            await plugin.after_tool_callback(
+                tool=tool, tool_args={}, tool_context=tool_context, result=result
+            )
+            assert history.completions[-1] == (tool_context, result)
+            assert history.completions[-1][1] is result
+        with pytest.raises(RuntimeError, match="cannot continue"):
+            plugin.prepare_continuation(invocation_id=logical, sdk_invocation_id=logical)
+        await plugin.before_result_finalizer_call(invocation_id=logical)
+        await plugin.after_result_finalizer_call(invocation_id=logical, usage=None)
+        completed = await plugin.complete_invocation(invocation_id=logical, phase="succeeded")
+        assert completed is not None
+        assert completed["lastCompletedInvocation"]["invocationId"] == logical
+        assert completed["lastCompletedInvocation"]["metrics"]["modelCalls"] == 3
+        assert completed["lastCompletedInvocation"]["metrics"]["toolCalls"] == 2
+        assert (budget.model_calls, budget.tool_calls) == (3, 2)
+        assert len(history.admissions) == len(history.completions) == 2
+        assert all(span.end_calls == 1 for span in sink.spans)
+        assert "sdk-second" not in json.dumps(completed)
+        with pytest.raises(RuntimeError, match="stale"):
+            plugin.logical_invocation_id_for_tool(first)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("callback", ["model", "tool"])
+@pytest.mark.parametrize("foreign", ["sdk", "session", "app", "user"])
+def test_stale_or_foreign_native_admission_has_no_charge_or_span(
+    callback: str, foreign: str
+) -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        budget = CountingBudget()
+        sink = RecordingInstrumentation()
+        admissions: list[bool] = []
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: budget,
+            instrumentation=sink,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+            check_admission=lambda: admissions.append(True),
+        )
+        initial = FakeContext("worker-logical")
+        plugin.prepare_invocation(invocation_id=initial.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=initial)
+        context = FakeContext(initial.invocation_id)
+        if foreign == "sdk":
+            context.invocation_id = "unprepared-sdk"
+        elif foreign == "session":
+            context.session.id = "foreign-session"
+        elif foreign == "app":
+            context.session.app_name = "foreign-app"
+        else:
+            context.session.user_id = "foreign-user"
+        with pytest.raises(RuntimeError, match="stale"):
+            if callback == "model":
+                await plugin.before_model_callback(callback_context=context, llm_request=PROMPT)
+            else:
+                await plugin.before_tool_callback(
+                    tool=FakeTool("probe", FakeOwner()), tool_args={}, tool_context=context
+                )
+        assert (budget.model_calls, budget.tool_calls) == (0, 0)
+        assert admissions == []
+        assert sink.spans == []
+        assert plugin._pending_tools == {}
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("phase", ["model", "tool", "finalizer"])
+@pytest.mark.parametrize("error", [TimeoutError("expired"), asyncio.CancelledError()])
+def test_semantic_admission_precedes_summary_budget_and_span(
+    phase: str, error: BaseException
+) -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        budget = CountingBudget(summarize=True)
+        sink = RecordingInstrumentation()
+
+        def refuse() -> None:
+            raise error
+
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: budget,
+            instrumentation=sink,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+            check_admission=refuse,
+            summarizer_enabled=True,
+        )
+        context = FakeContext("worker-admission")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        with pytest.raises(type(error)) as raised:
+            if phase == "model":
+                await plugin.before_model_callback(callback_context=context, llm_request=PROMPT)
+            elif phase == "tool":
+                await plugin.before_tool_callback(
+                    tool=FakeTool("probe", FakeOwner()), tool_args={}, tool_context=context
+                )
+            else:
+                await plugin.before_result_finalizer_call(invocation_id=context.invocation_id)
+        assert raised.value is error
+        assert (budget.model_calls, budget.tool_calls, budget.summarize_checks) == (0, 0, 0)
+        assert sink.spans == []
+        assert plugin._pending_models == []
+        assert plugin._pending_tools == {}
+        assert plugin._pending_auxiliary_models == {}
+        assert (await state.snapshot())["currentInvocation"]["phase"] == "running"
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("self_recorded", [False, True])
+def test_cancelled_tool_error_is_accounted_once_and_releases_correlation(
+    self_recorded: bool,
+) -> None:
+    from contractor_runtime.core.tool_metrics import ToolCallCancelled
+    from contractor_runtime.telemetry.metrics import _TOOL_METRIC_CORRELATION
+
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        budget = CountingBudget()
+        history = RecordingHistory()
+        sink = RecordingInstrumentation()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: budget,
+            instrumentation=sink,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+            history=history,
+        )
+        history.plugin = plugin
+        context = FakeContext("worker-cancel")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        tool = FakeTool("probe", FakeOwner())
+        await plugin.before_tool_callback(tool=tool, tool_args={}, tool_context=context)
+        assert _TOOL_METRIC_CORRELATION.get() == "worker-cancel:tool:1"
+        if self_recorded:
+            state.metrics.record_tool_call("probe", arguments={}, error=ToolCallCancelled())
+        error = asyncio.CancelledError(SECRET)
+        with pytest.raises(asyncio.CancelledError) as raised:
+            await plugin.on_tool_error_callback(
+                tool=tool, tool_args={}, tool_context=context, error=error
+            )
+        assert raised.value is error
+        assert _TOOL_METRIC_CORRELATION.get() is None
+        assert len(history.failures) == 1
+        assert history.failures[0][2] is True
+        assert history.failures[0][1]["error"]["code"] == "tool_call_cancelled"
+        assert history.failures[0][1]["error"]["retryable"] is True
+        assert SECRET not in json.dumps(history.failures[0][1])
+        await plugin.after_tool_callback(tool=tool, tool_args={}, tool_context=context, result={})
+        with pytest.raises(asyncio.CancelledError):
+            await plugin.on_tool_error_callback(
+                tool=tool, tool_args={}, tool_context=context, error=error
+            )
+        report = state.metrics.build_report(report_id="cancelled", duration_ms=1)
+        assert report.metrics.tools["probe"].calls == 1
+        assert report.metrics.tools["probe"].failed == 1
+        assert len(report.tool_calls) == 1
+        assert report.tool_calls[0].error.code == "tool_call_cancelled"
+        assert budget.tool_calls == 1
+        assert sink.spans[0].outcome == "cancelled"
+        assert sink.spans[0].end_calls == 1
+        assert plugin._pending_tools == {}
+        assert plugin._settling_tools == set()
+        await plugin.complete_invocation(invocation_id=context.invocation_id, phase="cancelled")
+        await plugin.close()
+        assert sink.spans[0].end_calls == 1
+
+    asyncio.run(scenario())
+
+
+def test_history_serialization_releases_plugin_lock_and_fences_premature_completion() -> None:
+    class BlockingHistory(RecordingHistory):
+        def __init__(self) -> None:
+            super().__init__()
+            self.started = asyncio.Event()
+            self.resume = asyncio.Event()
+
+        async def completed(self, context: FakeContext, result: Any) -> None:
+            assert self.plugin is not None and not self.plugin._lock.locked()
+            self.started.set()
+            await self.resume.wait()
+            await super().completed(context, result)
+
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        history = BlockingHistory()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=None,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+            history=history,
+        )
+        history.plugin = plugin
+        context = FakeContext("worker-history")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        tool = FakeTool("probe", FakeOwner())
+        await plugin.before_tool_callback(tool=tool, tool_args={}, tool_context=context)
+        completed = asyncio.create_task(
+            plugin.after_tool_callback(
+                tool=tool, tool_args={}, tool_context=context, result={"ok": True}
+            )
+        )
+        try:
+            await asyncio.wait_for(history.started.wait(), 3)
+            await asyncio.wait_for(
+                plugin.capture_result_finalizer_content(invocation_id=context.invocation_id), 3
+            )
+            with pytest.raises(RuntimeError, match="cannot continue"):
+                plugin.prepare_continuation(
+                    invocation_id=context.invocation_id, sdk_invocation_id="sdk-next"
+                )
+            with pytest.raises(RuntimeError, match="still settling"):
+                await plugin.complete_invocation(
+                    invocation_id=context.invocation_id, phase="succeeded"
+                )
+            with pytest.raises(RuntimeError, match="still settling"):
+                await plugin.close()
+        finally:
+            history.resume.set()
+            await completed
+        assert len(history.completions) == 1
+        assert plugin._settling_tools == set()
+        final = await plugin.complete_invocation(
+            invocation_id=context.invocation_id, phase="succeeded"
+        )
+        assert final["lastCompletedInvocation"]["metrics"]["toolCalls"] == 1
+        await plugin.close()
+
+    asyncio.run(scenario())
+
+
+def test_after_model_assigns_owned_ids_only_to_missing_function_call_ids() -> None:
+    from google.genai import types
+
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=None,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+        )
+        context = FakeContext("worker-call-ids")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        calls = [types.FunctionCall(name="probe", args={}) for _ in range(2)]
+        calls.append(types.FunctionCall(id="provider-id", name="probe", args={}))
+        response = SimpleNamespace(
+            content=types.Content(role="model", parts=[types.Part(function_call=c) for c in calls]),
+            usage_metadata=None,
+        )
+        await plugin.before_model_callback(callback_context=context, llm_request=PROMPT)
+        await plugin.after_model_callback(callback_context=context, llm_response=response)
+        actual = [part.function_call.id for part in response.content.parts]
+        assert all(identifier.startswith("contractor-tool-") for identifier in actual[:2])
+        assert actual[0] != actual[1]
+        assert actual[2] == "provider-id"
+        assert all(not identifier.startswith("adk-") for identifier in actual)
+
+    asyncio.run(scenario())
+
+
+def test_unknown_tool_before_callback_is_one_bounded_attempt_without_content() -> None:
+    class CapturedSpan(RecordingSpan):
+        capture_content = True
+
+        def __init__(self, name: str, attributes: dict[str, TelemetryAttribute]) -> None:
+            super().__init__(name, attributes)
+            self.content: dict[str, str] = {}
+
+        def set_content(self, kind: str, value: str) -> None:
+            self.content[kind] = value
+
+    class CapturingInstrumentation(RecordingInstrumentation):
+        def start_span(self, name: str, *, attributes=None) -> CapturedSpan:
+            span = CapturedSpan(name, attributes or {})
+            self.spans.append(span)
+            return span
+
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        budget = CountingBudget()
+        sink = CapturingInstrumentation()
+        history = RecordingHistory()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: budget,
+            instrumentation=sink,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+            history=history,
+        )
+        history.plugin = plugin
+        context = FakeContext("worker-unknown")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        owner = FakeOwner()
+
+        def unexpected_validation(_args: Any) -> None:
+            raise AssertionError("unknown placeholder ran a callable validator")
+
+        owner.contractor_raw_argument_error = unexpected_validation  # type: ignore[method-assign]
+        tool = FakeTool(SECRET, owner)
+        assert (
+            await plugin.before_tool_callback(
+                tool=tool, tool_args={"body": SOURCE}, tool_context=context
+            )
+            is None
+        )
+        response = await plugin.on_tool_error_callback(
+            tool=tool, tool_args={}, tool_context=context, error=ValueError(SECRET)
+        )
+        assert budget.tool_calls == 1
+        assert len(history.admissions) == len(history.failures) == 1
+        report = state.metrics.build_report(report_id="unknown", duration_ms=1)
+        assert set(report.metrics.tools) == {"unknown_tool"}
+        assert report.metrics.tools["unknown_tool"].calls == 1
+        assert report.metrics.tools["unknown_tool"].failed == 1
+        assert sink.spans[0].attributes["tool.name"] == "unknown_tool"
+        assert sink.spans[0].content == {}
+        rendered = (
+            json.dumps(response) + report.model_dump_json() + json.dumps(await state.snapshot())
+        )
+        assert SECRET not in rendered
+        assert SOURCE not in rendered
+        assert sink.spans[0].end_calls == 1
+
+    asyncio.run(scenario())
+
+
+def test_spent_callbacks_settle_after_admission_deadline_without_new_charges() -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        budget = CountingBudget()
+        sink = RecordingInstrumentation()
+        expired = False
+        checks = 0
+
+        def check() -> None:
+            nonlocal checks
+            checks += 1
+            if expired:
+                raise TimeoutError("semantic deadline passed")
+
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: budget,
+            instrumentation=sink,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+            check_admission=check,
+        )
+        context = FakeContext("worker-spent")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        await plugin.before_model_callback(callback_context=context, llm_request=PROMPT)
+        expired = True
+        await plugin.after_model_callback(
+            callback_context=context, llm_response=SimpleNamespace(usage_metadata=None)
+        )
+        expired = False
+        tool = FakeTool("probe", FakeOwner())
+        await plugin.before_tool_callback(tool=tool, tool_args={}, tool_context=context)
+        expired = True
+        await plugin.after_tool_callback(
+            tool=tool, tool_args={}, tool_context=context, result={"ok": True}
+        )
+        expired = False
+        await plugin.before_result_finalizer_call(invocation_id=context.invocation_id)
+        expired = True
+        await plugin.after_result_finalizer_call(invocation_id=context.invocation_id, usage=None)
+        await plugin.complete_invocation(invocation_id=context.invocation_id, phase="failed")
+        await plugin.close()
+        assert checks == 3
+        assert (budget.model_calls, budget.tool_calls) == (2, 1)
+        assert len(budget.usage) == 2
+        assert all(span.end_calls == 1 and span.outcome == "succeeded" for span in sink.spans)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("cleanup_error", [RuntimeError(SECRET), asyncio.CancelledError()])
+def test_cancelled_tool_keeps_original_cancellation_when_history_cleanup_fails(
+    cleanup_error: BaseException,
+) -> None:
+    class FailedHistory(RecordingHistory):
+        async def failed(
+            self, context: FakeContext, result: Any, *, cancelled: bool = False
+        ) -> None:
+            await super().failed(context, result, cancelled=cancelled)
+            raise cleanup_error
+
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        history = FailedHistory()
+        sink = RecordingInstrumentation()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=sink,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+            history=history,
+        )
+        history.plugin = plugin
+        context = FakeContext("worker-cancel-history")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        tool = FakeTool("probe", FakeOwner())
+        await plugin.before_tool_callback(tool=tool, tool_args={}, tool_context=context)
+        original = asyncio.CancelledError("original")
+        with pytest.raises(asyncio.CancelledError) as raised:
+            await plugin.on_tool_error_callback(
+                tool=tool, tool_args={}, tool_context=context, error=original
+            )
+        assert raised.value is original
+        assert sink.spans[0].outcome == "cancelled"
+        assert sink.spans[0].end_calls == 1
+        assert plugin._pending_tools == {}
+        assert plugin._settling_tools == set()
+        report = state.metrics.build_report(report_id="cancel-history", duration_ms=1)
+        assert report.metrics.tools["probe"].calls == 1
+        assert SECRET not in report.model_dump_json()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("callback", ["after_model", "model_error", "after_tool"])
+@pytest.mark.parametrize("foreign", ["sdk", "session", "app", "user"])
+def test_foreign_completion_callback_cannot_settle_an_owned_call_or_accept_text(
+    callback: str, foreign: str
+) -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        budget = CountingBudget()
+        history = RecordingHistory()
+        sink = RecordingInstrumentation()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: budget,
+            instrumentation=sink,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+            history=history,
+        )
+        history.plugin = plugin
+        owned = FakeContext("worker-owned-completion")
+        plugin.prepare_invocation(invocation_id=owned.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=owned)
+        tool = FakeTool("probe", FakeOwner())
+        if callback == "after_tool":
+            await plugin.before_tool_callback(tool=tool, tool_args={}, tool_context=owned)
+        else:
+            await plugin.before_model_callback(callback_context=owned, llm_request=PROMPT)
+        outsider = FakeContext(owned.invocation_id)
+        if foreign == "sdk":
+            outsider.invocation_id = "unprepared-sdk"
+        elif foreign == "session":
+            outsider.session.id = "foreign-session"
+        elif foreign == "app":
+            outsider.session.app_name = "foreign-app"
+        else:
+            outsider.session.user_id = "foreign-user"
+        response = SimpleNamespace(
+            content=SimpleNamespace(parts=[SimpleNamespace(text=SECRET)]),
+            usage_metadata=SimpleNamespace(
+                prompt_token_count=11, candidates_token_count=7, total_token_count=18
+            ),
+        )
+        with pytest.raises(RuntimeError, match="stale"):
+            if callback == "after_model":
+                await plugin.after_model_callback(callback_context=outsider, llm_response=response)
+            elif callback == "model_error":
+                await plugin.on_model_error_callback(
+                    callback_context=outsider, llm_request=PROMPT, error=ToolFailure(SECRET)
+                )
+            else:
+                await plugin.after_tool_callback(
+                    tool=tool, tool_args={}, tool_context=outsider, result={"text": SECRET}
+                )
+        assert budget.usage == []
+        assert history.completions == []
+        assert sink.spans[0].end_calls == 0
+        assert SECRET not in json.dumps(await state.snapshot())
+        if callback == "after_tool":
+            assert id(owned) in plugin._pending_tools
+            await plugin.after_tool_callback(
+                tool=tool, tool_args={}, tool_context=owned, result={"ok": True}
+            )
+            await plugin.after_tool_callback(
+                tool=tool, tool_args={}, tool_context=owned, result={"ok": True}
+            )
+            assert len(history.completions) == 1
+        elif callback == "after_model":
+            assert len(plugin._pending_models) == 1
+            await plugin.after_model_callback(callback_context=owned, llm_response=response)
+            await plugin.after_model_callback(callback_context=owned, llm_response=response)
+            assert len(budget.usage) == 1
+        else:
+            assert len(plugin._pending_models) == 1
+            await plugin.on_model_error_callback(
+                callback_context=owned, llm_request=PROMPT, error=ToolFailure(SECRET)
+            )
+            await plugin.on_model_error_callback(
+                callback_context=owned, llm_request=PROMPT, error=ToolFailure(SECRET)
+            )
+        assert sink.spans[0].end_calls == 1
+        assert (budget.model_calls, budget.tool_calls) == (
+            (0, 1) if callback == "after_tool" else (1, 0)
+        )
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("callback", ["after_model", "model_error", "after_tool"])
+def test_completed_invocation_rejects_late_native_completion(callback: str) -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=None,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+        )
+        context = FakeContext("worker-completed")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        await plugin.complete_invocation(invocation_id=context.invocation_id, phase="succeeded")
+        settled = await state.snapshot()
+        with pytest.raises(RuntimeError, match="stale"):
+            if callback == "after_model":
+                await plugin.after_model_callback(
+                    callback_context=context, llm_response=SimpleNamespace(usage_metadata=None)
+                )
+            elif callback == "model_error":
+                await plugin.on_model_error_callback(
+                    callback_context=context, llm_request=PROMPT, error=ToolFailure(SECRET)
+                )
+            else:
+                await plugin.after_tool_callback(
+                    tool=FakeTool("probe", FakeOwner()),
+                    tool_args={},
+                    tool_context=context,
+                    result={},
+                )
+        assert await state.snapshot() == settled
+
+    asyncio.run(scenario())
+
+
+def test_rejected_run_callback_cannot_clear_owned_output_limit_evidence() -> None:
+    async def scenario() -> None:
+        state = WorkerStateStore()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=None,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset(),
+        )
+        context = FakeContext("worker-limited")
+        plugin.prepare_invocation(invocation_id=context.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=context)
+        await plugin.before_model_callback(callback_context=context, llm_request=PROMPT)
+        await plugin.after_model_callback(
+            callback_context=context,
+            llm_response=SimpleNamespace(usage_metadata=None, finish_reason="MAX_TOKENS"),
+        )
+        assert plugin.model_output_limited
+        with pytest.raises(RuntimeError, match="not prepared"):
+            await plugin.before_run_callback(invocation_context=FakeContext("foreign"))
+        assert plugin.model_output_limited
+        plugin.prepare_continuation(invocation_id=context.invocation_id, sdk_invocation_id="sdk-2")
+        with pytest.raises(RuntimeError, match="stale"):
+            await plugin.before_run_callback(
+                invocation_context=FakeContext("foreign", session=context.session)
+            )
+        assert plugin.model_output_limited
+        await plugin.before_run_callback(
+            invocation_context=FakeContext("sdk-2", session=context.session)
+        )
+        assert not plugin.model_output_limited
+        await plugin.complete_invocation(invocation_id=context.invocation_id, phase="failed")
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("foreign", ["sdk", "session", "app", "user"])
+def test_only_authorized_tool_cancellation_can_latch_current_turn(foreign):
+    async def scenario():
+        state = WorkerStateStore()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=None,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+        )
+        own = FakeContext("worker-child-cancel")
+        plugin.prepare_invocation(invocation_id=own.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=own)
+        outsider = FakeContext(own.invocation_id)
+        if foreign == "sdk":
+            outsider.invocation_id = "foreign-sdk"
+        elif foreign == "session":
+            outsider.session.id = "foreign-session"
+        elif foreign == "app":
+            outsider.session.app_name = "foreign-app"
+        else:
+            outsider.session.user_id = "foreign-user"
+        tool = FakeTool("probe", FakeOwner())
+        with pytest.raises(RuntimeError, match="stale"):
+            await plugin.on_tool_error_callback(
+                tool=tool, tool_args={}, tool_context=outsider, error=asyncio.CancelledError()
+            )
+        assert not plugin.tool_cancellation_observed
+        await plugin.before_tool_callback(tool=tool, tool_args={}, tool_context=own)
+        with pytest.raises(asyncio.CancelledError):
+            await plugin.on_tool_error_callback(
+                tool=tool, tool_args={}, tool_context=own, error=asyncio.CancelledError()
+            )
+        assert plugin.tool_cancellation_observed
+        await plugin.complete_invocation(invocation_id=own.invocation_id, phase="cancelled")
+        plugin.prepare_invocation(invocation_id="worker-healthy-next", subtask_id="1")
+        assert not plugin.tool_cancellation_observed
 
     asyncio.run(scenario())

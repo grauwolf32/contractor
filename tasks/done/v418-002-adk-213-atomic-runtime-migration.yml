@@ -5,7 +5,7 @@ milestone: adk-213-upgrade-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V418-001
 languages:
@@ -18,6 +18,8 @@ context:
     change, adjust the existing compaction series, and keep model consultation as a proposal. These pending
     tasks do not start implementation or change the current delivery focus.'
   review: tasks/evidence/v418-adk-213-review.json
+  migration_evidence: tasks/evidence/v418-adk-213-migration.json
+  boundary_probes: tasks/evidence/v418-adk-213-boundary-probes.json
   specification:
   - docs/spec/execution/worker.md#WRK-R106
   - docs/spec/execution/worker.md#WRK-R158
@@ -42,6 +44,8 @@ context:
     owns instrumentation assumptions; V39-005 introduced common completion continuation. The current 2.8
     implementation passed the ten-case control: this is a compatibility migration, not evidence that every
     path is defective on its supported pin.'
+  execution_authority: 'User authorized implementation on2026-10-25: Runtime V418 first, then Server V419.
+    V418001 baseline characterization and baseline fixes008/009 are complete.'
 scope:
   in:
   - One atomic change to runtime/pyproject.toml, generated uv.lock, exact-version smoke, production adapters,
@@ -241,3 +245,15 @@ lifecycle:
     required publication receipts through their existing owner.
   retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
     results under existing retention policies.
+verification:
+  locked_install: Fresh native Linux Python3.13.5 installation and post-commit fresh Darwin installation
+    both pass uv sync --locked; exact SDK closure and optional-provider absence verified.
+  native_full: make test-runtime and Runtime report verifier pass with 4943 passed, 55 baseline-matching
+    allowed skips, zero failures/errors; test inputs remained frozen.
+  focused: Required warning-strict 7-module command passes312; combined owning regressions306pass;
+    component boundary matrix42pass, including actual production tool families and mutation controls.
+  contracts: make test-wire-cross-language passes271 fixtures,326 Go and224 Python shared tests; full
+    make lint passes. Task/spec/backlog validators rerun for closure.
+  evidence: Exact source/lock/JUnit/log hashes, all 12 dependency changes, initial failed full attempt,
+    skip reasons, owning decisions and reproducible probes are retained in the linked migration evidence.
+implementation_commit: 85bf48cc68752ca2318d3ed13a8da91f9bdeab3e

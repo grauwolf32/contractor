@@ -209,6 +209,16 @@ preparation before the Planner starts (FAIL-RTA-3).
 **RTA-R5.** The Worker runtime may use ADK or another future
 in-process adapter without changing Workflow Scheduler or Planner contracts.
 
+**RTA-R118.** The supported Runtime dependency closure is installed from the
+committed uv lock. For ADK 2.13.0 it selects OpenTelemetry API and SDK 1.45.1
+through exactly two explicit resolver overrides of ADK's declared upper cap;
+this does not patch the SDK or install a second runtime. The custom OTLP proto
+cohort and public telemetry schema remain independently pinned. Dependency
+checks record the known metadata exception and reject unexpected mismatches.
+Certifi is at least 2026.10.19 in both the Runtime closure and the independently
+hash-pinned advisory scanner. The override is reconsidered when an accepted
+ADK release permits the patched API/SDK cohort.
+
 **RTA-R103.** The Worker runtime's dependencies live in the Runtime Agent
 deployment, not in Contractor Server.
 
@@ -712,8 +722,9 @@ cancellation, progress and artifact refs. How normal durable artifact bytes,
 Agent Skill package bytes and workspace source and state bytes stay out of
 A2A is [ART-R100, ART-R112 and ART-R113](../artifacts/artifact-store.md).
 
-**RTA-R82.** Every executed Task reaches a terminal state with a
-Contractor result. An exception escaping the Worker invocation becomes a
+**RTA-R82.** Every executed Task reaches a terminal state. Completed and
+failed execution carries a Contractor result; cancellation uses the existing
+A2A cancelled state. An exception escaping the Worker invocation becomes a
 bounded retryable `worker_execution_failed` WorkerCompletion on a `failed`
 Task, never a Task left `working` or a provider or exception message
 (FAIL-RTA-6).
@@ -722,6 +733,13 @@ Task, never a Task left `working` or a provider or exception message
 that Task ID. Cancelling a Task that was rejected as `worker_busy`, already
 finished or never ran leaves the active invocation of another Task untouched
 (FAIL-RTA-6).
+
+**RTA-R117.** If a native child cancels Worker execution without cancelling
+its A2A producer task, the executor publishes the existing terminal cancelled
+status before completing the producer. The A2A SDK ignoring a cancelled
+producer must not leave the Task working. An externally requested CancelTask,
+finalize or lease cancellation keeps its existing cancellation owner and does
+not become an executor-authored failed completion.
 
 The separation of allocation, A2A Task and context, Contractor invocation and
 ADK session identities is [WRK-R69](worker.md). One Runtime Agent has one
@@ -820,31 +838,43 @@ container removal before disposing mounted files.
 **RTA-R116.** After release, nothing in the Runtime process reaches the
 allocation's tool instances, their ArtifactClient and Toolset sessions, Worker
 State or MetricsState, including references that a library keeps in a
-process-wide cache (LIFE-WRK-3, SEC-R32). google-adk keeps two such caches:
-the module-level LRU caches of `context_utils.find_context_parameter` and
-`function_tool._build_declaration_cached` hold every callable that
-`FunctionTool` wraps strongly, as part of their key. The Runtime clears both
-during release, after it has closed every Toolset and dropped State and
-RuntimeSettings, and when a failed prepare rolls back the tools of a Worker it
-had already built. A failure to clear them is a release cleanup failure that
+process-wide cache (LIFE-WRK-3, SEC-R32). google-adk keeps three relevant LRU
+caches. `context_utils.find_context_parameter` and
+`function_tool._build_declaration_cached` retain wrapped callable keys;
+`_callable_utils._get_type_hints_for_unwrapped` retains the underlying function.
+An ordinary callable instance unwraps to its class's static `__call__` function,
+but an allocation-local function can retain the allocation through its closure.
+The Runtime clears all three during release, after it has closed every Toolset
+and dropped State and RuntimeSettings, and when a failed prepare rolls back the
+tools of a Worker it had already built. A failure to clear them is a release cleanup failure that
 keeps the slot fenced, and the idempotent release retry repeats the step
-(RTA-R91, FAIL-RTA-5). The Runtime resolves both cache functions when it
+(RTA-R91, FAIL-RTA-5). The Runtime resolves all three cache functions when it
 starts, so a google-adk version that renames or removes one fails startup.
 
 Rationale: the Runtime has one allocation slot, so the caches hold no other
 allocation's entries when release clears them, and a new allocation's tool
 instances would miss them anyway; the cost is one declaration build per tool
-per allocation. The caches belong to google-adk (2.8.0 is pinned), which the
+per allocation. The caches belong to google-adk (2.13.0 is pinned), which the
 Runtime does not patch. Handing `FunctionTool` an allocation-agnostic wrapper
 that reaches the tool through a weak reference was rejected: ADK derives the
 declaration and the call from the wrapped callable's signature, type hints,
 docstring and coroutine kind, so the wrapper would have to reproduce ADK's
 introspection, and the cached declarations would still keep
-allocation-specific descriptions. A `FunctionTool` subclass that bypasses both
-caches was rejected because it re-implements more private ADK code than one
-cache name. Revisit this when a google-adk release keys these caches weakly or
-per instance; the guard test named in the invariants fails when ADK stops
-retaining a wrapped callable.
+allocation-specific descriptions. A `FunctionTool` subclass that bypasses these
+caches was rejected because it re-implements more private ADK code than clearing
+their guarded cache handles. Revisit this when a google-adk release keys these
+caches weakly or per instance; the guard tests named in the invariants fail when
+ADK stops retaining a wrapped callable or an allocation captured by a tool function.
+
+The Runtime capability probe and Worker construction reject the effective
+`FUNCTION_TOOL_ARG_VALIDATION`, `IN_MEMORY_SESSION_SERVICE_LIGHT_COPY` and
+`SKILL_LIFECYCLE` feature flags through ADK's public feature API before creating
+ADK Worker resources. These modes are not part of the supported integration:
+raw argument admission belongs to Contractor, session snapshots must remain
+independent, and the Skill surface follows its existing three-tool contract.
+Environment and programmatic activation are both checked. A warning promoted
+to an exception also rejects startup; suppressing a warning never permits an
+unsupported feature to run.
 
 **RTA-R111.** The private release retains the allocation identity and cached
 report in `fenced` state (LIFE-RTA-5).
@@ -1097,11 +1127,13 @@ The security model, mutual TLS and the trust boundary are specified in
    MetricsState reachable, and no live object holds a RuntimeSettings secret
    or a session credential (RTA-R116). Owning tests:
    `test_release_leaves_no_allocation_tool_reachable_after_an_invocation`,
+   `test_release_collects_allocation_graph_captured_by_declared_tool_closure`,
    `test_failed_prepare_rollback_leaves_no_allocation_tool_reachable`,
    `test_release_retains_no_adapter_secret_or_session_credential`,
    `test_failed_cache_release_keeps_the_slot_fenced_until_the_retry_repeats_it`
    and `test_next_allocation_rebuilds_identical_tool_declarations`, with the
-   google-adk guard `test_adk_tool_caches_keep_wrapped_callables_until_released`,
+   google-adk guards `test_adk_tool_caches_keep_wrapped_callables_until_released`
+   and `test_adk_type_hint_cache_retains_an_allocation_captured_by_a_tool_function`,
    in [runtime/tests/test_allocation.py](../../../runtime/tests/test_allocation.py).
 
 The invariants on one slot and one Worker per process, immutability of the

@@ -25,7 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"google.golang.org/adk/model"
+	"google.golang.org/adk/v2/model"
 )
 
 type plannerServices struct {

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import re
 import uuid
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
@@ -129,11 +130,17 @@ def build_worker_a2a_application(worker: InvocableWorker, card: AgentCard) -> AS
     return Starlette(routes=routes)
 
 
+@dataclass
+class _Invocation:
+    owner: asyncio.Task[Any]
+    cancel_requested: bool = False
+
+
 class ContractorAgentExecutor(AgentExecutor):
     def __init__(self, worker: InvocableWorker) -> None:
         self._worker = worker
         # A2A Task ID -> the asyncio task currently inside ``worker.invoke``.
-        self._invocations: dict[str, asyncio.Task[Any]] = {}
+        self._invocations: dict[str, _Invocation] = {}
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         if not context.task_id or not context.context_id:
@@ -163,7 +170,9 @@ class ContractorAgentExecutor(AgentExecutor):
                 )
             else:
                 try:
-                    result = await self._invoke(context.task_id, request)
+                    result = await self._invoke(context.task_id, request, updater)
+                    if result is None:
+                        return
                 except Exception:
                     # A Worker defect must still end the Task with a bounded
                     # Contractor failure instead of leaving it working.
@@ -180,13 +189,25 @@ class ContractorAgentExecutor(AgentExecutor):
         else:
             await updater.complete(message)
 
-    async def _invoke(self, task_id: str, request: StageContentRequest) -> WorkerCompletion:
+    async def _invoke(
+        self, task_id: str, request: StageContentRequest, updater: TaskUpdater
+    ) -> WorkerCompletion | None:
         owner = asyncio.current_task()
         if owner is None or task_id in self._invocations:
             raise RuntimeError("A2A Task is already executing")
-        self._invocations[task_id] = owner
+        invocation = _Invocation(owner)
+        self._invocations[task_id] = invocation
         try:
             return await self._worker.invoke(request)
+        except asyncio.CancelledError:
+            if invocation.cancel_requested or owner.cancelling():
+                # Tool Workers cancel an owned child for CancelTask, so the
+                # producer's cancellation count alone cannot identify it.
+                raise
+            # A native child can cancel without cancelling this producer.
+            # Publish before the SDK ignores its cancelled producer.
+            await updater.cancel()
+            return None
         finally:
             self._invocations.pop(task_id, None)
 
@@ -196,9 +217,10 @@ class ContractorAgentExecutor(AgentExecutor):
             return
         # Cancel only the invocation this A2A Task started; a concurrent Task
         # rejected as busy must never cancel another Task's active invocation.
-        owner = self._invocations.get(context.task_id)
-        if owner is not None:
-            self._worker.cancel_active(owner)
+        invocation = self._invocations.get(context.task_id)
+        if invocation is not None:
+            invocation.cancel_requested = True
+            self._worker.cancel_active(invocation.owner)
 
 
 class AllocationA2AGateway:

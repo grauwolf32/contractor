@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 from fakes.clock import advance_clock, run_with_advanceable_clock
+from fakes.process_markers import atomic_marker_source
 
 from contractor_runtime.adapters.host import RuntimeAdapterMetricsState
 from contractor_runtime.adapters.http_proxy import ProxySubprocessError, ProxySubprocessLauncher
@@ -116,9 +117,17 @@ def test_repeated_cancellation_joins_child_even_during_spawn_or_cleanup(
 def _detached_holder(marker: Path) -> list[str]:
     # The descendant leaves the process group but keeps the stdout pipe open.
     return [
-        "sh",
+        sys.executable,
         "-c",
-        f"setsid sh -c 'echo $$ > {marker}; exec sleep 30' & echo started; wait",
+        "import os, time\n"
+        "child = os.fork()\n"
+        "if child == 0:\n"
+        "    os.setsid()\n"
+        + atomic_marker_source(marker, "str(os.getpid())", indentation="    ")
+        + "    print('started', flush=True)\n"
+        "    time.sleep(30)\n"
+        "else:\n"
+        "    os.waitpid(child, 0)\n",
     ]
 
 
@@ -206,9 +215,10 @@ def test_proxy_async_close_stops_the_child_not_the_calling_task(tmp_path: Path) 
                     [
                         sys.executable,
                         "-c",
-                        "import os,time; from pathlib import Path; "
-                        "assert Path(os.environ['SSL_CERT_FILE']).exists(); "
-                        f"Path({str(marker)!r}).write_text(str(os.getpid())); time.sleep(60)",
+                        "import os,time\nfrom pathlib import Path\n"
+                        "assert Path(os.environ['SSL_CERT_FILE']).exists()\n"
+                        + atomic_marker_source(marker, "str(os.getpid())")
+                        + "time.sleep(60)\n",
                     ]
                 )
             except ProxySubprocessError:
@@ -253,8 +263,9 @@ def test_proxy_async_cancellation_survives_a_failed_ca_cleanup(
                 [
                     sys.executable,
                     "-c",
-                    "import os,time; from pathlib import Path; "
-                    f"Path({str(marker)!r}).write_text(str(os.getpid())); time.sleep(60)",
+                    "import os,time\n"
+                    + atomic_marker_source(marker, "str(os.getpid())")
+                    + "time.sleep(60)\n",
                 ]
             )
         )

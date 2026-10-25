@@ -1,0 +1,170 @@
+schema_version: '1.0'
+id: V419-004
+title: Verify Gateway A2A and telemetry contracts on the Go ADK dependency closure
+milestone: go-adk-26-upgrade-2026-10
+epic: planner-worker
+kind: chore
+priority: P1
+status: completed
+depends_on:
+- V419-002
+languages:
+- go
+- markdown
+goal: Validate the shared libraries raised by ADK v2.6 without replacing Contractor adapters or changing
+  external contracts.
+context:
+  verification_authority: 'User direction on 2026-10-25: do not run a full verification after this upgrade.
+    Use the affected-owner Go suites, real PostgreSQL/race checks, shared wire fixtures and the five selected
+    process parents below. Do not run global test-go, release-verify, make lint, UI, full Runtime or all
+    E2E tests. Record this as targeted verification, not a fresh full release pass.'
+  authority: User authorized implementing Runtime first then Server. Runtime acceptance is complete; Go
+    tasks start only after their declared prerequisites complete. The later explicit no-full-rerun instruction
+    controls the final verification scope.
+  review: tasks/evidence/v419-go-adk-26-review.json
+  specification:
+  - docs/spec/execution/planners.md#PLN-R1
+  - docs/spec/execution/planners.md#PLN-R81
+  - docs/spec/execution/planners.md#PLN-R94
+  - docs/spec/execution/planners.md#PLN-R106
+  - docs/spec/execution/planners.md#PLN-R107
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  - docs/spec/platform/failure-model.md
+  - docs/spec/platform/observability.md
+  - docs/spec/execution/control-plane.md
+  - docs/testing/README.md
+  implementation_boundary: Update owning numbered specifications, limits/errors/failure/lifecycle registries
+    and every affected reader/writer with implementation. A planned extension is not current shipped behavior.
+    No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
+    Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only
+    configuration plumbing, mechanical imports and regression fixtures may change there.
+  process_verification: The five existing real-process parents declared byV419-005 run once as targeted004A2
+    verification in an independent Linux clone; reuse their exact source/module/lock records for005 if
+    unchanged. No global E2E/release run.
+  owner_wire_evidence: tasks/evidence/v419-go-adk-26-adjacent-owner-wire.json
+  process_evidence: tasks/evidence/v419-go-adk-26-selected-processes.json
+scope:
+  in:
+  - Dependency-consumer conformance, custom adapter regressions and honest optional Collector evidence.
+  out:
+  - New native provider adapters, telemetry schema migration without an owning requirement, changing configured
+    models or Runtime ADK pin.
+acceptance_criteria:
+- id: A1
+  given: Committed raised dependency graph
+  when: Gateway and schema suites execute
+  then: Requests, usage, classified errors and strict tool boundaries keep their existing observable contracts.
+- id: A2
+  given: Direct Contractor A2A client and controlled transport/process fixtures
+  when: Send/poll/cancel/result and mTLS cases execute
+  then: Identity, exact results, cancellation and reconciliation remain stable without native SDK delegation.
+- id: A3
+  given: Both content-capture settings and adversarial telemetry values
+  when: HTTP exporter and shared GenAI tests run
+  then: Only allowed bounded projections are exported once; failures remain supplementary and secrets
+    do not escape.
+- id: A4
+  given: Cross-language fixtures and the supported Runtime lock
+  when: Wire conformance runs
+  then: No unintended wire changes or hidden Python-upgrade prerequisites appear.
+tests:
+- command: go test -race -tags=integration -p=1 -json -count=1 -timeout=20m ./internal/planner/a2a ./internal/telemetry
+    ./internal/mtls ./internal/gatewayrecovery
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A2
+  - A4
+requirements:
+- id: R1
+  text: Inventory MVS-selected versions from committed modules and validate every production consumer
+    of GenAI/jsonschema/A2A/v2/OTel/protobuf/gRPC. The dated floor includes A2A/v2 2.6.0, not only the
+    separately imported legacy A2A module.
+- id: R2
+  text: Preserve custom Gateway JSON conversion, nonstreaming requests, exact tool call IDs, argument
+    validation, usage and output limits, known usage on rejected responses, error-body/credential redaction,
+    redirect rejection and recovery without abandoned-request resend.
+- id: R3
+  text: Run the direct A2A client send/poll/cancel/result paths with exact task/subtask identity, authentication/mTLS
+    and existing allocation lifecycle. Preserve WorkerResult validation, timeout/cancellation classification
+    and existing receipts; do not adopt SDK A2A delegation.
+- id: R4
+  text: Keep the existing closed OTLP vocabulary, pinned GenAI convention fixtures and invocation-local
+    exporter. No global tracer provider, automatic SDK spans, double export, ambient proxy behavior or
+    raw event serialization. Cover captureContent false/true, byte/queue limits and supplementary exporter
+    failures.
+- id: R5
+  text: Audit newly tagged LLMResponse JSON serialization against actual consumers; a changed upstream
+    JSON representation does not justify a PostgreSQL migration when reduced facts remain unchanged.
+- id: R6
+  text: Use current supported Python Runtime for wire/process checks; the Go migration has no dependency
+    on V418. Collector-only tests must provision a disposable Collector and fail missing prerequisites
+    if counted as required; ordinary package passes must report Collector skips honestly.
+failure_outcomes:
+- operation: Verification, model/tool execution and existing session mutations covered by this task
+  permanent: Invalid input and deterministic store rejection keep their existing safe nonretryable class.
+    A required verification failure blocks completion; do not relax assertions or add permanent xfails.
+  retryable: Use only the existing bounded transport/recovery policy within the original deadline; no
+    migration-specific retry or rerun-until-green.
+  ambiguous: Reconcile through the existing receipt/session sequence and same operation identity. A lost
+    reply does not prove nonexecution; never blindly repeat a Worker call or append.
+  cancelled: Invocation/test owner cancels and joins local work before teardown; already-dispatched remote
+    effects follow existing reconciliation.
+  timeout: Keep invocation, transport, completion-write, cleanup and test-harness deadlines distinct;
+    expiration admits no new semantic attempt.
+cardinality:
+- collection: Planner calls, plan, event history and their containing serialized requests/session state
+  expected: Default 32 model calls and 32 subtasks, one active dispatch and one executed tool per model
+    turn.
+  maximum: 'Existing ceilings: 1000 model calls, 1000 subtasks, 10000 Worker calls, 256-KiB initial input,
+    4-MiB Gateway request, 2-MiB session JSON and 256 recorded fact digests; inventory the current constants
+    before writing scale fixtures.'
+  bound: Respect both item and containing byte/work limits. Independent maxima need not fit simultaneously;
+    a containing limit must reject honestly before side effects. No unbounded callback scans or copies.
+lifecycle:
+- entity: Invocation-local SDK sessions, tools, clients, test fixtures and safe verification evidence
+  delete: Existing invocation owner or isolated test harness tears down only its own resources.
+  cascade: Join all goroutines/iterators before erasing context and releasing Worker handles; retain existing
+    durable result/receipt ownership.
+  retention: No new durable entity or raw transcript. Safe evidence records versions, cases and outcomes
+    without credentials, raw prompts or temporary-path prerequisites.
+test_prerequisites:
+- Commands are future implementation acceptance, not checks completed by this planning change. Record
+  exact revision, Go/ADK versions, module graph/checksums, commands, executed case counts, skips and outcomes.
+  Required cases cannot be skipped or match zero tests.
+- Use disposable real PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set for persistence acceptance; an
+  unreachable configured database fails. Canonicalize TMPDIR as Makefile does. Full package suites accompany
+  focused regressions. make test-streamline does not cover Router, so run all internal/planner packages
+  too.
+- Use actual pinned ADK Runner/tool dispatch and controlled Gateway responses. tests/integration/streamline
+  uses a fake WorkerInvoker and does not prove a real Server/Runtime process. Register new process cases
+  in the release graph and provide their fixtures/prerequisites.
+- Use testdata and test-only pseudo-Skills rather than reading live configs. Use injected clocks, synchronization
+  barriers and work/byte/row counters, not wall-clock assertions. Live Gateway benchmarks are outside
+  deterministic acceptance; keep configured models unchanged.
+- No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the
+  currently supported Runtime lock. New shared grammar or wire changes, if actually needed, must update
+  all implementations and shared fixtures in the owning task.
+- Targeted verification uses GOMAXPROCS=2, Go package parallelism=1, canonical TMPDIR and an agent-owned
+  disposable PostgreSQL database. Validate nonzero executed case inventories from Go JSON reports; a command
+  exit alone is not proof. The only ordinary optional skips are the two named live-Gateway tests and the
+  explicitly optional real-Collector test. Do not retry failed gates until green without a diagnosed change.
+verification:
+  owners: Scoped4package race union107top/300passrecords/264passedleaves;1explicitoptionalCollector skip.
+    Afternewtelemetrytest onlyfullchangedtelemetryrace repeated:50top/122records/109leavesPASS+sameoptionalCollector
+    skip. ScopedvetPASS.
+  wire: make test-wire-cross-language PASS:271fixtures326Go224Pythonsharedfunctions; Go contracts821passrecords786leaves,
+    Runtimecontracts313, sharedRuntime1240cases. No unrelated fullRuntime/UIrun.
+  process: Five whole selected parents onclean committedb46/Linuxarm64 withfreshGo2.6Server+patchedRuntime
+    lock:5parents27passrecords22requiredleaves0fail/skip. All6047capturedfiles unchanged; Rootproduction/module/Runtime/processfixtures
+    unchanged afterward. Reuse this actual record in005, do not repeat it.
+  contracts: Raised264module graph matches accepteda7e89eca; customGateway/schema owner evidence attributed
+    to exactunchanged002source. Newproxypositivecontrol+twoactualHTTPsinks prove direct isolated single
+    export and no repeat emptyFlush.
+  limits: No fullrepository/release/allE2E verification; optionalexternalCollector and liveGateway unexecuted.
+    No native exporter/A2Adelegation/compaction activation or Schedulerproductionchange.
+implementation_commit: 43c74e63f7a55656d48abe75d70f60f8ba3cdee9

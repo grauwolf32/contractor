@@ -83,11 +83,19 @@ are owned by [Planners](../execution/planners.md).
 - `worker_result_finalizer_failed`;
 - `worker_result_too_large`;
 - `unsafe_worker_result`;
+- `worker_session_lifecycle_failed`;
 - the `worker_budget_exhausted` code of [Worker](../execution/worker.md) and
   domain and runtime failures.
 
 The conditions that raise each of these codes and their retryability are
 owned by [Worker](../execution/worker.md).
+
+Interrupted-history causes (`invalid_tool_history`,
+`tool_history_limit_exceeded` and `tool_history_unavailable`) refine
+`worker_session_lifecycle_failed`; they are not additional WorkerCompletion
+failure codes. Synthetic history responses use `tool_call_not_executed`,
+`tool_call_cancelled` or `tool_call_outcome_unknown` under
+[WRK-R174 to WRK-R177](../execution/worker.md).
 
 ### Memory tool errors
 
@@ -526,7 +534,7 @@ Assembled from every document.
 | `planner_model_call_limit` | — | yes | Stable budget stop code: a model-backed Planner exhausted its hard model-call budget without a valid terminal tool; no candidate, interrupted StageTermination in phase running with retryable: true. | [PLN-R85](../execution/planners.md) |
 | `planner_plan_persistence_failed` | — | yes | A Streamline or Router Planner could not record plan progress or a fact in its durable session for a reason other than a refused write, such as an unavailable database; the invocation ends without a candidate. A refused write is `planner_session_rejected`. | [PLN-R106](../execution/planners.md) |
 | `planner_session_rejected` | — | no | The Planner session refused a session write as invalid: a session state or Run event over its bounded size, measured on the submitted JSON or on the stored jsonb text, or a fact past the session's recorded-fact limit. The Planner returns no candidate, and a retry of the same write is refused the same way. | [PLN-R106](../execution/planners.md) |
-| `planner_session_unavailable` | — | yes, except that a failed write of a non-retryable Planner failure or failed candidate (a summarized Worker result included) is non-retryable | A Passthrough, Streamline or Router Planner could not start its durable session or record a request or completion in it, and returns no candidate; a Passthrough `a2a.invoke` call keeps the outcome of the invocation, and the Streamline and Router report lists the failure it could not record before this error. | [PLN-R106](../execution/planners.md), [PLN-R119](../execution/planners.md), [PLN-R120](../execution/planners.md) |
+| `planner_session_unavailable` | — | yes, except that a failed write of a non-retryable Planner failure or failed candidate (a summarized Worker result included) is non-retryable | A Passthrough, Streamline or Router Planner could not start its durable session or record a request, required redacted ADK event or completion in it, and returns no candidate; an in-memory finish cannot override the failed required append. A Passthrough `a2a.invoke` call keeps the outcome of the invocation, and the Streamline and Router report lists the failure it could not record before this error. | [PLN-R106](../execution/planners.md), [PLN-R119](../execution/planners.md), [PLN-R120](../execution/planners.md) |
 | `planner_token_limit` | — | yes | Stable budget stop code: a model-backed Planner exhausted its hard token budget without a valid terminal tool; no candidate, interrupted StageTermination in phase running with retryable: true. | [PLN-R85](../execution/planners.md) |
 | `planner_worker_call_limit` | — | yes | Stable budget stop code: a model-backed Planner exhausted its hard Worker-call budget without a valid terminal tool; no candidate, interrupted StageTermination in phase running with retryable: true. | [PLN-R85](../execution/planners.md) |
 | `pprof: invalid duration parameter (no wire code)` | — | not specified | An invalid, duplicate or out-of-range duration on a timed or delta endpoint is rejected instead of falling back | [OPS-R205](../operations/operations.md) |
@@ -607,7 +615,12 @@ Assembled from every document.
 | `template_digest_mismatch` | — | no | Before creating the Worker, Runtime Agent found that the instruction digest, a ModelPolicy dependency digest or the enclosing AgentTemplate digest does not match the content carried in AllocationSpec; allocation preparation fails and Runtime Agent neither recomputes the identity nor fetches replacement content. | [TPL-R63](../configuration/agent-templates.md) |
 | `tool_call_cancelled` | — | yes | A started tool call was cancelled while it ran, or was still pending when the Worker closed, and its toolset recorded no domain error. | [OBS-R24](observability.md) |
 | `tool_call_failed` | — | no, unless the raising exception declares itself retryable | Recorded, and returned to the model as a failed tool result named only by the tool and the exception class, for a raised tool exception without an identifier code; also recorded in place of a tool error code that is not an identifier or that contains a long secret. | [OBS-R32](observability.md) |
+| `tool_call_not_executed` | — | no independent retry grant | Synthetic interrupted-history result only when the tool callback was never admitted; it proves no dispatch through that call and does not rerun it. | [WRK-R174](../execution/worker.md) |
+| `tool_call_outcome_unknown` | — | no blind retry; reconcile the owning receipt | Synthetic interrupted-history result for an admitted call without a known result or proven cancellation; a remote effect may have committed. | [WRK-R174](../execution/worker.md) |
 | `tool_execution_failed` | — | no | The tool callable raised an exception; when the report reference is omitted, scan-plan@1 resolves only the job's own deterministic report binding for classification. | [SCN-R48](../tools/scanners.md) |
+| `invalid_tool_history` | — | no | Internal cause of worker_session_lifecycle_failed: malformed, mismatched, stale or unencodable interrupted-call history cannot safely continue; the allocation is fenced. | [WRK-R176](../execution/worker.md), [WRK-R177](../execution/worker.md) |
+| `tool_history_limit_exceeded` | — | no | Internal cause of worker_session_lifecycle_failed: cumulative observed calls or unresolved metadata/result bytes exceed their ledger bound; the allocation is fenced. | [WRK-R175](../execution/worker.md), [WRK-R177](../execution/worker.md) |
+| `tool_history_unavailable` | — | yes, only through a fresh StageExecution | Internal cause of worker_session_lifecycle_failed: bounded history read, append proof or joined settlement cannot establish a safe conversation, including cleanup timeout; this allocation remains fenced. | [WRK-R176](../execution/worker.md), [WRK-R177](../execution/worker.md) |
 | `tool_input_conflict` | — | no | An invocation receipt exists for the same execution key with a different input digest; no launch. | [SCN-R33](../tools/scanners.md) |
 | `tool_input_invalid` | — | no | Invalid tool Worker input (unknown arguments, missing sources, wrong types or missing required arguments); no process launch. | [SCN-R48](../tools/scanners.md) |
 | `tool_outcome_unknown` | — | no | An existing started or malformed receipt, ambiguous terminal receipt persistence, or an invalid or unavailable saved ref on replay; no launch, success declaration or rescan. | [SCN-R37](../tools/scanners.md) |
@@ -640,6 +653,7 @@ Assembled from every document.
 | `worker_result_missing` | — | yes | The Worker or result finalizer produced no result output | [WRK-R57](../execution/worker.md), [ERR-R2](errors.md) |
 | `worker_result_subtask_mismatch` | — | yes | The result finalizer's subtask ID does not match the request | [WRK-R50](../execution/worker.md), [ERR-R2](errors.md) |
 | `worker_result_too_large` | — | no | A Worker result violates a deterministic size bound | [WRK-R59](../execution/worker.md), [ERR-R2](errors.md) |
+| `worker_session_lifecycle_failed` | — | yes only for the tool_history_unavailable cause; no otherwise | Allocation-local session or interrupted-history settlement failed. Deterministic invalid or over-limit history is permanent; unavailable history may succeed only in a fresh StageExecution. Every history cause fences the current allocation. | [WRK-R76](../execution/worker.md), [WRK-R177](../execution/worker.md), [ERR-R2](errors.md) |
 | `worker_state_changed` | — | not specified | A projection collection cursor was invalidated because the bound state revision changed. | [PLN-R59](../execution/planners.md) |
 | `worker_state_unavailable` | — | not specified | A Planner projection tool was called before any WorkerCompletion matching that logical Worker was returned. | [PLN-R57](../execution/planners.md) |
 | `worker_summarization_failed` | — | yes for missing, invalid, mismatched or oversized summarizer output and summarizer budget exhaustion; provider failures keep Gateway retryability | Terminal summarization failed; a more specific bounded cause is in metrics | [WRK-R152](../execution/worker.md) |

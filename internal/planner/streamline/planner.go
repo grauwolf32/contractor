@@ -21,12 +21,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/planner/stateview"
 	"github.com/grauwolf32/contractor/internal/telemetry"
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/agent/llmagent"
-	"google.golang.org/adk/model"
-	"google.golang.org/adk/runner"
-	adksession "google.golang.org/adk/session"
-	"google.golang.org/adk/tool"
+	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/agent/llmagent"
+	"google.golang.org/adk/v2/model"
+	"google.golang.org/adk/v2/runner"
+	adksession "google.golang.org/adk/v2/session"
+	"google.golang.org/adk/v2/tool"
 	"google.golang.org/genai"
 )
 
@@ -186,6 +186,22 @@ func (p *streamlinePlanner) Run(
 				break
 			}
 		}
+		var writeError *plannersession.ADKEventWriteError
+		if errors.As(iterationErr, &writeError) {
+			// finish selects its candidate before ADK appends the response.
+			// A required write failure cannot become a completed candidate.
+			failure := planner.SessionError("record ADK event", writeError)
+			if result, _ := state.terminal(); result != nil {
+				failure = planner.CompletionWriteError(planner.Completion{Result: result}, writeError)
+			}
+			if stopped := stoppedPlannerError(ctx, runContext); stopped != nil {
+				failure = planner.NewError(
+					stopped.Code, stopped.Message, stopped.Retryable && failure.Retryable,
+					errors.Join(stopped, writeError),
+				)
+			}
+			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
+		}
 		if result, failure := state.terminal(); result != nil {
 			completion := planner.Completion{Result: result}
 			if err := planner.CompleteSession(ctx, p.sessions, identity, completion); err != nil {
@@ -195,16 +211,7 @@ func (p *streamlinePlanner) Run(
 		} else if failure != nil {
 			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
 		}
-		if runContext.Err() != nil {
-			failure := planner.NewError(
-				"planner_deadline_exceeded", "Planner exhausted its wall-time limit", true,
-				runContext.Err(),
-			)
-			if ctx.Err() != nil {
-				failure = planner.NewError(
-					"planner_cancelled", "Planner invocation was cancelled", true, ctx.Err(),
-				)
-			}
+		if failure := stoppedPlannerError(ctx, runContext); failure != nil {
 			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
 		}
 		if iterationErr != nil {
@@ -232,6 +239,16 @@ func (p *streamlinePlanner) Run(
 			genai.RoleUser,
 		)
 	}
+}
+
+func stoppedPlannerError(caller, execution context.Context) *planner.Error {
+	if execution.Err() == nil {
+		return nil
+	}
+	if caller.Err() != nil {
+		return planner.NewError("planner_cancelled", "Planner invocation was cancelled", true, caller.Err())
+	}
+	return planner.NewError("planner_deadline_exceeded", "Planner exhausted its wall-time limit", true, execution.Err())
 }
 
 func (p *streamlinePlanner) ExecutionReport() (reporting.ExecutionReport, bool) {
@@ -304,7 +321,7 @@ func (p *streamlinePlanner) newRootAgent(
 		GenerateContentConfig: &genai.GenerateContentConfig{Temperature: temperature},
 		Tools:                 tools,
 		BeforeModelCallbacks: []llmagent.BeforeModelCallback{
-			func(_ agent.CallbackContext, request *model.LLMRequest) (*model.LLMResponse, error) {
+			func(_ agent.Context, request *model.LLMRequest) (*model.LLMResponse, error) {
 				if err := state.beforeModel(); err != nil {
 					return nil, err
 				}
@@ -313,7 +330,7 @@ func (p *streamlinePlanner) newRootAgent(
 			},
 		},
 		AfterModelCallbacks: []llmagent.AfterModelCallback{
-			func(_ agent.CallbackContext, response *model.LLMResponse, _ error) (*model.LLMResponse, error) {
+			func(_ agent.Context, response *model.LLMResponse, _ error) (*model.LLMResponse, error) {
 				result, err := state.afterModel(response, allowed)
 				if err != nil {
 					failure := planner.FailureFrom(err)
@@ -325,7 +342,7 @@ func (p *streamlinePlanner) newRootAgent(
 			},
 		},
 		OnModelErrorCallbacks: []llmagent.OnModelErrorCallback{
-			func(ctx agent.CallbackContext, _ *model.LLMRequest, providerErr error) (*model.LLMResponse, error) {
+			func(ctx agent.Context, _ *model.LLMRequest, providerErr error) (*model.LLMResponse, error) {
 				if ctx.Err() != nil {
 					endModelSpan("cancelled", "planner_cancelled", nil)
 					return nil, providerErr

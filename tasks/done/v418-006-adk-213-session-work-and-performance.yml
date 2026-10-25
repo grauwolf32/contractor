@@ -5,10 +5,11 @@ milestone: adk-213-upgrade-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V418-003
 - V418-004
+- V418-011
 languages:
 - python
 - markdown
@@ -26,6 +27,9 @@ context:
   - docs/spec/execution/runtime-agent.md#RTA-R116
   - docs/spec/platform/limits.md
   - docs/spec/platform/observability.md
+  specification_clarification: WRK-R161 is scoped explicitly to first-observation semantic detail; rolling
+    allocation metric records keep the existing OBS-R41 oldest-detail removal and WRK-R169 cached-projection
+    contract. The scale fixture crosses that cap without changing intended behavior.
   finding: 2.12 reduces Event/Session copying and history-loading overhead. Contractor uses InMemorySessionService
     and a custom BaseLlm object; the 2.13 advertised 8x string-model construction optimization is not
     its path. Nested State tracking/copy behavior and callback changes can affect long sessions even when
@@ -34,6 +38,8 @@ context:
     registries and affected implementations together when an explicit clarification is necessary. No ADK-version
     branches, legacy readers, dual production runtimes, model replacement, silent retries, new receipt
     store or speculative public API. Read current code and re-establish the dated evidence before implementation.
+  conformance_evidence: tasks/evidence/v418-adk-213-scale-conformance.json
+  measurement_evidence: tasks/evidence/v418-adk-213-framework-measurements.json
 scope:
   in:
   - Representative long shared/isolated histories, repeated allocations and bounded callback/State work
@@ -66,7 +72,8 @@ acceptance_criteria:
     or timing-based acceptance threshold.
 tests:
 - command: cd runtime && uv run --locked pytest -W error tests/test_adk_runtime.py tests/test_session_lifecycle.py
-    tests/test_worker_state.py tests/test_allocation.py
+    tests/test_worker_state.py tests/test_allocation.py tests/test_adk_runtime_scale.py tests/test_adk_allocation_scale.py
+    tests/test_adk_runtime_ceilings.py tests/test_metrics.py
   covers:
   - A1
   - A2
@@ -154,3 +161,18 @@ lifecycle:
     required publication receipts through their existing owner.
   retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
     results under existing retention policies.
+verification:
+  scale: All13new cases and exact eight owner modules268passed with no skip/failure on immutable native
+    Linux source; registered10ktool/100mtoken/4MiBState/record/error/name bounds and1025realallocations
+    covered at their stated actual boundaries.
+  aggregate: Fresh default locked Linux Runtime5086total:5031passed/55unchanged allowedskips/0fail/error;
+    report verifier and Linux make lint pass. Integrated host make lint, including all142scriptunit tests
+    and7sampler guards, also passes.
+  measurements: 24valid repeated samples,3 perSDK/mode/50-or150turn selection, identical frozen workload/fixture/driver
+    and Python3.13.5, clean historical7b5 and migrateda308source roots, Internet/DNS disabled. Candidate
+    times do not establish an overall speedup or isolate SDK-only causality; exact medians/work/copy/byte
+    counters and unavailable early setup attempts are preserved.
+  review: Independent read-only review finds no blocking defect. Timing residuals include deterministic
+    fixture work/Runtime/adapter; lifecycle/reducer cases are distinguished from full Runner cases. WRK-R161
+    only clarifies the existing OBS-R41 metric retention policy.
+implementation_commit: e230a0b798ae7fa58c231225fa0cfd1a8e4603af

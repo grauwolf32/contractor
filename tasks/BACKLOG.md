@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-146 open tasks: 4 in progress, 131 pending, 11 deferred. 1118 finished: 1108 completed, 10 archived.
+134 open tasks: 4 in progress, 119 pending, 11 deferred. 1136 finished: 1126 completed, 10 archived.
 
 ## In progress
 
@@ -26,7 +26,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 | [V414-014](v414-014-standby-shutdown-race.yml) | defect | P3 | — | Exit a standby Server cleanly when shutdown races its readiness listener |
-| [V418-005](v418-005-adk-213-real-process-conformance.yml) | chore | P1 | V418-003, V418-004 | Verify ADK 2.13 across real Run and allocation processes |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -37,19 +36,12 @@ the epics are in [epics.yml](epics.yml).
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
 | [V414-007](v414-007-planner-session-state-limit.yml) | chore | P3 | — | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
 | [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | feature | P1 | — | Make terminal summarizer reasoning input explicitly configurable |
-| [V417-002](v417-002-adk-compaction-continuation-spike.yml) | chore | P1 | V418-007 | Prove safe context checkpoints and continuation on accepted ADK 2.13 |
+| [V417-002](v417-002-adk-compaction-continuation-spike.yml) | chore | P1 | — | Prove safe context checkpoints and continuation on accepted ADK 2.13 |
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | feature | P1 | V417-002 | Continue an isolated Worker through workflow-selected context compaction |
 | [V417-004](v417-004-shared-session-context-compaction.yml) | feature | P1 | V417-003 | Preserve compacted context across shared-session invocations |
 | [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Resolve reference-only compactor model policy overrides |
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
-| [V418-001](v418-001-adk-213-regression-characterization.yml) | chore | P1 | — | Freeze ADK migration regressions and the logical execution contract |
-| [V418-002](v418-002-adk-213-atomic-runtime-migration.yml) | chore | P1 | V418-001 | Upgrade ADK to 2.13 with atomic execution and tool-boundary adaptations |
-| [V418-006](v418-006-adk-213-session-work-and-performance.yml) | chore | P1 | V418-003, V418-004 | Bound long-session and repeated-allocation work on ADK 2.13 |
-| [V419-001](v419-001-go-adk-26-compatibility-characterization.yml) | chore | P1 | — | Characterize Go ADK v1.6 to v2.6 compatibility on real Planner paths |
-| [V419-002](v419-002-go-adk-26-atomic-migration.yml) | chore | P1 | V419-001 | Upgrade Go ADK to v2.6.0 with atomic API and dependency adaptations |
-| [V419-003](v419-003-go-adk-26-runner-session-conformance.yml) | chore | P1 | V419-002 | Verify Go ADK v2 tool history and Planner session lifecycle |
-| [V419-004](v419-004-go-adk-26-adjacent-dependency-conformance.yml) | chore | P1 | V419-002 | Verify Gateway A2A and telemetry contracts on the Go ADK dependency closure |
-| [V420-001](v420-001-planner-compaction-contract-spike.yml) | chore | P1 | V419-005 | Prove Planner compaction checkpoints and freeze the integration contract |
+| [V420-001](v420-001-planner-compaction-contract-spike.yml) | chore | P1 | — | Prove Planner compaction checkpoints and freeze the integration contract |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | V420-001 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
@@ -59,12 +51,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | chore | P3 | — | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
-
-### Agent Skills (`agent-skills`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V418-003](v418-003-adk-213-allocation-and-skill-lifecycle.yml) | chore | P1 | V418-002 | Verify allocation cleanup and bounded Skills on ADK 2.13 |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -190,7 +176,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | defect | P2 | — | Bound allocation-history pages by page size at any cursor depth and Run filter |
-| [V418-004](v418-004-adk-213-gateway-and-telemetry-contracts.yml) | chore | P1 | V418-002 | Preserve Gateway and telemetry contracts across ADK 2.13 |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -230,8 +215,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
-| [V418-007](v418-007-adk-213-release-gate.yml) | chore | P1 | V418-005, V418-006 | Close the ADK 2.13 migration with an integrated release gate |
-| [V419-005](v419-005-go-adk-26-release-gate.yml) | chore | P1 | V419-003, V419-004 | Accept Go ADK v2.6 through an integrated deterministic release gate |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 
 ## Deferred
@@ -257,23 +240,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 41 | 55 | 19 | 81 |
-| Planners and the Worker model boundary (`planner-worker`) | 21 | 34 | 43 | 27 | 62 |
+| Run execution core (`execution-core`) | 4 | 41 | 56 | 19 | 84 |
+| Planners and the Worker model boundary (`planner-worker`) | 14 | 34 | 47 | 27 | 63 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
-| Agent Skills (`agent-skills`) | 1 | 11 | 4 | 2 | 4 |
+| Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 10 | 19 | 16 | 5 | 17 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 17 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
-| Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 18 |
+| Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 7 | 40 |
 | Audits (`audits`) | 33 | 67 | 80 | 26 | 105 |
 | Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |
-| Operations, authentication, CLI and deployment (`operations`) | 2 | 16 | 42 | 7 | 15 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 16 | 42 | 7 | 15 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 19 | 1 | 27 | 97 | 23 |
+| Quality, CI and process (`quality`) | 17 | 1 | 27 | 98 | 23 |

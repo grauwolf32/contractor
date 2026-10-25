@@ -89,6 +89,21 @@ class WorkerResultFinalizer:
             result_text=result_text,
         )
         model = _OneShotFinalizerModel(self._delegate)
+        call_started = False
+        capture = getattr(self._observer, "capture_result_finalizer_content", None)
+
+        async def before_model(callback_context: Any, llm_request: Any) -> None:
+            nonlocal call_started
+            if call_started:
+                return  # The one-shot model rejects a second provider operation.
+            await self._observer.before_result_finalizer_call(invocation_id=invocation_id)
+            call_started = True
+            if callable(capture):
+                await capture(
+                    invocation_id=invocation_id,
+                    input={"systemInstruction": _SYSTEM_INSTRUCTION, "contents": prompt},
+                )
+
         agent = LlmAgent(
             name="contractor_worker_result_finalizer",
             description="Serialize one already completed Worker result.",
@@ -99,32 +114,25 @@ class WorkerResultFinalizer:
             tools=[],
             output_schema=WorkerModelResult,
             generate_content_config=generation_config(self._policy),
+            before_model_callback=before_model,
         )
         async with one_shot_session(
             agent,
             app_name="contractor_runtime_result_finalizer",
             session_prefix="result-finalizer",
         ) as session:
-            call_started = False
             try:
-                await self._observer.before_result_finalizer_call(invocation_id=invocation_id)
-                call_started = True
-                capture = getattr(self._observer, "capture_result_finalizer_content", None)
-                if callable(capture):
-                    await capture(
-                        invocation_id=invocation_id,
-                        input={"systemInstruction": _SYSTEM_INSTRUCTION, "contents": prompt},
-                    )
                 try:
                     candidate = await session.run(
                         prompt=prompt, invocation_id=f"{invocation_id}-result-finalizer"
                     )
                 except BaseException as error:
-                    await self._observer.on_result_finalizer_error(
-                        invocation_id=invocation_id,
-                        error=error,
-                    )
-                    call_started = False
+                    if call_started:
+                        await self._observer.on_result_finalizer_error(
+                            invocation_id=invocation_id,
+                            error=error,
+                        )
+                        call_started = False
                     raise
                 if callable(capture):
                     await capture(invocation_id=invocation_id, output=candidate)

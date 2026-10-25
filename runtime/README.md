@@ -6,6 +6,16 @@ confirmed sequenced heartbeats, and exposes one private mTLS listener. Worker,
 Google ADK, A2A 1.0 JSON-RPC, and artifact tools run together in that process;
 each Runtime Agent has exactly one allocation slot.
 
+Install with the committed uv lock. The supported ADK 2.13.0 closure uses
+OpenTelemetry API/SDK 1.45.1 through two explicit `tool.uv.override-dependencies`
+entries: upstream ADK metadata still caps them at 1.44. The normal locked uv
+installation records this deliberate metadata exception; a generic pip
+resolution does not reproduce this closure. No SDK source is patched. The
+custom OTLP encoder retains its independently pinned `opentelemetry-proto1.42.1`
+and existing public telemetry schema. Certifi is constrained to 2026.10.19 or
+newer, including the separately hash-pinned advisory scanner bundle. Remove the
+narrow OTel override when an accepted ADK release permits the patched cohort.
+
 From the repository root:
 
 ```shell

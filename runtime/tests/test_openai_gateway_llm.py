@@ -68,7 +68,7 @@ def test_gateway_request_completes_only_unanswered_parallel_tool_calls() -> None
     assert messages[3]["tool_call_id"] == "call-2"
     assert json.loads(messages[3]["content"]) == {
         "ok": False,
-        "error": {"code": "tool_call_not_executed"},
+        "error": {"code": "tool_call_outcome_unknown"},
     }
     assert messages[4]["content"] == "second task"
 

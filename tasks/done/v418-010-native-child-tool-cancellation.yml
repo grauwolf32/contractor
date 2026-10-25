@@ -1,0 +1,113 @@
+schema_version: '1.0'
+id: V418-010
+title: Preserve child-tool cancellation across native SDK and A2A completion
+milestone: adk-213-upgrade-2026-10
+epic: planner-worker
+kind: defect
+introduced_by: MVP-012
+priority: P1
+status: completed
+depends_on:
+- V418-002
+languages:
+- python
+- go
+- markdown
+goal: Keep a logical Worker and its A2A Task cancelled after a child tool cancels, even when the SDK ends
+  its iterator without propagating that cancellation.
+context:
+  severity: medium
+  native_evidence: tasks/evidence/v418-adk-213-native-process-faults.json
+  finding: worker/runtime.py:_adk_turn_events/_run_adk currently converts a silently ended child-cancelled
+    SDK turn into worker_result_missing/failed State. Real mTLS/A2A case TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_parallel_child_cancel_keeps_completed_sibling
+    observes completed read plus cancelled write, model1/tools2/error1, no next request, but Go Invoke
+    err=nil and failed State.
+  provenance: Exact locked 2.8/7b5a1fd and 2.13/c59a4d2 single/parallel controls both reproduce it. MVP-012/a565c2426b7ca6019de7735f4567ab3b9260c370
+    introduced unchecked Runner completion at adk_runtime.py:229-241; V39-005/bd36ef6b64e7eee4fe43f1e6996d80363341891a
+    moved the fallback. Original MVP API execution is not claimed. This is pre-existing, not V418-002.
+  specification:
+  - docs/spec/execution/worker.md#WRK-R107
+  - docs/spec/execution/worker.md#WRK-R170
+  - docs/spec/execution/worker.md#WRK-R177
+  - docs/spec/execution/worker.md#WRK-R179
+  - docs/spec/platform/observability.md#OBS-R24
+  - docs/spec/execution/runtime-agent.md#RTA-R117
+  siblings: Single/parallel/shared/isolated self-cancellation; next shared invocation; A2A execute terminal
+    publication only without an external cancellation request; external CancelTask/lease/finalize authority;
+    deadline/sandbox/history/budget precedence; stale/foreign callbacks and seal failure.
+scope:
+  in:
+  - One authenticated O(1) current-turn cancellation fact; refuse another semantic admission and normal
+    completion after observed tool cancellation.
+  - Join tools and history before cancellation, preserve exact siblings and fence uncertain cleanup; publish
+    existing A2A cancelled state for child-originated cancellation.
+  - Real Runtime/Runner and existing production mTLS/A2A component regressions.
+  out:
+  - New public errors/operations, SDK-version branches, new retries/receipts, compaction or Scheduler
+    changes.
+acceptance_criteria:
+- id: A1
+  text: A single/parallel child cancellation yields CancelledError, cancelled Worker State and terminal
+    cancelled A2A Task, exactly-once metrics and no extra model/tool/finalizer attempt.
+- id: A2
+  text: Known sibling results remain paired exactly once in a healthy later shared invocation, with no
+    repeated effect; only a valid new logical invocation resets its evidence.
+- id: A3
+  text: Deadline, sandbox and already refused budget retain their authority; genuine empty output remains
+    its owning failure. Foreign/stale callbacks cannot set or clear active evidence.
+- id: A4
+  text: Seal failure fences allocation without replacing original cancellation; tests on the actual paths
+    fail on the old code.
+tests:
+- command: cd runtime && uv run --locked pytest -W error tests/test_adk_runtime_history.py tests/test_adk_runtime.py
+    tests/test_instrumentation.py tests/test_worker_history.py tests/test_a2a_server.py tests/test_tool_worker_deadline.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: go test -tags=integration -count=1 ./internal/controlplane -run TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_parallel_child_cancel_keeps_completed_sibling
+  covers:
+  - A1
+  - A2
+  - A4
+- command: make test-runtime
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+failure_outcomes:
+- operation: Child cancellation at an SDK/A2A boundary
+  permanent: Prior sandbox/history validation remains fail-closed.
+  retryable: No cancellation-specific replay.
+  ambiguous: Existing receipts reconcile uncertain external effects; known sibling data wins.
+  cancelled: Join and preserve cancellation even when cleanup also fails; terminal A2A status cannot stay
+    working.
+  timeout: Semantic deadline and independent joined cleanup budget stay distinct.
+cardinality:
+- collection: Current-turn cancellation evidence
+  expected: One boolean.
+  maximum: O(1); existing model/tool/turn ceilings unchanged.
+  bound: No new history scan or external call; reset only on authorized invocation/turn.
+lifecycle:
+- entity: Ephemeral SDK-turn cancellation evidence
+  delete: Existing invocation/runtime owner clears it.
+  cascade: No new durable entity or effects.
+  retention: Allocation-local only; existing metrics and terminal State persist under their owners.
+verification:
+  focused: 301 passed, zero skipped, across all five required owner modules plus the existing repeated
+    external-cancellation module. An isolated no-op guard mutation fails all four single/parallel shared/isolated
+    regressions.
+  native_linux: Fresh locked full Runtime:5051total/4996passed/55unchanged allowed skips/0fail/0errors;
+    report verifier passes; all9 native control leaves and the exact required singleton pass. Source manifest
+    remains unchanged.
+  lint: make lint passes on the final production source; linked evidence retains original component checks,
+    first failed Linux attempt, explicit external-origin repair, source/lock/report hashes and exact commands.
+implementation_commit: e80e17df9c91b84e7ba8a14e4db8fd4cb20cbbd5

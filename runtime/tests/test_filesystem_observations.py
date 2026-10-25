@@ -43,6 +43,9 @@ REVISION = "recognizable-observation-revision"
 @dataclass
 class Session:
     state: dict[str, Any] = field(default_factory=dict)
+    id: str = "workspace-observations-session"
+    app_name: str = "workspace-observations"
+    user_id: str = "user"
 
 
 @dataclass
@@ -183,6 +186,7 @@ def test_decomposed_edit_path_keeps_workspace_observation_complete() -> None:
             instrumentation=None,
             model_alias="model",
             observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"write_file"}),
             workspace_observation_source=source,
         )
         invocation_id = "worker-decomposed-edit"
@@ -230,6 +234,17 @@ def test_plugin_records_only_successful_visible_workspace_facts() -> None:
             instrumentation=None,
             model_alias="model",
             observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset(
+                {
+                    "glob",
+                    "read_file",
+                    "grep",
+                    "edit",
+                    "annotate_trace",
+                    "changed_paths",
+                    "search_def",
+                }
+            ),
             workspace_observation_source=source,
         )
         invocation_id = "worker-observations"
@@ -357,6 +372,7 @@ def test_extractor_failure_is_non_fatal_and_sequential_invocations_reset() -> No
             instrumentation=None,
             model_alias="model",
             observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"read_file"}),
             workspace_observation_source=source,
         )
 

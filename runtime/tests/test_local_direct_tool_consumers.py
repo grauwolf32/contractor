@@ -287,6 +287,7 @@ def test_observation_scope_and_read_coverage_acquire_current_disk_each_invocatio
                 instrumentation=None,
                 model_alias="model",
                 observe_artifacts=lambda _owner, _cursor: None,
+                allowed_tool_names=frozenset(tools),
                 workspace_observation_source=session.reader_view(),
             )
             previous_digest = None

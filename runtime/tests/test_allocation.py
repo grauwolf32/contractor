@@ -80,6 +80,7 @@ from contractor_runtime.telemetry.metrics import (
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import FindingsError
+from contractor_runtime.worker.factory import AdkWorkerRuntimeFactory
 from contractor_runtime.workspace import AllocationWorkspace, LocalWorkdirFactory
 
 NOW = datetime(2026, 8, 29, 10, 0, tzinfo=UTC)
@@ -1460,8 +1461,9 @@ def test_adk_tool_caches_keep_wrapped_callables_until_released() -> None:
     still alive fails: re-check the reversal condition of RTA-R116.
     """
 
-    find_context_parameter, build_declaration = adk_caches._TOOL_CALLABLE_CACHES
+    find_context_parameter, build_declaration, type_hints = adk_caches._TOOL_CALLABLE_CACHES
     assert build_declaration.__name__ == "_build_declaration_cached"
+    assert type_hints.__name__ == "_get_type_hints_for_unwrapped"
 
     constructed = wrapped_probe(declare=False)
     gc.collect()
@@ -1477,6 +1479,100 @@ def test_adk_tool_caches_keep_wrapped_callables_until_released() -> None:
     adk_caches.release_adk_tool_caches()
     gc.collect()
     assert declared() is None
+
+
+def test_adk_type_hint_cache_retains_an_allocation_captured_by_a_tool_function() -> None:
+    """An unwrapped function can retain a whole allocation through its closure."""
+
+    def declare() -> weakref.ref[CallableProbe]:
+        allocation = CallableProbe()
+
+        async def allocation_tool() -> dict[str, bool]:
+            """Use the allocation-owned fixture."""
+            return await allocation()
+
+        assert FunctionTool(allocation_tool)._get_declaration() is not None
+        return weakref.ref(allocation)
+
+    reference = declare()
+    find_context_parameter, build_declaration, type_hints = adk_caches._TOOL_CALLABLE_CACHES
+    find_context_parameter.cache_clear()
+    build_declaration.cache_clear()
+    gc.collect()
+    assert reference() is not None
+    type_hints.cache_clear()
+    gc.collect()
+    assert reference() is None
+
+
+def test_release_collects_allocation_graph_captured_by_declared_tool_closure(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Real release clears the new hints cache without test-side cache eviction."""
+
+    monkeypatch.setattr(worker_state_module, "MetricsState", TrackedMetricsState)
+    clients = TrackedArtifactClients()
+
+    class ClosureFactory(AdkWorkerRuntimeFactory):
+        async def create(self, context: WorkerBuildContext) -> Any:
+            original = context.tools["read_artifact"]
+
+            async def read_artifact(
+                namespace: str,
+                name: str,
+                revision: str | None = None,
+                offset: int = 0,
+                length: int = 262144,
+            ) -> dict[str, Any]:
+                return await original(namespace, name, revision, offset, length)
+
+            read_artifact.__doc__ = original.description
+            return await super().create(
+                replace(context, tools={**context.tools, "read_artifact": read_artifact})
+            )
+
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="closure-release-test")
+        await state.mark_registered()
+        factories = built_in_factories(
+            tmp_path,
+            artifact_client_factory=clients,
+            model_factory=lambda _: read_write_script(),
+        )
+        factories = replace(
+            factories,
+            worker_runtimes={
+                "adk@1": ClosureFactory(
+                    model_factory=lambda _: read_write_script(), artifact_client_factory=clients
+                )
+            },
+        )
+        service = AllocationService(
+            state,
+            factories,
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
+            force_exit=lambda _: None,
+        )
+        spec = make_spec()
+        await service.prepare(spec)
+        references = allocation_references(service)
+        assert service._context is not None and service._context.worker is not None
+        completion = await service._context.worker.invoke(adk_stage_request())
+        assert completion.failure is None and completion.result is not None
+        assert completion.result.artifacts["report"].revision == "write-r1"
+        del completion
+        assert clients.live() == 1
+
+        await finalize_and_release(service, spec.allocation_id)
+
+        assert live_references(references) == []
+        assert clients.live() == 0
+
+    asyncio.run(scenario())
 
 
 def test_release_leaves_no_allocation_tool_reachable_after_an_invocation(

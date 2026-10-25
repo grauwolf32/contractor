@@ -25,6 +25,32 @@ SECRET = "summary-projection-secret"
 HOST_PATH = "/srv/private/contractor/run-1"
 
 
+def test_summary_checks_semantic_admission_before_model_or_attempt_charge() -> None:
+    import asyncio
+
+    from fakes.model import json_result, scripted_model
+    from fakes.spec import allocation_spec
+
+    from contractor_runtime.worker.summarizer import TerminalSummarizer
+
+    def expired() -> None:
+        raise TimeoutError("Invocation deadline exceeded")
+
+    async def scenario() -> None:
+        model = scripted_model([json_result({"subtaskId": "1", "result": "late"})])
+        config = allocation_spec(summarizer=True).agent_template.summarizer
+        assert config is not None
+        summarizer = TerminalSummarizer(
+            model=model, policy=config.model_policy, check_admission=expired
+        )
+        with pytest.raises(TimeoutError):
+            await summarizer.run(prompt="Never admitted", invocation_id="expired-summary")
+        assert model.requests == []
+        assert summarizer.usage.model_calls == 0
+
+    asyncio.run(scenario())
+
+
 def test_transcript_keeps_only_complete_groups_and_redacts_forbidden_values() -> None:
     recorder = TranscriptRecorder(secrets=(SECRET, HOST_PATH))
     recorder.record(

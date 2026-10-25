@@ -5,8 +5,10 @@ milestone: adk-213-upgrade-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: pending
-depends_on: []
+status: completed
+depends_on:
+- V418-008
+- V418-009
 languages:
 - python
 - markdown
@@ -17,6 +19,7 @@ context:
     change, adjust the existing compaction series, and keep model consultation as a proposal. These pending
     tasks do not start implementation or change the current delivery focus.'
   review: tasks/evidence/v418-adk-213-review.json
+  characterization: tasks/evidence/v418-adk-213-characterization.json
   specification:
   - docs/spec/execution/worker.md#WRK-R65
   - docs/spec/execution/worker.md#WRK-R106
@@ -34,6 +37,8 @@ context:
     registries and affected implementations together when an explicit clarification is necessary. No ADK-version
     branches, legacy readers, dual production runtimes, model replacement, silent retries, new receipt
     store or speculative public API. Read current code and re-establish the dated evidence before implementation.
+  execution_authority: 'User authorized implementation on2026-10-25: finish Runtime V418 before the Server
+    Go ADK migration.'
 scope:
   in:
   - Preserve existing real-Runner assertions; extend test-local fixtures for missing cases and capture
@@ -68,7 +73,7 @@ acceptance_criteria:
 tests:
 - command: cd runtime && uv run --locked pytest -W error tests/test_adk_runtime.py tests/test_audit_completion_continuation.py
     tests/test_audit_completion_runtime.py tests/test_openai_gateway_llm.py tests/test_instrumentation.py
-    tests/test_run_artifacts_toolset.py
+    tests/test_run_artifacts_toolset.py tests/test_adk_migration_contracts.py
   covers:
   - A1
   - A2
@@ -161,3 +166,14 @@ lifecycle:
     required publication receipts through their existing owner.
   retention: No new durable runtime entity. Keep only bounded safe test evidence and ordinary published
     results under existing retention policies.
+verification:
+  baseline: 283passed in all selected baseline modules, including15new real-Runner type/empty-output regressions.
+  candidate: Exact ADK2.13/genai2.33/authlib1.9.1 isolated characterization:270passed13failed,0skips;
+    allfailureIDs retained with true nonzero exit.
+  native_full: Linux/nonroot/Python3.13.5/Go1.26.9 locked2.8 baseline make test-runtime and report verifier
+    exited0:4797passed55allowed optional skips. Exactsource hashes and skipcategories recorded.
+  lint: Full make lint passed after baseline fixes; spec/dependency graph/backlog checks rerun for the
+    logical-owner clarification.
+  baseline_defects: V418-008 and V418-009 completed before this characterization is closed; their failures
+    were not attributed to ADK2.13 or suppressed.
+implementation_commit: 4f658bb93e33e1129cf9c4a1ca72f0eb184b87d5

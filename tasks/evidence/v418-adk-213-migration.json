@@ -1,0 +1,277 @@
+{
+  "schema_version": "1.0",
+  "task": "V418-002",
+  "date": "2026-10-25",
+  "status": "accepted",
+  "source_before_atomic_migration": "0c4ba3393ae667f4c6e737d2b654caab6f8b2dc8",
+  "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+  "dependency_changes": [
+    {
+      "name": "aiohappyeyeballs",
+      "before": "2.7.1",
+      "after": null
+    },
+    {
+      "name": "aiohttp",
+      "before": "3.14.3",
+      "after": null
+    },
+    {
+      "name": "aiosignal",
+      "before": "1.4.0",
+      "after": null
+    },
+    {
+      "name": "authlib",
+      "before": "1.7.2",
+      "after": "1.9.1"
+    },
+    {
+      "name": "frozenlist",
+      "before": "1.8.0",
+      "after": null
+    },
+    {
+      "name": "google-adk",
+      "before": "2.8.0",
+      "after": "2.13.0"
+    },
+    {
+      "name": "google-genai",
+      "before": "2.20.0",
+      "after": "2.33.0"
+    },
+    {
+      "name": "multidict",
+      "before": "6.9.1",
+      "after": null
+    },
+    {
+      "name": "propcache",
+      "before": "0.5.2",
+      "after": null
+    },
+    {
+      "name": "tzdata",
+      "before": "2026.3",
+      "after": null
+    },
+    {
+      "name": "tzlocal",
+      "before": "5.4.4",
+      "after": null
+    },
+    {
+      "name": "yarl",
+      "before": "1.24.5",
+      "after": null
+    }
+  ],
+  "source_files_sha256": {
+    "docs/spec/audit-workflow-dependencies.html": "26d82a57b2aa070b6edb6b7813bf4e410b9a4fe0479e6fb6b658856ff3fb71d0",
+    "docs/spec/execution/runtime-agent.md": "35315f06fee2d785e335b2dbdd4854dc7bf604768604d4ba8b6632441b4ce0c1",
+    "docs/spec/execution/worker.md": "40b3ff35422a0831b16c24badc0093914592fb045df94bb86253461eae5bf98f",
+    "docs/spec/platform/errors.md": "c35685f7e6543468a528a3801a48f3911cfd39dc066022faac9afc9d2233300d",
+    "docs/spec/platform/failure-model.md": "7154f080a97016f6018ebd00b6dca338dbd49532a00a185373d94f59375128eb",
+    "docs/spec/platform/lifecycle.md": "de23df9887e4e39a124cc2c78b8b0e69db4f296d27d4d5b515a5aec071006ae6",
+    "docs/spec/platform/limits.md": "8be003eff18e14f8235e8448e3c345df4c666fe4accfa523adf3801f70b14d9b",
+    "docs/spec/tools/toolsets.md": "3e26901158a5724eef38a25e647d5e1e015cd40849d0e46ee735e4ceb581d4a0",
+    "runtime/pyproject.toml": "049a2fe5dfbd4f7e26050c1a7a180fd4320446179f20885bd5f21d8f138c6bf3",
+    "runtime/src/contractor_runtime/worker/adk_caches.py": "2238eab5c74018fd43a00ad5bf25e6ac1be71df4170bff8d61f6dc143ba807f1",
+    "runtime/src/contractor_runtime/worker/adk_features.py": "9ae7c45c8670b8ab9ec11a742bbc432981e50ba32539a5590c0882c711948c2f",
+    "runtime/src/contractor_runtime/worker/factory.py": "69c9eae11372101bb11d6a63ef068613543120ed2df723ca3a2dfaf37179a896",
+    "runtime/src/contractor_runtime/worker/finalizer.py": "6f23d21cfdafa144ce70bbe15f59831229224dd7068e9d0c3d269745899ac751",
+    "runtime/src/contractor_runtime/worker/function_tools.py": "df91c95769b6bebfb124d04751d9aecfc81734ef3d8e770eeb59db1e3b32ed62",
+    "runtime/src/contractor_runtime/worker/history.py": "6c912045f2fcf81187a2862fa907b436a1e4ad0721994997ca805c9616157d7b",
+    "runtime/src/contractor_runtime/worker/instrumentation.py": "9317b18e63a19341402bf7a2ec04126ebd53a3753d6ccfafa8b22aca27086f5a",
+    "runtime/src/contractor_runtime/worker/runtime.py": "41d2a2ea1f0503ec49a372f43adaa57261891793fe678610f199be7daf5280ad",
+    "runtime/src/contractor_runtime/worker/sessions.py": "4130c8ffbf4801a4e068675957637285e8d51ec7d9cbf64e3087e4d002fbac8f",
+    "runtime/src/contractor_runtime/worker/summarizer.py": "d182c1e56b52bf5900a809785dd44a8d55a7992e929914a6fd1afdc37db73c68",
+    "runtime/tests/test_adk_features.py": "8aa1da08dbf59aef03da07955d6ec1b5e4db4c8b71156dacc729afdc30eed72a",
+    "runtime/tests/test_adk_migration_contracts.py": "9863b0c98d4977ad22622d625a420000e51a7a68d94581eabe174b251a1a8052",
+    "runtime/tests/test_adk_runtime.py": "5909f0e352b781cec6ed3dabe6669aa978023e822ee9f1377bc3dbc2c5572469",
+    "runtime/tests/test_adk_runtime_history.py": "35d262aaa8b8405da4e0dc9d21cf2d173a12fa590389ee914f4e8ccbdb0a134b",
+    "runtime/tests/test_allocation.py": "d6d105a039a35095a97b12dcc06d3c4cb3351477edff16febcacf0a5e1b6d795",
+    "runtime/tests/test_audit_completion_continuation.py": "5f4f1fe4b1b772ee5737aaf8604d43a20c0c2c99d1f467f62da2288b04cd00cc",
+    "runtime/tests/test_caido_action_tools.py": "f6e57749ac256604d606834c4d2b32db33af432fabdf33202de3f8f4fd72e6a6",
+    "runtime/tests/test_dependency_smoke.py": "cdc3828c6434fca8c44bbdb4d4738f7d8fcbce3a539d090eae7dd8931c240a51",
+    "runtime/tests/test_filesystem_observations.py": "9da3effe47a5b9b5ae78ac8743543d36c80f98d25fd99b07228bde93ed90a211",
+    "runtime/tests/test_http_toolset.py": "eb817fc85ad9b870ed17e3c6a28c1206a443d5008b0a8e331014228fddde15e9",
+    "runtime/tests/test_instrumentation.py": "71ec6eff1cc2313492c11d486ab0a066dcb1da001d8be252823434fef20b27b3",
+    "runtime/tests/test_local_direct_tool_consumers.py": "9fe32fb3f30ae2c40aea887ec10bdbfca1995a6dc88189bd1d29cb1e6a3c6af1",
+    "runtime/tests/test_telemetry_content.py": "3031f17b7bb03da6a67f898df5b9c70d0cfd2f09e50ff6fe538a538878707d3f",
+    "runtime/tests/test_worker_function_tools.py": "175ecf550fb891384c6e0512011b7ae6ec5eb6f187c4caaa25b2fa64b7e53d6d",
+    "runtime/tests/test_worker_history.py": "a6dee88192625e7299e550ddb87184cbae42e3d0518802c15c4b47b65357401b",
+    "runtime/tests/test_worker_summarizer.py": "e49cab6a713918c8b960472af5a528e72b75eba8093e92777822663963ce87cc",
+    "runtime/uv.lock": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64"
+  },
+  "implementation": [
+    "Each Runner turn has a fresh SDK invocation ID; business tool context, collector, results, State, metrics and budgets keep the original logical invocation.",
+    "Admission checks authorized SDK/session, cancellation, sandbox and original deadline before charging work. Finalizer admission runs in its actual SDK model callback; summarizer has its own checked one-shot callback.",
+    "Selected tool-name allowlist precedes telemetry retention. Missing function-call IDs become owned contractor-tool IDs before SDK history projection.",
+    "ContractorFunctionTool preserves original int/list[int]/Optional values at the callable preprocessing boundary while retaining structured SDK conversion for other values.",
+    "A bounded invocation-local ledger keeps immutable unresolved result snapshots and seals interrupted history through public SessionService after Runner and tools join. Completed results win; never admitted, cancelled and unknown outcomes remain distinct.",
+    "Ledger bounds are 10000 cumulative calls, 32MiB pending metadata/JSON, 1001 SDK turns; reconciliation reads at most 2N+3 recent events. Sticky safe failure codes fence the allocation; no callback catch can authorize later work.",
+    "Snapshot serialization and lock admission join through cancellation, including repeated cancellation of a returned sibling result. No repair repeats a tool effect or blindly repeats an ambiguous append.",
+    "Empty STOP responses retain finite owning outcomes and known usage. A per-turn callback flag preserves MAX_TOKENS even when SDK emits no corresponding event.",
+    "Reject ambient optional SDK validation/light-copy/Skill-lifecycle modes. Allocation release clears all three strong callable caches, including the new unwrapped type-hint cache."
+  ],
+  "tests": [
+    {
+      "label": "final_combined_contracts",
+      "tests": 306,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 306,
+      "junit_sha256": "84a5e434c98b9e4a1b4e7a93f8dc6c2dad7065ab45f77dd093b45a8636739c3a"
+    },
+    {
+      "label": "terminal_and_raw_argument_matrix",
+      "tests": 107,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 107,
+      "junit_sha256": "3831b6144474d5e26b267a8ca57d5e58a3b01e52a45a049d95856d09a3e01560"
+    },
+    {
+      "label": "required_warning_strict",
+      "tests": 312,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "passed": 312,
+      "junit_sha256": "1e0da0dc6cafba0b88bf2d4c56c86dd5e666f1aab3ba7c47177a0c76b4f4708b"
+    }
+  ],
+  "first_full_linux_attempt": {
+    "command": "make test-runtime",
+    "tests": 4958,
+    "passed": 4901,
+    "failed": 2,
+    "skipped": 55,
+    "outcome": "failed",
+    "cause": "Two sibling Caido tests used the old WorkerToolCallbacks.start signature. All consumers were adapted; final full acceptance remains separate."
+  },
+  "regression_controls": [
+    "Restoring native numeric preprocessing breaks six formerly coerced production-family cases; original type/list characterization remains unchanged.",
+    "Restoring cancellable snapshot-lock admission breaks both returned-result cancellation regressions; sticky invalid-result cause and original cancellation are independently asserted.",
+    "Known completed sibling, missing-ack append, swallowed callback overflow, shared later invocation and actual finalizer/summarizer clock boundaries have deterministic real-Runner or real-Runtime tests."
+  ],
+  "boundary_probes": "tasks/evidence/v418-adk-213-boundary-probes.json",
+  "non_goals": [
+    "No native compaction or resumability enabled",
+    "No optional provider adapter/SDK or native exporter enabled",
+    "No configured model or Scheduler policy changed",
+    "No deployment or demo data changes"
+  ],
+  "reproduction": "Use the committed repository source and lock. Temporary logs are optional provenance; no external overlay, chat or untracked script is required by tests.",
+  "linux_fresh_acceptance": {
+    "commands": [
+      "cd runtime && uv sync --locked",
+      "make test-runtime",
+      "python3 scripts/release_test_reports.py verify-runtime --report REPORT"
+    ],
+    "runtime": {
+      "executable": "/work/runtime/.venv-v418002-fresh/bin/python",
+      "go": "go1.26.9 linux/arm64",
+      "kernel": "Linux 7.2.5-200.fc44.aarch64 aarch64",
+      "machine": "aarch64",
+      "optional_provider_sdks_present": {
+        "anthropic": false,
+        "litellm": false,
+        "openai": false
+      },
+      "python": "3.13.5",
+      "uv": "0.13.1 (aarch64-unknown-linux-gnu)",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      }
+    },
+    "runtime_uid": 1000,
+    "runtime_gid": 1000,
+    "result": {
+      "errors": 0,
+      "failed": 0,
+      "passed": 4943,
+      "skip_policy_matches_baseline": true,
+      "skip_reasons": {
+        "Vacuum executable is unavailable": 2,
+        "explicit real Podman release gate": 5,
+        "explicit real gate: make test-podman-supervisor": 11,
+        "explicit real-rootless command execution gate": 12,
+        "explicit real-rootless deployment/workflow gate": 1,
+        "explicit real-rootless owner-process gate": 3,
+        "explicit real-rootless startup capability gate": 2,
+        "launched by make test-audit-completion-e2e with a real Go Artifact API": 1,
+        "live LLM Gateway environment is not configured": 3,
+        "optional Katana binary is absent": 5,
+        "optional ffuf binary is absent": 3,
+        "optional nuclei binary is absent": 3,
+        "optional sqlmap binary is absent": 3,
+        "run make test-interactsh-protocol for the pinned upstream server": 1
+      },
+      "skipped": 55,
+      "total": 4998
+    },
+    "sync_exit_code": 0,
+    "runtime_metadata_exit_code": 0,
+    "make_exit_code": 0,
+    "verify_runtime_exit_code": 0,
+    "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+    "pyproject_sha256": "049a2fe5dfbd4f7e26050c1a7a180fd4320446179f20885bd5f21d8f138c6bf3",
+    "source_manifest_sha256": "651ae1051734e7476e96228ed1e482a4dbab5860de6e932d0f893f561761bfbd",
+    "archive_sha256": "cceb2abd31e19361d056abe0a11d35a8efc3215762c9653b592a129743b5b960",
+    "tracked_patch_sha256": "3aa62a399e682a1425648fd109e19ed6c6ce5fbd12275de2d6c8c8d7fb3d9ea8",
+    "source_revision": "0c4ba3393ae667f4c6e737d2b654caab6f8b2dc8",
+    "postrun_nontask_sources_unchanged": true,
+    "postrun_nontask_source_differences": [],
+    "existing_first_failure_records_unchanged": true,
+    "container_image": {
+      "id": "75ea6f134c23da46538fdd0e3afdd979f6ea96ee4e2523ff64ed772bd76d2806",
+      "reference": "docker.io/library/python@sha256:bd55e06128e2743d526738dd5cf5db924e49ead66d4fe2ad15f2aac8ad86aae9"
+    },
+    "container_resource_bounds": {
+      "memory_bytes": 4294967296,
+      "pids": 1024
+    },
+    "artifact_hashes": {
+      "runtime-metadata.json": "d15c21d69fd40f0bdf193f3116eddb3f661c04d53b30cd3c044ddc090a3a2c15",
+      "runtime.log": "d9a88991c05c9eea03f9d9dcc9f3e8087119846e6298d48fbfa2a4cb88c4bf4a",
+      "runtime.xml": "e70243abe9d707a5abc0ad540b834ef393c6818d24af09af41a328ce43a95ecd",
+      "shared-fixture-reads.log": "0e2a7c3791ddb6dc973c2664617d1e6eebf1a3d835b6da7c56e4f739adb0242d",
+      "sync.log": "1340e0915dbd292cdd7e779b46fe5c8bf603279855f0b8973bff10c1ca4380b2",
+      "verify-runtime.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "provenance_sha256": "3c396d65c215e9b0672539d481e6b5e8cc94c2702b768a98554b6bea784d56ad"
+  },
+  "other_required_gates": [
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log_sha256": "6402963ca71d07e6f472bff5cc7be68101f8d1e121b31fb6fec3b1743edae7db"
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "exit_code": 0,
+      "fixtures": 271,
+      "go_shared_tests": 326,
+      "python_shared_tests": 224,
+      "log_sha256": "99d5aa0f0100f13ca2d2238dcea11fe9650a0484c8332ee8be154eed5ba718b7"
+    }
+  ],
+  "committed_source_confirmation": {
+    "implementation_commit": "85bf48cc68752ca2318d3ed13a8da91f9bdeab3e",
+    "source_files_match_tested_hashes": true,
+    "fresh_uv_sync_locked_exit_code": 0,
+    "dependency_smoke_passed": 2,
+    "dependency_smoke_failed": 0,
+    "dependency_smoke_skipped": 0,
+    "sync_log_sha256": "6db42a0e113608d14839bf66146dba3c3cf16e8488bb2a8c19aeb961815dbd1a",
+    "junit_sha256": "c1668255acc9b5d7eaa0535e9779c2e94888b09293877aa27653c66857d3ab38"
+  }
+}

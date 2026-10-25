@@ -1,0 +1,509 @@
+{
+  "schema_version": "1.0",
+  "task": "V419-003",
+  "accepted": true,
+  "scope": "Targeted affected-owner verification only; no new full-release, global Go/PostgreSQL/lint, Runtime, UI, or broad E2E acceptance claim.",
+  "base_commit": "b46cc5e08490562a0490c8c8fce29dbb0a50d597",
+  "implementation_source_commit": "39e4775ad1a69d36a04ee4c7f31f311375cf17ab",
+  "environment": {
+    "go": "go1.26.9",
+    "platform": "darwin/arm64",
+    "GOMAXPROCS": 2,
+    "go_package_parallelism": 1,
+    "database": "Agent-owned disposable PostgreSQL; configured URL present and CREATEDB verified. Every required database case executed. No credentials or environment values retained."
+  },
+  "modules": {
+    "google.golang.org/adk/v2": {
+      "version": "v2.6.0",
+      "sum": "h1:ZgMfKWzzB1H3qQ/6JV3pGkm7rcfNZFRMkgvOLBtmJTk="
+    },
+    "google.golang.org/genai": {
+      "version": "v1.74.0",
+      "sum": "h1:n7lBIax9PkdrmfxsNilfFPOwo1ahelozeZj2Ady0lgw="
+    },
+    "github.com/google/jsonschema-go": {
+      "version": "v0.4.3",
+      "sum": "h1:/DBOLZTfDow7pe2GmaJNhltueGTtDKICi8V8p+DQPd0="
+    }
+  },
+  "source_sha256": {
+    "internal/planner/session/adk_event_fields_postgres_test.go": "94c2b581883cd04c47972b166aed1ac4841b1ce22feeb48825e38dbae0daa1a6",
+    "internal/planner/streamline/go_adk_boundary_postgres_test.go": "d74153e3342156124c66c353f9442fc870b9461461b421454c35a0d320f96661",
+    "go.mod": "39814d7a347628f48a62289abba63beba81db20dd51d1acf233d308e654bb937",
+    "go.sum": "33d3b901321b8f39d44e379736d2c9a42b8a0fcb7455ad6c20594ef5417cc195"
+  },
+  "acceptance": {
+    "command": "go test -race -p=1 -json -count=1 -timeout=20m ./internal/planner ./internal/planner/router ./internal/planner/session ./internal/planner/streamline ./tests/integration/streamline",
+    "exit_code": 0,
+    "existing_required_cases": 84,
+    "new_required_cases": 16,
+    "required_cases_total": 100,
+    "passed_including_subtests": 374,
+    "top_level_passed": 145,
+    "executed_leaf_cases": 321,
+    "packages": {
+      "github.com/grauwolf32/contractor/internal/planner": {
+        "top_level_passed": 32,
+        "pass_records": 76
+      },
+      "github.com/grauwolf32/contractor/internal/planner/router": {
+        "top_level_passed": 7,
+        "pass_records": 7
+      },
+      "github.com/grauwolf32/contractor/internal/planner/session": {
+        "top_level_passed": 33,
+        "pass_records": 61
+      },
+      "github.com/grauwolf32/contractor/internal/planner/streamline": {
+        "top_level_passed": 72,
+        "pass_records": 229
+      },
+      "github.com/grauwolf32/contractor/tests/integration/streamline": {
+        "top_level_passed": 1,
+        "pass_records": 1
+      }
+    },
+    "optional_skips": [
+      {
+        "case": "github.com/grauwolf32/contractor/tests/integration/streamline:TestLiveGatewayToolCall",
+        "reason": "explicit live Gateway opt-in"
+      },
+      {
+        "case": "github.com/grauwolf32/contractor/tests/integration/streamline:TestLiveRouterWorkflow",
+        "reason": "explicit live Gateway opt-in"
+      }
+    ],
+    "required_groups": {
+      "schemas": {
+        "passed": 6,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationSchemas/streamline/core",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationSchemas/streamline/memory",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationSchemas/streamline/state",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationSchemas/router/core",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationSchemas/router/memory",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationSchemas/router/state"
+        ]
+      },
+      "arguments": {
+        "passed": 20,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/streamline/core-number",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/streamline/core-bool",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/streamline/core-array",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/streamline/memory-number",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/streamline/memory-null",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/streamline/memory-extra",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/streamline/state-fraction",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/streamline/state-bool",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/streamline/state-null",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/streamline/state-extra",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/router/core-number",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/router/core-bool",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/router/core-array",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/router/memory-number",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/router/memory-null",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/router/memory-extra",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/router/state-fraction",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/router/state-bool",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/router/state-null",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationRawArguments/router/state-extra"
+        ]
+      },
+      "callbacks": {
+        "passed": 5,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationModelCallbacks/success",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationModelCallbacks/before-rejection",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationModelCallbacks/provider-error",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationModelCallbacks/rejected-response",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationModelCallbacks/after-rejection"
+        ]
+      },
+      "gateway_admission": {
+        "passed": 6,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHTTPAdmission/streamline/success",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHTTPAdmission/streamline/model-budget",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHTTPAdmission/streamline/rejected-usage",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHTTPAdmission/router/success",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHTTPAdmission/router/model-budget",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHTTPAdmission/router/rejected-usage"
+        ]
+      },
+      "history": {
+        "passed": 8,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistory/complete_pair",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistory/call_only",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistory/response_only",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistory/interrupted_parallel_pair",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistory/repeated_name_distinct_ids",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistory/empty_ids",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistory/response_only_with_text",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistory/mixed_complete_orphan_response_with_text"
+        ]
+      },
+      "planner_admission": {
+        "passed": 6,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistoryPlannerAdmission/streamline/unknown_call",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistoryPlannerAdmission/streamline/multiple_calls",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistoryPlannerAdmission/streamline/finish_at_budget",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistoryPlannerAdmission/router/unknown_call",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistoryPlannerAdmission/router/multiple_calls",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationHistoryPlannerAdmission/router/finish_at_budget"
+        ]
+      },
+      "lifecycle": {
+        "passed": 2,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationLifecycle/parent_cancel",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestGoADKMigrationLifecycle/consumer_break"
+        ]
+      },
+      "session_failure_precedence": {
+        "passed": 20,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/succeeded/invalid",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/succeeded/unavailable",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/failed-retryable/invalid",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/failed-retryable/unavailable",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/failed-final/invalid",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/streamline/finish/failed-final/unavailable",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/succeeded/invalid",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/succeeded/unavailable",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/failed-retryable/invalid",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/failed-retryable/unavailable",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/failed-final/invalid",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/router/finish/failed-final/unavailable",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/streamline/ordinary/none/invalid",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/streamline/ordinary/none/unavailable",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/router/ordinary/none/invalid",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAppendFailurePrecedence/router/ordinary/none/unavailable",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestModeledPlannerCancellationKeepsCompletionOwnership/streamline/before-finish",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestModeledPlannerCancellationKeepsCompletionOwnership/streamline/completion-write",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestModeledPlannerCancellationKeepsCompletionOwnership/router/before-finish",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestModeledPlannerCancellationKeepsCompletionOwnership/router/completion-write"
+        ]
+      },
+      "final_append_cancellation": {
+        "passed": 4,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation/streamline/invalid",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation/streamline/unavailable",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation/router/invalid",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerFinalOutcomeSurvivesAppendCancellation/router/unavailable"
+        ]
+      },
+      "budgets": {
+        "passed": 4,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestStreamlineStopsWhenModelCallBudgetIsExhausted",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestStreamlineStopsWhenTokenBudgetIsExceeded",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestStreamlineFinishesAfterWorkerBudgetAndTextTurn",
+          "github.com/grauwolf32/contractor/internal/planner/router:TestRouterFinishesAfterWorkerBudgetAndTextTurn"
+        ]
+      },
+      "session": {
+        "passed": 3,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/session:TestADKSessionPersistsOnlyBoundedRedactedEventFacts",
+          "github.com/grauwolf32/contractor/internal/planner/session:TestPostgresSessionPersistsCompletionForRecovery",
+          "github.com/grauwolf32/contractor/tests/integration/streamline:TestPostgresGatewayWorkerFlowRecoversWithoutSemanticReplay"
+        ]
+      },
+      "ambiguous_ack": {
+        "passed": 2,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAmbiguousAppendAck/streamline",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerAmbiguousAppendAck/router"
+        ]
+      },
+      "in_flight_event_cancel": {
+        "passed": 2,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerCancelDuringEventAppend/streamline",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerCancelDuringEventAppend/router"
+        ]
+      },
+      "worker_join": {
+        "passed": 2,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestModeledPlannerCancelDuringWorkerJoin/streamline",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestModeledPlannerCancelDuringWorkerJoin/router"
+        ]
+      },
+      "event_field_canaries": {
+        "passed": 6,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/session:TestPostgresADKEventFieldsRemainInRAMOnly/output",
+          "github.com/grauwolf32/contractor/internal/planner/session:TestPostgresADKEventFieldsRemainInRAMOnly/node_info",
+          "github.com/grauwolf32/contractor/internal/planner/session:TestPostgresADKEventFieldsRemainInRAMOnly/isolation_scope",
+          "github.com/grauwolf32/contractor/internal/planner/session:TestPostgresADKEventFieldsRemainInRAMOnly/requested_input",
+          "github.com/grauwolf32/contractor/internal/planner/session:TestPostgresADKEventFieldsRemainInRAMOnly/state_delta",
+          "github.com/grauwolf32/contractor/internal/planner/session:TestPostgresADKEventFieldsRemainInRAMOnly/llm_response_json"
+        ]
+      },
+      "completed_and_running_recovery": {
+        "passed": 4,
+        "cases": [
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerRecoveryDoesNotResumeSDK/streamline/completed-success",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerRecoveryDoesNotResumeSDK/streamline/running-noresume",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerRecoveryDoesNotResumeSDK/router/completed-success",
+          "github.com/grauwolf32/contractor/internal/planner/streamline:TestPostgresModeledPlannerRecoveryDoesNotResumeSDK/router/running-noresume"
+        ]
+      }
+    },
+    "sdk_projection_observations": {
+      "case_count": 16,
+      "observations": {
+        "history:complete_pair": {
+          "calls": [
+            "first"
+          ],
+          "case": "complete_pair",
+          "group": "history",
+          "model_calls": 1,
+          "raw_preserved": true,
+          "responses": [
+            "first"
+          ],
+          "tool_calls": 0,
+          "useful_text": false,
+          "values": [
+            "one"
+          ]
+        },
+        "history:call_only": {
+          "calls": [],
+          "case": "call_only",
+          "group": "history",
+          "model_calls": 1,
+          "raw_preserved": true,
+          "responses": [],
+          "tool_calls": 0,
+          "useful_text": false,
+          "values": []
+        },
+        "history:response_only": {
+          "calls": [],
+          "case": "response_only",
+          "group": "history",
+          "model_calls": 1,
+          "raw_preserved": true,
+          "responses": [],
+          "tool_calls": 0,
+          "useful_text": false,
+          "values": []
+        },
+        "history:interrupted_parallel_pair": {
+          "calls": [
+            "first"
+          ],
+          "case": "interrupted_parallel_pair",
+          "group": "history",
+          "model_calls": 1,
+          "raw_preserved": true,
+          "responses": [
+            "first"
+          ],
+          "tool_calls": 0,
+          "useful_text": false,
+          "values": [
+            "one"
+          ]
+        },
+        "history:repeated_name_distinct_ids": {
+          "calls": [
+            "first",
+            "second"
+          ],
+          "case": "repeated_name_distinct_ids",
+          "group": "history",
+          "model_calls": 1,
+          "raw_preserved": true,
+          "responses": [
+            "first",
+            "second"
+          ],
+          "tool_calls": 0,
+          "useful_text": false,
+          "values": [
+            "one",
+            "two"
+          ]
+        },
+        "history:empty_ids": {
+          "calls": [
+            ""
+          ],
+          "case": "empty_ids",
+          "group": "history",
+          "model_calls": 1,
+          "raw_preserved": true,
+          "responses": [
+            ""
+          ],
+          "tool_calls": 0,
+          "useful_text": false,
+          "values": [
+            "one"
+          ]
+        },
+        "history:response_only_with_text": {
+          "calls": [],
+          "case": "response_only_with_text",
+          "group": "history",
+          "model_calls": 1,
+          "raw_preserved": true,
+          "responses": [],
+          "tool_calls": 0,
+          "useful_text": true,
+          "values": []
+        },
+        "history:mixed_complete_orphan_response_with_text": {
+          "calls": [
+            "first"
+          ],
+          "case": "mixed_complete_orphan_response_with_text",
+          "group": "history",
+          "model_calls": 1,
+          "raw_preserved": true,
+          "responses": [
+            "first"
+          ],
+          "tool_calls": 0,
+          "useful_text": true,
+          "values": [
+            "one"
+          ]
+        },
+        "planner_admission:streamline/unknown_call": {
+          "case": "streamline/unknown_call",
+          "group": "planner_admission",
+          "model_calls": 2,
+          "outcome": "failed",
+          "plan_transitions": 0,
+          "worker_calls": 0
+        },
+        "planner_admission:streamline/multiple_calls": {
+          "case": "streamline/multiple_calls",
+          "group": "planner_admission",
+          "model_calls": 2,
+          "outcome": "failed",
+          "plan_transitions": 0,
+          "worker_calls": 0
+        },
+        "planner_admission:streamline/finish_at_budget": {
+          "case": "streamline/finish_at_budget",
+          "group": "planner_admission",
+          "model_calls": 3,
+          "outcome": "succeeded",
+          "plan_transitions": 3,
+          "worker_calls": 1
+        },
+        "planner_admission:router/unknown_call": {
+          "case": "router/unknown_call",
+          "group": "planner_admission",
+          "model_calls": 2,
+          "outcome": "failed",
+          "plan_transitions": 0,
+          "worker_calls": 0
+        },
+        "planner_admission:router/multiple_calls": {
+          "case": "router/multiple_calls",
+          "group": "planner_admission",
+          "model_calls": 2,
+          "outcome": "failed",
+          "plan_transitions": 0,
+          "worker_calls": 0
+        },
+        "planner_admission:router/finish_at_budget": {
+          "case": "router/finish_at_budget",
+          "group": "planner_admission",
+          "model_calls": 3,
+          "outcome": "succeeded",
+          "plan_transitions": 3,
+          "worker_calls": 1
+        },
+        "lifecycle:parent_cancel": {
+          "active_after_return": 0,
+          "caller_cancelled": true,
+          "case": "parent_cancel",
+          "group": "lifecycle",
+          "iteration_cancelled": true,
+          "joined": true,
+          "model_calls": 1
+        },
+        "lifecycle:consumer_break": {
+          "active_after_return": 0,
+          "caller_cancelled": false,
+          "case": "consumer_break",
+          "group": "lifecycle",
+          "iteration_cancelled": false,
+          "joined": true,
+          "model_calls": 1
+        }
+      },
+      "disposition": "Raw history and Contractor invariants are unchanged; v2 prunes unanswered calls/orphan responses and preserves useful orphan-adjacent text in prompt projection only."
+    },
+    "report_sha256": "49ca2cb3ad60ce78d1872048318c1da79ec992f553259fffeda3e802fc687f52",
+    "frozen_source_commit": "39e4775ad1a69d36a04ee4c7f31f311375cf17ab"
+  },
+  "contract_coverage": {
+    "R1_R2_R3": "All 84 existing migration manifest cases executed and passed; all 16 explicit v2 SDK projection observations matched. Schema/raw-argument/model-callback/usage/budget guards remain unchanged.",
+    "R4": "Both profiles use actual Runner, production Planner SessionService and real PostgreSQL. Existing 16 definite rejection/injected PG outage cases remain green. New 2 ordinary append cases delegate one real commit then inject io.ErrUnexpectedEOF; required-write cause survives, a single durable activity/contiguous sequence is retained, no candidate or next model/Worker attempt escapes, and independent failure completion/recovery never replays the uncertain append. This is a real commit with injected lost acknowledgement, not a claim of an actual network outage.",
+    "R5": "Existing model-child parent-cancel/consumer-break and independent completion controls remain green. New 2 event-cancel cases observe the actual PostgreSQL backend blocked behind an owned Run-row lock, cancel before releasing that lock, observe the delegate SQL cancellation, then permit independent completion. New 2 Worker cases drive actual modeledPlanner/Runner/execute_current_subtask into a test WorkerInvoker whose child cleanup is held by a barrier; Planner cannot return until join. The original execution deadline and cancellation cause survive; no post-return append, extra model/Worker admission or recovery replay occurs. Test WorkerInvoker is a component fixture, not a real remote Runtime process.",
+    "R6": "Six separately named fields share one real PostgreSQL schema: Output, NodeInfo, IsolationScope, RequestedInput including its response schema/payload, ordinary StateDelta, and direct LLMResponse JSON. Each uses a private-field canary distinct from the raw-content canary, checks its exact JSON path, compares structured target fields and full raw JSON after live/reloaded RAM roundtrip, and checks the exact reduced allowlist plus absence from durable Run-event/public-source JSON and Planner state. Non-temp StateDelta updates RAM state. Native workflow scheduling/compaction is not enabled.",
+    "R7": "Both profiles first obtain an actual Runner/finish successful completion receipt, then a fresh Planner replays it with zero additional SDK-session creation/model/Worker calls or writes. Existing running PostgreSQL sessions return planner_invocation_in_progress without SDK resume. Existing completed failure recovery also remains green."
+  },
+  "rejected_test_assumption": {
+    "assumption": "Active Worker caller cancellation should always return planner_cancelled, even after failDispatch cannot record its required plan transition.",
+    "actual": "Both supported v1.6 and v2.6 return and durably settle the documented retryable planner_plan_persistence_failed, preserve errors.Is(context.Canceled), join the Worker child, and never replay. The failed required plan write sets the first fatal outcome before the ordinary stop check.",
+    "disposition": "Rejected test assumption, not a product defect or an allowed unknown failure. Preserve the documented existing write-error precedence; changing it during the SDK upgrade would change behavior. Final tests assert exact class, retryability, cancellation cause, stored completion/recovery and zero replay.",
+    "specification": [
+      "docs/spec/execution/planners.md#PLN-R106",
+      "docs/spec/platform/errors.md:planner_plan_persistence_failed"
+    ],
+    "history": {
+      "plan_write_owner_task": "V3-009",
+      "plan_write_owner_commit": "2fbac4ddcf61709d01fd57025c8aa52d477b44a6",
+      "terminal_order_owner_task": "V1-006",
+      "terminal_order_owner_commit": "aacda4b36be505201f0f95aecc7d586107ba68a5"
+    },
+    "v1_6_probe": {
+      "source_commit": "990e52b92d85efbbb8bd1ad6c4f9c0ff95241df9",
+      "fixture_sha256": "5bce715197c19110a002f2bb200436708f49028c2bf4edcfccb11ae40c876b7a",
+      "adaptation": "Only the new boundary test file copied into a historical archive; versioned import paths mechanically changed to the supported unversioned ADK package. No production edits.",
+      "command": "go test -p=1 -json -count=1 -timeout=4m ./internal/planner/streamline -run ^TestModeledPlannerCancelDuringWorkerJoin$",
+      "exit_code": 1,
+      "failed_leaf_cases": 2,
+      "skipped": 0,
+      "report_sha256": "54a2b30e3959606ac2517f91dc873df7b6d25ef66a09936c847fdd8e9d8f5ea1"
+    },
+    "v2_6_development_probe": {
+      "base_commit": "b46cc5e08490562a0490c8c8fce29dbb0a50d597",
+      "exit_code": 1,
+      "failed_worker_leaf_cases": 2,
+      "report_sha256": "5a04d5b7d863137819085db28e9a6f74423503dcb310d01c45a065b70f5f8d1f",
+      "status": "Development probe with the rejected exact-code expectation; not final immutable acceptance. The final frozen owner/race run above is authoritative."
+    }
+  },
+  "fixture_repairs": "Development focus runs diagnosed fixture-only errors before acceptance: preserve existing null empty-function lists in reduced JSON; compare time.Time with Equal and put execution deadline before the independent test hang guard; finite WithoutCancel cleanup join/rollback; distinct per-field canaries and field-specific JSON/structured RAM positive controls. No production behavior changed.",
+  "unchanged_boundaries": [
+    "go.mod and go.sum byte-identical to completed V419-002 base",
+    "Runtime source and locks unchanged",
+    "Scheduler production code and compaction unchanged",
+    "No new receipt, persistence entity, protocol operation or public field",
+    "No model substitution; scripted component fixtures only"
+  ],
+  "delivery": "Test/evidence component in isolated branch; Root imports and records task completion. Generated BACKLOG is excluded from transfer.",
+  "primary_integration": {
+    "base_revision": "b46cc5e08490562a0490c8c8fce29dbb0a50d597",
+    "component_patch_sha256": "3483ac09583f1fea77c89a08a6065df0aead79fcea57e73e4c9554c66a6b9730",
+    "tested_source_and_modules_match": true,
+    "production_unchanged": true,
+    "scope": "Import the exact passing two-file test source and evidence. No repeated owner/race or global run; final process verification remains on unchanged production/module/Runtime inputs."
+  }
+}

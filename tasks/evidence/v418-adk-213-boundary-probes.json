@@ -1,0 +1,344 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-25",
+  "captured_at_utc": "2026-10-25T12:51:46.847910+00:00",
+  "task": "V418-002",
+  "status": "Component-only boundary evidence; not full Runtime, Linux, lint, cross-language or release acceptance.",
+  "provenance": {
+    "source_base_commit": "0c4ba3393ae667f4c6e737d2b654caab6f8b2dc8",
+    "source_state": "Coordinator managed worktree with uncommitted atomic ADK 2.13 implementation; source hashes identify the tested snapshot, not the base commit alone.",
+    "test_commit": "403d53661d7fd43c5fad50c3aa15f4197b754c05",
+    "test_commit_sha256_verified": true,
+    "production_lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+    "environment": {
+      "python": "3.13.16",
+      "platform": "Darwin arm64",
+      "packages": {
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0",
+        "authlib": "1.9.1"
+      }
+    },
+    "installation": "Existing coordinator .venv for the current production 2.13 lock; no candidate package overlay. This component run did not perform a fresh uv sync --locked.",
+    "source_hashes_unchanged_during_run_and_mutation": true
+  },
+  "source_files_sha256": {
+    "runtime/uv.lock": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+    "runtime/pyproject.toml": "049a2fe5dfbd4f7e26050c1a7a180fd4320446179f20885bd5f21d8f138c6bf3",
+    "runtime/src/contractor_runtime/worker/function_tools.py": "df91c95769b6bebfb124d04751d9aecfc81734ef3d8e770eeb59db1e3b32ed62",
+    "runtime/src/contractor_runtime/worker/instrumentation.py": "9317b18e63a19341402bf7a2ec04126ebd53a3753d6ccfafa8b22aca27086f5a",
+    "runtime/src/contractor_runtime/worker/runtime.py": "41d2a2ea1f0503ec49a372f43adaa57261891793fe678610f199be7daf5280ad",
+    "runtime/src/contractor_runtime/worker/one_shot.py": "1a2281f962244c9a38c09f7bf223a90ac8fb6a379cf1baaff6c5903aa88ccf2c",
+    "runtime/src/contractor_runtime/worker/finalizer.py": "6f23d21cfdafa144ce70bbe15f59831229224dd7068e9d0c3d269745899ac751",
+    "runtime/src/contractor_runtime/worker/summarizer.py": "d182c1e56b52bf5900a809785dd44a8d55a7992e929914a6fd1afdc37db73c68",
+    "runtime/tests/test_adk_migration_contracts.py": "9863b0c98d4977ad22622d625a420000e51a7a68d94581eabe174b251a1a8052"
+  },
+  "component_run": {
+    "command": "cd runtime && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests .venv/bin/python -m pytest -p no:cacheprovider -W error tests/test_adk_migration_contracts.py",
+    "executed_workspace": "/Users/ruslan/.codex/worktrees/adk-runtime-upgrade/contractor",
+    "exit_code": 0,
+    "collected": 42,
+    "passed": 42,
+    "failed": 0,
+    "skipped": 0,
+    "warnings_as_errors": true,
+    "original_cases_preserved": 15,
+    "new_cases": 27,
+    "case_id_rule": "Each complete node ID is test + \"[\" + case_id + \"]\"; an empty provider ID is represented by case_id \"\".",
+    "case_groups": [
+      {
+        "test": "tests/test_adk_migration_contracts.py::test_runner_preserves_raw_artifact_integer_rejection",
+        "case_ids": [
+          "1.0-offset",
+          "1.0-length",
+          "True-offset",
+          "True-length",
+          "1-offset",
+          "1-length",
+          "None-offset",
+          "None-length"
+        ],
+        "count": 8
+      },
+      {
+        "test": "tests/test_adk_migration_contracts.py::test_runner_preserves_raw_integer_list_rejection",
+        "case_ids": [
+          "values0",
+          "values1",
+          "values2",
+          "values3"
+        ],
+        "count": 4
+      },
+      {
+        "test": "tests/test_adk_migration_contracts.py::test_runner_empty_visible_output_keeps_missing_result_outcome",
+        "case_ids": [
+          "response0-worker_result_invalid",
+          "response1-worker_result_invalid",
+          "response2-worker_result_missing"
+        ],
+        "count": 3
+      },
+      {
+        "test": "tests/test_adk_migration_contracts.py::test_runner_terminal_empty_response_has_finite_outcome_and_known_usage",
+        "case_ids": [
+          "absent-stop-ordinary",
+          "absent-stop-finalizer",
+          "absent-stop-summarizer",
+          "empty-stop-ordinary",
+          "empty-stop-finalizer",
+          "empty-stop-summarizer",
+          "space-stop-ordinary",
+          "space-stop-finalizer",
+          "space-stop-summarizer",
+          "thought-stop-ordinary",
+          "thought-stop-finalizer",
+          "thought-stop-summarizer",
+          "output-limit-ordinary",
+          "output-limit-finalizer",
+          "output-limit-summarizer"
+        ],
+        "count": 15
+      },
+      {
+        "test": "tests/test_adk_migration_contracts.py::test_runner_tool_ids_remain_exactly_paired_across_shared_invocations",
+        "case_ids": [
+          "None",
+          "",
+          "provider-supplied-call"
+        ],
+        "count": 3
+      },
+      {
+        "test": "tests/test_adk_migration_contracts.py::test_runner_preserves_production_numeric_sibling_contracts",
+        "case_ids": [
+          "filesystem",
+          "source",
+          "code",
+          "http",
+          "caido",
+          "optional-int",
+          "valid-null",
+          "taint",
+          "exec"
+        ],
+        "count": 9
+      }
+    ]
+  },
+  "terminal_outcomes": {
+    "response_policy": "New STOP cases set finish_reason=STOP explicitly; representations are absent content, empty text, whitespace and thought-only. MAX_TOKENS case has absent content and no error_code.",
+    "ordinary": {
+      "absent_or_thought_stop": "worker_result_missing",
+      "empty_or_whitespace_stop": "worker_result_invalid",
+      "max_tokens": "worker_output_limit_exceeded",
+      "provider_calls": 1,
+      "input_output_total_tokens": [
+        7,
+        3,
+        10
+      ]
+    },
+    "finalizer": {
+      "absent_or_thought_stop": "worker_result_missing",
+      "empty_or_whitespace_stop": "worker_result_invalid",
+      "max_tokens": "worker_output_limit_exceeded",
+      "provider_calls_including_main": 2,
+      "input_output_total_tokens": [
+        14,
+        6,
+        20
+      ]
+    },
+    "summarizer": {
+      "outer_failure": "worker_summarization_failed",
+      "absent_or_thought_stop_cause": "result_missing",
+      "empty_or_whitespace_stop_cause": "result_invalid",
+      "max_tokens_cause": "output_limit_exceeded",
+      "main_calls_and_tokens": [
+        1,
+        10
+      ],
+      "summary_calls": 1,
+      "summary_input_output_total_tokens": [
+        7,
+        3,
+        10
+      ],
+      "attempts": 1,
+      "failed_attempts": 1
+    },
+    "guarantees": [
+      "No result is accepted; completed State is failed and no current invocation remains.",
+      "Known usage stays accounted with tokenUsageUnavailable=0.",
+      "No auxiliary repair loop or extra provider call occurs.",
+      "MAX_TOKENS precedence here is over empty/missing/invalid result classification; this matrix does not claim a separate simultaneous-budget precedence proof."
+    ],
+    "discovered_and_fixed_gap": "ADK 2.13 skips a response event when MAX_TOKENS has content=None and no error_code. Main Runtime initially returned worker_result_missing. Coordinator now records model_output_limited in the current SDK-turn after_model callback before SDK event filtering, resets it per turn, and checks it after joined-turn cleanup/before budget mapping. All three MAX_TOKENS role cases pass on the hashed sources."
+  },
+  "provider_id_contract": {
+    "inputs": [
+      null,
+      "",
+      "provider-supplied-call"
+    ],
+    "scope": "Two successive logical invocations reuse one shared session; each executes its own tool exactly once.",
+    "missing_id": "Main after_model callback assigns distinct contractor-tool-* IDs before SDK finalization for None/empty IDs.",
+    "supplied_id": "Existing provider ID remains byte-for-byte unchanged, including when reused in the next logical invocation.",
+    "pairing": "Stored FunctionCall/FunctionResponse IDs pair exactly; the next shared model request carries the original exact pair once; every captured OpenAI request is balanced.",
+    "provider_calls": 6,
+    "tool_effects": [
+      "first",
+      "second"
+    ]
+  },
+  "numeric_family_inventory": [
+    {
+      "family": "artifacts",
+      "guard_paths": [
+        "runtime/src/contractor_runtime/toolsets/run_artifacts/tools.py:ReadArtifactTool.__call__"
+      ],
+      "runner_cases": [
+        "test_runner_preserves_raw_artifact_integer_rejection[1.0-offset]",
+        "test_runner_preserves_raw_artifact_integer_rejection[1.0-length]",
+        "same test: True/string/null for both fields"
+      ],
+      "scope": "All eight original scalar cases execute production read_artifact through Runner; fake Artifact client receives zero calls."
+    },
+    {
+      "family": "filesystem",
+      "guard_paths": [
+        "runtime/src/contractor_runtime/toolsets/filesystem/tools.py:_FilesystemSession.read_file",
+        "runtime/src/contractor_runtime/toolsets/filesystem/tools.py:_limit"
+      ],
+      "runner_cases": [
+        "test_runner_preserves_production_numeric_sibling_contracts[filesystem]"
+      ],
+      "scope": "Exact representative: read_file(start_line=1.0). Workspace read_text/snapshot sentinels stay unused. ls/glob/grep and max_lines coverage is inferred from shared scalar-int adapter plus existing direct domain tests, not separately dispatched here."
+    },
+    {
+      "family": "source_analysis",
+      "guard_paths": [
+        "runtime/src/contractor_runtime/toolsets/source_analysis/tools.py:_validate_page",
+        "runtime/src/contractor_runtime/toolsets/source_analysis/tools.py:_validate_search",
+        "runtime/src/contractor_runtime/toolsets/source_analysis/tools.py:_validate_read_window"
+      ],
+      "runner_cases": [
+        "test_runner_preserves_production_numeric_sibling_contracts[source]"
+      ],
+      "scope": "Exact representative: list_source_files(offset=1.0) after opening a real ZIP fixture. One preparation Artifact read, no additional read from rejected call. Search/read numeric siblings rely on the same scalar-int adapter plus their existing direct guards."
+    },
+    {
+      "family": "code_analysis",
+      "guard_paths": [
+        "runtime/src/contractor_runtime/toolsets/code_analysis/tools.py:_limit",
+        "runtime/src/contractor_runtime/toolsets/code_analysis/tools.py:_path_limit",
+        "runtime/src/contractor_runtime/toolsets/code_analysis/tools.py:_path_depth",
+        "runtime/src/contractor_runtime/toolsets/code_analysis/tools.py:_complexity_threshold"
+      ],
+      "runner_cases": [
+        "test_runner_preserves_production_numeric_sibling_contracts[code]"
+      ],
+      "scope": "Exact representative: search_def(limit=1.0), before workspace snapshot/read. Other shallow/graph limits and max_depth use cursors.require_limit; threshold has a separate strict-int guard. Their per-field behavior is inferred from shared adapter and direct test_code_analysis_shallow.py::test_invalid_inputs_have_only_stable_errors, not separate Runner probes."
+    },
+    {
+      "family": "HTTP",
+      "guard_paths": [
+        "runtime/src/contractor_runtime/toolsets/http/tools.py:_HTTPSession.history",
+        "runtime/src/contractor_runtime/toolsets/http/tools.py:_HTTPSession.read_body"
+      ],
+      "runner_cases": [
+        "test_runner_preserves_production_numeric_sibling_contracts[http]"
+      ],
+      "scope": "Exact representative: http_history(limit=1.0), zero network requests. read_body request_id/offset/length have their own strict-int checks and use the shared scalar-int preservation; those fields are not individually dispatched here."
+    },
+    {
+      "family": "Caido",
+      "guard_paths": [
+        "runtime/src/contractor_runtime/toolsets/caido/tools.py:_integer"
+      ],
+      "runner_cases": [
+        "test_runner_preserves_production_numeric_sibling_contracts[caido]"
+      ],
+      "scope": "Exact representative: caido_history(limit=1.0), zero GraphQL requests. Pagination offsets, replay port and automate worker/delay numeric checks share _integer; those operations are inferred siblings, not separate Runner probes."
+    },
+    {
+      "family": "findings",
+      "guard_paths": [
+        "runtime/src/contractor_runtime/toolsets/security_findings/reader.py:ListFindingsTool.__call__"
+      ],
+      "runner_cases": [
+        "test_runner_preserves_production_numeric_sibling_contracts[optional-int]",
+        "test_runner_preserves_production_numeric_sibling_contracts[valid-null]"
+      ],
+      "scope": "Actual production Optional[int] limit: integral float rejected with findings_arguments_invalid; None remains a legitimate default and succeeds. No blanket null rejection."
+    },
+    {
+      "family": "taint_annotations",
+      "guard_paths": [
+        "runtime/src/contractor_runtime/toolsets/taint_annotations/tools.py:contractor_raw_argument_error",
+        "runtime/src/contractor_runtime/toolsets/taint_annotations/tools.py:_valid_raw_arguments"
+      ],
+      "runner_cases": [
+        "test_runner_preserves_production_numeric_sibling_contracts[taint]"
+      ],
+      "scope": "Exact representative: annotate_trace(definition_line=1.0), raw guard rejects before workspace read/snapshot/update. annotate_validate/annotate_sink use the same owner raw-type mechanism and have existing direct raw-shape tests; not separately dispatched here."
+    },
+    {
+      "family": "code_execution",
+      "guard_paths": [
+        "runtime/src/contractor_runtime/toolsets/code_execution/tools.py:ExecCommandTool.contractor_raw_argument_error",
+        "runtime/src/contractor_runtime/sandbox/contracts.py:ExecutionRequest.__post_init__"
+      ],
+      "runner_cases": [
+        "test_runner_preserves_production_numeric_sibling_contracts[exec]"
+      ],
+      "scope": "Exact representative: exec_command(timeout_seconds=1.0), raw guard rejects with sandbox_invalid_command and executor receives zero calls. Existing test_code_execution_toolset.py::test_invalid_arguments_launch_nothing covers direct shape/range siblings."
+    },
+    {
+      "family": "Memory",
+      "guard_paths": [
+        "runtime/src/contractor_runtime/toolsets/memory/tools.py:contractor_raw_argument_error",
+        "runtime/src/contractor_runtime/toolsets/memory/tools.py:_valid_raw_arguments"
+      ],
+      "runner_cases": [],
+      "existing_runner_test": "runtime/tests/test_adk_runtime.py::test_adk_worker_reduces_malformed_raw_memory_arguments_before_binding",
+      "scope": "No integer parameter exists on Memory tool callables. Existing real Runner missing/unknown/null/list raw-shape cases provide production coverage; they are outside this 42-case component command."
+    }
+  ],
+  "annotation_boundaries": {
+    "production_int_shapes": "The inventoried domain callables use plain int and findings Optional[int]. No Annotated[int] or list[int] callable parameter exists in these listed families.",
+    "list_runner_cases": "Four original test_runner_preserves_raw_integer_list_rejection cases execute list[int] validation through the real Runtime Runner.",
+    "annotated_callable_unit_cases": "runtime/tests/test_worker_function_tools.py::test_function_tool_keeps_raw_numbers_and_native_structured_conversion covers Annotated/Optional/list and function/method/instance/partial mechanics; these unit cases are outside the 42-case command and do not substitute for the production-family Runner probes.",
+    "intentional_numeric_unions": "HTTP request timeout:int|float|None and Caido timeout_seconds:int|float intentionally accept fractions. They are excluded from strict-int rejection. The production adapter leaves multi-numeric unions to SDK processing, which does not apply its single-int coercion to such unions.",
+    "unknown_field_policy": "Owner raw guards remain on Memory/taint/exec. The migration adds no blanket unknown-field rejection or coercion policy to unrelated tools."
+  },
+  "mutation_control": {
+    "description": "An isolated pytest.MonkeyPatch restores the stock SDK preprocessing method only in the child interpreter, replacing ContractorFunctionTool._preprocess_args with FunctionTool._preprocess_args. No repository or installed dependency file changes.",
+    "command": "cd runtime && PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=src:tests .venv/bin/python - <<'PY'\nimport pytest\nfrom google.adk.tools import FunctionTool\nfrom contractor_runtime.worker.function_tools import ContractorFunctionTool\nwith pytest.MonkeyPatch.context() as patch:\n    patch.setattr(ContractorFunctionTool, '_preprocess_args', FunctionTool._preprocess_args)\n    code = pytest.main(['-q', '--tb=line', '-p', 'no:cacheprovider', '-W', 'error', 'tests/test_adk_migration_contracts.py', '-k', 'production_numeric_sibling'])\nraise SystemExit(code)\nPY",
+    "plugin_autoload": "Disabled only for this mutation process because preloading the SDK before pytest initializes otherwise causes an anyio assertion-rewrite warning. The normal 42-case run uses normal plugin loading and -W error.",
+    "exit_code": 1,
+    "selected": 9,
+    "failed": 6,
+    "passed": 3,
+    "failed_node_ids": [
+      "tests/test_adk_migration_contracts.py::test_runner_preserves_production_numeric_sibling_contracts[filesystem]",
+      "tests/test_adk_migration_contracts.py::test_runner_preserves_production_numeric_sibling_contracts[source]",
+      "tests/test_adk_migration_contracts.py::test_runner_preserves_production_numeric_sibling_contracts[code]",
+      "tests/test_adk_migration_contracts.py::test_runner_preserves_production_numeric_sibling_contracts[http]",
+      "tests/test_adk_migration_contracts.py::test_runner_preserves_production_numeric_sibling_contracts[caido]",
+      "tests/test_adk_migration_contracts.py::test_runner_preserves_production_numeric_sibling_contracts[optional-int]"
+    ],
+    "passing_case_ids": [
+      "valid-null",
+      "taint",
+      "exec"
+    ],
+    "interpretation": "The six coercible production representatives detect the missing adapter. Valid null remains valid; taint/exec remain protected by their earlier raw-admission guards, which run before SDK preprocessing."
+  },
+  "limits_of_evidence": [
+    "This file records only the 42-case component run and its isolated nine-case negative mutation control.",
+    "Production sibling inference is named separately from exact Runner dispatch; per-field permutations are not claimed as new Runner tests.",
+    "Full Runtime/Linux suites, clean dependency installation, cross-language checks and lint are separate task gates owned by the coordinator."
+  ]
+}

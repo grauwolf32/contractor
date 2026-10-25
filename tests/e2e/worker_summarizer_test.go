@@ -159,16 +159,21 @@ func TestWorkerSummarizerProductionBoundaries(t *testing.T) {
 	for _, expectation := range []summarizerProcessExpectation{
 		{workflow: "worker-summarizer@1", mode: "invalid-summary", state: "failed", summarized: true, normalCalls: 1, normalTokens: 20_000, summaryFailure: "result_invalid"},
 		{workflow: "worker-summarizer@1", mode: "provider-timeout", state: "failed", summarized: true, normalCalls: 1, normalTokens: 20_000, summaryFailure: "gateway_unavailable"},
+		{workflow: "worker-summarizer@1", mode: "empty-summary", state: "failed", summarized: true, normalCalls: 1, normalTokens: 20_000, summaryFailure: "gateway_unavailable"},
+		{workflow: "worker-summarizer@1", mode: "thought-summary", state: "failed", summarized: true, normalCalls: 1, normalTokens: 20_000, summaryFailure: "result_missing"},
+		{workflow: "worker-summarizer@1", mode: "limited-summary", state: "failed", summarized: true, normalCalls: 1, normalTokens: 20_000, summaryFailure: "output_limit_exceeded"},
 		{workflow: "worker-summarizer@1", mode: "reuse-after-failure", state: "succeeded", normalCalls: 3, normalTokens: 20_010},
 	} {
-		runID, allocationID := runSummarizerProcessScenario(
-			t, ctx, server, runtimeProcess, gateway, publicClient, controlClient,
-			pool, publicBaseURL, runtimeBaseURL, workRoot, input, expectation,
-		)
-		runIDs = append(runIDs, runID)
-		waitForRuntimeReleased(
-			t, ctx, runtimeProcess, controlClient, runtimeBaseURL, allocationID, workRoot,
-		)
+		t.Run(expectation.mode, func(t *testing.T) {
+			runID, allocationID := runSummarizerProcessScenario(
+				t, ctx, server, runtimeProcess, gateway, publicClient, controlClient,
+				pool, publicBaseURL, runtimeBaseURL, workRoot, input, expectation,
+			)
+			runIDs = append(runIDs, runID)
+			waitForRuntimeReleased(
+				t, ctx, runtimeProcess, controlClient, runtimeBaseURL, allocationID, workRoot,
+			)
+		})
 	}
 
 	cancelRunID := createWorkflowRunWithParameters(
@@ -366,9 +371,13 @@ func assertSummarizerReport(
 		summary.FailureCodes[expectation.summaryFailure] != 1 {
 		t.Fatalf("%s failed summarizer metrics = %+v", expectation.mode, summary)
 	}
-	if expectation.summaryFailure == "gateway_unavailable" &&
+	if expectation.mode == "provider-timeout" &&
 		(summary.TotalTokens != 0 || summary.TokenUsageUnavailable != 1) {
 		t.Fatalf("%s provider failure usage = %+v", expectation.mode, summary)
+	}
+	if (expectation.mode == "empty-summary" || expectation.mode == "thought-summary" || expectation.mode == "limited-summary") &&
+		(summary.TotalTokens != 18 || summary.TokenUsageUnavailable != 0) {
+		t.Fatalf("%s rejected/empty summary lost known usage: %+v", expectation.mode, summary)
 	}
 }
 
@@ -475,8 +484,8 @@ func assertSummarizerGatewayCaptures(t *testing.T, gateway *summarizerGateway) {
 			t.Fatalf("unsafe or unpinned summarizer capture: %+v", capture)
 		}
 	}
-	if summaryCount != 6 {
-		t.Fatalf("terminal summarizer requests = %d, want 6", summaryCount)
+	if summaryCount != 9 {
+		t.Fatalf("terminal summarizer requests = %d, want 9", summaryCount)
 	}
 	encoded, err := json.Marshal(captures)
 	if err != nil {
