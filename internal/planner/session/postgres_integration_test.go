@@ -23,8 +23,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"google.golang.org/adk/model"
-	adksession "google.golang.org/adk/session"
+	"google.golang.org/adk/v2/model"
+	adksession "google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 )
 
@@ -70,7 +70,7 @@ func TestPostgresSessionPersistsCompletionForRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	event := adksession.NewEvent("adk-invocation")
+	event := adksession.NewEvent(t.Context(), "adk-invocation")
 	event.Author = "streamline_planner"
 	event.LLMResponse = model.LLMResponse{
 		Content: genai.NewContentFromFunctionCall(

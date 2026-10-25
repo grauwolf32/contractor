@@ -177,7 +177,10 @@ Scheduler sees only the framework-neutral
 **PLN-R2.** `passthrough@1` is deterministic Go code. `streamline@1` and
 `router@1` each construct one Google ADK Go `LlmAgent` behind the same
 boundary, share that Go ADK dependency and use the same bounded subtask plan
-and `finish` operation.
+and `finish` operation. The supported Server dependency is
+`google.golang.org/adk/v2` v2.6.0, installed through the committed Go module
+graph. Native session compaction and SDK resumability remain disabled;
+Contractor keeps its own Gateway, A2A, budgets and reduced durable facts.
 
 **PLN-R3.** ADK types do not enter Scheduler, RunStore, A2A or
 artifact contracts.

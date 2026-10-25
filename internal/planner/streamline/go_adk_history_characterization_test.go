@@ -16,13 +16,13 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/agent/llmagent"
-	"google.golang.org/adk/model"
-	"google.golang.org/adk/runner"
-	adksession "google.golang.org/adk/session"
-	"google.golang.org/adk/tool"
-	"google.golang.org/adk/tool/functiontool"
+	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/agent/llmagent"
+	"google.golang.org/adk/v2/model"
+	"google.golang.org/adk/v2/runner"
+	adksession "google.golang.org/adk/v2/session"
+	"google.golang.org/adk/v2/tool"
+	"google.golang.org/adk/v2/tool/functiontool"
 	"google.golang.org/genai"
 )
 
@@ -69,7 +69,7 @@ func TestGoADKMigrationHistory(t *testing.T) {
 			}
 			before := migrationRawPrefix(t, created.Session, len(test.parts))
 			var tools atomic.Int64
-			echo, err := functiontool.New(functiontool.Config{Name: "echo", Description: "Return a bounded fixture value."}, func(_ agent.ToolContext, args struct {
+			echo, err := functiontool.New(functiontool.Config{Name: "echo", Description: "Return a bounded fixture value."}, func(_ agent.Context, args struct {
 				Value string `json:"value"`
 			}) (map[string]any, error) {
 				tools.Add(1)
@@ -109,7 +109,7 @@ func TestGoADKMigrationHistory(t *testing.T) {
 }
 
 func migrationHistoryEvent(ctx context.Context, index int, role string, parts []*genai.Part) *adksession.Event {
-	event := adksession.NewEvent("fixture-seed")
+	event := adksession.NewEvent(ctx, "fixture-seed")
 	event.Timestamp = time.Unix(100+int64(index), 0)
 	event.Author = "user"
 	if role == "model" {

@@ -8,7 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"google.golang.org/adk/session"
+	"google.golang.org/adk/v2/session"
 )
 
 const (

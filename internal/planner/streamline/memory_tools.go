@@ -8,9 +8,9 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/model"
-	"google.golang.org/adk/tool"
+	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/model"
+	"google.golang.org/adk/v2/tool"
 	"google.golang.org/genai"
 )
 
@@ -75,7 +75,7 @@ func (t *plannerMemoryTool) Declaration() *genai.FunctionDeclaration {
 // advertised JSON Schema before calling the handler and would expose the
 // framework's open-ended validation errors instead of Memory's closed error
 // vocabulary. The declaration remains exact; Run owns bounded validation.
-func (t *plannerMemoryTool) ProcessRequest(_ agent.ToolContext, request *model.LLMRequest) error {
+func (t *plannerMemoryTool) ProcessRequest(_ agent.Context, request *model.LLMRequest) error {
 	if request == nil {
 		return fmt.Errorf("Planner model request is required")
 	}
@@ -102,7 +102,7 @@ func (t *plannerMemoryTool) ProcessRequest(_ agent.ToolContext, request *model.L
 }
 
 func (t *plannerMemoryTool) Run(
-	ctx agent.ToolContext,
+	ctx agent.Context,
 	raw any,
 ) (map[string]any, error) {
 	args, code := decodeMemoryToolArgs(t.operation, t.router, raw)
@@ -141,7 +141,7 @@ func (p *streamlinePlanner) memoryBindings(operation string) []workerBinding {
 }
 
 func (p *streamlinePlanner) callMemoryTool(
-	ctx agent.ToolContext,
+	ctx agent.Context,
 	state *executionState,
 	operation string,
 	bindings []workerBinding,

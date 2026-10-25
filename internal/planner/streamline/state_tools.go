@@ -10,9 +10,9 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/stateview"
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/model"
-	"google.golang.org/adk/tool"
+	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/model"
+	"google.golang.org/adk/v2/tool"
 	"google.golang.org/genai"
 )
 
@@ -83,7 +83,7 @@ func (t *plannerStateTool) Declaration() *genai.FunctionDeclaration {
 	}
 }
 
-func (t *plannerStateTool) ProcessRequest(_ agent.ToolContext, request *model.LLMRequest) error {
+func (t *plannerStateTool) ProcessRequest(_ agent.Context, request *model.LLMRequest) error {
 	if request == nil {
 		return fmt.Errorf("Planner model request is required")
 	}
@@ -110,7 +110,7 @@ func (t *plannerStateTool) ProcessRequest(_ agent.ToolContext, request *model.LL
 }
 
 func (t *plannerStateTool) Run(
-	ctx agent.ToolContext,
+	ctx agent.Context,
 	raw any,
 ) (map[string]any, error) {
 	started := time.Now()

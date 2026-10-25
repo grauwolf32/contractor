@@ -15,9 +15,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/tool"
-	"google.golang.org/adk/tool/functiontool"
+	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/tool"
+	"google.golang.org/adk/v2/tool/functiontool"
 )
 
 const (
@@ -82,7 +82,7 @@ func (p *streamlinePlanner) buildTools(
 	addSubtask, err := functiontool.New(functiontool.Config{
 		Name:        addSubtaskToolName,
 		Description: "Append one bounded immutable subtask to the ordered Stage plan. Objective and instructions are stored once; later Worker dispatches identify this exact work only by subtask_id.",
-	}, func(ctx agent.ToolContext, args addSubtaskArgs) (plannerPlanOutput, error) {
+	}, func(ctx agent.Context, args addSubtaskArgs) (plannerPlanOutput, error) {
 		return p.addSubtask(ctx, state, identity, args), nil
 	})
 	if err != nil {
@@ -95,7 +95,7 @@ func (p *streamlinePlanner) buildTools(
 			Type: "object", Properties: map[string]*jsonschema.Schema{},
 			AdditionalProperties: &jsonschema.Schema{Not: &jsonschema.Schema{}},
 		},
-	}, func(ctx agent.ToolContext, _ listSubtasksArgs) (plannerPlanOutput, error) {
+	}, func(ctx agent.Context, _ listSubtasksArgs) (plannerPlanOutput, error) {
 		return p.listSubtasks(ctx, state), nil
 	})
 	if err != nil {
@@ -114,7 +114,7 @@ func (p *streamlinePlanner) buildTools(
 			Name:        executeCurrentSubtaskToolName,
 			Description: "Execute the exact current stored subtask with one selected immutable logical Worker. Server supplies the complete StageContext; subtask_id and worker_name are the only arguments.",
 			InputSchema: schema,
-		}, func(ctx agent.ToolContext, args routerWorkerCallArgs) (workerCallOutput, error) {
+		}, func(ctx agent.Context, args routerWorkerCallArgs) (workerCallOutput, error) {
 			return p.routeWorker(ctx, state, identity, args), nil
 		})
 	} else {
@@ -125,7 +125,7 @@ func (p *streamlinePlanner) buildTools(
 				"Execute the exact current stored subtask with the sole prepared logical Worker %q (%s). Server supplies the complete immutable StageContext; subtask_id is the only argument.",
 				binding.logicalName, binding.description,
 			),
-		}, func(ctx agent.ToolContext, args workerCallArgs) (workerCallOutput, error) {
+		}, func(ctx agent.Context, args workerCallArgs) (workerCallOutput, error) {
 			return p.callWorker(ctx, state, identity, binding, args.SubtaskID), nil
 		})
 	}
@@ -147,7 +147,7 @@ func (p *streamlinePlanner) buildTools(
 	finish, err := functiontool.New(functiontool.Config{
 		Name:        finishToolName,
 		Description: "Finish the Stage with a succeeded or failed candidate. A failed candidate requires a safe error; a succeeded candidate forbids one. Every artifact must name a declared result slot and include an exact revision. Workflow Scheduler remains the acceptance and transition owner.",
-	}, func(ctx agent.ToolContext, args finishArgs) (completionToolOutput, error) {
+	}, func(ctx agent.Context, args finishArgs) (completionToolOutput, error) {
 		return p.finish(ctx, state, identity, args), nil
 	})
 	if err != nil {
@@ -159,7 +159,7 @@ func (p *streamlinePlanner) buildTools(
 }
 
 func (p *streamlinePlanner) addSubtask(
-	ctx agent.ToolContext,
+	ctx agent.Context,
 	state *executionState,
 	identity planner.SessionIdentity,
 	args addSubtaskArgs,
@@ -203,7 +203,7 @@ func (p *streamlinePlanner) addSubtask(
 }
 
 func (p *streamlinePlanner) listSubtasks(
-	_ agent.ToolContext, state *executionState,
+	_ agent.Context, state *executionState,
 ) plannerPlanOutput {
 	started := time.Now()
 	plan := p.plan.Snapshot()
@@ -221,7 +221,7 @@ func (p *streamlinePlanner) listSubtasks(
 }
 
 func (p *streamlinePlanner) callWorker(
-	ctx agent.ToolContext,
+	ctx agent.Context,
 	state *executionState,
 	identity planner.SessionIdentity,
 	binding workerBinding,
@@ -361,7 +361,7 @@ func (p *streamlinePlanner) callWorker(
 }
 
 func (p *streamlinePlanner) routeWorker(
-	ctx agent.ToolContext,
+	ctx agent.Context,
 	state *executionState,
 	identity planner.SessionIdentity,
 	args routerWorkerCallArgs,
@@ -461,7 +461,7 @@ func (p *streamlinePlanner) validateWorkerResult(
 }
 
 func (p *streamlinePlanner) finish(
-	ctx agent.ToolContext,
+	ctx agent.Context,
 	state *executionState,
 	identity planner.SessionIdentity,
 	args finishArgs,

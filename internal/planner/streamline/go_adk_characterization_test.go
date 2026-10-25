@@ -16,11 +16,11 @@ import (
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/planner/stateview"
-	"google.golang.org/adk/agent"
-	"google.golang.org/adk/agent/llmagent"
-	"google.golang.org/adk/model"
-	"google.golang.org/adk/runner"
-	adksession "google.golang.org/adk/session"
+	"google.golang.org/adk/v2/agent"
+	"google.golang.org/adk/v2/agent/llmagent"
+	"google.golang.org/adk/v2/model"
+	"google.golang.org/adk/v2/runner"
+	adksession "google.golang.org/adk/v2/session"
 	"google.golang.org/genai"
 )
 
@@ -233,14 +233,14 @@ func TestGoADKMigrationModelCallbacks(t *testing.T) {
 				return response, nil
 			}}
 			root, err := llmagent.New(llmagent.Config{Name: "migration_agent", Model: llm,
-				BeforeModelCallbacks: []llmagent.BeforeModelCallback{func(agent.CallbackContext, *model.LLMRequest) (*model.LLMResponse, error) {
+				BeforeModelCallbacks: []llmagent.BeforeModelCallback{func(agent.Context, *model.LLMRequest) (*model.LLMResponse, error) {
 					before++
 					if selected == "before-rejection" {
 						return nil, sentinel
 					}
 					return nil, nil
 				}},
-				AfterModelCallbacks: []llmagent.AfterModelCallback{func(_ agent.CallbackContext, response *model.LLMResponse, callErr error) (*model.LLMResponse, error) {
+				AfterModelCallbacks: []llmagent.AfterModelCallback{func(_ agent.Context, response *model.LLMResponse, callErr error) (*model.LLMResponse, error) {
 					after++
 					if callErr != nil {
 						return nil, fmt.Errorf("unexpected after error: %w", callErr)
@@ -251,7 +251,7 @@ func TestGoADKMigrationModelCallbacks(t *testing.T) {
 					}
 					return nil, nil
 				}},
-				OnModelErrorCallbacks: []llmagent.OnModelErrorCallback{func(_ agent.CallbackContext, _ *model.LLMRequest, modelErr error) (*model.LLMResponse, error) {
+				OnModelErrorCallbacks: []llmagent.OnModelErrorCallback{func(_ agent.Context, _ *model.LLMRequest, modelErr error) (*model.LLMResponse, error) {
 					onError++
 					var rejected *gatewayResponseRejected
 					if errors.As(modelErr, &rejected) {
