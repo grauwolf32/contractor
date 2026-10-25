@@ -5,7 +5,7 @@ milestone: go-adk-26-upgrade-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V419-002
 languages:
@@ -167,3 +167,4 @@ verification:
     export and no repeat emptyFlush.
   limits: No fullrepository/release/allE2E verification; optionalexternalCollector and liveGateway unexecuted.
     No native exporter/A2Adelegation/compaction activation or Schedulerproductionchange.
+implementation_commit: 43c74e63f7a55656d48abe75d70f60f8ba3cdee9
