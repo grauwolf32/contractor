@@ -8,8 +8,16 @@
 План уточнён после анализа ADK 2.13.0: spike V417-002 начинается после
 [V418-007](../../tasks/done/v418-007-adk-213-release-gate.yml), который принимает
 обновление и его Runtime-контракты. Compaction проверяется на этом точном
-lock, а не повторно на исторической 2.8.0. Обновление и compaction пока не
-реализованы. V417-001 с terminal `includeReasoning` остаётся независимой.
+lock, а не повторно на исторической 2.8.0. Обновление принято; production compaction
+ещё не реализован. V417-001 с terminal `includeReasoning` остаётся независимой.
+
+
+Результат integration spike от 26 октября 2026 года:
+[V417-002 evidence](../../tasks/evidence/v417-002-adk-compaction-spike.md).
+Выбран публичный request-projection callback по точным IDs/ordinals: native
+включительный timestamp range поглощает оставляемых соседей с тем же временем.
+Real Runner/Gateway proof покрывает два checkpoint, сохранение одного логического
+владельца и fail-closed continuation. Это test-only proof, не включение `compact@1`.
 
 Предлагается добавить продолжающую стратегию `compact@1`, которую автор
 Workflow выбирает для конкретного Worker binding. При давлении на контекст
