@@ -6,7 +6,8 @@ epic: planner-worker
 kind: defect
 introduced_by: V21-001
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: c09c52a94b910b5c298588cc2186e0936645b926
 depends_on: []
 languages: [python]
 goal: Every terminal ADK invocation closes its canonical Worker State even when cancellation interrupts the finalizer's before-call callback.
