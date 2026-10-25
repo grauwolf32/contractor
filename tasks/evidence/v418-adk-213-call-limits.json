@@ -1,0 +1,504 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-25",
+  "captured_at_utc": "2026-10-25T15:25:27.695191+00:00",
+  "task": "V418-011",
+  "status": "V418-011 acceptance passed for the identified final production source and exact lock. Full milestone release remains V418-007.",
+  "provenance": {
+    "task_creation_commit": "68e132209cb0a7df11a6dec3e8b170f42fc94121",
+    "introduced_by": "V2-010",
+    "introduced_by_implementation_commit": "9426486745fbc3fda74208d11c286585f431f17f",
+    "introduction_evidence": "That commit introduced <=1000 ModelPolicy and cumulative Worker budget while main adk_runtime.py:381-386 and auxiliary:476-481 omitted RunConfig.",
+    "production_patch_base": "The tested runtime.py includes the coordinator V418-010 overlay SHA62f2d14ba818923bb95e51bc34d8382c6b8eb7c5f3ec5e1efc3eb9a51097b1cf plus only the V418-011 RunConfig import and keyword. The component commit excludes the uncommitted V418-010 overlay.",
+    "environment": {
+      "platform": "Darwin arm64",
+      "python": "3.13.16",
+      "google-adk": "2.13.0"
+    },
+    "installation": "Fresh dedicated environment created with uv sync --locked --offline against the committed production lock; explicit PYTHONPATH selects the isolated worktree. No candidate wheel overlay.",
+    "source_files_sha256": {
+      "runtime/uv.lock": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "runtime/pyproject.toml": "049a2fe5dfbd4f7e26050c1a7a180fd4320446179f20885bd5f21d8f138c6bf3",
+      "runtime/src/contractor_runtime/worker/runtime.py": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5",
+      "runtime/src/contractor_runtime/worker/one_shot.py": "762bbe295d1145bb349420cc640eed3cb65dad68e0f36604fa72a1941e36e8ef",
+      "runtime/tests/test_adk_runtime_call_limits.py": "4c8bceee6c9402a5ef4693b91bd0146ed8fc111650ee73fdc7d41cace3532db9",
+      "docs/spec/execution/worker.md": "7e417717bb67f254d34ce6ba52af57ebee911e9300de408f7bdd43444ea73bfc"
+    }
+  },
+  "sdk_source_comparison": {
+    "2.8.0": {
+      "file": "google/adk/agents/run_config.py",
+      "sha256": "81c1c8bcc2bd5c05e99fa4389ec614f3d3bca34befc01819a51b9e2c32060efb",
+      "default_max_llm_calls": 500,
+      "ambient_default_override": "ADK_MAX_LLM_CALLS"
+    },
+    "2.13.0": {
+      "file": "google/adk/agents/run_config.py",
+      "sha256": "2b17ec116e7a2398dd41b838492718f29ee8262095df7374bb743c2b1ded3ef6",
+      "default_max_llm_calls": 500,
+      "ambient_default_override": "ADK_MAX_LLM_CALLS"
+    },
+    "scope": "Installed official source comparison only; no claim that the original V2 implementation or the 2.8 maximum workload was executed."
+  },
+  "implementation": {
+    "main": "Public RunConfig(max_llm_calls=exact ModelPolicy.max_model_calls) on every native Runner turn. Contractor cumulative budget still refuses the next operation across continuation turns.",
+    "one_shot": "Public finite max_llm_calls=2 allows the owned OneShotModel to reject a repair attempt with call_limit_exceeded before delegating any second provider operation. A ceiling of1 would preempt this guard because the SDK increments after before_model callbacks and before the model wrapper.",
+    "boundary_inventory": [
+      "runtime.py:_adk_turn_events",
+      "one_shot.py:OneShotSession.run (result finalizer and terminal summarizer)"
+    ],
+    "independent_review": "Continuation agent reviewed source, pinned SDK callback/counter order and tests read-only; no actionable correctness issue, all production Runner boundaries covered."
+  },
+  "checks": [
+    {
+      "command": "cd runtime && uv run --locked pytest -W error tests/test_adk_runtime_call_limits.py",
+      "executed_as": "Dedicated locked Python -m pytest -p no:cacheprovider -W error with explicit worktree PYTHONPATH",
+      "passed": 22,
+      "failed": 0,
+      "skipped": 0,
+      "case_ids": [
+        "tests/test_adk_runtime_call_limits.py::test_supported_model_ceiling_includes_999_main_calls_and_finalizer",
+        "tests/test_adk_runtime_call_limits.py::test_contractor_refuses_call_1001_before_dispatch_or_charge",
+        "tests/test_adk_runtime_call_limits.py::test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[1]",
+        "tests/test_adk_runtime_call_limits.py::test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[0]",
+        "tests/test_adk_runtime_call_limits.py::test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[1000000]",
+        "tests/test_adk_runtime_call_limits.py::test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[not-an-integer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-1-finalizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-1-summarizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-0-finalizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-0-summarizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-1000000-finalizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-1000000-summarizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-not-an-integer-finalizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-not-an-integer-summarizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1-finalizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1-summarizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-0-finalizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-0-summarizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1000000-finalizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1000000-summarizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-not-an-integer-finalizer]",
+        "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-not-an-integer-summarizer]"
+      ]
+    },
+    {
+      "command": "cd runtime && uv run --locked pytest -W error tests/test_adk_runtime.py tests/test_adk_runtime_history.py tests/test_result_finalizer.py tests/test_worker_summarizer.py tests/test_adk_migration_contracts.py tests/test_adk_runtime_call_limits.py",
+      "executed_as": "Dedicated locked Python -m pytest -p no:cacheprovider -W error with explicit worktree PYTHONPATH",
+      "passed": 243,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "ruff check --no-cache and ruff format --check --no-cache runtime.py one_shot.py test_adk_runtime_call_limits.py",
+      "exit_code": 0
+    },
+    {
+      "command": "python scripts/check_spec.py; python scripts/check_tasks.py; git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "ceiling_assertions": {
+    "successful_invocation": {
+      "configured_model_calls": 1000,
+      "main_http": 999,
+      "finalizer_http": 1,
+      "tools": 998,
+      "input_tokens": 7000,
+      "output_tokens": 3000,
+      "total_tokens": 10000,
+      "sdk_limits": [
+        1000,
+        2
+      ]
+    },
+    "refused_next_call": {
+      "configured_model_calls": 1000,
+      "main_http": 1000,
+      "finalizer_http": 0,
+      "tools": 1000,
+      "observed_model_calls": 1000,
+      "failure": "worker_budget_exhausted",
+      "dimension": "model_calls",
+      "extra_http_or_charge": 0
+    },
+    "ambient_cases": [
+      "1",
+      "0",
+      "1000000",
+      "not-an-integer"
+    ],
+    "one_shot_cases": "Each role, ambient case and success/refused-repair outcome executes exactly one real adapter HTTP operation; a refused repair reaches the owned call_limit_exceeded guard once."
+  },
+  "frozen_scale_probe": {
+    "fixture": "runtime/tests/fakes/adk_scale.py from coordinator V418-006 lane, read-only and not part of this component commit",
+    "sha256": "846ecb0c6147ef37edf8fb4fa6b4d4017c4dd5782c61ecdc01f94fa9fa118517",
+    "reproduce": "Await run_workload(Path(owned_tempdir), turns=999, width=1, mode=\"isolated\", subtasks=1), using the actual production lock and HTTP MockTransport; no external network.",
+    "before": {
+      "outcome": "failed",
+      "failure": "worker_execution_failed",
+      "main_http": 500,
+      "finalizer_http": 0,
+      "tool_effects": 500,
+      "model_metric": 501,
+      "callback_counts": {
+        "before_run_callback": 1,
+        "before_model_callback": 501,
+        "after_model_callback": 500,
+        "before_tool_callback": 500,
+        "after_tool_callback": 500
+      }
+    },
+    "after": {
+      "outcome": "succeeded",
+      "main_http": 999,
+      "finalizer_http": 1,
+      "tool_effects": 998,
+      "callback_counts": {
+        "before_run_callback": 1,
+        "before_model_callback": 999,
+        "after_model_callback": 999,
+        "before_tool_callback": 998,
+        "after_tool_callback": 998
+      }
+    },
+    "acceptance_note": "The self-contained committed tests prove the ceiling independently; this probe preserves the frozen scale fixture and historical samples unchanged."
+  },
+  "negative_control": {
+    "method": "Copy the tested production package to a separate owned temporary source directory, remove only V418-011 RunConfig imports/configuration from runtime.py and one_shot.py, and execute the same tests with that copy first on PYTHONPATH. The working production source is never mutated.",
+    "removed_patch_source_sha256": {
+      "runtime.py": "62f2d14ba818923bb95e51bc34d8382c6b8eb7c5f3ec5e1efc3eb9a51097b1cf",
+      "one_shot.py": "1a2281f962244c9a38c09f7bf223a90ac8fb6a379cf1baaff6c5903aa88ccf2c"
+    },
+    "expected_failed_cases": [
+      "tests/test_adk_runtime_call_limits.py::test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[1]",
+      "tests/test_adk_runtime_call_limits.py::test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1-finalizer]"
+    ],
+    "failed": 2,
+    "exit_code": 1,
+    "observed": "Main returns worker_execution_failed instead of worker_budget_exhausted; one-shot SDK LlmCallsLimitExceededError preempts the owned call_limit_exceeded guard."
+  },
+  "not_claimed": [
+    "Full native Linux or release acceptance",
+    "Model quality or speedup",
+    "Server or PostgreSQL conformance",
+    "Changing the ModelPolicy ceiling or allowing a second one-shot provider call"
+  ],
+  "coordinator_acceptance": {
+    "base_revision": "300502c25c4cecf6dc3154fde5464dc96f787d8d",
+    "snapshot_kind": "complete git-tracked plus nonignored untracked files at authorized 006+011 source freeze",
+    "scope": "Isolated genuine Git snapshot with V418-006 test fixtures and the V418-011 patch; it excludes later V418-005 process-test additions. Production files listed here are byte-identical to those being committed.",
+    "source_files_sha256": {
+      "runtime/src/contractor_runtime/worker/runtime.py": "b157574720e1fa6fb6c451b3ef8467c24b04c20bc183ab97ab83894375cca6a5",
+      "runtime/src/contractor_runtime/worker/one_shot.py": "762bbe295d1145bb349420cc640eed3cb65dad68e0f36604fa72a1941e36e8ef",
+      "runtime/tests/test_adk_runtime_call_limits.py": "4c8bceee6c9402a5ef4693b91bd0146ed8fc111650ee73fdc7d41cace3532db9"
+    },
+    "source_file_count": 6024,
+    "source_manifest_sha256": "104a5f9e83540df076e395acc00272695a63f2d61c9c49f1df86f3c4b702685e",
+    "source_verified_before_run": true,
+    "source_verified_after_run": true,
+    "runtime": {
+      "executable": "/verify-v418006011/runtime/.venv/bin/python",
+      "python": "3.13.5",
+      "versions": {
+        "a2a-sdk": "1.1.2",
+        "authlib": "1.9.1",
+        "google-adk": "2.13.0",
+        "google-genai": "2.33.0"
+      }
+    },
+    "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+    "fresh_default_venv": true,
+    "commands": [
+      {
+        "command": [
+          "uv",
+          "sync",
+          "--locked"
+        ],
+        "exit_code": 0,
+        "label": "sync",
+        "log_sha256": "13e773b872d34a5ee01af36a59bf71ec3c45d3eea3193a215255d1efe3578f9e"
+      },
+      {
+        "command": [
+          "make",
+          "test-runtime",
+          "RELEASE_REPORTS=/tmp/v418006011-gate/reports"
+        ],
+        "exit_code": 0,
+        "label": "runtime",
+        "log_sha256": "c7ca1bd24bb9c5fc1e7ce7c714acc0be217295a560ba0ecd3f7388464fb69ed0"
+      },
+      {
+        "command": [
+          "python3",
+          "scripts/release_test_reports.py",
+          "verify-runtime",
+          "--report",
+          "/tmp/v418006011-gate/reports/runtime.xml"
+        ],
+        "exit_code": 0,
+        "label": "verify-runtime",
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "pytest",
+          "-W",
+          "error",
+          "tests/test_adk_runtime_call_limits.py",
+          "--junitxml=/tmp/v418006011-gate/reports/011-call-limits.xml"
+        ],
+        "exit_code": 0,
+        "label": "011-call-limits",
+        "log_sha256": "2f59dce4cdee2572950f2b4c633b2d2ef545887f5756366c2617f93d4cc1b54e"
+      },
+      {
+        "command": [
+          "uv",
+          "run",
+          "--locked",
+          "pytest",
+          "-W",
+          "error",
+          "tests/test_adk_runtime.py",
+          "tests/test_adk_runtime_history.py",
+          "tests/test_result_finalizer.py",
+          "tests/test_worker_summarizer.py",
+          "tests/test_adk_migration_contracts.py",
+          "--junitxml=/tmp/v418006011-gate/reports/011-owner-modules.xml"
+        ],
+        "exit_code": 0,
+        "label": "011-owner-modules",
+        "log_sha256": "d80e154568fac7332d66c14e1248efbcc2266f3ca08f48d3d4d3f604d13b6223"
+      },
+      {
+        "command": [
+          "make",
+          "lint"
+        ],
+        "exit_code": 0,
+        "label": "lint",
+        "log_sha256": "9a8afb3040cae670b876cee1aa8f9cd22161174c2f482ec5fe6c1f7361d3297a"
+      }
+    ],
+    "runtime_result": {
+      "errors": 0,
+      "failures": 0,
+      "passed": 5031,
+      "skip_policy_matches_baseline": true,
+      "skip_reasons": {
+        "Vacuum executable is unavailable": 2,
+        "explicit real Podman release gate": 5,
+        "explicit real gate: make test-podman-supervisor": 11,
+        "explicit real-rootless command execution gate": 12,
+        "explicit real-rootless deployment/workflow gate": 1,
+        "explicit real-rootless owner-process gate": 3,
+        "explicit real-rootless startup capability gate": 2,
+        "launched by make test-audit-completion-e2e with a real Go Artifact API": 1,
+        "live LLM Gateway environment is not configured": 3,
+        "optional Katana binary is absent": 5,
+        "optional ffuf binary is absent": 3,
+        "optional nuclei binary is absent": 3,
+        "optional sqlmap binary is absent": 3,
+        "run make test-interactsh-protocol for the pinned upstream server": 1
+      },
+      "skipped": 55,
+      "tests": 5086
+    },
+    "focused_results": [
+      {
+        "errors": 0,
+        "exit_code": 0,
+        "failures": 0,
+        "junit_sha256": "b6f6982e0b78622c4e76f85885750b08c3e7235de35479e1dcd3276c51d28ca3",
+        "label": "011-call-limits",
+        "skipped": 0,
+        "tests": 22
+      },
+      {
+        "errors": 0,
+        "exit_code": 0,
+        "failures": 0,
+        "junit_sha256": "00e48c24d98163760425568f218eabb6e4d578bd26f5be1440df1ef58ce4180b",
+        "label": "011-owner-modules",
+        "skipped": 0,
+        "tests": 228
+      },
+      {
+        "errors": 0,
+        "exit_code": 0,
+        "failures": 0,
+        "junit_sha256": "e308973708e070d30d9652a9ce1bc518f2bcdbca9c59380ffafc46d2a4626de2",
+        "label": "006-owner-modules",
+        "skipped": 0,
+        "tests": 268
+      }
+    ],
+    "case_delta_from010": {
+      "added": [
+        [
+          "tests.test_adk_allocation_scale",
+          "test_1025_real_allocations_release_every_declared_closure_graph"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[0]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[1000000]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[1]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_ambient_sdk_limit_cannot_replace_the_pinned_worker_budget[not-an-integer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_contractor_refuses_call_1001_before_dispatch_or_charge"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-0-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-0-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1000000-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-1000000-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-not-an-integer-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[refused-repair-not-an-integer-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-0-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-0-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-1-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-1-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-1000000-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-1000000-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-not-an-integer-finalizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch[success-not-an-integer-summarizer]"
+        ],
+        [
+          "tests.test_adk_runtime_call_limits",
+          "test_supported_model_ceiling_includes_999_main_calls_and_finalizer"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_carried_state_byte_ceiling_and_deletion[False]"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_carried_state_byte_ceiling_and_deletion[True]"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_token_ceiling_keeps_known_usage_and_no_recovery_dispatch[False]"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_token_ceiling_keeps_known_usage_and_no_recovery_dispatch[True]"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_tool_ceiling_keeps_exact_effects_and_bounded_detail[10000]"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_tool_ceiling_keeps_exact_effects_and_bounded_detail[10001]"
+        ],
+        [
+          "tests.test_adk_runtime_ceilings",
+          "test_registered_tool_name_ceiling_keeps_all_aggregates_when_detail_is_full"
+        ],
+        [
+          "tests.test_adk_runtime_scale",
+          "test_long_real_gateway_session_preserves_results_and_bounds_work[isolated-150]"
+        ],
+        [
+          "tests.test_adk_runtime_scale",
+          "test_long_real_gateway_session_preserves_results_and_bounds_work[isolated-50]"
+        ],
+        [
+          "tests.test_adk_runtime_scale",
+          "test_long_real_gateway_session_preserves_results_and_bounds_work[shared-150]"
+        ],
+        [
+          "tests.test_adk_runtime_scale",
+          "test_long_real_gateway_session_preserves_results_and_bounds_work[shared-50]"
+        ],
+        [
+          "tests.test_adk_runtime_scale",
+          "test_more_parallel_tools_do_not_multiply_whole_history_passes"
+        ]
+      ],
+      "removed": []
+    },
+    "artifact_hashes": {
+      "006-owner-modules.log": "cf45d33422a78400132bcd9463a401bb590227fb9ab3ecd401e5aaac5608b6d6",
+      "011-call-limits.log": "2f59dce4cdee2572950f2b4c633b2d2ef545887f5756366c2617f93d4cc1b54e",
+      "011-owner-modules.log": "d80e154568fac7332d66c14e1248efbcc2266f3ca08f48d3d4d3f604d13b6223",
+      "lint.log": "9a8afb3040cae670b876cee1aa8f9cd22161174c2f482ec5fe6c1f7361d3297a",
+      "reports/runtime.xml": "c991a0fee02ed843b1f6b443ed583225a8a2aa381c34f42578fcfffb444d6f02",
+      "reports/shared-fixture-reads.log": "65af927d5ce03fed0cf546697b178363980d41c7a62c430c7d7b27e28c85d6fc",
+      "runtime.log": "c7ca1bd24bb9c5fc1e7ce7c714acc0be217295a560ba0ecd3f7388464fb69ed0",
+      "ui-install.log": "b6d3f6a638df12568bf6089787cfae9226f5b8dc54efd011740ccc7a421faafd",
+      "verify-runtime.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "provenance_sha256": "a3dcd35585842216678df5a9977bfa736f60a1bb7ef391c29fd26c7e1673f372",
+    "host_integrated_lint": {
+      "command": "make lint",
+      "exit_code": 0,
+      "log_sha256": "588560b273778259752d4b7f2879b1af70a01d7d166fe7e3a261e1ac8cfe4598"
+    }
+  }
+}

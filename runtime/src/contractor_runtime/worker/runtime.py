@@ -13,6 +13,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from google.adk.agents import LlmAgent
+from google.adk.agents.run_config import RunConfig
 from google.adk.apps import App
 from google.adk.events import Event, EventActions
 from google.adk.models.base_llm import BaseLlm
@@ -833,6 +834,7 @@ class AdkWorkerRuntime:
                     user_id=self._user_id,
                     session_id=session_id,
                     invocation_id=sdk_id,
+                    run_config=RunConfig(max_llm_calls=self._context.model_policy.max_model_calls),
                     new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
                 )
             ) as events:

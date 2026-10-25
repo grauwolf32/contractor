@@ -426,7 +426,11 @@ failure (FAIL-WRK-2).
 
 **WRK-R22.** Each prepared Python ADK Worker independently
 enforces the cumulative model-call, tool-call and provider-reported token
-ceilings embedded in its exact ModelPolicy. The ModelPolicy fields that an
+ceilings embedded in its exact ModelPolicy. Each main SDK run receives an explicit
+finite call ceiling from that policy; SDK defaults or environment overrides cannot
+shorten or enlarge the logical budget. Auxiliary one-shot sessions also receive an
+explicit finite SDK ceiling, allowing their owned wrapper to classify a refused
+repair attempt while still dispatching at most one provider call. The ModelPolicy fields that an
 `adk@1` Worker, a Worker with terminal summarization and a Worker summarizer
 policy require are owned by [AgentTemplates](../configuration/agent-templates.md).
 
