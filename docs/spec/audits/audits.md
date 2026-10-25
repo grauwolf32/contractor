@@ -946,6 +946,7 @@ but cannot accept a package above them under this schema version (FAIL-AUD-6).
 | Package path length | 512 bytes per package path | LIM-AUD-15 |
 | Package path components | 16 components per package path | LIM-AUD-16 |
 | JSON/YAML depth | 64 | LIM-AUD-17 |
+| Generated OpenAPI inventory basis or item-task values | 250,000 nodes, excluding member names | LIM-AUD-30 |
 | Local-ref depth | 32 | LIM-AUD-18 |
 | Inventory items | 4,096 inventory items | LIM-AUD-19 |
 | All generated item packages | 64 MiB across all generated item packages | LIM-AUD-20 |
@@ -1023,11 +1024,24 @@ document, or a bounded package containing it. YAML reads under the scalar and
 member-name rule of scan preparation ([scanners](../tools/scanners.md),
 SCN-R124), as a YAML checklist document does, so a document means one JSON
 value to the inventory, to scan preparation and to the OpenAPI authoring
-Toolset `openapi@1`.
+Toolset `openapi@1`. Every source document, including each JSON/YAML member
+of an OpenAPI source package, uses the same byte, depth and node bounds as
+preparation (LIM-SCN-39/41/42; SCN-R253), without a separate string,
+member-name or path-template cap. Canonical inventory and item-task codecs
+preserve these source strings, while generated Audit documents remain bounded
+by LIM-AUD-14/17/20/30 and their internal metadata retains its own validation.
+The encoded-byte, depth and node budgets are checked before an encoder may
+allocate the expanded output; repeated source strings and member names count
+every time they occur, including their JSON escaping.
 
 **AUD-R144.** Local `$ref` values resolve only inside the pinned document or
 package under cycle, depth and byte bounds. The generator never performs a
-network request.
+network request. Resolving one operation visits at most 250,000 values
+(LIM-AUD-30), counting repeated expansion again; an exceeded budget rejects
+the whole inventory before dispatch. Member names do not count against this
+resolved-value budget, but do count against the source-document node bound
+(LIM-SCN-42). A local pointer has no independent byte cap; its source document
+bounds it, and a referenced package member path still obeys LIM-AUD-15/16.
 
 **AUD-R145.** A remote ref needed to resolve an enumerated Path Item,
 operation, parameter, security declaration or schema dependency rejects the

@@ -806,7 +806,7 @@ def test_parser_enforces_byte_depth_and_node_limits(
 
 
 def test_shared_openapi_document_bounds_match_scan_preparation(tmp_path: Path) -> None:
-    """Loading each shared bound case gives the verdict Server scan preparation gives."""
+    """Source parsing agrees with both Server readers; readiness stays separate."""
 
     fixture = json.loads(DOCUMENT_BOUNDS.read_text(encoding="utf-8"))
     assert fixture["bounds"] == {
@@ -843,7 +843,25 @@ def test_shared_openapi_document_bounds_match_scan_preparation(tmp_path: Path) -
                 label = f"{case['name']}/{form}"
                 assert hashlib.sha256(document).hexdigest() == case["sha256"][form], label
                 expected = None if case["violation"] is None else messages[case["violation"]]
-                assert await verdict(document, f"application/{form}") == expected, label
+                media_type = f"application/{form}"
+                try:
+                    openapi_module._parse_document(document, media_type)
+                except ToolInputError as error:
+                    assert str(error) == expected, label
+                else:
+                    assert expected is None, label
+                string_case = case.get("string", {})
+                if string_case.get("kind") == "path" and string_case["bytes"] > 2048:
+                    # SCN-R253 is the shared source-bound contract, not an
+                    # authoring-readiness guarantee. Keep this long case: it
+                    # parses everywhere while load_openapi's existing path
+                    # rule rejects it without writing. This task removes the
+                    # inventory-only 512-byte path cap, not authoring policy.
+                    assert await verdict(document, media_type) == (
+                        "OpenAPI path must be at most 2048 characters without NUL characters"
+                    ), label
+                else:
+                    assert await verdict(document, media_type) == expected, label
 
     asyncio.run(scenario())
 
@@ -2204,6 +2222,38 @@ def bounds_document(prefix: str, case: dict[str, Any], *, compact_json: bool = F
     renders the same bytes, which the fixture's sha256 values pin.
     """
 
+    if "string" in case:
+        text = "a" * case["string"]["bytes"]
+        path, extra_json, extra_yaml = "/bounds", "", ""
+        match case["string"]["kind"]:
+            case "value":
+                extra_json = ',"description":"' + text + '"'
+                extra_yaml = '      description: "' + text + '"\n'
+            case "name":
+                name = "x-" + text[2:]
+                extra_json = ',"' + name + '":0'
+                extra_yaml = '      ? "' + name + '"\n      : 0\n'
+            case "path":
+                path = "/" + text[1:]
+            case "operationId":
+                extra_json = ',"operationId":"' + text + '"'
+                extra_yaml = '      operationId: "' + text + '"\n'
+            case _:
+                raise ValueError("unknown string kind")
+        if compact_json:
+            return (
+                '{"openapi":"3.0.3","info":{"title":"Bounds","version":"1.0.0"},"paths":{"'
+                + path
+                + '":{"get":{"responses":{"200":{"description":"ok"}}'
+                + extra_json
+                + "}}}}"
+            ).encode()
+        return (
+            'openapi: 3.0.3\ninfo:\n  title: Bounds\n  version: 1.0.0\npaths:\n  ? "'
+            + path
+            + "\"\n  :\n    get:\n      responses:\n        '200':\n          description: ok\n"
+            + extra_yaml
+        ).encode()
     text = prefix
     deep = case.get("deep")
     if deep is not None:

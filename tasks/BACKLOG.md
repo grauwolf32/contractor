@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-134 open tasks: 7 in progress, 116 pending, 11 deferred. 1136 finished: 1126 completed, 10 archived.
+134 open tasks: 8 in progress, 115 pending, 11 deferred. 1136 finished: 1126 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V371-010](v371-010-discarded-receipt-projection.yml) | findings | defect | P2 | Drop the report projection of a proposal receipt discarded by Run deletion |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V414-001](v414-001-openapi-inventory-string-bound.yml) | audits | defect | P2 | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
 | [V414-025](v414-025-allocation-history-page-reads.yml) | operations | defect | P2 | Bound allocation-history pages by page size at any cursor depth and Run filter |
 | [V414-032](v414-032-nul-escape-outside-evals.yml) | api-contracts | defect | P2 | Reject the NUL escape before Audit and finding writes reach a jsonb cast |
 
@@ -145,7 +146,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V411-002 | Pin optional pentest programs and nonblocking finding review |
 | [V411-012](v411-012-pentest-admission-rounds.yml) | feature | P1 | V411-009, V411-010, V62-005, V62-006, V62-007 | Admit typed pentest plans and derive exact later-round replay |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
-| [V414-001](v414-001-openapi-inventory-string-bound.yml) | defect | P2 | — | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
 

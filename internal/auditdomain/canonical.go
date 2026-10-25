@@ -22,11 +22,28 @@ import (
 var identifierPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*$`)
 
 func canonicalJSON(value any) ([]byte, error) {
-	encoded, err := json.Marshal(value)
-	if err != nil {
+	return canonicalJSONWithBounds(value, strictJSONBounds)
+}
+
+// canonicalOpenAPIJSON preserves source strings in generated operation tasks
+// and inventory bases. Their enclosing Audit document bounds still apply.
+func canonicalOpenAPIJSON(value any) ([]byte, error) {
+	if err := checkOpenAPIEncoding(value); err != nil {
 		return nil, err
 	}
-	normalized, err := parseStrictJSON(encoded)
+	return canonicalJSONWithBounds(value, openAPIOutputBounds)
+}
+
+func canonicalJSONWithBounds(value any, bounds strictjson.Bounds) ([]byte, error) {
+	var buffer bytes.Buffer
+	encoder := json.NewEncoder(&buffer)
+	// HTML escaping would inflate an otherwise bounded OpenAPI description
+	// before JCS removes those escapes again.
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(value); err != nil {
+		return nil, err
+	}
+	normalized, err := parseJSONWithBounds(bytes.TrimSuffix(buffer.Bytes(), []byte("\n")), bounds, finiteJSONNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +55,11 @@ func canonicalJSON(value any) ([]byte, error) {
 }
 
 func decodeStrictJSON(data []byte, target any) (any, error) {
-	value, err := parseStrictJSON(data)
+	return decodeJSONWithBounds(data, target, strictJSONBounds)
+}
+
+func decodeJSONWithBounds(data []byte, target any, bounds strictjson.Bounds) (any, error) {
+	value, err := parseJSONWithBounds(data, bounds, finiteJSONNumber)
 	if err != nil {
 		return nil, invalid(CodeInvalid, "json")
 	}
@@ -46,9 +67,7 @@ func decodeStrictJSON(data []byte, target any) (any, error) {
 	if err != nil {
 		return nil, invalid(CodeInvalid, "json")
 	}
-	decoder := json.NewDecoder(bytes.NewReader(normalized))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(target); err != nil || strictjson.RequireEOF(decoder) != nil {
+	if err := strictjson.Decode(normalized, target); err != nil {
 		return nil, invalid(CodeInvalid, "json")
 	}
 	return value, nil
@@ -62,15 +81,25 @@ func parseStrictJSON(data []byte) (any, error) {
 // number bound as their YAML form, while canonical encodings of Server values
 // keep accepting every finite float64.
 func parseStrictJSONNumbers(data []byte, number func(string) (float64, bool)) (any, error) {
+	return parseJSONWithBounds(data, strictJSONBounds, number)
+}
+
+func parseJSONWithBounds(data []byte, bounds strictjson.Bounds, number func(string) (float64, bool)) (any, error) {
 	if len(data) == 0 || len(data) > MaximumDocumentBytes || !utf8.Valid(data) || bytes.IndexByte(data, 0) >= 0 || !strictjson.ValidUnicodeEscapes(data) {
 		return nil, errors.New("invalid JSON bytes")
 	}
-	return strictjson.DecodeBounded(data, strictJSONBounds, number)
+	return strictjson.DecodeBounded(data, bounds, number)
 }
 
 // strictJSONBounds counts values, not member names, as jsonExtentOf does.
 var strictJSONBounds = strictjson.Bounds{
 	MaxDepth: MaximumJSONDepth, MaxNodes: MaximumJSONNodes, MaxStringBytes: MaximumStringBytes,
+}
+
+// Source documents use scanplan's shared source bounds. After resolution,
+// generated Audit documents retain LIM-AUD-14/17/30 without a string cap.
+var openAPIOutputBounds = strictjson.Bounds{
+	MaxDepth: MaximumJSONDepth, MaxNodes: MaximumJSONNodes,
 }
 
 func finiteJSONNumber(text string) (float64, bool) {
@@ -196,6 +225,13 @@ func validateIdentifier(value, field string) error {
 
 func validateText(value, field string, required bool) error {
 	if !utf8.ValidString(value) || strings.ContainsRune(value, 0) || len([]byte(value)) > MaximumStringBytes || required && strings.TrimSpace(value) == "" {
+		return invalid(CodeInvalid, field)
+	}
+	return nil
+}
+
+func validateOpenAPISourceText(value, field string, required bool) error {
+	if !utf8.ValidString(value) || strings.ContainsRune(value, 0) || len([]byte(value)) > MaximumDocumentBytes || required && strings.TrimSpace(value) == "" {
 		return invalid(CodeInvalid, field)
 	}
 	return nil

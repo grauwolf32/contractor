@@ -39,7 +39,7 @@ func finishInventory(
 	if len(subjects) > MaximumItems {
 		return Inventory{}, invalid(CodeLimitExceeded, "items")
 	}
-	canonical, err := canonicalJSON(basis)
+	canonical, err := canonicalInventoryJSON(basis)
 	if err != nil {
 		return Inventory{}, invalid(CodeInventoryInvalid, "inventory")
 	}
@@ -161,11 +161,11 @@ func ValidateInventory(value Inventory) error {
 		return invalid(CodeInventoryInvalid, "inventory.digest")
 	}
 	var basis inventoryBasis
-	parsed, err := decodeStrictJSON(value.CanonicalInventory, &basis)
+	_, err := decodeJSONWithBounds(value.CanonicalInventory, &basis, openAPIOutputBounds)
 	if err != nil || basis.Schema != InventoryBasisSchema {
 		return invalid(CodeInventoryInvalid, "inventory.canonical")
 	}
-	canonical, err := canonicalJSON(parsed)
+	canonical, err := canonicalInventoryJSON(basis)
 	if err != nil || !bytes.Equal(canonical, value.CanonicalInventory) || !equalStringSlices(basis.Gaps, value.Gaps) ||
 		validateSortedStrings(basis.Gaps, MaximumCoverageValues, "inventory.gaps", false) != nil ||
 		basis.Kind != "checklist" && basis.Kind != "standard-mappings" &&
@@ -325,7 +325,7 @@ func validateBasisItem(
 			keyErr != nil || item.ItemKey != expectedKey ||
 			!equalStringSlices(coverage.Requested, []string{"operation-resolution"}) ||
 			!equalStringSlices(coverage.Gaps, task.Operation.Gaps) ||
-			!sameCanonicalValue(subject, map[string]any{
+			!sameCanonicalOpenAPIValue(subject, map[string]any{
 				"path": task.Operation.Path, "method": task.Operation.Method,
 				"resolved": task.Operation.Resolved, "gaps": task.Operation.Gaps,
 			}) {
@@ -349,6 +349,19 @@ func validateBasisItem(
 		}
 	}
 	return nil
+}
+
+func canonicalInventoryJSON(basis inventoryBasis) ([]byte, error) {
+	if basis.Kind == "openapi-operations" {
+		return canonicalOpenAPIJSON(basis)
+	}
+	return canonicalJSON(basis)
+}
+
+func sameCanonicalOpenAPIValue(left, right any) bool {
+	leftBytes, leftErr := canonicalOpenAPIJSON(left)
+	rightBytes, rightErr := canonicalOpenAPIJSON(right)
+	return leftErr == nil && rightErr == nil && bytes.Equal(leftBytes, rightBytes)
 }
 
 func sameCanonicalValue(left, right any) bool {
@@ -429,7 +442,7 @@ func arrayStrings(values []string) []string {
 }
 
 func openAPIOperationKey(inventoryDigest, pathTemplate, method string) (string, error) {
-	tuple, err := canonicalJSON([]any{
+	tuple, err := canonicalOpenAPIJSON([]any{
 		"contractor.audit.openapi-operation.v1", inventoryDigest, pathTemplate, method,
 	})
 	if err != nil {

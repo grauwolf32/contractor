@@ -13,11 +13,28 @@ func EncodeWorklist(value WorklistManifest) ([]byte, error) {
 }
 
 func EncodeItemTask(value ItemTask) ([]byte, error) {
-	return encodeDocument(value, validateItemTask)
+	if value.Operation == nil {
+		return encodeDocument(value, validateItemTask)
+	}
+	if err := validateItemTask(value); err != nil {
+		return nil, err
+	}
+	encoded, err := canonicalOpenAPIJSON(value)
+	if err != nil {
+		return nil, invalid(CodeLimitExceeded, "document")
+	}
+	return encoded, nil
 }
 
 func DecodeItemTask(data []byte) (ItemTask, error) {
-	return decodeDocument(data, validateItemTask)
+	var result ItemTask
+	if _, err := decodeJSONWithBounds(data, &result, openAPIOutputBounds); err != nil {
+		return result, err
+	}
+	if result.Operation == nil {
+		return decodeDocument(data, validateItemTask)
+	}
+	return result, validateItemTask(result)
 }
 
 func EncodeExecutionManifest(value ExecutionManifest) ([]byte, error) {
@@ -348,8 +365,8 @@ func validateChecklistTask(value ChecklistTask) error {
 }
 
 func validateOperationTask(value OperationTask) error {
-	if !strings.HasPrefix(value.Path, "/") || validateText(value.Path, "operation.path", true) != nil || !validHTTPMethod(value.Method) ||
-		validateText(value.OperationID, "operation.operation_id", false) != nil || value.Resolved == nil {
+	if !strings.HasPrefix(value.Path, "/") || validateOpenAPISourceText(value.Path, "operation.path", true) != nil || !validHTTPMethod(value.Method) ||
+		validateOpenAPISourceText(value.OperationID, "operation.operation_id", false) != nil || value.Resolved == nil {
 		return invalid(CodeInvalid, "operation")
 	}
 	return validateSortedStrings(value.Gaps, MaximumCoverageValues, "operation.gaps", false)

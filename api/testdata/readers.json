@@ -40,7 +40,7 @@
     "public/audit-coverage-buckets.json": {"readers": ["go", "ui"]},
     "public/finding-decision-cases.json": {"readers": ["go"], "reason": "public review decision requests checked against the generated Go client, the Audit service and the HTTP handler; the UI builds these requests from its typed client"},
     "model-profile-id-cases.json": {"readers": ["go", "ui"]},
-    "openapi-document-bounds.json": {"readers": ["go", "python"]},
+    "openapi-document-bounds.json": {"readers": ["go", "python"], "reason": "Go scanplan and auditdomain inventory readers and Python openapi authoring share source-bound verdicts."},
     "openapi-json-escape-cases.json": {"readers": ["go", "python"]},
     "openapi-yaml-scalar-cases.json": {"readers": ["go", "python"]},
     "scan-host-syntax.json": {"readers": ["go", "python"]},
