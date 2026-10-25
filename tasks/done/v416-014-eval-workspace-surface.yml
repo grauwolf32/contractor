@@ -103,3 +103,9 @@ verification:
     was explicitly interrupted while aligning the static route allowlist;
     the final full browser gate passed after that change.
   limits: "These are deterministic UI/API-mocked checks; no backend schema or public API changed and no live experiment or external target was executed."
+  final_integration: >-
+    After integrating all four P1 tasks, including the repeated-cancellation
+    completion of V416-013, make lint passed on
+    92694f737835783df9c9f5f9812da08e3b79b2b4. The combined ten-suite Runtime
+    selection on the corresponding main baseline
+    6c8cba1acaa50f792af63aa0b23a2874e83fd74c passed all 478 tests.
