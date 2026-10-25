@@ -14,6 +14,13 @@ from datetime import UTC, datetime
 # never reach the log sink. Add a field here only after checking every caller.
 LOG_EXTRA_FIELDS = frozenset(
     {
+        "archiveCacheHit",
+        "archiveCacheMiss",
+        "archiveCacheBypass",
+        "archiveCacheCorruption",
+        "archiveCacheSourceHit",
+        "archiveCacheSkillHit",
+        "archiveCacheChargedBytes",
         "capabilityKind",
         "capabilityRef",
         "durationMs",

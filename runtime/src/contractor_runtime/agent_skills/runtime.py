@@ -22,6 +22,7 @@ from google.adk.tools.base_toolset import BaseToolset
 from google.adk.tools.skill_toolset import SkillToolset
 from google.genai import types
 
+from contractor_runtime.archive_cache import read_archive
 from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactClient,
@@ -446,7 +447,7 @@ async def prepare_agent_skills(
         expanded_total = 0
         for selected in resolved:
             try:
-                value = await client.read_artifact(selected.artifact)
+                value = await read_archive(client, selected.artifact, kind="skill")
             except asyncio.CancelledError:
                 raise
             except ArtifactClientError as error:

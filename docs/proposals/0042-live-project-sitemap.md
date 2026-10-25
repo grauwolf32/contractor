@@ -697,8 +697,8 @@ Server artifact history, shared retention accounting, write amplification,
 or the existing whole-payload memory cost, and does not change workspace
 freshness or the retention policy above.
 
-[V413-001](../../tasks/v413-001-runtime-artifact-disk-cache.yml) records this
-independent pending implementation. It does not depend on or expand V407-035's
+[V413-001](../../tasks/done/v413-001-runtime-artifact-disk-cache.yml) records this
+completed independent implementation. It does not depend on or expand V407-035's
 allocation-local decoded-text cache work.
 
 ## 11. Failure outcomes, lifecycle and required tests

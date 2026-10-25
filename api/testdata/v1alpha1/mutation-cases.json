@@ -1520,6 +1520,112 @@
         "/artifacts/1"
       ]
     },
+    "artifact-metadata-result-boundary.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/artifact/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/artifact/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/contentCacheKey",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/mediaType",
+          "maxLength": 255
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/artifact/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/artifact/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/contentCacheKey",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/mediaType",
+          "maxLength": 255,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/artifact"
+      ],
+      "duplicateKey": [
+        "",
+        "/artifact"
+      ]
+    },
+    "artifact-metadata-result.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/artifact/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/artifact/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/contentCacheKey",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/mediaType",
+          "maxLength": 255
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/artifact/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/artifact/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/contentCacheKey",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/mediaType",
+          "maxLength": 255,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/artifact"
+      ],
+      "duplicateKey": [
+        "",
+        "/artifact"
+      ]
+    },
     "artifact-read-result.json": {
       "enum": [
         "/apiVersion"

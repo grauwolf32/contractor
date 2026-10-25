@@ -13,7 +13,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 from urllib.parse import quote, urlsplit
 
 from pydantic import Field, ValidationError
@@ -22,15 +22,21 @@ from contractor_runtime import _https
 from contractor_runtime.contracts import (
     ARTIFACT_LIST_CURSOR_PATTERN,
     ArtifactListResult,
+    ArtifactMetadataResult,
     ArtifactReadResult,
     ArtifactRef,
     ArtifactWriteResult,
+    PrivateProtocolDecodeError,
+    decode_private,
     validate_artifact_name,
     validate_media_type,
 )
+from contractor_runtime.contracts.artifacts import MAX_ARTIFACT_BYTES
 from contractor_runtime.contracts.base import is_blank, trim_whitespace
 
-MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
+if TYPE_CHECKING:
+    from contractor_runtime.archive_cache import ImmutableArchiveCache
+
 MAX_ARTIFACT_JSON_BYTES = 1 << 20
 # artifacts.MaxBindingListLimit (LIM-ART-3), pinned by
 # api/testdata/v1alpha1/artifact-list-cases.json.
@@ -127,7 +133,16 @@ def allocation_path(allocation_id: str, resource: str) -> str:
 class ArtifactClient:
     """Exposes only the RunScope implied by one active allocation ID."""
 
-    def __init__(self, allocation_id: str, transport: ArtifactTransport) -> None:
+    def __init__(
+        self,
+        allocation_id: str,
+        transport: ArtifactTransport,
+        *,
+        archive_cache: ImmutableArchiveCache | None = None,
+        archive_trust_domain: str = "",
+    ) -> None:
+        self.archive_cache = archive_cache
+        self.archive_trust_domain = archive_trust_domain
         self._root = allocation_path(allocation_id, "artifacts")
         self._allocation_id = allocation_id
         self._transport = transport
@@ -165,7 +180,7 @@ class ArtifactClient:
         self._observed_exact_refs.clear()
 
     def observe_cached_read(self, ref: ArtifactRef) -> None:
-        """Record an exact revision served from an allocation-owned read cache."""
+        """Record a verified cache hit as this allocation's exact content observation."""
 
         self._remember(ref.require_exact())
 
@@ -245,7 +260,7 @@ class ArtifactClient:
                 "Artifact API returned an invalid list response"
             ) from error
 
-    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactReadResult:
+    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactMetadataResult:
         """Return the exact revision, media type and size ``read_artifact`` of
         ``ref`` would return, without downloading the payload (ART-R116).
 
@@ -266,11 +281,11 @@ class ArtifactClient:
         raise_for_status(response)
         require_json(response.headers)
         try:
-            result = ArtifactReadResult.model_validate_json(response.body)
-        except ValidationError as error:
+            result = decode_private(ArtifactMetadataResult, response.body)
+        except (PrivateProtocolDecodeError, RecursionError):
             raise ArtifactTransportError(
                 "Artifact API returned invalid artifact metadata"
-            ) from error
+            ) from None
         exact = result.artifact
         if (
             exact.namespace != ref.namespace

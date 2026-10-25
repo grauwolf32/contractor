@@ -6,9 +6,11 @@ import (
 )
 
 const (
-	AgentSkillNamespace    = "skills"
-	MaxAgentTemplateSkills = 32
-	MaxWorkflowRunSkills   = 128
+	// MaxArtifactPayloadBytes bounds encoded Artifacts (LIM-ART-4).
+	MaxArtifactPayloadBytes = 64 * 1024 * 1024
+	AgentSkillNamespace     = "skills"
+	MaxAgentTemplateSkills  = 32
+	MaxWorkflowRunSkills    = 128
 )
 
 // MaxArtifactListCursorLength bounds the opaque private Artifact list cursor
@@ -171,6 +173,32 @@ func (r ArtifactReadResult) Validate() error {
 		return err
 	}
 	return validateArtifactMetadata(r.MediaType, r.Size)
+}
+
+// ArtifactMetadataResult is private allocation metadata. The opaque content key
+// identifies one immutable version; it conveys no authority and is never part
+// of a public/shared read or write projection.
+type ArtifactMetadataResult struct {
+	APIVersion      string      `json:"apiVersion" strictjson:"required"`
+	Artifact        ArtifactRef `json:"artifact" strictjson:"required"`
+	MediaType       string      `json:"mediaType" strictjson:"required"`
+	Size            int64       `json:"size" strictjson:"required"`
+	ContentCacheKey string      `json:"contentCacheKey" strictjson:"required"`
+}
+
+func (r ArtifactMetadataResult) Validate() error {
+	if err := (ArtifactReadResult{APIVersion: r.APIVersion, Artifact: r.Artifact, MediaType: r.MediaType, Size: r.Size}).Validate(); err != nil {
+		return err
+	}
+	if r.Size > MaxArtifactPayloadBytes || len(r.ContentCacheKey) < 1 || len(r.ContentCacheKey) > 128 {
+		return Invalidf("invalid private artifact metadata")
+	}
+	for _, c := range r.ContentCacheKey {
+		if !(c >= 'A' && c <= 'Z' || c >= 'a' && c <= 'z' || c >= '0' && c <= '9' || c == '_' || c == '-') {
+			return Invalidf("invalid content cache key")
+		}
+	}
+	return nil
 }
 
 type ArtifactWriteResult struct {

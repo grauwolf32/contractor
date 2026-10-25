@@ -153,7 +153,12 @@ class Artifacts:
         self.reads.append(ref)
         if self.existing:
             exact = ArtifactRef(namespace=ref.namespace, name=ref.name, revision="r0")
-            return SimpleNamespace(artifact=exact, media_type=TARGET_LIST_MEDIA_TYPE, size=14)
+            return SimpleNamespace(
+                artifact=exact,
+                media_type=TARGET_LIST_MEDIA_TYPE,
+                size=14,
+                content_cache_key="test_metadata_version",
+            )
         raise ArtifactAPIError(404, "artifact_not_found", False)
 
     async def read_artifact(self, ref, **_kwargs):

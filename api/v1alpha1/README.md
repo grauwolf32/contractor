@@ -221,3 +221,12 @@ public schema; unavailable values contain only schema, availability and reason
 from FND-R173. Shared `finding-anchor-cases.json` exercises actual Runtime
 parsing and strict Go validation, including unknown/null/missing members and
 source/provenance mismatch. Generic Artifact writes have no producer authority.
+
+`artifact-metadata.schema.json` defines the private allocation metadata response
+`ArtifactMetadataResult`. Its required opaque `contentCacheKey` identifies the
+immutable Server version across fork bindings, grants no access and is absent
+from `ArtifactRef`, shared read/write results, public APIs and model tools.
+Every Runtime cache hit first authorizes the consuming exact ref through this
+strict response. The golden metadata fixture and invalid key fixtures test
+both language readers; generated required-member and mutation cases cover
+missing, duplicate, unknown and overlong members.

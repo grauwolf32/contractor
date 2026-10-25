@@ -477,7 +477,9 @@ all binary contents, permissions or timestamps.
 consuming a bounded snapshot, but a persistent source-content cache cannot
 determine freshness: remembered size/mtime, successful hydration and
 invalidation only after known exec calls are insufficient. The local direct
-implementation acquires snapshots from disk on demand.
+implementation acquires snapshots from disk on demand. Reusing an immutable
+source ZIP under RTA-R119 only avoids its download; fresh extraction and current
+disk snapshots remain mandatory, and local edits never populate this cache.
 
 **WSP-R72.** Derived analysis caches may be reused only after
 acquiring the current snapshot digest; those caches belong to

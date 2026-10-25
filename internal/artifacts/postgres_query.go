@@ -17,7 +17,7 @@ func (r *PostgresRepository) Metadata(
 	err := r.db.QueryRow(ctx, metadataSQL,
 		scope.kind, scope.id, ref.Namespace, ref.Name, ref.Revision,
 	).Scan(
-		&revision, &result.MediaType, &result.Size, &result.Digest, &result.Current,
+		&revision, &result.MediaType, &result.Size, &result.Digest, &result.ContentCacheKey, &result.Current,
 		&result.Frozen, &result.CreatedAt, &result.GitSource,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {

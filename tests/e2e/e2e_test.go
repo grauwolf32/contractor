@@ -662,9 +662,15 @@ func workRootEmpty(root string) bool {
 	for _, entry := range entries {
 		// Runtime keeps this lock inode for safe cross-process ownership. It
 		// remains after allocations finish and is not leftover allocation work.
-		if entry.Name() != "contractor-runtime.lock" || !entry.Type().IsRegular() {
-			return false
+		if entry.Name() == "contractor-runtime.lock" && entry.Type().IsRegular() {
+			continue
 		}
+		// The process cache intentionally survives allocation cleanup. Only its
+		// private marker-owned flat state is allowed beside the root lock.
+		if entry.Name() == ".contractor-archive-cache" && entry.IsDir() && runtimeArchiveCacheOwned(filepath.Join(root, entry.Name())) {
+			continue
+		}
+		return false
 	}
 	return true
 }
@@ -680,6 +686,29 @@ func TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock(t *testing.T) {
 	}
 	if !workRootEmpty(root) {
 		t.Fatal("persistent owner lock was mistaken for allocation work")
+	}
+	cacheRoot := filepath.Join(root, ".contractor-archive-cache")
+	if err := os.Mkdir(cacheRoot, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if workRootEmpty(root) {
+		t.Fatal("unowned cache directory was ignored")
+	}
+	if err := os.WriteFile(filepath.Join(cacheRoot, ".owner"), []byte("contractor-runtime-archive-cache-v1\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if !workRootEmpty(root) {
+		t.Fatal("marker-owned cache mistaken for allocation work")
+	}
+	partial := filepath.Join(cacheRoot, strings.Repeat("a", 64)+".data.part")
+	if err := os.WriteFile(partial, []byte("partial"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if workRootEmpty(root) {
+		t.Fatal("in-flight cache fill ignored after release")
+	}
+	if err := os.Remove(partial); err != nil {
+		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(root, "leftover"), []byte("work"), 0600); err != nil {
 		t.Fatal(err)
@@ -921,4 +950,35 @@ func repoRoot(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return root
+}
+
+func runtimeArchiveCacheOwned(root string) bool {
+	info, err := os.Lstat(filepath.Join(root, ".owner"))
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	marker, err := os.ReadFile(filepath.Join(root, ".owner"))
+	if err != nil || string(marker) != "contractor-runtime-archive-cache-v1\n" {
+		return false
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil || len(entries) > 2049 {
+		return false
+	}
+	for _, entry := range entries {
+		if !entry.Type().IsRegular() {
+			return false
+		}
+		if entry.Name() == ".owner" {
+			continue
+		}
+		stem, suffix, ok := strings.Cut(entry.Name(), ".")
+		if !ok || len(stem) != 64 || (suffix != "data" && suffix != "meta") {
+			return false
+		}
+		if decoded, err := hex.DecodeString(stem); err != nil || len(decoded) != 32 {
+			return false
+		}
+	}
+	return true
 }

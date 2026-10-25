@@ -263,6 +263,7 @@ def test_shared_code_publisher_uses_hidden_exact_anchor_metadata():
                                 "artifact": REF,
                                 "mediaType": "application/zip",
                                 "size": len(source),
+                                "contentCacheKey": "test_source_version",
                             }
                         ).encode(),
                     )
@@ -409,6 +410,7 @@ class SourceAPI:
                 "artifact": {**REF, "revision": revision},
                 "mediaType": "application/zip",
                 "size": size,
+                "contentCacheKey": "source_version_" + revision,
             }
             return ArtifactHTTPResponse(
                 200, {"content-type": "application/json"}, json.dumps(metadata).encode()

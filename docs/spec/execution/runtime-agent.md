@@ -1167,3 +1167,77 @@ Runtime Agent active slot
   requires a future versioned local relay contract (RTA-R65).
 - Dynamic re-probing, capability withdrawal and in-place re-registration
   ([Control Plane](control-plane.md#non-goals)).
+
+
+### Private immutable archive cache
+
+**RTA-R119.** Only startup `--workspace-storage local` enables the optional
+process-owned encoded-byte cache beneath the exclusively locked
+`--workspace-work-root`. Its private immediate child `.contractor-archive-cache`
+is outside allocation/session prefixes, cleanup walkers, all Worker and sandbox
+mounts. Memory and disabled workspace modes create no cache state. The existing
+`hold_work_roots` owner lock remains the sole process authority; unsafe or held
+work roots retain their startup failure. The cache is an optimization, not an
+advertised execution capability or an additional operator setting.
+
+Only source/workspace ZIP hydration and selected Skill package preparation use
+it; each still extracts and validates a fresh allocation-owned directory.
+Overlay state, arbitrary Artifact reads, HTTP/cookie sessions, private pentest
+evidence, Interactsh, credentials and model/conversation state are ineligible.
+Direct workspace reads still acquire current disk snapshots (WSP-R71).
+
+**RTA-R120.** Every lookup first obtains current allocation-authenticated
+private metadata (ART-R116), including exact refs, hits and coalesced readers.
+Versionless requests resolve to the returned exact ref for download. Denied,
+purged, lost, timed-out or invalid metadata never allows an offline hit or a raw
+fetch bypass. Metadata is not content observation; successful hits observe the
+consuming binding's exact ref. Reusable bytes have no scoped aliases or grants.
+Key files by a filesystem-safe digest of configured private Server endpoint,
+effective TLS CA/verification configuration and `contentCacheKey`; never share
+across trust domains. Check current media type and size; selected Skills also
+verify their trusted package digest and manifest name on every hit (SKL-R101).
+
+**RTA-R121.** Full in-flight file reservations, completed data and metadata
+share the logical-byte, metadata and entry bounds in LIM-RTA-10 through
+LIM-RTA-12. Reserve before writing and atomically convert the same reservation
+at promotion, without double-charging renames. At most LIM-RTA-13 distinct fills
+and coalesced waiters may be retained; no unbounded work queue exists. Each
+admission pass examines at most LIM-RTA-15 LRU candidates, evicting only unused
+completed entries. Pressure, concurrency limits or local I/O failure use the
+ordinary authorized exact fetch without population. Cache failure cannot fail
+an otherwise valid download (FAIL-RTA-11). Filesystem block, journal and free
+space accounting are outside the logical-byte guarantee.
+
+**RTA-R122.** Accept only owned private regular single-link cache files.
+Use a pinned private directory descriptor, no-follow opens, exclusive staging
+and atomic rename; never recurse through an untrusted entry. Validate download
+exact ref/ETag, media type and length against authenticated metadata, and verify
+stored local integrity metadata and SHA-256 before every cached use. Skill
+integrity additionally depends on its independently trusted selected digest.
+Network, hashing and file work run outside event-loop bookkeeping; blocking
+work uses `threads.to_thread_until_done`. A cancelled leader joins its local
+work before releasing reservations; coalesced waiters may fetch with their own
+grants after its completion. No fill outlives the allocation that supplied its
+grant. Cleanup uncertainty retains the full charge and disables population.
+
+**RTA-R123.** Entries are reusable only in one process lifetime and within the
+non-sliding download TTL (LIM-RTA-14). Expired entries cannot serve new readers;
+existing readers finish under their original operation deadlines before deletion.
+Maintenance runs at least once per LIM-RTA-14 interval and examines at most
+LIM-RTA-15 entries per pass, with a rotating cursor independent of hit recency.
+Under the existing root lock, startup removes only flat marker-owned prior
+cache state before allocations. Unknown/unowned state is preserved and disables
+caching. Restart never reopens entries. Shutdown joins maintenance and users,
+then removes owned files within the existing shutdown deadline. A stopped or
+offline host cannot promise remote erasure: residual bytes require the next
+owned startup or operator cleanup and never authorize a read (LIFE-RTA-9).
+
+**RTA-R124.** Allocation preparation/operation deadlines include metadata,
+fetch and cache I/O together; the cache adds no retry or timeout extension.
+Release joins readers/fills before extracted workspace and Skill cleanup. No
+allocation authority remains in the cache and no cache entry pins Server
+history or prevents Run/Project deletion. The next lookup of a removed or
+revoked ref fails at Server metadata. Keep only the bounded in-memory index and
+aggregate hit/miss/bypass/corruption and charged-byte counters; operational logs
+expose scalar aggregates without refs, keys, paths or owner labels. No unbounded
+access journal is retained.

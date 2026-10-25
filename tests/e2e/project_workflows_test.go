@@ -467,6 +467,18 @@ func TestProjectWorkspaceLifecycleAcrossProductionProcesses(t *testing.T) {
 		t.Fatalf("detached Project target = %+v", project)
 	}
 	deleteRuntimeCredential(t, publicClient, publicBaseURL, http.StatusNoContent)
+	// Each specialist reused its source archive between allocation-owned
+	// workspace hydrations; cache state remains outside those workspaces.
+	for _, process := range []*childProcess{openAPIRuntime, likeC4Runtime} {
+		process.stop(t)
+		assertRuntimeArchiveCacheCounters(t, process.logs.redacted(), "archiveCacheSourceHit")
+	}
+	for _, root := range []string{openAPIWorkspaceRoot, likeC4WorkspaceRoot} {
+		files, err := filepath.Glob(filepath.Join(root, ".contractor-archive-cache", "*.data"))
+		if err != nil || len(files) != 0 {
+			t.Fatal("workspace Runtime retained cache bytes after shutdown", err)
+		}
+	}
 	assertProjectSecretNotRetained(
 		t, ctx, pool, []*childProcess{initialServer, server, openAPIRuntime, likeC4Runtime},
 	)

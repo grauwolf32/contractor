@@ -151,9 +151,9 @@ func (h *handler) getArtifactMetadata(w http.ResponseWriter, r *http.Request) {
 		h.handleError(w, err)
 		return
 	}
-	response := contracts.ArtifactReadResult{
+	response := contracts.ArtifactMetadataResult{
 		APIVersion: contracts.APIVersion, Artifact: metadata.Ref,
-		MediaType: metadata.MediaType, Size: metadata.Size,
+		MediaType: metadata.MediaType, Size: metadata.Size, ContentCacheKey: metadata.ContentCacheKey,
 	}
 	if err := response.Validate(); err != nil {
 		h.handleError(w, err)
