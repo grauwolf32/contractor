@@ -39,16 +39,22 @@ export function NewProjectDialog({
   kind,
   keys,
   wording,
+  createRequest,
   onClose,
   onCreated,
 }: {
   kind: ProjectKind;
-  /** From useNewProjectKeys() in the page that opens the dialog. */
-  keys: NewProjectKeys;
   wording: NewProjectWording;
   onClose: () => void;
   onCreated: (project: Project) => void;
-}) {
+} & (
+  | { keys: NewProjectKeys; createRequest?: never }
+  | {
+      keys?: never;
+      /** Evaluation creation keeps its persisted exact-request recovery. */
+      createRequest: (request: CreateProjectRequest) => Promise<Project>;
+    }
+)) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const heading = useId();
@@ -56,12 +62,14 @@ export function NewProjectDialog({
   const [validationError, setValidationError] = useState<string | null>(null);
   const create = useMutation({
     mutationFn: (request: CreateProjectRequest) =>
-      createProject(api, {
-        request,
-        idempotencyKey: keys.keyFor(request),
-      }),
+      createRequest
+        ? createRequest(request)
+        : createProject(api, {
+            request,
+            idempotencyKey: keys.keyFor(request),
+          }),
     onSuccess: async (project) => {
-      keys.created();
+      keys?.created();
       // Lists elsewhere refresh in the background; the dialog waits only for
       // the list the new project joins.
       void invalidateCrossProject(queryClient);

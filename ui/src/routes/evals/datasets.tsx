@@ -708,6 +708,18 @@ export function EvalDatasetsRoute() {
           )}
         </Field>
       </div>
+      <div className="ui-toolbar">
+        <ButtonLink
+          size="sm"
+          to={
+            projectId
+              ? `/evals/workspaces/${encodeURIComponent(projectId)}`
+              : "/evals/workspaces"
+          }
+        >
+          {projectId ? "Manage workspace" : "Workspaces"}
+        </ButtonLink>
+      </div>
       <EvalError error={projects.error} />
       {projectId ? (
         <>

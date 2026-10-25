@@ -133,7 +133,9 @@ describe("Runs Queue view", () => {
     expect(
       screen.getByRole("link", { name: "Payment service" }),
     ).toHaveAttribute("href", "/projects/project-payment");
-    expect(screen.getByText("OpenAPI regression")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "OpenAPI regression" }),
+    ).toHaveAttribute("href", "/evals/workspaces/evaluation-openapi");
     expect(screen.getByText("eval.leg").closest("code")).toHaveTextContent(
       "eval.leg:a",
     );

@@ -66,7 +66,7 @@ describe("Evals and global Skills routes", () => {
         finishedAt: "2026-09-05T08:10:00Z",
       }),
     ];
-    const view = renderApplication("/evals/legacy", {
+    const view = renderApplication("/evals/workspaces", {
       server: {
         "GET /v1/projects": () => json(page([evaluation])),
         "GET /v1/projects/{projectId}": () =>
@@ -81,7 +81,10 @@ describe("Evals and global Skills routes", () => {
     const evalLink = await screen.findByRole("link", {
       name: "OpenAPI regression",
     });
-    expect(evalLink).toHaveAttribute("href", "/evals/evaluation-openapi");
+    expect(evalLink).toHaveAttribute(
+      "href",
+      "/evals/workspaces/evaluation-openapi",
+    );
     // The shell's Inbox badge lists kind=project on every page.
     const listRequest = requests.find((request) => {
       const url = new URL(request.url);
@@ -118,7 +121,7 @@ describe("Evals and global Skills routes", () => {
       "/runs",
     );
 
-    // The legacy workspace keeps execution history and a read-only artifact
+    // The evaluation workspace keeps execution history and a read-only artifact
     // list; project-only regions (shortcuts, uploads, workflow launch) are gone.
     const sections = screen.getByRole("navigation", {
       name: "Project sections",
@@ -127,7 +130,13 @@ describe("Evals and global Skills routes", () => {
       within(sections)
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["Runs", "Artifacts", "Workspace settings"]);
+    ).toEqual([
+      "Experiments",
+      "Datasets",
+      "Runs",
+      "Artifacts",
+      "Workspace settings",
+    ]);
     expect(
       screen.getByRole("heading", { name: "Artifacts" }),
     ).toBeInTheDocument();

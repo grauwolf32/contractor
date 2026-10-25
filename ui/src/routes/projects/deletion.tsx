@@ -44,14 +44,14 @@ const DELETION_PHASES: readonly ProjectDeletionPhase[] = [
 
 /**
  * The workspace's action menu: refresh the project and, while it is active,
- * ask to delete it. `noun` names it ("Project", "Eval").
+ * ask to delete it. `noun` names it ("Project", "Workspace").
  */
 export function ProjectActions({
   workspace,
   noun,
 }: {
   workspace: WorkspaceProject;
-  noun: "Project" | "Eval";
+  noun: "Project" | "Workspace";
 }) {
   const { project } = workspace;
   return (
@@ -94,7 +94,7 @@ function DeleteConfirmation({
 }) {
   const [confirmation, setConfirmation] = useState("");
   const pending = deletion.isPending;
-  const resourceLabel = project.kind === "evaluation" ? "Eval" : "Project";
+  const resourceLabel = project.kind === "evaluation" ? "Workspace" : "Project";
   return (
     <AlertDialog
       eyebrow="Permanent workspace deletion"

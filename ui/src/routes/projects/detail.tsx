@@ -28,7 +28,7 @@ import "./projects.css";
 export const ProjectDetailRoute = ProjectsRoute;
 
 /**
- * A legacy evaluation workspace at /evals/:projectId. It keeps its layout
+ * A evaluation workspace at /evals/workspaces/:projectId. It keeps its layout
  * (S06: "Eval workspaces retain their existing layout and scope, including
  * their in-page anchors"): Runs, read-only Artifacts and Workspace settings.
  */
@@ -38,15 +38,15 @@ export function EvaluationDetailRoute() {
   const { project } = workspace;
   const description =
     project.data?.description ||
-    "Legacy evaluation workspace: execution history and recorded inputs.";
-  useDocumentTitle(project.data?.name ?? "Eval");
+    "Evaluation workspace: execution history and recorded inputs.";
+  useDocumentTitle(project.data?.name ?? "Evaluation workspace");
   const targetHeading = useId();
 
   if (!workspace.valid) {
     return (
       <section className="route-page">
-        <ErrorNotice error={new Error("Eval route is invalid")} />
-        <Link to="/evals">Return to Evals</Link>
+        <ErrorNotice error={new Error("Workspace route is invalid")} />
+        <Link to="/evals/workspaces">Return to workspaces</Link>
       </section>
     );
   }
@@ -55,15 +55,15 @@ export function EvaluationDetailRoute() {
     <section className="route-page projects-page project-detail-page eval-detail-page">
       <header className="route-header-row">
         <div>
-          <Link className="back-link" to="/evals">
-            ← All Evals
+          <Link className="back-link" to="/evals/workspaces">
+            ← All workspaces
           </Link>
           <h2>{project.data?.name ?? projectId}</h2>
           <p className="lede" title={description}>
             {description}
           </p>
         </div>
-        <ProjectActions workspace={workspace} noun="Eval" />
+        <ProjectActions workspace={workspace} noun="Workspace" />
       </header>
 
       {project.isPending ? (
@@ -72,7 +72,7 @@ export function EvaluationDetailRoute() {
         </p>
       ) : workspace.deletionObserved && workspace.gone ? (
         <p className="loading-copy" role="status">
-          Project deleted. Returning to Evals…
+          Workspace deleted. Returning to workspaces…
         </p>
       ) : project.error !== null ? (
         <ErrorNotice
@@ -92,6 +92,14 @@ export function EvaluationDetailRoute() {
             className="project-local-navigation section-navigation"
             aria-label="Project sections"
           >
+            <Link to={`/evals?projectId=${encodeURIComponent(projectId)}`}>
+              Experiments
+            </Link>
+            <Link
+              to={`/evals/datasets?project=${encodeURIComponent(projectId)}`}
+            >
+              Datasets
+            </Link>
             <a href="#project-runs">Runs</a>
             <a href="#project-artifacts">Artifacts</a>
             <a href="#project-overview">Workspace settings</a>
@@ -100,7 +108,7 @@ export function EvaluationDetailRoute() {
           <ProjectRunsRegion projectId={project.data.projectId} evaluation />
           <ProjectArtifactBindings
             projectId={project.data.projectId}
-            detailRoot="/evals"
+            detailRoot="/evals/workspaces"
           />
           <details className="eval-workspace-settings" id="project-overview">
             <summary>Workspace settings</summary>
