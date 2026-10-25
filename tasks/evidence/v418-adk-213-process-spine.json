@@ -3,7 +3,7 @@
   "task": "V418-005",
   "component": "existing Go process harnesses",
   "date": "2026-10-25",
-  "status": "Host focused process and final native component validation passed; full task acceptance pending common final-source Linux gates.",
+  "status": "V418-005 acceptance complete. Real process/PG/Audit/mTLS boundaries and every required named case executed; original focused component evidence remains historical.",
   "source_revision": "c59a4d2d9e41ae35117311a69216fe733ab79d97",
   "environment": {
     "platform": "darwin/arm64",
@@ -1042,5 +1042,166 @@
     "failed_prepare_rollback": "A real authenticated Prepare fails503 allocation_preparation_failed after the exact three local tools exist and before delegating Worker creation. Each tool closes once, workspace disappears, Worker State reads404 allocation_not_found, no SDK callback/provider call occurs. A different allocation then prepares/invokes/finalizes/releases successfully, with exactly two total create/close generations.",
     "successful_release_replay": "The same successful authenticated Release is replayed. Tool create/close and dispatch, callback/admission counters, Gateway counts and workspace identity remain identical. Only release_requested/release_finished observer events are added; cleanup is not repeated.",
     "scope": "Actual separate Python Runtime component process with production mTLS/control/A2A/ADK; synchronization tools have no Artifact API or business-store effect. PostgreSQL Run persistence remains covered by the ordinary/Audit harnesses separately."
+  },
+  "final_linux_acceptance": {
+    "archive_sha256": "c96189b427798446b7887b888304116bf2391f3020ed428c745914e3e9c2a1e2",
+    "canonical_process": {
+      "bad_events": [],
+      "passed_required_top_level_tests": 26,
+      "passed_test_records": 68,
+      "passed_unique_tests": 68,
+      "report_sha256": "b1ba225b4a360fc1cc42ba1389c190ebcceb6d43944f8cbe049babc61d8f1af1",
+      "required_top_level_tests": 26
+    },
+    "commands": [
+      {
+        "exit_code": 0,
+        "go_events": {
+          "failed_events": [],
+          "passed_test_records": 13,
+          "skipped_events": [],
+          "unique_passed_tests": 13
+        },
+        "log_sha256": "a162408db6a9a80659c04c3d5419956ede98ef91ee10def4748ec64e14997515",
+        "required_leaf_count": 11,
+        "target": "test-control-integration"
+      },
+      {
+        "audit": {
+          "go": {
+            "failed_events": [],
+            "passed_test_records": 203,
+            "skipped_events": [],
+            "unique_passed_tests": 203
+          },
+          "required_go_entries": 60,
+          "required_python_names": 117,
+          "runtime_cases": 469
+        },
+        "exit_code": 0,
+        "go_events": {
+          "failed_events": [],
+          "passed_test_records": 0,
+          "skipped_events": [],
+          "unique_passed_tests": 0
+        },
+        "log_sha256": "f57d6b382d6f50712f6d64c86bbf5e61da14909415340e865881fe8204c77af4",
+        "target": "test-audit-completion-e2e"
+      },
+      {
+        "exit_code": 0,
+        "go_events": {
+          "failed_events": [],
+          "passed_test_records": 3946,
+          "skipped_events": [
+            {
+              "package": "github.com/grauwolf32/contractor/internal/controlplane/controlplanetest",
+              "test": null
+            }
+          ],
+          "unique_passed_tests": 3125
+        },
+        "log_sha256": "4b81df9bc7f6c24d69615c325d6253e7965ecce97dd2a3c44b8bc0ca93ab9cfc",
+        "required_leaf_count": 16,
+        "target": "test-worker-session-modes-e2e"
+      },
+      {
+        "exit_code": 0,
+        "go_events": {
+          "failed_events": [],
+          "passed_test_records": 2355,
+          "skipped_events": [
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "test": "TestAuditFindingBacktraceScriptRestartsRevisionBoundTraversal"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/controlplane/controlplanetest",
+              "test": null
+            }
+          ],
+          "unique_passed_tests": 2355
+        },
+        "log_sha256": "881708bc06c454b9643e30fe6b4fd2de628ff995e9e6bdbe41f80b819d57167c",
+        "target": "test-worker-observations-e2e"
+      },
+      {
+        "exit_code": 0,
+        "go_events": {
+          "failed_events": [],
+          "passed_test_records": 1958,
+          "skipped_events": [
+            {
+              "package": "github.com/grauwolf32/contractor/tests/e2e",
+              "test": "TestAuditFindingBacktraceScriptRestartsRevisionBoundTraversal"
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/controlplane/controlplanetest",
+              "test": null
+            },
+            {
+              "package": "github.com/grauwolf32/contractor/internal/telemetry",
+              "test": "TestPlannerOTLPCollectorProjection"
+            }
+          ],
+          "unique_passed_tests": 1958
+        },
+        "log_sha256": "8315d1e6f159e80a43a762936d852a9d3614909ae4d08c91110a2cf89c2572b1",
+        "required_leaf_count": 6,
+        "target": "test-worker-summarizer-e2e"
+      },
+      {
+        "exit_code": 0,
+        "go_events": {
+          "failed_events": [],
+          "passed_test_records": 1,
+          "skipped_events": [],
+          "unique_passed_tests": 1
+        },
+        "log_sha256": "e1235359bef3ce8a1352849b1fad0cb81f1bb07c4f7e4785d4ef6c69f04720e8",
+        "target": "test-agent-skills-mvp"
+      },
+      {
+        "canonical_process_report": {
+          "failed_events": [],
+          "passed_test_records": 68,
+          "skipped_events": [],
+          "unique_passed_tests": 68
+        },
+        "exit_code": 0,
+        "go_events": {
+          "failed_events": [],
+          "passed_test_records": 68,
+          "skipped_events": [],
+          "unique_passed_tests": 68
+        },
+        "log_sha256": "81003d448cd57693d00014518e73d59090955f160333b0f7a57f3edaeb4a7f6b",
+        "required_top_level_tests": 26,
+        "target": "test-e2e"
+      },
+      {
+        "container_lint_executed": false,
+        "execution": "reused_verified_host_result",
+        "exit_code": 0,
+        "go_events": {
+          "failed_events": [],
+          "passed_test_records": 0,
+          "skipped_events": [],
+          "unique_passed_tests": 0
+        },
+        "log_sha256": "f3288eca97d05919862a303d6435d03f067d282fa8327e934bbd75374a5247aa",
+        "target": "lint"
+      }
+    ],
+    "provenance_sha256": "5dd7d167d7c50d17feca44b9f3c4d472b6f855dfd7d0853612075d790d49e6cd",
+    "repository_clean_after": true,
+    "revision": "a308c695e83d561ae67a303447851c89883ea5c8",
+    "source_verified_after_run": true,
+    "status": "All eight required target commands are covered: seven actual Linux executions and an explicitly reused verified host make lint. No skipped required process case; source remains clean and unchanged.",
+    "artifact_directory": "/private/tmp/contractor-v418005-linux-final/artifacts",
+    "auxiliary_skip_disposition": "The jq-dependent untagged helper was skipped during two earlier broad matrices, then jq1.7.1 was installed in the disposable container and that exact helper executed/passed separately with no skip. TestPlannerOTLPCollectorProjection remains an explicitly opt-in external Collector check. controlplanetest package-only no-test events are not skipped cases.",
+    "host_lint_reuse": "Actual integrated host make lint PASS, logSHA256 eb8b7a2465ba81abafe395c392173cae9952bb9cdb51e48976bbaf57fb385fcf; all thirteen owned005files byte-matched a308 through the validated ROOT snapshot. This is not an unexecuted Linux lint PASS claim.",
+    "jq_helper_log_sha256": "c8bc9be9b4665fabe8d477fbda4cf7935cd3e47b63f9d3c60efd181050fce679",
+    "resource_decision": "A bounded sample found0.030 utilized cores and no throttling, memory2.086GiB of4GiB. Existing four-CPU quota retained because wait-dominated E2E would not benefit from more CPU."
   }
 }
