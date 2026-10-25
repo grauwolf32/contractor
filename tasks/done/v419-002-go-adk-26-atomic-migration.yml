@@ -5,7 +5,7 @@ milestone: go-adk-26-upgrade-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V419-001
 languages:
@@ -171,3 +171,4 @@ verification:
     PASS.
   scope: No globaltest-go/lint/release/Runtime/UI/allE2Ererun; compactionoff, Schedulerproductionunchanged.003/004/005remain
     for their separate targeted boundaries.
+implementation_commit: 65d8345ae8aef506ac90043060d8337fb91ee250
