@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-141 open tasks: 6 in progress, 124 pending, 11 deferred. 1128 finished: 1118 completed, 10 archived.
+141 open tasks: 7 in progress, 123 pending, 11 deferred. 1128 finished: 1118 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V418-007](v418-007-adk-213-release-gate.yml) | quality | chore | P1 | Close the ADK 2.13 migration with an integrated release gate |
 | [V419-001](v419-001-go-adk-26-compatibility-characterization.yml) | planner-worker | chore | P1 | Characterize Go ADK v1.6 to v2.6 compatibility on real Planner paths |
 | [V419-006](v419-006-finish-append-failure-precedence.yml) | planner-worker | defect | P1 | Fence Planner completion after a required ADK session write fails |
 
@@ -220,7 +221,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
-| [V418-007](v418-007-adk-213-release-gate.yml) | chore | P1 | — | Close the ADK 2.13 migration with an integrated release gate |
 | [V419-005](v419-005-go-adk-26-release-gate.yml) | chore | P1 | V419-003, V419-004 | Accept Go ADK v2.6 through an integrated deterministic release gate |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
 
