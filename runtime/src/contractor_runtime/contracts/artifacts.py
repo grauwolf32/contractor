@@ -31,8 +31,16 @@ from contractor_runtime.contracts.base import (
 # package names them only through the constants.
 FINDING_PROPOSAL_NAMESPACE = "finding-proposals"
 RUN_SYSTEM_NAMESPACE = "contractor-system"
+AUDIT_CONTEXT_NAMESPACE = "audit-context"
 PURPOSE_RESERVED_NAMESPACES = frozenset(
-    {RUN_SYSTEM_NAMESPACE, FINDING_PROPOSAL_NAMESPACE, "inputs", "outputs", "skills"}
+    {
+        RUN_SYSTEM_NAMESPACE,
+        FINDING_PROPOSAL_NAMESPACE,
+        AUDIT_CONTEXT_NAMESPACE,
+        "inputs",
+        "outputs",
+        "skills",
+    }
 )
 MEMORY_ARTIFACT_PREFIX = "memory."
 

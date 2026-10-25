@@ -157,7 +157,7 @@ func (s *ClaimStore) GetRunCreationIntent(
 	var placement []byte
 	var metadata []byte
 	execution, err := ScanExecution(withColumns{row: s.db.QueryRow(ctx, `
-SELECT audit.owner_id, audit.project_id, audit.baseline_snapshot->'labels', audit.baseline_snapshot->'requiredPlacementLabels', `+profileRoleSQL("#>", "execution.workflow_role")+`, `+ExecutionColumns("execution")+`
+SELECT audit.state, audit.dispatch_state, audit.deadline_at, audit.owner_id, audit.project_id, audit.baseline_snapshot->'labels', audit.baseline_snapshot->'requiredPlacementLabels', `+profileRoleSQL("#>", "execution.workflow_role")+`, `+ExecutionColumns("execution")+`
   FROM audit_executions AS execution
   JOIN audits AS audit USING (audit_id)
   JOIN audit_controller_claims AS claim USING (audit_id)
@@ -165,7 +165,7 @@ SELECT audit.owner_id, audit.project_id, audit.baseline_snapshot->'labels', audi
    AND `+auditClaims.LiveCondition("claim", "$2", "$3")+`
  FOR UPDATE OF claim, audit, execution`,
 		claim.AuditID, claim.HolderID, claim.Epoch, executionID,
-	), before: []any{&result.OwnerID, &result.ProjectID, &metadata, &placement, &result.WorkflowBinding}})
+	), before: []any{&result.AuditState, &result.DispatchState, &result.DeadlineAt, &result.OwnerID, &result.ProjectID, &metadata, &placement, &result.WorkflowBinding}})
 	if errors.Is(err, pgx.ErrNoRows) {
 		if live, liveErr := s.claimLive(ctx, claim); liveErr != nil {
 			return auditstore.RunCreationIntent{}, liveErr

@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const roundResultsProcessPages = 129
@@ -277,7 +278,10 @@ func (r *roundResultsProcessReader) stage() domainGatewayStage {
 				return nil, err
 			}
 			if ordinal == 0 {
-				r.consumer, err = auditdomain.DecodeRoundResultsConsumer(data)
+				err = strictjson.Decode(data, &r.consumer)
+				if err == nil {
+					_, err = auditdomain.EncodeRoundResultsConsumer(r.consumer)
+				}
 				if err != nil {
 					return nil, err
 				}

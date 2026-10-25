@@ -103,6 +103,7 @@ Reserved Namespaces and name prefixes:
 | `skills` | Namespace | RunScope | Exact read-only Agent Skill packages ([Skills](../tools/skills.md)) | ART-R14, ART-R39, ART-R108, ART-R109 |
 | `contractor-system` | Namespace, hidden | RunScope | Bounded Control Plane records coupled to a Run | ART-R17, ART-R18 |
 | `finding-proposals` | Namespace | RunScope | Finding proposals and their frozen selected HTTP exchanges that Server finding intake writes ([Findings](../findings/findings.md)) | ART-R114 |
+| `audit-context` | Namespace, model-readable | RunScope | Frozen exact pages and dependencies materialized by the owning Audit | ART-R114 |
 | `memory.` | Name prefix | Non-reserved RunScope Namespaces | Memory notes ([Memory](../tools/memory.md)) | ART-R19 to ART-R22 |
 | `tool-invocation.` | Name prefix | RunScope | Runtime-owned receipts of model-free tool Workers ([Scanners](../tools/scanners.md)) | ART-R23 |
 | `http.body.` | Name prefix | The allocation's logical Namespace | HTTP response bodies ([HTTP and Caido](../tools/http-caido.md)) | ART-R24 |
@@ -272,7 +273,7 @@ projection owned by [Runs](../execution/runs.md), which rechecks authorization
 and source scopes.
 
 **ART-R114.** The purpose-reserved RunScope Namespaces are `inputs`,
-`outputs`, `skills`, `finding-proposals` and `contractor-system`. A trusted
+`outputs`, `skills`, `finding-proposals`, `contractor-system` and `audit-context`. A trusted
 purpose-specific flow owns each one: none can be a Stage Agent Namespace or a
 MemoryTools Namespace, and no Stage result slot or Worker result binds into
 one. The Server and the Runtime apply one list and one reserved Memory binding
@@ -284,6 +285,14 @@ The `finding-proposals` Namespace also holds selected HTTP exchange evidence.
 Finding intake creates its frozen binding together with the proposal and receipt;
 generic writes cannot supply or change the Server-issued finding association
 ([FND-R49](../findings/findings.md), [FND-R160](../findings/findings.md)).
+
+The `audit-context` Namespace contains only frozen context produced by the
+Audit-owned initializer. Its exact local pages and dependencies are readable
+through ordinary Run Artifact tools, with explicit source/retained/consumer
+provenance. They are not additional Workflow input mappings. After the complete
+closure is ready, its consumer descriptor is forked from this Namespace into
+the one declared `inputs/<slot>` binding. This preserves ART-R37 and ART-R80:
+generic Run creation does not traverse JSON references or invent input slots.
 
 **ART-R19.** The `memory.` artifact-name prefix is reserved at the
 model-visible Toolset layer in every non-reserved RunScope Namespace.

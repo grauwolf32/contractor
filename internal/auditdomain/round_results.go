@@ -250,30 +250,31 @@ func ValidateRoundResultsPage(value RoundResultsPage) error {
 
 func EncodeRoundResultsConsumer(value RoundResultsConsumer) ([]byte, error) {
 	if value.Schema != RoundResultsConsumerSchema || !validRoundResultsExact(value.Source) ||
-		value.AuditID == "" || value.RoundID == "" || value.SourceGeneration == 0 || value.ItemCount < 1 ||
-		len(value.Pages) < 1 || len(value.Pages) > MaximumRoundResultsPages || value.Mappings == nil {
+		value.AuditID == "" || value.RoundID == "" || value.SourceGeneration == 0 || value.ItemCount < 1 || value.ItemCount > MaximumItems ||
+		len(value.Pages) < 1 || len(value.Pages) > MaximumRoundResultsPages || len(value.Mappings) != len(value.Pages) {
 		return nil, invalid(CodeInvalid, "round_results_consumer")
 	}
+	count := 0
+	sources := make(map[string]bool, len(value.Mappings))
+	consumers := make(map[string]bool, len(value.Pages))
 	for index, page := range value.Pages {
-		if page.Ordinal != index || !validRoundResultsExact(page.Artifact) {
+		if page.Ordinal != index || page.ItemCount < 1 || page.ItemCount > MaximumRoundResultsPageItems ||
+			!validRoundResultsExact(page.Artifact) || page.Artifact.MediaType != "application/json" ||
+			page.Artifact.SizeBytes > MaximumRoundResultsDocumentBytes || consumers[page.Artifact.Ref.Key()] {
 			return nil, invalid(CodeInvalid, "round_results_consumer.pages")
 		}
-	}
-	for _, mapping := range value.Mappings {
-		if !validRoundResultsExact(mapping.Source) || !validRoundResultsExact(mapping.Consumer) {
+		mapping := value.Mappings[index]
+		if !validRoundResultsExact(mapping.Source) || !validRoundResultsExact(mapping.Consumer) ||
+			sources[mapping.Source.Ref.Key()] || page.Artifact.Verify(mapping.Consumer) != nil {
 			return nil, invalid(CodeInvalid, "round_results_consumer.mappings")
 		}
+		count += page.ItemCount
+		sources[mapping.Source.Ref.Key()], consumers[page.Artifact.Ref.Key()] = true, true
+	}
+	if count != value.ItemCount {
+		return nil, invalid(CodeInvalid, "round_results_consumer.item_count")
 	}
 	return encodeRoundResults(value)
-}
-
-func DecodeRoundResultsConsumer(data []byte) (RoundResultsConsumer, error) {
-	var value RoundResultsConsumer
-	if len(data) > MaximumRoundResultsDocumentBytes || strictjson.Decode(data, &value) != nil {
-		return value, invalid(CodeInvalid, "round_results_consumer")
-	}
-	_, err := EncodeRoundResultsConsumer(value)
-	return value, err
 }
 
 func validRoundResultsExact(value contracts.ExactArtifact) bool {

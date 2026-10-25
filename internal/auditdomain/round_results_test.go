@@ -3,16 +3,15 @@ package auditdomain
 import (
 	"bytes"
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func TestSharedRoundResultsStrictCompleteDocuments(t *testing.T) {
-	data, err := os.ReadFile("../../api/testdata/audit-composition/round-results-cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "audit-composition", "round-results-cases.json")
 	var fixture struct {
 		Description string          `json:"description"`
 		Limits      map[string]int  `json:"limits"`
@@ -20,7 +19,7 @@ func TestSharedRoundResultsStrictCompleteDocuments(t *testing.T) {
 		Manifest    json.RawMessage `json:"manifest"`
 		Consumer    json.RawMessage `json:"consumer"`
 	}
-	if err = json.Unmarshal(data, &fixture); err != nil {
+	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
 	}
 	for name, want := range map[string]int{"documentBytes": MaximumRoundResultsDocumentBytes, "pages": MaximumRoundResultsPages, "totalBytes": MaximumRoundResultsBytes, "pageItems": MaximumRoundResultsPageItems, "sliceDescriptors": MaximumRoundResultsSliceDescriptors, "sliceBytes": MaximumRoundResultsSliceBytes} {
@@ -36,7 +35,7 @@ func TestSharedRoundResultsStrictCompleteDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	consumer, err := DecodeRoundResultsConsumer(fixture.Consumer)
+	consumer, err := decodeRoundResultsConsumer(fixture.Consumer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,10 +49,23 @@ func TestSharedRoundResultsStrictCompleteDocuments(t *testing.T) {
 	if page.Items[0].SelectedAttempt.Attempt != 2 || page.Items[0].Findings[0].State != "proposed" || consumer.SourceGeneration != manifest.SourceGeneration {
 		t.Fatal("attempt, conservative finding state or source generation lost")
 	}
+	for name, mutate := range map[string]func(*RoundResultsConsumer){
+		"missing mapping":      func(c *RoundResultsConsumer) { c.Mappings = nil },
+		"missing member":       func(c *RoundResultsConsumer) { c.ItemCount++ },
+		"empty page":           func(c *RoundResultsConsumer) { c.Pages[0].ItemCount = 0 },
+		"wrong media":          func(c *RoundResultsConsumer) { c.Pages[0].Artifact.MediaType = "text/plain" },
+		"different local page": func(c *RoundResultsConsumer) { c.Mappings[0].Consumer.Ref.Name = "other-page" },
+	} {
+		fresh, _ := decodeRoundResultsConsumer(fixture.Consumer)
+		mutate(&fresh)
+		if _, err := EncodeRoundResultsConsumer(fresh); err == nil {
+			t.Errorf("consumer accepts %s", name)
+		}
+	}
 	for name, decode := range map[string]func([]byte) error{
 		"page":     func(data []byte) error { _, err := DecodeRoundResultsPage(data); return err },
 		"manifest": func(data []byte) error { _, err := DecodeRoundResultsManifest(data); return err },
-		"consumer": func(data []byte) error { _, err := DecodeRoundResultsConsumer(data); return err },
+		"consumer": func(data []byte) error { _, err := decodeRoundResultsConsumer(data); return err },
 	} {
 		valid := map[string][]byte{"page": fixture.Page, "manifest": fixture.Manifest, "consumer": fixture.Consumer}[name]
 		for label, bad := range map[string][]byte{
@@ -89,4 +101,13 @@ func TestSharedRoundResultsStrictCompleteDocuments(t *testing.T) {
 	if _, err := EncodeRoundResultsManifest(manifest); err == nil {
 		t.Fatal("manifest accepts repeated/misordered page")
 	}
+}
+
+func decodeRoundResultsConsumer(data []byte) (RoundResultsConsumer, error) {
+	var value RoundResultsConsumer
+	if len(data) > MaximumRoundResultsDocumentBytes || strictjson.Decode(data, &value) != nil {
+		return value, invalid(CodeInvalid, "round_results_consumer")
+	}
+	_, err := EncodeRoundResultsConsumer(value)
+	return value, err
 }
