@@ -11,11 +11,13 @@ depends_on:
 - V418-002
 languages:
 - python
+- go
 - markdown
 goal: Keep a logical Worker and its A2A Task cancelled after a child tool cancels, even when the SDK ends
   its iterator without propagating that cancellation.
 context:
   severity: medium
+  native_evidence: tasks/evidence/v418-adk-213-native-process-faults.json
   finding: worker/runtime.py:_adk_turn_events/_run_adk currently converts a silently ended child-cancelled
     SDK turn into worker_result_missing/failed State. Real mTLS/A2A case TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_parallel_child_cancel_keeps_completed_sibling
     observes completed read plus cancelled write, model1/tools2/error1, no next request, but Go Invoke
@@ -29,9 +31,10 @@ context:
   - docs/spec/execution/worker.md#WRK-R177
   - docs/spec/execution/worker.md#WRK-R179
   - docs/spec/platform/observability.md#OBS-R24
+  - docs/spec/execution/runtime-agent.md#RTA-R117
   siblings: Single/parallel/shared/isolated self-cancellation; next shared invocation; A2A execute terminal
-    publication when its task.cancelling()==0; external CancelTask/lease/finalize authority; deadline/sandbox/history/budget
-    precedence; stale/foreign callbacks and seal failure.
+    publication only without an external cancellation request; external CancelTask/lease/finalize authority;
+    deadline/sandbox/history/budget precedence; stale/foreign callbacks and seal failure.
 scope:
   in:
   - One authenticated O(1) current-turn cancellation fact; refuse another semantic admission and normal
@@ -57,7 +60,7 @@ acceptance_criteria:
     fail on the old code.
 tests:
 - command: cd runtime && uv run --locked pytest -W error tests/test_adk_runtime_history.py tests/test_adk_runtime.py
-    tests/test_instrumentation.py tests/test_worker_history.py tests/test_a2a_server.py
+    tests/test_instrumentation.py tests/test_worker_history.py tests/test_a2a_server.py tests/test_tool_worker_deadline.py
   covers:
   - A1
   - A2
@@ -98,3 +101,12 @@ lifecycle:
   delete: Existing invocation/runtime owner clears it.
   cascade: No new durable entity or effects.
   retention: Allocation-local only; existing metrics and terminal State persist under their owners.
+verification:
+  focused: 301 passed, zero skipped, across all five required owner modules plus the existing repeated
+    external-cancellation module. An isolated no-op guard mutation fails all four single/parallel shared/isolated
+    regressions.
+  native_linux: Fresh locked full Runtime:5051total/4996passed/55unchanged allowed skips/0fail/0errors;
+    report verifier passes; all9 native control leaves and the exact required singleton pass. Source manifest
+    remains unchanged.
+  lint: make lint passes on the final production source; linked evidence retains original component checks,
+    first failed Linux attempt, explicit external-origin repair, source/lock/report hashes and exact commands.

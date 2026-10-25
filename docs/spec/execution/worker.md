@@ -957,6 +957,12 @@ raw-argument rejection, domain failure and parallel sibling cancellation.
 `asyncio.CancelledError` reaching the SDK's tool-error callback closes the
 attempt with `tool_call_cancelled` under OBS-R24 and is re-raised, so that
 callback cannot recover cancelled execution or create a second attempt.
+Runtime observes authorized tool cancellation independently of whether the SDK
+propagates it or ends its iterator normally. It admits no later semantic call
+and preserves cancelled invocation State before joined history settlement;
+prior deadline, sandbox, history-validation and refused-budget failures retain
+their existing authority. A valid new logical invocation resets its own
+cancellation evidence, and foreign callbacks cannot alter it.
 
 **WRK-R86.** Only a completed callback changes semantic
 observations. A failed or cancelled call increments safe metrics but does not

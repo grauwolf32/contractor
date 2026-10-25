@@ -808,6 +808,19 @@ class AdkWorkerRuntime:
         if self._active_deadline is None:
             raise RuntimeError("Worker has no active invocation deadline")
         self._active_deadline.check()
+        self._raise_observed_tool_cancellation()
+
+    def _raise_observed_tool_cancellation(self) -> None:
+        if not self._plugin.tool_cancellation_observed:
+            return
+        self._worker_state.execution.check()
+        if self._active_deadline is not None:
+            self._active_deadline.check()
+        # A refused budget can cause the SDK to cancel admitted siblings.
+        # That secondary cancellation must not replace its owning failure.
+        if self._active_budget is not None and self._active_budget.failure is not None:
+            raise self._active_budget.failure
+        raise asyncio.CancelledError
 
     async def _adk_turn_events(
         self, runner: Runner, logical_id: str, sdk_id: str, session_id: str, prompt: str
@@ -827,8 +840,19 @@ class AdkWorkerRuntime:
                     # Runner yields only after SessionService accepted this event.
                     self._tool_history.persisted(event)
                     yield event
+            # Some SDK node runners absorb a child's CancelledError and end
+            # normally. Observe it before selecting a result or entering cleanup.
+            self._raise_observed_tool_cancellation()
         except asyncio.CancelledError:
             cancelled = True
+            raise
+        except Exception as error:
+            if _chained_error(error, ToolHistoryError) is None:
+                try:
+                    self._raise_observed_tool_cancellation()
+                except asyncio.CancelledError:
+                    cancelled = True
+                    raise
             raise
         finally:
             try:

@@ -439,3 +439,171 @@ def test_finalizer_sdk_admission_respects_owner_deadline_and_nested_timeout_clas
             await runtime.finalize(datetime.now(UTC) + timedelta(seconds=10))
 
     run_with_advanceable_clock(scenario())
+
+
+@pytest.mark.parametrize("mode", list(WorkerSessionMode))
+@pytest.mark.parametrize("parallel", [False, True])
+def test_child_tool_cancellation_cannot_become_missing_result(tmp_path, mode, parallel):
+    async def scenario():
+        sibling_settled = asyncio.Event()
+        effects = []
+
+        async def known_sibling() -> dict:
+            """Return a real completed sibling exactly once."""
+            effects.append("known")
+            return {"known": "exact sibling value"}
+
+        async def child_cancel() -> dict:
+            """Cancel this native child after its sibling has fully settled."""
+            if parallel:
+                await sibling_settled.wait()
+            effects.append("child")
+            raise asyncio.CancelledError
+
+        response = tool_call("child_cancel", {}, call_id="self-cancelled")
+        if parallel:
+            selected = tool_call("known_sibling", {}, call_id="known-sibling")
+            selected.content.parts.extend(response.content.parts)
+            response = selected
+        state = WorkerState()
+        model = CapturingScriptedLlm(
+            model="deterministic-child-cancel",
+            responses=[response, text_result("A later healthy invocation")],
+        )
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            {"known_sibling": known_sibling, "child_cancel": child_cancel},
+            model,
+            session_mode=mode,
+        )
+        original_after = runtime._plugin.after_tool_callback
+
+        async def after_tool(**kwargs):
+            await original_after(**kwargs)
+            if kwargs["tool"].name == "known_sibling":
+                sibling_settled.set()
+
+        runtime._plugin.after_tool_callback = after_tool
+        with pytest.raises(asyncio.CancelledError):
+            await runtime.invoke(stage_request())
+        completed = (await state.snapshot())["lastCompletedInvocation"]
+        assert completed["phase"] == "cancelled"
+        assert completed["metrics"]["modelCalls"] == 1
+        assert completed["metrics"]["toolCalls"] == (2 if parallel else 1)
+        assert completed["metrics"]["toolErrors"] == 1
+        assert len(model.requests) == 1
+        expected = ["known", "child"] if parallel else ["child"]
+        assert effects == expected
+        next_payload = len(model.payloads)
+        second = await runtime.invoke(stage_request().model_copy(update={"subtask_id": "1"}))
+        assert second.result is not None and second.failure is None
+        assert second.invocation_id != completed["invocationId"]
+        assert effects == expected
+        carried = model.payloads[next_payload]
+        assert_balanced_tool_calls(carried)
+        returned = responses(carried)
+        if mode == WorkerSessionMode.SHARED:
+            assert returned["self-cancelled"]["error"]["code"] == "tool_call_cancelled"
+            if parallel:
+                assert returned["known-sibling"] == {"known": "exact sibling value"}
+        else:
+            assert returned == {}
+        assert len(model.requests) == 3
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
+
+    asyncio.run(scenario())
+
+
+def test_child_cancellation_keeps_authority_when_its_history_seal_fails(tmp_path, monkeypatch):
+    async def scenario():
+        async def child_cancel() -> dict:
+            """Cancel the native child without cancelling its owning task."""
+            raise asyncio.CancelledError
+
+        state = WorkerState()
+        model = CapturingScriptedLlm(
+            model="deterministic-child-cancel",
+            responses=[tool_call("child_cancel", {}, call_id="child-before-bad-seal")],
+        )
+        runtime = await create_runtime(tmp_path, state, {"child_cancel": child_cancel}, model)
+
+        async def unavailable(*_args, **_kwargs):
+            raise OSError("seal-failure-content-canary")
+
+        monkeypatch.setattr(runtime._tool_history, "seal", unavailable)
+        with pytest.raises(asyncio.CancelledError):
+            await runtime.invoke(stage_request())
+        assert (await state.snapshot())["lastCompletedInvocation"]["phase"] == "cancelled"
+        assert runtime._session_lifecycle.failed
+        assert not runtime._accepting
+        later = await runtime.invoke(stage_request())
+        assert later.failure.code == "worker_draining"
+        assert len(model.requests) == 1
+        assert "seal-failure-content-canary" not in json.dumps(await state.snapshot())
+        await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("prior_history", [True, False], ids=["history-first", "child-first"])
+def test_child_cancel_keeps_the_first_history_or_cancellation_outcome(
+    tmp_path, monkeypatch, prior_history
+):
+    async def scenario():
+        known_settled = asyncio.Event()
+
+        async def known() -> dict:
+            """Return a known sibling before the controlled child cancellation."""
+            return {"known": True}
+
+        async def child_cancel() -> dict:
+            """Cancel only after the earlier sibling boundary has settled."""
+            await known_settled.wait()
+            raise asyncio.CancelledError
+
+        batch = tool_call("known", {}, call_id="known-before-order")
+        batch.content.parts.extend(
+            tool_call("child_cancel", {}, call_id="ordered-child").content.parts
+        )
+        state = WorkerState()
+        model = CapturingScriptedLlm(model="order-probe", responses=[batch])
+        runtime = await create_runtime(
+            tmp_path, state, {"known": known, "child_cancel": child_cancel}, model
+        )
+        original = runtime._plugin.after_tool_callback
+
+        async def after_tool(**kwargs):
+            try:
+                await original(**kwargs)
+                if prior_history:
+                    runtime._tool_history._fail("invalid_tool_history")
+            finally:
+                if kwargs["tool"].name == "known":
+                    known_settled.set()
+
+        monkeypatch.setattr(runtime._plugin, "after_tool_callback", after_tool)
+        if not prior_history:
+
+            async def failed_after_cancel(*_args, **_kwargs):
+                runtime._tool_history._fail("tool_history_limit_exceeded")
+
+            monkeypatch.setattr(runtime._tool_history, "failed", failed_after_cancel)
+        try:
+            if prior_history:
+                result = await runtime.invoke(stage_request())
+                assert result.failure is not None
+                assert result.failure.code == "worker_session_lifecycle_failed"
+                assert not result.failure.retryable
+                assert (await state.snapshot())["lastCompletedInvocation"]["phase"] == "failed"
+            else:
+                with pytest.raises(asyncio.CancelledError):
+                    await runtime.invoke(stage_request())
+                assert (await state.snapshot())["lastCompletedInvocation"]["phase"] == "cancelled"
+            assert not runtime._accepting
+            assert runtime._session_lifecycle.failed
+            assert len(model.requests) == 1
+        finally:
+            await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
+
+    asyncio.run(scenario())

@@ -362,7 +362,7 @@ class ExecutorWorker:
     allocation_id = EXECUTOR_ALLOCATION
 
     def __init__(self) -> None:
-        self.invoke_error: Exception | None = None
+        self.invoke_error: BaseException | None = None
         self.failure_error: Exception | None = None
         self.block = False
         self.started = asyncio.Event()
@@ -468,5 +468,22 @@ def test_executor_cancel_targets_only_the_task_owning_the_invocation() -> None:
             await active
         assert worker.cancelled_owners == [active]
         assert executor._invocations == {}
+
+    asyncio.run(scenario())
+
+
+def test_executor_publishes_terminal_status_for_a_child_cancelled_worker() -> None:
+    async def scenario() -> None:
+        worker = ExecutorWorker()
+        worker.invoke_error = asyncio.CancelledError()
+        executor = ContractorAgentExecutor(worker)
+        queue = RecordingQueue()
+        owner = asyncio.current_task()
+        assert owner is not None and not owner.cancelling()
+        await executor.execute(executor_context("task-child-cancelled"), queue)
+        assert queue.terminal().status.state == TaskState.TASK_STATE_CANCELED
+        assert executor._invocations == {}
+        assert worker.failures == []
+        assert not owner.cancelling()
 
     asyncio.run(scenario())

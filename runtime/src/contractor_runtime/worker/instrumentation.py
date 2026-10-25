@@ -130,6 +130,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._next_tool_ordinal = 1
         self._projection_failed = False
         self._model_output_limited = False
+        self._tool_cancellation_observed = False
         self._closed = False
 
     def prepare_invocation(self, *, invocation_id: str, subtask_id: str) -> None:
@@ -138,6 +139,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         if self._prepared is not None or self._active_invocation_id is not None:
             raise RuntimeError("Worker instrumentation already has an invocation")
         self._projection_failed = False
+        self._tool_cancellation_observed = False
         self._prepared = (invocation_id, subtask_id)
 
     def prepare_continuation(self, *, invocation_id: str, sdk_invocation_id: str) -> None:
@@ -175,6 +177,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                     raise RuntimeError("Worker instrumentation continuation is stale")
                 self._state.execution.check()
                 self._model_output_limited = False
+                self._tool_cancellation_observed = False
                 self._active_sdk_invocation_id = self._continuation[1]
                 self._used_sdk_invocation_ids.add(self._continuation[1])
                 self._continuation = None
@@ -197,6 +200,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 raise RuntimeError("Worker instrumentation invocation is not prepared")
             self._prepared = None
             self._model_output_limited = False
+            self._tool_cancellation_observed = False
             self._active_invocation_id = prepared[0]
             self._active_sdk_invocation_id = invocation_context.invocation_id
             self._used_sdk_invocation_ids = {invocation_context.invocation_id}
@@ -541,6 +545,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
         )
         async with self._lock:
             self._require_sdk_context(tool_context)
+            if cancelled:
+                self._tool_cancellation_observed = True
             pending = self._pending_tools.pop(id(tool_context), None)
             if pending is None:
                 # A duplicate/error cleanup callback cannot create another
@@ -688,6 +694,11 @@ class WorkerInstrumentationPlugin(BasePlugin):
             self._continuation = None
             self._invocation_metrics = None
             self._workspace_observations = None
+
+    @property
+    def tool_cancellation_observed(self) -> bool:
+        """An authorized native tool callback observed cancellation in this turn."""
+        return self._tool_cancellation_observed
 
     @property
     def model_output_limited(self) -> bool:

@@ -1,0 +1,336 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-25",
+  "captured_at_utc": "2026-10-25T14:36:47.431020+00:00",
+  "task": "V418-010",
+  "status": "V418-010 acceptance passed for the identified final source; no full milestone release acceptance is claimed.",
+  "provenance": {
+    "source_base_commit": "c59a4d2d9e41ae35117311a69216fe733ab79d97",
+    "coordinator_task_start_commit": "ad786a822b4dc642977c85ea8a9be43907f00cfd",
+    "production_snapshot": "Base plus coordinator-authorized uncommitted V418-010 fix in the three production files listed below; those files are not part of this component test commit. Hashes identify the tested snapshot.",
+    "environment": {
+      "platform": "Darwin arm64",
+      "python": "3.13.16",
+      "go": "1.26.9",
+      "google-adk": "2.13.0",
+      "a2a-sdk": "1.1.2"
+    },
+    "installation": "Existing coordinator default .venv for the committed production lock reused read-only through the component worktree runtime/.venv symlink. The Go harness explicitly selects this worktree runtime/src and runtime/tests; no fresh dependency sync is claimed.",
+    "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64"
+  },
+  "source_files_sha256": {
+    "runtime/uv.lock": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+    "runtime/pyproject.toml": "049a2fe5dfbd4f7e26050c1a7a180fd4320446179f20885bd5f21d8f138c6bf3",
+    "runtime/src/contractor_runtime/worker/function_tools.py": "df91c95769b6bebfb124d04751d9aecfc81734ef3d8e770eeb59db1e3b32ed62",
+    "runtime/src/contractor_runtime/worker/history.py": "6c912045f2fcf81187a2862fa907b436a1e4ad0721994997ca805c9616157d7b",
+    "runtime/src/contractor_runtime/worker/instrumentation.py": "47eac09f9e951235c5daf9de181e8836f1b59456201cc1e16d4b7475eb879916",
+    "runtime/src/contractor_runtime/worker/runtime.py": "62f2d14ba818923bb95e51bc34d8382c6b8eb7c5f3ec5e1efc3eb9a51097b1cf",
+    "runtime/src/contractor_runtime/a2a_server.py": "b265575711fac901facff320a8c36f2e0e7d25c6adb942fa63d574ec2fb74f73",
+    "runtime/tests/lifecycle_server.py": "ac2acd1ea083699e4ece2c148e866b67610348ff24593099070137db3679e80f",
+    "runtime/tests/fakes/adk_process_faults.py": "977843365dcff458a2c84a3b8bb3428ca8933362f03f2f4e15d0350303610ba4",
+    "internal/controlplane/runtime_native_faults_integration_test.go": "5fe6dc700513e9241f7e7fa365f9bcf53cf36b8f31f837908fd2ae6adb301106"
+  },
+  "boundary": {
+    "kind": "component cross-process",
+    "real_components": [
+      "Python RuntimeServer and AllocationService",
+      "AdkWorkerRuntime and native ADK Runner callbacks/history",
+      "OpenAI-compatible HTTP Gateway adapter",
+      "mTLS RuntimeControlClient and production planner/a2a.Invoker",
+      "production LeaseWatchdog for the lease case"
+    ],
+    "test_controls": [
+      "Opt-in lifecycle_server fault mode leaves the normal fixture unchanged.",
+      "Local synchronization tools reuse the test template selected names; they do not implement ArtifactStore or other business stores.",
+      "Atomic staging-write/close/replace markers expose readiness only after complete JSON.",
+      "AdvanceableClockLoop moves semantic, lease and cleanup timers deterministically. Safety timeout guards have no elapsed-time assertions.",
+      "A bounded transport observer waits for the real GetTask so external CancelTask owns a known A2A Task.",
+      "Tool close fails if a native dispatch remains active. Release checks each of three selected tools closed once and workspace removal."
+    ],
+    "bounds": {
+      "scenario_cases": 7,
+      "selected_tools": 3,
+      "observer_retained_request_bytes": 1048577,
+      "first_invocation_parallel_dispatch_max": 2,
+      "per_case_safety_context_seconds": 60,
+      "cleanup_budget_advance_seconds": 6,
+      "semantic_deadline_advance_seconds": 7200,
+      "lease_clock_advance_seconds": 61
+    },
+    "not_claimed": [
+      "Full Server or PostgreSQL conformance",
+      "Production ArtifactStore/tool business effects or receipts",
+      "Server heartbeat confirmation that an allocation is idle",
+      "Resource measurements from the fixture fixed ResourceCollector",
+      "Full Runtime, Linux, lint or release gate acceptance"
+    ]
+  },
+  "cases": [
+    {
+      "test": "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_tool_cancel_join",
+      "result": "pass",
+      "assertions": "Go Invoker cancellation reaches real CancelTask; native tool keeps its cleanup owner until an explicit barrier releases it. Concurrent production Abort cannot return before that join. Release closes all selected tools exactly once and removes the workspace."
+    },
+    {
+      "test": "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/expired_deadline_no_admission",
+      "result": "pass",
+      "assertions": "An expired Stage request returns worker_timeout with zero model/tool charges, zero SDK model/tool callback entries and zero Gateway requests."
+    },
+    {
+      "test": "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_deadline_stops_next_dispatch",
+      "result": "pass",
+      "assertions": "A dispatched tool advances the controlled loop beyond the semantic deadline. Exactly one model and one tool were admitted; no next provider or finalizer call occurs. Invocation remains pending while independent session cleanup is held, then returns worker_timeout after cleanup joins."
+    },
+    {
+      "test": "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_parallel_child_cancel_keeps_completed_sibling",
+      "result": "pass",
+      "assertions": "A completed native read settles history before its parallel write self-cancels. Go receives worker_task_cancelled and Worker State is cancelled, with one model, two tools, one tool error, known 7 input / 3 output / 10 total tokens, exactly one retryable tool_call_cancelled record and no extra first-invocation callback/provider/finalizer attempt. A healthy next shared invocation receives both original call/response IDs once, exact known sibling result and original logical invocation, without replaying either tool."
+    },
+    {
+      "test": "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_cleanup_failure_fences_until_release",
+      "result": "pass",
+      "assertions": "A controlled first cache-cleanup failure returns retryable allocation_cleanup_failed. A second allocation is rejected with non-retryable HTTP 409 allocation_conflict and the destroyed Worker is unavailable. Retrying the existing Release succeeds, closes selected tools once and removes the workspace."
+    },
+    {
+      "test": "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_lease_expiry_joins_active_adk",
+      "result": "pass",
+      "assertions": "The production LeaseWatchdog expires through controlled monotonic clock advancement and calls AllocationService.expire_control_lease. Native work remains owned until explicit join, before lease expiry finishes and real Release removes the workspace."
+    },
+    {
+      "test": "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_terminal_cleanup_budget_expires",
+      "result": "pass",
+      "assertions": "After the semantic deadline has expired, a separate cleanup timer is advanced past its five-second bound. The cleanup task is cancelled/joined, original worker_timeout remains the outcome, and the next invocation returns worker_draining before final release."
+    }
+  ],
+  "checks": [
+    {
+      "command": "make test-control-integration",
+      "exit_code": 0,
+      "selection": "Unanchored TestCrossLanguageMTLSAllocationLifecycle includes the unchanged finalize/abort and all seven native fault subcases.",
+      "source": "make/core.mk:74"
+    },
+    {
+      "command": "go test -tags=integration -count=1 -timeout=3m ./internal/controlplane -run '^TestCrossLanguageMTLSAllocationLifecycle(NativeADKFaults)?$' -json",
+      "exit_code": 0,
+      "leaf_passed": 9,
+      "leaf_failed": 0,
+      "leaf_skipped": 0,
+      "leaf_tests": [
+        "TestCrossLanguageMTLSAllocationLifecycle/finalize",
+        "TestCrossLanguageMTLSAllocationLifecycle/abort",
+        "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_tool_cancel_join",
+        "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/expired_deadline_no_admission",
+        "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_deadline_stops_next_dispatch",
+        "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_parallel_child_cancel_keeps_completed_sibling",
+        "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_cleanup_failure_fences_until_release",
+        "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_lease_expiry_joins_active_adk",
+        "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_terminal_cleanup_budget_expires"
+      ]
+    },
+    {
+      "command": "go test -count=1 ./internal/controlplane ./internal/archtest",
+      "exit_code": 0,
+      "scope": "Complete untagged owner package and architecture package; this is not the database integration suite."
+    },
+    {
+      "command": "ruff check --no-cache runtime/tests/lifecycle_server.py runtime/tests/fakes/adk_process_faults.py",
+      "exit_code": 0
+    },
+    {
+      "command": "ruff format --check --no-cache runtime/tests/lifecycle_server.py runtime/tests/fakes/adk_process_faults.py",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "negative_control": {
+    "test": "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_parallel_child_cancel_keeps_completed_sibling",
+    "command": "go test -tags=integration -count=1 -timeout=90s ./internal/controlplane -run '^TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_parallel_child_cancel_keeps_completed_sibling$' -json",
+    "production_base_commit": "c59a4d2d9e41ae35117311a69216fe733ab79d97",
+    "exit_code": 1,
+    "expected_failure": "Go Invoke err=nil, Worker failure worker_result_missing (retryable), Worker State failed despite a settled read and cancelled parallel write. One model / two tools / one tool error and known 7 / 3 / 10 usage are already recorded; no next main/finalizer dispatch occurred.",
+    "reproduction": "In an isolated worktree retaining these test files and the same production 2.13 lock, save the three patched production file bytes, replace each only with git show <production_base_commit>:<path>, execute the focused test, and restore saved bytes in a finally block. The final focused gate was rerun successfully after restoration. No temporary control file is needed to reproduce it.",
+    "old_production_files_sha256": {
+      "runtime/src/contractor_runtime/worker/instrumentation.py": "9317b18e63a19341402bf7a2ec04126ebd53a3753d6ccfafa8b22aca27086f5a",
+      "runtime/src/contractor_runtime/worker/runtime.py": "41d2a2ea1f0503ec49a372f43adaa57261891793fe678610f199be7daf5280ad",
+      "runtime/src/contractor_runtime/a2a_server.py": "7910a230cb71457f63831892951d743acdd4a85bb2fe63b6d89927259fa9fcb6"
+    },
+    "restored_fixed_source_sha256": {
+      "runtime/src/contractor_runtime/worker/instrumentation.py": "47eac09f9e951235c5daf9de181e8836f1b59456201cc1e16d4b7475eb879916",
+      "runtime/src/contractor_runtime/worker/runtime.py": "62f2d14ba818923bb95e51bc34d8382c6b8eb7c5f3ec5e1efc3eb9a51097b1cf",
+      "runtime/src/contractor_runtime/a2a_server.py": "b265575711fac901facff320a8c36f2e0e7d25c6adb942fa63d574ec2fb74f73"
+    }
+  },
+  "gate_notes": [
+    "An initial non-escalated repeat could not bind loopback listeners in the sandbox; the same commands passed with the local-listener permission already used by the native harness. This was a prerequisite failure, not a test skip.",
+    "make test-performance-runtime intentionally selects only the original lifecycle test; no claim is made that this performance family ran the native fault cases.",
+    "The tests create and destroy their own Runtime processes, PKI, Gateway and workspaces. They do not use a PostgreSQL database."
+  ],
+  "coordinator_verification": {
+    "status": "All required V418-010 commands pass: final focused301, native Linux full4996+55unchanged allowed skips, native9, exact required singleton, host make lint. The first failing attempt and its repair are retained. Final milestone release remains V418-007.",
+    "source_files_sha256": {
+      "runtime/src/contractor_runtime/a2a_server.py": "880ead38e52c7937cb3c0bc872d60634a403b99de346d626a2645f8053e30971",
+      "runtime/src/contractor_runtime/worker/instrumentation.py": "47eac09f9e951235c5daf9de181e8836f1b59456201cc1e16d4b7475eb879916",
+      "runtime/src/contractor_runtime/worker/runtime.py": "62f2d14ba818923bb95e51bc34d8382c6b8eb7c5f3ec5e1efc3eb9a51097b1cf",
+      "runtime/tests/test_adk_runtime_history.py": "b1ad4616535a486478d5289419c69647d3676971faa9e9c8b15b09ded978b1dd",
+      "runtime/tests/test_a2a_server.py": "95adc20057d630727a89e908d7464b433f08d9eec18521d7b0541b5bdf45dfef",
+      "runtime/tests/test_instrumentation.py": "52a33a2f1f9821fd65c6088076ca8b91e6f5b54b4ee50da632a0017e707dac7d",
+      "runtime/tests/test_tool_worker_deadline.py": "f191fb132823eefa8ef4eb772b625f9e0e6f96cded277fa0991f873065603a84"
+    },
+    "focused": {
+      "command": "cd runtime && uv run --locked pytest -W error tests/test_adk_runtime_history.py tests/test_adk_runtime.py tests/test_instrumentation.py tests/test_worker_history.py tests/test_a2a_server.py tests/test_tool_worker_deadline.py",
+      "exit_code": 0,
+      "total": 301,
+      "passed": 301,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "71716c23d0f3176e4ac099a04c4aea6a9256c1b93bb184036cf1c0a3cfedaaca"
+    },
+    "mutation_control": {
+      "scope": "Isolated src copy; replace only observed child cancellation guard with no-op. Root source unchanged.",
+      "exit_code": 1,
+      "test": "test_child_tool_cancellation_cannot_become_missing_result",
+      "expected": "Each single/parallel shared/isolated case fails because child cancellation no longer escapes as cancellation.",
+      "total": 4,
+      "passed": 0,
+      "failed": 4,
+      "errors": 0,
+      "skipped": 0,
+      "sha256": "ca276231fffbe2d6d9c7336775d34557610a3adfd47f474de94b2e041f37f6c0"
+    },
+    "first_native_linux_runtime": {
+      "exit_code": 2,
+      "total": 5051,
+      "passed": 4990,
+      "failed": 6,
+      "skipped": 55,
+      "failure_family": "test_shared_tool_state_joins_repeated_executor_cancellation[completed/failed/timeout-admission/settlement]",
+      "diagnosis": "CancelTask can cancel ToolWorker-owned child while A2A producer.cancelling()==0; first implementation wrongly published cancelled status and swallowed external ownership cancellation.",
+      "repair": "Keep an explicit cancel_requested flag in the existing live invocation ownership record, set before delegating CancelTask. External cancellation propagates; only genuine child-only cancellation authors terminal status.",
+      "results_preserved": "/private/tmp/contractor-v418010-linux-twh3h7tt/first-gate-artifacts.tar.gz"
+    },
+    "native_linux_repeat": {
+      "source_base_commit": "ad786a822b4dc642977c85ea8a9be43907f00cfd",
+      "scope": "The same isolated fourteen-file V418-010 snapshot, with only a2a_server.py refreshed after the preserved first failure; no V418-006/011 work copied.",
+      "source_file_count": 6016,
+      "source_manifest_sha256": "348159e84f7b94edf2adb61f57d9b5cd458012ae37df695ff26dc04b0cc17062",
+      "a2a_server_sha256": "880ead38e52c7937cb3c0bc872d60634a403b99de346d626a2645f8053e30971",
+      "source_unchanged_through_gates": true,
+      "platform": "Linux arm64; Python 3.13.5; Go 1.26.9; fresh default venv from the accepted locked closure",
+      "lock_sha256": "5b8a11773fe6d684eaa61fd99a1f87100316fbc4759a692ab146cf4a5dce3b64",
+      "commands": [
+        {
+          "command": [
+            "uv",
+            "sync",
+            "--locked"
+          ],
+          "exit_code": 0,
+          "label": "sync",
+          "log_sha256": "d6ba67d6117b97d1994d3bce5f36381e54ff5cc203124a7ffaa2f257c0741fde"
+        },
+        {
+          "command": [
+            "make",
+            "test-runtime",
+            "RELEASE_REPORTS=/tmp/v418010-gate-r2/reports"
+          ],
+          "exit_code": 0,
+          "label": "runtime",
+          "log_sha256": "c79f087608aaf9e076e2b39f3c838d19f923fc70f398c3c5cf3de05bf012fe9c"
+        },
+        {
+          "command": [
+            "python3",
+            "scripts/release_test_reports.py",
+            "verify-runtime",
+            "--report",
+            "/tmp/v418010-gate-r2/reports/runtime.xml"
+          ],
+          "exit_code": 0,
+          "label": "verify-runtime",
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "command": [
+            "make",
+            "test-control-integration"
+          ],
+          "exit_code": 0,
+          "label": "control-integration",
+          "log_sha256": "f3491e8e65b6fdd68a29a9499e667cb12cd7d5929a5ae6f86667370b1c8432fc"
+        }
+      ],
+      "allowed_skips": "The same 55 baseline opt-in/harness skips, with no new skip. The real Artifact API Audit bridge remains mandatory in V418-005.",
+      "runtime_result": {
+        "errors": 0,
+        "failures": 0,
+        "passed": 4996,
+        "skip_policy_matches_baseline": true,
+        "skip_reasons": {
+          "Vacuum executable is unavailable": 2,
+          "explicit real Podman release gate": 5,
+          "explicit real gate: make test-podman-supervisor": 11,
+          "explicit real-rootless command execution gate": 12,
+          "explicit real-rootless deployment/workflow gate": 1,
+          "explicit real-rootless owner-process gate": 3,
+          "explicit real-rootless startup capability gate": 2,
+          "launched by make test-audit-completion-e2e with a real Go Artifact API": 1,
+          "live LLM Gateway environment is not configured": 3,
+          "optional Katana binary is absent": 5,
+          "optional ffuf binary is absent": 3,
+          "optional nuclei binary is absent": 3,
+          "optional sqlmap binary is absent": 3,
+          "run make test-interactsh-protocol for the pinned upstream server": 1
+        },
+        "skipped": 55,
+        "tests": 5051
+      },
+      "native_child_singleton": {
+        "bad_events": [],
+        "command": [
+          "go",
+          "test",
+          "-tags=integration",
+          "-count=1",
+          "./internal/controlplane",
+          "-run",
+          "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_parallel_child_cancel_keeps_completed_sibling"
+        ],
+        "exit_code": 0,
+        "leaf_cases": [
+          "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_parallel_child_cancel_keeps_completed_sibling"
+        ],
+        "log_sha256": "c4b9da2052632b8660a7213727f418c3d11c2e11afd785049de925fa2a2c6f9e",
+        "note": "Required exact singleton run after full native-control gate; lint may proceed independently; no duration acceptance criterion",
+        "passed_test_records": [
+          "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults",
+          "TestCrossLanguageMTLSAllocationLifecycleNativeADKFaults/native_parallel_child_cancel_keeps_completed_sibling"
+        ]
+      },
+      "combined_artifact_sha256": "555f1aef0f64b89a7a6cfc9b7bb3f58d1ce85da8ff319b9d3fad30b9a1a35b19",
+      "source_files_sha256": {
+        "docs/spec/audit-workflow-dependencies.html": "52562f305f141f996757b5152b1038e8252998f301368750c243f6d222a9f22b",
+        "docs/spec/execution/runtime-agent.md": "fd9e532ee87b44e67891880297bb2740d6560f65bc17351dfab34da280bc5723",
+        "docs/spec/execution/worker.md": "9a967ab7c117540aae6ece8a21b74bb0bc0b45c178026ca81ff2629f08251f64",
+        "internal/controlplane/runtime_native_faults_integration_test.go": "5fe6dc700513e9241f7e7fa365f9bcf53cf36b8f31f837908fd2ae6adb301106",
+        "runtime/src/contractor_runtime/a2a_server.py": "880ead38e52c7937cb3c0bc872d60634a403b99de346d626a2645f8053e30971",
+        "runtime/src/contractor_runtime/worker/instrumentation.py": "47eac09f9e951235c5daf9de181e8836f1b59456201cc1e16d4b7475eb879916",
+        "runtime/src/contractor_runtime/worker/runtime.py": "62f2d14ba818923bb95e51bc34d8382c6b8eb7c5f3ec5e1efc3eb9a51097b1cf",
+        "runtime/tests/fakes/adk_process_faults.py": "977843365dcff458a2c84a3b8bb3428ca8933362f03f2f4e15d0350303610ba4",
+        "runtime/tests/lifecycle_server.py": "ac2acd1ea083699e4ece2c148e866b67610348ff24593099070137db3679e80f",
+        "runtime/tests/test_a2a_server.py": "95adc20057d630727a89e908d7464b433f08d9eec18521d7b0541b5bdf45dfef",
+        "runtime/tests/test_adk_runtime_history.py": "b1ad4616535a486478d5289419c69647d3676971faa9e9c8b15b09ded978b1dd",
+        "runtime/tests/test_instrumentation.py": "52a33a2f1f9821fd65c6088076ca8b91e6f5b54b4ee50da632a0017e707dac7d"
+      }
+    },
+    "host_lint": {
+      "command": "make lint",
+      "exit_code": 0,
+      "log": "/private/tmp/v418-010-lint-final.log"
+    }
+  }
+}

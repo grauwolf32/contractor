@@ -1369,3 +1369,46 @@ def test_rejected_run_callback_cannot_clear_owned_output_limit_evidence() -> Non
         await plugin.complete_invocation(invocation_id=context.invocation_id, phase="failed")
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("foreign", ["sdk", "session", "app", "user"])
+def test_only_authorized_tool_cancellation_can_latch_current_turn(foreign):
+    async def scenario():
+        state = WorkerStateStore()
+        plugin = WorkerInstrumentationPlugin(
+            state=state,
+            budget=lambda: None,
+            instrumentation=None,
+            model_alias="model",
+            observe_artifacts=lambda _owner, _cursor: None,
+            allowed_tool_names=frozenset({"probe"}),
+        )
+        own = FakeContext("worker-child-cancel")
+        plugin.prepare_invocation(invocation_id=own.invocation_id, subtask_id="0")
+        await plugin.before_run_callback(invocation_context=own)
+        outsider = FakeContext(own.invocation_id)
+        if foreign == "sdk":
+            outsider.invocation_id = "foreign-sdk"
+        elif foreign == "session":
+            outsider.session.id = "foreign-session"
+        elif foreign == "app":
+            outsider.session.app_name = "foreign-app"
+        else:
+            outsider.session.user_id = "foreign-user"
+        tool = FakeTool("probe", FakeOwner())
+        with pytest.raises(RuntimeError, match="stale"):
+            await plugin.on_tool_error_callback(
+                tool=tool, tool_args={}, tool_context=outsider, error=asyncio.CancelledError()
+            )
+        assert not plugin.tool_cancellation_observed
+        await plugin.before_tool_callback(tool=tool, tool_args={}, tool_context=own)
+        with pytest.raises(asyncio.CancelledError):
+            await plugin.on_tool_error_callback(
+                tool=tool, tool_args={}, tool_context=own, error=asyncio.CancelledError()
+            )
+        assert plugin.tool_cancellation_observed
+        await plugin.complete_invocation(invocation_id=own.invocation_id, phase="cancelled")
+        plugin.prepare_invocation(invocation_id="worker-healthy-next", subtask_id="1")
+        assert not plugin.tool_cancellation_observed
+
+    asyncio.run(scenario())

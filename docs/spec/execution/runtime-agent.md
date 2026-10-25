@@ -712,8 +712,9 @@ cancellation, progress and artifact refs. How normal durable artifact bytes,
 Agent Skill package bytes and workspace source and state bytes stay out of
 A2A is [ART-R100, ART-R112 and ART-R113](../artifacts/artifact-store.md).
 
-**RTA-R82.** Every executed Task reaches a terminal state with a
-Contractor result. An exception escaping the Worker invocation becomes a
+**RTA-R82.** Every executed Task reaches a terminal state. Completed and
+failed execution carries a Contractor result; cancellation uses the existing
+A2A cancelled state. An exception escaping the Worker invocation becomes a
 bounded retryable `worker_execution_failed` WorkerCompletion on a `failed`
 Task, never a Task left `working` or a provider or exception message
 (FAIL-RTA-6).
@@ -722,6 +723,13 @@ Task, never a Task left `working` or a provider or exception message
 that Task ID. Cancelling a Task that was rejected as `worker_busy`, already
 finished or never ran leaves the active invocation of another Task untouched
 (FAIL-RTA-6).
+
+**RTA-R117.** If a native child cancels Worker execution without cancelling
+its A2A producer task, the executor publishes the existing terminal cancelled
+status before completing the producer. The A2A SDK ignoring a cancelled
+producer must not leave the Task working. An externally requested CancelTask,
+finalize or lease cancellation keeps its existing cancellation owner and does
+not become an executor-authored failed completion.
 
 The separation of allocation, A2A Task and context, Contractor invocation and
 ADK session identities is [WRK-R69](worker.md). One Runtime Agent has one

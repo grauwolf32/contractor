@@ -33,6 +33,14 @@ async def serve(args: argparse.Namespace) -> None:
     )
     cleanup_orphan_workdirs(settings.work_root)
     factories = built_in_factories(settings.work_root)
+    faults = None
+    if args.fault_mode is not None:
+        from fakes.adk_process_faults import NativeFaults
+
+        if args.fault_control is None:
+            raise ValueError("fault mode requires an owned control directory")
+        faults = NativeFaults(args.fault_mode, args.fault_control)
+        factories = faults.factories(factories)
     capabilities = await discover_capabilities(factories)
     state = RuntimeState(instance_id="runtime-cross-language", capabilities=capabilities)
     await state.mark_registered()
@@ -50,17 +58,26 @@ async def serve(args: argparse.Namespace) -> None:
         certificate_file=settings.certificate_file,
         private_key_file=settings.private_key_file,
     )
+    app = create_app(state, allocation_service=service)
+    if faults is not None:
+        app = faults.observe_transport(app)
     server = RuntimeServer(
         create_server_config(
             settings,
-            create_app(state, allocation_service=service),
+            app,
             tls_context,
         )
     )
     loop = asyncio.get_running_loop()
     for handled_signal in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(handled_signal, setattr, server, "should_exit", True)
-    await server.serve()
+    if faults is not None:
+        await faults.start(service)
+    try:
+        await server.serve()
+    finally:
+        if faults is not None:
+            await faults.stop()
 
 
 def main() -> None:
@@ -70,7 +87,18 @@ def main() -> None:
     parser.add_argument("--certificate", type=Path, required=True)
     parser.add_argument("--private-key", type=Path, required=True)
     parser.add_argument("--work-root", type=Path, required=True)
-    asyncio.run(serve(parser.parse_args()))
+    parser.add_argument("--fault-mode")
+    parser.add_argument("--fault-control", type=Path)
+    args = parser.parse_args()
+    if args.fault_mode is None:
+        asyncio.run(serve(args))
+    else:
+        from fakes.adk_process_faults import MODES
+        from fakes.clock import run_with_advanceable_clock
+
+        if args.fault_mode not in MODES:
+            parser.error("unsupported native ADK fault mode")
+        run_with_advanceable_clock(serve(args))
 
 
 if __name__ == "__main__":
