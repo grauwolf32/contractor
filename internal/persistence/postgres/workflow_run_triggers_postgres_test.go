@@ -23,8 +23,9 @@ func TestWorkflowRunGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
 	// Each guard below acts only when its listed column changes and reads
 	// the Run's state to decide whether that change is still allowed.
 	qualifiers := explaintest.Qualifiers{
-		"workflow_runs_protect_audit_completion": {"state"},
-		"workflow_runs_protect_skill_snapshot":   {"state"},
+		"workflow_runs_protect_audit_input_materialization": {"state", "publication_mode"},
+		"workflow_runs_protect_audit_completion":            {"state"},
+		"workflow_runs_protect_skill_snapshot":              {"state"},
 	}
 	if guards := explaintest.RequireColumnScopedGuards(t, ctx, pool, "workflow_runs", qualifiers); guards < 4 {
 		t.Fatalf("found %d column-scoped guards of workflow_runs, want the four including placement requirements (PER-R22, RUN-R108)", guards)
