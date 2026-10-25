@@ -180,11 +180,13 @@ def _completion_request(model: str, request: LlmRequest) -> dict[str, Any]:
 
 
 def _complete_tool_call_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Give interrupted ADK tool calls a non-executed response before the next turn."""
+    """Pair interrupted calls without claiming their external effects were rolled back."""
 
     completed: list[dict[str, Any]] = []
     pending: list[str] = []
-    skipped = _json_text({"ok": False, "error": {"code": "tool_call_not_executed"}})
+    # An absent response does not prove that the tool never started. A tool may
+    # have committed an effect before cancellation or loss of its response.
+    skipped = _json_text({"ok": False, "error": {"code": "tool_call_outcome_unknown"}})
     for message in messages:
         if message["role"] == "tool" and message.get("tool_call_id") in pending:
             pending.remove(message["tool_call_id"])

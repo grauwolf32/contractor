@@ -2048,7 +2048,7 @@ def test_tool_budget_does_not_poison_next_invocation_payload(
                 for message in payload["messages"]
                 if message["role"] == "tool"
                 and json.loads(message["content"]).get("error", {}).get("code")
-                == "tool_call_not_executed"
+                == "tool_call_outcome_unknown"
             ]
             assert "unanswered-call" in {message["tool_call_id"] for message in synthetic}
         else:
@@ -2061,8 +2061,10 @@ def test_tool_budget_does_not_poison_next_invocation_payload(
 def test_cancelled_tool_call_does_not_poison_next_shared_invocation(tmp_path: Path) -> None:
     async def scenario() -> None:
         entered = asyncio.Event()
+        effects: list[str] = []
 
         async def wait_for_release() -> dict[str, bool]:
+            effects.append("started")
             entered.set()
             await asyncio.Event().wait()
             return {"released": True}
@@ -2092,6 +2094,13 @@ def test_cancelled_tool_call_does_not_poison_next_shared_invocation(tmp_path: Pa
         assert second.result is not None
         payload = model.payloads[payload_count]
         assert_balanced_tool_calls(payload)
+        assert effects == ["started"]
+        cancelled = next(
+            message
+            for message in payload["messages"]
+            if message["role"] == "tool" and message["tool_call_id"] == "cancelled-call"
+        )
+        assert json.loads(cancelled["content"])["error"]["code"] == "tool_call_outcome_unknown"
         assert any(
             call["id"] == "cancelled-call"
             for message in payload["messages"]

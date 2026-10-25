@@ -328,6 +328,13 @@ calls, finish reason and provider-reported usage back to ADK. Successful JSON
 responses are projected directly into ADK types without constructing
 general-purpose SDK models.
 
+An unanswered function call does not prove nonexecution: a tool may have made
+an external change before cancellation or loss of its response. History repair
+without admission or outcome evidence pairs it with a bounded
+`tool_call_outcome_unknown` response. Only execution evidence may establish
+that a call was never dispatched; an existing completed response is retained
+exactly. A repaired message never authorizes replay of an uncertain effect.
+
 **WRK-R10.** Non-text task data remains an Artifact. An unsupported
 inline content part fails closed instead of disappearing from the model
 request.
