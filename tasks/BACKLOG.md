@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-131 open tasks: 7 in progress, 113 pending, 11 deferred. 1106 finished: 1096 completed, 10 archived.
+130 open tasks: 7 in progress, 112 pending, 11 deferred. 1107 finished: 1097 completed, 10 archived.
 
 ## In progress
 
@@ -192,7 +192,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-008](v372-008-upward-table-reads.yml) | chore | P3 | — | Remove the table reads that point up the layer stack or name who owns each one |
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | chore | P3 | — | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | chore | P3 | — | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
-| [V414-012](v414-012-classify-closed-connection.yml) | defect | P2 | — | Classify a closed PostgreSQL connection, including a lost COMMIT reply, as unavailable |
 | [V414-021](v414-021-migration-file-deadline.yml) | defect | P3 | — | Decide the client deadline of a migration file: per statement or a migration budget of its own |
 | [V414-024](v414-024-plan-tests-exact-reads.yml) | chore | P3 | — | Measure the V407-025 drain and held-credential row budgets with explaintest Analysis.Reads |
 
@@ -211,8 +210,8 @@ the epics are in [epics.yml](epics.yml).
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
-| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
-| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-002, V416-005, V416-006, V416-008, V416-009, V416-012, V416-013, V416-014, V416-015, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main and current-system review |
+| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
+| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-002, V416-005, V416-006, V416-008, V416-009, V416-012, V416-013, V416-014, V416-015, V414-004 | Verify the fixes and simplifications from the October 25 main and current-system review |
 
 ## Deferred
 
@@ -255,5 +254,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 3 | 25 | 63 | 14 | 57 |
 | Operations, authentication, CLI and deployment (`operations`) | 5 | 16 | 42 | 6 | 15 |
 | Public API and wire contracts (`api-contracts`) | 6 | 2 | 37 | 22 | 12 |
-| PostgreSQL persistence and schema (`persistence`) | 7 | 0 | 24 | 42 | 13 |
+| PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
 | Quality, CI and process (`quality`) | 16 | 1 | 27 | 93 | 23 |

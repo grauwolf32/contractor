@@ -153,6 +153,16 @@ func TestPassthroughCompletionWriteWaitAndRetry(t *testing.T) {
 			},
 			attempts: 2,
 		},
+		{
+			name: "closed connection during completion",
+			complete: func(_ context.Context, attempt int) error {
+				if attempt == 1 {
+					return persistencepostgres.WrapError("commit PostgreSQL transaction", pgconn.ErrConnClosed)
+				}
+				return nil
+			},
+			attempts: 2,
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			revision := "result-r1"

@@ -139,6 +139,11 @@ func TestClassifyTransportAndContextFailures(t *testing.T) {
 		{"eof", fmt.Errorf("read: %w", io.EOF), ClassUnavailable},
 		{"unexpected-eof", io.ErrUnexpectedEOF, ClassUnavailable},
 		{"closed", net.ErrClosed, ClassUnavailable},
+		{"pgconn-closed", pgconn.ErrConnClosed, ClassUnavailable},
+		{"pgconn-closed-wrapped", WrapError("commit PostgreSQL transaction", fmt.Errorf("receive: %w", pgconn.ErrConnClosed)), ClassUnavailable},
+		{"pgconn-closed-cancelled", errors.Join(pgconn.ErrConnClosed, context.Canceled), ClassCancelled},
+		{"pgconn-closed-deadline", errors.Join(pgconn.ErrConnClosed, context.DeadlineExceeded), ClassTimeout},
+		{"pgconn-closed-condition", errors.Join(pgconn.ErrConnClosed, &pgconn.PgError{Code: "23505"}), ClassUnavailable},
 		{"network-timeout", &net.OpError{Op: "read", Err: os.ErrDeadlineExceeded}, ClassUnavailable},
 		{"connection-refused", &net.OpError{Op: "dial", Err: errors.New("refused")}, ClassUnavailable},
 	} {

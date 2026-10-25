@@ -207,7 +207,7 @@ func TestSchedulerSummaryDeadlineStartsAtAdmissionForEveryAttempt(t *testing.T) 
 }
 
 func TestSummaryPublicationRetriesOnlyKnownTransientFailures(t *testing.T) {
-	for _, err := range []error{context.Canceled, context.DeadlineExceeded, artifacts.ErrBlobIO, &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}, &pgconn.PgError{Code: persistencepostgres.SQLStateConnectionFailure}} {
+	for _, err := range []error{context.Canceled, context.DeadlineExceeded, artifacts.ErrBlobIO, pgconn.ErrConnClosed, &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}, &pgconn.PgError{Code: persistencepostgres.SQLStateConnectionFailure}} {
 		if !summaryPublicationRetryable(err) {
 			t.Fatalf("transient error rejected: %v", err)
 		}
