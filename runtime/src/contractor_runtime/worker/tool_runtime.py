@@ -61,6 +61,20 @@ class ToolWorkerError(Exception):
     """Fixed, content-free execution diagnostic."""
 
 
+async def _join_owned_task(task: asyncio.Task) -> bool:
+    """Keep ownership through repeated cancellation; let the caller read the outcome."""
+
+    interrupted = False
+    while not task.done():
+        try:
+            # Like threads.to_thread_until_done, wait never forwards cancellation
+            # into the owned task or raises its exception before it is joined.
+            await asyncio.wait({task})
+        except asyncio.CancelledError:
+            interrupted = True
+    return interrupted
+
+
 def _check_deadline(deadline: float) -> None:
     if asyncio.get_running_loop().time() >= deadline:
         raise TimeoutError("Tool invocation deadline exceeded")
@@ -297,12 +311,7 @@ class ToolWorkerRuntime:
             # must not interrupt a child that is joining after external cancel.
             if not task.done():
                 task.cancel()
-            interrupted = False
-            while not task.done():
-                try:
-                    await asyncio.wait({task})
-                except asyncio.CancelledError:
-                    interrupted = True
+            interrupted = await _join_owned_task(task)
             if not task.cancelled():
                 task.exception()  # consume a failure that lost to cancellation
             if interrupted:
@@ -509,8 +518,11 @@ class ToolWorkerRuntime:
             # Join it before the matching terminal revision is published. A
             # failed admission committed nothing (its error is already the
             # outcome), so it is joined without re-raising and not completed.
-            await asyncio.wait({beginning})
+            if await _join_owned_task(beginning):
+                error, cancelled = "tool_cancelled", True
             begun = not beginning.cancelled() and beginning.exception() is None
+            if not begun:
+                self._accepting = False
             # Cancellation leaves the durable started receipt intact. It never
             # authorizes another scan after lease fencing or a lost response.
             if owned is not None and error != "tool_cancelled":
@@ -561,16 +573,15 @@ class ToolWorkerRuntime:
                     timeout=STATE_TIMEOUT_SECONDS,
                 )
             )
+            # Read the bounded publication's result only after every repeated
+            # cancellation has been absorbed and its work has actually settled.
+            cancelled = await _join_owned_task(finishing) or cancelled
             try:
-                snapshot = await asyncio.shield(finishing)
-            except asyncio.CancelledError:
-                try:
-                    await finishing
-                except Exception:
-                    self._accepting = False
-                raise
-            except Exception:
+                snapshot = finishing.result()
+            except (Exception, asyncio.CancelledError):
                 self._accepting = False
+                if cancelled:
+                    raise asyncio.CancelledError from None
                 raise
         if cancelled:
             raise asyncio.CancelledError
