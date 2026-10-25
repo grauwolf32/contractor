@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-142 open tasks: 4 in progress, 127 pending, 11 deferred. 1124 finished: 1114 completed, 10 archived.
+142 open tasks: 5 in progress, 126 pending, 11 deferred. 1124 finished: 1114 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V418-005](v418-005-adk-213-real-process-conformance.yml) | execution-core | chore | P1 | Verify ADK 2.13 across real Run and allocation processes |
 
 ## Pending
 
@@ -26,7 +27,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 | [V414-014](v414-014-standby-shutdown-race.yml) | defect | P3 | — | Exit a standby Server cleanly when shutdown races its readiness listener |
-| [V418-005](v418-005-adk-213-real-process-conformance.yml) | chore | P1 | — | Verify ADK 2.13 across real Run and allocation processes |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
