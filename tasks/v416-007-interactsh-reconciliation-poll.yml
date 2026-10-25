@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V382-001
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [python]
 goal: >-
@@ -141,3 +141,30 @@ tests:
     covers: [A3]
   - command: make lint
     covers: [A1, A2, A3, A4]
+verification:
+  date: '2026-10-25'
+  decisions:
+    - >-
+      Both callers use _poll under the existing allocation lock. That wrapper
+      records one attempt before _request_poll and marks uncertainty on every
+      interrupted attempted poll; interval refusals occur before the request.
+      Cached batches return before the wrapper, so their evidence can be
+      reconciled without another destructive network request.
+  commands:
+    - >-
+      Before the production fix, cd runtime && uv run --locked pytest -q
+      tests/test_interactsh.py -k 'reconciliation_network_poll or
+      interrupted_reconciliation' -o addopts='' --tb=short failed all five
+      new cases on false coverage_gap. The strengthened cached-reconciliation
+      case separately failed because last_poll remained negative infinity.
+    - >-
+      cd runtime && uv run --locked pytest -q tests/test_interactsh.py
+      -o addopts='' --tb=short passed all 22 tests, including cached event
+      publication replay and the exact injected two-second poll boundary.
+    - >-
+      make test-interactsh-protocol passed the real pinned Interactsh v1.4.1
+      local server test (one test). Changed Runtime files pass Ruff check
+      and format checks.
+  remaining: >-
+    Integrated make lint is owned by the coordinating branch; keep in_progress
+    until its result is confirmed for this implementation.
