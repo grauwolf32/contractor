@@ -167,6 +167,112 @@
       ],
       "maxBytes": 256,
       "rule": "LIM-RUN-5"
+    },
+    {
+      "schema": "SitemapMutation",
+      "path": [
+        "properties",
+        "note"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-SMT-6"
+    },
+    {
+      "schema": "SitemapMutation",
+      "path": [
+        "properties",
+        "tags",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapAnnotation",
+      "path": [
+        "properties",
+        "note"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-SMT-6"
+    },
+    {
+      "schema": "SitemapAnnotation",
+      "path": [
+        "properties",
+        "tags",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapSummary",
+      "path": [
+        "properties",
+        "parameters",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapDeclaration",
+      "path": [
+        "properties",
+        "parameters",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapRule",
+      "path": [
+        "properties",
+        "parameters",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapStructuralParameter",
+      "path": [
+        "properties",
+        "name"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapStructuralParameter",
+      "path": [
+        "properties",
+        "allowed",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapStructuralValue",
+      "path": [
+        "properties",
+        "name"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "SitemapStructuralValue",
+      "path": [
+        "properties",
+        "values",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
     }
   ]
 }

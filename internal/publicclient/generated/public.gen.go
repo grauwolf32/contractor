@@ -2163,6 +2163,129 @@ func (e ScanSweepMemberState) Valid() bool {
 	}
 }
 
+// Defines values for SitemapDocumentProjection.
+const (
+	SitemapSafeProjection1 SitemapDocumentProjection = "sitemap-safe-projection@1"
+)
+
+// Valid indicates whether the value is a known member of the SitemapDocumentProjection enum.
+func (e SitemapDocumentProjection) Valid() bool {
+	switch e {
+	case SitemapSafeProjection1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SitemapDocumentVersion.
+const (
+	ProjectSitemap1 SitemapDocumentVersion = "project-sitemap@1"
+)
+
+// Valid indicates whether the value is a known member of the SitemapDocumentVersion enum.
+func (e SitemapDocumentVersion) Valid() bool {
+	switch e {
+	case ProjectSitemap1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SitemapMutationOperation.
+const (
+	Annotate      SitemapMutationOperation = "annotate"
+	Declare       SitemapMutationOperation = "declare"
+	Remove        SitemapMutationOperation = "remove"
+	ReplaceSource SitemapMutationOperation = "replace-source"
+	Restore       SitemapMutationOperation = "restore"
+)
+
+// Valid indicates whether the value is a known member of the SitemapMutationOperation enum.
+func (e SitemapMutationOperation) Valid() bool {
+	switch e {
+	case Annotate:
+		return true
+	case Declare:
+		return true
+	case Remove:
+		return true
+	case ReplaceSource:
+		return true
+	case Restore:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SitemapProvenanceKind.
+const (
+	Caido     SitemapProvenanceKind = "caido"
+	Dirsearch SitemapProvenanceKind = "dirsearch"
+	Ffuf      SitemapProvenanceKind = "ffuf"
+	Http      SitemapProvenanceKind = "http"
+	Katana    SitemapProvenanceKind = "katana"
+	Manual    SitemapProvenanceKind = "manual"
+	Openapi   SitemapProvenanceKind = "openapi"
+)
+
+// Valid indicates whether the value is a known member of the SitemapProvenanceKind enum.
+func (e SitemapProvenanceKind) Valid() bool {
+	switch e {
+	case Caido:
+		return true
+	case Dirsearch:
+		return true
+	case Ffuf:
+		return true
+	case Http:
+		return true
+	case Katana:
+		return true
+	case Manual:
+		return true
+	case Openapi:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SitemapProvenanceMode.
+const (
+	Blackbox       SitemapProvenanceMode = "blackbox"
+	SourceAssisted SitemapProvenanceMode = "source-assisted"
+)
+
+// Valid indicates whether the value is a known member of the SitemapProvenanceMode enum.
+func (e SitemapProvenanceMode) Valid() bool {
+	switch e {
+	case Blackbox:
+		return true
+	case SourceAssisted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SitemapSourceUpdateSourceId.
+const (
+	Owner SitemapSourceUpdateSourceId = "owner"
+)
+
+// Valid indicates whether the value is a known member of the SitemapSourceUpdateSourceId enum.
+func (e SitemapSourceUpdateSourceId) Valid() bool {
+	switch e {
+	case Owner:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for StageContentResultApiVersion.
 const (
 	StageContentResultApiVersionContractorv1alpha1 StageContentResultApiVersion = "contractor/v1alpha1"
@@ -7422,6 +7545,188 @@ type SchedulerSettings struct {
 // Selector defines model for Selector.
 type Selector = string
 
+// SitemapAnnotation defines model for SitemapAnnotation.
+type SitemapAnnotation struct {
+	Note       string            `json:"note"`
+	Provenance SitemapProvenance `json:"provenance"`
+	Tags       []string          `json:"tags"`
+}
+
+// SitemapDeclaration defines model for SitemapDeclaration.
+type SitemapDeclaration struct {
+	Parameters []string          `json:"parameters"`
+	Pointer    string            `json:"pointer"`
+	Provenance SitemapProvenance `json:"provenance"`
+	Rule       bool              `json:"rule"`
+}
+
+// SitemapDocument defines model for SitemapDocument.
+type SitemapDocument struct {
+	Gaps       []SitemapGap              `json:"gaps"`
+	Groups     []SitemapGroup            `json:"groups"`
+	Markers    []SitemapMarker           `json:"markers"`
+	Projection SitemapDocumentProjection `json:"projection"`
+	Rules      []SitemapRule             `json:"rules"`
+	Sources    []SitemapSource           `json:"sources"`
+	Version    SitemapDocumentVersion    `json:"version"`
+}
+
+// SitemapDocumentProjection defines model for SitemapDocument.Projection.
+type SitemapDocumentProjection string
+
+// SitemapDocumentVersion defines model for SitemapDocument.Version.
+type SitemapDocumentVersion string
+
+// SitemapEvidence defines model for SitemapEvidence.
+type SitemapEvidence struct {
+	Artifact SitemapExactArtifact `json:"artifact"`
+	RunId    ResourceId           `json:"runId"`
+}
+
+// SitemapExactArtifact defines model for SitemapExactArtifact.
+type SitemapExactArtifact struct {
+	Digest    string           `json:"digest"`
+	MediaType *MediaType       `json:"mediaType,omitempty"`
+	Ref       ExactArtifactRef `json:"ref"`
+	SizeBytes *int             `json:"sizeBytes,omitempty"`
+}
+
+// SitemapGap defines model for SitemapGap.
+type SitemapGap struct {
+	Count    int        `json:"count"`
+	Reason   string     `json:"reason"`
+	SourceId ResourceId `json:"sourceId"`
+}
+
+// SitemapGroup defines model for SitemapGroup.
+type SitemapGroup struct {
+	Declarations []SitemapDeclaration     `json:"declarations"`
+	Id           string                   `json:"id"`
+	Members      []SitemapMember          `json:"members"`
+	Method       string                   `json:"method"`
+	Omitted      int                      `json:"omitted"`
+	Origin       string                   `json:"origin"`
+	Route        string                   `json:"route"`
+	Structural   []SitemapStructuralValue `json:"structural"`
+}
+
+// SitemapMarker defines model for SitemapMarker.
+type SitemapMarker struct {
+	Id         string            `json:"id"`
+	Members    []string          `json:"members"`
+	Provenance SitemapProvenance `json:"provenance"`
+}
+
+// SitemapMember defines model for SitemapMember.
+type SitemapMember struct {
+	Annotations []SitemapAnnotation `json:"annotations"`
+	Evidence    []SitemapEvidence   `json:"evidence"`
+	Examples    []string            `json:"examples"`
+	Id          string              `json:"id"`
+	Omitted     int                 `json:"omitted"`
+	Path        string              `json:"path"`
+	Summaries   []SitemapSummary    `json:"summaries"`
+}
+
+// SitemapMutation defines model for SitemapMutation.
+type SitemapMutation struct {
+	ExpectedRevision *ResourceId              `json:"expectedRevision,omitempty"`
+	MarkerId         *ResourceId              `json:"markerId,omitempty"`
+	MemberIds        *[]string                `json:"memberIds,omitempty"`
+	Method           *string                  `json:"method,omitempty"`
+	Note             *string                  `json:"note,omitempty"`
+	Operation        SitemapMutationOperation `json:"operation"`
+	Source           *SitemapSourceUpdate     `json:"source,omitempty"`
+	Tags             *[]string                `json:"tags,omitempty"`
+	Url              *string                  `json:"url,omitempty"`
+}
+
+// SitemapMutationOperation defines model for SitemapMutation.Operation.
+type SitemapMutationOperation string
+
+// SitemapProvenance defines model for SitemapProvenance.
+type SitemapProvenance struct {
+	CredentialRevision *ResourceId           `json:"credentialRevision,omitempty"`
+	Deployment         *ResourceId           `json:"deployment,omitempty"`
+	Kind               SitemapProvenanceKind `json:"kind"`
+	Mode               SitemapProvenanceMode `json:"mode"`
+	RunId              *ResourceId           `json:"runId,omitempty"`
+	SessionGeneration  *ResourceId           `json:"sessionGeneration,omitempty"`
+	SourceId           ResourceId            `json:"sourceId"`
+}
+
+// SitemapProvenanceKind defines model for SitemapProvenance.Kind.
+type SitemapProvenanceKind string
+
+// SitemapProvenanceMode defines model for SitemapProvenance.Mode.
+type SitemapProvenanceMode string
+
+// SitemapResult defines model for SitemapResult.
+type SitemapResult struct {
+	Artifact ExactArtifactRef `json:"artifact"`
+	Changed  bool             `json:"changed"`
+	Replayed bool             `json:"replayed"`
+}
+
+// SitemapRule defines model for SitemapRule.
+type SitemapRule struct {
+	Method     string                       `json:"method"`
+	Origin     string                       `json:"origin"`
+	Parameters []string                     `json:"parameters"`
+	Path       string                       `json:"path"`
+	Pointer    string                       `json:"pointer"`
+	SourceId   ResourceId                   `json:"sourceId"`
+	Structural []SitemapStructuralParameter `json:"structural"`
+}
+
+// SitemapSource defines model for SitemapSource.
+type SitemapSource struct {
+	Artifact     *SitemapExactArtifact `json:"artifact,omitempty"`
+	Generation   int                   `json:"generation"`
+	PolicyDigest string                `json:"policyDigest"`
+	Provenance   SitemapProvenance     `json:"provenance"`
+}
+
+// SitemapSourceUpdate defines model for SitemapSourceUpdate.
+type SitemapSourceUpdate struct {
+	Artifact *SitemapExactArtifact       `json:"artifact,omitempty"`
+	Expected *SitemapSource              `json:"expected,omitempty"`
+	Rules    []SitemapRule               `json:"rules"`
+	SourceId SitemapSourceUpdateSourceId `json:"sourceId"`
+}
+
+// SitemapSourceUpdateSourceId defines model for SitemapSourceUpdate.SourceId.
+type SitemapSourceUpdateSourceId string
+
+// SitemapStructuralParameter defines model for SitemapStructuralParameter.
+type SitemapStructuralParameter struct {
+	Allowed []string `json:"allowed"`
+	Name    string   `json:"name"`
+}
+
+// SitemapStructuralValue defines model for SitemapStructuralValue.
+type SitemapStructuralValue struct {
+	Name   string   `json:"name"`
+	Values []string `json:"values"`
+}
+
+// SitemapSummary defines model for SitemapSummary.
+type SitemapSummary struct {
+	Context    string            `json:"context"`
+	First      string            `json:"first"`
+	Last       string            `json:"last"`
+	Outcome    string            `json:"outcome"`
+	Parameters []string          `json:"parameters"`
+	Provenance SitemapProvenance `json:"provenance"`
+	Status     int               `json:"status"`
+}
+
+// SitemapView defines model for SitemapView.
+type SitemapView struct {
+	Document SitemapDocument `json:"document"`
+	Revision string          `json:"revision"`
+}
+
 // SnapshotCursor defines model for SnapshotCursor.
 type SnapshotCursor struct {
 	Generation ResourceId `json:"generation"`
@@ -9033,6 +9338,23 @@ type CreateProjectRunParams struct {
 	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
 }
 
+// GetProjectSitemapParams defines parameters for GetProjectSitemap.
+type GetProjectSitemapParams struct {
+	Revision *Revision `form:"revision,omitempty" json:"revision,omitempty"`
+}
+
+// MutateProjectSitemapParams defines parameters for MutateProjectSitemap.
+type MutateProjectSitemapParams struct {
+	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+
+	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
+	Origin *OptionalOrigin `json:"Origin,omitempty"`
+
+	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
+	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // ListRunQueueParams defines parameters for ListRunQueue.
 type ListRunQueueParams struct {
 	Limit      *Limit                       `form:"limit,omitempty" json:"limit,omitempty"`
@@ -9331,6 +9653,9 @@ type CreateEvalExperimentJSONRequestBody = EvalCreateExperiment
 
 // CreateProjectRunJSONRequestBody defines body for CreateProjectRun for application/json ContentType.
 type CreateProjectRunJSONRequestBody = CreateRunRequest
+
+// MutateProjectSitemapJSONRequestBody defines body for MutateProjectSitemap for application/json ContentType.
+type MutateProjectSitemapJSONRequestBody = SitemapMutation
 
 // PutOwnerQueueControlJSONRequestBody defines body for PutOwnerQueueControl for application/json ContentType.
 type PutOwnerQueueControlJSONRequestBody = UpdateOwnerQueueControlRequest
@@ -15269,6 +15594,25 @@ type ClientInterface interface {
 	// Corresponds with POST /v1/projects/{projectId}/runs (the `CreateProjectRun` operationId).
 	CreateProjectRun(ctx context.Context, projectId ProjectId, params *CreateProjectRunParams, body CreateProjectRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetProjectSitemap Read an owned Project sitemap
+	//
+	// Corresponds with GET /v1/projects/{projectId}/sitemap (the `GetProjectSitemap` operationId).
+	GetProjectSitemap(ctx context.Context, projectId ProjectId, params *GetProjectSitemapParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// MutateProjectSitemapWithBody Apply an owner-bound sitemap command
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /v1/projects/{projectId}/sitemap/mutations (the `MutateProjectSitemap` operationId).
+	MutateProjectSitemapWithBody(ctx context.Context, projectId ProjectId, params *MutateProjectSitemapParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// MutateProjectSitemap Apply an owner-bound sitemap command
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /v1/projects/{projectId}/sitemap/mutations (the `MutateProjectSitemap` operationId).
+	MutateProjectSitemap(ctx context.Context, projectId ProjectId, params *MutateProjectSitemapParams, body MutateProjectSitemapJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListRunQueue List the authenticated owner's non-terminal WorkflowRuns
 	//
 	// Stable oldest-created-first display projection. This order is not a Scheduler rank, execution priority, estimated start time, or claim.
@@ -17973,6 +18317,55 @@ func (c *Client) CreateProjectRunWithBody(ctx context.Context, projectId Project
 // Corresponds with POST /v1/projects/{projectId}/runs (the `CreateProjectRun` operationId).
 func (c *Client) CreateProjectRun(ctx context.Context, projectId ProjectId, params *CreateProjectRunParams, body CreateProjectRunJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateProjectRunRequest(c.Server, projectId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetProjectSitemap Read an owned Project sitemap
+//
+// Corresponds with GET /v1/projects/{projectId}/sitemap (the `GetProjectSitemap` operationId).
+func (c *Client) GetProjectSitemap(ctx context.Context, projectId ProjectId, params *GetProjectSitemapParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetProjectSitemapRequest(c.Server, projectId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// MutateProjectSitemapWithBody Apply an owner-bound sitemap command
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /v1/projects/{projectId}/sitemap/mutations (the `MutateProjectSitemap` operationId).
+func (c *Client) MutateProjectSitemapWithBody(ctx context.Context, projectId ProjectId, params *MutateProjectSitemapParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewMutateProjectSitemapRequestWithBody(c.Server, projectId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// MutateProjectSitemap Apply an owner-bound sitemap command
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /v1/projects/{projectId}/sitemap/mutations (the `MutateProjectSitemap` operationId).
+func (c *Client) MutateProjectSitemap(ctx context.Context, projectId ProjectId, params *MutateProjectSitemapParams, body MutateProjectSitemapJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewMutateProjectSitemapRequest(c.Server, projectId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -27205,6 +27598,149 @@ func NewCreateProjectRunRequestWithBody(server string, projectId ProjectId, para
 	return req, nil
 }
 
+// NewGetProjectSitemapRequest constructs an http.Request for the GetProjectSitemap method
+func NewGetProjectSitemapRequest(server string, projectId ProjectId, params *GetProjectSitemapParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "projectId", projectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/projects/%s/sitemap", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Revision != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "revision", *params.Revision, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewMutateProjectSitemapRequest calls the generic MutateProjectSitemap builder with application/json body
+func NewMutateProjectSitemapRequest(server string, projectId ProjectId, params *MutateProjectSitemapParams, body MutateProjectSitemapJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewMutateProjectSitemapRequestWithBody(server, projectId, params, "application/json", bodyReader)
+}
+
+// NewMutateProjectSitemapRequestWithBody constructs an http.Request for the MutateProjectSitemap method, with any body, and a specified content type
+func NewMutateProjectSitemapRequestWithBody(server string, projectId ProjectId, params *MutateProjectSitemapParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "projectId", projectId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/projects/%s/sitemap/mutations", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+		if params.Origin != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "Origin", *params.Origin, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uri"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Origin", headerParam1)
+		}
+
+		if params.XCSRFToken != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam2)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewListRunQueueRequest constructs an http.Request for the ListRunQueue method
 func NewListRunQueueRequest(server string, params *ListRunQueueParams) (*http.Request, error) {
 	var err error
@@ -30481,6 +31017,27 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /v1/projects/{projectId}/runs (the `CreateProjectRun` operationId).
 	CreateProjectRunWithResponse(ctx context.Context, projectId ProjectId, params *CreateProjectRunParams, body CreateProjectRunJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateProjectRunResponse, error)
+
+	// GetProjectSitemapWithResponse Read an owned Project sitemap
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/projects/{projectId}/sitemap (the `GetProjectSitemap` operationId).
+	GetProjectSitemapWithResponse(ctx context.Context, projectId ProjectId, params *GetProjectSitemapParams, reqEditors ...RequestEditorFn) (*GetProjectSitemapResponse, error)
+
+	// MutateProjectSitemapWithBodyWithResponse Apply an owner-bound sitemap command
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/projects/{projectId}/sitemap/mutations (the `MutateProjectSitemap` operationId).
+	MutateProjectSitemapWithBodyWithResponse(ctx context.Context, projectId ProjectId, params *MutateProjectSitemapParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*MutateProjectSitemapResponse, error)
+
+	// MutateProjectSitemapWithResponse Apply an owner-bound sitemap command
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/projects/{projectId}/sitemap/mutations (the `MutateProjectSitemap` operationId).
+	MutateProjectSitemapWithResponse(ctx context.Context, projectId ProjectId, params *MutateProjectSitemapParams, body MutateProjectSitemapJSONRequestBody, reqEditors ...RequestEditorFn) (*MutateProjectSitemapResponse, error)
 
 	// ListRunQueueWithResponse List the authenticated owner's non-terminal WorkflowRuns
 	//
@@ -47937,6 +48494,334 @@ func (r CreateProjectRunResponse) ContentType() string {
 	return ""
 }
 
+// GetProjectSitemapResponse200Headers the declared response headers of an HTTP 200 response for GetProjectSitemap
+type GetProjectSitemapResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// GetProjectSitemapResponse400Headers the declared response headers of an HTTP 400 response for GetProjectSitemap
+type GetProjectSitemapResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectSitemapResponse401Headers the declared response headers of an HTTP 401 response for GetProjectSitemap
+type GetProjectSitemapResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetProjectSitemapResponse403Headers the declared response headers of an HTTP 403 response for GetProjectSitemap
+type GetProjectSitemapResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectSitemapResponse404Headers the declared response headers of an HTTP 404 response for GetProjectSitemap
+type GetProjectSitemapResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectSitemapResponse409Headers the declared response headers of an HTTP 409 response for GetProjectSitemap
+type GetProjectSitemapResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectSitemapResponse413Headers the declared response headers of an HTTP 413 response for GetProjectSitemap
+type GetProjectSitemapResponse413Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectSitemapResponse500Headers the declared response headers of an HTTP 500 response for GetProjectSitemap
+type GetProjectSitemapResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetProjectSitemapResponse503Headers the declared response headers of an HTTP 503 response for GetProjectSitemap
+type GetProjectSitemapResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetProjectSitemapResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SitemapView
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *PayloadTooLarge
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetProjectSitemapResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetProjectSitemapResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetProjectSitemapResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *GetProjectSitemapResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetProjectSitemapResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *GetProjectSitemapResponse409Headers
+	// Headers413 the parsed response headers for an HTTP 413 response
+	Headers413 *GetProjectSitemapResponse413Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetProjectSitemapResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetProjectSitemapResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetProjectSitemapResponse) GetJSON200() *SitemapView {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetProjectSitemapResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetProjectSitemapResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetProjectSitemapResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetProjectSitemapResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetProjectSitemapResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r GetProjectSitemapResponse) GetJSON413() *PayloadTooLarge {
+	return r.JSON413
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetProjectSitemapResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetProjectSitemapResponse) GetJSON503() *ArtifactUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetProjectSitemapResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetProjectSitemapResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetProjectSitemapResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetProjectSitemapResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// MutateProjectSitemapResponse200Headers the declared response headers of an HTTP 200 response for MutateProjectSitemap
+type MutateProjectSitemapResponse200Headers struct {
+	CacheControl        string
+	IdempotencyReplayed *string
+	XRequestID          RequestId
+}
+
+// MutateProjectSitemapResponse400Headers the declared response headers of an HTTP 400 response for MutateProjectSitemap
+type MutateProjectSitemapResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// MutateProjectSitemapResponse401Headers the declared response headers of an HTTP 401 response for MutateProjectSitemap
+type MutateProjectSitemapResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// MutateProjectSitemapResponse403Headers the declared response headers of an HTTP 403 response for MutateProjectSitemap
+type MutateProjectSitemapResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// MutateProjectSitemapResponse404Headers the declared response headers of an HTTP 404 response for MutateProjectSitemap
+type MutateProjectSitemapResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// MutateProjectSitemapResponse409Headers the declared response headers of an HTTP 409 response for MutateProjectSitemap
+type MutateProjectSitemapResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// MutateProjectSitemapResponse413Headers the declared response headers of an HTTP 413 response for MutateProjectSitemap
+type MutateProjectSitemapResponse413Headers struct {
+	XRequestID RequestId
+}
+
+// MutateProjectSitemapResponse500Headers the declared response headers of an HTTP 500 response for MutateProjectSitemap
+type MutateProjectSitemapResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// MutateProjectSitemapResponse503Headers the declared response headers of an HTTP 503 response for MutateProjectSitemap
+type MutateProjectSitemapResponse503Headers struct {
+	RetryAfter *int
+	XRequestID RequestId
+}
+
+type MutateProjectSitemapResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SitemapResult
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *ArtifactWriteConflict
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *PayloadTooLarge
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactWriteUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *MutateProjectSitemapResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *MutateProjectSitemapResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *MutateProjectSitemapResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *MutateProjectSitemapResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *MutateProjectSitemapResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *MutateProjectSitemapResponse409Headers
+	// Headers413 the parsed response headers for an HTTP 413 response
+	Headers413 *MutateProjectSitemapResponse413Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *MutateProjectSitemapResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *MutateProjectSitemapResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r MutateProjectSitemapResponse) GetJSON200() *SitemapResult {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r MutateProjectSitemapResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r MutateProjectSitemapResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r MutateProjectSitemapResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r MutateProjectSitemapResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r MutateProjectSitemapResponse) GetJSON409() *ArtifactWriteConflict {
+	return r.JSON409
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r MutateProjectSitemapResponse) GetJSON413() *PayloadTooLarge {
+	return r.JSON413
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r MutateProjectSitemapResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r MutateProjectSitemapResponse) GetJSON503() *ArtifactWriteUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r MutateProjectSitemapResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r MutateProjectSitemapResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r MutateProjectSitemapResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r MutateProjectSitemapResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListRunQueueResponse200Headers the declared response headers of an HTTP 200 response for ListRunQueue
 type ListRunQueueResponse200Headers struct {
 	XRequestID RequestId
@@ -54309,6 +55194,45 @@ func (c *ClientWithResponses) CreateProjectRunWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseCreateProjectRunResponse(rsp)
+}
+
+// GetProjectSitemapWithResponse Read an owned Project sitemap
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/projects/{projectId}/sitemap (the `GetProjectSitemap` operationId).
+func (c *ClientWithResponses) GetProjectSitemapWithResponse(ctx context.Context, projectId ProjectId, params *GetProjectSitemapParams, reqEditors ...RequestEditorFn) (*GetProjectSitemapResponse, error) {
+	rsp, err := c.GetProjectSitemap(ctx, projectId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetProjectSitemapResponse(rsp)
+}
+
+// MutateProjectSitemapWithBodyWithResponse Apply an owner-bound sitemap command
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/projects/{projectId}/sitemap/mutations (the `MutateProjectSitemap` operationId).
+func (c *ClientWithResponses) MutateProjectSitemapWithBodyWithResponse(ctx context.Context, projectId ProjectId, params *MutateProjectSitemapParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*MutateProjectSitemapResponse, error) {
+	rsp, err := c.MutateProjectSitemapWithBody(ctx, projectId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseMutateProjectSitemapResponse(rsp)
+}
+
+// MutateProjectSitemapWithResponse Apply an owner-bound sitemap command
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/projects/{projectId}/sitemap/mutations (the `MutateProjectSitemap` operationId).
+func (c *ClientWithResponses) MutateProjectSitemapWithResponse(ctx context.Context, projectId ProjectId, params *MutateProjectSitemapParams, body MutateProjectSitemapJSONRequestBody, reqEditors ...RequestEditorFn) (*MutateProjectSitemapResponse, error) {
+	rsp, err := c.MutateProjectSitemap(ctx, projectId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseMutateProjectSitemapResponse(rsp)
 }
 
 // ListRunQueueWithResponse List the authenticated owner's non-terminal WorkflowRuns
@@ -75931,6 +76855,412 @@ func ParseCreateProjectRunResponse(rsp *http.Response) (*CreateProjectRunRespons
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers CreateProjectRunResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetProjectSitemapResponse parses an HTTP response from a GetProjectSitemapWithResponse call
+func ParseGetProjectSitemapResponse(rsp *http.Response) (*GetProjectSitemapResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetProjectSitemapResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SitemapView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetProjectSitemapResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetProjectSitemapResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetProjectSitemapResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers GetProjectSitemapResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetProjectSitemapResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers GetProjectSitemapResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 413:
+		var headers GetProjectSitemapResponse413Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers413 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetProjectSitemapResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetProjectSitemapResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseMutateProjectSitemapResponse parses an HTTP response from a MutateProjectSitemapWithResponse call
+func ParseMutateProjectSitemapResponse(rsp *http.Response) (*MutateProjectSitemapResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &MutateProjectSitemapResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SitemapResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ArtifactWriteConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactWriteUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers MutateProjectSitemapResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers MutateProjectSitemapResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers MutateProjectSitemapResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers MutateProjectSitemapResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers MutateProjectSitemapResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers MutateProjectSitemapResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 413:
+		var headers MutateProjectSitemapResponse413Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers413 = &headers
+	case rsp.StatusCode == 500:
+		var headers MutateProjectSitemapResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers MutateProjectSitemapResponse503Headers
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.RetryAfter = &value
+		}
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

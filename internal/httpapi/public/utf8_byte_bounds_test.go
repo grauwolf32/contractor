@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
@@ -22,6 +23,8 @@ import (
 // that enforces it. LIM-AUD-29 is unexported in auditservice, whose own
 // TestSharedAuditTextBoundsCountUTF8Bytes binds it.
 var utf8ByteBoundOwners = map[string]int{
+	"LIM-SMT-6":  projectsitemap.MaxNoteBytes,
+	"LIM-SMT-11": projectsitemap.MaxTagBytes,
 	"LIM-RUN-10": maxCancellationReasonBytes,
 	"LIM-PRJ-3":  projectstore.MaxNameBytes,
 	"LIM-PRJ-5":  projectstore.MaxDescriptionBytes,
@@ -128,6 +131,8 @@ func schemaAtPath(document *openapi3.T, name string, path []string) *openapi3.Sc
 			reference = reference.Value.Properties[path[index]]
 		case "additionalProperties":
 			reference = reference.Value.AdditionalProperties.Schema
+		case "items":
+			reference = reference.Value.Items
 		default:
 			return nil
 		}

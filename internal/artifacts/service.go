@@ -95,7 +95,7 @@ func genericWriteReserved(scope Scope, namespace string, advancing bool) bool {
 	case ScopeUser:
 		return artifactpolicy.IsAuditStandardCatalogNamespace(namespace) || artifactpolicy.IsRunSystemNamespace(namespace)
 	case ScopeProject:
-		return artifactpolicy.IsAuditManagedProjectNamespace(namespace)
+		return artifactpolicy.IsAuditManagedProjectNamespace(namespace) || namespace == artifactpolicy.ProjectSitemapNamespace
 	case ScopeRun:
 		if namespace == "inputs" {
 			return !advancing

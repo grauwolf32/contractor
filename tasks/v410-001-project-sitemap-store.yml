@@ -26,6 +26,7 @@ context:
   proposal_sections: 'Sections 2-4, 6-11: representation, projection, identities, source replacement, suppression,
     CAS, quotas and lifecycle.'
   specification:
+  - docs/spec/artifacts/project-sitemap.md#SMT-R1
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/artifacts/projects.md
   - docs/spec/artifacts/retention-and-deletion.md
@@ -256,6 +257,21 @@ test_prerequisites:
 - Run complete touched domain, Artifact/Project integration, public API and CLI packages. Generic migrations,
   holder/writer coverage and shared-blob GC belong to completed dependency V410-010; retain its required gates
   when integration changes those boundaries. Regenerate generated clients through repository targets.
+
+implementation_decisions:
+- date: 2026-10-26
+  decision: The owner API assigns the fixed manual source owner and reserves the Project sitemap namespace
+    against generic Artifact writes. Automatic producer authority is established separately by allocation composition;
+    the public mutation body cannot manufacture HTTP observations or select a transport source identity.
+- date: 2026-10-26
+  decision: Shared keyed receipts retain only the bounded safe structural selector choices needed to recognize
+    their accepted intent after regrouping or history eviction. They do not retain a map, raw credential values,
+    removed-value hashes or an implicit Artifact hold. Replay confirms the original exact ref even when its
+    unprotected bytes are no longer available.
+- date: 2026-10-26
+  decision: Selected complete-map context uses existing exact Project-to-Run input forks and indexed lineage
+    protection. A narrower source-mode projection belongs to the allocation toolset dependency; a live metadata
+    read creates no hold. Publication and separately committed maintenance use ordinary ArtifactStore APIs.
 
 execution:
   branch: codex/v410-sitemap

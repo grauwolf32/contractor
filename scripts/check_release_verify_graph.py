@@ -442,6 +442,8 @@ def load_script(relative: str):
 def script_go_tests(relative: str) -> list[GoTest]:
     """The Go selections a gate script runs, read from the script's own constants."""
     module = load_script(relative)
+    if relative == "scripts/test-project-sitemap-postgres.py":
+        return [GoTest(relative, frozenset({"integration"}), tuple("./" + name for name in module.PACKAGES), None)]
     if relative == "scripts/test-findings-e2e.py":
         return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), "^(" + "|".join(module.PROCESS_TESTS) + ")$")]
     if relative == "scripts/test-openapi-audit-scan-e2e.py":

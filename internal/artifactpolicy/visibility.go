@@ -7,7 +7,9 @@ import (
 )
 
 const (
-	MemoryArtifactPrefix = "memory."
+	// ProjectSitemapNamespace is writable only by the authorized sitemap reducer.
+	ProjectSitemapNamespace = "sitemap"
+	MemoryArtifactPrefix    = "memory."
 	// HTTPBodyArtifactPrefix names the HTTP response bodies the Runtime HTTP
 	// toolset writes (ART-R24).
 	HTTPBodyArtifactPrefix             = "http.body."

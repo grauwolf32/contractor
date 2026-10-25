@@ -1432,3 +1432,8 @@ sweeps never enter the page scan. The sweep's terminal purge removes that bindin
 and its lineage edges while preserving versions/blobs still referenced by
 child Runs or the owner's source. [SCN-R245](../tools/scanners.md) and
 [SCN-R251](../tools/scanners.md) own admission and retention.
+
+**ART-R128.** The Project `sitemap` namespace is owned by the
+[Project sitemap reducer](project-sitemap.md). Generic writes reject it; trusted
+domain publications use ordinary immutable revisions, CAS and automatic retained
+history, without a kind-specific retention policy or predecessor hold chain.

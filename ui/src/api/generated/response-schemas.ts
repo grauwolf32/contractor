@@ -8,6 +8,25 @@ export const EVENT_SCHEMA_ID =
 
 /** A schema under $defs of public-schemas.json. */
 export type PublicSchemaName =
+  | "SitemapDocument"
+  | "SitemapGroup"
+  | "SitemapMember"
+  | "SitemapProvenance"
+  | "SitemapSummary"
+  | "SitemapEvidence"
+  | "SitemapAnnotation"
+  | "SitemapDeclaration"
+  | "SitemapSource"
+  | "SitemapRule"
+  | "SitemapStructuralParameter"
+  | "SitemapStructuralValue"
+  | "SitemapMarker"
+  | "SitemapGap"
+  | "SitemapMutation"
+  | "SitemapSourceUpdate"
+  | "SitemapView"
+  | "SitemapResult"
+  | "SitemapExactArtifact"
   | "CreateScanSweepRequest"
   | "ScanSweep"
   | "ScanSweepMember"
@@ -1021,6 +1040,28 @@ export const RESPONSE_SCHEMAS = {
     "404": "Error",
     "409": "Error",
     "412": "Error",
+    "413": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/projects/{projectId}/sitemap": {
+    "200": "SitemapView",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "413": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "POST /v1/projects/{projectId}/sitemap/mutations": {
+    "200": "SitemapResult",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
     "413": "Error",
     "500": "Error",
     "503": "Error",
@@ -2121,6 +2162,11 @@ export const REQUEST_HEADER_SCHEMAS = {
   },
   "PATCH /v1/projects/{projectId}": {
     "If-Match": "RequiredIfMatchHeader",
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/projects/{projectId}/sitemap/mutations": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
     Origin: "OptionalOriginHeader",
     "X-CSRF-Token": "OptionalCSRFTokenHeader",
   },

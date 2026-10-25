@@ -1,0 +1,46 @@
+{
+  "version": "project-sitemap@1",
+  "empty": {
+    "version": "project-sitemap@1",
+    "projection": "sitemap-safe-projection@1",
+    "groups": [],
+    "sources": [],
+    "rules": [],
+    "markers": [],
+    "gaps": []
+  },
+  "invalid": [
+    "{}",
+    "null",
+    "{\"Version\": \"project-sitemap@1\", \"projection\": \"sitemap-safe-projection@1\", \"groups\": [], \"sources\": [], \"rules\": [], \"markers\": [], \"gaps\": []}",
+    "{\"version\": \"project-sitemap@1\", \"projection\": \"sitemap-safe-projection@1\", \"groups\": null, \"sources\": [], \"rules\": [], \"markers\": [], \"gaps\": []}",
+    "{\"version\": \"project-sitemap@1\", \"projection\": \"sitemap-safe-projection@1\", \"groups\": [], \"groups\": [], \"sources\": [], \"rules\": [], \"markers\": [], \"gaps\": []}"
+  ],
+  "projection": [
+    {
+      "url": "https://user:short-password@Example.test:443/Users/%2F/?page=query-canary#fragment",
+      "path": "/Users/%2F/",
+      "omitted": false
+    },
+    {
+      "url": "https://example.test/session/short-password",
+      "path": "",
+      "omitted": true
+    },
+    {
+      "url": "https://example.test/users/short%2Dpassword",
+      "path": "",
+      "omitted": true
+    },
+    {
+      "url": "https://example.test/opaque/ABCDEFGHIJKLMNOPQRSTUVWXYZ123456",
+      "path": "",
+      "omitted": true
+    },
+    {
+      "url": "https://example.test/a/?token=header-canary&q=query-canary",
+      "path": "/a/",
+      "omitted": false
+    }
+  ]
+}

@@ -178,6 +178,7 @@ var layers = []layerSpec{
 			"internal/planner/scan",
 			"internal/projectlifecycle",
 			"internal/projectstore",
+			"internal/projectsitemap",
 			"internal/rundeletion",
 			"internal/runservice",
 			"internal/scanstore",

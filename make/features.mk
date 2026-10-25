@@ -10,6 +10,10 @@
 	test-openapi-audit-scan-e2e test-audit-composition-e2e \
 	test-artifact-history-postgres test-artifact-history-e2e
 
+.PHONY: test-project-sitemap-postgres
+test-project-sitemap-postgres: require-database
+	$(call run-family-test,python3 scripts/test-project-sitemap-postgres.py)
+
 test-audits-matrix: test-hardening-matrices
 
 test-audits-hardening: test-audits-matrix require-database

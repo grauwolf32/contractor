@@ -2,6 +2,510 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contractor.local/schemas/contractor-public-v1.json",
   "$defs": {
+    "SitemapDocument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "projection",
+        "groups",
+        "sources",
+        "rules",
+        "markers",
+        "gaps"
+      ],
+      "properties": {
+        "version": { "type": "string", "enum": ["project-sitemap@1"] },
+        "projection": {
+          "type": "string",
+          "enum": ["sitemap-safe-projection@1"]
+        },
+        "groups": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapGroup"
+          }
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapSource"
+          }
+        },
+        "rules": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapRule"
+          }
+        },
+        "markers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapMarker"
+          }
+        },
+        "gaps": {
+          "type": "array",
+          "maxItems": 2064,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapGap"
+          }
+        }
+      }
+    },
+    "SitemapGroup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "origin",
+        "method",
+        "route",
+        "structural",
+        "members",
+        "declarations",
+        "omitted"
+      ],
+      "properties": {
+        "id": { "type": "string", "maxLength": 8192 },
+        "origin": { "type": "string", "maxLength": 8192 },
+        "method": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,16}$",
+          "maxLength": 16
+        },
+        "route": { "type": "string", "maxLength": 8192 },
+        "structural": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapStructuralValue"
+          }
+        },
+        "members": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapMember"
+          }
+        },
+        "declarations": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapDeclaration"
+          }
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "SitemapMember": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "path",
+        "summaries",
+        "examples",
+        "evidence",
+        "annotations",
+        "omitted"
+      ],
+      "properties": {
+        "id": { "type": "string", "maxLength": 8192 },
+        "path": { "type": "string", "maxLength": 8192 },
+        "summaries": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapSummary"
+          }
+        },
+        "examples": {
+          "type": "array",
+          "maxItems": 8,
+          "items": { "type": "string", "maxLength": 8192 }
+        },
+        "evidence": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapEvidence"
+          }
+        },
+        "annotations": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapAnnotation"
+          }
+        },
+        "omitted": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "SitemapProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceId", "kind", "mode"],
+      "properties": {
+        "sourceId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "http",
+            "caido",
+            "ffuf",
+            "katana",
+            "dirsearch",
+            "openapi"
+          ]
+        },
+        "mode": { "type": "string", "enum": ["blackbox", "source-assisted"] },
+        "runId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "deployment": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "credentialRevision": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "sessionGeneration": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        }
+      }
+    },
+    "SitemapSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenance",
+        "context",
+        "outcome",
+        "status",
+        "parameters",
+        "first",
+        "last"
+      ],
+      "properties": {
+        "provenance": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapProvenance"
+        },
+        "context": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        },
+        "outcome": { "type": "string", "maxLength": 8192 },
+        "status": { "type": "integer", "minimum": 0 },
+        "parameters": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "type": "string", "maxLength": 64, "x-max-utf8-bytes": 64 }
+        },
+        "first": { "type": "string", "maxLength": 8192 },
+        "last": { "type": "string", "maxLength": 8192 }
+      }
+    },
+    "SitemapEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runId", "artifact"],
+      "properties": {
+        "runId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "artifact": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapExactArtifact"
+        }
+      }
+    },
+    "SitemapAnnotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provenance", "note", "tags"],
+      "properties": {
+        "provenance": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapProvenance"
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 4096,
+          "x-max-utf8-bytes": 4096
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "type": "string", "maxLength": 64, "x-max-utf8-bytes": 64 }
+        }
+      }
+    },
+    "SitemapDeclaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rule", "provenance", "pointer", "parameters"],
+      "properties": {
+        "rule": { "type": "boolean" },
+        "provenance": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapProvenance"
+        },
+        "pointer": { "type": "string", "maxLength": 8192 },
+        "parameters": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "type": "string", "maxLength": 64, "x-max-utf8-bytes": 64 }
+        }
+      }
+    },
+    "SitemapSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provenance", "generation", "policyDigest"],
+      "properties": {
+        "provenance": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapProvenance"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "artifact": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapExactArtifact"
+        },
+        "policyDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "SitemapRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "origin",
+        "method",
+        "path",
+        "pointer",
+        "parameters",
+        "structural"
+      ],
+      "properties": {
+        "sourceId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "origin": { "type": "string", "maxLength": 8192 },
+        "method": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,16}$",
+          "maxLength": 16
+        },
+        "path": { "type": "string", "maxLength": 8192 },
+        "pointer": { "type": "string", "maxLength": 8192 },
+        "parameters": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "type": "string", "maxLength": 64, "x-max-utf8-bytes": 64 }
+        },
+        "structural": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapStructuralParameter"
+          }
+        }
+      }
+    },
+    "SitemapStructuralParameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "allowed"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "x-max-utf8-bytes": 64
+        },
+        "allowed": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "x-max-utf8-bytes": 64
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "SitemapStructuralValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "values"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "x-max-utf8-bytes": 64
+        },
+        "values": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "type": "string", "maxLength": 64, "x-max-utf8-bytes": 64 }
+        }
+      }
+    },
+    "SitemapMarker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "members", "provenance"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 8192 },
+        "members": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "type": "string", "maxLength": 8192 }
+        },
+        "provenance": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapProvenance"
+        }
+      }
+    },
+    "SitemapGap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceId", "reason", "count"],
+      "properties": {
+        "sourceId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "reason": { "type": "string", "maxLength": 8192 },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "SitemapMutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation"],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": ["declare", "annotate", "remove", "restore", "replace-source"]
+        },
+        "expectedRevision": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "url": { "type": "string", "maxLength": 8192 },
+        "method": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,16}$",
+          "maxLength": 16
+        },
+        "memberIds": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "type": "string", "maxLength": 8192 }
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 4096,
+          "x-max-utf8-bytes": 4096
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 16,
+          "items": { "type": "string", "maxLength": 64, "x-max-utf8-bytes": 64 }
+        },
+        "markerId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "source": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapSourceUpdate"
+        }
+      }
+    },
+    "SitemapSourceUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceId", "rules"],
+      "properties": {
+        "sourceId": { "type": "string", "const": "owner", "enum": ["owner"] },
+        "expected": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapSource"
+        },
+        "artifact": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapExactArtifact"
+        },
+        "rules": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapRule"
+          }
+        }
+      }
+    },
+    "SitemapView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "document"],
+      "properties": {
+        "revision": { "type": "string", "maxLength": 8192 },
+        "document": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapDocument"
+        }
+      }
+    },
+    "SitemapResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact", "replayed", "changed"],
+      "properties": {
+        "artifact": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
+        },
+        "replayed": { "type": "boolean" },
+        "changed": { "type": "boolean" }
+      }
+    },
+    "SitemapExactArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "digest"],
+      "properties": {
+        "ref": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
+        },
+        "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+        "mediaType": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/MediaType"
+        },
+        "sizeBytes": { "type": "integer", "minimum": 0, "maximum": 67108864 }
+      }
+    },
     "CreateScanSweepRequest": {
       "type": "object",
       "additionalProperties": false,

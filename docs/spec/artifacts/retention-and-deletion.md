@@ -633,3 +633,7 @@ A deleting Project stays readable so that cleanup progress is visible
    every Project Run would (DEL-R44, DEL-R60); test
    `TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations` in
    [`internal/projectlifecycle/drain_plan_postgres_test.go`](../../../internal/projectlifecycle/drain_plan_postgres_test.go).
+
+**DEL-R66.** The shared Project receipt purge includes sitemap mutations as specified by
+[SMT-R12](project-sitemap.md) and LIFE-SMT-1. Their immutable receipts leave only
+with the drained deleting Project, independently of ordinary history eviction.

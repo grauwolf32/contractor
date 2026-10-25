@@ -35,7 +35,7 @@ release-verify-families: ui-install verify-public-api-postgres \
 	test-lifecycle-controls-release test-scheduler-concurrency-e2e \
 	test-audit-program-library-e2e test-audit-completion-e2e \
 	test-findings-e2e test-performance-metrics test-nuclei-web-e2e \
-	test-artifact-history-postgres test-artifact-history-e2e
+	test-artifact-history-postgres test-artifact-history-e2e test-project-sitemap-postgres
 
 release-verify-browser-a: ui-browser-mocked test-release-ui-stack-a
 

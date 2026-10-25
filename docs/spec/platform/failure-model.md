@@ -568,3 +568,9 @@ instead of repeating it.
 | `FAIL-INT-3` | Callback evidence Artifact publication | Success requires exact ref; ambiguous writes reconcile the same binding and payload; unknown outcome retains one bounded pending batch before any fresh collector poll; cancel joins, release erases pending memory; publication has its own deadline | [INT-R8](../tools/interactsh.md), [INT-R9](../tools/interactsh.md) |
 
 <!-- /registry-table -->
+
+## Project sitemap
+
+| ID | Operation | Outcomes and reconciliation | Owner |
+| --- | --- | --- | --- |
+| `FAIL-SMT-1` | Owner read, typed mutation and selected exact context | Success commits one canonical ordinary revision or a no-op receipt. Invalid input, stale manual/source intent, deleting scope and protected history are permanent and preserve accepted content. Transaction conflicts retry within LIM-SMT-8; maintenance uses ordinary ArtifactStore classification and bounded separately committed continuation. Ambiguous publication replays the same shared receipt and exact ref even after eviction, without another write or hold. Cancellation joins storage work and rollback; a committed result stays discoverable by receipt. The original service deadline owns reduction/publication, not target HTTP work. Exact selection obtains its ordinary legitimate hold or reports unavailable, never cached/latest substitution. | [SMT-R8](../artifacts/project-sitemap.md) through [SMT-R12](../artifacts/project-sitemap.md) |

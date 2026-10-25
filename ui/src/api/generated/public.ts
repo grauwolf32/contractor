@@ -566,6 +566,44 @@ export interface paths {
         patch: operations["updateProject"];
         trace?: never;
     };
+    "/v1/projects/{projectId}/sitemap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        /** Read an owned Project sitemap */
+        get: operations["getProjectSitemap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/projects/{projectId}/sitemap/mutations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply an owner-bound sitemap command */
+        post: operations["mutateProjectSitemap"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/projects/{projectId}/artifacts": {
         parameters: {
             query?: never;
@@ -2434,6 +2472,141 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SitemapDocument: {
+            /** @enum {string} */
+            version: "project-sitemap@1";
+            /** @enum {string} */
+            projection: "sitemap-safe-projection@1";
+            groups: components["schemas"]["SitemapGroup"][];
+            sources: components["schemas"]["SitemapSource"][];
+            rules: components["schemas"]["SitemapRule"][];
+            markers: components["schemas"]["SitemapMarker"][];
+            gaps: components["schemas"]["SitemapGap"][];
+        };
+        SitemapGroup: {
+            id: string;
+            origin: string;
+            method: string;
+            route: string;
+            structural: components["schemas"]["SitemapStructuralValue"][];
+            members: components["schemas"]["SitemapMember"][];
+            declarations: components["schemas"]["SitemapDeclaration"][];
+            omitted: number;
+        };
+        SitemapMember: {
+            id: string;
+            path: string;
+            summaries: components["schemas"]["SitemapSummary"][];
+            examples: string[];
+            evidence: components["schemas"]["SitemapEvidence"][];
+            annotations: components["schemas"]["SitemapAnnotation"][];
+            omitted: number;
+        };
+        SitemapProvenance: {
+            sourceId: components["schemas"]["ResourceId"];
+            /** @enum {string} */
+            kind: "manual" | "http" | "caido" | "ffuf" | "katana" | "dirsearch" | "openapi";
+            /** @enum {string} */
+            mode: "blackbox" | "source-assisted";
+            runId?: components["schemas"]["ResourceId"];
+            deployment?: components["schemas"]["ResourceId"];
+            credentialRevision?: components["schemas"]["ResourceId"];
+            sessionGeneration?: components["schemas"]["ResourceId"];
+        };
+        SitemapSummary: {
+            provenance: components["schemas"]["SitemapProvenance"];
+            context: string;
+            outcome: string;
+            status: number;
+            parameters: string[];
+            first: string;
+            last: string;
+        };
+        SitemapEvidence: {
+            runId: components["schemas"]["ResourceId"];
+            artifact: components["schemas"]["SitemapExactArtifact"];
+        };
+        SitemapAnnotation: {
+            provenance: components["schemas"]["SitemapProvenance"];
+            note: string;
+            tags: string[];
+        };
+        SitemapDeclaration: {
+            rule: boolean;
+            provenance: components["schemas"]["SitemapProvenance"];
+            pointer: string;
+            parameters: string[];
+        };
+        SitemapSource: {
+            provenance: components["schemas"]["SitemapProvenance"];
+            generation: number;
+            artifact?: components["schemas"]["SitemapExactArtifact"];
+            policyDigest: string;
+        };
+        SitemapRule: {
+            sourceId: components["schemas"]["ResourceId"];
+            origin: string;
+            method: string;
+            path: string;
+            pointer: string;
+            parameters: string[];
+            structural: components["schemas"]["SitemapStructuralParameter"][];
+        };
+        SitemapStructuralParameter: {
+            name: string;
+            allowed: string[];
+        };
+        SitemapStructuralValue: {
+            name: string;
+            values: string[];
+        };
+        SitemapMarker: {
+            id: string;
+            members: string[];
+            provenance: components["schemas"]["SitemapProvenance"];
+        };
+        SitemapGap: {
+            sourceId: components["schemas"]["ResourceId"];
+            reason: string;
+            count: number;
+        };
+        SitemapMutation: {
+            /** @enum {string} */
+            operation: "declare" | "annotate" | "remove" | "restore" | "replace-source";
+            expectedRevision?: components["schemas"]["ResourceId"];
+            url?: string;
+            method?: string;
+            memberIds?: string[];
+            note?: string;
+            tags?: string[];
+            markerId?: components["schemas"]["ResourceId"];
+            source?: components["schemas"]["SitemapSourceUpdate"];
+        };
+        SitemapSourceUpdate: {
+            /**
+             * @constant
+             * @enum {string}
+             */
+            sourceId: "owner";
+            expected?: components["schemas"]["SitemapSource"];
+            artifact?: components["schemas"]["SitemapExactArtifact"];
+            rules: components["schemas"]["SitemapRule"][];
+        };
+        SitemapView: {
+            revision: string;
+            document: components["schemas"]["SitemapDocument"];
+        };
+        SitemapResult: {
+            artifact: components["schemas"]["ExactArtifactRef"];
+            replayed: boolean;
+            changed: boolean;
+        };
+        SitemapExactArtifact: {
+            ref: components["schemas"]["ExactArtifactRef"];
+            digest: string;
+            mediaType?: components["schemas"]["MediaType"];
+            sizeBytes?: number;
+        };
         /** @description Select exactly one of projectIds or allProjects=true. The server captures each Project target; parameters cannot override target. Omitted workflow selects nuclei-web@1. */
         CreateScanSweepRequest: {
             projectIds?: components["schemas"]["ResourceId"][];
@@ -9097,6 +9270,84 @@ export interface operations {
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getProjectSitemap: {
+        parameters: {
+            query?: {
+                revision?: components["schemas"]["Revision"];
+            };
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Exact or current sitemap; missing current is empty */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SitemapView"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
+    mutateProjectSitemap: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SitemapMutation"];
+            };
+        };
+        responses: {
+            /** @description Accepted sitemap result */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SitemapResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["ArtifactWriteConflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactWriteUnavailable"];
         };
     };
     listProjectArtifacts: {
