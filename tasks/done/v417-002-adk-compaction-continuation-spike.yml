@@ -5,7 +5,7 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V418-007
 languages:
@@ -163,3 +163,14 @@ test_prerequisites:
 - Cancellation/expiry prohibits new semantic dispatch and unowned local work after release, not remote
   completion of already-sent operations. Reconcile uncertain effects through existing receipts; preserve
   separately authorized bounded terminal cleanup/auto-export under WRK-R168.
+
+verification:
+  result: Public request projection selected after real native timestamp-boundary failures; two checkpoints
+    and continuations preserve one logical State/budget/collector/deadline owner on exact accepted lock.
+  tests: Linux make test-runtime PASS (5115 passed, 55 existing allowed opt-in skips); all 32 new
+    spike cases pass without skips. Darwin focused 32 PASS. Frozen-source make lint PASS.
+  first_host_attempt: Darwin full Runtime failed on native Linux prerequisites; preserved as failed evidence,
+    reproduced SOCK_SEQPACKET absence and completed the full mandatory gate in a fresh owned Linux source/venv.
+  delivery: Committed on codex/compaction-spikes; not merged, pushed or deployed. Main records the claim
+    in 9d46711d56e41a30043f86e1f7b76a0c943cfc36. Production compaction remains for V417-003 and successors.
+implementation_commit: eda7fee76bba996786822107a269c9bb38844a63
