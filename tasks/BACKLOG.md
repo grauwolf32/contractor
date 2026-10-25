@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-131 open tasks: 8 in progress, 112 pending, 11 deferred. 1101 finished: 1091 completed, 10 archived.
+131 open tasks: 9 in progress, 111 pending, 11 deferred. 1101 finished: 1091 completed, 10 archived.
 
 ## In progress
 
@@ -19,6 +19,7 @@ the epics are in [epics.yml](epics.yml).
 | [V416-004](v416-004-openapi-json-escapes.yml) | workflows | defect | P1 | Read OpenAPI JSON seeds with JSON escape semantics |
 | [V416-007](v416-007-interactsh-reconciliation-poll.yml) | http-tools | defect | P2 | Account for Interactsh reconciliation polls in the shared gap and rate rules |
 | [V416-008](v416-008-rulepack-metadata-contract.yml) | scan-tools | chore | P3 | Share the Nuclei rulepack media and byte admission contract |
+| [V416-010](v416-010-history-current-revision-contract.yml) | projects-artifacts | chore | P3 | Clarify current-revision protection during history admission |
 
 ## Pending
 
@@ -105,7 +106,6 @@ the epics are in [epics.yml](epics.yml).
 | [V410-002](v410-002-project-sitemap-toolset.yml) | feature | P1 | V410-001 | Expose authorized live sitemap tools to Project allocations |
 | [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | V410-002 | Reconcile exact OpenAPI declarations with live sitemap members |
 | [V413-001](v413-001-runtime-artifact-disk-cache.yml) | feature | P2 | — | Reuse authorized immutable archives in a bounded Runtime disk cache |
-| [V416-010](v416-010-history-current-revision-contract.yml) | chore | P3 | — | Clarify current-revision protection during history admission |
 
 ### Audits (`audits`)
 

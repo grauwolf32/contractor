@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V410-010
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [markdown]
 goal: >-
@@ -69,3 +69,16 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A3]
+verification:
+  date: "2026-10-25"
+  passed:
+    - python3 scripts/check_spec.py; 47 owning documents consistent.
+    - go test -count=1 ./internal/artifacts with disposable UTF-8 PostgreSQL; passed.
+    - make lint on the integrated V416 tree; passed all Go, UI, Runtime, deployment, task and specification checks.
+  evidence: >-
+    The existing TestPostgresHistoryPreservesHoldsAndReseeksAReleasedHold
+    proves former-current r4 eviction during publication of r5, held-revision
+    refusal and rollback. Other package tests cover failed CAS, bounded
+    independent maintenance and caller-owned transaction limits. No algorithm,
+    SQL, limits or test assertions changed; wording now names the same
+    post-publication state and the ART-R127 exception.
