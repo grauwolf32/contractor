@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-130 open tasks: 8 in progress, 111 pending, 11 deferred. 1102 finished: 1092 completed, 10 archived.
+129 open tasks: 7 in progress, 111 pending, 11 deferred. 1103 finished: 1093 completed, 10 archived.
 
 ## In progress
 
@@ -16,7 +16,6 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V416-003](v416-003-web-scan-shared-launch-state.yml) | ui | defect | P1 | Restore shared Audit launch options and state in Web scan |
-| [V416-004](v416-004-openapi-json-escapes.yml) | workflows | defect | P1 | Read OpenAPI JSON seeds with JSON escape semantics |
 | [V416-007](v416-007-interactsh-reconciliation-poll.yml) | http-tools | defect | P2 | Account for Interactsh reconciliation polls in the shared gap and rate rules |
 | [V416-008](v416-008-rulepack-metadata-contract.yml) | scan-tools | chore | P3 | Share the Nuclei rulepack media and byte admission contract |
 
@@ -211,7 +210,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
-| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-002, V416-003, V416-004, V416-005, V416-006, V416-007, V416-008, V416-009, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main review |
+| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-002, V416-003, V416-005, V416-006, V416-007, V416-008, V416-009, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main review |
 
 ## Deferred
 
@@ -246,7 +245,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 11 | 19 | 16 | 5 | 17 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 6 | 16 | 8 | 9 | 16 |
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
-| Workflow catalog and document workflows (`workflows`) | 8 | 18 | 15 | 12 | 18 |
+| Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 7 | 40 |
 | Audits (`audits`) | 33 | 66 | 80 | 26 | 105 |
 | Evaluations (`evals`) | 5 | 21 | 38 | 12 | 45 |
