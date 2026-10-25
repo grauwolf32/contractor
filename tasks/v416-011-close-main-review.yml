@@ -8,6 +8,7 @@ priority: P3
 status: pending
 depends_on:
   - V416-001
+  - V416-002
   - V416-008
   - V414-004
   - V414-012

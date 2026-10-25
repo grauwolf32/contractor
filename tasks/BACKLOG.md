@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-124 open tasks: 4 in progress, 109 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+125 open tasks: 4 in progress, 110 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
 
 ## In progress
 
@@ -137,6 +137,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
 | [V414-001](v414-001-openapi-inventory-string-bound.yml) | defect | P2 | — | Give openapi-operations@1 the string bounds of the shared OpenAPI document rule |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
+| [V416-002](v416-002-web-scan-rulepack-admission.yml) | defect | P1 | V416-008 | Reject oversized Web scan rulepacks before accepting an Audit start |
 
 ### Evaluations (`evals`)
 
@@ -205,7 +206,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
-| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-001, V416-008, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main review |
+| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-001, V416-002, V416-008, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main review |
 
 ## Deferred
 
@@ -242,7 +243,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 9 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 14 | 12 | 18 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 4 | 35 | 33 | 6 | 39 |
-| Audits (`audits`) | 32 | 66 | 79 | 26 | 103 |
+| Audits (`audits`) | 33 | 66 | 80 | 26 | 104 |
 | Evaluations (`evals`) | 6 | 21 | 38 | 12 | 45 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 62 | 13 | 57 |
