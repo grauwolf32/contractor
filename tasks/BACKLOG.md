@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-132 open tasks: 8 in progress, 113 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+132 open tasks: 9 in progress, 112 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V414-004](v414-004-scan-audit-result-failure-classes.yml) | scan-tools | defect | P2 | Classify Audit scan result building failures by cause instead of as invalid input |
 | [V416-004](v416-004-openapi-json-escapes.yml) | workflows | defect | P1 | Read OpenAPI JSON seeds with JSON escape semantics |
 | [V416-007](v416-007-interactsh-reconciliation-poll.yml) | http-tools | defect | P2 | Account for Interactsh reconciliation polls in the shared gap and rate rules |
 | [V416-008](v416-008-rulepack-metadata-contract.yml) | scan-tools | chore | P3 | Share the Nuclei rulepack media and byte admission contract |
@@ -68,7 +69,6 @@ the epics are in [epics.yml](epics.yml).
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | feature | P1 | V410-002 | Import bounded scanner and selected Caido observations |
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020, V410-004 | Gate controlled ffuf execution through the pentest transport |
-| [V414-004](v414-004-scan-audit-result-failure-classes.yml) | defect | P2 | — | Classify Audit scan result building failures by cause instead of as invalid input |
 
 ### Findings tools and collections (`findings`)
 

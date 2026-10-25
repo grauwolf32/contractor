@@ -90,6 +90,8 @@ func TestArtifactReadBoundsAndExactRevision(t *testing.T) {
 				}
 			} else if err == nil {
 				t.Fatal("invalid read accepted")
+			} else if retryableScanCause(err) {
+				t.Fatalf("deterministic read rejection became retryable: %v", err)
 			}
 			if (name == "oversized" || name == "unversioned") && repository.reads != 0 {
 				t.Fatal("invalid metadata caused a payload read")
@@ -122,6 +124,8 @@ func TestArtifactCreateOnlyRecoveryComparesExactContent(t *testing.T) {
 				}
 			} else if err == nil {
 				t.Fatal("conflicting or uncertain creation accepted")
+			} else if retryableScanCause(err) != (name == "ambiguous write") {
+				t.Fatalf("creation cause classification changed: %v", err)
 			}
 			if repository.writes != 1 {
 				t.Fatal("creation retried an ambiguous write")
