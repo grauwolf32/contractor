@@ -10,6 +10,7 @@ depends_on:
 - V419-006
 languages:
 - go
+- python
 - markdown
 goal: Establish reproducible baseline and candidate evidence before the module migration, separating definite
   API breaks from semantic risks and opt-in compaction conflicts.
@@ -38,6 +39,7 @@ context:
   execution_authority: 'User requested acceleration on2026-10-25: prepare isolated Go characterization
     tests in parallel with remaining Runtime verification. The production Go ADK pin changes only after
     the Runtime exit; Scheduler logic remains unchanged.'
+  verification_evidence: tasks/evidence/v419-go-adk-26-owner-verification.json
 scope:
   in:
   - Executable characterization and sanitized evidence, test-only candidate probes, owning contract clarifications
@@ -68,6 +70,10 @@ tests:
   covers:
   - A1
 - command: python3 scripts/check_go_adk_migration.py --candidate v2.6.0 --write-evidence tasks/evidence/v419-go-adk-26-characterization.json
+  covers:
+  - A2
+  - A3
+- command: python3 -m unittest discover -s scripts -p 'test_check_go_adk_migration.py'
   covers:
   - A2
   - A3
@@ -154,3 +160,13 @@ test_prerequisites:
 - No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the
   currently supported Runtime lock. New shared grammar or wire changes, if actually needed, must update
   all implementations and shared fixtures in the owning task.
+verification:
+  characterization: Baseline1.6 and mechanically adapted2.6 each execute534uniqueleaves and all84requiredmanifestcases,16history
+    observations each. Only2explicitliveGateway optin skips. Imports-only exit1 correctly proves3API breaks;
+    adapted all-consumer compile and productionbuild exit0.
+  owner: Component make test-streamline and fullmake lintPASS before latest user no-full-rerun instruction;20harness
+    validator tests PASS again during Root import. All recorded Go source/module/harness hashes exactly
+    match.
+  findings: Required append failures discovered on supported1.6 are fixed by completedV419-006; candidate001observations
+    are not a pin migration, race/process acceptance or compaction implementation.
+  delivery: Production Go pin remains1.6; Runtime completed first; actual atomic Server migration is V419-002.

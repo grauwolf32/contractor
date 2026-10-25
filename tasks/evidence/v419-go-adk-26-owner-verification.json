@@ -1,0 +1,131 @@
+{
+  "schema_version": "1.0",
+  "date": "2026-10-25",
+  "task": "V419-001",
+  "scope": "Owner verification on an isolated host branch. Candidate race, Server/Runtime process, compaction and full release acceptance remain separate tasks.",
+  "source_revision": "6d775ebc5b242108fa6fae5d6693a076c16ce11c",
+  "platform": {
+    "system": "Darwin",
+    "machine": "arm64"
+  },
+  "versions": {
+    "go": "go version go1.26.9 darwin/arm64",
+    "python": "Python 3.13.16",
+    "node": "v24.20.0",
+    "corepack": "0.35.0",
+    "pnpm": "11.24.0"
+  },
+  "source_relation": {
+    "characterization_source_revision": "82c52ff3742f31c137174c64976c5461997a6a57",
+    "all_recorded_source_hashes_match_characterization": true,
+    "checkout_clean_after_lint": true
+  },
+  "production_adk": "google.golang.org/adk v1.6.0",
+  "production_pin_unchanged": true,
+  "prerequisites": [
+    "Agent-owned disposable PostgreSQL database configured through CONTRACTOR_TEST_DATABASE_URL; no value exported.",
+    "GOMAXPROCS=2 and Go package parallelism=1.",
+    "Own real runtime/.venv and frozen offline UI installation; no shared environment symlink."
+  ],
+  "checks": [
+    {
+      "command": "python3 scripts/check_go_adk_migration.py --candidate v2.6.0 --write-evidence tasks/evidence/v419-go-adk-26-characterization.json",
+      "exit_code": 0,
+      "evidence": "tasks/evidence/v419-go-adk-26-characterization.json",
+      "required_manifest_cases_per_version": 84,
+      "unique_executed_leaf_cases_per_version": 534,
+      "projection_observations_per_version": 16,
+      "mandatory_skips": 0,
+      "optional_skips_per_version": 2,
+      "imports_only_compile_exit_code": 1,
+      "mechanically_adapted_build_exit_code": 0
+    },
+    {
+      "command": "python3 -m unittest discover -s scripts -p 'test_check_go_adk_migration.py'",
+      "exit_code": 0,
+      "tests": 20
+    },
+    {
+      "command": "ruff check --no-cache scripts/check_go_adk_migration.py scripts/test_check_go_adk_migration.py",
+      "exit_code": 0
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log_sha256": "876669d92aaefb7ced5c00f1fe9800468c4ce210b2ea3d1c2b88b2e3b834491f",
+      "script_tests": 162,
+      "task_records": 1269,
+      "release_graph": {
+        "stages": 12,
+        "race_packages": 106,
+        "process_tests": 26,
+        "fixture_tests": 7,
+        "existing_run_selections": 330,
+        "tagged_e2e_tests": 51,
+        "tagged_e2e_optins": 8,
+        "integration_tests": 208,
+        "filesystem_backend_packages": 2
+      },
+      "runtime_layer_contracts": {
+        "kept": 4,
+        "broken": 0
+      }
+    }
+  ],
+  "dependency": {
+    "task": "V419-006",
+    "implementation_commit": "360ae86aca038f68b5938367fdcb23f78e28f094",
+    "owner_closure_commit": "1536cc303e9c5edc68670d26c36f45ff0adf9916",
+    "required_regression_leaves": 24
+  },
+  "review": {
+    "independent_review": "No remaining actionable blocker after late-acceptance fix.",
+    "regressions": [
+      "Missing/zero manifest group or mandatory case cannot pass.",
+      "Malformed or unsafe observation retains the real phase exit without raw provider data.",
+      "Imports-only expected compile failure is recorded as failure, never successful candidate build.",
+      "Aggregate reports cannot mutate per-phase case inventories.",
+      "Errors and interruption after provisional acceptance revoke acceptance and return nonzero."
+    ]
+  },
+  "source_sha256": {
+    "internal/app/composition_execution.go": "acb9e9603b350739856a370295e0fd11b4567dd132dec347a17a84ba2577cb3a",
+    "internal/planner/router/factory_test.go": "8b8140d11bc716cbbf6375423918dfb17c12dae4b44e149f592704396b0b7bc8",
+    "internal/planner/session/adk.go": "42ed9a561b42c77f1e725a3dd4710aa552a7a5b913a8995668245c5c6b6b057d",
+    "internal/planner/session/postgres_integration_test.go": "70c64c771693f7c52e1f32abf6f35c8db090321cc5c6da31bd2e899e0331bfdc",
+    "internal/planner/session/service_test.go": "aa7e83bbc9c29d3bff0b0b73956b6fe8b86e1afbc1c0d5a1187b492a0b0fb01e",
+    "internal/planner/streamline/continuation_test.go": "8566c7bf5d4301923e7ca73d6340a7c7d43227c24df16622ac7029566deab411",
+    "internal/planner/streamline/factory.go": "c09cf0f7e769f0170a23e8c68de0922c41e4042eb4251b6d0e164e95190baeb9",
+    "internal/planner/streamline/finish_append_precedence_postgres_test.go": "19130b77f49cea188f4cd2fbd25fc648daf98f96d7fb78ac0f975ef498b09244",
+    "internal/planner/streamline/gateway.go": "8a199c4246d174bdaef34381bd40e9884b1ff8d3c77a14abef36accc2b8e49ef",
+    "internal/planner/streamline/gateway_test.go": "d4611103a885d9105066e3e69a9c5f322f1a92ad13b1f6a8e14d4f7ede7e01a7",
+    "internal/planner/streamline/go_adk_characterization_test.go": "c4c7d1a2ced784923a367d9b13d3f927b5728ad47fe66711c2ab6600330f48c8",
+    "internal/planner/streamline/go_adk_history_characterization_test.go": "385d5a787e1598354110d064de11de0d0c2396a3e3e79879bc7f23851a3ddc1d",
+    "internal/planner/streamline/memory_tools.go": "f9ca6b90acee4fa86c7e641460b54e607de5a4e376cab3b50e35ec7c553a5552",
+    "internal/planner/streamline/memory_tools_test.go": "e8b5e5275a99d0608c8be4331cdd797390b34bc875dba7c73fdc72f3140c407c",
+    "internal/planner/streamline/planner.go": "e2cffdf5c9a163de2e1fc39ce9976deb80396cffe7b9ffc1f4f2c54b26494c3d",
+    "internal/planner/streamline/planner_test.go": "b1f40f77c4eea61bebbab1232300dd3eb149abd5fba41f7e68fdde3b0d50efb6",
+    "internal/planner/streamline/session_rejection_postgres_test.go": "8b0117fbdcf1f9c4f8f7b08d28ef8ef1a394cdeb918c344d0a7750c455cd5d52",
+    "internal/planner/streamline/session_write_test.go": "2494b972c61f00e394b4a2014e194b34681805d55f5aa0ee718d3dc04a448f4f",
+    "internal/planner/streamline/state.go": "55f241434f32cdb421992d5e0f822415667d8a270eaafef023f05af1cb8f865b",
+    "internal/planner/streamline/state_tools.go": "d51fc3e6dc841c1b69352516513a7475a4fcf8a95590fb285ea0ebcfa94a605e",
+    "internal/planner/streamline/state_tools_test.go": "87c96195d97cce790380799a47265d86095c6988d39c35e9556b1ea5689cfa7d",
+    "internal/planner/streamline/temperature_test.go": "931dbf9c0be86b9e738f20960c74a9194697d09e3d0d93cfd640e484df9b4bd0",
+    "internal/planner/streamline/tools.go": "2ef1104f93c9f6e8e6549ebb7bb9c3cdd23047d2aefacc213daa6be055a8182b",
+    "internal/scheduler/summary_postgres_test.go": "2575ed83a5a8f3239edbe70b09af11d6d9f25d8c30470cca1e9bd6c11f0fb164",
+    "tests/integration/streamline/live_gateway_test.go": "893aeae2c8e3268833086a3afdacdb35288417fb97266d2fd74edceef8708d76",
+    "tests/integration/streamline/live_routing_test.go": "8b8b483d647a344d69466d76d8148a579f17469048540e4bd20c35e032bf6a66",
+    "tests/integration/streamline/streamline_test.go": "f5d48c4cd257d50d3a8450722163c712110be191c2c64146b95ad4ae18040761",
+    "scripts/check_go_adk_migration.py": "b61cb3ea93c325811ed340d27a2b90b5b8b11fc058f73249f60e4b47c7ff7965",
+    "scripts/test_check_go_adk_migration.py": "18ca5d53f656749870aff1484c2eaf489b110a0ef2da35fe2e478cc323607324",
+    "go.mod": "6f8dab15cba2869800cd671d985960e6749da4a345f4856115527fc6b83792eb",
+    "go.sum": "ea03800c1d809062d80cb639aa8bc6716f3381a75659f1eeb53cbe60bcd818a8"
+  },
+  "primary_integration": {
+    "after_runtime_exit": true,
+    "go_source_and_module_hashes_match": true,
+    "component_head": "69db0d91c90aaba2e9fe5f51b912c3ded11183d2",
+    "component_patch_sha256": "b9268f574b11a6bfe181c8c569112dd3303a6b7c8df38fa1ef2af5a989b44c22",
+    "scope": "All recorded Go sources, migration harness and modules exactly match prior passing characterization. Root reran only20harness validator tests and tracker/static checks, not the old full lint or repository suites. Python dependency acceptance is separately V418-012."
+  }
+}
