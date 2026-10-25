@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V410-001
 languages:
@@ -212,3 +212,12 @@ test_prerequisites:
 - New test_sitemap_*.py suites and test-project-sitemap-tools-e2e are deliverables; the gate requires disposable
   PostgreSQL and real component processes, fails missing/zero/skipped mandatory cases and uses scripted local fixtures
   only.
+
+execution:
+  branch: codex/v410-sitemap
+  claimed_on: "2026-10-26"
+  note: >-
+    Taken into work by Codex at the user's explicit request. The seven-task
+    batch is reserved together; implementation proceeds in dependency order,
+    and dependent tasks do not start implementation before their prerequisites
+    complete. Status records assignment, not completed implementation or tests.

@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: scan-tools
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V410-002
 languages:
@@ -184,3 +184,12 @@ test_prerequisites:
 - Use controlled report/provider fixtures, real Artifact storage and production process boundaries. Installed-engine
   test-scan-e2e is unnecessary for import-only changes; if implementation also changes scanner execution, its existing
   execution gate becomes required.
+
+execution:
+  branch: codex/v410-sitemap
+  claimed_on: "2026-10-26"
+  note: >-
+    Taken into work by Codex at the user's explicit request. The seven-task
+    batch is reserved together; implementation proceeds in dependency order,
+    and dependent tasks do not start implementation before their prerequisites
+    complete. Status records assignment, not completed implementation or tests.

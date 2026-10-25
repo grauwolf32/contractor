@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: quality
 kind: chore
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V410-006
 languages:
@@ -252,3 +252,12 @@ test_prerequisites:
 - Use controlled non-Audit fixtures for the single-Run publication regression; no unrelated execution budget may
   mask removed-limit cases. V410-010 owns generic non-sitemap User/Project/Run fixtures and automatic per-binding
   retention gates; do not duplicate their implementation or introduce registration for those fixtures.
+
+execution:
+  branch: codex/v410-sitemap
+  claimed_on: "2026-10-26"
+  note: >-
+    Taken into work by Codex at the user's explicit request. The seven-task
+    batch is reserved together; implementation proceeds in dependency order,
+    and dependent tasks do not start implementation before their prerequisites
+    complete. Status records assignment, not completed implementation or tests.
