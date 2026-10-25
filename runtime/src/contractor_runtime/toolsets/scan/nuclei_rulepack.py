@@ -155,16 +155,23 @@ def _preflight_zip(data: bytes, deadline: float) -> None:
         raise _invalid()
 
 
+def valid_rulepack_metadata(media_type: str, size: int) -> bool:
+    """Check canonical media and encoded size; empty content is checked separately."""
+    if size < 0:
+        return False
+    if media_type == "application/yaml":
+        return size <= MAX_FILE_BYTES
+    if media_type == RULEPACK_MEDIA_TYPE:
+        return size <= MAX_ZIP_BYTES
+    return False
+
+
 def materialize_rulepack(
     data: bytes, media_type: str, root: Path, deadline: float
 ) -> tuple[PackageSnapshot, dict[str, str], str]:
     """Off-loop streaming extraction and full structure validation under fixed budgets."""
     _deadline(deadline)
-    if media_type not in {"application/yaml", RULEPACK_MEDIA_TYPE}:
-        raise _invalid()
-    if not data or len(data) > (
-        MAX_FILE_BYTES if media_type == "application/yaml" else MAX_ZIP_BYTES
-    ):
+    if not data or not valid_rulepack_metadata(media_type, len(data)):
         raise _invalid()
     files, identifiers = [], {}
     ids, names = set(), set()

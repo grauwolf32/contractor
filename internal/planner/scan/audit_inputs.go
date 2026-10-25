@@ -152,8 +152,7 @@ func (p *execution) readAuditManifest(ctx context.Context, task auditdomain.Item
 			return empty, scanError("audit_scan_source_unavailable", err)
 		}
 		if auditdomain.DigestBytes(payload.Data) != selected.Digest ||
-			(payload.MediaType != "application/yaml" && payload.MediaType != contractscan.NucleiRulepackMediaType) ||
-			(payload.MediaType == "application/yaml" && len(payload.Data) > contractscan.MaxNucleiRulepackFileBytes) {
+			!contractscan.ValidNucleiRulepackMetadata(payload.MediaType, int64(len(payload.Data))) {
 			return empty, scanError("audit_scan_assignment_invalid", nil)
 		}
 	}

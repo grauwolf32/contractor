@@ -18,6 +18,24 @@ const (
 
 var nucleiFilter = regexp.MustCompile(`^[A-Za-z0-9_*][A-Za-z0-9_.*-]*(,[A-Za-z0-9_*][A-Za-z0-9_.*-]*)*$`)
 
+// ValidNucleiRulepackMetadata checks canonical media type and encoded size.
+// Empty artifacts may pass metadata admission; Runtime content validation rejects
+// them. Scope, exact identity and the containing slot's media contract belong to
+// the caller, and payload reads must retain their independent byte bounds.
+func ValidNucleiRulepackMetadata(mediaType string, size int64) bool {
+	if size < 0 {
+		return false
+	}
+	switch mediaType {
+	case "application/yaml":
+		return size <= MaxNucleiRulepackFileBytes
+	case NucleiRulepackMediaType:
+		return size <= MaxNucleiRulepackZIPBytes
+	default:
+		return false
+	}
+}
+
 // ValidateNucleiArguments validates resolved tool inputs at ordinary Run admission.
 // It owns the scanner contract independently of a Workflow name; scan planners
 // validate their generated inputs separately.

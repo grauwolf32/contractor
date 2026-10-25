@@ -148,7 +148,7 @@ func (s *Service) Create(ctx context.Context, owner, key string, request Request
 				if err != nil {
 					return persistencepostgres.Receipt{}, err
 				}
-				if !contracts.AcceptsMediaType(workflow.Inputs["rulepack"].MediaTypes, source.MediaType) || source.Size > scan.MaxNucleiRulepackZIPBytes || (source.MediaType == "application/yaml" && source.Size > scan.MaxNucleiRulepackFileBytes) {
+				if !contracts.AcceptsMediaType(workflow.Inputs["rulepack"].MediaTypes, source.MediaType) || !scan.ValidNucleiRulepackMetadata(source.MediaType, source.Size) {
 					return persistencepostgres.Receipt{}, scanstore.ErrInvalid
 				}
 				fork, err := a.RetainSweepInput(ctx, owner, id, source.Ref)

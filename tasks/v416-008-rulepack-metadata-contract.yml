@@ -6,7 +6,7 @@ epic: scan-tools
 kind: chore
 introduced_by: V406-003
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python, typescript]
 goal: >-
@@ -70,3 +70,14 @@ tests:
     covers: [A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+verification:
+  environment: Isolated UTF-8 PostgreSQL test database; Go 1.26.9 and locked Python 3.13 environment.
+  passed:
+    - go test -count=1 ./internal/contracts/scan ./internal/runservice ./internal/scanservice ./internal/planner/scan (PostgreSQL enabled).
+    - make test-wire-cross-language; 270 fixtures, 319 Go and 211 Python shared tests; 1213 selected Runtime tests plus 313 contract tests.
+    - make lint; generated dependency fingerprint refreshed with make docs-dependencies.
+  pending: >-
+    make test-runtime on Linux. The macOS run completed with 4634 passed,
+    39 skipped and 106 failures, predominantly unsupported Linux process/socket
+    APIs, plus unrelated environment/timing cases. These are not reported as
+    passes; an isolated local Linux runner is being prepared.
