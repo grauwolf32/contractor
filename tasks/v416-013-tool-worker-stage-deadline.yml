@@ -6,7 +6,7 @@ epic: scan-tools
 kind: defect
 introduced_by: V55-003
 priority: P1
-status: completed
+status: in_progress
 depends_on: []
 languages: [python, go]
 goal: A tool Worker never begins or continues scanner work after its effective invocation deadline merely because the Server's cancellation request did not arrive.
@@ -21,6 +21,7 @@ context:
     - docs/spec/tools/scanners.md#SCN-R37
     - docs/spec/tools/scanners.md#SCN-R38
     - docs/spec/tools/scanners.md#SCN-R48
+    - docs/spec/tools/scanners.md#SCN-R51
     - docs/spec/tools/scanners.md#SCN-R199
   severity: medium
   finding: >-
@@ -100,8 +101,8 @@ tests:
     covers: [A1, A3, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
-implementation_commit: 10c96ab71d2abb130588ccb44117c44c72419e01
-verification:
+initial_implementation_commit: 10c96ab71d2abb130588ccb44117c44c72419e01
+initial_verification:
   date: '2026-10-25'
   environment: macOS arm64 isolated task worktree on 44469e3e; Python 3.13.16 with a local locked uv environment; Go from the pinned Darwin toolchain; Node 24.20; isolated PostgreSQL review_v416_tool_deadline database.
   evidence:
@@ -117,4 +118,31 @@ verification:
     - 'go test -count=1 ./internal/planner/a2a ./internal/planner/scan: both packages passed.'
     - 'make test-wire-cross-language with the isolated PostgreSQL URL configured: passed; contract Runtime suites 313 passed, shared Runtime selection 1228 passed, 3566 deselected; 270 shared fixtures, 319 Go and 219 Python shared tests checked.'
     - 'make lint: passed, including full Go, UI, deployment, specification, task, shared-fixture, Ruff and import-layer gates.'
+  database_tests_configured: true
+
+reopened:
+  date: '2026-10-25'
+  reason: >-
+    A4 and SCN-R51 remained incomplete after the initial fix. Two real
+    Executor.cancel calls during State admission or settlement can abandon
+    beginning or cancel finishing, leaving running State while accepting
+    remains true. Both paths also reproduce before the initial implementation;
+    this follow-up completes the existing criterion without changing receipt
+    identity, scanner execution or the ADK finalizer fixes.
+
+verification:
+  date: '2026-10-25'
+  environment: Isolated macOS arm64 worktree on 8888641c5628875ce1c9bde3efa4a68614a0e9c0, with the initial deadline change and V416-016 already merged; local uv sync --locked environment; Go build concurrency limited with GOFLAGS=-p=2; isolated PostgreSQL review_v416_tool_deadline database.
+  evidence:
+    - 'A4 follow-up: the existing ToolWorker owned-task join loop is shared privately by callable cleanup, State admission and State settlement. Repeated cancellation is recorded without forwarding cancellation to the owned task. Each task retains its original bounded budget; its outcome is inspected only after join. A failed or timed-out State admission/publication fences the Worker, and an external cancellation still escapes as CancelledError.'
+    - 'Real-path regression: ContractorAgentExecutor.execute receives an ordinary request and ContractorAgentExecutor.cancel receives two matching requests, separated at the cleanup boundary. Admission and settlement each cover successful publication, controlled WorkerStateError and five-second timeout. Settlement first expires the effective Stage deadline and proves the tool was cancelled and a failed/tool_timeout receipt already persisted before either CancelTask.'
+    - 'All six follow-up cases assert that the second cancellation does not release the invocation lock, end its owner or interrupt the State task. Successful State mutations commit while ownership is retained; no State task survives the owner. Broken State operations preserve CancelledError and set worker_draining. A replacement Worker replays the durable timeout without another tool call; successful cancelled admission permits a separately delivered next invocation.'
+    - 'Before/after: all six new cases fail against the unchanged 8888641c5 ToolWorker at the ownership assertion; all 23 deadline and cleanup cases pass after the fix. The original 17 deadline/replay/real-child cases remain unchanged. SCN-R51 now explicitly covers repeated cancellation and failure fencing; the graph fingerprint was regenerated.'
+    - 'The initial implementation, verification and reopening evidence remain recorded above. This follow-up completes the same A4 criterion; it changes neither ADK finalizer code nor A2A cancellation semantics.'
+  commands:
+    - 'cd runtime && uv run pytest tests/test_tool_worker.py tests/test_tool_worker_deadline.py tests/test_a2a_server.py tests/test_allocation.py tests/test_scan_toolset.py: 272 passed.'
+    - 'cd runtime && uv run pytest tests/test_adk_runtime.py: 158 passed, including the merged V416-016 regressions.'
+    - 'go test -count=1 ./internal/planner/a2a ./internal/planner/scan: both packages passed.'
+    - 'make test-wire-cross-language with the isolated PostgreSQL URL configured: passed; Runtime contract suites 313 passed; shared Runtime selection 1236 passed, 3585 deselected; 270 fixtures, 319 Go and 221 Python shared tests checked.'
+    - 'make lint: passed on the final source, including complete Go, UI, deployment, release graph, task, specification, shared-fixture, Ruff and import-layer checks.'
   database_tests_configured: true
