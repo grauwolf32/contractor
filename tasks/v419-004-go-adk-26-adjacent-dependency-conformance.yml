@@ -5,7 +5,7 @@ milestone: go-adk-26-upgrade-2026-10
 epic: planner-worker
 kind: chore
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V419-002
 languages:
@@ -39,6 +39,9 @@ context:
     No legacy readers, v1/v2 production branches, native SDK resume, new receipt store or model substitution.
     Scheduler retains claims, queues, Stage identities, transitions, retries and completed recovery; only
     configuration plumbing, mechanical imports and regression fixtures may change there.
+  process_verification: The five existing real-process parents declared byV419-005 run once as targeted004A2
+    verification in an independent Linux clone; reuse their exact source/module/lock records for005 if
+    unchanged. No global E2E/release run.
 scope:
   in:
   - Dependency-consumer conformance, custom adapter regressions and honest optional Collector evidence.

@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-137 open tasks: 5 in progress, 121 pending, 11 deferred. 1133 finished: 1123 completed, 10 archived.
+137 open tasks: 6 in progress, 120 pending, 11 deferred. 1133 finished: 1123 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V419-003](v419-003-go-adk-26-runner-session-conformance.yml) | planner-worker | chore | P1 | Verify Go ADK v2 tool history and Planner session lifecycle |
+| [V419-004](v419-004-go-adk-26-adjacent-dependency-conformance.yml) | planner-worker | chore | P1 | Verify Gateway A2A and telemetry contracts on the Go ADK dependency closure |
 
 ## Pending
 
@@ -42,7 +43,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-004](v417-004-shared-session-context-compaction.yml) | feature | P1 | V417-003 | Preserve compacted context across shared-session invocations |
 | [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Resolve reference-only compactor model policy overrides |
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
-| [V419-004](v419-004-go-adk-26-adjacent-dependency-conformance.yml) | chore | P1 | — | Verify Gateway A2A and telemetry contracts on the Go ADK dependency closure |
 | [V420-001](v420-001-planner-compaction-contract-spike.yml) | chore | P1 | V419-005 | Prove Planner compaction checkpoints and freeze the integration contract |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | V420-001 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
