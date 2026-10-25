@@ -6,8 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V62-005
 priority: P1
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: d2f343ca589fd29a7236da5977854effe909ebbb
 depends_on:
 - V62-005
 languages:
@@ -60,14 +60,29 @@ tests:
 test_prerequisites:
 - Set CONTRACTOR_TEST_DATABASE_URL to a dedicated disposable PostgreSQL database with CREATEDB; an unavailable configured database must fail.
 - Install the Runtime with uv sync --locked in this worktree before process cases; no shared environment or live model is used.
-verification_progress:
+verification:
   date: '2026-10-26'
+  result: passed
+  environment: >-
+    Isolated worktree based on main 5e2787956064b88edcf44843f8cb8529650d983d;
+    Go 1.26.9 with GOMAXPROCS=2 and GOFLAGS=-p=2; dedicated disposable PostgreSQL
+    contractor_v62_014; own locked CPython 3.13 Runtime and pinned Node/pnpm.
+  commands:
+  - command: go test -run '^TestImporterClosedDispatchUnboundFailureKeepsDrainSemantics$' -count=1 ./internal/auditimport
+    result: Failed on the original classifier for both check and declared assessment, then passed after the fix.
+  - command: go test -count=1 ./internal/auditimport
+    result: Passed the complete unit package.
+  - command: go test -tags=integration -count=1 ./internal/auditimport ./internal/auditcontroller
+    result: Passed in 33.792 and 41.316 seconds respectively with real PostgreSQL and locked Runtime processes; no skipped database cases.
+  - command: make lint
+    result: Passed all static, UI, deployment, release graph, task, specification, generated artifact and Runtime checks after regenerating the dependency graph fingerprint.
   evidence: >-
-    The new closed-dispatch check and assessment regression failed against the
-    original classifier, then passed after the state distinction. The full
-    importer and controller integration suites passed with dedicated PostgreSQL
-    and locked Runtime (33.792 and 41.316 seconds respectively), including the
-    original four controller drain snapshot assertions without edits. New store
-    tests prove cancelled final dispositions and permanent receipt replay after
-    parent cancellation without another Run or receipt. Full make lint is
-    required before task closure.
+    The original four controller drain snapshot and statement assertions pass
+    without edits. New PostgreSQL cases prove owner cancellation followed by
+    unbound failure collection settles ordinary members as execution-cancelled;
+    a committed unbound permanent rejection or owned child input failure replays
+    unchanged after cancellation with one receipt, no reopened members and no
+    extra submitted Run. Unit cases additionally cover declared assessment
+    replay, paused open dispatch, unrelated receipt identities and permanent
+    owned child failure during closed dispatch. No new outcome, guessed reason
+    column or receipt mechanism was introduced.
