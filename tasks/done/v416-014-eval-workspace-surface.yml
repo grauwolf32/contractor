@@ -6,7 +6,8 @@ epic: ui
 kind: chore
 introduced_by: V38-008
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 51edefb7fff1778bfabc5dc1d6515831974e5172
 depends_on: []
 languages: [typescript, markdown]
 goal: >-
@@ -80,3 +81,25 @@ tests:
     covers: [A1, A2, A3, A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+verification:
+  implementation:
+    - "Current workspace list/detail/material routes use /evals/workspaces; the browser router, static service, queue links, wrong-kind navigation and deletion destination agree. Retired workspace routes receive 404 rather than a compatibility redirect."
+    - "Collection and experiment setup share the existing Project dialog through EvaluationWorkspaceDialog. Its owner-scoped persisted recovery keeps the exact request/key across a lost response and a different entry point. Creating a workspace does not save or start an experiment."
+    - "Experiment and dataset pages expose workspace management; the workspace links back to its filtered experiments and datasets. Project editing, target settings, confirmed CAS deletion, ordinary history and exact material references keep their shared implementations. UI version is 0.10.1."
+    - "EVM-R22, PRJ-R95 and UI-R48 describe current containers and ordinary labelled history without treating labels as managed experiment membership."
+  checks:
+    - command: "VITEST_MAX_WORKERS=2 make ui-verify"
+      result: "Passed: generated types, ESLint/Prettier, both TypeScript projects, 194 Vitest files (2393 passed and one pre-existing expected-failure case), all 17 Node server tests, production build. Worker count limits scheduling only; test selection and timeouts are unchanged."
+    - command: make ui-browser-mocked
+      result: "Passed all 97 tests across 23 specs. Six workspace cases exercise 390/1280 px in light/dark/black, dialog controls, direct detail reload, history/settings links and absence of horizontal overflow."
+    - command: "GOFLAGS=-p=2 TMPDIR=/private/tmp make lint"
+      result: "Passed on the candidate integrated with V416-012/013/016, including generated dependency checks, Go vet/staticcheck, UI gates, deployment suites, spec/task consistency, Ruff and import layers."
+  review: "An independent read-only review found one missed dynamic Queue link; its builder and assertion were corrected before the final complete UI and browser runs. No further concrete regression remained."
+  initial_checks: >-
+    The first UI verification stopped on formatting. An unrestricted parallel
+    Vitest run later exposed an old dynamic workspace test path plus six
+    timeouts under contention. The path and formatting were corrected, and
+    complete final runs with two workers passed. A preliminary browser run
+    was explicitly interrupted while aligning the static route allowlist;
+    the final full browser gate passed after that change.
+  limits: "These are deterministic UI/API-mocked checks; no backend schema or public API changed and no live experiment or external target was executed."
