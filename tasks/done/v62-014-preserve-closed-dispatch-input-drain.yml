@@ -1,0 +1,88 @@
+schema_version: '1.0'
+id: V62-014
+title: Preserve closed-dispatch draining after permanent input failure classification
+milestone: audit-iterative-composition-2026-10
+epic: audits
+kind: defect
+introduced_by: V62-005
+priority: P1
+status: completed
+implementation_commit: d2f343ca589fd29a7236da5977854effe909ebbb
+depends_on:
+- V62-005
+languages:
+- go
+- markdown
+- yaml
+goal: Keep cancellation and closed-dispatch settlement unchanged while permanently rejected exact input preparation remains nonretryable and replay-safe.
+context:
+  severity: medium
+  finding: >-
+    internal/auditimport/importer.go:197 classifies every unbound submission-failed
+    observation as a permanent input rejection. Controller.failUnboundIntentBatch
+    also emits that observation after dispatch irreversibly closes, including
+    cancellation. TestPostgresControllerDrainBatchesUnboundIntentFailures fails
+    all four cases because members become FinalInvalidResult instead of following
+    ordinary closed-dispatch cancellation settlement, eliminating one expected
+    settlement pass.
+  siblings: >-
+    Check and declared round-results assessment collection share the classifier.
+    Bound child Runs with the exact owned audit_input_initialization_failed reason
+    must remain nonretryable after dispatch closes. Ordinary failed Runs retain
+    their retry policy. A committed permanent rejection must replay unchanged if
+    the parent closes before the caller observes its receipt.
+  specification:
+  - docs/spec/audits/execution.md
+  - docs/spec/platform/failure-model.md
+scope:
+  in:
+  - Distinguish irreversible closed-dispatch draining from open or held submission rejection using existing durable state.
+  - Preserve exact owned child input failure and committed contract-invalid receipt replay.
+  - Add unit and real PostgreSQL cancellation, permanent rejection and lost-response regression tests.
+  - Clarify the owning failure contract and release-gate dependency.
+  out:
+  - New execution outcomes, guessed reason fields, receipt stores or retry mechanisms.
+  - Typed routing V62-007 and unrelated user work.
+acceptance_criteria:
+- id: A1
+  text: Closed-dispatch unbound intents follow existing collection and cancellation settlement, including unchanged bounded controller drain snapshots and no FinalInvalidResult relabeling.
+- id: A2
+  text: Open or held definite submission rejection and exact owned bound input initialization failure remain nonretryable, while ordinary target failure keeps its retry policy.
+- id: A3
+  text: A committed permanent receipt replays unchanged after the parent closes; storage failures leave collection pending and duplicate replay adds no child, receipt or budget charge.
+- id: A4
+  text: The new closed-dispatch regression fails on the original classifier and all importer and controller integration suites pass against disposable PostgreSQL and the locked Runtime.
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditimport ./internal/auditcontroller
+  covers: [A1, A2, A3, A4]
+- command: make lint
+  covers: [A1, A2, A3, A4]
+test_prerequisites:
+- Set CONTRACTOR_TEST_DATABASE_URL to a dedicated disposable PostgreSQL database with CREATEDB; an unavailable configured database must fail.
+- Install the Runtime with uv sync --locked in this worktree before process cases; no shared environment or live model is used.
+verification:
+  date: '2026-10-26'
+  result: passed
+  environment: >-
+    Isolated worktree based on main 5e2787956064b88edcf44843f8cb8529650d983d;
+    Go 1.26.9 with GOMAXPROCS=2 and GOFLAGS=-p=2; dedicated disposable PostgreSQL
+    contractor_v62_014; own locked CPython 3.13 Runtime and pinned Node/pnpm.
+  commands:
+  - command: go test -run '^TestImporterClosedDispatchUnboundFailureKeepsDrainSemantics$' -count=1 ./internal/auditimport
+    result: Failed on the original classifier for both check and declared assessment, then passed after the fix.
+  - command: go test -count=1 ./internal/auditimport
+    result: Passed the complete unit package.
+  - command: go test -tags=integration -count=1 ./internal/auditimport ./internal/auditcontroller
+    result: Passed in 33.792 and 41.316 seconds respectively with real PostgreSQL and locked Runtime processes; no skipped database cases.
+  - command: make lint
+    result: Passed all static, UI, deployment, release graph, task, specification, generated artifact and Runtime checks after regenerating the dependency graph fingerprint.
+  evidence: >-
+    The original four controller drain snapshot and statement assertions pass
+    without edits. New PostgreSQL cases prove owner cancellation followed by
+    unbound failure collection settles ordinary members as execution-cancelled;
+    a committed unbound permanent rejection or owned child input failure replays
+    unchanged after cancellation with one receipt, no reopened members and no
+    extra submitted Run. Unit cases additionally cover declared assessment
+    replay, paused open dispatch, unrelated receipt identities and permanent
+    owned child failure during closed dispatch. No new outcome, guessed reason
+    column or receipt mechanism was introduced.
