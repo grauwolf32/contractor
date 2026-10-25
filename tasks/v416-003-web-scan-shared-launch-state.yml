@@ -1,0 +1,89 @@
+schema_version: '1.0'
+id: V416-003
+title: Preserve common Audit launch settings in Web scan
+milestone: main-review-2026-10-25
+epic: ui
+kind: defect
+introduced_by: V406-018
+priority: P1
+status: pending
+depends_on: []
+languages:
+- typescript
+goal: Web scan supplies specialized target and rule inputs to the common Audit launch model while preserving
+  labels, Runtime configuration, deadlines and exact-request recovery.
+context:
+  review: 2026-10-25 review of main at f9fda28f1c9ffa4baaf3052c141e652c8593a080, after the Project Web
+    scan merge.
+  severity: medium
+  specification:
+  - docs/spec/ui/ui.md#UI-R203
+  - docs/spec/ui/ui.md#UI-R205
+  - docs/spec/audits/scans.md#ASC-R153
+  finding: ui/src/routes/checks/start/start-page.tsx:32 creates a second Web scan draft and :88 replaces
+    the ordinary setup; web-scan-setup.tsx has no AdvancedOptions/LabelsEditor. web-scan-state.ts:188
+    builds an Audit request without labels or Runtime configuration and :203 hard-codes deadlineSeconds=86400.
+    A DOM reproduction finds no Labels group or cloud/local shortcuts. Settings typed on the ordinary
+    form are omitted after switching to Web scan.
+  siblings: The common useStartCheck/useLaunch path, Web scan installed/custom modes, Save draft and Start,
+    keyboard submission, check-type switching, conflict handling and lost-response replay are in scope.
+    Generic Workflow Run forms and server placement matching already retain labels and do not need a second
+    implementation.
+  provenance: V406-018 implementation c23e2350fa4e086fc614ddbc18c57fd822e1b724 introduced the parallel
+    Web scan model.
+scope:
+  out:
+  - Scanner limits and early rulepack admission (V416-002).
+  - New general-purpose form framework, changes to Run forms, public API expansion or placement semantics.
+  in:
+  - Reuse one common Audit launch state and request assembly, letting Web scan prepare its exact target/settings/rule
+    inputs.
+  - Expose shared metadata labels with cloud/local validation and separate Runtime configuration controls;
+    preserve editable values across check-type changes.
+  - Keep a single owner for draft/start keys, immutable retry snapshots, revision conflicts and deadline
+    selection; remove superseded duplicate branches.
+  - Add real page regressions and responsive/theme browser coverage; update UI specification if the ownership
+    boundary needs clarification.
+acceptance_criteria:
+- id: A1
+  given: Web scan in installed or custom-rule mode
+  when: the owner sets cloud/local metadata and Runtime configuration and saves or starts
+  then: the ordinary Audit request contains exactly those values, the correct deadline, and retained exact
+    input refs; the UI renders the shared controls
+- id: A2
+  given: a form with typed common settings
+  when: the owner changes check types or receives a failed read or revision conflict
+  then: the draft retains its settings without silently dropping or overwriting them
+- id: A3
+  given: a lost create/start response or changed form during recovery
+  when: the owner retries through button or keyboard
+  then: the common launch controller reconciles the unchanged request with the same keys; conflicting
+    changes cannot create duplicate execution or false success
+- id: A4
+  given: desktop and 390px widths in light/dark/black themes
+  when: the start form and browser acceptance gate run
+  then: controls fit and the regression fails on the reviewed implementation; existing ordinary Audit
+    launch cases remain green
+tests:
+- command: make ui-verify
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make ui-browser-mocked
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}"
+    make test-web-scan-ui-stack
+  covers:
+  - A1
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
