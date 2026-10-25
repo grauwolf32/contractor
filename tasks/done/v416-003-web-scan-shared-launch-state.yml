@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V406-018
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [typescript]
 goal: >-
@@ -126,3 +126,11 @@ validation:
     - "make docs-dependencies-check, specification consistency and task consistency passed."
   remaining:
     - "Integrated make lint is assigned to the parent implementation coordinator; retain in_progress until that required command passes and closure metadata is recorded."
+
+implementation_commit: 3dedaf8bc0d00b90ff7555eb78bde51e7714340a
+integration_verification:
+  date: "2026-10-25"
+  revision: 4923b9000d57cfa042733c6f5bf512f5e01444f5
+  command: make lint
+  result: passed
+  scope: Integrated implementation and required task-specific suites passed; no platform-limited full Runtime result is substituted for this task's required checks.
