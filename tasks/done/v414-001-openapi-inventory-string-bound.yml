@@ -6,7 +6,8 @@ epic: audits
 kind: defect
 introduced_by: V25-002
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: e84ff00760761c1dbc1f7e41938167f3c8764dba
 depends_on: []
 languages: [go, python]
 goal: >-
@@ -191,6 +192,20 @@ verification:
       suite was not rerun for this Go-only correction. Exact JSON-size regressions cover quotes,
       controls, UTF-8, invalid UTF-8, U+2028/U+2029, primitive numbers, omitted fields, nil values
       and the byte boundary; the pointer-only marshaler probe is also covered.
-  pending_integrated_gates:
-    - CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-wire-cross-language
-    - make lint
+  pending_integrated_gates: []
+
+completion_verification:
+  date: "2026-10-25"
+  result: passed
+  base_revision: a7b1c76db989c1586fb3be2d9d068562cea04ddc
+  environment: Go 1.26.9, PostgreSQL 17 disposable databases, locked CPython 3.13 Runtime, canonical TMPDIR; bounded Go parallelism.
+  commands:
+    - "go test -count=1 ./internal/auditdomain/... ./internal/scanplan/... ./internal/auditservice/..."
+    - "cd runtime && uv run --locked pytest -q tests/test_openapi_toolset.py"
+    - "make test-wire-cross-language"
+    - "make lint"
+  evidence: >-
+    All listed commands completed successfully. Real-store regression-before
+    failures and focused after-fix evidence are recorded above. Integrated
+    lint, shared fixtures and full telemetry/public API checks passed after
+    assembling the four fixes; task metadata was validated again after closure.
