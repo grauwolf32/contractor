@@ -6,7 +6,8 @@ epic: planner-worker
 kind: defect
 introduced_by: V21-001
 priority: P1
-status: pending
+status: completed
+implementation_commit: c09c52a94b910b5c298588cc2186e0936645b926
 depends_on: []
 languages: [python]
 goal: Every terminal ADK invocation closes its canonical Worker State even when cancellation interrupts the finalizer's before-call callback.
@@ -104,3 +105,42 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3, A4]
+
+verification:
+  implementation: >-
+    The finalizer before-call hook owns partial registration until it returns;
+    cancellation closes that span synchronously while holding the plugin lock,
+    with no additional task, timer or State publication. Invocation completion
+    and close use auxiliary_phase instead of overwriting the terminal phase.
+    WRK-R83 states the ownership boundary; ordinary cleanup budgets are unchanged.
+  regression: >-
+    On base 44469e3e352b57d15d44bf0f14b614d37842cad0, a fresh pytest process
+    restored the original before_result_finalizer_call, complete_invocation and
+    close methods from that revision through a temporary import overlay. The
+    final 20-case selection produced 8 failures and 12 passes: four real ADK
+    finalizer startup cases (cancel/deadline, shared/isolated), three pending
+    auxiliary terminal-phase cases, and partial-registration cleanup failed.
+    The identical selection with the fixed production module passes all 20.
+    The temporary overlay is not part of the implementation or its test inputs.
+  siblings: >-
+    Real ADK regressions also interrupt ordinary model and tool startup before
+    their semantic calls, validate canonical terminal State, count one span end,
+    verify isolated-session release/shared-session retention and execute later
+    work successfully. Completed auxiliary callbacks, every terminal phase,
+    budget-rejected finalizer startup, and idempotent observer close remain
+    covered. The separate summarizer callbacks and existing deadline/session
+    cleanup owners are unchanged and their full suites pass.
+  checks:
+    - command: "cd runtime && uv sync --locked"
+      result: "Passed in this worktree's independent .venv."
+    - command: "cd runtime && uv run pytest tests/test_adk_runtime.py tests/test_instrumentation.py -k 'interrupted_callback_startup or terminal_phase_survives or startup_owns_partial or plugin_close_records'"
+      result: "20 passed; injected monotonic clock and synchronization gates, no wall-clock assertions or live model."
+    - command: "cd runtime && uv run pytest tests/test_adk_runtime.py tests/test_instrumentation.py tests/test_result_finalizer.py tests/test_worker_state.py tests/test_worker_summarizer.py"
+      result: "206 passed."
+    - command: "cd runtime && uv run pytest tests/test_a2a_server.py tests/test_allocation.py"
+      result: "54 passed."
+    - command: "GOFLAGS=-p=2 TMPDIR=/private/tmp make lint"
+      result: >-
+        Passed with Go 1.26, Node 24.20 and locked local dependencies. The first
+        invocation stopped at the dependent documentation graph digest;
+        make docs-dependencies regenerated it, and the complete rerun passed.

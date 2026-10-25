@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-137 open tasks: 4 in progress, 122 pending, 11 deferred. 1100 finished: 1090 completed, 10 archived.
+136 open tasks: 4 in progress, 121 pending, 11 deferred. 1101 finished: 1091 completed, 10 archived.
 
 ## In progress
 
@@ -35,7 +35,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-005](v371-005-worker-state-read-cost-guard.yml) | chore | P3 | — | Guard the Worker State read cost with a deterministic bound, make its benchmark runnable and re-measure it |
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
 | [V414-007](v414-007-planner-session-state-limit.yml) | chore | P3 | — | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
-| [V416-016](v416-016-finalizer-cancel-terminal-state.yml) | defect | P1 | — | Close Worker State when finalizer startup is cancelled |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
@@ -218,7 +217,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-001, V414-004, V414-007, V414-009, V414-012, V414-014, V414-020, V414-021, V414-022, V414-024, V414-025, V414-032 | Close the V407/V409 review follow-ups |
-| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-001, V416-002, V416-003, V416-004, V416-005, V416-006, V416-007, V416-008, V416-009, V416-010, V416-012, V416-013, V416-014, V416-015, V416-016, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main and current-system review |
+| [V416-011](v416-011-close-main-review.yml) | chore | P3 | V416-001, V416-002, V416-003, V416-004, V416-005, V416-006, V416-007, V416-008, V416-009, V416-010, V416-012, V416-013, V416-014, V416-015, V414-004, V414-012 | Verify the fixes and simplifications from the October 25 main and current-system review |
 
 ## Deferred
 
@@ -244,7 +243,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 4 | 41 | 55 | 18 | 81 |
-| Planners and the Worker model boundary (`planner-worker`) | 5 | 27 | 43 | 17 | 62 |
+| Planners and the Worker model boundary (`planner-worker`) | 4 | 27 | 43 | 17 | 62 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 1 | 4 |
