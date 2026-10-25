@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V382-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: >-
@@ -168,3 +168,11 @@ verification:
   remaining: >-
     Integrated make lint is owned by the coordinating branch; keep in_progress
     until its result is confirmed for this implementation.
+
+implementation_commit: 3a874055294d2f7682bd9aeefd2dd67d27351829
+integration_verification:
+  date: "2026-10-25"
+  revision: 4923b9000d57cfa042733c6f5bf512f5e01444f5
+  command: make lint
+  result: passed
+  scope: Integrated implementation and required task-specific suites passed; no platform-limited full Runtime result is substituted for this task's required checks.
