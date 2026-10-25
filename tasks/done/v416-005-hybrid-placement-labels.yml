@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V405-001
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, yaml]
 goal: >-
@@ -122,5 +122,11 @@ validation:
     - "CONTRACTOR_TEST_DATABASE_URL set to the disposable database: go test -count=1 ./internal/controlplane passed, including real registration and immutable placement matching."
     - "Runtime tests/test_shared_placement_labels.py and tests/test_settings.py passed all 38 tests."
     - "make test-wire-cross-language passed: 313 wire tests, 1213 selected shared Runtime tests, and coverage of 270 fixtures through 319 Go and 211 Python shared tests."
-  remaining:
-    - "Integrated make lint is assigned to the parent implementation coordinator; retain in_progress until that required command passes and closure metadata is recorded."
+  integration: Full make lint passed on the integrated implementation.
+
+implementation_commit: 4c8a09bc797919bfc0e3ca8774f79bcffcab8a39
+integration_verification:
+  date: "2026-10-25"
+  revision: c2b8774febc4750146ab9af6e03da054c18a46e5
+  command: make lint
+  result: passed
