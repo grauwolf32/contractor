@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V406-018
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V416-008]
 languages: [go, typescript]
 goal: >-
@@ -122,3 +122,4 @@ verification:
     - "make ui-verify passed: 194 test files, 2423 passed tests and one declared expected failure, plus generation, lint, typecheck and production build. New tests cover YAML/ZIP boundaries, later material pages, no read/hash/write/create/start on oversized selections, direct preparation guard and all shared metadata cases."
     - "make verify-public-api-postgres test-web-scan-ui-stack passed against the disposable database. TestBrowserScanWidgetsStack passed with one real Playwright test executed and zero skipped, unexpected or flaky cases."
     - "make lint passed, including Go vet/staticcheck/export checks, release graph, tasks/spec/shared-fixture sources, UI/deployment gates and Runtime lint/import rules. Dependency graph was regenerated with make docs-dependencies; git diff --check passed."
+implementation_commit: eb433d648371c67ae21126237f0513616ee5a567
