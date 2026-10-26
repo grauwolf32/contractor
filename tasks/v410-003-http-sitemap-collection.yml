@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: in_progress
+status: pending
 depends_on:
 - V410-002
 languages:
@@ -185,10 +185,21 @@ test_prerequisites:
   evidence, with mandatory collector cases registered in the gate manifest.
 
 execution:
-  branch: codex/v410-sitemap
-  claimed_on: "2026-10-26"
+  released_on: "2026-10-26"
+  previous_branch: codex/v410-sitemap
   note: >-
-    Taken into work by Codex at the user's explicit request. The seven-task
-    batch is reserved together; implementation proceeds in dependency order,
-    and dependent tasks do not start implementation before their prerequisites
-    complete. Status records assignment, not completed implementation or tests.
+    Returned to pending at the user's request to finish V410-002 and pause.
+    Implementation of this task has not started; the prior batch reservation
+    is released.
+
+implementation_decisions:
+- date: 2026-10-26
+  decision: Automatic sitemap persistence failures are infrastructure status for the Run owner, not an extra
+    model-visible HTTP result field. The user questioned the purpose of exposing these failures to the Worker;
+    deterministic collection code owns recovery and required-completion checks. Explicit sitemap tools retain
+    truthful operation failures. HTTP target traffic must never repeat to recover collection.
+- date: 2026-10-26
+  decision: HTTP tools and scanner execution do not depend on sitemap. Allocation composition wires an optional,
+    narrow observation subscriber; the separate collector owns buffering, projection, persistence and drain.
+    Subscriber failure cannot change target transport outcomes. Scanner imports consume exact structured
+    reports independently. Verify subscriber failure isolation through the real capture path.
