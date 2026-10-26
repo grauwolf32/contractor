@@ -1,6 +1,10 @@
 package contracts
 
-const FindingCheckPlanSchema = "contractor.audit.finding-check-plan.v1"
+const (
+	FindingCheckPlanSchema      = "contractor.audit.finding-check-plan.v1"
+	MaximumCheckCapabilities    = 32
+	MaximumCheckCapabilityTools = 128
+)
 
 // CheckPlanKey is a registered semantic key, independent of Workflow role names.
 type CheckPlanKey struct {

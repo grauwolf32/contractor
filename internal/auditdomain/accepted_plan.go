@@ -119,7 +119,7 @@ func ValidateAcceptedPlan(value AcceptedPlan, deps *RetainedDependencyManifest) 
 	if err != nil || DigestBytes(planBytes) != value.PlanDigest {
 		return invalid(CodeInvalid, "accepted_plan.plan_digest")
 	}
-	if resolved.ValidateMapKey("accepted_plan.mapping", value.Route.MappingID) != nil || resolved.ValidateMapKey("accepted_plan.role", value.Route.WorkflowRole) != nil || len(value.Route.MappingID) > 128 || len(value.Route.WorkflowRole) > 128 || validatePlanCapabilities(value.Route.RequiredCapabilities) != nil || !value.Authorization.ActiveChecks.Valid() || !validApprovalRequirement(value.Authorization.ApprovalRequirement) {
+	if validateText(value.Route.MappingID, "accepted_plan.mapping", true) != nil || validateText(value.Route.WorkflowRole, "accepted_plan.role", true) != nil || resolved.ValidateMapKey("accepted_plan.mapping", value.Route.MappingID) != nil || resolved.ValidateMapKey("accepted_plan.role", value.Route.WorkflowRole) != nil || len(value.Route.MappingID) > 128 || len(value.Route.WorkflowRole) > 128 || validatePlanCapabilities(value.Route.RequiredCapabilities) != nil || !value.Authorization.ActiveChecks.Valid() || !validApprovalRequirement(value.Authorization.ApprovalRequirement) {
 		return invalid(CodeInvalid, "accepted_plan.route")
 	}
 	if deps == nil {
@@ -130,6 +130,16 @@ func ValidateAcceptedPlan(value AcceptedPlan, deps *RetainedDependencyManifest) 
 		encoded, err := EncodeRetainedDependencies(*deps)
 		if err != nil || value.DependenciesDigest == nil || *value.DependenciesDigest != DigestBytes(encoded) || deps.ItemKey != value.ItemKey || deps.OwnerID != value.OwnerID || deps.ProjectID != value.ProjectID || deps.AuditID != value.AuditID || deps.BaselineDigest != value.BaselineDigest || deps.ProfileDigest != value.ProfileDigest || deps.WorkflowDigest != value.Route.WorkflowDigest || deps.SkillsDigest != value.Route.SkillsDigest {
 			return invalid(CodeInvalid, "accepted_plan.dependencies")
+		}
+		proposalFound := false
+		for _, dependency := range deps.Dependencies {
+			if dependency.Name == "proposal" && dependency.Kind == "finding-receipt" && dependency.Origin.ReceiptID == value.Source.ReceiptID && dependency.Origin.RunID == value.Source.RunID && dependency.Origin.ProposedCheckOrdinal != nil && *dependency.Origin.ProposedCheckOrdinal == *value.Source.ProposedCheckOrdinal && value.Source.Proposal.Verify(dependency.Source) == nil && value.Source.RetainedProposal.Verify(dependency.Retained) == nil {
+				proposalFound = true
+				break
+			}
+		}
+		if !proposalFound {
+			return invalid(CodeInvalid, "accepted_plan.source_dependencies")
 		}
 	}
 	encoded, err := canonicalJSON(value)
@@ -145,19 +155,19 @@ func validateAcceptedPlanSource(source AcceptedPlanSource, auditID string) error
 	return nil
 }
 func validatePlanCapabilities(values []contracts.CheckCapabilityRequirement) error {
-	if values == nil || len(values) > 32 {
+	if values == nil || len(values) > contracts.MaximumCheckCapabilities {
 		return invalid(CodeInvalid, "accepted_plan.capabilities")
 	}
 	previous := ""
 	for _, value := range values {
 		key := value.Stage + "\x00" + value.Agent + "\x00" + value.Ref.ToolsetID + "@" + value.Ref.Version
-		if key <= previous || resolved.ValidateWorkflowName("stage", value.Stage) != nil || resolved.ValidateWorkflowName("agent", value.Agent) != nil || contracts.ValidateSelector("toolset", value.Ref.ToolsetID+"@"+value.Ref.Version) != nil || len(value.Tools) == 0 || len(value.Tools) > 128 || !sort.StringsAreSorted(value.Tools) {
+		if key <= previous || resolved.ValidateWorkflowName("stage", value.Stage) != nil || resolved.ValidateWorkflowName("agent", value.Agent) != nil || contracts.ValidateSelector("toolset", value.Ref.ToolsetID+"@"+value.Ref.Version) != nil || len(value.Tools) == 0 || len(value.Tools) > contracts.MaximumCheckCapabilityTools || !sort.StringsAreSorted(value.Tools) {
 			return invalid(CodeInvalid, "accepted_plan.capabilities")
 		}
 		previous = key
 		last := ""
 		for _, tool := range value.Tools {
-			if tool <= last || contracts.ValidateOpaqueID("tool", tool) != nil {
+			if tool <= last || validateText(tool, "tool", true) != nil || contracts.ValidateOpaqueID("tool", tool) != nil {
 				return invalid(CodeInvalid, "accepted_plan.capabilities")
 			}
 			last = tool

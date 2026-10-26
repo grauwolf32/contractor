@@ -176,6 +176,8 @@ export type PublicSchemaName =
   | "AuditStandardSelection"
   | "AuditWorkflowInputMapping"
   | "AuditWorkflowParameterMapping"
+  | "AuditCheckCapabilityRequirement"
+  | "AuditCheckMethodMapping"
   | "AuditProfileWorkflow"
   | "AuditExecutionPolicy"
   | "AuditInteractionPolicy"

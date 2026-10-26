@@ -85,7 +85,7 @@ func CompileCheckMethods(profile ResolvedAuditProfile) (CheckMethodIndex, error)
 }
 
 func ValidateCheckMethodCapabilities(binding ResolvedAuditWorkflowBinding, requirements []contracts.CheckCapabilityRequirement) error {
-	if requirements == nil || len(requirements) > 32 {
+	if requirements == nil || len(requirements) > contracts.MaximumCheckCapabilities {
 		return fmt.Errorf("requiredCapabilities must be an explicit bounded array")
 	}
 	previous := ""
@@ -105,7 +105,7 @@ func ValidateCheckMethodCapabilities(binding ResolvedAuditWorkflowBinding, requi
 		}
 		selector := required.Ref.ToolsetID + "@" + required.Ref.Version
 		known, exists := resolved.ToolsetTools(selector)
-		if !exists || len(required.Tools) == 0 || len(required.Tools) > 128 {
+		if !exists || len(required.Tools) == 0 || len(required.Tools) > contracts.MaximumCheckCapabilityTools {
 			return fmt.Errorf("required capability Toolset or tools are invalid")
 		}
 		selected := []string(nil)

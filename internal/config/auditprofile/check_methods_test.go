@@ -71,3 +71,58 @@ func TestCheckMethodAuthoringStrictRegistryAndPersistedPins(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckMethodCapabilitiesUseExactWorkerAndClone(t *testing.T) {
+	root := copyCatalog(t, "audit-profile-catalog")
+	manifest := strings.Replace(templateAuditProfileYAML(t, "capability-route"), "  workflows:", `  methods:
+    exact-reader:
+      planSchema: contractor.audit.finding-check-plan.v1
+      method: verify
+      phase: verify
+      workflowRole: check
+      requiredCapabilities:
+        - stage: trace
+          agent: analyst
+          ref: {toolsetId: filesystem, version: "1"}
+          tools: [read_file, ls]
+  workflows:`, 1)
+	writeAuditProfile(t, root, "capability-route", manifest)
+	profile := loadProfile(t, root, "capability-route@1")
+	mapping := profile.Methods["exact-reader"]
+	if strings.Join(mapping.RequiredCapabilities[0].Tools, ",") != "ls,read_file" {
+		t.Fatal("authored tools were not normalized")
+	}
+	index, err := auditprofile.CompileCheckMethods(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, _ := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, "verify")
+	selected, ok := index.Select(key)
+	if !ok {
+		t.Fatal("method absent")
+	}
+	selected.Mapping.RequiredCapabilities[0].Tools[0] = "missing"
+	again, _ := index.Select(key)
+	if again.Mapping.RequiredCapabilities[0].Tools[0] != "ls" {
+		t.Fatal("index aliases selected capabilities")
+	}
+	cloned := profile.Clone()
+	cloned.Methods["exact-reader"].RequiredCapabilities[0].Tools[0] = "changed"
+	if mapping.RequiredCapabilities[0].Tools[0] != "ls" {
+		t.Fatal("profile clone aliases capabilities")
+	}
+	for _, mutate := range []func(*contracts.CheckCapabilityRequirement){
+		func(value *contracts.CheckCapabilityRequirement) { value.Stage = "other" },
+		func(value *contracts.CheckCapabilityRequirement) { value.Agent = "other" },
+		func(value *contracts.CheckCapabilityRequirement) { value.Tools = []string{"write_file"} },
+		func(value *contracts.CheckCapabilityRequirement) { value.Ref.Version = "2" },
+	} {
+		bad := profile.Clone()
+		candidate := bad.Methods["exact-reader"]
+		mutate(&candidate.RequiredCapabilities[0])
+		bad.Methods["exact-reader"] = candidate
+		if _, err := auditprofile.CompileCheckMethods(bad); err == nil {
+			t.Fatal("capability escaped its exact Worker selection")
+		}
+	}
+}

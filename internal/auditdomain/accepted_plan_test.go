@@ -76,3 +76,28 @@ func TestAcceptedPlanExactBindingAndFragmentFactory(t *testing.T) {
 		t.Fatal("task/manifest plan mismatch accepted")
 	}
 }
+
+func TestItemAuthorityMembersRejectExplicitNull(t *testing.T) {
+	inventory, err := BuildChecklistInventory([]byte(`{"schema":"contractor.audit.checklist.v1","items":[{"key":"item-1","version":"1","statement":"Check","applicability":"always","allowed_methods":["static"],"required_evidence":[],"review_policy":"automatic"}]}`), JSONMediaType, testInventoryOptions("check"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"accepted_plan", "dependencies"} {
+		encoded, _ := EncodeItemTask(inventory.Tasks[0].Document)
+		var task map[string]any
+		_ = json.Unmarshal(encoded, &task)
+		task[name] = nil
+		data, _ := json.Marshal(task)
+		if _, err = DecodeItemTask(data); err == nil {
+			t.Fatalf("task accepted null %s", name)
+		}
+		manifest, _ := EncodeExecutionManifest(inventory.ExecutionManifest)
+		var execution map[string]any
+		_ = json.Unmarshal(manifest, &execution)
+		execution["items"].([]any)[0].(map[string]any)[name] = nil
+		data, _ = json.Marshal(execution)
+		if _, err = DecodeExecutionManifest(data); err == nil {
+			t.Fatalf("execution accepted null %s", name)
+		}
+	}
+}

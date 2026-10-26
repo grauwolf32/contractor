@@ -109,13 +109,41 @@ func decodeDocument[T any](data []byte, validate func(T) error) (T, error) {
 	if len(data) > MaximumDocumentBytes {
 		return result, invalid(CodeLimitExceeded, "document")
 	}
-	if _, err := decodeStrictJSON(data, &result); err != nil {
+	raw, err := decodeStrictJSON(data, &result)
+	if err != nil {
 		return result, err
+	}
+	switch any(result).(type) {
+	case ItemTask:
+		if err = rejectNullItemAuthority(raw); err != nil {
+			return result, err
+		}
+	case ExecutionManifest:
+		if object, ok := raw.(map[string]any); ok {
+			if items, ok := object["items"].([]any); ok {
+				for _, item := range items {
+					if err = rejectNullItemAuthority(item); err != nil {
+						return result, err
+					}
+				}
+			}
+		}
 	}
 	if err := validate(result); err != nil {
 		return result, err
 	}
 	return result, nil
+}
+
+func rejectNullItemAuthority(raw any) error {
+	if object, ok := raw.(map[string]any); ok {
+		for _, name := range []string{"accepted_plan", "dependencies"} {
+			if value, present := object[name]; present && value == nil {
+				return invalid(CodeInvalid, "item.authority_null")
+			}
+		}
+	}
+	return nil
 }
 
 func DigestExecutionManifest(value ExecutionManifest) (string, error) {

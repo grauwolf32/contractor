@@ -1739,6 +1739,77 @@ items:
 5. Barrier closes the current Round before any candidate enters a later one.
 6. Missing handler mapping or truncated graph becomes a gap, not a clean verdict.
 
+## Registered proposed-check routing
+
+**AUD-R233.** A profile may declare a `methods` mapping with at most 128 entries.
+Each entry names one registered `planSchema`, `method` and `phase`, an exact
+`kind: check` Workflow role, and an explicit `requiredCapabilities` array.
+Semantic keys are unique across mapping names. The finding-check-plan.v1
+registry maps `verify`, `static-trace` and `http-probe` to `verify`; `replay`,
+`applicability` and `alternative` each use their same-named phase. Neither role
+names nor model-supplied Workflow references register methods or infer phases.
+Verify and replay remain ordinary check roles and imply no pentest proof authority.
+Unknown keys, ambiguous mappings and incompatible executor contracts fail strict
+authored and retained-profile validation.
+
+**AUD-R234.** The production finding adapter obtains a plan only from one exact
+accepted receipt and proposed-check ordinal. A bounded private index identifies
+the actual final proposal bytes, selected check fragment and subject/limitations
+context by offset, length and digest. Unknown methods and oversized registered
+plans remain explicit unsupported metadata and do not invalidate an otherwise
+valid ordinary finding submission. An absent index means explicit data migration
+is pending; it is never a legacy admission fallback. Exact source authorization
+and accepted membership precede any model context or target execution.
+
+**AUD-R235.** A typed item retains an immutable `accepted_plan` in both its task
+and execution entry. It pins owner, Project, Audit, item, baseline and profile;
+the original and retained proposal, receipt, producer Run and ordinal; canonical
+plan bytes/digest; the selected mapping, role, binding, Workflow and Skills;
+and scope, active-check policy, limits and required approval. Accepted-plan
+metadata is at most 64KiB. Its explicitly nullable `dependencies_digest` pins the
+complete existing dependency manifest without duplicating it. Task, execution,
+source, route and dependency identities must agree. JSON origin fields alone
+establish no authority; unknown source variants require a production adapter.
+
+**AUD-R236.** Required capabilities name tools selected by one exact Stage and
+Worker of the chosen pinned Workflow, with at most 32 requirements and 128 unique
+tools per requirement. A requirement cannot combine tools from different
+Workers, items or incompatible routes. Configuration capability mismatch is
+permanent; a compatible Runtime being busy follows ordinary capacity waiting.
+A selected toolset or enabled capability never grants target or approval authority.
+
+**AUD-R237.** Typed admission measures each candidate's own role, approval,
+inputs, accepted plan and full dependency closure before accepting it. Paged
+Round construction accounts exact source/task bytes, complete selected and
+prepared page metadata, and bounded root metadata within 64MiB. Its durable
+budget state contains fixed document totals and a shape digest, at most 4KiB,
+independent of the selected and containing Audit population. Resume validates
+that exact generation and shape; it does not reconstruct a growing history map.
+Per-page and per-slice row/byte bounds and atomic membership remain owned by
+[Audit execution](execution.md) and [scan composition](scans.md).
+
+**AUD-R238.** An accepted plan records required approval policy, not a human
+approval decision. The existing review ledger owns the exact approval subject,
+revision, expiry and decision. These stay outside task bytes because the
+approval subject includes the final task digest. Dispatch rechecks that ledger
+and current lifecycle fences without rewriting the accepted plan or creating a
+new target attempt to recover bookkeeping.
+
+**AUD-R239.** Without declared method mappings, current valid default and
+standard routes retain their existing inventory, coverage, retry and cancellation
+behavior. A declared mapping has no arbitrary default fallback for unsupported
+methods. Standalone Runs and deterministic inventories require no research,
+generation or ranking records. Runtime validates the complete accepted-plan and
+dependency shapes and their exact task/execution agreement before model context;
+embedded references are not recursive loading instructions.
+
+**AUD-R240.** Plan, accepted-plan and dependency digests use RFC 8785/JCS UTF-8
+bytes, with shared Go/Python cases covering non-ASCII text, HTML characters,
+JSON escapes, ordinal zero, metadata size zero and closed optional origin fields.
+Workflow and Skill consumer pins keep their existing Server encoding and remain
+opaque to Runtime readers. A bare digest or configuration name/version is never
+substituted for source membership, exact consumer closure or authorization.
+
 ## Non-goals
 
 - Publishing AuditProfile through generic managed configuration publication
@@ -1751,8 +1822,8 @@ items:
   external broker without demonstrated need are deferred.
 - Partial durable completion of items inside a still-running batch is deferred
   until its own receipt/pin protocol exists.
-- Planned engagement, proposed-check routing and optional
-  finding-review extensions are capability-gated designs in
-  [proposal 0033: autonomous pentest Audits](../../proposals/0033-autonomous-pentest-audits.md);
-  the profile support and lifecycle semantics specified here remain unchanged
-  by them.
+- Pentest engagement, proof/replay-specific recipes and optional finding-review
+  extensions remain capability-gated designs in
+  [proposal 0033: autonomous pentest Audits](../../proposals/0033-autonomous-pentest-audits.md).
+  Generic registered proposed-check routing is specified above; those future
+  integrations retain its profile authority and lifecycle fences.
