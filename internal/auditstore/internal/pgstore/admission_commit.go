@@ -16,6 +16,9 @@ import (
 
 func (s *AdmissionSession) commit(ctx context.Context, mutation auditstore.AdmissionMutation) (auditstore.AdmissionProgress, error) {
 	old := s.State
+	if len(mutation.Decisions) > auditstore.MaxAdmissionPrimary || len(mutation.Retained) > auditstore.MaxAdmissionRelated {
+		return old, auditstore.ErrInvalid
+	}
 	next := mutation.Next
 	if next.Schema == "" {
 		next = old

@@ -218,8 +218,8 @@ INSERT INTO finding_proposal_receipts (
     proposal_ref, proposal_digest, proposal_media_type,
     proposal_size_bytes, evidence, report_projection
 ) VALUES (
-    $1, 'proposal-one', 'allocation-one', 'runtime-one', 'instance-one',
-    'stage-one', 'worker', 'invocation-one', 'submission-one', 'candidate-one', $2,
+    $1, 'proposal-'||$1, 'allocation-'||$1, 'runtime-one', 'instance-one',
+    'stage-one', 'worker', 'invocation-'||$1, 'submission-'||$1, 'candidate-'||$1, $2,
     $9, $3, $4,
     'source-workflow', '1', 'contractor/v1alpha1',
     '{"name":"source-workflow","version":"1"}'::jsonb, $5,

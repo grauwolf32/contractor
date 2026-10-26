@@ -2,6 +2,7 @@ package pgstore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -88,7 +89,7 @@ func (r *admissionReader) ReadCandidates(ctx context.Context, cursor auditstore.
 		if h.id == cursor.ReceiptID {
 			start = cursor.Ordinal + 1
 		}
-		if h.count != nil && start >= *h.count && !h.late {
+		if h.count != nil && *h.count > 0 && start >= *h.count && !h.late {
 			continue
 		}
 		if h.late || h.count == nil || *h.count == 0 {
@@ -120,14 +121,12 @@ func (r *admissionReader) ReadCandidates(ctx context.Context, cursor auditstore.
 			}
 			candidate := auditstore.AdmissionCandidate{ReceiptID: h.id, Proposal: h.proposal, CreatedAt: h.at.CreatedAt, Ordinal: ordinal, Header: entry,
 				ProjectionBytes: *h.bytes, Cursor: auditstore.AdmissionCursor{CreatedAt: h.at.CreatedAt, ReceiptID: h.id, Ordinal: ordinal}}
-			var used, rejected bool
-			key := admissionSourceKey(h.id, ordinal, projection.ProposalDigest, entry.Fragment.Digest)
-			if err := r.db.QueryRow(ctx, admissionSourceStatusSQL, r.state.AuditID, h.id, ordinal, key, admissionPolicyDigest(r.state)).Scan(&used, &rejected); err != nil {
-				return result, err
-			}
-			candidate.AlreadyConsumed, candidate.AlreadyRejected = used, rejected
+
 			result.Candidates = append(result.Candidates, candidate)
 		}
+	}
+	if err := r.readCandidateStatus(ctx, result.Candidates); err != nil {
+		return result, err
 	}
 	for _, candidate := range result.Candidates {
 		r.cursors[candidate.Cursor] = true
@@ -297,4 +296,49 @@ var _ auditstore.AdmissionReader = (*admissionReader)(nil)
 type admissionCachedPage struct {
 	exact auditstore.ExactArtifact
 	data  []byte
+}
+
+func (r *admissionReader) readCandidateStatus(ctx context.Context, candidates []auditstore.AdmissionCandidate) error {
+	type statusInput struct {
+		Position  int    `json:"position"`
+		ReceiptID string `json:"receipt_id"`
+		Ordinal   int    `json:"ordinal"`
+		SourceKey string `json:"source_key"`
+	}
+	input := []statusInput{}
+	for position, c := range candidates {
+		if c.Ordinal < 0 {
+			continue
+		}
+		projection := r.indexes[c.ReceiptID]
+		input = append(input, statusInput{position, c.ReceiptID, c.Ordinal, admissionSourceKey(c.ReceiptID, c.Ordinal, projection.ProposalDigest, c.Header.Fragment.Digest)})
+	}
+	if len(input) == 0 {
+		return nil
+	}
+	encoded, err := json.Marshal(input)
+	if err != nil {
+		return err
+	}
+	if err = r.work.add(0, 0, len(encoded), 0); err != nil {
+		return err
+	}
+	rows, err := r.db.Query(ctx, admissionSourceStatusesSQL, r.state.AuditID, encoded, admissionPolicyDigest(r.state))
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var position int
+		var used, rejected bool
+		if err = rows.Scan(&position, &used, &rejected); err != nil {
+			return err
+		}
+		if position < 0 || position >= len(candidates) {
+			return auditstore.ErrInvalid
+		}
+		candidates[position].AlreadyConsumed = used
+		candidates[position].AlreadyRejected = rejected
+	}
+	return rows.Err()
 }

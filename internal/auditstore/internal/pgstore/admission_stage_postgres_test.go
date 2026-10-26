@@ -74,8 +74,12 @@ func stagedAdmissionProfile(t *testing.T, f collectingAuditFixture) *auditbaseli
 	}
 	return routes
 }
-func stagedProposal(t *testing.T, f collectingAuditFixture, count int) {
+func stagedProposal(t *testing.T, f collectingAuditFixture, count int, ids ...string) {
 	t.Helper()
+	receiptID := "receipt-staged-source"
+	if len(ids) > 0 {
+		receiptID = ids[0]
+	}
 	doc := auditdomain.FindingProposal{Schema: auditdomain.FindingProposalSchema, ClientKey: "candidate", Title: "Potential issue", Description: "One exact immutable source", Subject: &auditdomain.FindingSubject{Kind: "openapi-operation", Key: "get-widget"}, Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{}, EvidenceIDs: []string{}, Limitations: []string{}, SeveritySuggestion: "medium", ProposedChecks: []auditdomain.ProposedCheck{}}
 	for i := range count {
 		doc.ProposedChecks = append(doc.ProposedChecks, auditdomain.ProposedCheck{Method: "static-trace", Objective: fmt.Sprintf("Trace exact source %d", i)})
@@ -86,7 +90,7 @@ func stagedProposal(t *testing.T, f collectingAuditFixture, count int) {
 	}
 	service := artifacts.NewService(artifacts.NewPostgresRepository(f.pool))
 	scope, _ := artifacts.ProjectScope(f.audit.ProjectID)
-	written, err := service.CreateFrozen(f.ctx, scope, contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(f.audit.AuditID), Name: "staged-source"}, artifacts.Payload{MediaType: auditdomain.JSONMediaType, Data: data})
+	written, err := service.CreateFrozen(f.ctx, scope, contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(f.audit.AuditID), Name: "staged-source-" + receiptID}, artifacts.Payload{MediaType: auditdomain.JSONMediaType, Data: data})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +98,7 @@ func stagedProposal(t *testing.T, f collectingAuditFixture, count int) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	indexAdmissionReceipt(t, f, contracts.ExactContent(written.Ref, written.MediaType, data), projection, "receipt-staged-source")
+	indexAdmissionReceipt(t, f, contracts.ExactContent(written.Ref, written.MediaType, data), projection, receiptID)
 }
 func writeStagedDocument(t *testing.T, ctx context.Context, s *AdmissionSession, name, media string, data []byte) auditstore.ExactArtifact {
 	t.Helper()
@@ -131,17 +135,18 @@ func preparedTestItem(t *testing.T, ctx context.Context, s *AdmissionSession, ro
 	execution.TaskRef = &task.Ref
 	return auditdomain.PreparedRoundItem{ItemID: fmt.Sprintf("typed-item-%03d", ordinal), ItemKey: accepted.ItemKey, Ordinal: s.State.SelectedCount + local, Kind: "finding-verification", SubjectKey: execution.SubjectKey, WorkflowRole: "check", Task: task, InitialState: "ready", ApprovalKind: "none", Origin: auditdomain.PreparedItemOrigin{Schema: auditdomain.ItemOriginSchema, SourceRef: sourceExact.Ref, SourceContentDigest: inventory.SourceContentDigest, SourceMediaType: auditdomain.JSONMediaType, CanonicalInventoryDigest: inventory.CanonicalInventoryDigest, EntryKey: accepted.ItemKey}, Coverage: auditdomain.RoundResultCoverage{Status: auditdomain.CoverageNotTested, Requested: inventory.Coverage.Rows[0].Requested, Completed: []string{}, Gaps: []string{}}, ProposalSources: []auditdomain.PreparedProposalSource{{ReceiptID: c.ReceiptID, ProposedCheckOrdinal: ordinal, Proposal: source.Source.Retained}}, Execution: execution}
 }
-func TestPostgresAdmissionStagesMoreThan128AndAcceptsConstantParentSeal(t *testing.T) {
-	f, store, p := admissionFixture(t, "admission-staging")
+func preparedAdmissionFixture(t *testing.T, count int) (collectingAuditFixture, *ClaimedAdmission, auditstore.AdmissionStepParams, auditstore.AdmissionProgress) {
+	t.Helper()
+	f, store, p := admissionFixture(t, fmt.Sprintf("admission-staging-%d", count))
 	routes := stagedAdmissionProfile(t, f)
-	stagedProposal(t, f, 130)
+	stagedProposal(t, f, count)
 	state, err := store.WithStep(f.ctx, p, func(context.Context, *AdmissionSession) (auditstore.AdmissionMutation, error) {
 		return auditstore.AdmissionMutation{}, nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for state.SelectedCount < 130 {
+	for state.SelectedCount < count {
 		state, err = store.WithStep(f.ctx, p, func(ctx context.Context, s *AdmissionSession) (auditstore.AdmissionMutation, error) {
 			candidates, e := s.Reads.ReadCandidates(ctx, s.State.Cursor, 16)
 			if e != nil {
@@ -177,7 +182,7 @@ func TestPostgresAdmissionStagesMoreThan128AndAcceptsConstantParentSeal(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	for state.StagedCount < 130 {
+	for state.StagedCount < count {
 		state, err = store.WithStep(f.ctx, p, func(ctx context.Context, s *AdmissionSession) (auditstore.AdmissionMutation, error) {
 			_, data, e := s.Reads.ReadSelectionPage(ctx, s.State.PreparedPages)
 			if e != nil {
@@ -215,6 +220,11 @@ func TestPostgresAdmissionStagesMoreThan128AndAcceptsConstantParentSeal(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
+	return f, store, p, state
+}
+func TestPostgresAdmissionStagesMoreThan128AndAcceptsConstantParentSeal(t *testing.T) {
+	f, store, p, state := preparedAdmissionFixture(t, 130)
+
 	audit, err := f.store.Get(f.ctx, f.audit.OwnerID, f.audit.AuditID)
 	if err != nil {
 		t.Fatal(err)
@@ -249,5 +259,50 @@ func TestPostgresAdmissionStagesMoreThan128AndAcceptsConstantParentSeal(t *testi
 		return auditstore.AdmissionMutation{}, nil
 	}); !errors.Is(err, auditstore.ErrPrecondition) {
 		t.Fatalf("old Round still admits: %v", err)
+	}
+}
+
+func TestPostgresAdmissionCancellationRemovesPrivateRowsInBoundedPasses(t *testing.T) {
+	f, store, p, state := preparedAdmissionFixture(t, 17)
+	audit, err := f.store.Get(f.ctx, f.audit.OwnerID, f.audit.AuditID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = f.store.RequestDelete(f.ctx, auditstore.DeleteParams{OwnerID: audit.OwnerID, AuditID: audit.AuditID, ExpectedRevision: audit.Revision, IdempotencyKey: "cancel-private", RequestDigest: auditdomain.DigestBytes([]byte("cancel"))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.WithStep(f.ctx, p, func(context.Context, *AdmissionSession) (auditstore.AdmissionMutation, error) {
+		t.Fatal("closed dispatch ran callback")
+		return auditstore.AdmissionMutation{}, nil
+	}); !errors.Is(err, auditstore.ErrPrecondition) {
+		t.Fatalf("closed admission=%v", err)
+	}
+	previous := 17
+	for step := 0; step < 4; step++ {
+		changed, e := f.store.SettleUndispatched(f.ctx, f.claim, 8)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if changed < 1 || changed > 8 {
+			t.Fatalf("cleanup work=%d", changed)
+		}
+		var physical, counter int
+		if e = f.pool.QueryRow(f.ctx, `SELECT (SELECT count(*) FROM audit_items WHERE audit_id=$1 AND round_id=$2),prepared_staged_count FROM audit_rounds WHERE audit_id=$1 AND round_id=$2`, audit.AuditID, state.RoundID).Scan(&physical, &counter); e != nil {
+			t.Fatal(e)
+		}
+		if counter != physical || previous-physical > 8 {
+			t.Fatalf("cleanup previous=%d physical=%d counter=%d", previous, physical, counter)
+		}
+		previous = physical
+		if physical == 0 {
+			break
+		}
+	}
+	if previous != 0 {
+		t.Fatal("private membership did not drain")
+	}
+	if visible, e := f.store.CountItems(f.ctx, audit.AuditID); e != nil || visible != 1 {
+		t.Fatalf("private drain changed accepted count=%d,%v", visible, e)
 	}
 }

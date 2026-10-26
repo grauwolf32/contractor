@@ -39,13 +39,17 @@ WHERE hold.audit_id=$1 AND hold.project_id=$2
  AND (hold.receipt_created_at,hold.receipt_id)<=($5::timestamptz,$6::text)
 ORDER BY hold.receipt_created_at,hold.receipt_id LIMIT $8`
 
-const admissionSourceStatusSQL = `
-SELECT EXISTS(SELECT 1 FROM audit_items AS item JOIN audit_rounds AS round USING(audit_id,round_id)
- WHERE item.audit_id=$1 AND item.proposal_receipt_id=$2 AND item.proposal_check_ordinal=$3 AND round.state<>'proposed'),
+// One bounded input relation replaces per-candidate status queries. Each EXISTS
+// uses the source consume-once key or the natural decision provenance index.
+const admissionSourceStatusesSQL = `
+SELECT input.position,
+ EXISTS(SELECT 1 FROM audit_items AS item JOIN audit_rounds AS round USING(audit_id,round_id)
+ WHERE item.audit_id=$1 AND item.proposal_receipt_id=input.receipt_id AND item.proposal_check_ordinal=input.ordinal AND round.state<>'proposed'),
  EXISTS(SELECT 1 FROM audit_artifact_links WHERE audit_id=$1
  AND source_provenance->>'schema'='contractor.audit.admission-decision.v1'
- AND source_provenance->>'source_key'=$4 AND source_provenance->>'policy_digest'=$5
- AND source_provenance->>'disposition'='rejected')`
+ AND source_provenance->>'source_key'=input.source_key AND source_provenance->>'policy_digest'=$3
+ AND source_provenance->>'disposition'='rejected')
+FROM jsonb_to_recordset($2::jsonb) AS input(position integer,receipt_id text,ordinal integer,source_key text)`
 
 const admissionFindingSourceSQL = `
 SELECT receipt.receipt_id,hold.project_id,receipt.proposal_ref,receipt.proposal_digest,
