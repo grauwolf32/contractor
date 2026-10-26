@@ -127,10 +127,15 @@ func TestAuditIterativeCompositionAcrossProductionProcesses(t *testing.T) {
 			return current.State == "completed"
 		})
 		confirmIterativeFinding(t, h, audit.AuditID)
+		var reviewed auditProgramAudit
+		auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+audit.AuditID, &reviewed)
+		if reviewed.State != "completed" {
+			t.Fatal("explicit finding review reopened the completed Audit")
+		}
 		var report auditProgramReport
 		auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+audit.AuditID+"/report", &report)
 		if report.Status != "ready" || len(report.Machine) == 0 {
-			t.Fatal("joined journey did not publish a report after explicit review")
+			t.Fatal("completed Audit report is not readable after explicit finding review")
 		}
 	})
 	step("direct_model_free_bypass", func(t *testing.T) {
