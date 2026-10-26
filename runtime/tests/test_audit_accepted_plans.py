@@ -76,6 +76,7 @@ def test_shared_accepted_plan_actual_task_execution_readers():
     plan = copy.deepcopy(FIXTURE["base"]["plan"])
     task.update(
         {
+            "profile_mode": "custom-checklist",
             "item_key": plan["item_key"],
             "subject_key": "receipt-1",
             "kind": "finding-verification",
@@ -133,3 +134,45 @@ def test_shared_accepted_plan_published_schema():
     )
     jsonschema.Draft202012Validator.check_schema(schema)
     jsonschema.Draft202012Validator(schema).validate(FIXTURE["base"]["plan"])
+
+
+@pytest.mark.parametrize(
+    "case", FIXTURE["typedTaskProfileModeCases"], ids=lambda case: case["name"]
+)
+def test_shared_typed_task_profile_mode(case):
+    task_payload, _ = fixture_inputs()
+    task, package_id = _decode_task_package(task_payload, "application/zip")
+    plan = copy.deepcopy(FIXTURE["base"]["plan"])
+    task.update(
+        {
+            "kind": "finding-verification",
+            "item_key": plan["item_key"],
+            "workflow_role": plan["route"]["workflow_role"],
+            "accepted_plan": plan,
+            "dependencies": copy.deepcopy(FIXTURE["base"]["dependencies"]),
+            "finding": {
+                "receipt_id": plan["source"]["receipt_id"],
+                "proposed_check_ordinal": plan["source"]["proposed_check_ordinal"],
+                "proposal_ref": plan["source"]["retained_proposal"]["ref"],
+                "proposal_digest": plan["source"]["retained_proposal"]["digest"],
+                "objective": plan["plan"]["objective"],
+                "method": plan["plan"]["method"],
+                "limitations": [],
+            },
+        }
+    )
+    task.pop("checklist", None)
+    if case.get("delete"):
+        task.pop("profile_mode", None)
+    else:
+        task["profile_mode"] = case["value"]
+    data = package(
+        package_id,
+        "item-task",
+        [("task-document", "task.json", "application/json", jcs.canonicalize(task))],
+    )
+    if case["valid"]:
+        _decode_task_package(data, "application/zip")
+    else:
+        with pytest.raises(ValueError):
+            _decode_task_package(data, "application/zip")

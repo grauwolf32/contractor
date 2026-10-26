@@ -78,6 +78,8 @@ def _decode_task_package(payload: bytes, media_type: str) -> tuple[dict[str, Any
     task = _canonical_object(task_bytes, "task document")
     if task.get("schema") != TASK_SCHEMA:
         raise ValueError("task document schema is invalid")
+    if "accepted_plan" in task and type(task.get("profile_mode")) is not str:
+        raise ValueError("accepted plan task profile mode is required")
     if task.get("profile_mode") not in {
         None,
         "risk-assessment",

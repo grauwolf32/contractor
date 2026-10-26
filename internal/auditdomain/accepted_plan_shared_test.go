@@ -105,3 +105,65 @@ func TestSharedAcceptedPlanPublishedSchema(t *testing.T) {
 		t.Fatal("valid shared plan fails published schema", err)
 	}
 }
+
+func TestSharedTypedTaskProfileModes(t *testing.T) {
+	var fixture struct {
+		Base                      struct{ Plan, Dependencies json.RawMessage }
+		TypedTaskProfileModeCases []struct {
+			Name          string
+			Value         any
+			Delete, Valid bool
+		}
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-check-plans", "accepted-plan-cases.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	dependencies, err := DecodeRetainedDependencies(fixture.Base.Dependencies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := DecodeAcceptedPlan(fixture.Base.Plan, &dependencies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := FindingCheckSourceDocument{Schema: FindingCheckSourceSchema, Source: plan.Source, Check: ProposedCheck{Method: plan.Plan.Method, Objective: plan.Plan.Objective}, Limitations: []string{}}
+	sourceBytes, err := EncodeFindingCheckSourceDocument(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	revision := "typed-source-r1"
+	options := FindingCheckInventoryOptions{Common: InventoryOptions{Round: 2, ProfileMode: "custom-checklist", WorkflowRole: plan.Route.WorkflowRole, SourceInputName: "proposal_inventory", SourceRef: contracts.ArtifactRef{Namespace: ArtifactNamespace(plan.AuditID), Name: "typed-source", Revision: &revision}, ApprovalRequirement: plan.Authorization.ApprovalRequirement}, Check: FindingCheckOptions{WorkflowRole: plan.Route.WorkflowRole, ApprovalRequirement: plan.Authorization.ApprovalRequirement, AcceptedPlan: &plan, Dependencies: &dependencies}}
+	inventory, err := BuildFindingCheckInventory(sourceBytes, options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := EncodeItemTask(inventory.Tasks[0].Document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range fixture.TypedTaskProfileModeCases {
+		t.Run(test.Name, func(t *testing.T) {
+			candidate := options
+			candidate.Common.ProfileMode, _ = test.Value.(string)
+			if _, err := BuildFindingCheckInventory(sourceBytes, candidate); (err == nil) != test.Valid {
+				t.Fatalf("factory valid=%t want%t: %v", err == nil, test.Valid, err)
+			}
+			var document map[string]any
+			if err := json.Unmarshal(encoded, &document); err != nil {
+				t.Fatal(err)
+			}
+			if test.Delete {
+				delete(document, "profile_mode")
+			} else {
+				document["profile_mode"] = test.Value
+			}
+			data, err := json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := DecodeItemTask(data); (err == nil) != test.Valid {
+				t.Fatalf("reader valid=%t want%t: %v", err == nil, test.Valid, err)
+			}
+		})
+	}
+}

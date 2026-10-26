@@ -814,5 +814,67 @@
       "value": "route\u0000name",
       "valid": false
     }
+  ],
+  "typedTaskProfileModeCases": [
+    {
+      "name": "risk-assessment",
+      "value": "risk-assessment",
+      "valid": true
+    },
+    {
+      "name": "requirements-verification",
+      "value": "requirements-verification",
+      "valid": true
+    },
+    {
+      "name": "custom-checklist",
+      "value": "custom-checklist",
+      "valid": true
+    },
+    {
+      "name": "operation-tracing",
+      "value": "operation-tracing",
+      "valid": true
+    },
+    {
+      "name": "finding-verification",
+      "value": "finding-verification",
+      "valid": true
+    },
+    {
+      "name": "missing",
+      "delete": true,
+      "valid": false
+    },
+    {
+      "name": "null",
+      "value": null,
+      "valid": false
+    },
+    {
+      "name": "empty",
+      "value": "",
+      "valid": false
+    },
+    {
+      "name": "unknown",
+      "value": "old-profile",
+      "valid": false
+    },
+    {
+      "name": "boolean",
+      "value": false,
+      "valid": false
+    },
+    {
+      "name": "array",
+      "value": [],
+      "valid": false
+    },
+    {
+      "name": "object",
+      "value": {},
+      "valid": false
+    }
   ]
 }

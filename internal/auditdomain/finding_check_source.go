@@ -52,6 +52,9 @@ func validateFindingCheckSourceDocument(value FindingCheckSourceDocument) error 
 }
 
 func BuildFindingCheckInventory(source []byte, options FindingCheckInventoryOptions) (Inventory, error) {
+	if !validAuditProfileMode(options.Common.ProfileMode) {
+		return Inventory{}, invalid(CodeInventoryInvalid, "finding_check_source.profile_mode")
+	}
 	document, err := DecodeFindingCheckSourceDocument(source)
 	if err != nil {
 		return Inventory{}, err

@@ -63,7 +63,7 @@ func TestAcceptedPlanExactBindingAndFragmentFactory(t *testing.T) {
 		t.Fatal(err)
 	}
 	rev := "source-r1"
-	common := InventoryOptions{Round: 2, WorkflowRole: plan.Route.WorkflowRole, SourceInputName: "proposal_inventory", SourceRef: contracts.ArtifactRef{Namespace: ArtifactNamespace("audit"), Name: "selected-source", Revision: &rev}, ApprovalRequirement: ApprovalNone}
+	common := InventoryOptions{Round: 2, ProfileMode: "custom-checklist", WorkflowRole: plan.Route.WorkflowRole, SourceInputName: "proposal_inventory", SourceRef: contracts.ArtifactRef{Namespace: ArtifactNamespace("audit"), Name: "selected-source", Revision: &rev}, ApprovalRequirement: ApprovalNone}
 	inventory, err := BuildFindingCheckInventory(encoded, FindingCheckInventoryOptions{Common: common, Check: FindingCheckOptions{WorkflowRole: plan.Route.WorkflowRole, ApprovalRequirement: ApprovalNone, AcceptedPlan: &plan}})
 	if err != nil {
 		t.Fatal(err)

@@ -1766,7 +1766,9 @@ and execution entry. It pins owner, Project, Audit, item, baseline and profile;
 the original and retained proposal, receipt, producer Run and ordinal; canonical
 plan bytes/digest; the selected mapping, role, binding, Workflow and Skills;
 and scope, active-check policy, limits and required approval. Accepted-plan
-metadata is at most 64KiB. Its explicitly nullable `dependencies_digest` pins the
+metadata is at most 64KiB. Every task with an accepted plan requires an explicit
+registered `profile_mode`; missing, null, empty or unknown modes fail both the
+Server factory/reader and Runtime reader. Its explicitly nullable `dependencies_digest` pins the
 complete existing dependency manifest without duplicating it. Task, execution,
 source, route and dependency identities must agree. JSON origin fields alone
 establish no authority; unknown source variants require a production adapter.

@@ -214,6 +214,9 @@ func validateWorklist(value WorklistManifest) error {
 
 func validateItemTask(value ItemTask) error {
 	if value.AcceptedPlan != nil {
+		if !validAuditProfileMode(value.ProfileMode) {
+			return invalid(CodeInvalid, "accepted_plan.profile_mode")
+		}
 		plan := value.AcceptedPlan
 		if ValidateAcceptedPlan(*plan, value.Dependencies) != nil || plan.ItemKey != value.ItemKey || plan.Route.WorkflowRole != value.WorkflowRole || value.Finding == nil || plan.Source.ReceiptID != value.Finding.ReceiptID || plan.Source.ProposedCheckOrdinal == nil || *plan.Source.ProposedCheckOrdinal != value.Finding.ProposedCheckOrdinal || !plan.Source.RetainedProposal.Ref.SameExact(value.Finding.ProposalRef) || plan.Source.RetainedProposal.Digest != value.Finding.ProposalDigest || plan.Plan.Objective != value.Finding.Objective || plan.Plan.Method != value.Finding.Method {
 			return invalid(CodeInvalid, "accepted_plan.task")

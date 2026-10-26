@@ -55,6 +55,18 @@ context:
     deferral record is preserved. The 2026-10-24 review at b523ae77 confirmed that this iterative capability
     was still absent. The initial proposal 0045 plan retained deferral; the user subsequently queued this reviewed task as pending. Completed
     V62 preparation/API/UI/release tasks and their original milestone remain unchanged.
+  follow_up_ordinary_task_mode: >-
+    The pre-existing AUD-R118 legacy allowance remains outside this typed-path change.
+    Its owning sources are docs/spec/audits/audits.md#AUD-R118,
+    internal/auditdomain/types.go ItemTask.ProfileMode, codec.go validateItemTask,
+    inventory.go validateInventoryOptions and Runtime toolsets/audit_results/packages.py
+    profile_mode validation (V77-001, commit 4d432c1324d8b790dcc74a66753b5758a06c6ac2).
+    Propose a separate tracked removal:
+    require an explicit current profile mode for every ordinary task and inventory factory,
+    remove the Go empty/omitempty and Runtime None allowance, update old fixtures and
+    delete AUD-R118 compatibility wording. No old-record fallback or data migration is needed.
+    V62-007 requires explicit mode now for every accepted_plan task without broadening
+    unrelated ordinary-task behavior.
   ownership: Generic iterative Audit composition owns these contracts. V64-001 defines research contracts,
     V64-003 owns opt-in research lifecycle, V64-004 consumes exact context, V64-006 owns the base research-to-ordinary-AuditItem
     adapter, and V64-018 adds only its pentest specialization. These are consumers, not dependencies of
