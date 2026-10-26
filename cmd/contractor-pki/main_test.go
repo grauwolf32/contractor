@@ -21,7 +21,7 @@ func TestPKICommandsGenerateSecureRoleCertificates(t *testing.T) {
 	commands := [][]string{
 		{"init-ca", "--root", root},
 		{"issue-control-plane", "--root", root},
-		{"issue-agent", "--root", root, "--name", "agent-1"},
+		{"issue-runtime", "--root", root, "--name", "agent-1"},
 	}
 	for _, command := range commands {
 		if err := run(command, &stdout, &stderr); err != nil {
@@ -135,7 +135,7 @@ func TestStandalonePKIRenewCommandsKeepExistingKeys(t *testing.T) {
 	for _, args := range [][]string{
 		{"init-ca", "--root", root},
 		{"issue-control-plane", "--root", root},
-		{"issue-agent", "--root", root, "--name", "worker-1"},
+		{"issue-runtime", "--root", root, "--name", "worker-1"},
 	} {
 		if err := run(args, &bytes.Buffer{}, &bytes.Buffer{}); err != nil {
 			t.Fatalf("%v: %v", args, err)
@@ -181,5 +181,12 @@ func TestStandalonePKIRenewCommandsKeepExistingKeys(t *testing.T) {
 				t.Fatalf("renew command did not replace only %s: %q", test.paths.Certificate, output.String())
 			}
 		})
+	}
+}
+
+func TestPKIRejectsRemovedIssueAgentAlias(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"issue-agent", "--help"}, &stdout, &stderr); err == nil {
+		t.Fatal("removed issue-agent alias was accepted")
 	}
 }

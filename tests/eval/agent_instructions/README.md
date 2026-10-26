@@ -26,23 +26,18 @@ unchanged. This is an opt-in evaluation overlay, not a published default catalog
   SHA-256 digests. The recorded Git commit does not imply a clean working tree.
 - `variants.json`: baseline/candidate paths, file digests, and explicit selectors.
 - `candidate/configs`: archived overlay with exact pinned variant bytes.
-- `overlay_test.go`: loads A and B through the real config loader, after
-  moving the historical Audit/Findings toolset refs onto the registered
-  versions that export the same tools, and checks that capabilities, policies,
-  scope, retries, stages, and result contracts match.
+- `overlay_test.go`: compares the pinned A/B YAML as archive data and checks
+  that capabilities, policies, scope, retries, stages, and result contracts match.
 
-For the offline compatibility test, materialize `catalog-baseline.json` into a
-temporary root, then merge `candidate/configs/` into it. The snapshot preserves
-the original config closure and pinned bytes while the working catalog evolves.
-The loader checks every selection against the Server's one registered descriptor
-table, so the test rewrites only its temporary copy: `audit-results@1` becomes
-`audit-results@2` and `security-findings@2` becomes `security-findings@1`, in
-both arms alike. This does not make the pinned overlay loadable in a production
-Server.
+The offline archive test reads `catalog-baseline.json` and `candidate/configs/`
+without loading them as a current Server catalog or rewriting removed Toolset
+references. The snapshot preserves the original config closure and pinned bytes
+while the working catalog evolves. Archive equality does not establish that
+either arm can run on the current Server/Runtime; live experiments need fresh
+contracts, including a project workspace for every Stage using `openapi@1`.
 Its `capture_commit` records provenance; baseline hashes in `variants.json` remain
-unchanged. In A only, replace each candidate
-instruction with its mapped baseline text. Thus A and B use the **same evaluation
-selectors** and differ only in instruction text and derived digests. Never publish
+unchanged. The comparison permits only instruction references and their dependent
+template/version references to differ between A and B. Never publish
 these experiment catalogs to an existing operator/managed catalog. Keep each
 Run's artifacts, workspace and sessions isolated. Same-selector substitution is an
 offline control only. A shared live Server uses distinct immutable baseline and

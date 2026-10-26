@@ -31,7 +31,7 @@ func TestEncodeIsDeterministicAndEnforcesArchiveLimit(t *testing.T) {
 		t.Fatalf("source ZIP changed between builds: %v", err)
 	}
 	if digest := fmt.Sprintf("%x", sha256.Sum256(first)); digest != "e88aa24a6b73f0be8879ed3a5822c6e1e99dde90e1aee1e8ed445535f40a60c3" {
-		t.Fatalf("source ZIP bytes changed from the legacy writer: %s", digest)
+		t.Fatalf("deterministic source ZIP encoding changed: %s", digest)
 	}
 	reader, err := zip.NewReader(bytes.NewReader(first), int64(len(first)))
 	if err != nil || len(reader.File) != 1 || reader.File[0].Name != members[0].Name ||
@@ -107,10 +107,10 @@ func TestBoundedWriterNeverExceedsMaximum(t *testing.T) {
 	}
 }
 
-func TestModifiedFieldHeaderKeepsGitImportTimestamp(t *testing.T) {
+func TestArchiveHeaderUsesFixedTimestamp(t *testing.T) {
 	archive, err := Encode(context.Background(), []Member{{
 		Name: "file.txt", Size: 0, Write: func(io.Writer) error { return nil },
-	}}, Options{ModifiedField: true})
+	}}, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
