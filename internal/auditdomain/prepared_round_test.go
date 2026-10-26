@@ -17,7 +17,7 @@ func preparedRoundFixture(t *testing.T, count int) PreparedRoundPage {
 		plan.Source.ReceiptID = fmt.Sprintf("receipt-%03d", index)
 		plan.Source.Proposal.SizeBytes = 8
 		plan.Source.RetainedProposal.SizeBytes = 8
-		plan.ItemKey = findingCheckItemKey(plan.Source.ReceiptID, 0)
+		plan.ItemKey = FindingCheckItemKey(plan.Source.ReceiptID, 0)
 		revision := "task-r1"
 		task := contracts.ExactArtifact{Ref: contracts.ArtifactRef{Namespace: ArtifactNamespace("audit"), Name: fmt.Sprintf("task-%03d", index), Revision: &revision}, Digest: DigestBytes([]byte(fmt.Sprint(index))), MediaType: PackageMediaType, SizeBytes: 100}
 		sourceRef := task.Ref.Clone()

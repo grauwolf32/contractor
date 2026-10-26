@@ -204,7 +204,7 @@ func validatePreparedRoundPage(value PreparedRoundPage, schema string) error {
 			return invalid(CodeInvalid, "prepared_page.source")
 		}
 		plan := item.Execution.AcceptedPlan
-		if plan == nil || ValidateAcceptedPlan(*plan, item.Execution.Dependencies) != nil || plan.AuditID != value.AuditID || plan.ItemKey != item.ItemKey || plan.ItemKey != findingCheckItemKey(source.ReceiptID, source.ProposedCheckOrdinal) || plan.Route.WorkflowRole != item.WorkflowRole || plan.Source.ReceiptID != source.ReceiptID || *plan.Source.ProposedCheckOrdinal != source.ProposedCheckOrdinal || plan.Source.RetainedProposal.Verify(source.Proposal) != nil {
+		if plan == nil || ValidateAcceptedPlan(*plan, item.Execution.Dependencies) != nil || plan.AuditID != value.AuditID || plan.ItemKey != item.ItemKey || plan.ItemKey != FindingCheckItemKey(source.ReceiptID, source.ProposedCheckOrdinal) || plan.Route.WorkflowRole != item.WorkflowRole || plan.Source.ReceiptID != source.ReceiptID || *plan.Source.ProposedCheckOrdinal != source.ProposedCheckOrdinal || plan.Source.RetainedProposal.Verify(source.Proposal) != nil {
 			return invalid(CodeInvalid, "prepared_page.accepted_plan")
 		}
 		if (plan.Authorization.ApprovalRequirement == ApprovalNone) != (item.ApprovalKind == "none") || (plan.Authorization.ApprovalRequirement == ApprovalActiveCheck) != (item.ApprovalKind == "active-check-approval") || len(item.Coverage.Requested) != 1 || item.Coverage.Requested[0] != plan.Plan.Method {
