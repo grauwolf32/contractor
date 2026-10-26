@@ -3906,31 +3906,9 @@ export interface components {
             planSchema: "contractor.audit.finding-check-plan.v1";
             /** @enum {unknown} */
             method: "verify" | "replay" | "applicability" | "alternative" | "static-trace" | "http-probe";
-            /** @enum {unknown} */
-            phase: "verify" | "replay" | "applicability" | "alternative";
             workflowRole: string;
             requiredCapabilities: components["schemas"]["AuditCheckCapabilityRequirement"][];
-        } & ({
-            /** @enum {unknown} */
-            method?: "verify" | "static-trace" | "http-probe";
-            /** @constant */
-            phase?: "verify";
-        } | {
-            /** @constant */
-            method?: "replay";
-            /** @constant */
-            phase?: "replay";
-        } | {
-            /** @constant */
-            method?: "applicability";
-            /** @constant */
-            phase?: "applicability";
-        } | {
-            /** @constant */
-            method?: "alternative";
-            /** @constant */
-            phase?: "alternative";
-        });
+        };
         AuditProfileWorkflow: {
             /** @enum {unknown} */
             kind: "prepare" | "check" | "discovery" | "assessment";

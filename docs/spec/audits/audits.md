@@ -1742,8 +1742,12 @@ items:
 ## Registered proposed-check routing
 
 **AUD-R233.** A profile may declare a `methods` mapping with at most 128 entries.
-Each entry names one registered `planSchema`, `method` and `phase`, an exact
+Each entry names one registered `planSchema` and `method`, an exact
 `kind: check` Workflow role, and an explicit `requiredCapabilities` array.
+The authored manifest and public mapping omit `phase`; an authored `phase`
+member is rejected. The registry derives it in the resolved route, where it
+remains part of the immutable profile digest. Retained profiles must contain
+the exact registered phase; readers never repair a missing or changed value.
 Semantic keys are unique across mapping names. The finding-check-plan.v1
 registry maps `verify`, `static-trace` and `http-probe` to `verify`; `replay`,
 `applicability` and `alternative` each use their same-named phase. Neither role

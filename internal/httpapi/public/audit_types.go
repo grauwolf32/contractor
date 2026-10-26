@@ -30,18 +30,25 @@ type auditProfileSelectorRequest struct {
 }
 
 type auditProfileResponse struct {
-	Methods                 map[string]auditprofile.AuditCheckMethodMapping `json:"methods,omitempty"`
-	Ref                     auditprofile.AuditProfileRef                    `json:"ref"`
-	Mode                    auditprofile.AuditProfileMode                   `json:"mode"`
-	Standards               []auditprofile.AuditStandardRef                 `json:"standards"`
-	Inputs                  map[string]auditprofile.AuditProfileInput       `json:"inputs"`
-	Inventory               auditprofile.AuditInventory                     `json:"inventory"`
-	Workflows               map[string]auditProfileWorkflowResponse         `json:"workflows,omitempty"`
-	Execution               auditprofile.AuditExecutionPolicy               `json:"execution"`
-	Interaction             auditprofile.AuditInteractionPolicy             `json:"interaction"`
-	ServerCompatible        bool                                            `json:"serverCompatible"`
-	RequiresInputValidation bool                                            `json:"requiresInputValidation"`
-	CompatibilityReasons    []auditservice.CompatibilityReason              `json:"compatibilityReasons"`
+	Methods                 map[string]auditProfileCheckMethodResponse `json:"methods,omitempty"`
+	Ref                     auditprofile.AuditProfileRef               `json:"ref"`
+	Mode                    auditprofile.AuditProfileMode              `json:"mode"`
+	Standards               []auditprofile.AuditStandardRef            `json:"standards"`
+	Inputs                  map[string]auditprofile.AuditProfileInput  `json:"inputs"`
+	Inventory               auditprofile.AuditInventory                `json:"inventory"`
+	Workflows               map[string]auditProfileWorkflowResponse    `json:"workflows,omitempty"`
+	Execution               auditprofile.AuditExecutionPolicy          `json:"execution"`
+	Interaction             auditprofile.AuditInteractionPolicy        `json:"interaction"`
+	ServerCompatible        bool                                       `json:"serverCompatible"`
+	RequiresInputValidation bool                                       `json:"requiresInputValidation"`
+	CompatibilityReasons    []auditservice.CompatibilityReason         `json:"compatibilityReasons"`
+}
+
+type auditProfileCheckMethodResponse struct {
+	PlanSchema           string                                 `json:"planSchema"`
+	Method               string                                 `json:"method"`
+	WorkflowRole         string                                 `json:"workflowRole"`
+	RequiredCapabilities []contracts.CheckCapabilityRequirement `json:"requiredCapabilities"`
 }
 
 type auditProfileWorkflowResponse struct {
