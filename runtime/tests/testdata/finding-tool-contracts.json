@@ -54,6 +54,7 @@
         },
         "ProposedCheck": {
           "additionalProperties": false,
+          "description": "One follow-up question; its method grants no execution authority.",
           "properties": {
             "objective": {
               "title": "Objective",
@@ -319,6 +320,7 @@
         },
         "ProposedCheck": {
           "additionalProperties": false,
+          "description": "One follow-up question; its method grants no execution authority.",
           "properties": {
             "objective": {
               "title": "Objective",
@@ -498,6 +500,7 @@
         },
         "ProposedCheck": {
           "additionalProperties": false,
+          "description": "One follow-up question; its method grants no execution authority.",
           "properties": {
             "objective": {
               "title": "Objective",

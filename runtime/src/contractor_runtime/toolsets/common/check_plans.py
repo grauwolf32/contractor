@@ -22,7 +22,7 @@ _IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,159}")
 
 
 class ProposedCheck(BaseModel):
-    """Finding argument; the publisher owns bounded repair and normalization."""
+    """One follow-up question; its method grants no execution authority."""
 
     model_config = ConfigDict(extra="forbid", strict=True)
     objective: str

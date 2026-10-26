@@ -13,13 +13,13 @@ from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.finding_proposals import FindingProposalClient
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
+from contractor_runtime.toolsets.common.check_plans import ProposedCheck
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.finding_locations import (
     ExactEvidenceRef,
     LineNumber,
     LineRange,
     Location,
-    ProposedCheck,
     StandardReference,
 )
 from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher

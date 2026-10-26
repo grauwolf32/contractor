@@ -13,12 +13,12 @@ from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.finding_proposals import FindingProposalClient
+from contractor_runtime.toolsets.common.check_plans import ProposedCheck
 from contractor_runtime.toolsets.common.cwe import (
     check_cwe_reference,
     cwe_reference,
 )
 from contractor_runtime.toolsets.common.finding_locations import (
-    ProposedCheck,
     StandardReference,
     normalize_locations,
 )

@@ -37,11 +37,6 @@ class StandardReference(ClosedModel):
     requirement_id: str
 
 
-class ProposedCheck(ClosedModel):
-    objective: str
-    method: str
-
-
 class LineRange(ClosedModel):
     start_line: LineNumber
     end_line: LineNumber
