@@ -115,12 +115,18 @@ func TestAuditIterativeCompositionAcrossProductionProcesses(t *testing.T) {
 			t.Fatalf("joined Runtime stages=%d failures=%v", gateway.CompletedStages(), failures)
 		}
 		assertIterativeAttribution(t, h, journal, audit.AuditID, project.ProjectID)
-		confirmIterativeFinding(t, h, audit.AuditID)
-		waitRoundResultsProcess(t, h, "explicitly reviewed completed Audit", func() bool {
+		// Collected Runs precede Round closure and report finalization. Reviews
+		// are fenced during finalization, so wait for automatic report acceptance
+		// before reading a revision-stable finding page and requesting review.
+		waitRoundResultsProcess(t, h, "automatically completed Audit before finding review", func() bool {
 			var current auditProgramAudit
 			auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+audit.AuditID, &current)
+			if current.State == "failed" || current.State == "cancelled" {
+				t.Fatalf("joined Audit did not complete: state=%s", current.State)
+			}
 			return current.State == "completed"
 		})
+		confirmIterativeFinding(t, h, audit.AuditID)
 		var report auditProgramReport
 		auditProgramGET(t, h.client, h.baseURL+"/v1/audits/"+audit.AuditID+"/report", &report)
 		if report.Status != "ready" || len(report.Machine) == 0 {
