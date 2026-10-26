@@ -47,11 +47,11 @@ The [hypothesis-search plan](2026-10-24-audit-hypothesis-search.md) revises
 V62-005 (settled result snapshots), V62-006 (exact retained dependencies) and
 V62-007 (typed profile routing). They remain generic composition capabilities,
 with no V64 dependency. Their new `audit-iterative-composition-2026-10`
-milestone exits through the pending V62-013 real-process gate. Snapshot and
+milestone exits through the completed [V62-013 real-process gate](../../tasks/done/v62-013-audit-iterative-composition-release.yml). Snapshot and
 dependency holders use V410-010 retention; they do not require live sitemap.
 
-All four tasks are pending under the explicit 2026-10-24 instruction; they
-need completed prerequisites, not another reactivation decision. V62-008
+All four tasks were queued under the explicit 2026-10-24 instruction and are
+now completed, with source-pinned verification evidence. V62-008
 remains deferred and is not required for cold research from existing materials.
 Completed preparation/scan tasks and
 their `audit-workflow-composition` milestone remain historical delivery
@@ -239,8 +239,8 @@ Minimal no-Round public lifecycle support ships in 003; 010 adds richer provenan
 | [011](../../tasks/done/v62-011-audit-composition-ui.yml) | Prepare/progress/results/dependencies and control journey | 009, 010 |
 | [012](../../tasks/done/v62-012-audit-composition-release.yml) | Mandatory database, process and browser release verification | 011 |
 
-The iterative milestone retains V62-013 as its exit; its shared prerequisites
-V62-005/006/007 are completed. Their exact dependency lists, including V410-010 for new
+The iterative milestone is complete through V62-013 and its shared prerequisites
+V62-005/006/007. Their exact dependency lists, including V410-010 for new
 holders, remain in the current task files. V62-008 stays deferred and excluded
 from eligible work. Existing in-progress tasks retain their owners and scope.
 

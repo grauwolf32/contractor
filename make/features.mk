@@ -8,6 +8,7 @@
 	test-audit-program-library-browser test-audit-program-library-e2e \
 	test-audit-completion-e2e test-evals test-findings-e2e \
 	test-openapi-audit-scan-e2e test-audit-composition-e2e \
+	test-audit-iterative-harness test-audit-iterative-postgres test-audit-iterative-e2e \
 	test-artifact-history-postgres test-artifact-history-e2e
 
 .PHONY: test-project-sitemap-postgres
@@ -64,6 +65,19 @@ test-openapi-audit-scan-e2e:
 
 test-audit-composition-e2e:
 	$(call run-family-test,python3 scripts/test-audit-composition-e2e.py)
+
+# Focused direct gates share their harness checks once per make invocation.
+# Consolidated release verifies the same cases from canonical reports; its
+# lint stage already executes these harness unit suites.
+test-audit-iterative-harness: runtime-venv
+	$(call run-family-test,cd runtime && uv run python -m unittest discover -s ../scripts -p 'test_audit_iterative_gate.py' -v)
+	$(call run-family-test,cd runtime && uv run python -m unittest discover -s ../scripts -p 'test_release_test_reports.py' -v)
+
+test-audit-iterative-postgres: require-database runtime-venv test-audit-iterative-harness
+	$(call run-family-test,python3 scripts/test-audit-iterative.py --boundary postgres)
+
+test-audit-iterative-e2e: require-database runtime-venv test-audit-iterative-harness
+	$(call run-family-test,python3 scripts/test-audit-iterative.py --boundary process)
 
 # Automatic retained history of every Artifact binding: the store's admission,
 # eviction and holds, the migration, every writer adapter and the shared

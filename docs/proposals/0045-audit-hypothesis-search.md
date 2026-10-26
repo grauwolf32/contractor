@@ -102,8 +102,9 @@ The [delivery plan](../plans/2026-10-24-audit-hypothesis-search.md) now records
 the revised V62/V64 tasks and targeted V411 boundaries. The planning revision
 initially retained deferral. By a later explicit user instruction on
 2026-10-24, exactly V64-001–018 and V62-005/006/007/013 were queued as pending,
-with unchanged dependencies. V62-005/006/007 are now completed; V62-013 remains
-the iterative delivery exit. V61 and V62-008 remain deferred.
+with unchanged dependencies. V62-005/006/007 and the
+[V62-013 iterative delivery exit](../../tasks/done/v62-013-audit-iterative-composition-release.yml)
+are now completed. V61 and V62-008 remain deferred.
 
 ## 3. Concepts and durable model
 

@@ -28,6 +28,9 @@ EXPECTED_PROCESS_TESTS = {
     "TestProjectSitemapToolsAcrossProductionProcesses",
     "TestAuditProgramCatalogReplacementRestartsServer",
     "TestAuditProgramsAcrossProductionProcesses",
+    "TestAuditIterativeCompositionAcrossProductionProcesses",
+    "TestAuditRoundResultsAcrossProductionProcesses",
+    "TestAuditTypedCheckRoutingAcrossProductionProcesses",
     "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
     "TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses",
     "TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses",
@@ -61,6 +64,7 @@ EXPECTED_BROWSER_STACK_TESTS = {
 }
 
 EXPECTED_CONFIG_TESTS = {
+    "TestAuditIterativeFixtureConfigurationLoads",
     "TestCodeAnalysisE2EConfigurationLoads",
     "TestAuditProgramsE2EConfigurationLoads",
     "TestDomainGatewayFindsNamedInputAfterParameterBlock",
@@ -81,14 +85,6 @@ OPT_IN_E2E_TESTS = {
     "TestAuditCompositionAcrossProductionProcesses": (
         "test-audit-composition-e2e",
         "requires the real nuclei/sqlmap scanners and Chromium",
-    ),
-    "TestAuditRoundResultsAcrossProductionProcesses": (
-        "test-audit-composition-e2e",
-        "the mandatory composition matrix also requires real scanners and Chromium",
-    ),
-    "TestAuditTypedCheckRoutingAcrossProductionProcesses": (
-        "test-audit-composition-e2e",
-        "the mandatory composition matrix also requires real scanners and Chromium",
     ),
     "TestArtifactBlobBackendsContainers": (
         "test-artifact-blob-backends",
@@ -399,6 +395,8 @@ def check_family_entry_points() -> None:
         ("test-project-workspaces-e2e", "go test -tags=e2e -count=1"),
         ("test-agent-skills-races", "go test -race -count=1"),
         ("test-ui-stack", "./tests/ui-stack"),
+        ("test-audit-iterative-postgres", "scripts/test-audit-iterative.py --boundary postgres"),
+        ("test-audit-iterative-e2e", "scripts/test-audit-iterative.py --boundary process"),
     ):
         if not any(marker in command for command in dry_run(target)):
             raise SystemExit(f"{target} lost its focused Go suite")
@@ -448,9 +446,24 @@ def load_script(relative: str):
     return module
 
 
-def script_go_tests(relative: str) -> list[GoTest]:
+def script_go_tests(relative: str, command: str = "") -> list[GoTest]:
     """The Go selections a gate script runs, read from the script's own constants."""
     module = load_script(relative)
+    if relative == "scripts/test-audit-iterative.py":
+        arguments = shlex.split(command)
+        if "--boundary" not in arguments:
+            raise SystemExit("iterative gate must select an explicit boundary")
+        index = arguments.index("--boundary") + 1
+        if index >= len(arguments) or arguments[index] not in {"postgres", "process"}:
+            raise SystemExit("iterative gate boundary must be postgres or process")
+        boundary = arguments[index]
+        selected = module.matrix()[boundary]
+        return [GoTest(
+            relative, frozenset({"integration" if boundary == "postgres" else "e2e"}),
+            tuple("./" + package.removeprefix(MODULE) for package in selected),
+            module.pattern(case for cases in selected.values() for case in cases),
+            race=boundary == "postgres",
+        )]
     if relative == "scripts/test-project-sitemap-postgres.py":
         return [GoTest(relative, frozenset({"integration"}), tuple("./" + name for name in module.PACKAGES), None)]
     if relative == "scripts/test-project-sitemap-tools-e2e.py":
@@ -478,14 +491,14 @@ def selections(*targets: str) -> list[GoTest]:
         if test is not None:
             found.append(test)
         for script in SCRIPT_GATE.findall(command):
-            found.extend(script_go_tests(script))
+            found.extend(script_go_tests(script, command))
     return found
 
 
 def check_family_commands(commands: list[str]) -> None:
     """Consolidated families may verify matrices but must not execute test suites."""
     repeated = [command for command in commands if re.search(
-        r"\bgo test\b|\bpytest\b|scripts/test-[\w-]+\.py|scripts/shared_fixture_gate\.py(?!.*--sources-only)", command
+        r"\bgo test\b|\bpytest\b|\bunittest\b|scripts/test-[\w-]+\.py|scripts/shared_fixture_gate\.py(?!.*--sources-only)", command
     )]
     if repeated:
         raise SystemExit(f"consolidated families repeat test execution: {repeated}")
@@ -502,6 +515,8 @@ def check_runtime_commands(commands: list[str]) -> None:
     for marker in (
         "release_test_reports.py verify-runtime", "release_test_reports.py verify-audit",
         "release_test_reports.py verify-findings", "shared_fixture_gate.py --go-report",
+        "release_test_reports.py verify-iterative-postgres",
+        "release_test_reports.py verify-iterative-process",
     ):
         if not any(marker in command for command in commands):
             raise SystemExit(f"release lost executed-report verification: {marker}")
