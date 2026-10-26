@@ -137,6 +137,7 @@ type ResolvedAgentTemplate struct {
 	ModelPolicy    ResolvedModelPolicy     `json:"modelPolicy,omitzero"`
 	Execution      *ToolExecutionConfig    `json:"execution,omitempty"`
 	Summarizer     *WorkerSummarizerConfig `json:"summarizer,omitempty"`
+	Sitemap        *ProjectSitemapPolicy   `json:"sitemap,omitempty"`
 	Toolsets       []ToolsetSelection      `json:"toolsets" strictjson:"required"`
 	Skills         []ArtifactRef           `json:"skills,omitempty"`
 	SandboxProfile SandboxProfileRef       `json:"sandboxProfile" strictjson:"required"`
@@ -149,6 +150,7 @@ func (t ResolvedAgentTemplate) Validate() error { return validateResolvedAgentTe
 func (t ResolvedAgentTemplate) Clone() ResolvedAgentTemplate {
 	result := t
 	result.Execution = t.Execution.Clone()
+	result.Sitemap = t.Sitemap.Clone()
 	result.ModelPolicy = t.ModelPolicy.Clone()
 	if t.Summarizer != nil {
 		summarizer := *t.Summarizer
@@ -176,6 +178,16 @@ func (t ResolvedAgentTemplate) Clone() ResolvedAgentTemplate {
 }
 
 func validateResolvedAgentTemplate(template ResolvedAgentTemplate) error {
+	if template.Sitemap != nil {
+		if err := template.Sitemap.Validate(); err != nil {
+			return err
+		}
+	}
+	for _, selection := range template.Toolsets {
+		if selection.Ref.ToolsetID == "sitemap" && (selection.Ref.Version != "1" || template.Sitemap == nil) {
+			return Invalidf("sitemap@1 selection requires a pinned sitemap policy")
+		}
+	}
 	if err := template.Ref.ValidateRef(); err != nil {
 		return err
 	}

@@ -58,6 +58,28 @@ func ScanSweepReceiptKey(ownerID, idempotencyKey string) ReceiptKey {
 	return ReceiptKey{scope: []string{"scan-sweep", ownerID, "scan-sweep.create"}, key: idempotencyKey}
 }
 
+// ProjectSitemapReceiptKey binds one publication intent to its owner and
+// Project. Its receipt survives result eviction and leaves only in Project purge.
+func ProjectSitemapReceiptKey(ownerID, projectID, idempotencyKey string) ReceiptKey {
+	return ReceiptKey{scope: []string{"project-sitemap", ownerID, projectID}, key: idempotencyKey}
+}
+
+// DeleteProjectSitemapReceiptsBatch removes one bounded batch under the existing
+// Project lifecycle fence. The caller must have locked its drained Project.
+func DeleteProjectSitemapReceiptsBatch(ctx context.Context, tx pgx.Tx, projectID string) (bool, error) {
+	if _, err := tx.Exec(ctx, `SELECT set_config('contractor.lifecycle_purge', 'project', true)`); err != nil {
+		return false, WrapError("authorize Project receipt purge", err)
+	}
+	budget := CleanupBudget{RowLimit: CleanupBatchRows, ByteLimit: 64 << 20}
+	gone, err := DeleteWithinBudget(ctx, tx, &budget, BoundedDelete{Table: "mutation_receipts",
+		Filter: `project_id=$5 AND key_scope[1]='project-sitemap'`, RowBytes: receiptRowBytes, RowCost: 1, Args: []any{projectID}})
+	if err != nil {
+		return false, WrapError("purge sitemap receipts", err)
+	}
+	// Commit receipt work before the controller starts an Artifact purge pass.
+	return gone && budget.Rows == 0, nil
+}
+
 // AdvisoryKey is the advisory key that serializes the requests under k.
 func (k ReceiptKey) AdvisoryKey() AdvisoryKey {
 	return NewAdvisoryKey("mutation-receipt", append(append([]string{}, k.scope...), k.key)...)
@@ -92,6 +114,21 @@ func LockReceipt(ctx context.Context, tx pgx.Tx, key ReceiptKey) error {
 // FindReceipt reads the receipt stored under key. A receipt of another
 // request than requestDigest is ErrReceiptMismatch.
 func FindReceipt(ctx context.Context, db DBTX, key ReceiptKey, requestDigest string) (Receipt, bool, error) {
+	result, found, err := ReadReceipt(ctx, db, key)
+	if err != nil || !found {
+		return result, found, err
+	}
+	if result.RequestDigest != requestDigest {
+		return Receipt{}, true, ErrReceiptMismatch
+	}
+	return result, true, nil
+}
+
+// ReadReceipt reads a receipt under its owner-bound key. A projected-request
+// caller takes LockReceipt first and uses its saved safe projection policy to
+// compute the replay digest, then still passes through KeyedMutation's digest
+// comparison before accepting a replay. It never reads the old result payload.
+func ReadReceipt(ctx context.Context, db DBTX, key ReceiptKey) (Receipt, bool, error) {
 	var result Receipt
 	var ownerID, projectID, auditID *string
 	err := db.QueryRow(ctx, `
@@ -106,9 +143,6 @@ SELECT operation, resource_id, request_digest, response, owner_id, project_id, a
 	}
 	if err != nil {
 		return Receipt{}, false, WrapError("read mutation receipt", err)
-	}
-	if result.RequestDigest != requestDigest {
-		return Receipt{}, true, ErrReceiptMismatch
 	}
 	result.OwnerID, result.ProjectID, result.AuditID = valueOrEmpty(ownerID), valueOrEmpty(projectID), valueOrEmpty(auditID)
 	return result, true, nil

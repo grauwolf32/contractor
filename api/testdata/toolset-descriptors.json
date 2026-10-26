@@ -210,6 +210,25 @@
       "sandboxActiveCheckTools": {},
       "findingProposalTools": [],
       "requiredWorkflowInputs": {}
+    },
+    "sitemap@1": {
+      "tools": [
+        "configure_sitemap_grouping",
+        "import_sitemap_source",
+        "list_sitemap_entries",
+        "read_sitemap_entry",
+        "remove_sitemap_entry",
+        "restore_sitemap_entry",
+        "snapshot_sitemap_context",
+        "upsert_sitemap_entry"
+      ],
+      "infrastructureChannels": {},
+      "requiresWorkspace": false,
+      "requiredSandboxProfiles": [],
+      "activeCheckTools": [],
+      "sandboxActiveCheckTools": {},
+      "findingProposalTools": [],
+      "requiredWorkflowInputs": {}
     }
   }
 }

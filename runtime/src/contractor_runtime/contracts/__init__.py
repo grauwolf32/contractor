@@ -170,6 +170,7 @@ from contractor_runtime.contracts.settings import ToolsetRef as ToolsetRef
 from contractor_runtime.contracts.settings import ToolsetSelection as ToolsetSelection
 from contractor_runtime.contracts.settings import WorkerRuntimeRef as WorkerRuntimeRef
 from contractor_runtime.contracts.settings import WorkerSummarizerConfig as WorkerSummarizerConfig
+from contractor_runtime.contracts.sitemap import ProjectSitemapPolicy as ProjectSitemapPolicy
 from contractor_runtime.contracts.worker import AgentStateSnapshot as AgentStateSnapshot
 from contractor_runtime.contracts.worker import ContractorWorkerState as ContractorWorkerState
 from contractor_runtime.contracts.worker import StageContentRequest as StageContentRequest

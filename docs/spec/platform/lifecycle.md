@@ -301,3 +301,11 @@ Owner column links each entry to its owning requirement.
 | `LIFE-INT-1` | Interactsh allocation-owned registration, keys and pending callback batch | Allocation cancel, lease loss and release join active work, attempt bounded deregistration and erase local secrets | none | No ephemeral callback state is restored; remote unconfirmed removal expires by operator-configured upstream TTL and emits safe adapter failure metrics | Published ordinary evidence follows Run/Project retention and purge | [INT-R11](../tools/interactsh.md) |
 
 <!-- /registry-table -->
+
+## Project sitemap
+
+| ID | Entity | Deletion and retention | Owner |
+| --- | --- | --- | --- |
+| `LIFE-SMT-1` | Project sitemap and its keyed receipts | Ordinary Project deletion fences publication, drains and purges its Artifact scope and bounded domain receipt batches. Producer Run deletion leaves self-contained Project metadata intact. Exact selected context/evidence follows existing hold and input-fork lifecycles; ordinary provenance and receipts create no holds. Unprotected history follows common automatic ArtifactStore policy. | [SMT-R10](../artifacts/project-sitemap.md), [SMT-R11](../artifacts/project-sitemap.md), [SMT-R12](../artifacts/project-sitemap.md) |
+
+| `LIFE-SMT-2` | Allocation safe view and derived Run context | One transient view is cleared on refresh or release after joined index work; cursors create no hold and have no TTL. Every use requires current Server authority. Frozen selected context and needed authorized input forks live in the allocation's ordinary Namespace, retain exact sources through ordinary lineage, and disappear with the consumer Run's normal purge. A provenance mention without byte selection acquires no hold. | [SMT-R15](../artifacts/project-sitemap.md), [SMT-R16](../artifacts/project-sitemap.md), [SMT-R17](../artifacts/project-sitemap.md) |

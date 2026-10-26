@@ -40,6 +40,7 @@ from contractor_runtime.contracts.base import (
     trim_whitespace,
 )
 from contractor_runtime.contracts.fields import is_credential_field_value
+from contractor_runtime.contracts.sitemap import ProjectSitemapPolicy
 from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
 
 # Byte bounds of the secret field values RuntimeSettings carries: a bearer or
@@ -715,6 +716,9 @@ class ResolvedAgentTemplate(WireModel):
         default=None, exclude_if=lambda value: value is None
     )
     summarizer: WorkerSummarizerConfig | None = None
+    sitemap: ProjectSitemapPolicy | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     toolsets: list[ToolsetSelection]
     skills: list[ArtifactRef] = Field(
         default_factory=list, max_length=32, exclude_if=lambda value: not value
@@ -728,6 +732,11 @@ class ResolvedAgentTemplate(WireModel):
     @model_validator(mode="after")
     def validate_template(self) -> Self:
         _require_text("description", self.description)
+        for selection in self.toolsets:
+            if selection.ref.toolset_id == "sitemap" and (
+                selection.ref.version != "1" or self.sitemap is None
+            ):
+                raise ValueError("sitemap@1 selection requires a pinned sitemap policy")
         refs = [f"{item.ref.toolset_id}@{item.ref.version}" for item in self.toolsets]
         if len(refs) != len(set(refs)):
             raise ValueError("toolset refs must be unique")

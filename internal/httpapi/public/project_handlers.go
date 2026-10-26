@@ -34,6 +34,7 @@ type ProjectCredentialValidator interface {
 // ProjectDependencies serve the Project resource and start Project deletion.
 type ProjectDependencies struct {
 	Projects                ProjectManagement
+	Sitemap                 ProjectSitemap
 	RuntimeCredentials      ProjectCredentialValidator
 	ProjectDeletionNotifier Waker
 	NewID                   func(string) (string, error)

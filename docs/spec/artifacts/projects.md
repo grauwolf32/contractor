@@ -772,3 +772,7 @@ channel (PRJ-R94). Shared rules are in
 - Multiple named HTTP targets per Project, interactive OAuth and an
   in-memory-only Server credential backend are not supported. Adding them would
   not require a new Project artifact type.
+
+The narrow domain surface for safe shared HTTP metadata is specified in
+[Project sitemap](project-sitemap.md). It preserves this document's owner boundary
+and ordinary Project input selection.

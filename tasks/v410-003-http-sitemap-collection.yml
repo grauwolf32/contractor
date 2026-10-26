@@ -54,8 +54,9 @@ scope:
     read.
   - Join flushes at completion/cancellation/release; record incomplete source collection after crash, quota exhaustion,
     conflict retry exhaustion or lost pending batch.
-  - Expose target outcome and collection outcome separately; an explicitly required collection can fail only at
-    its declared completion boundary.
+  - Keep automatic collection status outside model-visible HTTP results. Target outcomes remain ordinary HTTP
+    results; deterministic code records collection failures for the Run owner and enforces explicitly required
+    collection only at the declared completion boundary. Explicit sitemap operations report their own failures.
   out:
   - Changing target transport retry policy, auth/session persistence, model selection or HTTP scope enforcement.
   - Complete request/response archival, selected finding evidence changes or browser/Caido history collection.
@@ -113,7 +114,8 @@ cardinality:
     loop.
 lifecycle:
 - entity: HTTP allocation collector and pending batch
-  delete: HTTP finalize/abort/release joins and clears the collector.
+  delete: Allocation finalize/abort/release joins and clears the separate collector through composition-owned
+    lifecycle hooks. The HTTP Toolset has no sitemap publication or drain responsibility.
   cascade: Session cleanup removes allocation-memory observations; committed Project metadata remains.
   retention: Selected finding evidence keeps its existing retention; ordinary traffic remains bounded memory-only
     except safe map summaries.

@@ -15,6 +15,7 @@ import (
 	publicapi "github.com/grauwolf32/contractor/internal/httpapi/public"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/performance"
+	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/randomid"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
@@ -94,6 +95,7 @@ func configureHTTP(
 		},
 		Projects: publicapi.ProjectDependencies{
 			Projects: projects, RuntimeCredentials: credentialSet.runtime,
+			Sitemap:                 projectsitemap.NewService(pool),
 			ProjectDeletionNotifier: workflows.projectDeletion, NewID: randomid.New,
 		},
 		Runs: publicapi.RunDependencies{
@@ -149,6 +151,7 @@ func configureHTTP(
 	}
 	artifactHandler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{
 		Registry: control.registry, Artifacts: catalogs.artifacts, Findings: catalogs.findings, GatewayRecovery: workflows.gatewayRecovery, Logger: logger,
+		Sitemap: projectsitemap.NewService(pool),
 	})
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure private Artifact API: %w", err)

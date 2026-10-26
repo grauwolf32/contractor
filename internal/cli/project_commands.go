@@ -17,6 +17,8 @@ func (c *CLI) runProject(ctx context.Context, client *publicclient.Client, print
 		return &UsageError{Message: "project requires list, create, get, update, or delete"}
 	}
 	switch args[0] {
+	case "sitemap":
+		return c.projectSitemap(ctx, client, printer, args[1:])
 	case "list":
 		return c.listProjects(ctx, client, printer, args[1:])
 	case "create":

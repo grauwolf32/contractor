@@ -53,6 +53,7 @@ func cloneHeartbeatResponse(source control.HeartbeatResponse) control.HeartbeatR
 
 func cloneReservation(source Reservation) Reservation {
 	result := source
+	result.Grant = cloneAllocationGrant(source.Grant)
 	result.PlacementLabels = append([]string{}, source.PlacementLabels...)
 	result.CompletionContract = contracts.CloneWorkerCompletionContract(source.CompletionContract)
 	if source.CompletionCapabilities != nil {
@@ -73,6 +74,13 @@ func cloneReservation(source Reservation) Reservation {
 		resolved := source.ResolvedRuntimeConfig.Clone()
 		result.ResolvedRuntimeConfig = &resolved
 	}
+	return result
+}
+
+func cloneAllocationGrant(source AllocationGrant) AllocationGrant {
+	result := source
+	result.SitemapPolicy = source.SitemapPolicy.Clone()
+	result.SitemapTools = append([]string(nil), source.SitemapTools...)
 	return result
 }
 

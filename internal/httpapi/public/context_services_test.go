@@ -69,6 +69,7 @@ type testServices struct {
 	RuntimeAgentPrincipals RuntimeAgentPrincipalManagement
 
 	Projects                ProjectManagement
+	Sitemap                 ProjectSitemap
 	ProjectDeletionNotifier Waker
 	Runs                    RunReader
 	RunDetails              RunDetailReader
@@ -98,6 +99,9 @@ type testServices struct {
 }
 
 func (s testServices) dependencies() Dependencies {
+	if s.Sitemap == nil {
+		s.Sitemap = &fakeSitemap{}
+	}
 	if s.ScanSweeps == nil {
 		s.ScanSweeps = &fakeScanSweeps{}
 	}
@@ -118,6 +122,7 @@ func (s testServices) dependencies() Dependencies {
 		},
 		Projects: ProjectDependencies{
 			Projects: s.Projects, RuntimeCredentials: s.RuntimeCredentials,
+			Sitemap:                 s.Sitemap,
 			ProjectDeletionNotifier: s.ProjectDeletionNotifier, NewID: s.NewID,
 		},
 		Runs: RunDependencies{

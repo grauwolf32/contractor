@@ -144,3 +144,7 @@ test-nuclei-web-e2e: require-database runtime-venv
 test-nuclei-web-installed: require-database runtime-venv
 	@command -v nuclei >/dev/null || { echo "real nuclei is required on PATH" >&2; exit 1; }
 	$(call run-family-test,go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestNucleiWebAcrossProductionProcesses$$')
+
+.PHONY: test-project-sitemap-tools-e2e
+test-project-sitemap-tools-e2e: require-database runtime-venv
+	$(call run-family-test,python3 scripts/test-project-sitemap-tools-e2e.py)

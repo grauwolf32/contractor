@@ -20,6 +20,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -28,6 +29,54 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func TestProducerRunDeletionPreservesProjectSitemapAndReceipt(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedPool(t, ctx)
+	projects := projectstore.NewPostgresStore(pool)
+	project, _, err := projects.Create(ctx, projectstore.CreateParams{
+		ProjectID: "surface-project", OwnerID: "user-1", Kind: projectstore.KindProject,
+		Name: "Surface", IdempotencyKey: "create-surface", RequestDigest: "sha256:" + strings.Repeat("a", 64),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runs := runstore.NewPostgresStore(pool)
+	producer := createProjectRun(t, ctx, runs, "surface-producer", project.ProjectID)
+	service := projectsitemap.NewService(pool)
+	authority := projectsitemap.Authority{
+		OwnerID: project.OwnerID, ProjectID: project.ProjectID, RunID: producer.RunID,
+		SourceID: "http-transport", Kind: "http", Mode: "blackbox", CanObserve: true,
+	}
+	command := projectsitemap.Mutation{Operation: "observe", Observations: []projectsitemap.Observation{{
+		URL: "https://example.test/surface", Method: "GET", Outcome: "response", Status: 200, At: "2026-10-26T00:00:00Z",
+	}}}
+	accepted, err := service.Mutate(ctx, authority, "collect", command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.TransitionRun(ctx, producer.RunID, runstore.RunInitializing, runstore.RunFailed, runstore.Reason{Code: "fixture_failed"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := rundeletion.New(pool).DeleteReleasedTerminalRun(ctx, project.OwnerID, producer.RunID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runs.GetRun(ctx, producer.RunID); !errors.Is(err, runstore.ErrNotFound) {
+		t.Fatalf("producer still exists: %v", err)
+	}
+	view, err := service.Read(ctx, project.OwnerID, project.ProjectID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.Revision != *accepted.Ref.Revision || len(view.Document.Groups) != 1 ||
+		view.Document.Groups[0].Members[0].Summaries[0].Provenance.RunID != producer.RunID {
+		t.Fatal("Run deletion changed self-contained Project metadata")
+	}
+	replay, err := service.Mutate(ctx, authority, "collect", command)
+	if err != nil || !replay.Replayed || !replay.Ref.SameExact(accepted.Ref) {
+		t.Fatalf("Run deletion lost Project-owned receipt: %+v %v", replay, err)
+	}
+}
 
 func TestProjectDeletionCancelsDrainsPurgesAndRetainsSharedResources(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -138,6 +187,11 @@ INSERT INTO stage_allocations (
 	}
 
 	completed := createProjectRun(t, ctx, runs, "run-completed", projectID)
+	if _, err := projectsitemap.NewService(pool).Mutate(ctx, projectsitemap.Authority{
+		OwnerID: project.OwnerID, ProjectID: projectID, RunID: active.RunID, SourceID: "http-transport", Kind: "http", Mode: "blackbox", CanObserve: true,
+	}, "collect-surface", projectsitemap.Mutation{Operation: "observe", Observations: []projectsitemap.Observation{{URL: "https://example.test/surface", Method: "GET", Outcome: "response", Status: 200, At: "2026-10-26T00:00:00Z"}}}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := runs.TransitionRun(
 		ctx, completed.RunID, runstore.RunInitializing, runstore.RunFailed,
 		runstore.Reason{Code: "fixture_failed"},
@@ -290,6 +344,7 @@ INSERT INTO stage_allocations (
 		"Project scope":     `SELECT count(*) FROM artifact_scopes WHERE scope_kind = 'project' AND scope_id = 'project-delete'`,
 		"Project revisions": `SELECT count(*) FROM artifact_binding_revisions WHERE scope_kind = 'project' AND scope_id = 'project-delete'`,
 		"Project receipts":  `SELECT count(*) FROM finding_proposal_receipts WHERE project_id = 'project-delete'`,
+		"Sitemap receipts":  `SELECT count(*) FROM mutation_receipts WHERE project_id='project-delete' AND key_scope[1]='project-sitemap'`,
 	} {
 		var count int
 		if err := pool.QueryRow(ctx, query).Scan(&count); err != nil || count != 0 {

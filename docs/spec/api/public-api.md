@@ -411,7 +411,10 @@ routes, before any receipt is read or written. The operation treats the key as
 bound to its exact request:
 repeating that request with the key replays the original result, and sending
 a different request with it is `409 idempotency_conflict` with `retryable`
-false. The outcome is permanent: the original result is unchanged, and only
+false. The safe metadata command of [Project sitemap](../artifacts/project-sitemap.md)
+binds its code-owned projected intent, including omission flags, rather than
+hashing discarded credential values (SMT-R9). The outcome is permanent: the
+original result is unchanged, and only
 a new key can carry the changed request (FAIL-RUN-1). It is distinct from an
 optimistic revision or identity conflict, which keeps its own code and
 retryability. Managed Eval mutations report the same outcome as
@@ -477,6 +480,7 @@ table only indexes:
 | Scheduler settings | Operations, [OPS-R53 to OPS-R60](../operations/operations.md) |
 | Git import and the owner Git key | Git import, [GIT-R82, GIT-R84](../artifacts/git-import.md) |
 | Audit routes | Audits, [AUD-R198 to AUD-R205](../audits/audits.md) |
+| Project sitemap mutation key and expected revision/source preconditions | Project sitemap, [SMT-R6 to SMT-R9](../artifacts/project-sitemap.md) |
 
 ### Collections and pagination
 

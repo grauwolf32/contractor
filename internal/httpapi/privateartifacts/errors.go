@@ -12,6 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectsitemap"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
@@ -30,6 +32,22 @@ type errorResponse struct {
 
 func (h *handler) handleError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, errSitemapAccessDenied):
+		h.writeError(w, http.StatusForbidden, "sitemap_access_denied", "allocation does not permit this sitemap operation", false)
+	case errors.Is(err, errSitemapCursorExpired):
+		h.writeError(w, http.StatusConflict, "sitemap_cursor_expired", "the sitemap view is no longer available; refresh explicitly", false)
+	case errors.Is(err, projectsitemap.ErrProjectionUnavailable):
+		h.writeError(w, http.StatusConflict, "sitemap_projection_unavailable", "the authorized sitemap view cannot be reconstructed safely", false)
+	case errors.Is(err, errSitemapUnavailable):
+		h.writeError(w, http.StatusServiceUnavailable, "sitemap_unavailable", "sitemap service is unavailable", true)
+	case errors.Is(err, projectsitemap.ErrConflict):
+		h.writeError(w, http.StatusConflict, "sitemap_conflict", "sitemap edit or source precondition did not match", false)
+	case errors.Is(err, contracts.ErrIdempotencyConflict):
+		h.writeError(w, http.StatusConflict, "idempotency_conflict", "the mutation key is already bound to another intent", false)
+	case errors.Is(err, projectstore.ErrDeleting), errors.Is(err, artifacts.ErrScopeDeleting):
+		h.writeError(w, http.StatusConflict, "project_deleting", "the Project is deleting", false)
+	case errors.Is(err, projectstore.ErrNotFound):
+		h.writeError(w, http.StatusNotFound, "artifact_not_found", "artifact was not found", false)
 	case errors.Is(err, controlplane.ErrAllocationNotFound):
 		h.writeError(w, http.StatusNotFound, "allocation_not_found", "active allocation was not found", false)
 	case errors.Is(err, errAllocationWriteFenced):
@@ -69,7 +87,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusNotFound, "finding_receipt_not_found", "finding receipt was not found", false)
 	case errors.Is(err, artifacts.ErrArtifactNotFound):
 		h.writeError(w, http.StatusNotFound, "artifact_not_found", "artifact was not found", false)
-	case errors.Is(err, errInvalidRequest), errors.Is(err, artifacts.ErrInvalidScope),
+	case errors.Is(err, errInvalidRequest), errors.Is(err, projectsitemap.ErrInvalid), errors.Is(err, projectsitemap.ErrUnsafe), errors.Is(err, artifacts.ErrInvalidScope),
 		errors.Is(err, artifacts.ErrInvalidName), errors.Is(err, artifacts.ErrInvalidMediaType),
 		errors.Is(err, artifacts.ErrVersionedWriteTarget), errors.Is(err, contracts.ErrValidation):
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the private Artifact API contract", false)

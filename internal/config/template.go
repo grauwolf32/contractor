@@ -101,6 +101,21 @@ func (l *loader) resolveAgentTemplate(
 	if err := resolved.ValidateSandboxToolCompatibility(result); err != nil {
 		return contracts.ResolvedAgentTemplate{}, err
 	}
+	if spec.Sitemap.Kind != 0 {
+		var policy contracts.ProjectSitemapPolicy
+		if err := spec.Sitemap.Decode(&policy); err != nil {
+			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.sitemap: %w", err)
+		}
+		if err := policy.Validate(); err != nil {
+			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("spec.sitemap: %w", err)
+		}
+		result.Sitemap = &policy
+	}
+	for _, selection := range toolsets {
+		if selection.Ref.ToolsetID == "sitemap" && result.Sitemap == nil {
+			return contracts.ResolvedAgentTemplate{}, fmt.Errorf("sitemap@1 selection requires spec.sitemap")
+		}
+	}
 	digest, err := agentTemplateDigest(selector, result)
 	if err != nil {
 		return contracts.ResolvedAgentTemplate{}, fmt.Errorf("compute AgentTemplate digest: %w", err)

@@ -14,6 +14,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
+	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
@@ -36,6 +37,7 @@ func publicRequestBodyBounds() map[string]requestBodyBound {
 		return requestBodyBound{bytes: bytes, status: http.StatusRequestEntityTooLarge, code: "request_too_large"}
 	}
 	bounds := map[string]requestBodyBound{
+		"mutateProjectSitemap":     tooLarge(projectsitemap.MaxBatchBytes),
 		"login":                    tooLarge(maximumLoginBodyBytes),
 		"replaceGitKey":            tooLarge(maximumGitKeyBodyBytes),
 		"importGitArtifact":        tooLarge(maximumGitImportBodyBytes),

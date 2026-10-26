@@ -170,6 +170,18 @@
         }
       }
     },
+    "projectSitemapPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sourceMode", "collectObservations"],
+      "properties": {
+        "version": {"const": "sitemap-access@1"},
+        "sourceMode": {"enum": ["blackbox", "source-assisted"]},
+        "collectObservations": {"type": "boolean"},
+        "deployment": {"$ref": "#/$defs/resourceId"},
+        "openapiInputs": {"type": "array", "maxItems": 8, "uniqueItems": true, "items": {"$ref": "#/$defs/name"}}
+      }
+    },
     "resolvedAgentTemplate": {
       "type": "object",
       "additionalProperties": false,
@@ -197,6 +209,7 @@
         },
         "modelPolicy": {"$ref": "#/$defs/resolvedModelPolicy"},
         "summarizer": {"$ref": "#/$defs/workerSummarizerConfig"},
+        "sitemap": {"$ref": "#/$defs/projectSitemapPolicy"},
         "toolsets": {
           "type": "array",
           "items": {

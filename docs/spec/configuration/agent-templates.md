@@ -235,6 +235,8 @@ the `tool@1` variant (TPL-R5). The fields are:
 - `runtime` (mandatory): an exact Worker runtime selector (TPL-R3);
 - `toolsets` (mandatory, possibly empty): the Toolset selection list (TPL-R38);
 - `sandboxProfile` (mandatory): an exact SandboxProfile selector (TPL-R44);
+- `sitemap` (optional for either runtime): the pinned allocation authority
+  policy (TPL-R115);
 - `instructions` (mandatory for `adk@1`): exactly the mandatory `ref`
   (TPL-R7);
 - `modelPolicy` (mandatory for `adk@1`): an exact ModelPolicy selector
@@ -491,6 +493,15 @@ first release a shipped operator-root version may change in place, which
 changes its digest ([CAT-R74](catalog.md)).
 
 ### Toolset selection
+
+**TPL-R115.** Optional `spec.sitemap` pins an allocation policy with required
+`version: sitemap-access@1`, `sourceMode` and `collectObservations`, optional
+`deployment` (ResourceId), and optional `openapiInputs` (a sorted unique set of
+Workflow input names). The policy is valid for both Worker runtime variants,
+participates in the template digest and is deep-copied with it. It grants no
+model-visible function by itself. Sitemap tool selection requires this policy;
+automatic collection additionally requires its explicit collection permission.
+The authority, modes and bounds are owned by [SMT-R13](../artifacts/project-sitemap.md).
 
 **TPL-R37.** An AgentTemplate chooses both the exact Toolset
 ([Toolsets](../tools/toolsets.md)) and an explicit allowlist of tools within

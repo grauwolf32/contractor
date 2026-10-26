@@ -1,0 +1,62 @@
+"""Shared pinned sitemap authority and template identity."""
+
+import json
+from pathlib import Path
+
+import pytest
+
+from contractor_runtime.contracts import (
+    PrivateProtocolDecodeError,
+    ProjectSitemapPolicy,
+    ResolvedAgentTemplate,
+    decode_private,
+)
+from contractor_runtime.digests import _agent_template_digest
+
+
+def test_shared_sitemap_access_policy_and_digest() -> None:
+    cases = json.loads(
+        (
+            Path(__file__).resolve().parents[2] / "api/testdata/v1alpha1/sitemap-access-cases.json"
+        ).read_text()
+    )
+    assert len(cases["valid"]) >= 2 and len(cases["invalid"]) >= 10
+    for value in cases["valid"]:
+        decode_private(ProjectSitemapPolicy, json.dumps(value))
+    for value in [*cases["invalid"], *cases["invariantInvalid"]]:
+        with pytest.raises(PrivateProtocolDecodeError):
+            decode_private(ProjectSitemapPolicy, json.dumps(value))
+    for raw in cases["strictInvalid"]:
+        with pytest.raises(PrivateProtocolDecodeError):
+            decode_private(ProjectSitemapPolicy, raw)
+    template = ResolvedAgentTemplate.model_validate(cases["template"])
+    assert _agent_template_digest(template) == template.ref.digest
+
+
+def test_shared_sitemap_private_wire() -> None:
+    from private_schemas import private_validator
+
+    from contractor_runtime.contracts.sitemap import (
+        SitemapAccess,
+        SitemapMutationResponse,
+        SitemapSnapshotResponse,
+    )
+
+    cases = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/v1alpha1/sitemap-wire-cases.json").read_text()
+    )
+    models = {
+        model.__name__: model
+        for model in (SitemapAccess, SitemapMutationResponse, SitemapSnapshotResponse)
+    }
+    assert len(cases["valid"]) == 5 and len(cases["invalid"]) >= 15
+    for valid, group in ((True, cases["valid"]), (False, cases["invalid"])):
+        for case in group:
+            validator = private_validator("project-sitemap.schema.json#/$defs/" + case["type"])
+            assert validator.is_valid(case["value"]) == valid
+            if case["type"] in models:
+                if valid:
+                    decode_private(models[case["type"]], json.dumps(case["value"]))
+                else:
+                    with pytest.raises(PrivateProtocolDecodeError):
+                        decode_private(models[case["type"]], json.dumps(case["value"]))

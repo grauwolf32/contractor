@@ -1441,3 +1441,18 @@ sweeps never enter the page scan. The sweep's terminal purge removes that bindin
 and its lineage edges while preserving versions/blobs still referenced by
 child Runs or the owner's source. [SCN-R245](../tools/scanners.md) and
 [SCN-R251](../tools/scanners.md) own admission and retention.
+
+**ART-R128.** The Project `sitemap` namespace is owned by the
+[Project sitemap reducer](project-sitemap.md). Generic writes reject it; trusted
+domain publications use ordinary immutable revisions, CAS and automatic retained
+history, without a kind-specific retention policy or predecessor hold chain.
+
+**ART-R129.** A trusted caller-owned transaction may materialize different,
+validated context bytes into a new frozen Run binding with `context_projection`
+lineage from an exact Project revision. The Run must belong to that Project.
+This is a derived context, not an input fork claiming byte identity. The source
+must still exist and acquire ordinary indexed lineage protection atomically
+with creation; an eviction winner returns the existing exact-not-found outcome.
+The immutable target name is the replay key: source identity and payload digest
+must match before replay confirms it. The operation uses ordinary write admission,
+history, scope fencing and lineage purge, with no new receipt store, pin or lease.

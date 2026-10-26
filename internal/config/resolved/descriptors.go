@@ -230,6 +230,7 @@ func builtInDescriptors() descriptorTable {
 			"run-artifacts@1": {
 				Tools: []string{"list_artifacts", "read_artifact", "write_artifact"},
 			},
+			"sitemap@1": {Tools: contracts.SitemapToolNames()},
 			"scan@1": {
 				Tools: []string{"scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_sqlmap"},
 				InfrastructureChannels: map[string][]infrastructureChannel{

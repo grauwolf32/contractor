@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V410-010
 languages:
@@ -26,6 +26,7 @@ context:
   proposal_sections: 'Sections 2-4, 6-11: representation, projection, identities, source replacement, suppression,
     CAS, quotas and lifecycle.'
   specification:
+  - docs/spec/artifacts/project-sitemap.md#SMT-R1
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/artifacts/projects.md
   - docs/spec/artifacts/retention-and-deletion.md
@@ -257,6 +258,21 @@ test_prerequisites:
   holder/writer coverage and shared-blob GC belong to completed dependency V410-010; retain its required gates
   when integration changes those boundaries. Regenerate generated clients through repository targets.
 
+implementation_decisions:
+- date: 2026-10-26
+  decision: The owner API assigns the fixed manual source owner and reserves the Project sitemap namespace
+    against generic Artifact writes. Automatic producer authority is established separately by allocation composition;
+    the public mutation body cannot manufacture HTTP observations or select a transport source identity.
+- date: 2026-10-26
+  decision: Shared keyed receipts retain only the bounded safe structural selector choices needed to recognize
+    their accepted intent after regrouping or history eviction. They do not retain a map, raw credential values,
+    removed-value hashes or an implicit Artifact hold. Replay confirms the original exact ref even when its
+    unprotected bytes are no longer available.
+- date: 2026-10-26
+  decision: Selected complete-map context uses existing exact Project-to-Run input forks and indexed lineage
+    protection. A narrower source-mode projection belongs to the allocation toolset dependency; a live metadata
+    read creates no hold. Publication and separately committed maintenance use ordinary ArtifactStore APIs.
+
 execution:
   branch: codex/v410-sitemap
   claimed_on: "2026-10-26"
@@ -265,3 +281,98 @@ execution:
     batch is reserved together; implementation proceeds in dependency order,
     and dependent tasks do not start implementation before their prerequisites
     complete. Status records assignment, not completed implementation or tests.
+
+implementation_commit: a39cc43c9e1e7b642a1aa887c5bcca352a6902b5
+verification:
+  date: '2026-10-26'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Python 3.13 Runtime; Node 24.20.0 and
+    pnpm 11.24.0; dedicated PostgreSQL 17 test database contractor_v410_test
+    with per-test schemas and 47 migrations; canonical TMPDIR=/private/tmp.
+    Final integration includes main through 5e2787956064b88edcf44843f8cb8529650d983d.
+  commands:
+  - >-
+    make test-project-sitemap-postgres passed on the combined tree: 11 complete
+    packages and eight mandatory real-store cases with zero mandatory skips.
+    One producer Run accepted 257 updates and 360501946 cumulative encoded
+    publication bytes; ordinary retention kept two revisions / 2980786 bytes.
+    The package run also includes the real Run deletion regression preserving
+    Project metadata/receipts and the populated Project purge regression.
+  - >-
+    make verify-public-api verify-public-api-postgres passed, including owner
+    mutations, reserved-namespace refusal, exact/replayed/evicted outcomes,
+    generated clients, operation coverage and race-enabled PostgreSQL handlers.
+  - >-
+    make test-artifact-history-postgres test-artifact-history-e2e passed after
+    main integration; the production Server/Runtime history scenario ran in
+    34.6 seconds. Existing ordinary artifact protections and error adapters
+    remain authoritative.
+  - >-
+    make lint passed after main integration: generated clients, staticcheck,
+    testonlyexports, release graph, shared fixture sources, tasks/spec/ERD,
+    Runtime Ruff and import contracts. The new gate is registered with the
+    release graph from its actual package selection.
+  - >-
+    make ui-verify passed after main integration: generation check, formatting,
+    lint, both TypeScript projects, unit/static-server tests and production build.
+  - >-
+    go test -tags=integration -count=1 ./internal/projectlifecycle passed in full
+    with canonical TMPDIR before the final combined package gate. A direct run
+    using macOS /var/folders failed the existing filesystem symlink guard;
+    resolving TMPDIR as the repository documents fixed the environment.
+  limitations:
+  - >-
+    Allocation source-mode projections and Runtime tools belong to V410-002;
+    automatic collection and structured import callers belong to V410-003/004/005.
+    No Runtime collector, full traffic archive or full V410 release claim is made.
+  - >-
+    Complete-map selected context uses ordinary exact input-fork lineage. Narrow
+    projections require the authorized materializer in the dependent tool task.
+  - >-
+    Initial closure was on codex/v410-sitemap before main integration.
+    Subsequent coordinated migration numbers and verified integration are
+    recorded in main_integration below.
+
+main_integration:
+  requested_on: '2026-10-26'
+  base_main: 8309914fbfaf4c8bb59d86188fd7b3cf69e98c45
+  verified_commit: c55a0d0a708433c8cd143088ae2bd119fe947b5b
+  migrations:
+  - 000049_project_sitemap_receipts.sql
+  - 000050_context_projection_lineage.sql
+  evidence:
+  - >-
+    Existing main migrations 000001 through 000048 remain byte-identical.
+    The real PostgreSQL upgrade preserves all 48 existing ledger entries
+    and an existing receipt, applies 000049/000050, permits sitemap receipts
+    and applies nothing on the next startup. A new regression is
+    TestPostgresProjectSitemapMigrationsPreserveMainLedgerAndReceipts.
+  - >-
+    make test-project-sitemap-postgres passed on the combined tree:
+    13 complete packages, 14 mandatory cases, zero mandatory skips.
+  - >-
+    make test-project-sitemap-tools-e2e test-artifact-history-e2e passed
+    through actual Server/Runtime/PostgreSQL processes.
+  - >-
+    make verify-public-api verify-public-api-postgres passed. The API
+    coverage selection preserves the existing Worker session-mode check
+    and adds the sitemap owner operations.
+  - >-
+    GOFLAGS='-p=2' make test-wire-cross-language passed: 285 fixtures,
+    341 Go shared tests, 237 Python shared tests. An earlier unconstrained
+    run failed two unrelated PostgreSQL cases; both passed separately,
+    then the entire bounded gate passed without code or timeout changes.
+  - >-
+    make ui-verify passed: 196 test files, 2433 passed tests and one declared
+    expected failure, plus generated types, lint, static-server checks and build.
+  - >-
+    Runtime sitemap/contracts/capability and affected Audit/OpenAPI/finding
+    suites passed: 599 tests. make lint passed, including generation checks,
+    staticcheck, import ownership, tasks/specs and the release graph.
+  - >-
+    Generated clients, dependency graph, ERD and backlog were regenerated.
+    Main's DEL-R66 remains intact; the unlanded sitemap purge requirement
+    is assigned DEL-R67 to avoid an ID collision.
+  scope: >-
+    User-authorized main delivery covers V410-001 and V410-002 only.
+    V410-003 through V410-007 remain pending and unimplemented.

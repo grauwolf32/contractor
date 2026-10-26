@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V410-001
 languages:
@@ -23,6 +23,7 @@ context:
   proposal_sections: 'Sections 2-4 and 8-11: allocation authority, provenance, exact paging, safe views, snapshots
     and cleanup.'
   specification:
+  - docs/spec/artifacts/project-sitemap.md#SMT-R13
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/artifacts/projects.md
   - docs/spec/artifacts/retention-and-deletion.md
@@ -93,6 +94,10 @@ requirements:
     protected binding/exact-reference lifecycles, with atomic retention acquisition against V410-001 eviction.
     A lost selection race returns explicit exact-source unavailability and requires caller refresh/reselection;
     neither memory nor optional filesystem cache can recreate a hold, revive a removed ref or substitute latest.
+implementation_notes:
+- Pin source policy in AgentTemplate and derive Project from durable allocation Run; publish no importer capability until a real format adapter is installed.
+- Align the public sibling stale-intent outcome with the private permanent sitemap_conflict classification; verify it on PostgreSQL.
+- Pin authorization to selected original exact Run-creation input forks, never editable current bindings; materialize needed bytes through ordinary frozen forks.
 failure_outcomes:
 - operation: Allocation sitemap read/edit/import-dispatch
   permanent: Stable invalid-request/access-denied outcomes for unknown tools/versions or missing grants; owner-safe
@@ -221,3 +226,121 @@ execution:
     batch is reserved together; implementation proceeds in dependency order,
     and dependent tasks do not start implementation before their prerequisites
     complete. Status records assignment, not completed implementation or tests.
+
+implementation_commit: e9465c6cf571648c16d7a1a753b89188ffaae556
+verification:
+  date: '2026-10-26'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Python 3.13 Runtime; Node 24.20.0 and
+    pnpm 11.24.0; dedicated PostgreSQL 17 contractor_v410_test with isolated
+    per-test schemas and 48 migrations; canonical TMPDIR=/private/tmp.
+  commands:
+  - >-
+    make test-project-sitemap-postgres passed on the final source tree:
+    13 complete owner packages, 14 mandatory domain/private-API/grant cases,
+    zero mandatory skips. The realistic publication regression accepted 257
+    updates and 360501946 encoded bytes from one Run while retaining only two
+    revisions / 2980786 bytes through ordinary ArtifactStore history.
+  - >-
+    make test-project-sitemap-tools-e2e passed: actual Server, Runtime, mTLS,
+    catalog, Scheduler, model-free tool execution and PostgreSQL verified
+    blackbox/source-assisted separation, two-Project scope, a permanent stale
+    edit and grant revocation after release. The manifest rejects missing,
+    unstarted or skipped mandatory process scenarios.
+  - >-
+    uv run --project runtime pytest runtime/tests/test_sitemap_*.py
+    runtime/tests/test_contracts.py runtime/tests/test_capabilities.py passed:
+    320 tests, including 14 sitemap tests. Maximum encoded view was 32 MiB
+    with 10000 groups and 50000 members, below 128 MiB total retained graph;
+    cached page work and page bytes were bounded. Joined cancellation/close,
+    no-refetch cursors, current authority, input canaries and transport-only
+    keyed reconciliation were verified. All seven positively advertised
+    tools also built real ADK FunctionTool declarations in a direct check.
+  - >-
+    make test-wire-cross-language passed: 283 fixtures, 334 Go and 228 Python
+    shared tests. Private command wrappers, policy/digests, generated domain
+    schemas and matching Runtime readers agree.
+  - >-
+    make verify-public-api verify-public-api-postgres and make ui-verify
+    passed, including generated clients, operation coverage, race-enabled
+    owner handlers and permanent sitemap_conflict. The public Gap source ID
+    permits the owning reducer's empty aggregate source and resource IDs.
+  - >-
+    make lint passed on the final implementation, including staticcheck,
+    testonlyexports, spec/task/schema checks, release graph, Ruff and all
+    four Runtime import contracts. Full internal/config/... and
+    internal/contracts/... suites passed with real PostgreSQL enabled.
+  evidence:
+  - >-
+    Source authority resolves only the original Run-creation input_fork at
+    a selected name, with a two-row inconsistency bound, then reads exact
+    metadata. Updating inputs/* cannot declassify another source. Real-store
+    regression verifies both permitted immutable materialization and an
+    unheld working revision being evicted normally.
+  - >-
+    Exact context selection races history eviction atomically: either frozen
+    context plus legitimate lineage commits, or exact-source absence leaves
+    no consumer artifacts. Needed permitted input bytes use ordinary frozen
+    forks; foreign mentions cannot materialize bytes or create arbitrary holds.
+  - >-
+    Intermediate sandboxed config tests were blocked from loopback; the full
+    suites were rerun with test-database access and passed. An isolated repeated
+    domain run was interrupted and replaced with the final complete 13-package
+    gate above; no pass is claimed for that interrupted run.
+  limitations:
+  - >-
+    Automatic HTTP collection, structured format parsers and OpenAPI
+    reconciliation are outside this task and remain pending. Import dispatch
+    is an explicit seam; no import capability is advertised without its adapter.
+  - >-
+    Initial closure was on codex/v410-sitemap before main integration.
+    Subsequent coordinated migration numbers and verified integration are
+    recorded in main_integration below. No full V410 release is claimed.
+  - >-
+    At the user's request, stop after this task. V410-003 through V410-007
+    were not implemented and their reservations were returned to pending in
+    both this branch and main.
+
+main_integration:
+  requested_on: '2026-10-26'
+  base_main: 8309914fbfaf4c8bb59d86188fd7b3cf69e98c45
+  verified_commit: c55a0d0a708433c8cd143088ae2bd119fe947b5b
+  migrations:
+  - 000049_project_sitemap_receipts.sql
+  - 000050_context_projection_lineage.sql
+  evidence:
+  - >-
+    Existing main migrations 000001 through 000048 remain byte-identical.
+    The real PostgreSQL upgrade preserves all 48 existing ledger entries
+    and an existing receipt, applies 000049/000050, permits sitemap receipts
+    and applies nothing on the next startup. A new regression is
+    TestPostgresProjectSitemapMigrationsPreserveMainLedgerAndReceipts.
+  - >-
+    make test-project-sitemap-postgres passed on the combined tree:
+    13 complete packages, 14 mandatory cases, zero mandatory skips.
+  - >-
+    make test-project-sitemap-tools-e2e test-artifact-history-e2e passed
+    through actual Server/Runtime/PostgreSQL processes.
+  - >-
+    make verify-public-api verify-public-api-postgres passed. The API
+    coverage selection preserves the existing Worker session-mode check
+    and adds the sitemap owner operations.
+  - >-
+    GOFLAGS='-p=2' make test-wire-cross-language passed: 285 fixtures,
+    341 Go shared tests, 237 Python shared tests. An earlier unconstrained
+    run failed two unrelated PostgreSQL cases; both passed separately,
+    then the entire bounded gate passed without code or timeout changes.
+  - >-
+    make ui-verify passed: 196 test files, 2433 passed tests and one declared
+    expected failure, plus generated types, lint, static-server checks and build.
+  - >-
+    Runtime sitemap/contracts/capability and affected Audit/OpenAPI/finding
+    suites passed: 599 tests. make lint passed, including generation checks,
+    staticcheck, import ownership, tasks/specs and the release graph.
+  - >-
+    Generated clients, dependency graph, ERD and backlog were regenerated.
+    Main's DEL-R66 remains intact; the unlanded sitemap purge requirement
+    is assigned DEL-R67 to avoid an ID collision.
+  scope: >-
+    User-authorized main delivery covers V410-001 and V410-002 only.
+    V410-003 through V410-007 remain pending and unimplemented.

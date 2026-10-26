@@ -525,6 +525,12 @@ func (r *InMemoryRegistry) reserveAll(
 			RunID:             request.RunID, StageExecutionID: request.StageExecutionID,
 			LogicalAgentName: binding.LogicalAgentName, Namespace: binding.Namespace,
 			ReadPolicy: ReadCurrentRun, WritePolicy: WriteInputsAndIntermediates,
+			SitemapPolicy: binding.AgentTemplate.Sitemap.Clone(),
+		}
+		for _, selection := range binding.AgentTemplate.Toolsets {
+			if selection.Ref == (contracts.ToolsetRef{ToolsetID: "sitemap", Version: "1"}) {
+				grant.SitemapTools = append([]string(nil), selection.Tools...)
+			}
 		}
 		reservation := Reservation{
 			PlacementLabels:        append([]string{}, entry.registration.PlacementLabels...),
@@ -815,7 +821,7 @@ func (r *InMemoryRegistry) GetGrant(allocationID string) (AllocationGrant, error
 	if !ok {
 		return AllocationGrant{}, ErrAllocationNotFound
 	}
-	return stored.reservation.Grant, nil
+	return cloneAllocationGrant(stored.reservation.Grant), nil
 }
 
 func (r *InMemoryRegistry) GetReservation(allocationID string) (Reservation, error) {
@@ -893,7 +899,7 @@ func (r *InMemoryRegistry) WithWriteGrant(
 		r.mu.Unlock()
 		return ErrAllocationNotFound
 	}
-	grant := stored.reservation.Grant
+	grant := cloneAllocationGrant(stored.reservation.Grant)
 	r.mu.Unlock()
 	return operation(grant)
 }

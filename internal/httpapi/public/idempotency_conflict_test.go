@@ -47,6 +47,7 @@ func keyedOperationRequests(t *testing.T) (handlerFixture, *reusedKeyAudits, map
 	fixture = newHandlerFixtureWithAuth(t, "../../config/testdata/valid",
 		newTestAuthentication(t), mustTestOrigins(t), false, nil,
 		func(dependencies *testServices) {
+			dependencies.Sitemap = &fakeSitemap{err: reused}
 			dependencies.ScanSweeps = reusedKeySweeps{fakeScanSweeps: &fakeScanSweeps{}, err: scanstore.ErrIdempotency}
 			dependencies.Audits = audits
 			dependencies.RunCreator = reusedKeyRuns{err: reused}
@@ -97,10 +98,11 @@ func keyedOperationRequests(t *testing.T) (handlerFixture, *reusedKeyAudits, map
 	agent := strings.Repeat("b", 64)
 	runBody := `{"workflow":"artifact-copy@1","parameters":{},"artifacts":{"source":{"namespace":"projects","name":"source"}}}`
 	requests := map[string]keyedRequest{
-		"createScanSweep":  {http.MethodPost, "/v1/scan-sweeps", `{"projectIds":["project-one"],"workflow":"nuclei-web@1","parameters":{}}`, nil},
-		"createProject":    {http.MethodPost, "/v1/projects", `{"kind":"project","name":"Keyed"}`, nil},
-		"createRun":        {http.MethodPost, "/v1/runs", runBody, nil},
-		"createProjectRun": {http.MethodPost, "/v1/projects/project-one/runs", runBody, nil},
+		"mutateProjectSitemap": {http.MethodPost, "/v1/projects/project-one/sitemap/mutations", `{"operation":"declare","expectedRevision":"absent","url":"https://example.test/users","method":"GET"}`, nil},
+		"createScanSweep":      {http.MethodPost, "/v1/scan-sweeps", `{"projectIds":["project-one"],"workflow":"nuclei-web@1","parameters":{}}`, nil},
+		"createProject":        {http.MethodPost, "/v1/projects", `{"kind":"project","name":"Keyed"}`, nil},
+		"createRun":            {http.MethodPost, "/v1/runs", runBody, nil},
+		"createProjectRun":     {http.MethodPost, "/v1/projects/project-one/runs", runBody, nil},
 		"createAudit": {http.MethodPost, "/v1/projects/project-one/audits",
 			`{"profile":{"name":"checklist","version":"1"},"inputs":{},"runtimeLabels":[],"scope":{"objective":"Keyed"}}`, nil},
 		"startAudit":  {http.MethodPost, "/v1/audits/audit-one/start", "", map[string]string{"If-Match": `"1"`}},

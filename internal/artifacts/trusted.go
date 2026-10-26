@@ -29,6 +29,18 @@ func (s *Service) Create(ctx context.Context, scope Scope, target ArtifactRef, p
 	return s.repository.Write(ctx, scope, target, payload, nil)
 }
 
+// Replace advances a purpose-owned mutable binding by exact CAS. The trusted
+// caller owns domain validation and authorization, as it does for Create.
+func (s *Service) Replace(ctx context.Context, scope Scope, target ArtifactRef, payload Payload, expectedRevision string) (WriteResult, error) {
+	if err := validateCreate(scope, target, payload, false); err != nil {
+		return WriteResult{}, err
+	}
+	if err := validateRevision(expectedRevision); err != nil {
+		return WriteResult{}, err
+	}
+	return s.repository.Write(ctx, scope, target, payload, &expectedRevision)
+}
+
 // CreateFrozen creates target in scope as a frozen binding, the one writer of
 // Server-generated Audit material (REV-R146).
 //

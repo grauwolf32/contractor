@@ -648,3 +648,7 @@ review decision or public membership publication. Empty proposed metadata and
 all frozen selection/prepared material remain attributable until ordinary
 Audit purge. Pause keeps the checkpoint and its original deadline; resume
 continues the same generation or reports its finite validation timeout.
+
+**DEL-R67.** The shared Project receipt purge includes sitemap mutations as specified by
+[SMT-R12](project-sitemap.md) and LIFE-SMT-1. Their immutable receipts leave only
+with the drained deleting Project, independently of ordinary history eviction.

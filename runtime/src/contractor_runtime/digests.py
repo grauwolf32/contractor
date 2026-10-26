@@ -109,6 +109,8 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
         manifest["spec"]["skills"] = [
             {"namespace": skill.namespace, "name": skill.name} for skill in template.skills
         ]
+    if template.sitemap is not None:
+        manifest["spec"]["sitemap"] = template.sitemap.model_dump(by_alias=True)
     if template.summarizer is not None:
         summarizer: dict[str, Any] = {
             "modelPolicy": _resolved_model_policy_value(template.summarizer.model_policy)

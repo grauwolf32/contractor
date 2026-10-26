@@ -101,6 +101,9 @@ func agentTemplateDigest(selector resolved.Selector, template contracts.Resolved
 		delete(spec, "modelPolicy")
 		spec["execution"] = template.Execution
 	}
+	if template.Sitemap != nil {
+		spec["sitemap"] = template.Sitemap
+	}
 	if len(template.Skills) > 0 {
 		skills := make([]any, len(template.Skills))
 		for index, skill := range template.Skills {

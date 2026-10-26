@@ -1,0 +1,519 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contractor.local/schema/v1alpha1/project-sitemap.schema.json",
+  "$defs": {
+    "SitemapMutation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "enum": [
+            "declare",
+            "annotate",
+            "remove",
+            "restore",
+            "replace-source"
+          ]
+        },
+        "expectedRevision": {
+          "$ref": "#/$defs/ResourceId"
+        },
+        "url": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "method": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,16}$",
+          "maxLength": 16
+        },
+        "memberIds": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "string",
+            "maxLength": 8192
+          }
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 4096,
+          "x-maxBytes": 4096
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxBytes": 64
+          }
+        },
+        "markerId": {
+          "$ref": "#/$defs/ResourceId"
+        },
+        "source": {
+          "$ref": "#/$defs/SitemapSourceUpdate"
+        }
+      }
+    },
+    "ResourceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+    },
+    "SitemapSourceUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "rules"
+      ],
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "expected": {
+          "$ref": "#/$defs/SitemapSource"
+        },
+        "artifact": {
+          "$ref": "#/$defs/SitemapExactArtifact"
+        },
+        "rules": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/SitemapRule"
+          }
+        }
+      }
+    },
+    "SitemapSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provenance",
+        "generation",
+        "policyDigest"
+      ],
+      "properties": {
+        "provenance": {
+          "$ref": "#/$defs/SitemapProvenance"
+        },
+        "generation": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "artifact": {
+          "$ref": "#/$defs/SitemapExactArtifact"
+        },
+        "policyDigest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "maxLength": 64
+        }
+      }
+    },
+    "SitemapProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "kind",
+        "mode"
+      ],
+      "properties": {
+        "sourceId": {
+          "$ref": "#/$defs/ResourceId"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "manual",
+            "http",
+            "caido",
+            "ffuf",
+            "katana",
+            "dirsearch",
+            "openapi"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "blackbox",
+            "source-assisted"
+          ]
+        },
+        "runId": {
+          "$ref": "#/$defs/ResourceId"
+        },
+        "deployment": {
+          "$ref": "#/$defs/ResourceId"
+        },
+        "credentialRevision": {
+          "$ref": "#/$defs/ResourceId"
+        },
+        "sessionGeneration": {
+          "$ref": "#/$defs/ResourceId"
+        }
+      }
+    },
+    "SitemapExactArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "digest"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/ExactArtifactRef"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "mediaType": {
+          "$ref": "#/$defs/MediaType"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        }
+      }
+    },
+    "ExactArtifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "namespace",
+        "name",
+        "revision"
+      ],
+      "properties": {
+        "namespace": {
+          "$ref": "#/$defs/ArtifactName"
+        },
+        "name": {
+          "$ref": "#/$defs/ArtifactName"
+        },
+        "revision": {
+          "$ref": "#/$defs/Revision"
+        }
+      }
+    },
+    "ArtifactName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
+    "Revision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
+    },
+    "MediaType": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "*/*"
+        },
+        {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 255,
+          "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]*/[a-z0-9][a-z0-9!#$&^_.+-]*$"
+        }
+      ]
+    },
+    "SitemapRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "origin",
+        "method",
+        "path",
+        "pointer",
+        "parameters",
+        "structural"
+      ],
+      "properties": {
+        "sourceId": {
+          "$ref": "#/$defs/ResourceId"
+        },
+        "origin": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "method": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,16}$",
+          "maxLength": 16
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "pointer": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "parameters": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxBytes": 64
+          }
+        },
+        "structural": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/SitemapStructuralParameter"
+          }
+        }
+      }
+    },
+    "SitemapStructuralParameter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "allowed"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "x-maxBytes": 64
+        },
+        "allowed": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxBytes": 64
+          },
+          "minItems": 1
+        }
+      }
+    },
+    "SitemapInputDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "digest",
+        "mediaType",
+        "sizeBytes"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "common.schema.json#/$defs/exactArtifactRef"
+        },
+        "digest": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "mediaType": {
+          "$ref": "common.schema.json#/$defs/mediaType"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 67108864
+        }
+      }
+    },
+    "SitemapAccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiVersion",
+        "policy",
+        "policyDigest",
+        "manualSourceId",
+        "inputs"
+      ],
+      "properties": {
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "policy": {
+          "$ref": "common.schema.json#/$defs/projectSitemapPolicy"
+        },
+        "policyDigest": {
+          "$ref": "common.schema.json#/$defs/digest"
+        },
+        "manualSourceId": {
+          "$ref": "common.schema.json#/$defs/resourceId"
+        },
+        "inputs": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "#/$defs/SitemapInputDescriptor"
+          }
+        }
+      }
+    },
+    "SitemapMutationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiVersion",
+        "mutation"
+      ],
+      "properties": {
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "mutation": {
+          "$ref": "#/$defs/SitemapMutation"
+        }
+      }
+    },
+    "SitemapSnapshotRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiVersion",
+        "selection"
+      ],
+      "properties": {
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "revision",
+            "expectedPolicyDigest"
+          ],
+          "properties": {
+            "revision": {
+              "$ref": "common.schema.json#/$defs/resourceId"
+            },
+            "expectedPolicyDigest": {
+              "$ref": "common.schema.json#/$defs/digest"
+            },
+            "requireReferencedInputs": {
+              "type": "boolean"
+            },
+            "groups": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "members": {
+              "type": "array",
+              "maxItems": 100,
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "SitemapMutationResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiVersion",
+        "result"
+      ],
+      "properties": {
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "artifact",
+            "replayed",
+            "changed"
+          ],
+          "properties": {
+            "artifact": {
+              "$ref": "common.schema.json#/$defs/exactArtifactRef"
+            },
+            "replayed": {
+              "type": "boolean"
+            },
+            "changed": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "SitemapSnapshotResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiVersion",
+        "result"
+      ],
+      "properties": {
+        "apiVersion": {
+          "$ref": "common.schema.json#/$defs/apiVersion"
+        },
+        "result": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "artifact",
+            "replayed"
+          ],
+          "properties": {
+            "artifact": {
+              "$ref": "#/$defs/SitemapInputDescriptor"
+            },
+            "replayed": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/SitemapAccess"
+    },
+    {
+      "$ref": "#/$defs/SitemapMutationRequest"
+    },
+    {
+      "$ref": "#/$defs/SitemapSnapshotRequest"
+    },
+    {
+      "$ref": "#/$defs/SitemapMutationResponse"
+    },
+    {
+      "$ref": "#/$defs/SitemapSnapshotResponse"
+    }
+  ]
+}

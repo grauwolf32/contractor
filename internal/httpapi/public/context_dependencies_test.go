@@ -26,7 +26,7 @@ var contextFiles = map[string][]string{
 		"agent_template_usage.go", "catalog_discovery.go",
 	},
 	"scanSweepHandlers": {"scan_sweep_handlers.go"},
-	"projectHandlers":   {"project_handlers.go"},
+	"projectHandlers":   {"project_handlers.go", "sitemap_handlers.go"},
 	"runHandlers":       {"run_handlers.go", "run_recovery.go"},
 	"runRepeatHandlers": {"run_repeat_handlers.go"},
 	"queueHandlers":     {"queue_handlers.go"},

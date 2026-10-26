@@ -1,0 +1,198 @@
+{
+  "version": "sitemap-access-cases@1",
+  "valid": [
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox",
+      "collectObservations": false
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox",
+      "collectObservations": false,
+      "openapiInputs": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7"
+      ]
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "source-assisted",
+      "collectObservations": true,
+      "deployment": "prod:one",
+      "openapiInputs": [
+        "OpenAPI.v1",
+        "schema"
+      ]
+    }
+  ],
+  "invalid": [
+    {
+      "version": "sitemap-access@2",
+      "sourceMode": "blackbox",
+      "collectObservations": false
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "whitebox",
+      "collectObservations": false
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox",
+      "collectObservations": null
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox",
+      "collectObservations": "true"
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox",
+      "collectObservations": false,
+      "deployment": "bad/identity"
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox",
+      "collectObservations": false,
+      "deployment": ""
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox",
+      "collectObservations": false,
+      "deployment": null
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox",
+      "collectObservations": false,
+      "openapiInputs": [
+        "bad/input"
+      ]
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox",
+      "collectObservations": false,
+      "openapiInputs": [
+        "same",
+        "same"
+      ]
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox",
+      "collectObservations": false,
+      "openapiInputs": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8"
+      ]
+    },
+    {
+      "sourceMode": "blackbox",
+      "collectObservations": false
+    },
+    {
+      "version": "sitemap-access@1",
+      "collectObservations": false
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox"
+    },
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox",
+      "collectObservations": false,
+      "extra": true
+    },
+    null
+  ],
+  "invariantInvalid": [
+    {
+      "version": "sitemap-access@1",
+      "sourceMode": "blackbox",
+      "collectObservations": false,
+      "openapiInputs": [
+        "z",
+        "a"
+      ]
+    }
+  ],
+  "strictInvalid": [
+    "{\"version\":\"sitemap-access@1\",\"sourceMode\":\"blackbox\",\"sourceMode\":\"source-assisted\",\"collectObservations\":false}",
+    "{\"version\":\"sitemap-access@1\",\"SourceMode\":\"blackbox\",\"collectObservations\":false}"
+  ],
+  "template": {
+    "description": "Builds the requested artifact",
+    "instructions": {
+      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "ref": "instructions/artifact-builder.md",
+      "text": "Read the declared input and write the requested result."
+    },
+    "modelPolicy": {
+      "maxModelCalls": 8,
+      "maxOutputTokens": 4096,
+      "maxToolCalls": 16,
+      "maxTotalTokens": 32768,
+      "model": "worker-model",
+      "ref": {
+        "digest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "policyId": "worker",
+        "version": "1"
+      },
+      "temperature": 0.1
+    },
+    "ref": {
+      "digest": "sha256:5d3fb04e7a6ac34786382c6700c478ef1c2fa4af4b1ab0f7b3923bab832ff4fb",
+      "templateId": "artifact_builder",
+      "version": "1"
+    },
+    "runtime": {
+      "runtimeId": "adk",
+      "version": "1"
+    },
+    "sandboxProfile": {
+      "sandboxProfileId": "local-workdir",
+      "version": "1"
+    },
+    "toolsets": [
+      {
+        "ref": {
+          "toolsetId": "run-artifacts",
+          "version": "1"
+        },
+        "tools": [
+          "read_artifact",
+          "write_artifact"
+        ]
+      }
+    ],
+    "sitemap": {
+      "version": "sitemap-access@1",
+      "sourceMode": "source-assisted",
+      "collectObservations": true,
+      "deployment": "prod:one",
+      "openapiInputs": [
+        "OpenAPI.v1",
+        "schema"
+      ]
+    }
+  }
+}

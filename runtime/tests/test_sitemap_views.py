@@ -1,0 +1,230 @@
+"""Immutable encoded views, bounded pages, current authority and joined cleanup."""
+
+import asyncio
+import json
+import threading
+from pathlib import Path
+
+import pytest
+from fakes.sitemap import POLICY_DIGEST, SitemapTransport, document, identity
+
+import contractor_runtime.toolsets.sitemap.index as index_module
+import contractor_runtime.toolsets.sitemap.session as session_module
+from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, ArtifactTransportError
+from contractor_runtime.sitemap import MAX_SITEMAP_BYTES, SitemapClient
+from contractor_runtime.toolsets.sitemap.index import MAX_PAGE_BYTES, MAX_VIEW_BYTES, ViewIndex
+from contractor_runtime.toolsets.sitemap.session import SitemapSession
+
+
+def test_shared_sitemap_document_wire_shape() -> None:
+    cases = json.loads(
+        (Path(__file__).parents[2] / "api/testdata/project-sitemap-cases.json").read_text()
+    )
+    assert ViewIndex(json.dumps(cases["empty"]).encode()).entries == {}
+    for raw in cases["invalid"]:
+        with pytest.raises(ArtifactTransportError):
+            ViewIndex(raw.encode())
+
+
+def test_generated_sitemap_wire_schema_matches_owner() -> None:
+    import importlib.util
+
+    root = Path(__file__).parents[2]
+    spec = importlib.util.spec_from_file_location(
+        "sitemap_schema_generator", root / "scripts/generate_sitemap_schema.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    assert module.OUTPUT.read_text() == module.generated()
+    assert module.WIRE_OUTPUT.read_text() == module.generated_wire()
+
+
+def test_cached_pages_survive_publication_and_eviction_but_not_refresh_or_revocation() -> None:
+    async def scenario():
+        transport = SitemapTransport(document(205))
+        session = SitemapSession(SitemapClient(ArtifactClient("allocation", transport)))
+        options = dict(
+            cursor=None,
+            refresh=False,
+            limit=100,
+            method=None,
+            origin=None,
+            path_prefix=None,
+            include_suppressed=False,
+        )
+        first = await session.list(**options)
+        assert len(first["entries"]) == 100 and first["revision"] == "revision-original"
+        assert first["nextCursor"]
+        original = set(row["id"] for row in first["entries"])
+        # The scripted server no longer has the old bytes. A continuation must
+        # not fetch them or turn to the latest publication.
+        transport.document = document(1)
+        transport.revision = "latest-revision"
+        second = await session.list(**{**options, "cursor": first["nextCursor"]})
+        third = await session.list(**{**options, "cursor": second["nextCursor"]})
+        original.update(row["id"] for row in second["entries"] + third["entries"])
+        assert len(original) == 205 and third["nextCursor"] is None
+        assert sum(path.endswith("/sitemap") for _, path, _, _ in transport.requests) == 1
+        assert second["revision"] == "revision-original"
+        for tampered in [first["nextCursor"] + "x", "garbage"]:
+            with pytest.raises(ArtifactAPIError, match="sitemap_cursor_expired"):
+                await session.list(**{**options, "cursor": tampered})
+        with pytest.raises(ArtifactAPIError, match="sitemap_cursor_expired"):
+            await session.list(**{**options, "cursor": first["nextCursor"], "method": "POST"})
+        transport.access_error = (403, "sitemap_access_denied", False)
+        with pytest.raises(ArtifactAPIError, match="sitemap_access_denied"):
+            await session.list(**{**options, "cursor": first["nextCursor"]})
+        transport.access_error = None
+        latest = await session.list(**{**options, "refresh": True})
+        assert latest["revision"] == "latest-revision"
+        with pytest.raises(ArtifactAPIError, match="sitemap_cursor_expired"):
+            await session.list(**{**options, "cursor": first["nextCursor"]})
+        await session.close()
+        assert session._view is None and not any(session._key)
+        with pytest.raises(ArtifactAPIError):
+            await session.list(**options)
+
+    asyncio.run(scenario())
+
+
+def test_read_pages_concrete_parts_suppression_and_exact_snapshot_request() -> None:
+    async def scenario():
+        value = document(1, 3, 100)
+        entry = value["groups"][0]
+        marker = {
+            "id": "removal",
+            "members": [entry["members"][0]["id"]],
+            "provenance": {"sourceId": "public", "kind": "manual", "mode": "blackbox"},
+        }
+        value["markers"] = [marker]
+        transport = SitemapTransport(value)
+        session = SitemapSession(SitemapClient(ArtifactClient("allocation", transport)))
+        page = await session.read(
+            entry["id"], cursor=None, refresh=False, limit=1, include_suppressed=False
+        )
+        rows = list(page["entries"])
+        while page["nextCursor"]:
+            page = await session.read(
+                entry["id"],
+                cursor=page["nextCursor"],
+                refresh=False,
+                limit=1,
+                include_suppressed=False,
+            )
+            rows += page["entries"]
+        assert len([row for row in rows if row["kind"] == "member"]) == 2
+        assert all(row.get("memberId") != marker["members"][0] for row in rows)
+        await session.snapshot([entry["id"]], [], False, "stable-key")
+        _, path, headers, body = transport.requests[-1]
+        request = json.loads(body)
+        assert path.endswith("/snapshots") and headers["Idempotency-Key"] == "stable-key"
+        assert request["selection"]["revision"] == "revision-original"
+        assert request["selection"]["expectedPolicyDigest"] == POLICY_DIGEST
+        assert "document" not in request
+        await session.close()
+
+    asyncio.run(scenario())
+
+
+def test_maximum_encoded_view_realistic_index_memory_and_bounded_page_work(monkeypatch) -> None:
+    value = document(10000, 5, 500)
+    encoded = json.dumps(value, separators=(",", ":")).encode()
+    del value
+    assert len(encoded) < MAX_SITEMAP_BYTES
+    encoded += b" " * (MAX_SITEMAP_BYTES - len(encoded))
+    view = ViewIndex(encoded)
+    assert len(view.entries) == 10000 and len(view.member_ids) == 50000
+    assert view.retained_bytes + MAX_PAGE_BYTES < MAX_VIEW_BYTES
+    assert len(view.data) == MAX_SITEMAP_BYTES
+    print(
+        f"sitemap view encoded={len(view.data)} retained_graph={view.retained_bytes} "
+        f"groups={len(view.entries)} members={len(view.member_ids)}"
+    )
+
+    async def bounded_pages():
+        transport = SitemapTransport()
+        session = SitemapSession(SitemapClient(ArtifactClient("allocation", transport)))
+        session._view = view
+        session._identity = "maximum-view"
+        session._revision = "exact-revision"
+        session._policy = POLICY_DIGEST
+        loads = 0
+        original_load = view.load
+
+        def count_load(span):
+            nonlocal loads
+            loads += 1
+            return original_load(span)
+
+        view.load = count_load
+        try:
+            page = await session.list(
+                cursor=None,
+                refresh=False,
+                limit=100,
+                method="POST",
+                origin=None,
+                path_prefix=None,
+                include_suppressed=False,
+            )
+            assert page["entries"] == [] and page["nextCursor"]
+            assert loads <= 100 * 7
+            assert len(json.dumps(page).encode()) <= MAX_PAGE_BYTES
+            assert all("/access" in path for _, path, _, _ in transport.requests)
+            loads = 0
+            page = await session.read(
+                view.entry_ids[0], cursor=None, refresh=False, limit=2, include_suppressed=False
+            )
+            assert len(page["entries"]) == 2 and loads <= 2
+        finally:
+            view.load = original_load
+            await session.close()
+
+    asyncio.run(bounded_pages())
+    with pytest.raises(ArtifactTransportError, match="encoded bound"):
+        ViewIndex(encoded + b" ")
+    # The total graph guard must be capable of rejecting a real indexed view.
+    monkeypatch.setattr(index_module, "MAX_VIEW_BYTES", view.retained_bytes)
+    with pytest.raises(ArtifactTransportError, match="total memory bound"):
+        ViewIndex(encoded)
+
+
+def test_cancelled_indexing_and_release_join_the_single_worker(monkeypatch) -> None:
+    started = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+    original = session_module.ViewIndex
+
+    def held(data):
+        started.set()
+        if not release.wait(30):
+            raise RuntimeError("test did not release index worker")
+        try:
+            return original(data)
+        finally:
+            finished.set()
+
+    monkeypatch.setattr(session_module, "ViewIndex", held)
+
+    async def scenario():
+        session = SitemapSession(SitemapClient(ArtifactClient("allocation", SitemapTransport())))
+        reading = asyncio.create_task(
+            session.read(
+                identity("group-0"), cursor=None, refresh=False, limit=100, include_suppressed=False
+            )
+        )
+        assert await asyncio.to_thread(started.wait, 30)
+        reading.cancel()
+        closing = asyncio.create_task(session.close())
+        await asyncio.sleep(0)
+        assert not closing.done() and not finished.is_set()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await reading
+        await closing
+        assert finished.is_set() and session._view is None
+
+    try:
+        asyncio.run(scenario())
+    finally:
+        release.set()

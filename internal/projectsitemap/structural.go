@@ -1,0 +1,119 @@
+package projectsitemap
+
+import (
+	"bytes"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"net/url"
+	"slices"
+	"strings"
+)
+
+func canonicalRules(rules []Rule) []Rule {
+	copy := append([]Rule{}, rules...)
+	for i := range copy {
+		r := &copy[i]
+		r.Parameters = append([]string{}, r.Parameters...)
+		slices.Sort(r.Parameters)
+		r.Structural = append([]StructuralParameter{}, r.Structural...)
+		for j := range r.Structural {
+			r.Structural[j].Allowed = append([]string{}, r.Structural[j].Allowed...)
+			slices.Sort(r.Structural[j].Allowed)
+		}
+		slices.SortFunc(r.Structural, func(a, b StructuralParameter) int { return strings.Compare(a.Name, b.Name) })
+	}
+	slices.SortFunc(copy, func(a, b Rule) int { return bytes.Compare(jsonBytes(a), jsonBytes(b)) })
+	return copy
+}
+
+func groupingPolicyDigest(rules []Rule) string {
+	if len(rules) == 0 {
+		return key(Projection)
+	}
+	return key(Projection, string(jsonBytes(canonicalRules(rules))))
+}
+
+func sameStructuralNames(rules []Rule, origin, method, route string, current []StructuralValue) bool {
+	names := map[string]bool{}
+	for _, r := range rules {
+		if r.Origin == origin && r.Method == method && r.Path == route {
+			for _, s := range r.Structural {
+				names[s.Name] = true
+			}
+		}
+	}
+	if len(names) != len(current) {
+		return false
+	}
+	for _, s := range current {
+		if !names[s.Name] {
+			return false
+		}
+	}
+	return true
+}
+
+func validStructural(values []StructuralValue) bool {
+	if len(values) > MaxTags {
+		return false
+	}
+	names := map[string]bool{}
+	for _, value := range values {
+		if names[value.Name] || !safeName(value.Name, nil) || len(value.Values) > MaxTags {
+			return false
+		}
+		names[value.Name] = true
+		for _, item := range value.Values {
+			if len(item) > MaxTagBytes || !safeText(item, nil) || secretName.MatchString(item) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// projectStructural retains only explicitly configured finite values after
+// secret projection. Conflicting policies and unknown values omit the whole
+// concrete identity instead of merging under a made-up placeholder.
+func projectStructural(rules []Rule, origin, method, route, raw string, secrets []contracts.SecretString) ([]StructuralValue, error) {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return nil, ErrInvalid
+	}
+	query, err := url.ParseQuery(u.RawQuery)
+	if err != nil {
+		return nil, ErrInvalid
+	}
+	selectors := map[string][]string{}
+	for _, rule := range rules {
+		if rule.Origin != origin || rule.Method != method || rule.Path != route {
+			continue
+		}
+		for _, selector := range rule.Structural {
+			allowed := slices.Clone(selector.Allowed)
+			slices.Sort(allowed)
+			if existing, found := selectors[selector.Name]; found && !slices.Equal(existing, allowed) {
+				return nil, ErrUnsafe
+			}
+			selectors[selector.Name] = allowed
+		}
+	}
+	names := make([]string, 0, len(selectors))
+	for name := range selectors {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	result := []StructuralValue{}
+	for _, name := range names {
+		values := query[name]
+		if len(values) > MaxTags {
+			return nil, ErrUnsafe
+		}
+		for _, value := range values {
+			if !slices.Contains(selectors[name], value) || !safeText(value, secrets) {
+				return nil, ErrUnsafe
+			}
+		}
+		result = append(result, StructuralValue{Name: name, Values: append([]string{}, values...)})
+	}
+	return result, nil
+}
