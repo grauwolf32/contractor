@@ -112,6 +112,8 @@ def verify(report: Path, boundary: str) -> list[str]:
             if action in {"skip", "fail", "build-fail"}:
                 raise GateError("a selected Go case or package did not pass")
             if case:
+                if package in packages:
+                    raise GateError("focused test event follows its terminal package")
                 key = (package, case)
                 if len(started) >= 8192 and key not in started:
                     raise GateError("selected test identities exceed their bound")
@@ -124,10 +126,10 @@ def verify(report: Path, boundary: str) -> list[str]:
                         raise GateError("selected case pass has no unique prior run")
                     passed.add(key)
             elif action == "pass":
-                if package in packages or any(key not in passed for key in ancestors if key[0] == package):
+                if package in packages or any(key not in passed for key in ancestors | started if key[0] == package):
                     raise GateError("package passed without complete selected execution")
                 packages.add(package)
-    if not expected or ancestors - passed or set(required) - packages:
+    if not expected or ancestors - passed or started != passed or set(required) - packages:
         raise GateError("mandatory cases or package passes are missing")
     return sorted(f"{package}/{case}" for package, case in expected)
 

@@ -45,11 +45,24 @@ class AuditIterativeGateTest(unittest.TestCase):
                        [complete[2], *complete[:2], *complete[3:]], complete + [complete[0]],
                        complete + [dict(Action="skip", Package=PACKAGE, Test="TestJourney/required")],
                        complete + [dict(Action="fail", Package=PACKAGE)],
-                       complete + [dict(Action="fail", Package=PACKAGE, Test="TestJourney/future_fault")]]
+                       complete + [dict(Action="fail", Package=PACKAGE, Test="TestJourney/future_fault")],
+                       [*complete[:2], dict(Action="run", Package=PACKAGE, Test="TestJourney/unlisted_unfinished"), *complete[2:]],
+                       complete + [dict(Action="run", Package=PACKAGE, Test="TestJourney/late")],
+                       complete + [dict(Action="output", Package=PACKAGE, Test="TestJourney/required", Output="late")]]
+            completed_extra = [*complete[:2], dict(Action="run", Package=PACKAGE, Test="TestJourney/unlisted_complete"), dict(Action="pass", Package=PACKAGE, Test="TestJourney/unlisted_complete"), *complete[2:]]
+            write_report(report, completed_extra)
+            self.assertEqual(gate.verify(report, "postgres"), [PACKAGE + "/TestJourney/required"])
             for vector in vectors:
                 write_report(report, vector)
                 with self.subTest(vector=vector), self.assertRaises(ValueError):
                     gate.verify(report, "postgres")
+            parallel = selection()
+            other = PACKAGE + "/other"
+            parallel["postgres"] = {PACKAGE: ["TestJourney/required"], other: ["TestJourney/required"]}
+            interleaved = [*complete[:2], *(dict(event, Package=other) for event in complete[:2]), *complete[2:], *(dict(event, Package=other) for event in complete[2:])]
+            write_report(report, interleaved)
+            with mock.patch.object(gate, "matrix", return_value=parallel):
+                self.assertEqual(len(gate.verify(report, "postgres")), 2)
             for malformed in ('not json\n', '[]\n', '{"Action":"run","Action":"pass"}\n', '{"Action":1}\n', 'x' * 65537):
                 report.write_text(malformed)
                 with self.subTest(malformed=malformed[:40]), self.assertRaises(ValueError):
