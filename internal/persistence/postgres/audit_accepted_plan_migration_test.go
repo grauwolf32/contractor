@@ -11,12 +11,13 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestPostgresAcceptedPlanMigrationPreservesPreparedItemsAndHolds(t *testing.T) {
+func TestSharedPostgresAcceptedPlanMigrationPreservesPreparedItemsAndHolds(t *testing.T) {
 	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if url == "" {
 		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
@@ -115,16 +116,13 @@ func seedAcceptedPlanMigrationItems(t *testing.T, ctx context.Context, pool *pgx
 	}
 	// Reuse the strict cross-language plan fixture without importing the Audit
 	// domain back into its underlying PostgreSQL package.
-	fixtureBytes, err := os.ReadFile("../../../api/testdata/audit-check-plans/accepted-plan-cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixtureBytes := contractstest.ReadFile(t, "api", "testdata", "audit-check-plans", "accepted-plan-cases.json")
 	var fixture struct {
 		Base struct {
 			Plan map[string]any `json:"plan"`
 		} `json:"base"`
 	}
-	if err = json.Unmarshal(fixtureBytes, &fixture); err != nil {
+	if err := json.Unmarshal(fixtureBytes, &fixture); err != nil {
 		t.Fatal(err)
 	}
 	plan := fixture.Base.Plan
