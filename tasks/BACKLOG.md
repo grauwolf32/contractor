@@ -5,14 +5,13 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-128 open tasks: 14 in progress, 103 pending, 11 deferred. 1145 finished: 1135 completed, 10 archived.
+127 open tasks: 13 in progress, 103 pending, 11 deferred. 1146 finished: 1136 completed, 10 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
-| [V62-016](v62-016-align-artifact-kernel-importer-inventory.yml) | quality | chore | P3 | Align the artifact kernel importer inventory after archive cache delivery |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
@@ -110,7 +109,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V62-007](v62-007-audit-check-routing.yml) | feature | P2 | — | Route trusted typed check plans through explicit profile bindings |
-| [V62-013](v62-013-audit-iterative-composition-release.yml) | chore | P2 | V62-007, V62-016 | Gate generic iterative Audit composition through real processes |
+| [V62-013](v62-013-audit-iterative-composition-release.yml) | chore | P2 | V62-007 | Gate generic iterative Audit composition through real processes |
 | [V64-001](v64-001-audit-priority-contracts.yml) | feature | P2 | — | Specify optional Audit research contracts and deterministic bypass |
 | [V64-002](v64-002-audit-priority-store.yml) | feature | P2 | V64-001, V64-012 | Persist research cycles and exact selection decisions |
 | [V64-003](v64-003-planner-only-priority-execution.yml) | feature | P2 | V64-002 | Execute resumable research phases through ordinary Workflow Runs |
@@ -243,4 +242,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 16 | 42 | 7 | 15 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 18 | 1 | 27 | 99 | 23 |
+| Quality, CI and process (`quality`) | 17 | 1 | 27 | 99 | 23 |

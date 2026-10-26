@@ -6,8 +6,8 @@ epic: quality
 kind: chore
 introduced_by: V413-001
 priority: P3
-status: in_progress
-implementation_commit: null
+status: completed
+implementation_commit: 520a80d8c2076a5a583a89559f6c796a9f9e630a
 depends_on:
 - V413-001
 languages: [go, yaml]
@@ -36,3 +36,13 @@ tests:
   covers: [A1, A2]
 - command: make lint
   covers: [A1, A2]
+verification:
+  date: '2026-10-26'
+  result: passed
+  environment: Dedicated checkout based on main 79e409d112c3807b7142385af9795850c2d728bd, without unfinished V62-007 changes.
+  commands:
+  - command: CI=true UV_OFFLINE=1 make lint
+    result: passed; exact importer inventory, layers, generated documents and release graph checks remain enabled.
+  - command: go test -count=1 ./internal/archtest
+    result: passed, complete package in 1.103 seconds.
+  disposition: One stale inventory symbol removed; no production code, transport, authorization or API behavior changed.
