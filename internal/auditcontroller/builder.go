@@ -368,6 +368,13 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 	if !exists || binding.Kind != auditprofile.AuditWorkflowCheck {
 		return PreparedSubmission{}, invalidSubmission("Audit item does not name a check Workflow role")
 	}
+	var routed *auditservice.RoutedCheckContext
+	if len(profile.Methods) != 0 {
+		routed, err = auditservice.NewRoutedCheckContext(audit, profile, baseline)
+		if err != nil {
+			return PreparedSubmission{}, invalidSubmission("pinned typed method route closure is invalid")
+		}
+	}
 	roundManifest, paged, err := b.readSelectedRoundExecutionManifest(ctx, snapshot, selected)
 	if err != nil {
 		return PreparedSubmission{}, err
@@ -401,6 +408,11 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		}
 		if findErr != nil {
 			return PreparedSubmission{}, findErr
+		}
+		if manifestItem.AcceptedPlan != nil {
+			if routed == nil || routed.Validate(*manifestItem.AcceptedPlan, manifestItem.Dependencies, item.WorkflowRole) != nil {
+				return PreparedSubmission{}, invalidSubmission("accepted check plan differs from its pinned route or authority")
+			}
 		}
 		if err := b.validateItemDependencies(ctx, snapshot, binding, baseline, item, manifestItem); err != nil {
 			return PreparedSubmission{}, err
@@ -447,7 +459,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 	if manifestArtifact.Digest != manifestDigest {
 		return PreparedSubmission{}, invalidSubmission("stored execution manifest digest differs")
 	}
-	taskInput, err := b.buildTaskInput(ctx, audit.ProjectID, namespace, manifestDigest, manifestItems, tasks)
+	taskInput, err := b.buildTaskInput(ctx, audit.ProjectID, namespace, manifestDigest, manifestItems, tasks, selected[:len(tasks)], baseline.Scope.Values())
 	if err != nil {
 		return PreparedSubmission{}, err
 	}
@@ -562,8 +574,20 @@ func (b *PinnedSubmissionBuilder) buildTaskInput(
 	manifestDigest string,
 	manifestItems []auditdomain.ExecutionItem,
 	tasks []auditstore.ExactArtifact,
+	selected []CheckExecutionMember,
+	scope map[string]string,
 ) (auditstore.ExactArtifact, error) {
 	if len(tasks) == 1 {
+		if manifestItems[0].AcceptedPlan != nil {
+			payload, err := b.artifacts.ReadProjectExact(ctx, projectID, tasks[0])
+			if err != nil {
+				return auditstore.ExactArtifact{}, err
+			}
+			pkg, err := auditdomain.ValidatePackage(payload.Data)
+			if err != nil || pkg.Manifest.Kind != auditdomain.PackageKindTask || pkg.Manifest.PackageID != manifestItems[0].TaskPackageID || pkg.Digest != tasks[0].Digest || validateRoutedTaskContent(pkg, manifestItems[0], selected[0].Item, scope) != nil {
+				return auditstore.ExactArtifact{}, invalidSubmission("typed task package differs from its accepted plan or source")
+			}
+		}
 		return tasks[0].Clone(), nil
 	}
 	if len(tasks) < 2 || len(tasks) != len(manifestItems) || len(tasks) > auditstore.MaxCollectionItems {
@@ -580,6 +604,9 @@ func (b *PinnedSubmissionBuilder) buildTaskInput(
 			pkg.Manifest.Kind != auditdomain.PackageKindTask || pkg.Manifest.PackageID != manifestItems[index].TaskPackageID ||
 			pkg.Digest != descriptor.Digest || pkg.Digest != manifestItems[index].TaskPackageDigest {
 			return auditstore.ExactArtifact{}, invalidSubmission("Audit batch contains an invalid exact task package")
+		}
+		if manifestItems[index].AcceptedPlan != nil && validateRoutedTaskContent(pkg, manifestItems[index], selected[index].Item, scope) != nil {
+			return auditstore.ExactArtifact{}, invalidSubmission("typed task package differs from its accepted plan or source")
 		}
 		inputs[index] = auditdomain.PackageInput{
 			ID: fmt.Sprintf("task-%03d", index), Path: fmt.Sprintf("tasks/%03d.zip", index),
