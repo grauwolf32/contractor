@@ -68,6 +68,11 @@ class AuditIterativeGateTest(unittest.TestCase):
                     with self.subTest(field=field), self.assertRaises(ValueError):
                         gate.matrix()
                 bad = selection()
+                bad["harness"]["test_audit_iterative_gate"] = ["AuditIterativeGateTest.test_absent"]
+                path.write_text(json.dumps(bad))
+                with self.assertRaisesRegex(ValueError, "undeclared"):
+                    gate.matrix()
+                bad = selection()
                 bad["coverage"]["A1"][0]["case"] = "TestAbsent"
                 path.write_text(json.dumps(bad))
                 with self.assertRaisesRegex(ValueError, "unselected"):
@@ -108,6 +113,18 @@ class AuditIterativeGateTest(unittest.TestCase):
             self.assertEqual(len(fresh), 1)
             self.assertEqual(json.loads(fresh[0].read_text())["status"], "failed")
             self.assertEqual(json.loads((old / "result.json").read_text())["status"], "passed")
+
+    def test_changed_source_cannot_publish_passing_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(gate, "matrix", return_value=selection()), mock.patch.object(gate, "_prerequisites"), mock.patch.object(gate, "MATRIX", Path(__file__)), contextlib.redirect_stdout(io.StringIO()):
+            def completed(report, _command, **_options):
+                write_report(report, events())
+                return 0
+            before = {"revision": "a" * 40, "dirty": False}
+            after = {"revision": "b" * 40, "dirty": False}
+            with mock.patch.object(gate, "_source", side_effect=[before, after]), mock.patch.object(gate.reports, "capture", side_effect=completed), self.assertRaisesRegex(ValueError, "source"):
+                gate.run("postgres", Path(temporary))
+            result = json.loads(next(Path(temporary).glob("*/result.json")).read_text())
+            self.assertEqual(result["status"], "failed")
 
     def test_bounded_redacted_evidence_records_source_revision(self):
         with tempfile.TemporaryDirectory() as temporary:

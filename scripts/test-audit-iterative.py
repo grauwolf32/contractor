@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -55,6 +56,14 @@ def matrix() -> dict:
                 raise GateError("invalid iterative matrix cases")
             if boundary != "harness" and (not package.startswith("github.com/grauwolf32/contractor/") or any(CASE.fullmatch(case) is None for case in cases)):
                 raise GateError("invalid Go case identity")
+    for module, names in value["harness"].items():
+        if re.fullmatch(r"test_[a-z0-9_]+", module) is None:
+            raise GateError("invalid harness module identity")
+        tree = ast.parse((ROOT / "scripts" / (module + ".py")).read_text())
+        declared = {node.name + "." + member.name for node in tree.body if isinstance(node, ast.ClassDef)
+                    for member in node.body if isinstance(member, ast.FunctionDef) and member.name.startswith("test_")}
+        if set(names) - declared:
+            raise GateError("harness matrix names an undeclared unit test")
     coverage = value.get("coverage")
     if not isinstance(coverage, dict) or set(coverage) != {f"A{i}" for i in range(1, 7)}:
         raise GateError("acceptance coverage is incomplete")
@@ -179,6 +188,10 @@ def run(boundary: str, output_dir: Path) -> Path:
             os.chdir(previous)
         if status:
             raise GateError("test command failed")
+        if _source() != evidence["source"]:
+            raise GateError("source revision or dirty state changed during verification")
+        if "sha256:" + hashlib.sha256(MATRIX.read_bytes()).hexdigest() != evidence["matrix_digest"]:
+            raise GateError("verification matrix changed during execution")
         evidence["cases"] = verify(report, boundary)
         evidence["counts"] = {"required": len(evidence["cases"]), "passed": len(evidence["cases"]), "skipped": 0}
         evidence["report_digest"] = "sha256:" + hashlib.sha256(report.read_bytes()).hexdigest()
