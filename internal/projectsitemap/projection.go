@@ -160,7 +160,7 @@ func (a Authority) contextKey() string {
 }
 
 func (a Authority) validate() error {
-	if !contracts.ValidResourceID(a.SourceID) || (a.Mode != "blackbox" && a.Mode != "source-assisted") ||
+	if !contracts.ValidResourceID(a.SourceID) || !contracts.ValidSitemapSourceMode(a.Mode) ||
 		!slices.Contains([]string{"manual", "http", "caido", "ffuf", "katana", "dirsearch", "openapi"}, a.Kind) {
 		return ErrInvalid
 	}

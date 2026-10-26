@@ -396,7 +396,12 @@
       "required": ["sourceId", "reason", "count"],
       "properties": {
         "sourceId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+          "oneOf": [
+            { "type": "string", "const": "" },
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+            }
+          ]
         },
         "reason": { "type": "string", "maxLength": 8192 },
         "count": {
@@ -8518,7 +8523,12 @@
       ],
       "properties": {
         "kind": {
-          "enum": ["input_fork", "output_bind", "project_output_publish"]
+          "enum": [
+            "input_fork",
+            "output_bind",
+            "project_output_publish",
+            "context_projection"
+          ]
         },
         "sourceScope": { "enum": ["user", "project", "run"] },
         "source": {

@@ -99,7 +99,7 @@ layers = [
   # platform: infrastructure clients, workspace, sandbox, settings and protocol
   # bindings, plus the workspace observations that tools report (the Worker
   # keeps only their reducer)
-  "a2a_server : adapters : agent_skills : archive_cache : archive_cache_files : artifacts : finding_proposals : llm : observations : projectfs : sandbox : settings : telemetry : work_root_lock : workspace",
+  "a2a_server : adapters : agent_skills : archive_cache : archive_cache_files : artifacts : finding_proposals : sitemap : llm : observations : projectfs : sandbox : settings : telemetry : work_root_lock : workspace",
   # kernel: wire contracts and dependency-free helpers (core: target policy,
   # subprocess pipes, line splitting, tool metrics and input errors, and the
   # Worker completion protocol)
@@ -142,6 +142,7 @@ forbidden_modules = [
   "contractor_runtime.toolsets.memory",
   "contractor_runtime.toolsets.openapi",
   "contractor_runtime.toolsets.run_artifacts",
+  "contractor_runtime.toolsets.sitemap",
   "contractor_runtime.toolsets.scan",
   "contractor_runtime.toolsets.security_findings",
   "contractor_runtime.toolsets.source_analysis",
@@ -176,7 +177,7 @@ containers = ["contractor_runtime.toolsets"]
 exhaustive = true
 layers = [
   # concrete toolsets: independent of each other ("|")
-  "audit_results | caido | interactsh | code_execution | edit_files | filesystem | http | likec4 | memory | openapi | run_artifacts | scan | security_findings | source_analysis | taint_annotations | text_artifacts | workspace_changes",
+  "audit_results | caido | interactsh | code_execution | edit_files | filesystem | http | likec4 | memory | openapi | run_artifacts | scan | security_findings | sitemap | source_analysis | taint_annotations | text_artifacts | workspace_changes",
   # chain bases: independent of each other; each one is imported only by the
   # consumers its protected contract below declares
   "code_analysis",

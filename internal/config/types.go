@@ -111,6 +111,7 @@ type agentTemplateSpecSource struct {
 	ModelPolicy    string                         `yaml:"modelPolicy"`
 	Execution      *contracts.ToolExecutionConfig `yaml:"execution,omitempty"`
 	Summarizer     *workerSummarizerSource        `yaml:"summarizer,omitempty"`
+	Sitemap        yaml.Node                      `yaml:"sitemap,omitempty"`
 	Toolsets       *[]toolsetSelectionSource      `yaml:"toolsets"`
 	Skills         *[]artifactRefSource           `yaml:"skills,omitempty"`
 	SandboxProfile string                         `yaml:"sandboxProfile"`

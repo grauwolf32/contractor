@@ -2566,7 +2566,7 @@ export interface components {
             provenance: components["schemas"]["SitemapProvenance"];
         };
         SitemapGap: {
-            sourceId: components["schemas"]["ResourceId"];
+            sourceId: "" | components["schemas"]["ResourceId"];
             reason: string;
             count: number;
         };
@@ -5037,7 +5037,7 @@ export interface components {
         };
         ArtifactLineageEdge: {
             /** @enum {unknown} */
-            kind: "input_fork" | "output_bind" | "project_output_publish";
+            kind: "input_fork" | "output_bind" | "project_output_publish" | "context_projection";
             /** @enum {unknown} */
             sourceScope: "user" | "project" | "run";
             source: components["schemas"]["ExactArtifactRef"];

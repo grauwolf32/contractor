@@ -105,6 +105,10 @@ var (
 			"Audit state that no longer admits the request, or a duplicate identity. Re-read the current state and "+
 			"retry with its revision.",
 		link("API-R26", publicAPI)+", "+link("ART-R59", "../artifacts/artifact-store.md"))
+	SitemapConflict = define("sitemap_conflict", http.StatusConflict, false,
+		"sitemap edit or source precondition did not match",
+		"A reviewed map revision, exact source generation or fixed manual selection no longer matches. The same intent is permanent; explicit refresh and reselection produce a new intent and key.",
+		link("SMT-R8", "../artifacts/project-sitemap.md")+", "+link("SMT-R13", "../artifacts/project-sitemap.md"))
 	IdempotencyConflict = define("idempotency_conflict", http.StatusConflict, false,
 		"Idempotency-Key is already bound to a different request; use a new key for a new request",
 		"An Idempotency-Key already bound to a different request was sent again with another request (any change "+

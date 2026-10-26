@@ -152,6 +152,10 @@ type placementProcessHarness struct {
 }
 
 func startPlacementStack(t *testing.T) *placementProcessHarness {
+	return startPlacementStackWithConfiguration(t, nil)
+}
+
+func startPlacementStackWithConfiguration(t *testing.T, configure func(string)) *placementProcessHarness {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	t.Cleanup(cancel)
@@ -198,6 +202,9 @@ func startPlacementStack(t *testing.T) *placementProcessHarness {
 		if err := os.MkdirAll(filepath.Join(configRoot, directory), 0700); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if configure != nil {
+		configure(configRoot)
 	}
 	h.server = startProcess(t, "Placement Server", h.root, map[string]string{
 		"CONTRACTOR_DATABASE_URL":         databaseURL,

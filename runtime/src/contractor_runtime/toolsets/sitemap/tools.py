@@ -1,0 +1,456 @@
+"""Explicit sitemap operations. Ordinary target tools never depend on these."""
+
+from __future__ import annotations
+
+import asyncio
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from types import MappingProxyType
+from typing import Any
+from urllib.parse import unquote
+from uuid import uuid4
+
+from contractor_runtime.adapters import AdapterHandles
+from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
+from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient
+from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.redaction import runtime_secrets
+from contractor_runtime.sitemap import SitemapClient
+from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
+from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
+from contractor_runtime.toolsets.sitemap.session import SitemapSession
+from contractor_runtime.workspace import AllocationWorkspace
+
+ImportDispatcher = Callable[[SitemapClient, Mapping[str, Any], str], Awaitable[dict[str, Any]]]
+
+
+class SitemapToolsetFactory:
+    ref = "sitemap@1"
+    exported_tools = frozenset(
+        {
+            "list_sitemap_entries",
+            "read_sitemap_entry",
+            "upsert_sitemap_entry",
+            "remove_sitemap_entry",
+            "restore_sitemap_entry",
+            "configure_sitemap_grouping",
+            "snapshot_sitemap_context",
+            "import_sitemap_source",
+        }
+    )
+    infrastructure_channels = MappingProxyType({})
+
+    def __init__(
+        self,
+        client_factory: ArtifactClientFactory | None = None,
+        import_dispatcher: ImportDispatcher | None = None,
+    ) -> None:
+        self._clients = client_factory or _unconfigured_client
+        self._import = import_dispatcher
+
+    async def probe(self) -> frozenset[str]:
+        # A parser is a later adapter; an uninstalled operation is never positive capability.
+        return (
+            self.exported_tools
+            if self._import is not None
+            else self.exported_tools - {"import_sitemap_source"}
+        )
+
+    async def create_selected(
+        self,
+        *,
+        selected: Sequence[str],
+        allocation_id: str,
+        run_id: str,
+        namespace: str,
+        runtime_settings: RuntimeSettings,
+        workspace: AllocationWorkspace,
+        state: Any,
+        adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
+        project_workspace: Any = None,
+    ) -> Mapping[str, Any]:
+        del run_id, namespace, workspace, adapter_handles, project_workspace
+        require_selected_tools(selected, await self.probe())
+        metrics = require_metrics(state, self.ref)
+        artifact = self._clients(allocation_id, runtime_settings)
+        session = SitemapSession(SitemapClient(artifact))
+        secrets = runtime_secrets(runtime_settings)
+        classes = (
+            ListSitemapEntries,
+            ReadSitemapEntry,
+            UpsertSitemapEntry,
+            RemoveSitemapEntry,
+            RestoreSitemapEntry,
+            ConfigureSitemapGrouping,
+            SnapshotSitemapContext,
+            ImportSitemapSource,
+        )
+        builders = {tool.name: tool for tool in classes}
+        return {
+            name: builders[name](session, artifact, metrics, secrets, self._import)
+            for name in selected
+        }
+
+
+class _SitemapTool(SessionArtifactTool[SitemapSession]):
+    def __init__(self, session, artifact: ArtifactClient, metrics, secrets, dispatcher) -> None:
+        super().__init__(session, artifact, metrics, secrets)
+        self._dispatcher = dispatcher
+
+    def _safe(self, value: Any, depth: int = 0) -> None:
+        if depth > 32:
+            raise ToolInputError("sitemap arguments exceed the nesting bound")
+        if isinstance(value, str):
+            # Stronger ingress rejection than telemetry redaction: even a short
+            # credential must not become persisted context or a selector hash.
+            text = value
+            for _ in range(5):
+                if any(secret and secret in text for secret in self._secrets):
+                    raise ToolInputError("sitemap arguments contain a private credential")
+                decoded = unquote(text)
+                if decoded == text:
+                    break
+                text = decoded
+        elif isinstance(value, Mapping):
+            for key, item in value.items():
+                self._safe(key, depth + 1)
+                self._safe(item, depth + 1)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                self._safe(item, depth + 1)
+
+    async def _invoke(self, arguments: dict, operation: Callable[[], Awaitable[dict]]) -> dict:
+        with self._recorded({}) as call:
+            self._safe(arguments)
+            try:
+                async with asyncio.timeout(15):
+                    result = await operation()
+            except ArtifactAPIError as error:
+                result = {
+                    "status": "failed",
+                    "ok": False,
+                    "error": {"code": error.code, "retryable": error.retryable},
+                }
+            result.setdefault("status", "completed")
+            call.succeed({"ok": result.get("ok", True)})
+            return result
+
+    async def _mutate(self, command: dict, key: str | None) -> dict:
+        return await self._session.mutate(command, key or str(uuid4()))
+
+
+class ListSitemapEntries(_SitemapTool):
+    name = "list_sitemap_entries"
+    description = """List authorized Project surface entries from one immutable safe view.
+
+    Follow nextCursor with identical filters until it is null; filtered pages
+    may be empty and still have a continuation. Refresh replaces the view and
+    invalidates all older cursors. Later Project updates do not alter an existing
+    sequence. This research map does not establish current coverage or proof.
+
+    Args:
+        cursor: Continuation from this operation, with identical filters.
+        refresh: Replace the cached view; cannot be combined with cursor.
+        limit: Maximum returned entries, from 1 to 100.
+        method: Exact HTTP method filter.
+        origin: Exact origin filter.
+        path_prefix: Literal route prefix filter.
+        include_suppressed: Include entries whose concrete members were removed.
+
+    Returns:
+        Authorized previews, original revision, policyDigest and nextCursor.
+    """
+
+    async def __call__(
+        self,
+        cursor: str | None = None,
+        refresh: bool = False,
+        limit: int = 100,
+        method: str | None = None,
+        origin: str | None = None,
+        path_prefix: str | None = None,
+        include_suppressed: bool = False,
+    ) -> dict:
+        arguments = locals().copy()
+        del arguments["self"]
+        return await self._invoke(arguments, lambda: self._session.list(**arguments))
+
+
+class ReadSitemapEntry(_SitemapTool):
+    name = "read_sitemap_entry"
+    description = """Read one authorized sitemap entry in bounded parts.
+
+    Summary, annotation, example, evidence, declaration and source records are
+    separate parts. Follow nextCursor with identical arguments until null.
+    Member IDs remain the concrete selection for edits after regrouping.
+    Provenance mentions do not grant access to foreign evidence bytes.
+
+    Args:
+        entry_id: Entry ID returned by list_sitemap_entries.
+        cursor: Continuation from this operation.
+        refresh: Replace the cached view and invalidate older cursors.
+        limit: Maximum returned parts, from 1 to 100.
+        include_suppressed: Include explicitly removed concrete members.
+
+    Returns:
+        Authorized parts, original revision, policyDigest and nextCursor.
+    """
+
+    async def __call__(
+        self,
+        entry_id: str,
+        cursor: str | None = None,
+        refresh: bool = False,
+        limit: int = 100,
+        include_suppressed: bool = False,
+    ) -> dict:
+        arguments = {
+            "entry_id": entry_id,
+            "cursor": cursor,
+            "refresh": refresh,
+            "limit": limit,
+            "include_suppressed": include_suppressed,
+        }
+        return await self._invoke(
+            arguments,
+            lambda: self._session.read(
+                entry_id,
+                cursor=cursor,
+                refresh=refresh,
+                limit=limit,
+                include_suppressed=include_suppressed,
+            ),
+        )
+
+
+class UpsertSitemapEntry(_SitemapTool):
+    name = "upsert_sitemap_entry"
+    description = """Declare a concrete operation or annotate a reviewed concrete member selection.
+
+    A declaration is an assertion, not an observed successful target request.
+    Supply either url/method for a declaration or member_ids with note/tags for
+    an annotation. The Server rejects a stale expected_revision; review the
+    current view before creating a new intent. Omit absent fields.
+
+    Args:
+        expected_revision: Reviewed map revision, or absent for an empty map.
+        url: Concrete URL for a declaration.
+        method: HTTP method for a declaration.
+        member_ids: Fixed concrete member IDs for an annotation.
+        note: Annotation text, at most 4096 UTF-8 bytes.
+        tags: Up to 16 annotation tags.
+        idempotency_key: Reuse only for an identical ambiguous operation.
+
+    Returns:
+        Exact accepted artifact reference and replay/change information, or a classified error.
+    """
+
+    async def __call__(
+        self,
+        expected_revision: str,
+        url: str | None = None,
+        method: str | None = None,
+        member_ids: list[str] | None = None,
+        note: str | None = None,
+        tags: list[str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict:
+        arguments = locals().copy()
+        del arguments["self"]
+        command = {
+            "operation": "annotate" if member_ids is not None else "declare",
+            "expectedRevision": expected_revision,
+        }
+        for key, value in (
+            ("url", url),
+            ("method", method),
+            ("memberIds", member_ids),
+            ("note", note),
+            ("tags", tags),
+        ):
+            if value is not None:
+                command[key] = value
+        return await self._invoke(arguments, lambda: self._mutate(command, idempotency_key))
+
+
+class RemoveSitemapEntry(_SitemapTool):
+    name = "remove_sitemap_entry"
+    description = """Suppress a fixed concrete member selection without deleting research history.
+
+    Future traffic never restores this selection. Keep the marker ID to restore
+    it explicitly. Later newly discovered members are outside this selection.
+
+    Args:
+        expected_revision: Reviewed map revision.
+        member_ids: Up to 64 concrete member IDs returned by read_sitemap_entry.
+        marker_id: Stable marker identity for this selection.
+        idempotency_key: Reuse only for an identical ambiguous operation.
+
+    Returns:
+        Exact accepted artifact reference and replay/change information, or a classified error.
+    """
+
+    async def __call__(
+        self,
+        expected_revision: str,
+        member_ids: list[str],
+        marker_id: str,
+        idempotency_key: str | None = None,
+    ) -> dict:
+        arguments = locals().copy()
+        del arguments["self"]
+        command = {
+            "operation": "remove",
+            "expectedRevision": expected_revision,
+            "memberIds": member_ids,
+            "markerId": marker_id,
+        }
+        return await self._invoke(arguments, lambda: self._mutate(command, idempotency_key))
+
+
+class RestoreSitemapEntry(_SitemapTool):
+    name = "restore_sitemap_entry"
+    description = """Restore one explicitly suppressed concrete selection.
+
+    Args:
+        expected_revision: Reviewed map revision.
+        marker_id: The reviewed removal marker to restore.
+        idempotency_key: Reuse only for an identical ambiguous operation.
+
+    Returns:
+        Exact accepted artifact reference and replay/change information, or a classified error.
+    """
+
+    async def __call__(
+        self, expected_revision: str, marker_id: str, idempotency_key: str | None = None
+    ) -> dict:
+        arguments = locals().copy()
+        del arguments["self"]
+        return await self._invoke(
+            arguments,
+            lambda: self._mutate(
+                {
+                    "operation": "restore",
+                    "expectedRevision": expected_revision,
+                    "markerId": marker_id,
+                },
+                idempotency_key,
+            ),
+        )
+
+
+class ConfigureSitemapGrouping(_SitemapTool):
+    name = "configure_sitemap_grouping"
+    description = """Replace this editor's grouping source using reviewed exact preconditions.
+
+    The Server supplies source identity and classification. Supply the complete
+    prior Source returned by read_sitemap_entry; omit it only to create a source.
+    A stale source/map precondition is a permanent conflict, never refreshed for you.
+    Structural query parameters require an explicit finite allowed set in rules.
+
+    Args:
+        expected_revision: Reviewed map revision.
+        rules: Bounded rules with origin, method, path, pointer, parameters
+            and structural selectors.
+        expected_source: Complete prior Source, including generation, provenance and policyDigest.
+        idempotency_key: Reuse only for an identical ambiguous operation.
+
+    Returns:
+        Exact accepted artifact reference and replay/change information, or a classified error.
+    """
+
+    async def __call__(
+        self,
+        expected_revision: str,
+        rules: list[dict[str, Any]],
+        expected_source: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict:
+        arguments = locals().copy()
+        del arguments["self"]
+
+        async def operation() -> dict:
+            access = await self._session.client.access()
+            source = {
+                "sourceId": access.manual_source_id,
+                "rules": [{**rule, "sourceId": access.manual_source_id} for rule in rules],
+            }
+            if expected_source is not None:
+                source["expected"] = expected_source
+            return await self._mutate(
+                {
+                    "operation": "replace-source",
+                    "expectedRevision": expected_revision,
+                    "source": source,
+                },
+                idempotency_key,
+            )
+
+        return await self._invoke(arguments, operation)
+
+
+class SnapshotSitemapContext(_SitemapTool):
+    name = "snapshot_sitemap_context"
+    description = """Retain a selected safe context from the exact cached view in this Run.
+
+    List/read first. The Server materializes permitted bytes and atomically
+    protects the original exact map revision. An evicted source requires explicit
+    refresh and reselection; cached bytes cannot revive it. This does not change
+    a started Audit baseline or declare proof of current target behavior.
+
+    Args:
+        group_ids: Whole entry selections from the reviewed view.
+        member_ids: Concrete member selections from the reviewed view.
+        require_referenced_inputs: Fail when a mentioned needed input is unavailable.
+        idempotency_key: Reuse only for an identical ambiguous operation.
+
+    Returns:
+        Exact frozen Run context artifact metadata and replay information, or a classified error.
+    """
+
+    async def __call__(
+        self,
+        group_ids: list[str] | None = None,
+        member_ids: list[str] | None = None,
+        require_referenced_inputs: bool = False,
+        idempotency_key: str | None = None,
+    ) -> dict:
+        arguments = locals().copy()
+        del arguments["self"]
+        return await self._invoke(
+            arguments,
+            lambda: self._session.snapshot(
+                group_ids or [],
+                member_ids or [],
+                require_referenced_inputs,
+                idempotency_key or str(uuid4()),
+            ),
+        )
+
+
+class ImportSitemapSource(_SitemapTool):
+    name = "import_sitemap_source"
+    description = """Import an explicitly selected exact source through an installed format adapter.
+
+    Args:
+        selection: Adapter format and exact authorized current-Run artifact selection.
+        idempotency_key: Reuse only for an identical ambiguous operation.
+
+    Returns:
+        Classified import result, accepted map reference and gaps.
+    """
+
+    async def __call__(self, selection: dict[str, Any], idempotency_key: str | None = None) -> dict:
+        async def operation() -> dict:
+            if self._dispatcher is None:
+                raise RuntimeError("sitemap import adapter is not installed")
+            return await self._session.dispatch_import(
+                lambda: self._dispatcher(
+                    self._session.client, selection, idempotency_key or str(uuid4())
+                )
+            )
+
+        return await self._invoke(
+            {"selection": selection, "idempotency_key": idempotency_key}, operation
+        )

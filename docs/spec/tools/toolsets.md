@@ -184,6 +184,12 @@ private Artifact client internally, within its own registered contract, without
 exposing the generic `run-artifacts@1` operations
 ([ART-R33](../artifacts/artifact-store.md)).
 
+The built-in `sitemap@1` operations are owned by the
+[Project sitemap contract](../artifacts/project-sitemap.md#smt-r13). They require
+pinned allocation policy and exact selection, independently of general Artifact
+operations or the separate observation writer. Import is a positive capability
+only with an installed format dispatcher (TLS-R17).
+
 The built-in current-Run Artifact Toolset `run-artifacts@1` and its exported
 operations, the two kinds of model-visible artifact tools an AgentTemplate may
 select, and the rule that no generic Artifact tool is injected implicitly are

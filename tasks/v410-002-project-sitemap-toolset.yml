@@ -23,6 +23,7 @@ context:
   proposal_sections: 'Sections 2-4 and 8-11: allocation authority, provenance, exact paging, safe views, snapshots
     and cleanup.'
   specification:
+  - docs/spec/artifacts/project-sitemap.md#SMT-R13
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/artifacts/projects.md
   - docs/spec/artifacts/retention-and-deletion.md
@@ -93,6 +94,10 @@ requirements:
     protected binding/exact-reference lifecycles, with atomic retention acquisition against V410-001 eviction.
     A lost selection race returns explicit exact-source unavailability and requires caller refresh/reselection;
     neither memory nor optional filesystem cache can recreate a hold, revive a removed ref or substitute latest.
+implementation_notes:
+- Pin source policy in AgentTemplate and derive Project from durable allocation Run; publish no importer capability until a real format adapter is installed.
+- Align the public sibling stale-intent outcome with the private permanent sitemap_conflict classification; verify it on PostgreSQL.
+- Pin authorization to selected original exact Run-creation input forks, never editable current bindings; materialize needed bytes through ordinary frozen forks.
 failure_outcomes:
 - operation: Allocation sitemap read/edit/import-dispatch
   permanent: Stable invalid-request/access-denied outcomes for unknown tools/versions or missing grants; owner-safe

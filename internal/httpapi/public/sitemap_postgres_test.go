@@ -74,7 +74,13 @@ func TestPostgresPublicProjectSitemap(t *testing.T) {
 	}
 	annotate := fmt.Sprintf(`{"operation":"annotate","expectedRevision":%q,"memberIds":[%q],"note":"owner note"}`, view.Revision, member.ID)
 	send("POST", endpoint+"/mutations", "annotate", annotate, 200)
-	send("POST", endpoint+"/mutations", "stale", annotate, 409)
+	var stale struct {
+		Code      string `json:"code"`
+		Retryable bool   `json:"retryable"`
+	}
+	if err := json.Unmarshal(send("POST", endpoint+"/mutations", "stale", annotate, 409), &stale); err != nil || stale.Code != "sitemap_conflict" || stale.Retryable {
+		t.Fatalf("stale intent must be permanent: %+v %v", stale, err)
+	}
 	for _, operation := range []string{"remove", "restore"} {
 		view = read()
 		selection := ""

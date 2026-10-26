@@ -87,6 +87,8 @@ type AllocationGrant struct {
 	WritePolicy       ArtifactWritePolicy
 	WriteFenced       bool
 	Lost              bool
+	SitemapPolicy     *contracts.ProjectSitemapPolicy
+	SitemapTools      []string
 	// LossReason records why the grant was lost. It is set together with Lost
 	// so a consumer that detects the loss through the grant can report the
 	// specific reason instead of collapsing every loss into one code.

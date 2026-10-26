@@ -2193,6 +2193,21 @@ func (e SitemapDocumentVersion) Valid() bool {
 	}
 }
 
+// Defines values for SitemapGapSourceId0.
+const (
+	Empty SitemapGapSourceId0 = ""
+)
+
+// Valid indicates whether the value is a known member of the SitemapGapSourceId0 enum.
+func (e SitemapGapSourceId0) Valid() bool {
+	switch e {
+	case Empty:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SitemapMutationOperation.
 const (
 	Annotate      SitemapMutationOperation = "annotate"
@@ -7593,9 +7608,17 @@ type SitemapExactArtifact struct {
 
 // SitemapGap defines model for SitemapGap.
 type SitemapGap struct {
-	Count    int        `json:"count"`
-	Reason   string     `json:"reason"`
-	SourceId ResourceId `json:"sourceId"`
+	Count    int                 `json:"count"`
+	Reason   string              `json:"reason"`
+	SourceId SitemapGap_SourceId `json:"sourceId"`
+}
+
+// SitemapGapSourceId0 defines model for SitemapGap.SourceId.0.
+type SitemapGapSourceId0 string
+
+// SitemapGap_SourceId defines model for SitemapGap.SourceId.
+type SitemapGap_SourceId struct {
+	union json.RawMessage
 }
 
 // SitemapGroup defines model for SitemapGroup.
@@ -13893,6 +13916,68 @@ func (t *RuntimeResourceSummary) UnmarshalJSON(b []byte) error {
 		}
 	}
 
+	return err
+}
+
+// AsSitemapGapSourceId0 returns the union data inside the SitemapGap_SourceId as a SitemapGapSourceId0
+func (t SitemapGap_SourceId) AsSitemapGapSourceId0() (SitemapGapSourceId0, error) {
+	var body SitemapGapSourceId0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSitemapGapSourceId0 overwrites any union data inside the SitemapGap_SourceId as the provided SitemapGapSourceId0
+func (t *SitemapGap_SourceId) FromSitemapGapSourceId0(v SitemapGapSourceId0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSitemapGapSourceId0 performs a merge with any union data inside the SitemapGap_SourceId, using the provided SitemapGapSourceId0
+func (t *SitemapGap_SourceId) MergeSitemapGapSourceId0(v SitemapGapSourceId0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsResourceId returns the union data inside the SitemapGap_SourceId as a ResourceId
+func (t SitemapGap_SourceId) AsResourceId() (ResourceId, error) {
+	var body ResourceId
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromResourceId overwrites any union data inside the SitemapGap_SourceId as the provided ResourceId
+func (t *SitemapGap_SourceId) FromResourceId(v ResourceId) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeResourceId performs a merge with any union data inside the SitemapGap_SourceId, using the provided ResourceId
+func (t *SitemapGap_SourceId) MergeResourceId(v ResourceId) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t SitemapGap_SourceId) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *SitemapGap_SourceId) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
 	return err
 }
 

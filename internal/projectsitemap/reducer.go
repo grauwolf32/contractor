@@ -16,7 +16,7 @@ import (
 
 var (
 	ErrInvalid  = apierror.New(apierror.InvalidRequest, "invalid sitemap document or mutation")
-	ErrConflict = apierror.New(apierror.Conflict, "sitemap edit or source precondition conflict")
+	ErrConflict = apierror.New(apierror.SitemapConflict, "sitemap edit or source precondition conflict")
 	ErrUnsafe   = apierror.New(apierror.InvalidRequest, "sitemap input cannot form a safe concrete identity")
 )
 
@@ -315,17 +315,19 @@ func Reduce(current Document, mutation Mutation, authority Authority) (Document,
 	}
 	if mutation.Operation != "replace-source" {
 		provenance := authority.provenance()
-		if authority.CanObserve {
-			provenance.RunID, provenance.CredentialRevision, provenance.SessionGeneration = "", "", ""
-		}
+		provenance.RunID, provenance.CredentialRevision, provenance.SessionGeneration = "", "", ""
 		index := slices.IndexFunc(next.Sources, func(s Source) bool { return s.Provenance.SourceID == authority.SourceID })
 		if index < 0 {
 			if len(next.Sources) == MaxSources {
 				return Document{}, ErrConflict
 			}
 			next.Sources = append(next.Sources, Source{Provenance: provenance, Generation: 1, PolicyDigest: key(Projection)})
-		} else if next.Sources[index].Provenance != provenance {
-			return Document{}, ErrConflict
+		} else {
+			stable := next.Sources[index].Provenance
+			stable.RunID, stable.CredentialRevision, stable.SessionGeneration = "", "", ""
+			if stable != provenance {
+				return Document{}, ErrConflict
+			}
 		}
 	}
 	switch mutation.Operation {

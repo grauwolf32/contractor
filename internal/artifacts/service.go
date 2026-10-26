@@ -288,5 +288,5 @@ func validateLineagePageQuery(query LineagePageQuery) error {
 
 func validLineageKind(value string) bool {
 	return value == LineageInputFork || value == LineageOutputBind ||
-		value == LineageProjectOutputPublish || value == LineageAuditImport
+		value == LineageProjectOutputPublish || value == LineageAuditImport || value == LineageContextProjection
 }

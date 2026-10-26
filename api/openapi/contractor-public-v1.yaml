@@ -7631,7 +7631,10 @@ components:
       - count
       properties:
         sourceId:
-          $ref: '#/components/schemas/ResourceId'
+          oneOf:
+          - type: string
+            const: ''
+          - $ref: '#/components/schemas/ResourceId'
         reason:
           type: string
           maxLength: 8192
@@ -7930,11 +7933,11 @@ components:
         properties:
           kind:
             const: project
-          projectId: &id001
+          projectId: &correlationResourceId
             $ref: '#/components/schemas/ResourceId'
           auditIds:
             type: array
-            items: *id001
+            items: *correlationResourceId
             maxItems: 0
             minItems: 0
             uniqueItems: true
@@ -7947,10 +7950,10 @@ components:
         properties:
           kind:
             const: audit
-          projectId: *id001
+          projectId: *correlationResourceId
           auditIds:
             type: array
-            items: *id001
+            items: *correlationResourceId
             maxItems: 1
             minItems: 1
             uniqueItems: true
@@ -7963,10 +7966,10 @@ components:
         properties:
           kind:
             const: audit-pair
-          projectId: *id001
+          projectId: *correlationResourceId
           auditIds:
             type: array
-            items: *id001
+            items: *correlationResourceId
             maxItems: 2
             minItems: 2
             uniqueItems: true
@@ -7998,8 +8001,8 @@ components:
       - baselineDigestEncoding
       - coverage
       properties:
-        auditId: *id001
-        revision: &id002
+        auditId: *correlationResourceId
+        revision: &correlationId002
           type: integer
           minimum: 1
           maximum: 9007199254740991
@@ -8007,7 +8010,7 @@ components:
           $ref: '#/components/schemas/AuditState'
         profile:
           $ref: '#/components/schemas/FindingComparisonProfile'
-        baselineDigest: &id003
+        baselineDigest: &correlationId003
           type: string
           pattern: ^sha256:[0-9a-f]{64}$
         baselineDigestEncoding:
@@ -8021,8 +8024,8 @@ components:
       - projectId
       - audits
       properties:
-        projectId: *id001
-        projectRevision: *id002
+        projectId: *correlationResourceId
+        projectRevision: *correlationId002
         audits:
           type: array
           items:
@@ -8040,8 +8043,8 @@ components:
       - workflowVersion
       - workflowClosureDigest
       properties:
-        receiptId: *id001
-        runId: *id001
+        receiptId: *correlationResourceId
+        runId: *correlationResourceId
         runDeleted:
           type: boolean
         logicalAgentName:
@@ -8052,7 +8055,7 @@ components:
           type: string
           minLength: 1
           maxLength: 256
-        workflowClosureDigest: *id003
+        workflowClosureDigest: *correlationId003
     FindingComparisonPreview:
       type: object
       additionalProperties: false
@@ -8067,9 +8070,9 @@ components:
       - severitySuggestion
       - origin
       properties:
-        findingId: *id001
-        auditId: *id001
-        revision: *id002
+        findingId: *correlationResourceId
+        auditId: *correlationResourceId
+        revision: *correlationId002
         preview:
           const: true
         title:
@@ -8102,8 +8105,8 @@ components:
           enum:
           - representative
           - automatic-duplicate
-        assessmentId: *id001
-        decisionId: *id001
+        assessmentId: *correlationResourceId
+        decisionId: *correlationResourceId
     FindingCorrelationPageInfo:
       oneOf:
       - type: object
@@ -8145,8 +8148,8 @@ components:
           type: string
           minLength: 1
           maxLength: 2048
-        sourceReceiptId: *id001
-        targetReceiptId: *id001
+        sourceReceiptId: *correlationResourceId
+        targetReceiptId: *correlationResourceId
         sourceSelector:
           type: integer
           minimum: 0
@@ -8198,10 +8201,10 @@ components:
       - hintsAvailability
       - familiesAvailable
       properties:
-        auditId: *id001
-        findingId: *id001
-        receiptId: *id001
-        firstReceiptId: *id001
+        auditId: *correlationResourceId
+        findingId: *correlationResourceId
+        receiptId: *correlationResourceId
+        firstReceiptId: *correlationResourceId
         hintsAvailability:
           enum:
           - available
@@ -8268,7 +8271,7 @@ components:
           type: string
           minLength: 1
           maxLength: 266
-        groupKey: &id004
+        groupKey: &correlationId004
           type: string
           pattern: ^[0-9a-f]{64}$
         basis:
@@ -8305,8 +8308,8 @@ components:
           $ref: '#/components/schemas/FindingCorrelationReadScope'
         fence:
           $ref: '#/components/schemas/FindingCorrelationFence'
-        leftAuditId: *id001
-        rightAuditId: *id001
+        leftAuditId: *correlationResourceId
+        rightAuditId: *correlationResourceId
         limitations:
           type: array
           items:
@@ -8339,7 +8342,7 @@ components:
           $ref: '#/components/schemas/FindingCorrelationReadScope'
         fence:
           $ref: '#/components/schemas/FindingCorrelationFence'
-        groupKey: *id004
+        groupKey: *correlationId004
         representative:
           $ref: '#/components/schemas/FindingCorrelationReference'
         items:
@@ -14679,7 +14682,7 @@ components:
       additionalProperties: false
       required: [kind, sourceScope, source, targetScope, target, createdAt]
       properties:
-        kind: {enum: [input_fork, output_bind, project_output_publish]}
+        kind: {enum: [input_fork, output_bind, project_output_publish, context_projection]}
         sourceScope: {enum: [user, project, run]}
         source: {$ref: '#/components/schemas/ExactArtifactRef'}
         targetScope: {enum: [user, project, run]}

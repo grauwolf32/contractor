@@ -131,6 +131,62 @@ Project metadata. Project purge must remove the domain's receipts through the
 shared bounded receipt helper before removing the Project; no independent
 receipt journal, claim, deletion controller or evidence lifetime is introduced.
 
+**SMT-R13.** Allocation access requires an explicit pinned `sitemap-access@1`
+policy in the AgentTemplate and exact selected `sitemap@1` operations. The
+policy fixes `sourceMode` (`blackbox` or `source-assisted`), an optional deployment
+identity and explicitly authorized OpenAPI input names. Authority resolves each
+name to its immutable original Run-creation input fork, never the Worker-editable
+current binding. Advancing a working copy cannot declassify another source. Reader, editor and
+importer authority derives from the selected operations. Only the policy's
+explicit `collectObservations` setting grants the separate observation writer;
+reader selection alone grants no collection. Project and owner come from the
+allocation's durable Run. A request may not select another Project or relabel
+its source mode. Manual editor mutations cannot select a Project artifact; exact source selection belongs to authorized import adapters. Unknown policy versions and operations fail validation.
+
+**SMT-R14.** A blackbox view must be assembled from allowed contributions before
+returning any document bytes. Source-assisted annotations, declarations, paths,
+parameter names and grouping effects must be excluded. An OpenAPI contribution
+requires an explicitly authorized original exact Run input revision; another Run's import is not a
+grant. Allowed observations may recover their concrete route after excluded
+templates are removed. If a structural selection cannot be reconstructed safely,
+omit it with a gap. A mixed raw map must never be materialized into a blackbox Run.
+
+**SMT-R15.** Runtime keeps one immutable encoded safe view per allocation,
+bounded by LIM-SMT-12. Parsing and indexing run in joined threads. A cursor binds
+the view identity, original exact revision and filters. Every page checks current
+Server allocation, Project and source-mode authority; local bytes confer no
+authority. Publication or source eviction does not change an existing view.
+Refresh, absence, replacement and release invalidate old cursors with
+`sitemap_cursor_expired`. There is no view TTL or implicit Artifact hold.
+
+**SMT-R16.** A context snapshot must contain only the selected authorized safe
+projection, original map revision, projection policy and authorized exact inputs.
+The Server must atomically acquire ordinary exact-reference protection before
+accepting it. Needed permitted original Run input bytes are frozen with ordinary
+exact forks in the same transaction; foreign provenance alone grants no byte
+read. Derived context has its own bytes and must not claim byte identity
+with the full map. A lost eviction race returns exact-source unavailability;
+Runtime memory and disk caches cannot revive the source. A snapshot does not
+change an existing Audit baseline or grant arbitrary foreign-Run reads.
+
+**SMT-R17.** Allocation fencing and release must join mutations, view construction
+and materialization through the existing allocation gate. Clearing/replacing a
+view joins its indexing work before freeing it. Ordinary HTTP/scanner operations
+have no sitemap publication dependency; allocation composition may connect an
+optional observation subscriber to a separate collector. Explicit sitemap tools
+report their own operation failures. Automatic collection failure belongs to Run
+owner status and deterministic completion, and never changes or repeats target
+transport.
+
+Explicit allocation tools return `status: completed` on success and `status: failed`
+with a classified error on a definite API rejection, matching ordinary `tool@1`
+completion. Transport/protocol bugs remain Python exceptions. Telemetry for these
+tools records outcome metadata only. Known credentials, including short and
+percent-encoded forms, are rejected before hashing or sending explicit tool
+arguments. Import capability is advertised only when its format dispatcher is
+installed. The private command wrappers carry the private API version; the
+domain command schemas are generated from the public owning schema.
+
 ## Interfaces
 
 The public owner operations are `GET /v1/projects/{projectId}/sitemap` and

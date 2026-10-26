@@ -1,0 +1,447 @@
+{
+  "valid": [
+    {
+      "type": "SitemapAccess",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "policy": {
+          "version": "sitemap-access@1",
+          "sourceMode": "blackbox",
+          "collectObservations": false
+        },
+        "policyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "inputs": [
+          {
+            "ref": {
+              "namespace": "research",
+              "name": "snapshot",
+              "revision": "rev-snapshot"
+            },
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.contractor.project-sitemap-context+json",
+            "sizeBytes": 100
+          }
+        ]
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "declare",
+          "expectedRevision": "absent",
+          "url": "https://example.test/route",
+          "method": "GET"
+        }
+      }
+    },
+    {
+      "type": "SitemapSnapshotRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "selection": {
+          "revision": "rev-map",
+          "expectedPolicyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "groups": [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationResponse",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "result": {
+          "artifact": {
+            "namespace": "sitemap",
+            "name": "map",
+            "revision": "rev-map"
+          },
+          "replayed": false,
+          "changed": true
+        }
+      }
+    },
+    {
+      "type": "SitemapSnapshotResponse",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "result": {
+          "artifact": {
+            "ref": {
+              "namespace": "research",
+              "name": "snapshot",
+              "revision": "rev-snapshot"
+            },
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.contractor.project-sitemap-context+json",
+            "sizeBytes": 100
+          },
+          "replayed": false
+        }
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "type": "SitemapAccess",
+      "value": {
+        "policy": {
+          "version": "sitemap-access@1",
+          "sourceMode": "blackbox",
+          "collectObservations": false
+        },
+        "policyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "inputs": [
+          {
+            "ref": {
+              "namespace": "research",
+              "name": "snapshot",
+              "revision": "rev-snapshot"
+            },
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.contractor.project-sitemap-context+json",
+            "sizeBytes": 100
+          }
+        ]
+      }
+    },
+    {
+      "type": "SitemapAccess",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "policyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "inputs": [
+          {
+            "ref": {
+              "namespace": "research",
+              "name": "snapshot",
+              "revision": "rev-snapshot"
+            },
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.contractor.project-sitemap-context+json",
+            "sizeBytes": 100
+          }
+        ]
+      }
+    },
+    {
+      "type": "SitemapAccess",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "policy": {
+          "version": "sitemap-access@1",
+          "sourceMode": "blackbox",
+          "collectObservations": false
+        },
+        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "inputs": [
+          {
+            "ref": {
+              "namespace": "research",
+              "name": "snapshot",
+              "revision": "rev-snapshot"
+            },
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.contractor.project-sitemap-context+json",
+            "sizeBytes": 100
+          }
+        ]
+      }
+    },
+    {
+      "type": "SitemapAccess",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "policy": {
+          "version": "sitemap-access@1",
+          "sourceMode": "blackbox",
+          "collectObservations": false
+        },
+        "policyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "inputs": [
+          {
+            "ref": {
+              "namespace": "research",
+              "name": "snapshot",
+              "revision": "rev-snapshot"
+            },
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.contractor.project-sitemap-context+json",
+            "sizeBytes": 100
+          }
+        ]
+      }
+    },
+    {
+      "type": "SitemapAccess",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "policy": {
+          "version": "sitemap-access@1",
+          "sourceMode": "blackbox",
+          "collectObservations": false
+        },
+        "policyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    },
+    {
+      "type": "SitemapAccess",
+      "value": {
+        "apiVersion": "future",
+        "policy": {
+          "version": "sitemap-access@1",
+          "sourceMode": "blackbox",
+          "collectObservations": false
+        },
+        "policyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "inputs": [
+          {
+            "ref": {
+              "namespace": "research",
+              "name": "snapshot",
+              "revision": "rev-snapshot"
+            },
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.contractor.project-sitemap-context+json",
+            "sizeBytes": 100
+          }
+        ]
+      }
+    },
+    {
+      "type": "SitemapAccess",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "policy": {
+          "version": "sitemap-access@1",
+          "sourceMode": "blackbox",
+          "collectObservations": false
+        },
+        "policyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "inputs": [
+          {
+            "ref": {
+              "namespace": "research",
+              "name": "snapshot",
+              "revision": "rev-snapshot"
+            },
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.contractor.project-sitemap-context+json",
+            "sizeBytes": 100
+          }
+        ],
+        "foreignProject": "other"
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "mutation": {
+          "operation": "declare",
+          "expectedRevision": "absent",
+          "url": "https://example.test/route",
+          "method": "GET"
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1"
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "future",
+        "mutation": {
+          "operation": "declare",
+          "expectedRevision": "absent",
+          "url": "https://example.test/route",
+          "method": "GET"
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "declare",
+          "expectedRevision": "absent",
+          "url": "https://example.test/route",
+          "method": "GET"
+        },
+        "foreignProject": "other"
+      }
+    },
+    {
+      "type": "SitemapSnapshotRequest",
+      "value": {
+        "selection": {
+          "revision": "rev-map",
+          "expectedPolicyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "groups": [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      }
+    },
+    {
+      "type": "SitemapSnapshotRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1"
+      }
+    },
+    {
+      "type": "SitemapSnapshotRequest",
+      "value": {
+        "apiVersion": "future",
+        "selection": {
+          "revision": "rev-map",
+          "expectedPolicyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "groups": [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      }
+    },
+    {
+      "type": "SitemapSnapshotRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "selection": {
+          "revision": "rev-map",
+          "expectedPolicyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "groups": [
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        },
+        "foreignProject": "other"
+      }
+    },
+    {
+      "type": "SitemapMutationResponse",
+      "value": {
+        "result": {
+          "artifact": {
+            "namespace": "sitemap",
+            "name": "map",
+            "revision": "rev-map"
+          },
+          "replayed": false,
+          "changed": true
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationResponse",
+      "value": {
+        "apiVersion": "contractor/v1alpha1"
+      }
+    },
+    {
+      "type": "SitemapMutationResponse",
+      "value": {
+        "apiVersion": "future",
+        "result": {
+          "artifact": {
+            "namespace": "sitemap",
+            "name": "map",
+            "revision": "rev-map"
+          },
+          "replayed": false,
+          "changed": true
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationResponse",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "result": {
+          "artifact": {
+            "namespace": "sitemap",
+            "name": "map",
+            "revision": "rev-map"
+          },
+          "replayed": false,
+          "changed": true
+        },
+        "foreignProject": "other"
+      }
+    },
+    {
+      "type": "SitemapSnapshotResponse",
+      "value": {
+        "result": {
+          "artifact": {
+            "ref": {
+              "namespace": "research",
+              "name": "snapshot",
+              "revision": "rev-snapshot"
+            },
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.contractor.project-sitemap-context+json",
+            "sizeBytes": 100
+          },
+          "replayed": false
+        }
+      }
+    },
+    {
+      "type": "SitemapSnapshotResponse",
+      "value": {
+        "apiVersion": "contractor/v1alpha1"
+      }
+    },
+    {
+      "type": "SitemapSnapshotResponse",
+      "value": {
+        "apiVersion": "future",
+        "result": {
+          "artifact": {
+            "ref": {
+              "namespace": "research",
+              "name": "snapshot",
+              "revision": "rev-snapshot"
+            },
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.contractor.project-sitemap-context+json",
+            "sizeBytes": 100
+          },
+          "replayed": false
+        }
+      }
+    },
+    {
+      "type": "SitemapSnapshotResponse",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "result": {
+          "artifact": {
+            "ref": {
+              "namespace": "research",
+              "name": "snapshot",
+              "revision": "rev-snapshot"
+            },
+            "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "mediaType": "application/vnd.contractor.project-sitemap-context+json",
+            "sizeBytes": 100
+          },
+          "replayed": false
+        },
+        "foreignProject": "other"
+      }
+    }
+  ]
+}

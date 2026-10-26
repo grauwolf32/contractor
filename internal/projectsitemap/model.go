@@ -212,6 +212,10 @@ type Authority struct {
 	SessionGeneration  string
 	CanObserve         bool
 	Secrets            []contracts.SecretString `json:"-"`
+	// Authorize checks a fresh command against the transaction's accepted map.
+	// Receipt replay has already passed current scope authorization and does not
+	// revalidate an old selection against later grouping or evicted bytes.
+	Authorize func(Document, Mutation) error `json:"-"`
 }
 
 func Empty() Document {

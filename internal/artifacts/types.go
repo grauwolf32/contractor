@@ -175,6 +175,7 @@ const (
 	LineageOutputBind           = "output_bind"
 	LineageProjectOutputPublish = "project_output_publish"
 	LineageAuditImport          = "audit_import"
+	LineageContextProjection    = "context_projection"
 )
 
 // Fork describes one trusted fork: a new target binding whose first revision

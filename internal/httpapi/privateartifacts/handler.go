@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/grauwolf32/contractor/internal/requestid"
 )
 
@@ -33,6 +34,7 @@ type Dependencies struct {
 	Findings        FindingIntake
 	NewRequestID    func() (string, error)
 	Logger          *slog.Logger
+	Sitemap         *projectsitemap.Service
 }
 
 type FindingIntake interface {
@@ -80,6 +82,10 @@ func (h *handler) routes() []httpx.Route {
 		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}/metadata", Handler: h.getArtifactMetadata},
 		{Method: http.MethodPut, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.putArtifact},
 		{Method: http.MethodPost, Path: allocation + "/finding-proposals", Handler: h.postFindingProposal},
+		{Method: http.MethodGet, Path: allocation + "/sitemap/access", Handler: h.getSitemapAccess},
+		{Method: http.MethodGet, Path: allocation + "/sitemap", Handler: h.getSitemap},
+		{Method: http.MethodPost, Path: allocation + "/sitemap/mutations", Handler: h.mutateSitemap},
+		{Method: http.MethodPost, Path: allocation + "/sitemap/snapshots", Handler: h.snapshotSitemap},
 	}
 }
 

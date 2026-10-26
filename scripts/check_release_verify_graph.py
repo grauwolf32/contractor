@@ -25,6 +25,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestNucleiWebWithDeterministicScannerAcrossProcesses",
     "TestAgentSkillsMVPProcesses",
     "TestArtifactHistoryAcrossProductionProcesses",
+    "TestProjectSitemapToolsAcrossProductionProcesses",
     "TestAuditProgramCatalogReplacementRestartsServer",
     "TestAuditProgramsAcrossProductionProcesses",
     "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",
@@ -448,6 +449,8 @@ def script_go_tests(relative: str) -> list[GoTest]:
     module = load_script(relative)
     if relative == "scripts/test-project-sitemap-postgres.py":
         return [GoTest(relative, frozenset({"integration"}), tuple("./" + name for name in module.PACKAGES), None)]
+    if relative == "scripts/test-project-sitemap-tools-e2e.py":
+        return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), "^(" + "|".join(module.PROCESS_TESTS) + ")$")]
     if relative == "scripts/test-findings-e2e.py":
         return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), "^(" + "|".join(module.PROCESS_TESTS) + ")$")]
     if relative == "scripts/test-openapi-audit-scan-e2e.py":
