@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V62-013
 priority: P2
-status: completed
+status: in_progress
 depends_on:
 - V62-007
 - V62-013
@@ -88,7 +88,6 @@ cardinality:
     whole-history hydration.
 lifecycle:
   bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
-implementation_commit: dc44a7d10dd089fbb0b0a18d5075f65fb84c5241
 verification:
   date: '2026-10-27'
   source_revision: dc44a7d10dd089fbb0b0a18d5075f65fb84c5241
@@ -132,5 +131,9 @@ verification:
     report preserves failure identity but not cause; the detailed isolated case passed (71.42s), followed
     by the complete sequential iterative command passing unchanged. No assertion, model or timeout was
     weakened. Cause is unproven; reopen process-fixture diagnosis on recurrence with full redacted output.
+  - 'Reopened after a detailed process rerun during V62-019 proved the joined fixture read findings and
+    requested review while controller finalization could still change Audit revision. Public paged reads
+    correctly returned 409; finding review rejects finalizing. Wait for automatic Audit completion before
+    the explicit review. Prior gate implementation: dc44a7d10dd089fbb0b0a18d5075f65fb84c5241.'
   limits:
   - No deployment, live-model quality evaluation or full release-verify run claimed.
