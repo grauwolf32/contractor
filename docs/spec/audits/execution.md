@@ -903,6 +903,33 @@ model cost per settled item and to show whole-batch retry amplification.
 **AUX-R91.** No separate Audit token authority is introduced, and a profile
 does not promise that increasing `batchSize` reduces cost or latency.
 
+**AUX-R101.** Typed later-Round admission has a durable intent before its
+first source read and a ten-minute validation deadline independent of Audit,
+child execution and input materialization deadlines. A pending changing slice
+is progress; an unchanged exact-source readiness wait is not. Timeout closes
+admission with `next_round_validation_deadline`, accepts no partial Round,
+and starts no target retry to repair bookkeeping. Pause preserves the
+checkpoint and deadline. Cancel/deletion fence admission and use the existing
+safe drain and bounded private proposed-work cleanup.
+
+**AUX-R102.** Admission decisions retain exact receipt/ordinal, source check
+digest, optional registered plan digest, selected route where known, and an
+admitted, rejected, deferred or blocked disposition. Rejections use a natural
+source/policy/code identity independent of generation; restart and later
+Rounds cannot append the same rejection on each tick. Acceptance and an
+ambiguous lost reply reconcile the same immutable Round and source-to-item
+associations under ControllerClaims. Neither replay nor collection creates
+a new item, target action or budget reservation.
+
+**AUX-R103.** Typed admission and dispatch validate the exact pinned profile,
+baseline scope, effective active-check policy, binding/capability closure and
+current exact item approval. The effective Project policy remains the
+start-time policy under PRJ-R104; editing Project policy applies to new
+Audits and does not reinterpret the accepted authorization of an existing
+Audit. Live owner/Project lifecycle fences and expiring approvals still
+apply. Missing configured capability is a permanent configuration/admission
+failure; temporary Runtime capacity remains an ordinary scheduling wait.
+
 ## Interfaces
 
 This document defines no public endpoint; the start, pause, resume and cancel

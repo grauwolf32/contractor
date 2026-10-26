@@ -25,9 +25,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
-func typedRoutingControllerConfig(t *testing.T) *config.Snapshot {
+func typedRoutingControllerConfig(t *testing.T, customize ...func(map[string]string)) *config.Snapshot {
 	t.Helper()
-	return loadControllerConfigWithFindings(t, 1, 8, true, func(files map[string]string) {
+	configure := func(files map[string]string) {
 		profile := strings.Replace(files["audit-profiles/checklist.yaml"], "maxRounds: 1", "maxRounds: 3", 1)
 		profile = strings.Replace(profile, "maxEvidenceBytes: 1048576", "maxEvidenceBytes: 8388608", 1)
 		methods := "  methods:\n"
@@ -42,7 +42,8 @@ func typedRoutingControllerConfig(t *testing.T) *config.Snapshot {
 		profile = strings.Replace(profile, "  execution:\n", roles+"  execution:\n", 1)
 		files["audit-profiles/checklist.yaml"] = profile
 		files["workflows/check.yaml"] = strings.Replace(files["workflows/check.yaml"], "    task: {required: true, mediaTypes: [application/zip]}", "    task: {required: true, mediaTypes: [application/zip]}\n    proposal: {required: false, mediaTypes: [application/json]}\n    previous_result: {required: false, mediaTypes: [application/zip]}", 1)
-	})
+	}
+	return loadControllerConfigWithFindings(t, 1, 8, true, append([]func(map[string]string){configure}, customize...)...)
 }
 
 type lostTypedAcceptanceReply struct {
@@ -82,7 +83,12 @@ func TestPostgresTypedRoutingUsesActualAdmissionAfterPauseRestartAndProducerDele
 	if producer.RoundID == nil {
 		t.Fatal("seed check has no Round")
 	}
-	receipt := submitChildFindingProposal(t, ctx, intake, childFindingGrant(t, ctx, h, *producer.RunID), "typed-plans", nil,
+	// An ordinary finding may propose no checks. Its indexed marker must
+	// advance the cursor before the following receipt rather than stall the
+	// durable admission intent at an empty first page.
+	grant := childFindingGrant(t, ctx, h, *producer.RunID)
+	submitChildFindingProposal(t, ctx, intake, grant, "no-follow-up-checks", nil)
+	receipt := submitChildFindingProposal(t, ctx, intake, grant, "typed-plans", nil,
 		auditdomain.ProposedCheck{Objective: "Verify exact accepted result.", Method: "verify"},
 		auditdomain.ProposedCheck{Objective: "Replay the exact receipt.", Method: "replay"},
 		auditdomain.ProposedCheck{Objective: "Establish applicability from exact materials.", Method: "applicability"},
