@@ -32,7 +32,10 @@ func TestFindingsGateRejectsFalseGreenProcessReports(t *testing.T) {
 	}
 	valid := ""
 	for _, name := range required {
-		valid += event("run", name) + event("pass", name)
+		valid += event("run", name)
+	}
+	for i := len(required) - 1; i >= 0; i-- {
+		valid += event("pass", required[i])
 	}
 	valid += event("pass", "")
 	for _, test := range []struct {
@@ -92,14 +95,16 @@ func TestFindingsGateRequiresRuntimePrerequisite(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(root, "scripts"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	script, err := os.ReadFile("../../scripts/test-findings-e2e.py")
-	if err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"test-findings-e2e.py", "release_test_reports.py"} {
+		script, err := os.ReadFile(filepath.Join("../../scripts", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(root, "scripts", name), script, 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 	path := filepath.Join(root, "scripts", "test-findings-e2e.py")
-	if err := os.WriteFile(path, script, 0o600); err != nil {
-		t.Fatal(err)
-	}
 	command := exec.Command("python3", path)
 	for _, value := range os.Environ() {
 		if !strings.HasPrefix(value, "CONTRACTOR_TEST_DATABASE_URL=") {

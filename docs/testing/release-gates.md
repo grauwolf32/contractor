@@ -61,10 +61,18 @@ parallel/revisioned submissions, batch atomicity, shared fixtures and sessions,
 standard evidence rules, escalation, spoofing, unsupported Runtimes, rollback,
 restart, hard budgets, real-Runner continuations, and ordinary/legacy completion.
 
+The bounded completion summary retains up to 128 KiB of executed identities;
+iterative and composition summaries retain up to 64 KiB.
+The gate uses the shared strict Go verifier, credential redaction and joined
+process-group capture in `scripts/release_test_reports.py`. Its required-case
+matrix is a minimum; additional selected importer and standard tests must also
+finish without skips or failures.
+
 Each invocation stores sanitized logs, `go.jsonl`, `runtime.xml`, and the exact
 executed test names in `executed.json` under a fresh directory in
-`.local/audit-completion-gate/`. `executed.json` is written only after every
-check passes; old reports cannot make a later failed invocation pass. Use
+`.local/audit-completion-gate/`. `executed.json` starts incomplete, records failure/cancellation when necessary,
+and becomes passed only after every check passes against unchanged clean source
+and matrix pins. Old reports cannot make a later failed invocation pass. Use
 `python3 scripts/test-audit-completion-e2e.py --output-dir <directory>` to retain
 these artifacts elsewhere. [V39-007](../../tasks/done/v39-007-audit-completion-release-gate.yml)
 records the implementation commit and verification evidence.
