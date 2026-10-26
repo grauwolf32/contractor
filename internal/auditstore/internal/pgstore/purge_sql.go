@@ -7,9 +7,12 @@ package pgstore
 // purgeAuditItemsSQL selects a bounded ordered prefix by primary-row and
 // distinct exact-hold counter cost. An unfit next row consumes the remainder
 // of this pass, so later parent deletes cannot cascade past the item fence.
+// A typed row conservatively reserves one staging-counter write even after
+// acceptance; this avoids another parent lookup during bounded cleanup.
 const purgeAuditItemsSQL = `
 WITH candidates AS MATERIALIZED (
- SELECT ctid,item_id,1+retained_dependency_hold_count AS work
+ SELECT ctid,item_id,1+retained_dependency_hold_count+
+  CASE WHEN prepared_page_ordinal IS NULL THEN 0 ELSE 1 END AS work
  FROM audit_items WHERE audit_id=$1 ORDER BY item_id LIMIT $2
 ), weighted AS MATERIALIZED (
  SELECT *,sum(work) OVER (ORDER BY item_id) AS cumulative FROM candidates

@@ -58,8 +58,23 @@ func TestFindingComparisonMillionRowScopeUsesBoundedIndexedReads(t *testing.T) {
 	// Fixture loading is separate from the read budget. Real production tables,
 	// constraints, primary derivation and index maintenance remain enabled. The
 	// small intake tests separately prove receipt/evidence admission semantics.
-	if _, err := pool.Exec(ctx, `INSERT INTO finding_proposal_receipts
- SELECT copied.* FROM finding_proposal_receipts AS original CROSS JOIN generate_series(1,99999) AS n
+	columns, err := pool.Query(ctx, `SELECT attname::text FROM pg_attribute
+ WHERE attrelid='finding_proposal_receipts'::regclass AND attnum>0 AND NOT attisdropped AND attgenerated=''
+ ORDER BY attnum`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields, err := pgx.CollectRows(columns, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	names, values := make([]string, len(fields)), make([]string, len(fields))
+	for index, field := range fields {
+		names[index] = pgx.Identifier{field}.Sanitize()
+		values[index] = "copied." + names[index]
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO finding_proposal_receipts (`+strings.Join(names, ",")+`)
+ SELECT `+strings.Join(values, ",")+` FROM finding_proposal_receipts AS original CROSS JOIN generate_series(1,99999) AS n
  CROSS JOIN LATERAL jsonb_populate_record(NULL::finding_proposal_receipts,to_jsonb(original)||jsonb_build_object(
  'receipt_id','million-receipt-'||n,'proposal_id','million-proposal-'||n,'invocation_id','million-invocation-'||n,
  'submission_id','million-submission-'||n,'client_key','million-client-'||n,

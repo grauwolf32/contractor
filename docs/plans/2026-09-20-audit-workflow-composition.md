@@ -232,15 +232,15 @@ Minimal no-Round public lifecycle support ships in 003; 010 adds richer provenan
 | [003](../../tasks/done/v62-003-audit-preparation-controller.yml) | Prepare Runs, recovery and minimal public controls before a Round exists | 002 |
 | [004](../../tasks/done/v62-004-audit-prepared-inventory.yml) | Atomic generated inventory and a profile using existing source-to-OpenAPI Workflow | 003 |
 | [005](../../tasks/done/v62-005-audit-round-result-snapshots.yml) | **Completed:** complete immutable settled round snapshots and exact local consumer inputs | 004 |
-| [006](../../tasks/done/v62-006-audit-retained-dependencies.yml) | Exact retained cross-round item dependencies | 004, 005, V410-010 |
-| [007](../../tasks/v62-007-audit-check-routing.yml) | **Pending:** proposed-check routing | 005, 006 |
+| [006](../../tasks/done/v62-006-audit-retained-dependencies.yml) | **Completed:** exact retained cross-round item dependencies | 004, 005, V410-010 |
+| [007](../../tasks/done/v62-007-audit-check-routing.yml) | **Completed:** trusted finding-check admission through profile-owned method routes | 005, 006 |
 | [008](../../tasks/v62-008-project-analysis-preparation.yml) | **Deferred:** standalone analysis and two-Workflow preparation | 004 |
 | [010](../../tasks/done/v62-010-audit-composition-api.yml) | Preparation provenance and scan coverage projections | 004 |
 | [011](../../tasks/done/v62-011-audit-composition-ui.yml) | Prepare/progress/results/dependencies and control journey | 009, 010 |
 | [012](../../tasks/done/v62-012-audit-composition-release.yml) | Mandatory database, process and browser release verification | 011 |
 
-The pending iterative milestone also includes V62-013, whose prerequisites
-are V62-005/006/007. Their exact dependency lists, including V410-010 for new
+The iterative milestone retains V62-013 as its exit; its shared prerequisites
+V62-005/006/007 are completed. Their exact dependency lists, including V410-010 for new
 holders, remain in the current task files. V62-008 stays deferred and excluded
 from eligible work. Existing in-progress tasks retain their owners and scope.
 

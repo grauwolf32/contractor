@@ -201,10 +201,10 @@ func lockRenewableItems(
 		itemIDs[index] = candidate.itemID
 	}
 	rows, err := tx.Query(ctx, `
-SELECT item_id,state,approval_kind,approval_subject_digest FROM audit_items
- WHERE audit_id=$1 AND item_id=ANY($2::text[])
- ORDER BY ordinal, item_id
- FOR UPDATE`, auditID, itemIDs)
+SELECT item.item_id,item.state,item.approval_kind,item.approval_subject_digest FROM audit_items AS item
+ WHERE item.audit_id=$1 AND item.item_id=ANY($2::text[]) AND `+acceptedItemSQL("item")+`
+ ORDER BY item.ordinal, item.item_id
+ FOR UPDATE OF item`, auditID, itemIDs)
 	if err != nil {
 		return nil, fmt.Errorf("lock Audit items for review renewal: %w", err)
 	}

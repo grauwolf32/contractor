@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from contractor_runtime.contracts import API_VERSION, ArtifactRef
 from contractor_runtime.contracts.base import is_blank
 from contractor_runtime.core.input_errors import ToolInputError
+from contractor_runtime.toolsets.common.check_plans import validate_proposed_check
 
 FINDING_SCHEMA = "contractor.audit.finding-proposal.v1"
 
@@ -31,6 +32,7 @@ def build_submission(
     description: str,
     evidence_refs: list[dict[str, str]],
     standard_refs: list[dict[str, str]] | None,
+    proposed_checks: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     _identifier("client_key", client_key)
     _text("title", title, required=True)
@@ -66,6 +68,16 @@ def build_submission(
         _identifier("standard_refs.scheme", reference["scheme"])
         _text("standard_refs.version", reference["version"], required=True)
         _identifier("standard_refs.requirement_id", reference["requirement_id"])
+    checks = _object_list("proposed_checks", proposed_checks, {"objective", "method"}, MAX_VALUES)
+    for check in checks:
+        try:
+            validate_proposed_check(check)
+        except (UnicodeError, ValueError):
+            raise ToolInputError(
+                "proposed_checks requires a nonblank UTF-8 objective of at most 64 KiB without "
+                "NUL and a method identifier of at most 160 ASCII letters, digits, '.', '_', "
+                "':' or '-'; start the method with a letter or digit"
+            ) from None
     submission_digest = hashlib.sha256(
         b"contractor.finding.submission.v1\0"
         + invocation_id.encode("utf-8")
@@ -81,7 +93,7 @@ def build_submission(
         "preconditions": [],
         "standard_refs": standards,
         "evidence_ids": [f"evidence-{index + 1}" for index in range(len(refs))],
-        "proposed_checks": [],
+        "proposed_checks": checks,
         "severity_suggestion": "",
         "limitations": [],
     }

@@ -35,6 +35,7 @@ WITH link_input AS MATERIALIZED (
        AND NOT EXISTS (
            SELECT 1 FROM audit_items AS item
             WHERE item.audit_id = audit.audit_id AND item.state <> 'settled'
+              AND ` + acceptedItemSQL("item") + `
        )
        AND NOT ` + uncollectedExecutionSQL + `
        AND NOT EXISTS (

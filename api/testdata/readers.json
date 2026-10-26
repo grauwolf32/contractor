@@ -18,6 +18,7 @@
     "public/utf8-byte-bound-cases.json": {"readers": ["go", "ui"]},
     "stage-summary-cases.json": {"readers":["go"],"reason":"StageContentResult is Server-owned; Go, PostgreSQL and public OpenAPI validators share these cases. Runtime already sends the unchanged WorkerCompletion summarized flag; the UI uses generated types."},
     "http-capture-cases.json": {"readers": ["go", "python", "ui"]},
+    "audit-check-plans/": {"readers": ["go", "python", "ui"]},
     "audit-dependencies/": {"readers": ["go", "python"]},
     "audit-completion/": {"readers": ["go", "python"]},
     "audit-composition/prepared-openapi-scan.yaml": {"readers": ["go"], "reason": "a catalog-valid Audit profile for the Server's preparation, storage and public tests; the Runtime and the UI never parse profiles"},

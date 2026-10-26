@@ -185,6 +185,11 @@ export function renameBlock(draft: Draft, path: Path, name: string): Draft {
     const inventory = record(spec.inventory);
     if (section === "workflows" && inventory.itemWorkflowRole === old)
       document.setIn(["spec", "inventory", "itemWorkflowRole"], name);
+    if (section === "workflows")
+      for (const [method, mapping] of Object.entries(record(spec.methods))) {
+        if (record(mapping).workflowRole === old)
+          document.setIn(["spec", "methods", method, "workflowRole"], name);
+      }
     for (const key of ["source", "settings"]) {
       const row = record(inventory[key]);
       if (section === "workflows" && row.role === old)

@@ -5,7 +5,7 @@ milestone: audit-iterative-composition-2026-10
 epic: audits
 kind: feature
 priority: P2
-status: pending
+status: completed
 reactivation:
   date: '2026-10-24'
   previous_status: deferred
@@ -17,7 +17,7 @@ previous_deferral:
   reason: Verify/replay routing is independent of the first OpenAPI scan and preparation release.
   reactivate_when: Explicit user approval of iterative checks after dependency and snapshot contracts
     are reviewed.
-implementation_commit: null
+implementation_commit: eb8ae076d88fd0524e342ef05fd3a3f26c1e8d8a
 depends_on:
 - V62-005
 - V62-006
@@ -25,6 +25,10 @@ languages:
 - go
 - json
 - yaml
+- python
+- sql
+- typescript
+- markdown
 goal: Route accepted typed check plans through profile-owned exact Workflow bindings and immutable next-Round
   admission, preserving the existing finding receipt adapter and deterministic default paths.
 context:
@@ -52,6 +56,18 @@ context:
     deferral record is preserved. The 2026-10-24 review at b523ae77 confirmed that this iterative capability
     was still absent. The initial proposal 0045 plan retained deferral; the user subsequently queued this reviewed task as pending. Completed
     V62 preparation/API/UI/release tasks and their original milestone remain unchanged.
+  follow_up_ordinary_task_mode: >-
+    The pre-existing AUD-R118 legacy allowance remains outside this typed-path change.
+    Its owning sources are docs/spec/audits/audits.md#AUD-R118,
+    internal/auditdomain/types.go ItemTask.ProfileMode, codec.go validateItemTask,
+    inventory.go validateInventoryOptions and Runtime toolsets/audit_results/packages.py
+    profile_mode validation (V77-001, commit 4d432c1324d8b790dcc74a66753b5758a06c6ac2).
+    Propose a separate tracked removal:
+    require an explicit current profile mode for every ordinary task and inventory factory,
+    remove the Go empty/omitempty and Runtime None allowance, update old fixtures and
+    delete AUD-R118 compatibility wording. No old-record fallback or data migration is needed.
+    V62-007 requires explicit mode now for every accepted_plan task without broadening
+    unrelated ordinary-task behavior.
   ownership: Generic iterative Audit composition owns these contracts. V64-001 defines research contracts,
     V64-003 owns opt-in research lifecycle, V64-004 consumes exact context, V64-006 owns the base research-to-ordinary-AuditItem
     adapter, and V64-018 adds only its pentest specialization. These are consumers, not dependencies of
@@ -253,3 +269,87 @@ lifecycle:
   retention: Accepted source, policy, route, approval and role closure stay exact through restart; pause/resume
     rechecks current authority without changing accepted bytes. No automatic resurrection of rejected/skipped
     accepted worklists.
+verification:
+  date: '2026-10-26'
+  result: passed
+  actuality: >-
+    After V62-005/006, the finding receipt adapter still had no registered
+    profile method map or accepted typed route. FindingProposal already carried
+    proposed_checks, but the actual Runtime finding facades could not publish
+    them. Both missing production boundaries are now implemented. Profiles
+    without method mappings retain their existing deterministic default path.
+  commands:
+  - command: go test -tags=integration -count=1 ./internal/config/... ./internal/auditdomain ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller
+    result: >-
+      Passed on the merged implementation with real PostgreSQL. The complete
+      domain/configuration suites passed again after removing test-only exports;
+      the complete service suite passed again after removing an unused digest wrapper.
+  - command: go test -tags=integration -count=1 ./internal/config/... ./internal/auditdomain ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller ./internal/auditbaseline ./internal/contracts ./internal/findingintake ./internal/app ./internal/persistence/... ./internal/httpapi/public
+    result: >-
+      All package results except app passed. This initial extended invocation
+      shared a database with the production-process gate, so app's single-active
+      Server lease tests collided with its live Server. The complete app suite
+      was repeated successfully in a separate disposable database below.
+  - command: go test -tags=integration -count=1 ./internal/app
+    result: Passed in 21.801 seconds in an isolated disposable PostgreSQL database.
+  - command: go test -race -tags=integration -count=1 ./internal/auditimport
+    result: >-
+      Passed the complete owner suite in 57.151 seconds with real PostgreSQL
+      and Runtime processes. Immutable receipt identity remains checked, while
+      both discarded check-index tombstones have explicit strict assertions.
+  - command: make test-audit-composition-e2e
+    result: >-
+      Passed in the combined composition/completion invocation: 58 mandatory
+      store cases, 11 production-process cases and the real browser journey,
+      with zero mandatory skips.
+  - command: make test-audit-completion-e2e
+    result: >-
+      Passed after correcting the receipt deletion test's derived-cache snapshot:
+      250 selected Go cases with race detection and 469 Runtime cases, with no
+      selected skips. Only the failed completion target needed repeating.
+  - command: make test-wire-cross-language verify-public-api
+    result: >-
+      Passed after integration with main: 282 shared fixtures, 336 Go and 234
+      Python shared reader functions; 1336 selected shared Runtime cases and
+      323 Runtime contract/performance cases. Public operation coverage passed,
+      including the independent resolved Worker session contract from main.
+  - command: cd runtime && uv run --no-sync pytest -ra tests/test_audit_accepted_plans.py tests/test_audit_retained_dependencies.py tests/test_audit_results_toolset.py tests/test_audit_result_collector.py tests/test_audit_result_publication.py tests/test_security_findings_toolset.py tests/test_finding_facades.py tests/test_finding_anchors.py tests/test_finding_tool_contracts.py tests/test_findings_reader_toolset.py tests/test_shared_round_results.py tests/test_shared_text_rules.py
+    result: Passed all 456 affected Runtime owner cases after strict typed profile-mode validation, with zero skips.
+  - command: CI=true UV_OFFLINE=1 make ui-verify
+    result: >-
+      Passed on the merged API and UI 0.10.7: generation check, lint, typecheck,
+      196 Vitest files with 2433 passes and one expected failure, 17 static
+      Server tests, and production build. Used the existing offline pnpm store.
+  - command: CI=true UV_OFFLINE=1 make lint
+    result: >-
+      Passed all generated-client, graph, model configuration, formatting,
+      vet/staticcheck, production-export, script/deployment, release graph,
+      task/specification, fixture/ERD and Runtime layer checks. No allowlist or
+      gate was widened. Removed unused convenience functions and tested limits
+      through production validators instead of keeping test-only exports.
+  - command: go run ./cmd/contractor-server config validate --root ./configs
+    result: Passed the merged shipped catalog.
+  evidence: >-
+    The actual Runtime finding tool publishes verify, replay and an unknown
+    method. After the first Round closes, the process fixture pauses, deletes
+    the released producer through the public API, restarts Server and resumes.
+    Verify and replay select differently named ordinary roles; both read the
+    exact retained proposal and accepted producer result through local inputs.
+    Downloads match retained bytes, size, digest and media type. The unknown
+    method receives one explicit rejection; another restart creates no duplicate
+    Round, item, source association, decision or Run.
+    Real-store coverage includes 130 selected checks across bounded admission
+    and private staging slices, lost acceptance replies, explicit projection
+    rebuild waiting, original deadlines, pause/cancel and non-time budget
+    deferral, single-connection access, hidden unaccepted membership, immutable
+    sealed authority and fully populated prepared/accepted Audit purge. Shared
+    tests exercise all registered methods and all five explicit profile modes.
+    Domain continuation tests reach 4096 selections; accepted item counting
+    reads parent counters at 100000 items. Existing comparison scale fixtures
+    retain 100000 receipts and 1000000 findings with generated-column-safe copies.
+  additional_check_limitation: >-
+    The optional broad make test-runtime run during V62-006 did not pass on this
+    macOS host; its Linux/Podman and Darwin-specific failures and unchanged-main
+    reproductions are recorded in tasks/done/v62-006-audit-retained-dependencies.yml.
+    The current affected Runtime suites, shared readers and required real-process
+    gates pass. No complete release-verify or Linux-wide Runtime pass is claimed.

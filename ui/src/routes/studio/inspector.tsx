@@ -21,6 +21,7 @@ import {
   StageExecutionForm,
 } from "./execution-form";
 import { ToolExecutionForm } from "./tool-execution-form";
+import { CheckMethodsForm } from "./check-methods-form";
 import type { FormEditor } from "./form-editor";
 
 export function Inspector({
@@ -581,6 +582,7 @@ export function Inspector({
                 Object.keys(record(record(draft.value.spec).workflows)),
               )}
               {field("Source input", [...p, "source", "name"])}
+              <CheckMethodsForm editor={editor} />
             </>
           ) : null}
           {node.type === "execution" ? (

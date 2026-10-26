@@ -31,7 +31,7 @@ const (
 	// MaxStopReasonMessageBytes bounds a stop reason message, as the
 	// audits_stop_reason_message_check constraint does.
 	MaxStopReasonMessageBytes = 4 << 10
-	ItemOriginSchema          = "contractor.audit.item-origin.v1"
+	ItemOriginSchema          = auditdomain.ItemOriginSchema
 )
 
 type AuditState string
@@ -477,6 +477,8 @@ type MaterializeRoundParams struct {
 }
 
 type AcceptRoundParams struct {
+	PreparedRoot          *ExactArtifact
+	Generation            string
 	Retained              []ArtifactLink
 	Claim                 ControllerClaim
 	ExpectedAuditRevision uint64

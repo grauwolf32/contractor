@@ -24,6 +24,13 @@ func (s *ClaimStore) SettleUndispatched(
 	if limit < 1 || limit > auditstore.MaxReconcileRows {
 		return 0, invalidf("Audit settlement batch is invalid")
 	}
+	var cleaned int
+	if err := s.db.QueryRow(ctx, cleanupProposedItemsSQL, claim.AuditID, claim.HolderID, claim.Epoch, limit).Scan(&cleaned); err != nil {
+		return 0, writeError("clean private proposed Audit items", err)
+	}
+	if cleaned > 0 {
+		return cleaned, nil
+	}
 	var authorized bool
 	var changed int
 	err := s.db.QueryRow(ctx, settleUndispatchedSQL,

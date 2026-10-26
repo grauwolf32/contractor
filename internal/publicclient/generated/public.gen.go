@@ -3221,6 +3221,51 @@ type AuditBaselineInventory struct {
 	Worklist                 AuditExactArtifact      `json:"worklist"`
 }
 
+// AuditCheckCapabilityRequirement defines model for AuditCheckCapabilityRequirement.
+type AuditCheckCapabilityRequirement struct {
+	Agent ConfigId `json:"agent"`
+	Ref   struct {
+		ToolsetId ConfigId      `json:"toolsetId"`
+		Version   ConfigVersion `json:"version"`
+	} `json:"ref"`
+	Stage ConfigId `json:"stage"`
+	Tools []string `json:"tools"`
+}
+
+// AuditCheckMethodMapping defines model for AuditCheckMethodMapping.
+type AuditCheckMethodMapping struct {
+	Method               interface{}                       `json:"method"`
+	Phase                interface{}                       `json:"phase"`
+	PlanSchema           interface{}                       `json:"planSchema"`
+	RequiredCapabilities []AuditCheckCapabilityRequirement `json:"requiredCapabilities"`
+	WorkflowRole         string                            `json:"workflowRole"`
+	union                json.RawMessage
+}
+
+// AuditCheckMethodMapping0 defines model for AuditCheckMethodMapping.0.
+type AuditCheckMethodMapping0 struct {
+	Method interface{} `json:"method,omitempty"`
+	Phase  interface{} `json:"phase,omitempty"`
+}
+
+// AuditCheckMethodMapping1 defines model for AuditCheckMethodMapping.1.
+type AuditCheckMethodMapping1 struct {
+	Method interface{} `json:"method,omitempty"`
+	Phase  interface{} `json:"phase,omitempty"`
+}
+
+// AuditCheckMethodMapping2 defines model for AuditCheckMethodMapping.2.
+type AuditCheckMethodMapping2 struct {
+	Method interface{} `json:"method,omitempty"`
+	Phase  interface{} `json:"phase,omitempty"`
+}
+
+// AuditCheckMethodMapping3 defines model for AuditCheckMethodMapping.3.
+type AuditCheckMethodMapping3 struct {
+	Method interface{} `json:"method,omitempty"`
+	Phase  interface{} `json:"phase,omitempty"`
+}
+
 // AuditCollectionDisposition defines model for AuditCollectionDisposition.
 type AuditCollectionDisposition = interface{}
 
@@ -3693,17 +3738,18 @@ type AuditPreparationRole2 struct {
 
 // AuditProfile defines model for AuditProfile.
 type AuditProfile struct {
-	CompatibilityReasons    []AuditCompatibilityReason       `json:"compatibilityReasons"`
-	Execution               AuditExecutionPolicy             `json:"execution"`
-	Inputs                  map[string]AuditProfileInput     `json:"inputs"`
-	Interaction             AuditInteractionPolicy           `json:"interaction"`
-	Inventory               AuditInventory                   `json:"inventory"`
-	Mode                    AuditProfileMode                 `json:"mode"`
-	Ref                     AuditProfileRef                  `json:"ref"`
-	RequiresInputValidation bool                             `json:"requiresInputValidation"`
-	ServerCompatible        bool                             `json:"serverCompatible"`
-	Standards               []AuditStandardRef               `json:"standards"`
-	Workflows               *map[string]AuditProfileWorkflow `json:"workflows,omitempty"`
+	CompatibilityReasons    []AuditCompatibilityReason          `json:"compatibilityReasons"`
+	Execution               AuditExecutionPolicy                `json:"execution"`
+	Inputs                  map[string]AuditProfileInput        `json:"inputs"`
+	Interaction             AuditInteractionPolicy              `json:"interaction"`
+	Inventory               AuditInventory                      `json:"inventory"`
+	Methods                 *map[string]AuditCheckMethodMapping `json:"methods,omitempty"`
+	Mode                    AuditProfileMode                    `json:"mode"`
+	Ref                     AuditProfileRef                     `json:"ref"`
+	RequiresInputValidation bool                                `json:"requiresInputValidation"`
+	ServerCompatible        bool                                `json:"serverCompatible"`
+	Standards               []AuditStandardRef                  `json:"standards"`
+	Workflows               *map[string]AuditProfileWorkflow    `json:"workflows,omitempty"`
 }
 
 // AuditProfileIdentity defines model for AuditProfileIdentity.
@@ -10204,6 +10250,203 @@ func (t *Audit) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.UpdatedAt)
 		if err != nil {
 			return fmt.Errorf("error reading 'updatedAt': %w", err)
+		}
+	}
+
+	return err
+}
+
+// AsAuditCheckMethodMapping0 returns the union data inside the AuditCheckMethodMapping as a AuditCheckMethodMapping0
+func (t AuditCheckMethodMapping) AsAuditCheckMethodMapping0() (AuditCheckMethodMapping0, error) {
+	var body AuditCheckMethodMapping0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditCheckMethodMapping0 overwrites any union data inside the AuditCheckMethodMapping as the provided AuditCheckMethodMapping0
+func (t *AuditCheckMethodMapping) FromAuditCheckMethodMapping0(v AuditCheckMethodMapping0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditCheckMethodMapping0 performs a merge with any union data inside the AuditCheckMethodMapping, using the provided AuditCheckMethodMapping0
+func (t *AuditCheckMethodMapping) MergeAuditCheckMethodMapping0(v AuditCheckMethodMapping0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditCheckMethodMapping1 returns the union data inside the AuditCheckMethodMapping as a AuditCheckMethodMapping1
+func (t AuditCheckMethodMapping) AsAuditCheckMethodMapping1() (AuditCheckMethodMapping1, error) {
+	var body AuditCheckMethodMapping1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditCheckMethodMapping1 overwrites any union data inside the AuditCheckMethodMapping as the provided AuditCheckMethodMapping1
+func (t *AuditCheckMethodMapping) FromAuditCheckMethodMapping1(v AuditCheckMethodMapping1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditCheckMethodMapping1 performs a merge with any union data inside the AuditCheckMethodMapping, using the provided AuditCheckMethodMapping1
+func (t *AuditCheckMethodMapping) MergeAuditCheckMethodMapping1(v AuditCheckMethodMapping1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditCheckMethodMapping2 returns the union data inside the AuditCheckMethodMapping as a AuditCheckMethodMapping2
+func (t AuditCheckMethodMapping) AsAuditCheckMethodMapping2() (AuditCheckMethodMapping2, error) {
+	var body AuditCheckMethodMapping2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditCheckMethodMapping2 overwrites any union data inside the AuditCheckMethodMapping as the provided AuditCheckMethodMapping2
+func (t *AuditCheckMethodMapping) FromAuditCheckMethodMapping2(v AuditCheckMethodMapping2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditCheckMethodMapping2 performs a merge with any union data inside the AuditCheckMethodMapping, using the provided AuditCheckMethodMapping2
+func (t *AuditCheckMethodMapping) MergeAuditCheckMethodMapping2(v AuditCheckMethodMapping2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAuditCheckMethodMapping3 returns the union data inside the AuditCheckMethodMapping as a AuditCheckMethodMapping3
+func (t AuditCheckMethodMapping) AsAuditCheckMethodMapping3() (AuditCheckMethodMapping3, error) {
+	var body AuditCheckMethodMapping3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAuditCheckMethodMapping3 overwrites any union data inside the AuditCheckMethodMapping as the provided AuditCheckMethodMapping3
+func (t *AuditCheckMethodMapping) FromAuditCheckMethodMapping3(v AuditCheckMethodMapping3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAuditCheckMethodMapping3 performs a merge with any union data inside the AuditCheckMethodMapping, using the provided AuditCheckMethodMapping3
+func (t *AuditCheckMethodMapping) MergeAuditCheckMethodMapping3(v AuditCheckMethodMapping3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AuditCheckMethodMapping) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	object["method"], err = json.Marshal(t.Method)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'method': %w", err)
+	}
+
+	object["phase"], err = json.Marshal(t.Phase)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'phase': %w", err)
+	}
+
+	object["planSchema"], err = json.Marshal(t.PlanSchema)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'planSchema': %w", err)
+	}
+
+	if t.RequiredCapabilities != nil {
+		object["requiredCapabilities"], err = json.Marshal(t.RequiredCapabilities)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'requiredCapabilities': %w", err)
+		}
+	}
+
+	object["workflowRole"], err = json.Marshal(t.WorkflowRole)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'workflowRole': %w", err)
+	}
+
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *AuditCheckMethodMapping) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["method"]; found {
+		err = json.Unmarshal(raw, &t.Method)
+		if err != nil {
+			return fmt.Errorf("error reading 'method': %w", err)
+		}
+	}
+
+	if raw, found := object["phase"]; found {
+		err = json.Unmarshal(raw, &t.Phase)
+		if err != nil {
+			return fmt.Errorf("error reading 'phase': %w", err)
+		}
+	}
+
+	if raw, found := object["planSchema"]; found {
+		err = json.Unmarshal(raw, &t.PlanSchema)
+		if err != nil {
+			return fmt.Errorf("error reading 'planSchema': %w", err)
+		}
+	}
+
+	if raw, found := object["requiredCapabilities"]; found {
+		err = json.Unmarshal(raw, &t.RequiredCapabilities)
+		if err != nil {
+			return fmt.Errorf("error reading 'requiredCapabilities': %w", err)
+		}
+	}
+
+	if raw, found := object["workflowRole"]; found {
+		err = json.Unmarshal(raw, &t.WorkflowRole)
+		if err != nil {
+			return fmt.Errorf("error reading 'workflowRole': %w", err)
 		}
 	}
 

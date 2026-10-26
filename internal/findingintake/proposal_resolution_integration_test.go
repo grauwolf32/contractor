@@ -178,13 +178,18 @@ func retainAuditChildProposals(t *testing.T, f deletionImportFixture, count int)
 func insertAmbiguousAuditChildReceipt(t *testing.T, f deletionImportFixture, clientKey string) string {
 	t.Helper()
 	original, duplicate := clientKey+"-receipt", clientKey+"-ambiguous-receipt"
-	if _, err := f.pool.Exec(f.ctx, `
-INSERT INTO finding_proposal_receipts
-SELECT (jsonb_populate_record(NULL::finding_proposal_receipts, to_jsonb(receipt) || jsonb_build_object(
-           'receipt_id', $2::text, 'proposal_id', $2::text, 'submission_id', $2::text))).*
-  FROM finding_proposal_receipts AS receipt WHERE receipt.receipt_id = $1`, original, duplicate); err != nil {
+
+	var columns, selected string
+	if err := f.pool.QueryRow(f.ctx, `SELECT string_agg(quote_ident(attname),',' ORDER BY attnum),string_agg('copy.'||quote_ident(attname),',' ORDER BY attnum) FROM pg_attribute WHERE attrelid='finding_proposal_receipts'::regclass AND attnum>0 AND NOT attisdropped AND attgenerated=''`).Scan(&columns, &selected); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO finding_proposal_receipts (`+columns+`) SELECT `+selected+`
+ FROM finding_proposal_receipts AS receipt CROSS JOIN LATERAL jsonb_populate_record(NULL::finding_proposal_receipts,
+ to_jsonb(receipt)||jsonb_build_object('receipt_id',$2::text,'proposal_id',$2::text,'submission_id',$2::text)) AS copy
+ WHERE receipt.receipt_id=$1`, original, duplicate); err != nil {
+		t.Fatal(err)
+	}
+
 	if _, err := f.pool.Exec(f.ctx, `
 INSERT INTO finding_proposal_audit_holds
 SELECT (jsonb_populate_record(NULL::finding_proposal_audit_holds, to_jsonb(hold) || jsonb_build_object(

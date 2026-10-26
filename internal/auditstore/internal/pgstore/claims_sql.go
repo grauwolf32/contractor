@@ -72,6 +72,7 @@ WITH reconcilable AS (
                           AND review.subject_revision=1
                           AND review.subject_digest=item.approval_subject_digest
                         WHERE item.audit_id=audit.audit_id
+                          AND ` + acceptedItemSQL("item") + `
                           AND item.state IN ('ready','awaiting_review')
                           AND item.approval_kind <> 'none'
                           AND (review.state='expired' OR (

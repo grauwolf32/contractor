@@ -205,11 +205,11 @@ table and exported operation; test-only repositories and unattached endpoint
 scaffolding do not satisfy this condition. Contract tasks use actual strict
 validators and supported capability checks rather than unused public types.
 
-V62-007 must accept generic typed continuation sources and route only through
-profile-owned bindings. Its tests use ordinary checks and early information
-gathering as well as verify/replay-shaped fixtures, without depending on the
-Hypothesis registry or enabling autonomous pentest. V64-006 supplies the trusted
-hypothesis/plan adapter; V411 retains the finding-receipt/ordinal adapter.
+V62-007 routes trusted finding receipt/ordinal continuations through
+profile-owned bindings. Its tests cover ordinary verify, replay and applicability
+routes without depending on the Hypothesis registry or enabling autonomous
+pentest. V64-006 supplies the future trusted hypothesis/plan adapter; V411
+consumes the existing finding receipt/ordinal adapter.
 V64-018 specializes the already working V64-006 source for pentest plan/proof
 and report contracts; it does not introduce the first research admission path.
 

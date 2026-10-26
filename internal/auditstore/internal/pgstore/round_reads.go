@@ -7,10 +7,10 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 )
 
-// CountItems counts the items of every Round of an Audit.
+// CountItems sums immutable accepted membership across at most 32 Rounds.
 func (s *QueryStore) CountItems(ctx context.Context, auditID string) (int, error) {
 	var total int
-	if err := s.db.QueryRow(ctx, `SELECT count(*) FROM audit_items WHERE audit_id = $1`, auditID).Scan(&total); err != nil {
+	if err := s.db.QueryRow(ctx, countAcceptedItemsSQL, auditID).Scan(&total); err != nil {
 		return 0, fmt.Errorf("count Audit items: %w", err)
 	}
 	return total, nil
@@ -27,9 +27,10 @@ func (s *QueryStore) ScheduledProposalChecks(
 		return result, nil
 	}
 	rows, err := s.db.Query(ctx, `
-SELECT proposal_receipt_id, proposal_check_ordinal
-  FROM audit_items
- WHERE audit_id = $1 AND proposal_receipt_id = ANY($2::text[])`, auditID, receiptIDs)
+SELECT item.proposal_receipt_id, item.proposal_check_ordinal
+  FROM audit_items AS item
+ WHERE item.audit_id = $1 AND item.proposal_receipt_id = ANY($2::text[])
+   AND `+acceptedItemSQL("item"), auditID, receiptIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list scheduled Audit proposal checks: %w", err)
 	}

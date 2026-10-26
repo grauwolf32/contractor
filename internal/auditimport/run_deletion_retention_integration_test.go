@@ -124,7 +124,7 @@ INSERT INTO finding_proposal_receipts (
 	}
 	var original []byte
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'report_projection', 'fingerprint_projection', 'anchor_projection', 'comparison_projection']
+SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'report_projection', 'fingerprint_projection', 'anchor_projection', 'comparison_projection', 'checks_projection', 'checks_projection_bytes', 'checks_projection_count']
                  ORDER BY receipt_id)
 FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(&original))
 	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
@@ -145,7 +145,7 @@ AND (comparison_projection->>'availability' IS DISTINCT FROM 'unavailable'
 		t.Fatal("discarded receipts retained comparison matching hints")
 	}
 	mustCompletion(t, f.pool.QueryRow(f.ctx, `
-SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'report_projection', 'fingerprint_projection', 'anchor_projection', 'comparison_projection']
+SELECT jsonb_agg(to_jsonb(receipt) - ARRAY['retention_state', 'source_run_deleted_at', 'discarded_at', 'retention_updated_at', 'report_projection', 'fingerprint_projection', 'anchor_projection', 'comparison_projection', 'checks_projection', 'checks_projection_bytes', 'checks_projection_count']
                  ORDER BY receipt_id)
 FROM finding_proposal_receipts AS receipt WHERE run_id = $1`, f.run.RunID).Scan(&retained))
 	// jsonb has a canonical encoding, including the original exact refs.
@@ -162,6 +162,33 @@ WHERE receipt.run_id = $1 AND receipt.retention_state = 'discarded'
   AND receipt.fingerprint_projection::jsonb = '{"schema":"contractor.finding.fingerprint-projection.v1","availability":"unavailable","reason":"discarded"}'::jsonb`, f.run.RunID).Scan(&discarded))
 	if discarded != 2 {
 		t.Fatalf("unheld native tombstones = %d, want 2", discarded)
+	}
+	// The new private index is another erased cache, not immutable receipt
+	// provenance. Both unheld tombstones retain only their exact digest/size
+	// header, and their generated cost headers describe those stored bytes.
+	rows, err := f.pool.Query(f.ctx, `
+SELECT receipt_id, checks_projection, checks_projection_count, checks_projection_bytes,
+       proposal_digest, proposal_size_bytes
+  FROM finding_proposal_receipts WHERE run_id=$1 ORDER BY receipt_id`, f.run.RunID)
+	mustCompletion(t, err)
+	defer rows.Close()
+	indexedTombstones := 0
+	for rows.Next() {
+		var id, digest string
+		var data []byte
+		var count, bytes int
+		var size int64
+		mustCompletion(t, rows.Scan(&id, &data, &count, &bytes, &digest, &size))
+		projection, err := auditdomain.DecodeFindingChecksProjection(data)
+		if err != nil || !projection.Discarded || projection.Subject != nil || projection.Limitations != nil || len(projection.Checks) != 0 ||
+			projection.ProposalDigest != digest || projection.SizeBytes != size || count != 0 || bytes != len(data) || bytes < 1 || bytes > auditdomain.MaximumFindingChecksProjectionBytes {
+			t.Fatalf("discarded check index %s: discarded=%v checks=%d count=%d bytes=%d actual=%d error=%v", id, projection.Discarded, len(projection.Checks), count, bytes, len(data), err)
+		}
+		indexedTombstones++
+	}
+	mustCompletion(t, rows.Err())
+	if indexedTombstones != 2 {
+		t.Fatalf("discarded check index tombstones = %d, want 2", indexedTombstones)
 	}
 }
 

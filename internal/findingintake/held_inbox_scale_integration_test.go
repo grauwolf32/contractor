@@ -100,7 +100,7 @@ func seedHeldScaleInbox(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		{prefix: "native", owner: inboxOwner, project: inboxProject, run: "x-live", audit: inboxAudit,
 			count: heldScaleNative - heldScaleOverlap, offset: 11 * time.Second, step: span / (heldScaleNative - heldScaleOverlap)},
 		{prefix: "native-gone-held", owner: inboxOwner, project: inboxProject, run: "x-gone", audit: inboxAudit,
-			count: heldScaleGone, offset: 13 * time.Second, step: span / heldScaleGone, sourceDeleted: true},
+			count: heldScaleGone, offset: 13 * time.Second, step: span / heldScaleGone, sourceDeleted: true, auditHeld: true},
 		{prefix: "sibling", owner: inboxOwner, project: inboxProject, run: "y-run", audit: inboxSiblingAudit,
 			count: heldScaleSibling, offset: 17 * time.Second, step: span / heldScaleSibling},
 	} {

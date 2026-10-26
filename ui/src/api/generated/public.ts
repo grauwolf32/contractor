@@ -3892,6 +3892,45 @@ export interface components {
             name?: components["schemas"]["ArtifactName"];
             value?: string;
         };
+        AuditCheckCapabilityRequirement: {
+            stage: components["schemas"]["ConfigId"];
+            agent: components["schemas"]["ConfigId"];
+            ref: {
+                toolsetId: components["schemas"]["ConfigId"];
+                version: components["schemas"]["ConfigVersion"];
+            };
+            tools: string[];
+        };
+        AuditCheckMethodMapping: {
+            /** @constant */
+            planSchema: "contractor.audit.finding-check-plan.v1";
+            /** @enum {unknown} */
+            method: "verify" | "replay" | "applicability" | "alternative" | "static-trace" | "http-probe";
+            /** @enum {unknown} */
+            phase: "verify" | "replay" | "applicability" | "alternative";
+            workflowRole: string;
+            requiredCapabilities: components["schemas"]["AuditCheckCapabilityRequirement"][];
+        } & ({
+            /** @enum {unknown} */
+            method?: "verify" | "static-trace" | "http-probe";
+            /** @constant */
+            phase?: "verify";
+        } | {
+            /** @constant */
+            method?: "replay";
+            /** @constant */
+            phase?: "replay";
+        } | {
+            /** @constant */
+            method?: "applicability";
+            /** @constant */
+            phase?: "applicability";
+        } | {
+            /** @constant */
+            method?: "alternative";
+            /** @constant */
+            phase?: "alternative";
+        });
         AuditProfileWorkflow: {
             /** @enum {unknown} */
             kind: "prepare" | "check" | "discovery" | "assessment";
@@ -3948,6 +3987,9 @@ export interface components {
             inventory: components["schemas"]["AuditInventory"];
             workflows?: {
                 [key: string]: components["schemas"]["AuditProfileWorkflow"];
+            };
+            methods?: {
+                [key: string]: components["schemas"]["AuditCheckMethodMapping"];
             };
             execution: components["schemas"]["AuditExecutionPolicy"];
             interaction: components["schemas"]["AuditInteractionPolicy"];

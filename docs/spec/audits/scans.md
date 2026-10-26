@@ -1094,6 +1094,59 @@ its own obligations within the shared bounded purge; child Run purge removes
 its local copies independently. No new TTL, lease, hold table or quota refund
 is introduced (LIFE-ASC-5).
 
+## Typed finding-check admission
+
+**ASC-R179.** A profile with declared method mappings uses the registered
+finding receipt/ordinal adapter for later-Round checks. Admission reads the
+private exact-byte check projection by an indexed receipt/ordinal cursor,
+then validates only the selected check fragment and its exact subject and
+limitations. An unknown method or absent mapping has a retained rejection
+disposition and creates no item or child. A receipt with no checks advances
+the cursor without fabricating a check. Profiles without method mappings
+retain their existing inventory role and whole-package next-Round path.
+
+**ASC-R180.** An absent private check projection blocks that exact receipt
+with `source_projection_pending`; it is neither empty input nor a rejected
+ordinal. Repeated readiness probes change no checkpoint or decision. Only
+an explicit bounded index rebuild makes the source ready; resumption keeps
+the original generation and validation deadline and never parses a whole
+proposal as an admission fallback.
+
+**ASC-R181.** Each candidate is prepared inside the current claimed
+transaction's savepoint. Its exact retained dependency closure, selected
+ordinary Workflow binding, accepted plan, source fragment and task package
+exist before budget admission. Refusal rolls back speculative artifacts and
+holds together while the outer transaction may retain its deterministic
+decision. Source and task copies are frozen Audit artifacts and consume the
+existing distinct retained-evidence accounting. Storage replay cannot debit
+the same exact revision twice.
+
+**ASC-R182.** Selection and preparation use separate strict canonical page
+chains and compact roots. Selected source fragments keep their actual exact
+source descriptors; the selection root seals their ordered membership. The
+prepared root pins that selection root and the complete prepared page chain.
+Pages and proposed items are hidden until one atomic accepted-Round switch.
+Acceptance validates the staged counters, generation, page chain, exact
+source membership and route pins without rereading all prepared pages.
+
+**ASC-R183.** Admission slices read or change at most 128 primary records,
+512 related descriptors, 1 MiB metadata and 64 MiB payload. A selected page
+contains at most 128 items under the same descriptor/metadata bounds; a root
+is at most 256 KiB. The containing accepted Round retains the existing
+4,096-item and tighter pinned limits. The producer includes actual selection
+and prepared page bytes, source and task bytes, and both roots in the 64 MiB
+Round construction budget; its fixed budget checkpoint is at most 4 KiB.
+The durable admission checkpoint is at most 64 KiB. No containing receipt
+or unrelated artifact population may turn a slice into a whole-history scan.
+
+**ASC-R184.** Typed dispatch reads the compact accepted root and an indexed
+fitting prefix of only the selected immutable execution entries. It checks
+the exact accepted plan and dependency tuple against each task before
+creating an ordinary child intent, rebasing only batch-local ordinals.
+Different routes or incompatible exact inputs cannot be unioned into one
+child's authority. Existing retained input materialization and Scheduler
+initialization fences apply before execution.
+
 ## Interfaces
 
 - AuditProfile fields owned here: `inventory.source` and `inventory.settings`
@@ -1232,7 +1285,8 @@ The `auditTask` executor declaration is shown with ASC-R72.
 ## Non-goals
 
 - Preparation introduces no `finalize` or proposed-check routing. Settled-Round
-  inputs and exact retained item dependencies use the separate contracts above.
+  inputs, exact retained item dependencies and typed check routing use the
+  separate contracts above.
 - Profiles whose preparation requires classified active-check tools before
   item approval (ASC-R9).
 - The OpenAPI scan adapter does not interpret snapshot attachments, retained
