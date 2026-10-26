@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-122 open tasks: 5 in progress, 106 pending, 11 deferred. 1151 finished: 1141 completed, 10 archived.
+132 open tasks: 5 in progress, 116 pending, 11 deferred. 1151 finished: 1141 completed, 10 archived.
 
 ## In progress
 
@@ -27,6 +27,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 | [V414-014](v414-014-standby-shutdown-race.yml) | defect | P3 | — | Exit a standby Server cleanly when shutdown races its readiness listener |
+| [V421-008](v421-008-trim-registration-response.yml) | chore | P3 | — | Remove unused principal metadata from the Runtime registration response |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -44,6 +45,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | — | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
+| [V421-007](v421-007-remove-unused-worker-state-fields.yml) | chore | P3 | — | Remove unused prompt and workspace fields from exported Worker State |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
@@ -85,6 +87,7 @@ the epics are in [epics.yml](epics.yml).
 | [V397-009](v397-009-sarif-export-api-ui.yml) | feature | P2 | V397-008 | Publish and download generic SARIF through API CLI and UI |
 | [V411-007](v411-007-trusted-http-capture.yml) | feature | P1 | V411-004, V411-005, V411-006 | Expose safe HTTP evidence only through authenticated capture receipts |
 | [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | V411-002 | Expose safe live Project findings to allocated pentesters |
+| [V421-002](v421-002-finding-report-preconditions.yml) | feature | P2 | — | Preserve finding preconditions in the final Audit report |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -103,6 +106,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | — | Reconcile exact OpenAPI declarations with live sitemap members |
+| [V421-009](v421-009-expose-artifact-storage-timestamps.yml) | feature | P2 | — | Expose retained Artifact storage timestamps through metadata and Technical details |
 
 ### Audits (`audits`)
 
@@ -136,6 +140,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
+| [V421-001](v421-001-audit-evidence-observation-provenance.yml) | defect | P2 | — | Preserve trusted observation provenance in Audit evidence |
 
 ### Evaluations (`evals`)
 
@@ -147,6 +152,8 @@ the epics are in [epics.yml](epics.yml).
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | chore | P3 | — | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
 | [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | V417-001, V417-003 | Build frozen context-compaction evaluation fixtures and an opt-in harness |
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-008, V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
+| [V421-005](v421-005-remove-unused-eval-private-schema.yml) | chore | P3 | — | Remove the unused schema field from managed Eval private rubrics |
+| [V421-006](v421-006-reject-human-review-parameters.yml) | defect | P3 | — | Reject unsupported parameters on managed human-review checks |
 
 ### Podman sandbox (`sandbox`)
 
@@ -160,6 +167,13 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the autonomous HTTP pentest setup and evidence journey |
+
+### Operations, authentication, CLI and deployment (`operations`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V421-003](v421-003-runtime-adapter-diagnostics.yml) | feature | P2 | — | Expose retained Runtime adapter failures in owner-visible attempt diagnostics |
+| [V421-004](v421-004-attempt-tool-call-diagnostics.yml) | feature | P2 | V421-003 | Add a bounded diagnostic interface for retained tool-call detail |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -199,6 +213,7 @@ the epics are in [epics.yml](epics.yml).
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
+| [V421-010](v421-010-verify-data-model-consumers.yml) | chore | P3 | V421-001, V421-002, V421-003, V421-004, V421-005, V421-006, V421-007, V421-008, V421-009 | Verify the agreed data-model consumers and contract simplifications |
 
 ## Deferred
 
@@ -223,23 +238,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 4 | 41 | 56 | 19 | 84 |
-| Planners and the Worker model boundary (`planner-worker`) | 12 | 34 | 47 | 27 | 63 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
+| Run execution core (`execution-core`) | 5 | 41 | 56 | 20 | 84 |
+| Planners and the Worker model boundary (`planner-worker`) | 13 | 34 | 47 | 28 | 64 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 43 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 10 | 19 | 16 | 5 | 17 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
-| Findings tools and collections (`findings`) | 8 | 16 | 7 | 8 | 12 |
+| Findings tools and collections (`findings`) | 9 | 17 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 35 | 33 | 7 | 41 |
-| Audits (`audits`) | 29 | 67 | 81 | 27 | 107 |
-| Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 33 | 7 | 41 |
+| Audits (`audits`) | 30 | 67 | 82 | 27 | 108 |
+| Evaluations (`evals`) | 9 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 16 | 42 | 7 | 15 |
+| Operations, authentication, CLI and deployment (`operations`) | 2 | 18 | 42 | 7 | 15 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 17 | 1 | 27 | 99 | 23 |
+| Quality, CI and process (`quality`) | 18 | 1 | 27 | 100 | 23 |
