@@ -368,9 +368,12 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 	if !exists || binding.Kind != auditprofile.AuditWorkflowCheck {
 		return PreparedSubmission{}, invalidSubmission("Audit item does not name a check Workflow role")
 	}
-	roundManifest, err := b.readRoundExecutionManifest(ctx, audit.ProjectID, snapshot.Round.Manifest)
+	roundManifest, paged, err := b.readSelectedRoundExecutionManifest(ctx, snapshot, selected)
 	if err != nil {
 		return PreparedSubmission{}, err
+	}
+	if paged {
+		selected = selected[:len(roundManifest.Items)]
 	}
 	manifestItems := make([]auditdomain.ExecutionItem, 0, len(selected))
 	tasks := make([]auditstore.ExactArtifact, 0, len(selected))
@@ -389,7 +392,13 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		if _, duplicate := seenItems[item.ItemID]; duplicate {
 			return PreparedSubmission{}, invalidSubmission("Audit batch repeats an item")
 		}
-		manifestItem, findErr := findManifestItem(roundManifest, item)
+		var manifestItem auditdomain.ExecutionItem
+		var findErr error
+		if paged {
+			manifestItem, findErr = findSelectedPreparedManifestItem(roundManifest, item)
+		} else {
+			manifestItem, findErr = findManifestItem(roundManifest, item)
+		}
 		if findErr != nil {
 			return PreparedSubmission{}, findErr
 		}
