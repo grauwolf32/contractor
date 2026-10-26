@@ -133,7 +133,7 @@ class AuditIterativeGateTest(unittest.TestCase):
             directory = Path(temporary)
             executable = directory / "go"
             payload = events()
-            executable.write_text(f"#!{sys.executable}\nimport json,os\nprint(json.dumps({{'Action':'output','Package':{PACKAGE!r},'Output':os.environ['CONTRACTOR_TEST_DATABASE_URL']}}))\nfor event in {payload!r}: print(json.dumps(event))\n")
+            executable.write_text(f"#!{sys.executable}\nimport json,os\nprint(json.dumps({{'Action':'output','Package':{PACKAGE!r},'Output':os.environ['CONTRACTOR_TEST_DATABASE_URL']+' fixture-target-body-marker'}}))\nfor event in {payload!r}: print(json.dumps(event))\n")
             executable.chmod(0o700)
             manifest = directory / "matrix.yml"
             manifest.write_text(json.dumps(selection()))
@@ -146,7 +146,9 @@ class AuditIterativeGateTest(unittest.TestCase):
             self.assertIsInstance(document["source"]["dirty"], bool)
             self.assertEqual(document["counts"], {"required": 1, "passed": 1, "skipped": 0})
             self.assertLessEqual(result.stat().st_size, gate.MAX_EVIDENCE_BYTES)
-            self.assertNotIn("secret-value", result.read_text() + output.getvalue() + (result.parent / "go.jsonl").read_text())
+            retained = result.read_text() + output.getvalue() + (result.parent / "go.jsonl").read_text()
+            self.assertNotIn("secret-value", retained)
+            self.assertNotIn("fixture-target-body-marker", retained)
 
     def test_process_failure_and_cancellation_record_incomplete_verification(self):
         with tempfile.TemporaryDirectory() as temporary, mock.patch.object(gate, "_prerequisites"), mock.patch.object(gate, "_source", return_value={"revision": "a" * 40, "dirty": False}), mock.patch.object(gate, "matrix", return_value=selection()), mock.patch.object(gate, "MATRIX", Path(__file__)), contextlib.redirect_stdout(io.StringIO()):

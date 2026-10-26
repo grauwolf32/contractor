@@ -183,7 +183,7 @@ def run(boundary: str, output_dir: Path) -> Path:
         previous = Path.cwd()
         try:
             os.chdir(ROOT)
-            status = reports.capture(report, command, timeout_seconds=DEADLINES[boundary], max_report_bytes=MAX_REPORT_BYTES)
+            status = reports.capture(report, command, timeout_seconds=DEADLINES[boundary], max_report_bytes=MAX_REPORT_BYTES, retain_output=False)
         finally:
             os.chdir(previous)
         if status:

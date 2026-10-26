@@ -62,7 +62,7 @@ def _cleanup_group(process: subprocess.Popen) -> None:
 
 def capture(
     report: Path, command: list[str], *, timeout_seconds: float | None = None,
-    max_report_bytes: int | None = None,
+    max_report_bytes: int | None = None, retain_output: bool = True,
 ) -> int:
     """Capture redacted output with an independent deadline and joined process group."""
     if not command:
@@ -106,13 +106,16 @@ def capture(
                     try:
                         event = audit["parse_go_event"](line)
                     except audit["GateError"]:
-                        line = redact(line)
+                        line = redact(line) if retain_output else "Invalid test event\n"
                     else:
                         event = {key: value for key, value in event.items() if key in {
                             "Time", "Action", "Package", "Test", "Elapsed", "Output", "FailedBuild",
                         }}
                         if "Output" in event:
-                            event["Output"] = redact(event["Output"])
+                            if retain_output:
+                                event["Output"] = redact(event["Output"])
+                            else:
+                                del event["Output"]
                         line = json.dumps(event) + "\n"
                     size += len(line.encode("utf-8"))
                     if max_report_bytes is not None and size > max_report_bytes:

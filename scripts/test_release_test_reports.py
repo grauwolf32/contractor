@@ -202,6 +202,17 @@ class ReportReuseTest(unittest.TestCase):
             with self.assertRaises(ProcessLookupError):
                 os.kill(int(pidfile.read_text()), 0)
 
+    def test_content_free_capture_never_turns_malformed_output_into_success(self) -> None:
+        from test_audit_iterative_gate import gate as iterative, selection
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()) as output:
+            report = Path(directory) / "report"
+            self.assertEqual(reports.capture(report, [sys.executable, "-c", "print('postgres://u:secret-value@localhost/db fixture-target-body-marker')"], retain_output=False), 0)
+            self.assertNotIn("fixture-target-body-marker", report.read_text() + output.getvalue())
+            self.assertNotIn("secret-value", report.read_text() + output.getvalue())
+            with mock.patch.object(iterative, "matrix", return_value=selection()), self.assertRaises(ValueError):
+                iterative.verify(report, "postgres")
+
     def test_capture_bounds_malformed_output_and_joins(self) -> None:
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
             for text, options in (("x" * 65537, {}), ("bounded diagnostic", {"max_report_bytes": 4})):
