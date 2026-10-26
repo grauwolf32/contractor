@@ -413,6 +413,14 @@ func recordAuditChildReceipt(
 	if len(padding) > 0 {
 		canonical.proposalBytes = append(canonical.proposalBytes,
 			bytes.Repeat([]byte(" "), padding[0]-len(canonical.proposalBytes))...)
+		projection, err := auditdomain.BuildFindingChecksProjection(canonical.proposalBytes, canonical.request.Proposal)
+		if err != nil {
+			t.Fatal(err)
+		}
+		canonical.checksProjection, err = auditdomain.EncodeFindingChecksProjection(projection)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	written, err := artifactstest.WriteFindingProposal(
 		f.ctx, artifacts.NewService(artifacts.NewPostgresRepository(f.pool)), f.request.RunID, clientKey+"-proposal",

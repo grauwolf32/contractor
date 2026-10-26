@@ -865,6 +865,42 @@ operation budget and its release has a fixed five seconds. Only the
 lifecycle that both repeated identically is shared; merging the policies
 would change when each controller works.
 
+**PER-R37.** Typed finding-check admission uses the existing Audit controller
+claim and a private checkpoint on the closed current Round. The first durable
+checkpoint precedes any source callback. It fixes the validation deadline ten
+minutes from that intent and freezes a receipt-created-time/receipt-ID upper
+key plus a hold-acceptance cutoff read with PostgreSQL `clock_timestamp()` while
+the Audit is locked. An injected deadline clock never supplies this cutoff.
+A later hold of an older receipt is a late source, including when its receipt
+key precedes the traversal cursor. Generation restarts retain the original
+deadline. A NULL private check index means explicit data migration is pending;
+the same wait returns unchanged progress and never parses proposal prose.
+
+**PER-R38.** One claimed admission phase reads at most 128 raw candidate or
+staged item records, 512 related descriptors and 1 MiB of combined source and
+generated metadata, measured before the relevant JSON hydration. Exact opaque
+proposal payload reads have a separate 64 MiB phase allowance and are cached
+once per distinct receipt. Context and selected check fragments are verified
+against the immutable trusted byte index; unrelated checks and the presentation
+report projection are not decoded. All reads and candidate savepoints use the
+same transaction, including with one pool connection. A rejected candidate
+rolls back its speculative forks and task artifacts while its natural decision
+key may commit in the outer transaction.
+
+**PER-R39.** Selection and prepared pages are immutable frozen Audit artifacts
+registered through existing ArtifactLinks. A non-current `proposed` Round stages
+at most one bounded prepared page per phase. Its private execution rows pin
+that verified page and freeze original source, item identity, role, task,
+origin and approval authority. A final seal checks fixed-size generation,
+count and chain-digest parent fields and atomically publishes the Round and
+current pointer; it neither inserts nor rebuilds the complete item collection.
+Deletion updates physical staging counters in the same transaction, so a
+withdrawn source cannot leave an acceptable stale seal. Dispatch preflights
+stored selected-row bytes and descriptor counts before hydrating only the
+selected immutable execution entries. It never reads whole pages to select
+sparse items. A lost acceptance response replays the same root and generation
+without another debit or accepted event.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):

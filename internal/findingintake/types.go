@@ -184,6 +184,7 @@ type ResolvedProposal struct {
 
 type canonicalSubmission struct {
 	anchorProjection []byte
+	checksProjection []byte
 	request          Submission
 	proposalBytes    []byte
 	// reportProjection is the canonical report projection of the proposal,
@@ -207,17 +208,8 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		!validIdentity(input.SubmissionID) || len(input.EvidenceRefs) > MaxEvidenceRefs {
 		return canonicalSubmission{}, ErrInvalid
 	}
-	// Keep the v1 proposal codec able to read already retained documents while
-	// refusing new values that cannot become unique Audit coverage gaps.
-	seenLimitations := make(map[string]struct{}, len(input.Proposal.Limitations))
-	for _, limitation := range input.Proposal.Limitations {
-		if len(limitation) > auditdomain.MaximumCoverageValueBytes {
-			return canonicalSubmission{}, fmt.Errorf("%w: proposal limitation exceeds Audit coverage bound", ErrInvalid)
-		}
-		if _, duplicate := seenLimitations[limitation]; duplicate {
-			return canonicalSubmission{}, fmt.Errorf("%w: duplicate proposal limitation", ErrInvalid)
-		}
-		seenLimitations[limitation] = struct{}{}
+	if err := auditdomain.ValidateFindingLimitations(input.Proposal.Limitations); err != nil {
+		return canonicalSubmission{}, fmt.Errorf("%w: proposal limitations", ErrInvalid)
 	}
 	proposalBytes, err := auditdomain.EncodeFindingProposal(input.Proposal)
 	if err != nil {
@@ -289,8 +281,17 @@ func canonicalize(input Submission) (canonicalSubmission, error) {
 		return canonicalSubmission{}, fmt.Errorf("canonicalize finding submission: %w", err)
 	}
 	anchorProjection, _ := auditdomain.EncodeFindingAnchors(auditdomain.UnavailableFindingAnchors("not_provided"))
+	checks, err := auditdomain.BuildFindingChecksProjection(proposalBytes, input.Proposal)
+	if err != nil {
+		return canonicalSubmission{}, fmt.Errorf("%w: finding check index", ErrInvalid)
+	}
+	checksProjection, err := auditdomain.EncodeFindingChecksProjection(checks)
+	if err != nil {
+		return canonicalSubmission{}, fmt.Errorf("%w: finding check index", ErrInvalid)
+	}
 	return canonicalSubmission{
 		anchorProjection: anchorProjection,
+		checksProjection: checksProjection,
 		request:          input, proposalBytes: proposalBytes, reportProjection: reportProjection,
 		digest: auditdomain.DigestBytes(encoded),
 	}, nil

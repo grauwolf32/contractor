@@ -5,6 +5,7 @@ import {
   isConfigSelector,
 } from "../../api/workflows";
 import { at, record, textValue, type Draft, type Path } from "./document";
+import { validateCheckMethods } from "./check-methods";
 import { validateAdvanced } from "./advanced-validation";
 
 export interface Problem {
@@ -527,6 +528,7 @@ export function validateDraft(draft: Draft): Problem[] {
         ["spec", "inventory", "itemWorkflowRole"],
         "Choose a check workflow role.",
       );
+    validateCheckMethods(spec.methods, roles, error);
     for (const [name, value] of Object.entries(roles)) {
       const role = record(value),
         p: Path = ["spec", "workflows", name],

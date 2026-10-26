@@ -35,6 +35,8 @@ SELECT ` + prefixedItemColumns("item") + `
           AND role_item.workflow_role = ready_roles.workflow_role
         ORDER BY role_item.ordinal, role_item.item_id
         LIMIT $3) AS item
+ WHERE EXISTS (SELECT 1 FROM audit_rounds AS round
+                WHERE round.audit_id=$1 AND round.round_id=$2 AND round.state<>'proposed')
  ORDER BY item.ordinal, item.item_id`
 
 // listItemsPageSQL returns one page of the items of owner $1's Audit $2 in
@@ -81,6 +83,7 @@ SELECT ` + prefixedItemColumns("item") + `
         ORDER BY candidate.ordinal, candidate.item_id
         LIMIT $9) AS item
  WHERE audit.owner_id = $1 AND audit.audit_id = $2
+   AND round.state <> 'proposed'
    AND ($3::text IS NULL OR round.round_id = $3)
    AND ($6::integer IS NULL OR round.ordinal >= $6)
  ORDER BY round.ordinal, item.ordinal, item.item_id
@@ -116,7 +119,7 @@ var listReconcileItemsSQL = `
 SELECT ` + prefixedItemColumns("item") + `
   FROM audit_items AS item
   JOIN audit_rounds AS round USING (round_id, audit_id)
- WHERE item.audit_id = $1 AND item.state <> 'settled'
+ WHERE item.audit_id = $1 AND item.state <> 'settled' AND round.state <> 'proposed'
  ORDER BY item.state = 'awaiting_review', round.ordinal, item.ordinal, item.item_id
  LIMIT $2`
 
@@ -151,6 +154,7 @@ SELECT item.audit_id, item.round_id, item.item_id, item.ordinal,
        item.coverage_updated_at, item.task_ref, item.task_digest
   FROM audit_items AS item
  WHERE item.audit_id = $1 AND item.round_id = $2
+   AND ` + acceptedItemSQL("item") + `
    AND item.ordinal > $3
  ORDER BY item.ordinal, item.item_id LIMIT $4`
 
@@ -189,4 +193,5 @@ SELECT item.item_id, COALESCE(max(member.item_attempt), 0) + 1
   LEFT JOIN audit_execution_items AS member ON member.item_id = item.item_id
  WHERE item.audit_id = $1 AND ` + auditClaims.LiveCondition("claim", "$2", "$3") + `
    AND item.item_id = ANY($4::text[]) AND item.state = 'ready'
+   AND ` + acceptedItemSQL("item") + `
  GROUP BY item.item_id`

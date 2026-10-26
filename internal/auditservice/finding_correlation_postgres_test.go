@@ -167,8 +167,23 @@ func TestFindingCorrelationLargeGroupUsesBoundedIndexProbes(t *testing.T) {
 	first := seedAuditFindingDocument(t, ctx, pool, project, owner, audit, "scale", auditFindingDocument("scale"), correlationFingerprint(t))
 	// Retained independent rows exercise the production query at 10001 peers;
 	// their proposal artifacts need not be rehydrated by this row projection.
-	if _, err := pool.Exec(ctx, `INSERT INTO finding_proposal_receipts
- SELECT copied.* FROM finding_proposal_receipts AS original CROSS JOIN generate_series(1,10000) AS n
+	columns, err := pool.Query(ctx, `SELECT attname::text FROM pg_attribute
+ WHERE attrelid='finding_proposal_receipts'::regclass AND attnum>0 AND NOT attisdropped AND attgenerated=''
+ ORDER BY attnum`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields, err := pgx.CollectRows(columns, pgx.RowTo[string])
+	if err != nil {
+		t.Fatal(err)
+	}
+	names, values := make([]string, len(fields)), make([]string, len(fields))
+	for index, field := range fields {
+		names[index] = pgx.Identifier{field}.Sanitize()
+		values[index] = "copied." + names[index]
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO finding_proposal_receipts (`+strings.Join(names, ",")+`)
+ SELECT `+strings.Join(values, ",")+` FROM finding_proposal_receipts AS original CROSS JOIN generate_series(1,10000) AS n
  CROSS JOIN LATERAL jsonb_populate_record(NULL::finding_proposal_receipts,to_jsonb(original)||jsonb_build_object(
  'receipt_id','scale-receipt-'||n,'proposal_id','scale-proposal-'||n,'invocation_id','scale-invocation-'||n,
  'submission_id','scale-submission-'||n,'client_key','scale-client-'||n)) AS copied WHERE original.receipt_id='receipt-scale'`); err != nil {

@@ -69,6 +69,7 @@ SELECT item.item_id, item.round_id, item.item_key, item.ordinal, item.kind,
        item.coverage_result_ref, item.coverage_result_digest
   FROM audit_items AS item
  WHERE item.audit_id = $1 AND item.round_id = $2 AND item.ordinal > $3
+   AND ` + acceptedItemSQL("item") + `
  ORDER BY item.ordinal
  LIMIT $4`
 

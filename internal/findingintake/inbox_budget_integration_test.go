@@ -73,6 +73,7 @@ type syntheticReceipts struct {
 	// The n-th receipt (1-based) is created at inboxEpoch + offset + n*step.
 	offset, step  time.Duration
 	sourceDeleted bool
+	auditHeld     bool
 }
 
 func seedSyntheticReceipts(t *testing.T, ctx context.Context, pool *pgxpool.Pool, group syntheticReceipts) {
@@ -91,7 +92,7 @@ INSERT INTO finding_proposal_receipts (
     workflow_configuration_ref, workflow_closure_digest,
     proposal_ref, proposal_digest, proposal_media_type,
     proposal_size_bytes, evidence, report_projection,
-    created_at, retention_state, source_run_deleted_at, discarded_at
+    created_at, retention_state, source_run_deleted_at, discarded_at, checks_projection
 )
 SELECT $1 || '-' || n, $1 || '-proposal-' || n, $1 || '-allocation', 'runtime',
        'instance', 'stage', 'worker', 'invocation', $1 || '-' || n,
@@ -102,13 +103,14 @@ SELECT $1 || '-' || n, $1 || '-proposal-' || n, $1 || '-allocation', 'runtime',
        'sha256:' || repeat('b', 64),
        jsonb_build_object('namespace', 'finding-proposals', 'name', $1 || '-proposal-' || n, 'revision', 'r1'),
        'sha256:' || repeat('c', 64), 'application/json', 1, '[]'::jsonb,
-       CASE WHEN $8 THEN '{}' ELSE '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}' END,
+       CASE WHEN $8 AND NOT $10 THEN '{}' ELSE '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}' END,
        $6::timestamptz + n * $7::interval,
-       CASE WHEN $8 THEN 'discarded' ELSE 'source-held' END,
-       CASE WHEN $8 THEN $6::timestamptz END, CASE WHEN $8 THEN $6::timestamptz END
+       CASE WHEN $10 THEN 'audit-held' WHEN $8 THEN 'discarded' ELSE 'source-held' END,
+       CASE WHEN $8 THEN $6::timestamptz END, CASE WHEN $8 AND NOT $10 THEN $6::timestamptz END,
+       CASE WHEN $8 AND NOT $10 THEN contractor_empty_finding_checks('sha256:' || repeat('c',64),1) END
   FROM generate_series(1, $9::integer) AS n`,
 		group.prefix, group.run, group.owner, group.project, audit,
-		inboxEpoch.Add(group.offset), group.step, group.sourceDeleted, group.count,
+		inboxEpoch.Add(group.offset), group.step, group.sourceDeleted, group.count, group.auditHeld,
 	); err != nil {
 		t.Fatalf("seed %s receipts: %v", group.prefix, err)
 	}
@@ -163,7 +165,7 @@ func seedInboxCandidates(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 		{prefix: "native", owner: inboxOwner, project: inboxProject, run: "x-live", audit: inboxAudit, count: 150, step: 61 * time.Second},
 		{prefix: "native-held", owner: inboxOwner, project: inboxProject, run: "x-live", audit: inboxAudit, count: 60, offset: 7 * time.Second, step: 149 * time.Second},
 		{prefix: "native-gone", owner: inboxOwner, project: inboxProject, run: "x-gone", audit: inboxAudit, count: 20, offset: 11 * time.Second, step: 401 * time.Second, sourceDeleted: true},
-		{prefix: "native-gone-held", owner: inboxOwner, project: inboxProject, run: "x-gone", audit: inboxAudit, count: 20, offset: 13 * time.Second, step: 433 * time.Second, sourceDeleted: true},
+		{prefix: "native-gone-held", owner: inboxOwner, project: inboxProject, run: "x-gone", audit: inboxAudit, count: 20, offset: 13 * time.Second, step: 433 * time.Second, sourceDeleted: true, auditHeld: true},
 		{prefix: "imported", owner: inboxOwner, project: inboxProject, run: "plain", count: 40, offset: -time.Hour, step: 223 * time.Second},
 		{prefix: "sibling-imported", owner: inboxOwner, project: inboxProject, run: "y-run", audit: inboxSiblingAudit, count: 10, offset: 17 * time.Second, step: 811 * time.Second},
 		{prefix: "foreign-project-held", owner: inboxOwner, project: inboxProject, run: "plain", count: 5, offset: 19 * time.Second, step: 997 * time.Second},
@@ -467,7 +469,7 @@ func TestPostgresAuditInboxPagesMatchOriginalStatements(t *testing.T) {
 		{prefix: "tie-native", owner: inboxOwner, project: inboxProject, run: "x-live", audit: inboxAudit, count: 3, offset: tie},
 		{prefix: "tie-overlap", owner: inboxOwner, project: inboxProject, run: "x-live", audit: inboxAudit, count: 3, offset: tie},
 		{prefix: "tie-imported", owner: inboxOwner, project: inboxProject, run: "plain", count: 3, offset: tie},
-		{prefix: "tie-gone-held", owner: inboxOwner, project: inboxProject, run: "x-gone", audit: inboxAudit, count: 2, offset: tie, sourceDeleted: true},
+		{prefix: "tie-gone-held", owner: inboxOwner, project: inboxProject, run: "x-gone", audit: inboxAudit, count: 2, offset: tie, sourceDeleted: true, auditHeld: true},
 		{prefix: "tie-gone", owner: inboxOwner, project: inboxProject, run: "x-gone", audit: inboxAudit, count: 2, offset: tie, sourceDeleted: true},
 		{prefix: "tie-sibling", owner: inboxOwner, project: inboxProject, run: "y-run", audit: inboxSiblingAudit, count: 2, offset: tie},
 	} {

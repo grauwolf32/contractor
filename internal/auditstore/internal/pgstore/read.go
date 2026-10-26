@@ -42,7 +42,7 @@ func (s *QueryStore) ListRounds(ctx context.Context, auditID string) ([]auditsto
 	}
 	rows, err := s.db.Query(ctx, `
 SELECT `+prefixedRoundColumns("audit_rounds")+` FROM audit_rounds
- WHERE audit_id = $1 ORDER BY ordinal`, auditID)
+ WHERE audit_id = $1 AND state <> 'proposed' ORDER BY ordinal`, auditID)
 	if err != nil {
 		return nil, fmt.Errorf("list Audit rounds: %w", err)
 	}
@@ -80,7 +80,8 @@ func (s *QueryStore) ListItemsByIDs(ctx context.Context, auditID string, itemIDs
 	rows, err := s.db.Query(ctx, `
 SELECT `+prefixedItemColumns("item")+`
   FROM audit_items AS item
- WHERE item.audit_id = $1 AND item.item_id = ANY($2::text[])`, auditID, itemIDs)
+ WHERE item.audit_id = $1 AND item.item_id = ANY($2::text[])
+   AND `+acceptedItemSQL("item"), auditID, itemIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list selected Audit items: %w", err)
 	}
@@ -197,9 +198,10 @@ func (s *ClaimStore) listReadyItems(ctx context.Context, auditID, roundID string
 func (s *store) onlyAwaitingReview(ctx context.Context, auditID string) (bool, error) {
 	var unsettled, awaiting int64
 	if err := s.db.QueryRow(ctx, `
-SELECT count(*), count(*) FILTER (WHERE state = 'awaiting_review')
-  FROM audit_items
- WHERE audit_id = $1 AND state <> 'settled'`, auditID).Scan(&unsettled, &awaiting); err != nil {
+SELECT count(*), count(*) FILTER (WHERE item.state = 'awaiting_review')
+  FROM audit_items AS item
+ WHERE item.audit_id = $1 AND item.state <> 'settled'
+   AND `+acceptedItemSQL("item"), auditID).Scan(&unsettled, &awaiting); err != nil {
 		return false, fmt.Errorf("count Audit items awaiting review: %w", err)
 	}
 	return unsettled != 0 && unsettled == awaiting, nil

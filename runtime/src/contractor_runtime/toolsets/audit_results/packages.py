@@ -15,6 +15,7 @@ from typing import Any
 import jcs
 
 from contractor_runtime.digests import sha256_digest
+from contractor_runtime.toolsets.audit_results.accepted_plans import validate_accepted_plan
 from contractor_runtime.toolsets.audit_results.dependencies import validate_retained_dependencies
 
 PACKAGE_SCHEMA = "contractor.audit.package.v1"
@@ -77,6 +78,8 @@ def _decode_task_package(payload: bytes, media_type: str) -> tuple[dict[str, Any
     task = _canonical_object(task_bytes, "task document")
     if task.get("schema") != TASK_SCHEMA:
         raise ValueError("task document schema is invalid")
+    if "accepted_plan" in task and type(task.get("profile_mode")) is not str:
+        raise ValueError("accepted plan task profile mode is required")
     if task.get("profile_mode") not in {
         None,
         "risk-assessment",
@@ -88,6 +91,16 @@ def _decode_task_package(payload: bytes, media_type: str) -> tuple[dict[str, Any
         raise ValueError("task profile mode is invalid")
     if "dependencies" in task:
         validate_retained_dependencies(task["dependencies"], task.get("item_key"))
+    if "accepted_plan" in task:
+        if not isinstance(task.get("workflow_role"), str):
+            raise ValueError("accepted plan task role is invalid")
+        validate_accepted_plan(
+            task["accepted_plan"],
+            task.get("dependencies"),
+            task.get("item_key"),
+            workflow_role=task.get("workflow_role"),
+            finding=task.get("finding"),
+        )
     return task, manifest["package_id"]
 
 
@@ -180,6 +193,10 @@ def _decode_execution_manifest(payload: bytes, media_type: str) -> dict[str, Any
             raise ValueError("execution manifest identity is duplicated")
         if "dependencies" in item:
             validate_retained_dependencies(item["dependencies"], item["item_key"])
+        if "accepted_plan" in item:
+            validate_accepted_plan(
+                item["accepted_plan"], item.get("dependencies"), item["item_key"]
+            )
         seen_items.add(item["item_key"])
         seen_packages.add(item["task_package_id"])
     return manifest
@@ -200,6 +217,7 @@ def _match_trusted_inputs(
             or item.get("task_package_id") != task_package_id
             or item.get("task_package_digest") != task_package_digest
             or item.get("dependencies") != task.get("dependencies")
+            or item.get("accepted_plan") != task.get("accepted_plan")
         ):
             raise ValueError("task and execution manifest identities differ")
         if not isinstance(task.get("item_key"), str) or not isinstance(

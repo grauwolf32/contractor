@@ -436,3 +436,37 @@ describe("Authored advanced contracts", () => {
     ).toBe(true);
   });
 });
+
+describe("typed check method controls", () => {
+  it("adds, edits and removes a declared route through the actual inspector", async () => {
+    const user = userEvent.setup(),
+      current = mount(starter("AuditProfile"), "inventory");
+    await user.click(screen.getByRole("button", { name: "Add method route" }));
+    expect(at(current().value, ["spec", "methods", "method_1", "method"])).toBe(
+      "verify",
+    );
+    await user.selectOptions(screen.getByLabelText("Method"), "replay");
+    expect(at(current().value, ["spec", "methods", "method_1", "phase"])).toBe(
+      "replay",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Add required tools" }),
+    );
+    expect(
+      at(current().value, [
+        "spec",
+        "methods",
+        "method_1",
+        "requiredCapabilities",
+      ]),
+    ).toHaveLength(1);
+    await user.click(
+      screen.getByRole("button", { name: "Remove required tools" }),
+    );
+    expect(validateDraft(current())).toEqual([]);
+    await user.click(screen.getByRole("button", { name: "Remove method" }));
+    expect(
+      at(current().value, ["spec", "methods", "method_1"]),
+    ).toBeUndefined();
+  });
+});

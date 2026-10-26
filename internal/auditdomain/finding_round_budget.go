@@ -26,10 +26,12 @@ var (
 // Inventory.SourceRef and TaskRevision are provisional values that must be at
 // least as long as the revisions the artifact store assigns.
 type FindingRoundShape struct {
-	Inventory       InventoryOptions
-	TaskNamespace   string
-	TaskRevision    string
-	ExecutionInputs []ExactInput
+	PreparedRootMetadataBytes int64
+	Paged                     bool
+	Inventory                 InventoryOptions
+	TaskNamespace             string
+	TaskRevision              string
+	ExecutionInputs           []ExactInput
 }
 
 // FindingRoundAdmission reports how much of one candidate proposal a
@@ -82,7 +84,10 @@ func NewFindingRoundBudget(maximumChecks int, shape FindingRoundShape) (*Finding
 	if err != nil {
 		return nil, err
 	}
-	empty := findingRound{}
+	if shape.PreparedRootMetadataBytes < 0 || shape.PreparedRootMetadataBytes > MaximumGeneratedBytes || !shape.Paged && shape.PreparedRootMetadataBytes != 0 {
+		return nil, invalid(CodeInvalid, "round_shape.root_metadata")
+	}
+	empty := findingRound{generated: shape.PreparedRootMetadataBytes}
 	shells := []struct {
 		target *boundedDocument
 		name   string

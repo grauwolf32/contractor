@@ -415,6 +415,7 @@ func insertReceipt(
 		origin.Workflow.SchemaVersion, configurationRef, origin.Workflow.ClosureDigest,
 		proposalRef, proposal.Digest, proposal.MediaType, proposal.SizeBytes,
 		evidenceJSON, string(canonical.reportProjection), string(fingerprintJSON), string(canonical.anchorProjection),
+		string(canonical.checksProjection),
 	)
 	if err != nil {
 		switch persistencepostgres.Classify(err) {

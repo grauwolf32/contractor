@@ -573,12 +573,13 @@ specified in [ASC-R29](scans.md) to [ASC-R34](scans.md).
 
 ### Next-Round building
 
-**AUX-R60.** The next-Round builder scans at most 10,000 held finding
+**AUX-R60.** Without typed method mappings, the next-Round builder scans at most 10,000 held finding
 receipts per pass (LIM-AUX-9). It pages the held inbox of FND-R186
 ([findings](../findings/findings.md)) in pages of at most 200 receipts and
 then reads one look-ahead receipt. Each page reads only that page's holds
 and receipts, so a pass reads in proportion to the receipts it scans, not to
-the Audit's holds once per page.
+the Audit's holds once per page. Typed method mappings use the indexed
+continuation and per-slice bounds of ASC-R179 to ASC-R183 instead.
 
 **AUX-R61.** Reaching that count is a scan-budget stop only when another
 receipt exists; a fully scanned inbox with no unscheduled checks completes the
@@ -589,16 +590,17 @@ per-Round item budget: the profile's per-Round limit and the Audit's remaining
 total, never more than the 4,096 inventory items of
 [AUD-R128](audits.md) (LIM-AUX-10, LIM-AUD-19).
 
-**AUX-R63.** The builder admits unscheduled proposal checks in inbox order
+**AUX-R63.** The default builder admits unscheduled proposal checks in inbox order
 only while the Round also stays within every byte, JSON-node and nesting limit
 of the documents it derives: the proposal inventory, its canonical inventory,
 the coverage, worklist and execution documents and their Round package, and
-the generated item-task packages.
+the generated item-task packages. Typed admission uses its exact fragment,
+task and paged root accounting under ASC-R181 to ASC-R183.
 
 **AUX-R64.** Checks that do not fit wait for a later Round, so one proposal's
 checks may span Rounds.
 
-**AUX-R65.** A proposal whose first unscheduled check cannot fit even an
+**AUX-R65.** In the default builder, a proposal whose first unscheduled check cannot fit even an
 empty Round is skipped rather than failing the Round. When only such
 proposals remain, the Audit finalizes with
 `proposal_inventory_limit_exceeded`, whose message names each skipped receipt
@@ -607,7 +609,9 @@ and the limit it exceeds (FAIL-AUX-5).
 **AUX-R66.** If a retained proposal or materialized item fails deterministic
 next-Round validation, including exact artifact bytes that fail their digest,
 the Controller closes dispatch and moves the Audit to `finalizing` with
-`next_round_invalid` (FAIL-AUX-5).
+`next_round_invalid` (FAIL-AUX-5). In typed admission, an individual invalid
+candidate has a retained rejection under ASC-R179 and FAIL-ASC-11; an invalid
+enclosing Round contract still closes dispatch.
 
 **AUX-R67.** A preparation state that retained Audit data cannot reach, such
 as an undecodable pinned snapshot, a drifted proposal descriptor or a
@@ -903,6 +907,36 @@ model cost per settled item and to show whole-batch retry amplification.
 **AUX-R91.** No separate Audit token authority is introduced, and a profile
 does not promise that increasing `batchSize` reduces cost or latency.
 
+**AUX-R101.** Typed later-Round admission has a durable intent before its
+first source read and a ten-minute validation deadline independent of Audit,
+child execution and input materialization deadlines. A pending changing slice
+is progress; an unchanged exact-source readiness wait is not. Timeout closes
+admission with `next_round_validation_deadline`, accepts no partial Round,
+and starts no target retry to repair bookkeeping. Pause preserves the
+checkpoint and deadline. Cancel/deletion fence admission and use the existing
+safe drain and bounded private proposed-work cleanup.
+
+**AUX-R102.** Admission decisions retain exact receipt/ordinal, source check
+digest, optional registered plan digest, selected route where known, and an
+admitted, rejected, deferred or blocked disposition. Rejections use a natural
+source/policy/code identity independent of generation; restart and later
+Rounds cannot append the same rejection on each tick. Acceptance and an
+ambiguous lost reply reconcile the same immutable Round and source-to-item
+associations under ControllerClaims. Neither replay nor collection creates
+a new item, target action or budget reservation.
+
+**AUX-R103.** Typed admission and dispatch validate the exact pinned profile,
+baseline scope, effective active-check policy, binding/capability closure and
+current exact item approval. An eligible candidate is deferred with
+`submission_budget_exhausted` before selection when all cumulative child Run
+reservations are spent; it cannot create a new accepted Round just to close
+at dispatch. The effective Project policy remains the
+start-time policy under PRJ-R104; editing Project policy applies to new
+Audits and does not reinterpret the accepted authorization of an existing
+Audit. Live owner/Project lifecycle fences and expiring approvals still
+apply. Missing configured capability is a permanent configuration/admission
+failure; temporary Runtime capacity remains an ordinary scheduling wait.
+
 ## Interfaces
 
 This document defines no public endpoint; the start, pause, resume and cancel
@@ -940,7 +974,7 @@ Registry entries owned by this document:
 - [LIM-AUX-8](../platform/limits.md): each discovery role executed exactly
   once, or by bounded retry, per accepted Round (AUX-R57).
 - [LIM-AUX-9](../platform/limits.md): at most 10,000 held finding receipts
-  scanned per next-Round builder pass (AUX-R60).
+  scanned per default next-Round builder pass (AUX-R60).
 - [LIM-AUX-10](../platform/limits.md): the shared per-Round item budget
   (AUX-R62).
 - [LIM-AUX-11](../platform/limits.md): a bounded number of nonterminal Audits
@@ -963,6 +997,8 @@ Registry entries owned by this document:
   reconcile mutations (AUX-R74, AUX-R76, AUX-R97, AUX-R99, AUX-R100).
 - [FAIL-AUX-5](../platform/failure-model.md): next-Round building
   (AUX-R65 to AUX-R68).
+- [FAIL-ASC-11](../platform/failure-model.md): typed next-Round admission
+  (AUX-R101, AUX-R102).
 - [FAIL-AUX-6](../platform/failure-model.md): a change of the global
   `maxConcurrentRuns` or `maxConcurrentToolRuns` against Audit dispatch
   reservations (AUX-R6, AUX-R7).
@@ -980,7 +1016,9 @@ Registry entries owned by this document:
   (AUX-R16, AUX-R99); and the stop reasons
   `proposal_inventory_limit_exceeded` (AUX-R65), `next_round_invalid`
   (AUX-R66), `next_round_contract_invalid` (AUX-R67) and
-  `role_dispatch_contract_invalid` (AUX-R99).
+  `role_dispatch_contract_invalid` (AUX-R99), plus typed admission's
+  `next_round_validation_deadline` and `source_projection_pending`
+  (AUX-R101, ASC-R180).
 
 Entries owned elsewhere and used here: `batchSize` (LIM-AUD-3, LIM-AUD-8), the
 Audit package hard limits including 4,096 inventory items (LIM-AUD-9 to

@@ -8,15 +8,33 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestAuditProgramsE2EConfigurationLoads(t *testing.T) {
 	root := stageE2EConfiguration(t, filepath.Join(repoRoot(t), "configs"), filepath.Join(t.TempDir(), "configs"), "http://127.0.0.1:1/v1")
 	installOrdinaryFindingFixture(t, root, "audit_asvs_source_verifier", "audit_asvs_source_verification", "fixture-ordinary-asvs")
+	installTypedCheckFixture(t, root)
 	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
+	}
+	profile, err := snapshot.AuditProfile("typed-check-fixture@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	methods, err := auditprofile.CompileCheckMethods(profile)
+	if err != nil {
+		t.Fatalf("typed fixture routes: %v", err)
+	}
+	for method, role := range map[string]string{"verify": "second", "replay": "first"} {
+		key, _ := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, method)
+		route, found := methods.Select(key)
+		if !found || route.Mapping.WorkflowRole != role {
+			t.Fatalf("fixture route %s = %+v", method, route)
+		}
 	}
 	templates := map[string]string{
 		"checklist":    "audit_source_checker@1",

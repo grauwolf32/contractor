@@ -65,6 +65,7 @@ const findingPageBasisSQL = `SELECT audit.revision, statement_timestamp(),
 // in state $4 (any when NULL). Used by QueryStore.ReviewPageBasis.
 const reviewPageBasisSQL = `SELECT audit.revision, statement_timestamp(),
  (SELECT count(*) FROM audit_review_requests request WHERE request.audit_id=audit.audit_id
+ AND ` + visibleItemReviewSQL + `
  AND ($3::text IS NULL OR request.finding_id=$3) AND ($4::text IS NULL OR request.state=$4))
  FROM audits audit WHERE audit.owner_id=$1 AND audit.audit_id=$2`
 
@@ -128,6 +129,7 @@ SELECT request.request_id, request.audit_id, request.finding_id,
        decision.rationale, decision.duplicate_target_id, decision.created_at
   FROM audit_review_requests AS request
   JOIN audits AS audit USING (audit_id)
+  JOIN LATERAL (SELECT 1 WHERE ` + visibleItemReviewSQL + `) AS visible_review ON true
   LEFT JOIN audit_review_decisions AS decision
     ON decision.request_id = request.request_id
    AND decision.audit_id = request.audit_id`
@@ -181,6 +183,7 @@ SELECT audit.state, audit.revision, request.subject_kind, request.subject_id, re
   JOIN audits AS audit USING (audit_id)
  WHERE audit.owner_id = $1 AND request.audit_id = $2
    AND request.request_id = $3
+   AND ` + visibleItemReviewSQL + `
  FOR UPDATE OF audit, request`
 
 // duplicateTargetCycleSQL reports whether the proposed duplicate target

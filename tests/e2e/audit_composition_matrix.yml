@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0",
-  "scope": "Current preparation/source-to-scan and complete settled-Round snapshot transport contracts; no model-quality claim.",
+  "scope": "Preparation/source-to-scan, complete settled-Round inputs and exact typed finding-check routing through ordinary Runs; no model-quality claim.",
   "prerequisites": [
     "disposable PostgreSQL",
     "locked Runtime",
@@ -32,7 +32,11 @@
       "TestPostgresInitialInventoryFencesControlsAndStaleClaimsAfterPublication/deadline",
       "TestPostgresInitialInventoryInvalidAndOverLimitFailBeforeRound/malformed",
       "TestPostgresInitialInventoryInvalidAndOverLimitFailBeforeRound/empty",
-      "TestPostgresInitialInventoryInvalidAndOverLimitFailBeforeRound/over-limit"
+      "TestPostgresInitialInventoryInvalidAndOverLimitFailBeforeRound/over-limit",
+      "TestPostgresTypedRoutingUsesActualAdmissionAfterPauseRestartAndProducerDeletion",
+      "TestPostgresTypedAdmissionWaitsForExplicitProjectionRebuildOrOriginalDeadline",
+      "TestPostgresTypedAdmissionDefersAtNonTimeRoundBudgetWithoutTargetRetry",
+      "TestPostgresTypedAdmissionContinuesBeyondOnePrimarySliceBeforeAtomicAcceptance"
     ],
     "github.com/grauwolf32/contractor/internal/artifacts": [
       "TestSharedPostgresAuditPreparationIdentityAndReplay",
@@ -54,7 +58,27 @@
     "github.com/grauwolf32/contractor/internal/auditstore/internal/pgstore": [
       "TestPostgresRoundResultsCaptureRestartsBeforeSealAndPinsReviewGeneration",
       "TestPostgresRoundResultsRejectUnsettledAndOversizeSources",
-      "TestPostgresRoundResultsCaptureAtRoundAndAuditCeilings"
+      "TestPostgresRoundResultsCaptureAtRoundAndAuditCeilings",
+      "TestPostgresProposedMembershipHasNoReadOrReviewAuthority",
+      "TestPostgresAcceptedItemCountReadsRoundCountersAtAuditCeiling",
+      "TestPostgresAdmissionStagesMoreThan128AndAcceptsConstantParentSeal",
+      "TestPostgresAdmissionCancellationRemovesPrivateRowsInBoundedPasses",
+      "TestPostgresAdmissionAnchorsDBCutoffAndDoesNotResetDeadline",
+      "TestPostgresAdmissionExactSourceSavepointAndDecisionReplay",
+      "TestPostgresAdmissionZeroCheckReceiptAdvancesBeforeLaterCandidate",
+      "TestPostgresAdmissionRaw128HeadersAndAllPortsUseSingleConnection",
+      "TestPostgresAdmissionFinalRoundHasBoundedBudgetDispositionIntent",
+      "TestPostgresAdmissionPreparedAndAcceptedMembershipPurgeWithAudit"
+    ],
+    "github.com/grauwolf32/contractor/internal/findingintake": [
+      "TestPostgresFindingChecksIndexIntakeRebuildAndRetention",
+      "TestPostgresFindingChecksRebuildMissingOrCorruptFilesystemBytes"
+    ],
+    "github.com/grauwolf32/contractor/internal/persistence/postgres": [
+      "TestPostgresFindingChecksMigrationPreservesInlineAndFilesystemSources"
+    ],
+    "github.com/grauwolf32/contractor/internal/app": [
+      "TestPostgresFindingChecksDataMigrationCLIUsesExactInlineAndFilesystemSources"
     ]
   },
   "process": {
@@ -68,7 +92,8 @@
       "TestOpenAPIAuditScanAcrossProductionProcesses/publication_and_collection_faults_survive_restart",
       "TestOpenAPIAuditScanAcrossProductionProcesses/known_failure_has_bounded_cross_run_retries",
       "TestOpenAPIAuditScanAcrossProductionProcesses/cancelled_scan_is_not_resubmitted",
-      "TestAuditRoundResultsAcrossProductionProcesses"
+      "TestAuditRoundResultsAcrossProductionProcesses",
+      "TestAuditTypedCheckRoutingAcrossProductionProcesses"
     ]
   },
   "browser": {

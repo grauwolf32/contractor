@@ -18,9 +18,9 @@ func (s *ReviewStore) ApplyItemReviewDecision(
 	var approvalDigest *string
 	err := s.db.QueryRow(ctx, `
 SELECT state, approval_kind, approval_subject_digest
-  FROM audit_items
- WHERE audit_id = $1 AND item_id = $2
- FOR UPDATE`, auditID, itemID).Scan(&state, &approvalKind, &approvalDigest)
+  FROM audit_items AS item
+ WHERE item.audit_id = $1 AND item.item_id = $2 AND `+acceptedItemSQL("item")+`
+ FOR UPDATE OF item`, auditID, itemID).Scan(&state, &approvalKind, &approvalDigest)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auditstore.ErrNotFound
 	}

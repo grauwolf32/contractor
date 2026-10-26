@@ -76,7 +76,7 @@ func (checks findingChecks) subject(ordinal int) (map[string]any, inventorySubje
 		"limitations":            checks.limitations,
 	}
 	return basisSubject, inventorySubject{
-		itemKey: findingCheckItemKey(proposal.ReceiptID, ordinal), kind: "finding-verification",
+		itemKey: FindingCheckItemKey(proposal.ReceiptID, ordinal), kind: "finding-verification",
 		subjectKey: checks.subjectKey, finding: finding,
 		requested: []string{check.Method}, gaps: slices.Clone(checks.limitations),
 	}
@@ -89,7 +89,7 @@ func newFindingInventoryBasis(subjects []map[string]any) inventoryBasis {
 	}
 }
 
-func findingCheckItemKey(receiptID string, ordinal int) string {
+func FindingCheckItemKey(receiptID string, ordinal int) string {
 	identity := []byte(ReceiptCheckIdentity(receiptID, ordinal))
 	digest := sha256.Sum256(identity)
 	return "finding-check-" + hex.EncodeToString(digest[:16])

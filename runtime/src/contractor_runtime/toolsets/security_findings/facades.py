@@ -13,6 +13,7 @@ from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.finding_proposals import FindingProposalClient
 from contractor_runtime.redaction import runtime_secrets
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory
+from contractor_runtime.toolsets.common.check_plans import ProposedCheck
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.finding_locations import (
     ExactEvidenceRef,
@@ -59,6 +60,8 @@ class GeneralFindingTool(_FindingFacade):
         standard_refs: Optional exact standard identities copied from an assigned
             Audit task. A finding linked to a standard-mapped Audit result must
             cite every assigned entry ID.
+        proposed_checks: Optional follow-up questions, each with objective and
+            method. At most 512; these suggestions grant no execution authority.
     """
 
     async def __call__(
@@ -72,6 +75,7 @@ class GeneralFindingTool(_FindingFacade):
         cwe: str | None = None,
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
+        proposed_checks: list[ProposedCheck] | None = None,
     ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
@@ -81,6 +85,7 @@ class GeneralFindingTool(_FindingFacade):
             cwe=cwe,
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
+            proposed_checks=proposed_checks,
             request_id=request_id,
             caido_request_id=caido_request_id,
         )
@@ -104,6 +109,8 @@ class CodeFindingTool(_FindingFacade):
         standard_refs: Optional exact standard identities copied from an assigned
             Audit task. A finding linked to a standard-mapped Audit result must
             cite every assigned entry ID.
+        proposed_checks: Optional follow-up questions, each with objective and
+            method. At most 512; these suggestions grant no execution authority.
     """
 
     async def __call__(
@@ -117,6 +124,7 @@ class CodeFindingTool(_FindingFacade):
         cwe: str | None = None,
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
+        proposed_checks: list[ProposedCheck] | None = None,
     ) -> dict[str, Any]:
         location: dict[str, Any] = {"file": file}
         if line is not None:
@@ -131,6 +139,7 @@ class CodeFindingTool(_FindingFacade):
             cwe=cwe,
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
+            proposed_checks=proposed_checks,
         )
 
 
@@ -156,6 +165,8 @@ class HTTPFindingTool(_FindingFacade):
         standard_refs: Optional exact standard identities copied from an assigned
             Audit task. A finding linked to a standard-mapped Audit result must
             cite every assigned entry ID.
+        proposed_checks: Optional follow-up questions, each with objective and
+            method. At most 512; these suggestions grant no execution authority.
     """
 
     async def __call__(
@@ -170,6 +181,7 @@ class HTTPFindingTool(_FindingFacade):
         cwe: str | None = None,
         evidence_refs: list[ExactEvidenceRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
+        proposed_checks: list[ProposedCheck] | None = None,
     ) -> dict[str, Any]:
         return await self._publisher.submit(
             title=title,
@@ -179,6 +191,7 @@ class HTTPFindingTool(_FindingFacade):
             cwe=cwe,
             evidence_refs=evidence_refs,
             standard_refs=standard_refs,
+            proposed_checks=proposed_checks,
             request_id=request_id,
             caido_request_id=caido_request_id,
         )

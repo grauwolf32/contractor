@@ -2,11 +2,9 @@ package auditservice
 
 import (
 	"fmt"
-	"slices"
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
@@ -84,26 +82,8 @@ func profileSelectsClassifiedTool(profile auditprofile.ResolvedAuditProfile, act
 	return false
 }
 
-func workflowRoleSelectsClassifiedTool(
-	profile auditprofile.ResolvedAuditProfile, workflowRole string, active bool,
-) bool {
-	binding, exists := profile.Workflows[workflowRole]
-	if !exists {
-		return false
-	}
-	for _, stage := range binding.Workflow.Stages {
-		for _, agent := range stage.Agents {
-			if slices.ContainsFunc(agent.Template.Toolsets, func(selection contracts.ToolsetSelection) bool {
-				if active {
-					return resolved.SelectsActiveCheckTool(selection, agent.Template.SandboxProfile)
-				}
-				return resolved.SelectsFindingProposalTool(selection)
-			}) {
-				return true
-			}
-		}
-	}
-	return false
+func workflowRoleSelectsClassifiedTool(profile auditprofile.ResolvedAuditProfile, workflowRole string, active bool) bool {
+	return auditprofile.WorkflowRoleSelectsClassifiedTool(profile, workflowRole, active)
 }
 
 func profileCanEmitFindings(profile auditprofile.ResolvedAuditProfile) bool {

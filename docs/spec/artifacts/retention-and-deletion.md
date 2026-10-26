@@ -172,6 +172,7 @@ scope purge removes the revisions of its own scope whatever their holds
 | Audit baseline Skill sources | `audits.baseline_snapshot` | Audit preparation | lenient | Audit deletion |
 | Finding proposal receipt proposal and evidence | `finding_proposal_receipts` | finding intake, while the source Run holds the receipt | strict | the source Run's purge |
 | Accepted Audit item dependency retained refs | `audit_items` accepted dependency manifest | Trusted next-Round acceptance after exact source retention | strict | Item removal in bounded owning Audit purge |
+| Typed admission selection/prepared pages, roots, source fragments, task packages and decision artifacts | Existing frozen Audit namespace bindings and retained ArtifactLinks | Claimed admission phases | Protected current pointers; required dependency forks and manifests retain their existing exact holds | Owning Audit namespace/row purge after drain; JSON decision provenance grants no byte-read authority |
 
 Rationale: every holder increments one counter per revision in the
 transaction that records it, so retention decides eligibility from an
@@ -637,3 +638,13 @@ A deleting Project stays readable so that cleanup progress is visible
    every Project Run would (DEL-R44, DEL-R60); test
    `TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations` in
    [`internal/projectlifecycle/drain_plan_postgres_test.go`](../../../internal/projectlifecycle/drain_plan_postgres_test.go).
+
+**DEL-R66.** Unaccepted typed membership is private construction state. Audit
+finalization, cancellation and deletion first remove proposed item rows and
+their unpublished review requests in bounded passes. Each pass charges primary
+rows, staging counter updates, related review deletion and distinct dependency-hold counter releases
+against the existing closure batch bound. It performs no child Run dispatch,
+review decision or public membership publication. Empty proposed metadata and
+all frozen selection/prepared material remain attributable until ordinary
+Audit purge. Pause keeps the checkpoint and its original deadline; resume
+continues the same generation or reports its finite validation timeout.

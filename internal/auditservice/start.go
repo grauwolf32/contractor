@@ -734,22 +734,7 @@ func writeTaskPackages(
 		if !exists {
 			return nil, auditdomain.ExecutionManifest{}, inconsistentRound("an Audit item names an unknown Workflow role", nil)
 		}
-		manifest.Items[index].Inputs = workflowInputs(binding, selection, prepared...)
-		if task.Document.Dependencies != nil {
-			for slot, mapping := range binding.Inputs {
-				if mapping.Source != auditprofile.AuditInputFromRetainedDependency {
-					continue
-				}
-				for _, dependency := range task.Document.Dependencies.Dependencies {
-					if dependency.Name == mapping.Name {
-						manifest.Items[index].Inputs = append(manifest.Items[index].Inputs, auditdomain.ExactInput{Name: slot, Ref: dependency.Retained.Ref.Clone(), Digest: dependency.Retained.Digest})
-					}
-				}
-			}
-			sort.Slice(manifest.Items[index].Inputs, func(i, j int) bool {
-				return manifest.Items[index].Inputs[i].Name < manifest.Items[index].Inputs[j].Name
-			})
-		}
+		manifest.Items[index].Inputs = acceptedTaskInputs(binding, selection, task.Document.Dependencies, prepared...)
 
 	}
 	if err := auditdomain.ValidateDispatchExecutionManifest(manifest); err != nil {

@@ -95,15 +95,15 @@ HypothesisRevision plus accepted ExperimentPlan is the other source. Neither
 source bypasses the pentest plan, scope, predicate or replay requirements.
 The original non-search path can continue to use receipt/ordinal admission.
 
-The guarantees proposed by V62-005/006/007 remain necessary: settled result
-snapshots, retained dependencies and profile-owned routing. Their future
-source shapes must also represent early grounding and alternative tests.
+V62-005/006/007 now provide settled result snapshots, retained dependencies and
+profile-owned routing through the trusted finding receipt/ordinal adapter.
+The future research adapter must also represent early grounding and alternative tests.
 The [delivery plan](../plans/2026-10-24-audit-hypothesis-search.md) now records
 the revised V62/V64 tasks and targeted V411 boundaries. The planning revision
 initially retained deferral. By a later explicit user instruction on
-2026-10-24, exactly V64-001–018 and V62-005/006/007/013 are pending, with
-unchanged dependencies and all other task statuses preserved. This changes
-no implemented behavior; V61 and V62-008 remain deferred.
+2026-10-24, exactly V64-001–018 and V62-005/006/007/013 were queued as pending,
+with unchanged dependencies. V62-005/006/007 are now completed; V62-013 remains
+the iterative delivery exit. V61 and V62-008 remain deferred.
 
 ## 3. Concepts and durable model
 
@@ -433,9 +433,10 @@ access. When live context influences an accepted plan or conclusion, retain
 the exact used revision. Never mutate the Audit baseline or accepted input
 retroactively; missing exact dependencies block work rather than using latest.
 
-Required extensions are a bounded settled-results snapshot, retained-dependency
-transport and profile-owned method routing. Current same-Round retained-output
-does not serve as a hidden previous-check channel. Memory remains Run-local
+The shared V62 delivery provides bounded settled-results snapshots,
+retained-dependency transport and profile-owned method routing. Consumers
+declare exact retained inputs rather than use same-Round output as a hidden
+previous-check channel. Memory remains Run-local
 scratch, and create-only Project output slots are not a mutable research pool.
 
 ## 8. Optional attack trees

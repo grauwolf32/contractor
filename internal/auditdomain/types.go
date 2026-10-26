@@ -117,6 +117,7 @@ type WorklistItem struct {
 }
 
 type ItemTask struct {
+	AcceptedPlan             *AcceptedPlan               `json:"accepted_plan,omitempty"`
 	Dependencies             *RetainedDependencyManifest `json:"dependencies,omitempty"`
 	Schema                   string                      `json:"schema"`
 	ProfileMode              string                      `json:"profile_mode,omitempty"`
@@ -213,6 +214,7 @@ type ExecutionManifest struct {
 }
 
 type ExecutionItem struct {
+	AcceptedPlan      *AcceptedPlan               `json:"accepted_plan,omitempty"`
 	Dependencies      *RetainedDependencyManifest `json:"dependencies,omitempty"`
 	ItemKey           string                      `json:"item_key"`
 	Ordinal           int                         `json:"ordinal"`

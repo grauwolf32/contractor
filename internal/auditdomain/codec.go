@@ -109,13 +109,41 @@ func decodeDocument[T any](data []byte, validate func(T) error) (T, error) {
 	if len(data) > MaximumDocumentBytes {
 		return result, invalid(CodeLimitExceeded, "document")
 	}
-	if _, err := decodeStrictJSON(data, &result); err != nil {
+	raw, err := decodeStrictJSON(data, &result)
+	if err != nil {
 		return result, err
+	}
+	switch any(result).(type) {
+	case ItemTask:
+		if err = rejectNullItemAuthority(raw); err != nil {
+			return result, err
+		}
+	case ExecutionManifest:
+		if object, ok := raw.(map[string]any); ok {
+			if items, ok := object["items"].([]any); ok {
+				for _, item := range items {
+					if err = rejectNullItemAuthority(item); err != nil {
+						return result, err
+					}
+				}
+			}
+		}
 	}
 	if err := validate(result); err != nil {
 		return result, err
 	}
 	return result, nil
+}
+
+func rejectNullItemAuthority(raw any) error {
+	if object, ok := raw.(map[string]any); ok {
+		for _, name := range []string{"accepted_plan", "dependencies"} {
+			if value, present := object[name]; present && value == nil {
+				return invalid(CodeInvalid, "item.authority_null")
+			}
+		}
+	}
+	return nil
 }
 
 func DigestExecutionManifest(value ExecutionManifest) (string, error) {
@@ -165,6 +193,7 @@ func validateWorklist(value WorklistManifest) error {
 	seenKeys := make(map[string]struct{}, len(value.Items))
 	seenPackages := make(map[string]struct{}, len(value.Items))
 	for index, item := range value.Items {
+
 		if item.Ordinal != index || validateIdentifier(item.ItemKey, "items.item_key") != nil ||
 			validateIdentifier(item.Kind, "items.kind") != nil || validateIdentifier(item.SubjectKey, "items.subject_key") != nil ||
 			validateIdentifier(item.WorkflowRole, "items.workflow_role") != nil || validateIdentifier(item.TaskPackageID, "items.task_package_id") != nil ||
@@ -184,6 +213,16 @@ func validateWorklist(value WorklistManifest) error {
 }
 
 func validateItemTask(value ItemTask) error {
+	if value.AcceptedPlan != nil {
+		if !validAuditProfileMode(value.ProfileMode) {
+			return invalid(CodeInvalid, "accepted_plan.profile_mode")
+		}
+		plan := value.AcceptedPlan
+		if ValidateAcceptedPlan(*plan, value.Dependencies) != nil || plan.ItemKey != value.ItemKey || plan.Route.WorkflowRole != value.WorkflowRole || value.Finding == nil || plan.Source.ReceiptID != value.Finding.ReceiptID || plan.Source.ProposedCheckOrdinal == nil || *plan.Source.ProposedCheckOrdinal != value.Finding.ProposedCheckOrdinal || !plan.Source.RetainedProposal.Ref.SameExact(value.Finding.ProposalRef) || plan.Source.RetainedProposal.Digest != value.Finding.ProposalDigest || plan.Plan.Objective != value.Finding.Objective || plan.Plan.Method != value.Finding.Method {
+			return invalid(CodeInvalid, "accepted_plan.task")
+		}
+	}
+
 	if value.Dependencies != nil {
 		if err := validateItemDependencies(value.ItemKey, value.Dependencies); err != nil {
 			return err
@@ -387,6 +426,10 @@ func validateExecutionManifest(value ExecutionManifest) error {
 	seen := make(map[string]struct{}, len(value.Items))
 	seenPackages := make(map[string]struct{}, len(value.Items))
 	for index, item := range value.Items {
+		if item.AcceptedPlan != nil && (ValidateAcceptedPlan(*item.AcceptedPlan, item.Dependencies) != nil || item.AcceptedPlan.ItemKey != item.ItemKey) {
+			return invalid(CodeInvalid, "accepted_plan.execution")
+		}
+
 		if item.Dependencies != nil {
 			if err := validateItemDependencies(item.ItemKey, item.Dependencies); err != nil {
 				return err

@@ -24,6 +24,7 @@ func (s *QueryStore) ListRoundItems(ctx context.Context, auditID, roundID string
 SELECT `+prefixedItemColumns("item")+`
   FROM audit_items AS item
  WHERE item.audit_id = $1 AND item.round_id = $2
+   AND `+acceptedItemSQL("item")+`
  ORDER BY item.ordinal, item.item_id
  LIMIT $3`, auditID, roundID, auditprofile.MaxAuditItemsPerRound+1)
 	if err != nil {
