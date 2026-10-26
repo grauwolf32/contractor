@@ -274,6 +274,16 @@ tool names are rejected.
 intake and receipt handling. There is no parallel old authoring
 implementation.
 
+**FND-R187.** All creation facades accept optional `proposed_checks`, preserving
+the ordered proposal entries `objective` and `method` (at most 512). Each
+objective is nonblank UTF-8 text of at most 64 KiB without NUL; each method is
+the existing bounded proposal identifier. Unknown method names may be recorded
+as suggestions; trusted admission validates registered methods and the pinned
+profile's mapping before execution. No suggestion accepts a Workflow ref, role,
+phase, capability or approval grant. Omission produces an empty array. Invalid
+entries fail before intake and publish no receipt; retries retain the ordinary
+invocation and tool-call submission identity.
+
 **FND-R20.** `security-findings@1` also exports `list_findings`, which can
 be selected independently of a creation facade: AgentTemplate selection can
 expose creation, reading or both.

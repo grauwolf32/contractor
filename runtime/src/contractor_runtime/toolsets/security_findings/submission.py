@@ -31,6 +31,7 @@ def build_submission(
     description: str,
     evidence_refs: list[dict[str, str]],
     standard_refs: list[dict[str, str]] | None,
+    proposed_checks: list[dict[str, str]] | None = None,
 ) -> dict[str, object]:
     _identifier("client_key", client_key)
     _text("title", title, required=True)
@@ -66,6 +67,10 @@ def build_submission(
         _identifier("standard_refs.scheme", reference["scheme"])
         _text("standard_refs.version", reference["version"], required=True)
         _identifier("standard_refs.requirement_id", reference["requirement_id"])
+    checks = _object_list("proposed_checks", proposed_checks, {"objective", "method"}, MAX_VALUES)
+    for check in checks:
+        _text("proposed_checks.objective", check["objective"], required=True)
+        _identifier("proposed_checks.method", check["method"])
     submission_digest = hashlib.sha256(
         b"contractor.finding.submission.v1\0"
         + invocation_id.encode("utf-8")
@@ -81,7 +86,7 @@ def build_submission(
         "preconditions": [],
         "standard_refs": standards,
         "evidence_ids": [f"evidence-{index + 1}" for index in range(len(refs))],
-        "proposed_checks": [],
+        "proposed_checks": checks,
         "severity_suggestion": "",
         "limitations": [],
     }

@@ -96,6 +96,10 @@ def test_actual_provider_schema(tool_type, required):
     evidence = schema["$defs"]["ExactEvidenceRef"]
     assert set(evidence["required"]) == {"namespace", "name", "revision"}
     assert evidence["additionalProperties"] is False
+    check = schema["$defs"]["ProposedCheck"]
+    assert set(check["required"]) == {"objective", "method"}
+    assert set(check["properties"]) == {"objective", "method"}
+    assert check["additionalProperties"] is False
     if tool_type is GeneralFindingTool:
         assert schema["$defs"]["SourceLocation"]["additionalProperties"] is False
         assert schema["$defs"]["WebLocation"]["additionalProperties"] is False
@@ -115,6 +119,116 @@ async def finding_tool(factory_type, client, state):
         state=state,
     )
     return tools["finding"]
+
+
+@pytest.mark.parametrize(
+    "factory_type,location_args",
+    [
+        (GeneralFindingsToolsetFactory, {}),
+        (CodeFindingsToolsetFactory, {"file": "src/order.py"}),
+        (HTTPFindingsToolsetFactory, {"url": "https://target.example", "method": "GET"}),
+    ],
+)
+def test_all_facades_publish_ordered_check_suggestions_through_adk(factory_type, location_args):
+    async def scenario():
+        client = FakeFindingClient()
+        tool = await finding_tool(factory_type, client, WorkerState())
+        checks = [
+            {
+                "objective": 'Проверить <owner> & "scope"\nagainst exact evidence.',
+                "method": "verify",
+            },
+            {"objective": "Repeat the observation independently.", "method": "replay"},
+            {"objective": "An unregistered suggestion remains data.", "method": "operator-idea"},
+        ]
+        args = {
+            "title": "Observation",
+            "description": "Needs an independently admitted follow-up",
+            "proposed_checks": checks,
+            **location_args,
+        }
+        adk = FunctionTool(tool)
+        await adk.run_async(args=args, tool_context=context())
+        await adk.run_async(args=args, tool_context=context())
+        assert client.requests[0] == client.requests[1]
+        assert client.requests[0]["proposal"]["proposed_checks"] == checks
+        assert _proposal(json.dumps(client.requests[0]["proposal"]).encode())
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "checks",
+    [
+        "verify",
+        {},
+        [{"objective": "Missing method"}],
+        [{"objective": "No role grant", "method": "verify", "workflow_role": "chosen"}],
+        [{"objective": "No phase grant", "method": "verify", "phase": "verify"}],
+        [{"objective": "No capability grant", "method": "verify", "capabilities": []}],
+        [{"objective": "\u2003", "method": "verify"}],
+        [{"objective": "x\x00y", "method": "verify"}],
+        [{"objective": "é" * 32769, "method": "verify"}],
+        [{"objective": "x\ud800", "method": "verify"}],
+        [{"objective": "Question", "method": ""}],
+        [{"objective": "Question", "method": "role/ref@1"}],
+        [{"objective": "Question", "method": "m" * 161}],
+        [{"objective": "Question", "method": True}],
+        [{"objective": "Question", "method": "verify"}] * 513,
+    ],
+    ids=[
+        "scalar",
+        "object",
+        "missing",
+        "role",
+        "phase",
+        "capability",
+        "blank",
+        "nul",
+        "utf8-bytes",
+        "surrogate",
+        "empty-method",
+        "workflow-ref",
+        "long-method",
+        "boolean",
+        "count",
+    ],
+)
+def test_invalid_check_suggestions_publish_nothing(checks):
+    async def scenario():
+        client = FakeFindingClient()
+        state = WorkerState()
+        tool = await finding_tool(GeneralFindingsToolsetFactory, client, state)
+        with pytest.raises(ToolInputError, match="proposed_checks"):
+            await tool(
+                title="Observation",
+                description="Question",
+                proposed_checks=checks,
+                tool_context=context(),
+            )
+        assert client.requests == []
+        assert state.metrics.counters["tool_errors"] == 1
+
+    asyncio.run(scenario())
+
+
+def test_check_suggestion_maxima_and_omission():
+    async def scenario():
+        client = FakeFindingClient()
+        tool = await finding_tool(GeneralFindingsToolsetFactory, client, WorkerState())
+        checks = [{"objective": "é" * 32768, "method": "m" * 160}]
+        checks += [{"objective": "Question", "method": "verify"}] * 511
+        await tool(
+            title="Observation",
+            description="Question",
+            proposed_checks=checks,
+            tool_context=context(),
+        )
+        assert client.requests[0]["proposal"]["proposed_checks"] == checks
+        await tool(title="Observation", description="No follow-up", tool_context=context("call-2"))
+        assert client.requests[1]["proposal"]["proposed_checks"] == []
+
+    asyncio.run(scenario())
 
 
 def request_attempts(submission):

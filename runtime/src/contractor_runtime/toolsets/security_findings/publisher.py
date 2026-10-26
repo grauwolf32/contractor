@@ -18,6 +18,7 @@ from contractor_runtime.toolsets.common.cwe import (
     cwe_reference,
 )
 from contractor_runtime.toolsets.common.finding_locations import (
+    ProposedCheck,
     StandardReference,
     normalize_locations,
 )
@@ -65,6 +66,7 @@ class FindingPublisher:
         cwe: str | None,
         evidence_refs: list[ArtifactRef] | None = None,
         standard_refs: list[StandardReference] | None = None,
+        proposed_checks: list[ProposedCheck] | None = None,
         request_id: int | None = None,
         caido_request_id: str | None = None,
     ) -> dict[str, Any]:
@@ -82,6 +84,14 @@ class FindingPublisher:
                 ref.model_dump() if isinstance(ref, StandardReference) else ref
                 for ref in standard_refs or []
             ]
+            checks = (
+                [
+                    check.model_dump() if isinstance(check, ProposedCheck) else check
+                    for check in proposed_checks
+                ]
+                if isinstance(proposed_checks, list)
+                else proposed_checks
+            )
             for reference in cwe_reference(cwe):
                 if reference not in standards:
                     standards.append(reference)
@@ -95,6 +105,7 @@ class FindingPublisher:
                 description=description,
                 evidence_refs=refs,
                 standard_refs=standards,
+                proposed_checks=checks,
             )
             proposal = request["proposal"]
             if normalized:
