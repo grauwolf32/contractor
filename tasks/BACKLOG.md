@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-122 open tasks: 5 in progress, 106 pending, 11 deferred. 1151 finished: 1141 completed, 10 archived.
+122 open tasks: 6 in progress, 105 pending, 11 deferred. 1151 finished: 1141 completed, 10 archived.
 
 ## In progress
 
