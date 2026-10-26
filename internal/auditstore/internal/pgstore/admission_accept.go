@@ -61,8 +61,8 @@ func (s *ClaimStore) acceptPreparedRound(ctx context.Context, p auditstore.Accep
 // ReadSelectedPreparedManifest hydrates only the immutable execution entries
 // selected for a batch, after summing cheap stored byte and descriptor costs.
 // The accepted root/generation identifies their already-verified page chain.
-func (s *QueryStore) ReadSelectedPreparedManifest(ctx context.Context, auditID, roundID string, itemIDs []string, maxBytes, maxRelated int) ([]auditdomain.ExecutionItem, error) {
-	result := []auditdomain.ExecutionItem{}
+func (s *QueryStore) ReadSelectedPreparedManifest(ctx context.Context, auditID, roundID string, itemIDs []string, maxBytes, maxRelated int) ([]auditdomain.PreparedExecutionItem, error) {
+	result := []auditdomain.PreparedExecutionItem{}
 	if validateID("Audit", auditID) != nil || validateID("Round", roundID) != nil || len(itemIDs) < 1 || len(itemIDs) > auditstore.MaxReconcileRows || maxBytes < 1 || maxBytes > auditstore.MaxAdmissionMetadataBytes || maxRelated < 1 || maxRelated > auditstore.MaxAdmissionRelated {
 		return result, auditstore.ErrInvalid
 	}
@@ -122,8 +122,8 @@ func (s *QueryStore) ReadSelectedPreparedManifest(ctx context.Context, auditID, 
 		if err := rows.Scan(&data, &ordinal); err != nil {
 			return result, err
 		}
-		var item auditdomain.ExecutionItem
-		if strictjson.Decode(data, &item) != nil {
+		var item auditdomain.PreparedExecutionItem
+		if strictjson.Decode(data, &item) != nil || auditdomain.ValidatePreparedExecutionItem(item) != nil {
 			return result, auditstore.ErrInvalid
 		}
 		item.Ordinal = ordinal

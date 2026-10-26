@@ -83,7 +83,37 @@ type PreparedRoundItem struct {
 	Origin          PreparedItemOrigin       `json:"origin" strictjson:"required"`
 	Coverage        RoundResultCoverage      `json:"coverage" strictjson:"required"`
 	ProposalSources []PreparedProposalSource `json:"proposal_sources" strictjson:"required"`
-	Execution       ExecutionItem            `json:"execution" strictjson:"required"`
+	Execution       PreparedExecutionItem    `json:"execution" strictjson:"required"`
+}
+
+// PreparedExecutionItem is private accepted-Round metadata. Its flattened JSON
+// preserves the indexed prepared projection; only ExecutionItem is transported
+// to an ordinary child Run. The exact task package owns transported authority.
+type PreparedExecutionItem struct {
+	ExecutionItem
+	AcceptedPlan *AcceptedPlan               `json:"accepted_plan,omitempty"`
+	Dependencies *RetainedDependencyManifest `json:"dependencies,omitempty"`
+}
+
+// ValidatePreparedExecutionItem retains the complete private projection gates
+// independently of the compact execution manifest codec. The stored page-local
+// ordinal and the selected global ordinal are checked by their owning readers.
+func ValidatePreparedExecutionItem(item PreparedExecutionItem) error {
+	if item.Ordinal < 0 || item.Ordinal >= MaximumItems {
+		return invalid(CodeInvalid, "prepared_execution.ordinal")
+	}
+	compact := item.ExecutionItem
+	compact.Ordinal = 0
+	if err := ValidateDispatchExecutionManifest(ExecutionManifest{Schema: ExecutionManifestSchema, Items: []ExecutionItem{compact}}); err != nil {
+		return err
+	}
+	if item.AcceptedPlan == nil || ValidateAcceptedPlan(*item.AcceptedPlan, item.Dependencies) != nil || item.AcceptedPlan.ItemKey != item.ItemKey {
+		return invalid(CodeInvalid, "prepared_execution.accepted_plan")
+	}
+	if item.Dependencies != nil {
+		return validateItemDependencies(item.ItemKey, item.Dependencies)
+	}
+	return nil
 }
 
 type PreparedItemOrigin struct {
@@ -203,6 +233,9 @@ func validatePreparedRoundPage(value PreparedRoundPage, schema string) error {
 		if !contracts.ValidResourceID(source.ReceiptID) || source.ProposedCheckOrdinal < 0 || source.ProposedCheckOrdinal >= MaximumCoverageValues || !validPreparedArtifact(source.Proposal, JSONMediaType) {
 			return invalid(CodeInvalid, "prepared_page.source")
 		}
+		if err := ValidatePreparedExecutionItem(item.Execution); err != nil {
+			return err
+		}
 		plan := item.Execution.AcceptedPlan
 		if plan == nil || ValidateAcceptedPlan(*plan, item.Execution.Dependencies) != nil || plan.AuditID != value.AuditID || plan.ItemKey != item.ItemKey || plan.ItemKey != FindingCheckItemKey(source.ReceiptID, source.ProposedCheckOrdinal) || plan.Route.WorkflowRole != item.WorkflowRole || plan.Source.ReceiptID != source.ReceiptID || *plan.Source.ProposedCheckOrdinal != source.ProposedCheckOrdinal || plan.Source.RetainedProposal.Verify(source.Proposal) != nil {
 			return invalid(CodeInvalid, "prepared_page.accepted_plan")
@@ -210,7 +243,7 @@ func validatePreparedRoundPage(value PreparedRoundPage, schema string) error {
 		if (plan.Authorization.ApprovalRequirement == ApprovalNone) != (item.ApprovalKind == "none") || (plan.Authorization.ApprovalRequirement == ApprovalActiveCheck) != (item.ApprovalKind == "active-check-approval") || len(item.Coverage.Requested) != 1 || item.Coverage.Requested[0] != plan.Plan.Method {
 			return invalid(CodeInvalid, "prepared_page.authorization")
 		}
-		manifest.Items[index] = item.Execution
+		manifest.Items[index] = item.Execution.ExecutionItem
 	}
 	if PreparedRoundPageDescriptors(value) > MaximumPreparedRoundRelated {
 		return invalid(CodeLimitExceeded, "prepared_page.descriptors")

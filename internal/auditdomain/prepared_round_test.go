@@ -2,11 +2,13 @@ package auditdomain
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func preparedRoundFixture(t *testing.T, count int) PreparedRoundPage {
@@ -26,7 +28,7 @@ func preparedRoundFixture(t *testing.T, count int) PreparedRoundPage {
 			Origin:          PreparedItemOrigin{Schema: ItemOriginSchema, SourceRef: sourceRef, SourceContentDigest: DigestBytes([]byte("source")), SourceMediaType: JSONMediaType, CanonicalInventoryDigest: DigestBytes([]byte("basis")), EntryKey: plan.ItemKey},
 			Coverage:        RoundResultCoverage{Status: CoverageNotTested, Requested: []string{"verify"}, Completed: []string{}, Gaps: []string{}},
 			ProposalSources: []PreparedProposalSource{{ReceiptID: plan.Source.ReceiptID, ProposedCheckOrdinal: 0, Proposal: plan.Source.RetainedProposal}},
-			Execution:       ExecutionItem{ItemKey: plan.ItemKey, Ordinal: index, SubjectKey: plan.Source.ReceiptID, TaskPackageID: fmt.Sprintf("task-package-%03d", index), TaskPackageDigest: task.Digest, TaskRef: &task.Ref, Inputs: []ExactInput{}, AcceptedPlan: &plan}}
+			Execution:       PreparedExecutionItem{ExecutionItem: ExecutionItem{ItemKey: plan.ItemKey, Ordinal: index, SubjectKey: plan.Source.ReceiptID, TaskPackageID: fmt.Sprintf("task-package-%03d", index), TaskPackageDigest: task.Digest, TaskRef: &task.Ref, Inputs: []ExactInput{}}, AcceptedPlan: &plan}}
 		page.Items = append(page.Items, item)
 	}
 	return page
@@ -118,5 +120,45 @@ func TestPreparedRoundPageBoundsIncludeRelatedDescriptorsAndEncodedBytes(t *test
 	page.Items[0].Coverage.Gaps = []string{strings.Repeat("x", MaximumStringBytes+1)}
 	if _, err := EncodePreparedRoundPage(page); err == nil {
 		t.Fatal("oversized coverage metadata accepted")
+	}
+}
+
+func TestPrivatePreparedExecutionRetainsFlattenedAuthority(t *testing.T) {
+	projection := preparedRoundFixture(t, 1).Items[0].Execution
+	encoded, err := canonicalJSON(projection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded PreparedExecutionItem
+	if err := strictjson.Decode(encoded, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidatePreparedExecutionItem(decoded); err != nil {
+		t.Fatal(err)
+	}
+	var value map[string]any
+	if err := json.Unmarshal(encoded, &value); err != nil {
+		t.Fatal(err)
+	}
+	if value["accepted_plan"] == nil || value["item_key"] != projection.ItemKey || value["ExecutionItem"] != nil {
+		t.Fatal("private projection embedding changed JSON shape")
+	}
+	compact, err := EncodeExecutionManifest(ExecutionManifest{Schema: ExecutionManifestSchema, Items: []ExecutionItem{projection.ExecutionItem}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(compact, []byte(`"accepted_plan"`)) || bytes.Contains(compact, []byte(`"dependencies"`)) {
+		t.Fatal("private authority escaped into compact manifest")
+	}
+	decoded.AcceptedPlan = nil
+	if ValidatePreparedExecutionItem(decoded) == nil {
+		t.Fatal("private projection accepted missing plan")
+	}
+	decoded = projection
+	copied := *decoded.AcceptedPlan
+	copied.ItemKey = "different"
+	decoded.AcceptedPlan = &copied
+	if ValidatePreparedExecutionItem(decoded) == nil {
+		t.Fatal("private projection accepted foreign plan")
 	}
 }

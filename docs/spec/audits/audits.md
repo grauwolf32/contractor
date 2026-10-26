@@ -1765,16 +1765,21 @@ valid ordinary finding submission. An absent index means explicit data migration
 is pending; it is never a legacy admission fallback. Exact source authorization
 and accepted membership precede any model context or target execution.
 
-**AUD-R235.** A typed item retains an immutable `accepted_plan` in both its task
-and execution entry. It pins owner, Project, Audit, item, baseline and profile;
+**AUD-R235.** A typed task retains the immutable `accepted_plan` transported to
+its Worker. The bounded private prepared projection retains the same accepted
+metadata for admission and indexed membership reads; it is not a Run input.
+The compact execution entry pins the exact task package and carries no plan or
+dependency body. The accepted plan pins owner, Project, Audit, item, baseline and profile;
 the original and retained proposal, receipt, producer Run and ordinal; canonical
 plan bytes/digest; the selected mapping, role, binding, Workflow and Skills;
 and scope, active-check policy, limits and required approval. Accepted-plan
 metadata is at most 64KiB. Every task with an accepted plan requires an explicit
 registered `profile_mode`; missing, null, empty or unknown modes fail both the
 Server factory/reader and Runtime reader. Its explicitly nullable `dependencies_digest` pins the
-complete existing dependency manifest without duplicating it. Task, execution,
-source, route and dependency identities must agree. JSON origin fields alone
+complete existing task dependency manifest without duplicating it. Exact task
+package identity/digest, source, route and dependency identities must agree;
+the Server and Runtime validate the task body rather than compare transported
+copies. JSON origin fields alone
 establish no authority; unknown source variants require a production adapter.
 
 **AUD-R236.** Required capabilities name tools selected by one exact Stage and

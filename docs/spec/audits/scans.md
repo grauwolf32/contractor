@@ -1017,9 +1017,12 @@ existing baseline, prepare-output and same-Round retained-output paths.
 **ASC-R171.** The strict `contractor.audit.retained-dependencies.v1` manifest
 pins owner, Project, Audit, item key, baseline and profile digests, and the
 selected consumer Workflow and Skill closure digests. The Server proves these
-pins against the immutable accepted records. The same manifest occurs in the
-item task and execution item; their agreement is part of inventory and Runtime
-trusted-input validation. Changing a dependency changes the deterministic task
+pins against the immutable accepted item record. The task package is the sole
+transported dependency document; the execution item pins that exact package,
+without copying its dependency body. Selected typed or batched task reads must
+agree with the accepted SQL dependency manifest. An ordinary singleton retains
+its accepted-descriptor dispatch path, and Runtime verifies actual task bytes
+before supplying model context. Changing a dependency changes the deterministic task
 package identity, without rewriting the source inventory's semantic identity.
 
 **ASC-R172.** Registered exact source kinds are `baseline`, `prepare-output`,

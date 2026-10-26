@@ -20,7 +20,7 @@ func TestPostgresPreparedExecutionOwnsPlanShapeAndIdentity(t *testing.T) {
 	if err := f.pool.QueryRow(f.ctx, `SELECT prepared_execution FROM audit_items WHERE item_id='typed-item-000'`).Scan(&data); err != nil {
 		t.Fatal(err)
 	}
-	var execution auditdomain.ExecutionItem
+	var execution auditdomain.PreparedExecutionItem
 	if err := strictjson.Decode(data, &execution); err != nil {
 		t.Fatal(err)
 	}

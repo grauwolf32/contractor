@@ -100,7 +100,7 @@ func prepareTypedCandidate(ctx context.Context, service *artifacts.Service, read
 	result.item = auditdomain.PreparedRoundItem{ItemID: itemID, ItemKey: itemKey, Ordinal: progress.SelectedCount, Kind: work.Kind, SubjectKey: work.SubjectKey, WorkflowRole: work.WorkflowRole, Task: tasks[0], InitialState: string(state), ApprovalKind: string(kind), ApprovalDigest: digest,
 		Origin:          auditdomain.PreparedItemOrigin{Schema: auditdomain.ItemOriginSchema, SourceRef: sourceArtifact.Ref, SourceContentDigest: inventory.SourceContentDigest, SourceMediaType: auditdomain.JSONMediaType, CanonicalInventoryDigest: inventory.CanonicalInventoryDigest, EntryKey: itemKey},
 		Coverage:        auditdomain.RoundResultCoverage{Status: auditdomain.CoverageNotTested, Requested: slices.Clone(inventory.Coverage.Rows[0].Requested), Completed: []string{}, Gaps: slices.Clone(inventory.Coverage.Rows[0].Gaps)},
-		ProposalSources: []auditdomain.PreparedProposalSource{{ReceiptID: receipt.ReceiptID, ProposedCheckOrdinal: ordinal, Proposal: check.Source.Retained}}, Execution: manifest.Items[0]}
+		ProposalSources: []auditdomain.PreparedProposalSource{{ReceiptID: receipt.ReceiptID, ProposedCheckOrdinal: ordinal, Proposal: check.Source.Retained}}, Execution: auditdomain.PreparedExecutionItem{ExecutionItem: manifest.Items[0], AcceptedPlan: inventory.Tasks[0].Document.AcceptedPlan, Dependencies: inventory.Tasks[0].Document.Dependencies}}
 	selectionPage := typedCandidatePage(progress, result.item, auditdomain.RoundSelectionPageSchema, progress.SelectionPagesDigest)
 	result.selectionContent, err = auditdomain.EncodeRoundSelectionPage(selectionPage)
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 )
 
 type selectedPreparedLookup struct {
-	items                []auditdomain.ExecutionItem
+	items                []auditdomain.PreparedExecutionItem
 	ids                  []string
 	maxBytes, maxRelated int
 }
@@ -19,7 +19,7 @@ type selectedPreparedLookup struct {
 func (s *selectedPreparedLookup) GetArtifactLink(context.Context, string, string) (auditstore.ArtifactLink, error) {
 	return auditstore.ArtifactLink{}, auditstore.ErrNotFound
 }
-func (s *selectedPreparedLookup) ReadSelectedPreparedManifest(_ context.Context, _, _ string, ids []string, maxBytes, maxRelated int) ([]auditdomain.ExecutionItem, error) {
+func (s *selectedPreparedLookup) ReadSelectedPreparedManifest(_ context.Context, _, _ string, ids []string, maxBytes, maxRelated int) ([]auditdomain.PreparedExecutionItem, error) {
 	s.ids = append([]string{}, ids...)
 	s.maxBytes, s.maxRelated = maxBytes, maxRelated
 	return s.items, nil
@@ -60,8 +60,8 @@ func TestPreparedRoundDispatchReadsOnlyCompactRootAndSelectedPrefix(t *testing.T
 		Source: auditdomain.AcceptedPlanSource{Kind: "finding-receipt", ReceiptID: "receipt", ProposedCheckOrdinal: &ordinal, RunID: "producer", Proposal: proposal, RetainedProposal: retained}, Plan: plan, PlanDigest: auditdomain.DigestBytes(planBytes),
 		Route:         auditdomain.AcceptedPlanRoute{MappingID: "named", MappingDigest: digest, WorkflowRole: "renamed", BindingDigest: digest, WorkflowDigest: digest, SkillsDigest: digest, RequiredCapabilities: []contracts.CheckCapabilityRequirement{}},
 		Authorization: auditdomain.AcceptedPlanAuthorization{ScopeDigest: digest, ActiveChecks: contracts.ActiveChecksProhibited, ApprovalRequirement: auditdomain.ApprovalNone, LimitsDigest: digest}}
-	item := auditdomain.ExecutionItem{ItemKey: "finding-one", Ordinal: 2048, SubjectKey: "subject", TaskPackageID: "task-package", TaskPackageDigest: task.Digest, TaskRef: &task.Ref, Inputs: []auditdomain.ExactInput{}, AcceptedPlan: accepted}
-	lookup := &selectedPreparedLookup{items: []auditdomain.ExecutionItem{item}}
+	item := auditdomain.PreparedExecutionItem{ExecutionItem: auditdomain.ExecutionItem{ItemKey: "finding-one", Ordinal: 2048, SubjectKey: "subject", TaskPackageID: "task-package", TaskPackageDigest: task.Digest, TaskRef: &task.Ref, Inputs: []auditdomain.ExactInput{}}, AcceptedPlan: accepted}
+	lookup := &selectedPreparedLookup{items: []auditdomain.PreparedExecutionItem{item}}
 	b := &PinnedSubmissionBuilder{artifacts: access, outputs: lookup}
 	snapshot := auditstore.ReconcileSnapshot{Audit: auditstore.Audit{AuditID: "audit", ProjectID: "project", Profile: auditstore.ProfileIdentity{Digest: digest}, BaselineSnapshot: baseline}, Round: &auditstore.Round{RoundID: "round", Manifest: source, ExpectedItemCount: 4096}}
 	selected := []CheckExecutionMember{{Item: auditstore.Item{ItemID: "selected-one", ItemKey: item.ItemKey, Ordinal: item.Ordinal, SubjectKey: item.SubjectKey}}, {Item: auditstore.Item{ItemID: "selected-two", ItemKey: "other", Ordinal: 2049, SubjectKey: "other"}}}
