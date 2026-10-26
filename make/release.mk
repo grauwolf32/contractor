@@ -34,6 +34,7 @@ release-verify-families: ui-install verify-public-api-postgres \
 	test-worker-session-modes-e2e test-project-workspaces-release \
 	test-lifecycle-controls-release test-scheduler-concurrency-e2e \
 	test-audit-program-library-e2e test-audit-completion-e2e \
+	test-audit-iterative-postgres test-audit-iterative-e2e \
 	test-findings-e2e test-performance-metrics test-nuclei-web-e2e \
 	test-artifact-history-postgres test-artifact-history-e2e test-project-sitemap-postgres test-project-sitemap-tools-e2e
 
@@ -84,8 +85,9 @@ RELEASE_INTEGRATION_PACKAGES := $(shell python3 scripts/release_integration_test
 RELEASE_INTEGRATION_TESTS := $(shell python3 scripts/release_integration_tests.py --regex)
 
 test-release-integration: require-database runtime-venv
-	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-integration.jsonl" -- go test -json -p $(RACE_PACKAGE_PARALLELISM) -race -tags=integration -v -count=1 -timeout=20m $(RELEASE_INTEGRATION_PACKAGES) -run '$(RELEASE_INTEGRATION_TESTS)'
+	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-integration.jsonl" --timeout-seconds 2640 -- go test -json -p $(RACE_PACKAGE_PARALLELISM) -race -tags=integration -v -count=1 -timeout=20m $(RELEASE_INTEGRATION_PACKAGES) -run '$(RELEASE_INTEGRATION_TESTS)'
 	python3 scripts/release_test_reports.py verify-audit --report "$(RELEASE_REPORTS)/go-integration.jsonl"
+	python3 scripts/release_test_reports.py verify-iterative-postgres --report "$(RELEASE_REPORTS)/go-integration.jsonl"
 
 # Packages with race-constrained test files relax a budget under the race
 # detector (findingintake doubles its 10-second production collection
@@ -97,18 +99,21 @@ test-release-non-race: require-database
 
 # Shards are balanced from uncached CI test durations; all three run on
 # separate runners. Keep the full local test-e2e command below.
-RELEASE_E2E_TESTS_A := TestAuditProgramsAcrossProductionProcesses|TestMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestLocalGoToPythonArtifactCopy|TestArtifactHistoryAcrossProductionProcesses|TestProjectSitemapToolsAcrossProductionProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses
+RELEASE_ITERATIVE_TESTS := $(shell python3 scripts/release_test_reports.py iterative-pattern)
+RELEASE_E2E_TESTS_A := TestAuditProgramsAcrossProductionProcesses|TestMemoryMVPProcesses|TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestGatewayRecoveryKeepsThreeQueuedRunsAcrossProcesses|TestLocalGoToPythonArtifactCopy|TestArtifactHistoryAcrossProductionProcesses|TestProjectSitemapToolsAcrossProductionProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|$(RELEASE_ITERATIVE_TESTS)
 RELEASE_E2E_TESTS_B := TestWorkerSummarizerProductionBoundaries|TestRoutingAndEscalationProductionBoundaries|TestLabelDrivenRuntimeConfigurationAcrossProcesses|TestRunMetadataLabelsAcrossProcesses|TestSchedulerConcurrencyAcrossProductionProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestAuditProgramCatalogReplacementRestartsServer
 RELEASE_FINDINGS_TESTS := $(shell python3 scripts/release_test_reports.py findings-pattern)
 RELEASE_E2E_TESTS_C := TestNucleiWebWithDeterministicScannerAcrossProcesses|TestAgentSkillsMVPProcesses|TestProjectWorkspaceLifecycleAcrossProductionProcesses|TestProductionMemoryTemplatesAcrossProcesses|TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestWorkerSessionModesAcrossProductionProcesses|TestHeterogeneousRuntimeCapabilityPlacement|TestGatewayRecoveryCancellationAndPermanentErrorAcrossProcesses|$(RELEASE_FINDINGS_TESTS)|TestRuntimePlacementAcrossProductionProcesses
 RELEASE_E2E_TESTS := $(RELEASE_E2E_TESTS_A)|$(RELEASE_E2E_TESTS_B)|$(RELEASE_E2E_TESTS_C)
 
 test-release-process-e2e: require-database runtime-venv
-	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-process.jsonl" -- go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS))$$'
+	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-process.jsonl" --timeout-seconds 3300 -- go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS))$$'
 	python3 scripts/release_test_reports.py verify-findings --report "$(RELEASE_REPORTS)/go-process.jsonl"
+	python3 scripts/release_test_reports.py verify-iterative-process --report "$(RELEASE_REPORTS)/go-process.jsonl"
 
 test-release-process-e2e-a: require-database runtime-venv
-	go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS_A))$$'
+	python3 scripts/release_test_reports.py run --report "$(RELEASE_REPORTS)/go-process-a.jsonl" --timeout-seconds 3300 -- go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS_A))$$'
+	python3 scripts/release_test_reports.py verify-iterative-process --report "$(RELEASE_REPORTS)/go-process-a.jsonl"
 
 test-release-process-e2e-b: require-database runtime-venv
 	go test -json -tags=e2e -count=1 -timeout=50m ./tests/e2e -run '^($(RELEASE_E2E_TESTS_B))$$'

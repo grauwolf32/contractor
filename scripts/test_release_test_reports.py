@@ -163,6 +163,131 @@ class ReportReuseTest(unittest.TestCase):
                 except ProcessLookupError:
                     pass
 
+    def test_cancellation_joins_descendant_processes(self) -> None:
+        import signal
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            childfile, grandfile = Path(directory) / "child", Path(directory) / "grandchild"
+            grandchild = "import os,signal; from pathlib import Path; " + f"Path({str(grandfile)!r}).write_text(str(os.getpid())); signal.pause()"
+            child = ("import os,signal,subprocess,sys,time; from pathlib import Path\n"
+                     + f"Path({str(childfile)!r}).write_text(str(os.getpid()))\n"
+                     + f"process=subprocess.Popen([sys.executable,'-c',{grandchild!r}])\n"
+                     + "def stop(*_):\n process.wait(timeout=5)\n sys.exit(0)\n"
+                     + "signal.signal(signal.SIGTERM,stop)\n"
+                     + f"while not Path({str(grandfile)!r}).exists(): time.sleep(0.01)\n"
+                     + "os.kill(os.getppid(),signal.SIGTERM)\nsignal.pause()\n")
+            result = subprocess.run([sys.executable, str(Path(reports.__file__)), "run", "--report", str(Path(directory) / "report"), "--", sys.executable, "-c", child], capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 130, result.stderr)
+            for path in (childfile, grandfile):
+                pid = int(path.read_text())
+                try:
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(pid, 0)
+                finally:
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
+    def test_deadline_joins_silent_child(self) -> None:
+        import signal
+        import subprocess
+        import threading
+        from types import SimpleNamespace
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as directory:
+            pidfile = Path(directory) / "pid"
+            child = ("import os,signal; from pathlib import Path; "
+                     "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                     + f"Path({str(pidfile)!r}).write_text(str(os.getpid())); "
+                     + "print('ready',flush=True); signal.pause()")
+            ready, finished = threading.Event(), threading.Event()
+            waits = []
+
+            class ControlledFinished:
+                def wait(self, timeout=None):
+                    waits.append(timeout)
+                    if len(waits) == 1:
+                        # The deadline cannot expire before the real child's
+                        # SIGTERM handler and PID publication are ready.
+                        ready.wait()
+                    return finished.is_set()
+
+                def set(self):
+                    finished.set()
+
+            class ReadyOutput:
+                def __init__(self, stream):
+                    self.stream = stream
+
+                def readline(self, *args):
+                    line = self.stream.readline(*args)
+                    if line == "ready\n" or not line:
+                        ready.set()
+                    return line
+
+                def close(self):
+                    self.stream.close()
+
+            real_popen = subprocess.Popen
+            def start(*args, **kwargs):
+                process = real_popen(*args, **kwargs)
+                process.stdout = ReadyOutput(process.stdout)
+                return process
+
+            supplied = iter((ControlledFinished(), threading.Event()))
+            # Patch this module's bindings, not threading.Event/Popen globally:
+            # Thread itself must retain its real internal synchronization.
+            owned_threads = SimpleNamespace(Event=lambda: next(supplied), Thread=threading.Thread)
+            owned_processes = SimpleNamespace(Popen=start, TimeoutExpired=subprocess.TimeoutExpired, PIPE=subprocess.PIPE, STDOUT=subprocess.STDOUT)
+            with (mock.patch.object(reports, "threading", owned_threads),
+                  mock.patch.object(reports, "subprocess", owned_processes),
+                  contextlib.redirect_stdout(io.StringIO())):
+                with self.assertRaises(TimeoutError):
+                    reports.capture(Path(directory) / "report", [sys.executable, "-c", child], timeout_seconds=60)
+            self.assertTrue(pidfile.is_file())
+            self.assertEqual(waits, [60, reports.CLEANUP_GRACE_SECONDS])
+            with self.assertRaises(ProcessLookupError):
+                os.kill(int(pidfile.read_text()), 0)
+
+    def test_content_free_capture_never_turns_malformed_output_into_success(self) -> None:
+        from test_audit_iterative_gate import gate as iterative, selection
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()) as output:
+            report = Path(directory) / "report"
+            self.assertEqual(reports.capture(report, [sys.executable, "-c", "print('postgres://u:secret-value@localhost/db fixture-target-body-marker')"], retain_output=False), 0)
+            self.assertNotIn("fixture-target-body-marker", report.read_text() + output.getvalue())
+            self.assertNotIn("secret-value", report.read_text() + output.getvalue())
+            with mock.patch.object(iterative, "matrix", return_value=selection()), self.assertRaises(ValueError):
+                iterative.verify(report, "postgres")
+
+    def test_capture_bounds_malformed_output_and_joins(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            for text, options in (("x" * 65537, {}), ("bounded diagnostic", {"max_report_bytes": 4})):
+                with self.subTest(options=options), self.assertRaises(ValueError):
+                    reports.capture(Path(directory) / "report", [sys.executable, "-c", f"print({text!r})"], **options)
+            for timeout in (0, -1, float("nan"), float("inf")):
+                with self.subTest(timeout=timeout), self.assertRaises(ValueError):
+                    reports.capture(Path(directory) / "report", [sys.executable, "-c", "pass"], timeout_seconds=timeout)
+
+    def test_iterative_report_cli_reuses_canonical_cases(self) -> None:
+        from unittest import mock
+        from test_audit_iterative_gate import gate as iterative, selection, events, write_report
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(iterative, "matrix", return_value=selection()):
+            path = Path(directory) / "go.jsonl"
+            write_report(path, events())
+            module = {"matrix": iterative.matrix, "verify": iterative.verify}
+            with mock.patch.object(reports, "gate", return_value=module):
+                for action in ("verify-iterative-postgres", "verify-iterative-process"):
+                    with self.subTest(action=action), mock.patch.object(sys, "argv", ["reports", action, "--report", str(path)]):
+                        self.assertEqual(reports.main(), 0)
+                with mock.patch.object(sys, "argv", ["reports", "iterative-pattern"]), contextlib.redirect_stdout(io.StringIO()) as output:
+                    self.assertEqual(reports.main(), 0)
+                self.assertEqual(output.getvalue(), "TestJourney\n")
+                write_report(path, [])
+                with mock.patch.object(sys, "argv", ["reports", "verify-iterative-postgres", "--report", str(path)]), self.assertRaises(ValueError):
+                    reports.main()
+
     def test_non_event_json_diagnostics_are_redacted(self) -> None:
         from unittest import mock
 
