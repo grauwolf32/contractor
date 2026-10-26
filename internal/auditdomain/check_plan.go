@@ -38,7 +38,3 @@ func ValidateCheckPlan(plan CheckPlan) error {
 func EncodeCheckPlan(plan CheckPlan) ([]byte, error) {
 	return encodeDocument(plan, ValidateCheckPlan)
 }
-
-func DecodeCheckPlan(data []byte) (CheckPlan, error) {
-	return decodeDocument(data, ValidateCheckPlan)
-}

@@ -96,3 +96,49 @@ func TestFindingChecksProjectionBounds512HeadersAndDiscard(t *testing.T) {
 		t.Fatal("discarded projection invalid", err)
 	}
 }
+
+func TestFindingChecksProjectionMaximumRegisteredHeadersAndStrictPresence(t *testing.T) {
+	doc := testFindingInventoryDocument(t).Proposals[0].Document
+	doc.ProposedChecks = make([]ProposedCheck, MaximumCoverageValues)
+	for i := range doc.ProposedChecks {
+		doc.ProposedChecks[i] = ProposedCheck{Objective: strings.Repeat("x", 16000), Method: "applicability"}
+	}
+	base, err := EncodeCheckPlan(CheckPlan{Schema: "contractor.audit.finding-check-plan.v1", Method: "applicability", Phase: "applicability", Objective: "x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc.ProposedChecks[0].Objective = strings.Repeat("x", MaximumAcceptedPlanBytes-len(base)+1)
+	data, err := EncodeFindingProposal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) < 7<<20 {
+		t.Fatal("fixture did not reach a large exact offset")
+	}
+	projection, err := BuildFindingChecksProjection(data, doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := EncodeFindingChecksProjection(projection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(encoded) > MaximumFindingChecksProjectionBytes || projection.Checks[0].PlanBytes != 65536 || projection.Checks[0].Status != "registered" || projection.Checks[511].Fragment.Offset < 7<<20 {
+		t.Fatalf("registered bound = %d bytes, first %+v", len(encoded), projection.Checks[0])
+	}
+	var members map[string]json.RawMessage
+	if err = json.Unmarshal(encoded, &members); err != nil {
+		t.Fatal(err)
+	}
+	delete(members, "discarded")
+	missing, _ := json.Marshal(members)
+	if _, err = DecodeFindingChecksProjection(missing); err == nil {
+		t.Fatal("missing explicit false accepted")
+	}
+	bad := projection
+	overlapping := projection.Checks[0].Fragment
+	bad.Subject = &overlapping
+	if _, err = EncodeFindingChecksProjection(bad); err == nil {
+		t.Fatal("overlapping context accepted")
+	}
+}

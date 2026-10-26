@@ -204,6 +204,7 @@ type AuditInteractionPolicy struct {
 // ResolvedAuditProfile is the immutable Server-side authority retained when an
 // Audit starts. Workers never receive this value and cannot select a profile.
 type ResolvedAuditProfile struct {
+	Methods     map[string]AuditCheckMethodMapping      `json:"methods,omitempty"`
 	Ref         AuditProfileRef                         `json:"ref"`
 	Mode        AuditProfileMode                        `json:"mode"`
 	Standards   []AuditStandardRef                      `json:"standards"`
@@ -217,6 +218,7 @@ type ResolvedAuditProfile struct {
 // Spec is the authored spec of an AuditProfile manifest. The catalog loader
 // decodes it strictly from the operator root and resolves it with Resolve.
 type Spec struct {
+	Methods     map[string]checkMethodSource           `yaml:"methods,omitempty"`
 	Mode        string                                 `yaml:"mode"`
 	Standards   []auditStandardRefSource               `yaml:"standards,omitempty"`
 	Inputs      *map[string]auditProfileInputSource    `yaml:"inputs"`
@@ -341,15 +343,23 @@ func Resolve(
 		return ResolvedAuditProfile{}, err
 	}
 
+	methods, err := resolveCheckMethods(spec.Methods)
+	if err != nil {
+		return ResolvedAuditProfile{}, err
+	}
 	profile := ResolvedAuditProfile{
-		Ref:  AuditProfileRef{Name: selector.ID, Version: selector.Version},
-		Mode: mode, Standards: standards, Inputs: inputs, Inventory: inventory,
+		Methods: methods,
+		Ref:     AuditProfileRef{Name: selector.ID, Version: selector.Version},
+		Mode:    mode, Standards: standards, Inputs: inputs, Inventory: inventory,
 		Workflows: workflows, Execution: execution, Interaction: interaction,
 	}
 	if err := ValidateAuditPreparationProfile(profile); err != nil {
 		return ResolvedAuditProfile{}, err
 	}
 	if err := ValidateAuditTaskProfile(profile); err != nil {
+		return ResolvedAuditProfile{}, err
+	}
+	if _, err := CompileCheckMethods(profile); err != nil {
 		return ResolvedAuditProfile{}, err
 	}
 	digest, err := Digest(profile)
@@ -901,7 +911,7 @@ func Digest(profile ResolvedAuditProfile) (string, error) {
 		}
 		workflows[role] = value
 	}
-	return contentdigest.CanonicalJSON(map[string]any{
+	value := map[string]any{
 		"apiVersion": contracts.APIVersion,
 		"kind":       Kind,
 		"metadata":   map[string]any{"name": profile.Ref.Name, "version": profile.Ref.Version},
@@ -911,7 +921,11 @@ func Digest(profile ResolvedAuditProfile) (string, error) {
 			"workflows": workflows, "execution": profile.Execution,
 			"interaction": profile.Interaction,
 		},
-	})
+	}
+	if len(profile.Methods) > 0 {
+		value["spec"].(map[string]any)["methods"] = profile.Methods
+	}
+	return contentdigest.CanonicalJSON(value)
 }
 
 // Clone returns a deep copy of profile that shares no mutable state with it.
@@ -919,6 +933,12 @@ func (profile ResolvedAuditProfile) Clone() ResolvedAuditProfile { return cloneA
 
 func cloneAuditProfile(source ResolvedAuditProfile) ResolvedAuditProfile {
 	result := source
+	if source.Methods != nil {
+		result.Methods = map[string]AuditCheckMethodMapping{}
+		for key, value := range source.Methods {
+			result.Methods[key] = cloneCheckMethod(value)
+		}
+	}
 	result.Inventory.Source = cloneAuditInputMapping(source.Inventory.Source)
 	result.Inventory.Settings = cloneAuditInputMapping(source.Inventory.Settings)
 	if source.Inventory.StandardSelection != nil {

@@ -3,6 +3,7 @@ package auditdomain
 import (
 	"bytes"
 	"encoding/json"
+	"sort"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -60,13 +61,13 @@ func (entry *FindingCheckProjection) UnmarshalJSON(data []byte) error {
 // FindingChecksProjection indexes the final immutable proposal bytes. It
 // contains no objective or limitations prose and establishes no source grant.
 type FindingChecksProjection struct {
-	Schema         string                   `json:"schema"`
-	ProposalDigest string                   `json:"proposal_digest"`
-	SizeBytes      int64                    `json:"size_bytes"`
-	Discarded      bool                     `json:"discarded"`
+	Schema         string                   `json:"schema" strictjson:"required"`
+	ProposalDigest string                   `json:"proposal_digest" strictjson:"required"`
+	SizeBytes      int64                    `json:"size_bytes" strictjson:"required"`
+	Discarded      bool                     `json:"discarded" strictjson:"required"`
 	Subject        *FindingFragment         `json:"subject" strictjson:"required,nullable"`
 	Limitations    *FindingFragment         `json:"limitations" strictjson:"required,nullable"`
-	Checks         []FindingCheckProjection `json:"checks"`
+	Checks         []FindingCheckProjection `json:"checks" strictjson:"required"`
 }
 
 type FindingCheckContext struct {
@@ -181,12 +182,14 @@ func ValidateFindingChecksProjection(value FindingChecksProjection) error {
 				return invalid(CodeInvalid, "checks_projection.context")
 			}
 		}
+		fragments := []FindingFragment{*value.Subject, *value.Limitations}
 		previousEnd := int64(-1)
 		for ordinal, entry := range value.Checks {
 			if entry.Ordinal != ordinal || !validFindingFragment(entry.Fragment, value.SizeBytes) || entry.Fragment.Offset < previousEnd || validateIdentifier(entry.SourceMethod, "checks_projection.method") != nil {
 				return invalid(CodeInvalid, "checks_projection.entry")
 			}
 			previousEnd = entry.Fragment.Offset + entry.Fragment.Length
+			fragments = append(fragments, entry.Fragment)
 			key, known := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, entry.SourceMethod)
 			if entry.Status == "unsupported" {
 				if known || entry.PlanSchema != "" || entry.Phase != "" || entry.PlanDigest != "" || entry.PlanBytes != 0 {
@@ -195,6 +198,12 @@ func ValidateFindingChecksProjection(value FindingChecksProjection) error {
 			} else if !known || key.Schema != entry.PlanSchema || key.Phase != entry.Phase || !contentdigest.Valid(entry.PlanDigest) || entry.PlanBytes < 1 || entry.PlanBytes > MaximumDocumentBytes ||
 				(entry.Status != "registered" && entry.Status != "plan-too-large") || (entry.Status == "registered") != (entry.PlanBytes <= MaximumAcceptedPlanBytes) {
 				return invalid(CodeInvalid, "checks_projection.status")
+			}
+		}
+		sort.Slice(fragments, func(i, j int) bool { return fragments[i].Offset < fragments[j].Offset })
+		for i := 1; i < len(fragments); i++ {
+			if fragments[i].Offset < fragments[i-1].Offset+fragments[i-1].Length {
+				return invalid(CodeInvalid, "checks_projection.overlap")
 			}
 		}
 	}

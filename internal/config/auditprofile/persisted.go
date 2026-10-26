@@ -59,6 +59,9 @@ func DecodeResolvedAuditProfileSnapshot(data []byte) (ResolvedAuditProfile, erro
 	if err := ValidateAuditTaskProfile(profile); err != nil {
 		return ResolvedAuditProfile{}, err
 	}
+	if _, err := CompileCheckMethods(profile); err != nil {
+		return ResolvedAuditProfile{}, err
+	}
 	expected, err := Digest(profile)
 	if err != nil || expected != profile.Ref.Digest {
 		return ResolvedAuditProfile{}, fmt.Errorf("persisted AuditProfile digest is invalid")

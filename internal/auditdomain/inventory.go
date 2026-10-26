@@ -10,17 +10,19 @@ import (
 )
 
 type inventorySubject struct {
-	itemKey    string
-	kind       string
-	subjectKey string
-	approval   ApprovalRequirement
-	checklist  *ChecklistTask
-	standard   *StandardMappingTask
-	operation  *OperationTask
-	scan       *ScanTask
-	finding    *FindingTask
-	requested  []string
-	gaps       []string
+	acceptedPlan *AcceptedPlan
+	dependencies *RetainedDependencyManifest
+	itemKey      string
+	kind         string
+	subjectKey   string
+	approval     ApprovalRequirement
+	checklist    *ChecklistTask
+	standard     *StandardMappingTask
+	operation    *OperationTask
+	scan         *ScanTask
+	finding      *FindingTask
+	requested    []string
+	gaps         []string
 }
 
 func finishInventory(
@@ -85,7 +87,7 @@ func finishInventory(
 		execution.Items = append(execution.Items, ExecutionItem{
 			ItemKey: subject.itemKey, Ordinal: ordinal, SubjectKey: subject.subjectKey,
 			TaskPackageID: packageID, TaskPackageDigest: validatedPackage.Digest,
-			Inputs: inputs,
+			Inputs: inputs, AcceptedPlan: subject.acceptedPlan, Dependencies: subject.dependencies,
 		})
 		coverage.Rows = append(coverage.Rows, newCoverageRow(subject))
 		tasks = append(tasks, GeneratedTask{
@@ -119,6 +121,7 @@ func newItemTask(
 	options InventoryOptions,
 ) ItemTask {
 	return ItemTask{
+		AcceptedPlan: subject.acceptedPlan, Dependencies: subject.dependencies,
 		Schema: TaskSchema, ProfileMode: options.ProfileMode, ItemKey: subject.itemKey, Kind: subject.kind,
 		SubjectKey: subject.subjectKey, WorkflowRole: options.WorkflowRole,
 		SourceContentDigest: sourceDigest, SourceMediaType: normalizedMediaType(sourceMediaType), SourceRef: options.SourceRef.Clone(),
@@ -208,8 +211,11 @@ func ValidateInventory(value Inventory) error {
 			generated.Document.SourceContentDigest != value.SourceContentDigest || generated.Document.CanonicalInventoryDigest != value.CanonicalInventoryDigest {
 			return invalid(CodeInventoryInvalid, "inventory.membership")
 		}
-		if !sameCanonicalValue(executionItem.Dependencies, generated.Document.Dependencies) {
+		if !sameCanonicalValue(executionItem.AcceptedPlan, generated.Document.AcceptedPlan) || !sameCanonicalValue(executionItem.Dependencies, generated.Document.Dependencies) {
 			return invalid(CodeInventoryInvalid, "inventory.dependencies")
+		}
+		if generated.Document.AcceptedPlan != nil && workItem.ApprovalRequirement != generated.Document.AcceptedPlan.Authorization.ApprovalRequirement {
+			return invalid(CodeInvalid, "accepted_plan.approval")
 		}
 		if coverage.Status != "not-tested" || len(coverage.Completed) != 0 {
 			return invalid(CodeInventoryInvalid, "inventory.coverage")
@@ -335,19 +341,17 @@ func validateBasisItem(
 			return invalid(CodeInventoryInvalid, "inventory.operation")
 		}
 	case "finding-candidates":
+		expected := map[string]any{}
+		if task.Finding != nil {
+			expected = map[string]any{"receipt_id": task.Finding.ReceiptID, "proposal_ref": task.Finding.ProposalRef, "proposal_digest": task.Finding.ProposalDigest, "proposed_check_ordinal": task.Finding.ProposedCheckOrdinal, "objective": task.Finding.Objective, "method": task.Finding.Method, "subject_key": task.SubjectKey, "limitations": task.Finding.Limitations}
+		}
+		if task.AcceptedPlan != nil {
+			expected["accepted_plan"] = task.AcceptedPlan
+		}
 		if task.Finding == nil || item.Kind != "finding-verification" ||
 			!equalStringSlices(coverage.Requested, []string{task.Finding.Method}) ||
 			!equalStringSlices(coverage.Gaps, task.Finding.Limitations) ||
-			!sameCanonicalValue(subject, map[string]any{
-				"receipt_id":             task.Finding.ReceiptID,
-				"proposal_ref":           task.Finding.ProposalRef,
-				"proposal_digest":        task.Finding.ProposalDigest,
-				"proposed_check_ordinal": task.Finding.ProposedCheckOrdinal,
-				"objective":              task.Finding.Objective,
-				"method":                 task.Finding.Method,
-				"subject_key":            task.SubjectKey,
-				"limitations":            task.Finding.Limitations,
-			}) {
+			!sameCanonicalValue(subject, expected) {
 			return invalid(CodeInventoryInvalid, "inventory.finding")
 		}
 	}
