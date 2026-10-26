@@ -1,0 +1,281 @@
+package auditdomain
+
+import (
+	"bytes"
+	"encoding/json"
+
+	"github.com/grauwolf32/contractor/internal/contentdigest"
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
+)
+
+const (
+	FindingChecksProjectionSchema       = "contractor.audit.finding-checks-projection.v1"
+	MaximumFindingChecksProjectionBytes = 256 << 10
+)
+
+type FindingFragment struct {
+	Offset int64  `json:"offset" strictjson:"required"`
+	Length int64  `json:"length" strictjson:"required"`
+	Digest string `json:"digest" strictjson:"required"`
+}
+
+type FindingCheckProjection struct {
+	Ordinal      int             `json:"ordinal"`
+	Fragment     FindingFragment `json:"fragment"`
+	SourceMethod string          `json:"source_method"`
+	Status       string          `json:"status"`
+	PlanSchema   string          `json:"plan_schema,omitempty"`
+	Phase        string          `json:"phase,omitempty"`
+	PlanDigest   string          `json:"plan_digest,omitempty"`
+	PlanBytes    int64           `json:"plan_bytes,omitempty"`
+}
+
+func (entry *FindingCheckProjection) UnmarshalJSON(data []byte) error {
+	type plain FindingCheckProjection
+	var value plain
+	if err := strictjson.Decode(data, &value); err != nil {
+		return err
+	}
+	var members map[string]json.RawMessage
+	if err := strictjson.Decode(data, &members); err != nil {
+		return err
+	}
+	required := []string{"ordinal", "fragment", "source_method", "status"}
+	if value.Status != "unsupported" {
+		required = append(required, "plan_schema", "phase", "plan_digest", "plan_bytes")
+	}
+	if len(members) != len(required) {
+		return invalid(CodeInvalid, "checks_projection.entry")
+	}
+	for _, name := range required {
+		if _, ok := members[name]; !ok {
+			return invalid(CodeInvalid, "checks_projection.entry")
+		}
+	}
+	*entry = FindingCheckProjection(value)
+	return nil
+}
+
+// FindingChecksProjection indexes the final immutable proposal bytes. It
+// contains no objective or limitations prose and establishes no source grant.
+type FindingChecksProjection struct {
+	Schema         string                   `json:"schema"`
+	ProposalDigest string                   `json:"proposal_digest"`
+	SizeBytes      int64                    `json:"size_bytes"`
+	Discarded      bool                     `json:"discarded"`
+	Subject        *FindingFragment         `json:"subject" strictjson:"required,nullable"`
+	Limitations    *FindingFragment         `json:"limitations" strictjson:"required,nullable"`
+	Checks         []FindingCheckProjection `json:"checks"`
+}
+
+type FindingCheckContext struct {
+	Subject     *FindingSubject
+	Limitations []string
+}
+
+func BuildFindingChecksProjection(finalBytes []byte, validatedDoc FindingProposal) (FindingChecksProjection, error) {
+	decoded, err := DecodeFindingProposal(finalBytes)
+	if err != nil || !sameCanonicalValue(decoded, validatedDoc) {
+		return FindingChecksProjection{}, invalid(CodeInvalid, "checks_projection.source")
+	}
+	result := FindingChecksProjection{Schema: FindingChecksProjectionSchema, ProposalDigest: DigestBytes(finalBytes), SizeBytes: int64(len(finalBytes)), Checks: []FindingCheckProjection{}}
+	decoder := json.NewDecoder(bytes.NewReader(finalBytes))
+	if _, err = decoder.Token(); err != nil {
+		return result, err
+	}
+	for decoder.More() {
+		member, readErr := decoder.Token()
+		if readErr != nil {
+			return result, readErr
+		}
+		if member == "proposed_checks" {
+			if _, err = decoder.Token(); err != nil {
+				return result, err
+			}
+			for decoder.More() {
+				var raw json.RawMessage
+				if err = decoder.Decode(&raw); err != nil {
+					return result, err
+				}
+				ordinal := len(result.Checks)
+				check := validatedDoc.ProposedChecks[ordinal]
+				entry := FindingCheckProjection{Ordinal: ordinal, Fragment: projectionFragment(raw, decoder.InputOffset()), SourceMethod: check.Method, Status: "unsupported"}
+				if _, known := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, check.Method); known {
+					plan, planErr := BuildFindingCheckPlan(validatedDoc, ordinal)
+					if planErr != nil {
+						return result, planErr
+					}
+					encoded, planErr := EncodeCheckPlan(plan)
+					if planErr != nil {
+						return result, planErr
+					}
+					entry.Status = "registered"
+					entry.PlanSchema = plan.Schema
+					entry.Phase = plan.Phase
+					entry.PlanDigest = DigestBytes(encoded)
+					entry.PlanBytes = int64(len(encoded))
+					if len(encoded) > MaximumAcceptedPlanBytes {
+						entry.Status = "plan-too-large"
+					}
+				}
+				result.Checks = append(result.Checks, entry)
+			}
+			if _, err = decoder.Token(); err != nil {
+				return result, err
+			}
+		} else {
+			var raw json.RawMessage
+			if err = decoder.Decode(&raw); err != nil {
+				return result, err
+			}
+			fragment := projectionFragment(raw, decoder.InputOffset())
+			if member == "subject" {
+				result.Subject = &fragment
+			}
+			if member == "limitations" {
+				result.Limitations = &fragment
+			}
+		}
+	}
+	return result, ValidateFindingChecksProjection(result)
+}
+
+func projectionFragment(raw []byte, end int64) FindingFragment {
+	return FindingFragment{Offset: end - int64(len(raw)), Length: int64(len(raw)), Digest: DigestBytes(raw)}
+}
+
+func DiscardedFindingChecksProjection(proposalDigest string, sizeBytes int64) (FindingChecksProjection, error) {
+	value := FindingChecksProjection{Schema: FindingChecksProjectionSchema, ProposalDigest: proposalDigest, SizeBytes: sizeBytes, Discarded: true, Checks: []FindingCheckProjection{}}
+	return value, ValidateFindingChecksProjection(value)
+}
+
+func EncodeFindingChecksProjection(value FindingChecksProjection) ([]byte, error) {
+	if err := ValidateFindingChecksProjection(value); err != nil {
+		return nil, err
+	}
+	return canonicalJSON(value)
+}
+
+func DecodeFindingChecksProjection(data []byte) (FindingChecksProjection, error) {
+	if len(data) > MaximumFindingChecksProjectionBytes {
+		return FindingChecksProjection{}, invalid(CodeLimitExceeded, "checks_projection")
+	}
+	return decodeDocument(data, ValidateFindingChecksProjection)
+}
+
+func ValidateFindingChecksProjection(value FindingChecksProjection) error {
+	if value.Schema != FindingChecksProjectionSchema || !contentdigest.Valid(value.ProposalDigest) || value.SizeBytes < 1 || value.SizeBytes > MaximumDocumentBytes || value.Checks == nil || len(value.Checks) > MaximumCoverageValues {
+		return invalid(CodeInvalid, "checks_projection")
+	}
+	if value.Discarded {
+		if value.Subject != nil || value.Limitations != nil || len(value.Checks) != 0 {
+			return invalid(CodeInvalid, "checks_projection.discarded")
+		}
+	} else {
+		if value.Subject == nil || value.Limitations == nil {
+			return invalid(CodeInvalid, "checks_projection.context")
+		}
+		for _, fragment := range []*FindingFragment{value.Subject, value.Limitations} {
+			if !validFindingFragment(*fragment, value.SizeBytes) {
+				return invalid(CodeInvalid, "checks_projection.context")
+			}
+		}
+		previousEnd := int64(-1)
+		for ordinal, entry := range value.Checks {
+			if entry.Ordinal != ordinal || !validFindingFragment(entry.Fragment, value.SizeBytes) || entry.Fragment.Offset < previousEnd || validateIdentifier(entry.SourceMethod, "checks_projection.method") != nil {
+				return invalid(CodeInvalid, "checks_projection.entry")
+			}
+			previousEnd = entry.Fragment.Offset + entry.Fragment.Length
+			key, known := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, entry.SourceMethod)
+			if entry.Status == "unsupported" {
+				if known || entry.PlanSchema != "" || entry.Phase != "" || entry.PlanDigest != "" || entry.PlanBytes != 0 {
+					return invalid(CodeInvalid, "checks_projection.status")
+				}
+			} else if !known || key.Schema != entry.PlanSchema || key.Phase != entry.Phase || !contentdigest.Valid(entry.PlanDigest) || entry.PlanBytes < 1 || entry.PlanBytes > MaximumDocumentBytes ||
+				(entry.Status != "registered" && entry.Status != "plan-too-large") || (entry.Status == "registered") != (entry.PlanBytes <= MaximumAcceptedPlanBytes) {
+				return invalid(CodeInvalid, "checks_projection.status")
+			}
+		}
+	}
+	encoded, err := canonicalJSON(value)
+	if err != nil || len(encoded) > MaximumFindingChecksProjectionBytes {
+		return invalid(CodeLimitExceeded, "checks_projection")
+	}
+	return nil
+}
+
+func validFindingFragment(fragment FindingFragment, size int64) bool {
+	return fragment.Offset >= 0 && fragment.Length > 0 && fragment.Offset <= size && fragment.Length <= size-fragment.Offset && contentdigest.Valid(fragment.Digest)
+}
+
+func readFindingFragment(data []byte, fragment FindingFragment) ([]byte, error) {
+	if !validFindingFragment(fragment, int64(len(data))) {
+		return nil, invalid(CodeReferenceInvalid, "checks_projection.fragment")
+	}
+	raw := data[fragment.Offset : fragment.Offset+fragment.Length]
+	if DigestBytes(raw) != fragment.Digest {
+		return nil, invalid(CodeReferenceInvalid, "checks_projection.fragment")
+	}
+	return raw, nil
+}
+
+// ExtractFindingCheck verifies only the selected fragment. The adapter verifies
+// the complete exact Artifact once per distinct receipt before calling.
+func ExtractFindingCheck(finalBytes []byte, entry FindingCheckProjection) (ProposedCheck, CheckPlan, error) {
+	var check ProposedCheck
+	fragment, err := readFindingFragment(finalBytes, entry.Fragment)
+	if err != nil {
+		return check, CheckPlan{}, err
+	}
+	if err = strictjson.Decode(fragment, &check); err != nil {
+		return check, CheckPlan{}, err
+	}
+	if validateText(check.Objective, "check.objective", true) != nil || validateIdentifier(check.Method, "check.method") != nil || check.Method != entry.SourceMethod {
+		return check, CheckPlan{}, invalid(CodeInvalid, "checks_projection.check")
+	}
+	_, known := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, check.Method)
+	if !known {
+		if entry.Status != "unsupported" || entry.PlanSchema != "" || entry.Phase != "" || entry.PlanDigest != "" || entry.PlanBytes != 0 {
+			return check, CheckPlan{}, invalid(CodeInvalid, "checks_projection.status")
+		}
+		return check, CheckPlan{}, nil
+	}
+	plan, err := BuildFindingCheckPlan(FindingProposal{ProposedChecks: []ProposedCheck{check}}, 0)
+	if err != nil {
+		return check, plan, err
+	}
+	encoded, err := EncodeCheckPlan(plan)
+	if err != nil || plan.Schema != entry.PlanSchema || plan.Phase != entry.Phase || DigestBytes(encoded) != entry.PlanDigest || int64(len(encoded)) != entry.PlanBytes ||
+		(entry.Status != "registered" && entry.Status != "plan-too-large") || (entry.Status == "registered") != (entry.PlanBytes <= MaximumAcceptedPlanBytes) {
+		return check, plan, invalid(CodeInvalid, "checks_projection.plan")
+	}
+	return check, plan, nil
+}
+
+// ExtractFindingChecksContext verifies context once per receipt; callers cache
+// it alongside the exact payload rather than parsing limitations per ordinal.
+func ExtractFindingChecksContext(finalBytes []byte, subject, limitations FindingFragment) (FindingCheckContext, error) {
+	var result FindingCheckContext
+	raw, err := readFindingFragment(finalBytes, subject)
+	if err != nil {
+		return result, err
+	}
+	if err = strictjson.Decode(raw, &result.Subject); err != nil {
+		return result, err
+	}
+	if result.Subject != nil && (validateIdentifier(result.Subject.Kind, "subject.kind") != nil || validateIdentifier(result.Subject.Key, "subject.key") != nil) {
+		return result, invalid(CodeInvalid, "checks_projection.subject")
+	}
+	raw, err = readFindingFragment(finalBytes, limitations)
+	if err != nil {
+		return result, err
+	}
+	if err = strictjson.Decode(raw, &result.Limitations); err != nil {
+		return result, err
+	}
+	if result.Limitations == nil || validateStringList(result.Limitations, MaximumCoverageValues, "limitations") != nil {
+		return result, invalid(CodeInvalid, "checks_projection.limitations")
+	}
+	return result, nil
+}
