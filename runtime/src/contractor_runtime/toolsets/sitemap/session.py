@@ -28,8 +28,11 @@ from contractor_runtime.toolsets.sitemap.index import (
 
 
 class SitemapSession:
-    def __init__(self, client: SitemapClient) -> None:
+    def __init__(
+        self, client: SitemapClient, before_read: Callable[[], Awaitable[None]] | None = None
+    ) -> None:
         self.client = client
+        self._before_read = before_read
         self._lock = asyncio.Lock()
         self._key = bytearray(secrets.token_bytes(32))
         self._view: ViewIndex | None = None
@@ -74,6 +77,8 @@ class SitemapSession:
             # Free the old graph before downloading or indexing its replacement.
             # Joined threads and the allocation lock serialize replacement/release.
             self._drop()
+            if self._before_read is not None:
+                await self._before_read()
             raw = await self.client.view()
             view = await threads.to_thread_until_done(
                 lambda: ViewIndex(raw.data), name="sitemap-view-index"

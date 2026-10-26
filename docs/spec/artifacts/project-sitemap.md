@@ -174,9 +174,8 @@ and materialization through the existing allocation gate. Clearing/replacing a
 view joins its indexing work before freeing it. Ordinary HTTP/scanner operations
 have no sitemap publication dependency; allocation composition may connect an
 optional observation subscriber to a separate collector. Explicit sitemap tools
-report their own operation failures. Automatic collection failure belongs to Run
-owner status and deterministic completion, and never changes or repeats target
-transport.
+report their own operation failures. Automatic collection is best effort. Its failures produce technical logs,
+without changing target transport, Worker results, Run state or Runtime reports.
 
 Explicit allocation tools return `status: completed` on success and `status: failed`
 with a classified error on a definite API rejection, matching ordinary `tool@1`
@@ -187,6 +186,48 @@ arguments. Import capability is advertised only when its format dispatcher is
 installed. The private command wrappers carry the private API version; the
 domain command schemas are generated from the public owning schema.
 
+**SMT-R18.** Allocation composition connects selected HTTP capture to an optional
+transport-neutral observation sink. It receives minimal metadata for actual
+attempts, including each physical retry/redirect and negative outcome, before
+evidence-buffer admission/eviction. It never follows a Location. Submission does
+not await network or storage I/O. Subscriber errors cannot replace a target
+result; caller cancellation is preserved and joined. HTTP tools own no collector
+flush, retry or cleanup.
+
+**SMT-R19.** Runtime retains only a bounded private in-memory batch of attempt
+metadata and transient matching secrets. No headers, bodies, persistent queue,
+URL identity or receipt digest are constructed there. One background private
+batch request invokes the existing Go projector before sitemap identities,
+receipt hashing and Artifact publication; the existing reducer owns coalescing.
+Matching secrets are never persisted or logged. Server code assigns Project,
+source, Run and mode from the allocation; Runtime's session generation
+distinguishes unknown sessions without claiming an authenticated principal.
+
+**SMT-R20.** Pending and in-flight batches obey LIM-SMT-14; count, byte and time
+boundaries trigger publication. Overflow may drop metadata with bounded technical
+logging. An ambiguous publication repeats only its identical input/key within
+one original three-request/15-second allowance. Definite protected-history
+refusal is permanent. A Server-exhausted transaction conflict receives no new
+Runtime transaction retry allowance. Refusal or budget exhaustion disables
+further automatic publication for the allocation; later reads and drain cannot
+renew that allowance. `Retry-After` applies only inside the remaining budget.
+A fresh live view attempts the caller's local flush and then reads committed
+data, including when automatic publication failed. Existing paged views remain
+immutable. Explicit read authorization/storage errors retain their own contract.
+
+**SMT-R21.** Composition attempts a bounded infrastructure checkpoint before
+returning the Worker result, while allocation writes are still permitted.
+Server finalization fences writes before calling Runtime finalize, so finalize
+is never the first flush boundary. Composition closes HTTP producers before
+joining collector work at finalize, abort, fence, release and prepare rollback.
+No publisher survives release. Automatic failures, exhausted publication,
+overflow and crash may lose the bounded private batch; they produce no Run or
+Runtime-report collection state, generic map-completeness marker or required
+completion policy. Explicit imports, mutations and snapshots report their own
+operation failures. The HTTP-tools area owns this best-effort limitation;
+reopen the design only when a concrete consumer requires durable zero-loss
+collection and supplies the decision that depends on it.
+
 ## Interfaces
 
 The public owner operations are `GET /v1/projects/{projectId}/sitemap` and
@@ -196,6 +237,14 @@ The read accepts an optional exact revision; mutations require `Idempotency-Key`
 Commands are `declare`, `annotate`, `remove`, `restore` and `replace-source`.
 The trusted service also accepts observation batches from an authenticated
 producer context. No command accepts a replacement map document.
+
+The allocation collector uses
+`POST /private/v1/allocations/{allocationId}/sitemap/observations` with
+`{apiVersion, input}` and `Idempotency-Key`. Transient input contains only bounded
+attempt metadata and matching secrets. The existing mTLS allocation gate and
+[private wire schema](../../../api/v1alpha1/project-sitemap.schema.json) apply.
+No Project/source-mode selector or raw headers/body are accepted. Explicit
+allocation tools retain their separate read/mutation/snapshot operations.
 
 The CLI uses the generated public client:
 
@@ -214,7 +263,7 @@ a live read alone creates no such dependency.
 
 Source, producer and context identifiers reuse the shared ResourceId grammar
 (LIM-API-19); manual owner mutation cannot choose a transport source identity.
-The numeric contract is LIM-SMT-1 through LIM-SMT-11 in the
+The numeric contract is LIM-SMT-1 through LIM-SMT-14 in the
 [limits registry](../platform/limits.md). Common artifact history and maintenance
 bounds remain LIM-ART-9 through LIM-ART-11; they are not copied into the domain.
 

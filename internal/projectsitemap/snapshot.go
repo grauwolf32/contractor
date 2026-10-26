@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
@@ -77,7 +76,7 @@ func (s *Service) SnapshotAllocation(ctx context.Context, access AllocationAcces
 	}
 	selection.Groups = slices.Sorted(slices.Values(selection.Groups))
 	selection.Members = slices.Sorted(slices.Values(selection.Members))
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, OperationTimeout)
 	defer cancel()
 	var result SnapshotResult
 	var err error

@@ -72,6 +72,10 @@ from contractor_runtime.toolsets.common.http_limits import (
     MAX_URL_BYTES,
     header_block_bytes,
 )
+from contractor_runtime.toolsets.common.http_observations import (
+    HTTPObservationSink,
+    notify_http_observations,
+)
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
 from contractor_runtime.toolsets.http.cookies import (
     CookieCheckpoint,
@@ -220,6 +224,7 @@ class HTTPToolsetFactory:
             target_authorization=target_authorization(runtime_settings),
             captures=allocation_http_captures(state),
             checkpoint=checkpoint,
+            observation_sink=getattr(state, "http_observation_sink", None),
         )
         try:
             await session.restore(deadline=preparation_deadline)
@@ -311,6 +316,7 @@ class _HTTPSession:
         target_authorization: str | None,
         captures: RecentHTTPCaptures,
         checkpoint: CookieCheckpoint,
+        observation_sink: HTTPObservationSink | None = None,
     ) -> None:
         self._timeout_cap_seconds = timeout_cap_seconds
         self._target_policy = target_policy
@@ -332,6 +338,9 @@ class _HTTPSession:
         self._nonce = secrets.token_hex(8)
         self._closed = False
         self._checkpoint = checkpoint
+        self._observation_sink = observation_sink
+        self._session_generation = 1
+        self._observation_context: tuple = ()
 
     async def restore(self, *, deadline: float | None = None) -> None:
         self._cookies = await self._checkpoint.restore(deadline=deadline)
@@ -497,6 +506,54 @@ class _HTTPSession:
                 captured.error = "transport_error"
                 raise
             finally:
+                if self._observation_sink is not None and captured.attempts:
+                    observations = []
+                    secrets_for_observation = set(self.metric_secrets)
+                    secrets_for_observation.update(c.value for c in self._cookies.jar if c.value)
+                    for attempt in captured.attempts:
+                        for row in attempt.headers + attempt.response_headers:
+                            name, value = row["name"].lower(), row["value"]
+                            if name == "authorization":
+                                secrets_for_observation.add(value)
+                                _, _, credential = value.partition(" ")
+                                if credential:
+                                    secrets_for_observation.add(credential)
+                            elif name not in {"cookie", "set-cookie"} and _is_sensitive_header(
+                                name
+                            ):
+                                secrets_for_observation.add(value)
+                            elif name in {"cookie", "set-cookie"}:
+                                for part in (
+                                    value.split(";")
+                                    if name == "cookie"
+                                    else [value.split(";", 1)[0]]
+                                ):
+                                    _, separator, cookie_value = part.partition("=")
+                                    if separator and cookie_value:
+                                        secrets_for_observation.add(cookie_value.strip())
+                    for index, attempt in enumerate(captured.attempts):
+                        error = (
+                            captured.error if index == len(captured.attempts) - 1 else attempt.error
+                        )
+                        outcome = "response" if attempt.status is not None else "transport-error"
+                        status = attempt.status or 0
+                        if attempt.timed_out or (error == "timeout" and attempt.status is None):
+                            outcome, status = "timeout", 0
+                        elif error == "cancelled" and attempt.status is None:
+                            outcome = "attempt"
+                        observations.append(
+                            {
+                                "url": attempt.url,
+                                "method": attempt.method,
+                                "outcome": outcome,
+                                "status": status,
+                                "at": attempt.at,
+                                "sessionGeneration": attempt.session_generation,
+                            }
+                        )
+                    await notify_http_observations(
+                        self._observation_sink, observations, tuple(secrets_for_observation)
+                    )
                 if captured.attempts and not published:
                     if not captured.complete:
                         last = captured.attempts[-1]
@@ -697,6 +754,15 @@ class _HTTPSession:
                 # Session cookies or auth grew the block past what finding
                 # evidence retains; refuse before anything is sent.
                 raise HTTPToolError("http_request_invalid")
+            context = tuple(
+                (row["name"].lower(), row["value"])
+                for row in captured.headers
+                if row["name"].lower() in {"authorization", "cookie"}
+            )
+            if context != self._observation_context:
+                self._session_generation += 1
+                self._observation_context = context
+            captured.session_generation = f"{self._nonce}-{self._session_generation}"
             attempt = captured
             attempts.append(attempt)
 
@@ -745,6 +811,11 @@ class _HTTPSession:
                 attempts.remove(attempt)
             # Connect-time and proxy-route denials share the pre-send code.
             raise HTTPToolError("http_target_denied") from None
+        except (httpx.TimeoutException, ProxyRequestError) as error:
+            if attempt is not None:
+                attempt.error = "transport_error"
+                attempt.timed_out = isinstance(error, httpx.TimeoutException) or error.timed_out
+            raise
         except Exception:
             # Transport failures (HTTP_TRANSPORT_ERRORS, the proxy route's
             # failure) are classified and retried by the caller. Any other
@@ -890,6 +961,7 @@ class _HTTPSession:
             if selected_auth is not None:
                 self._erase_auth()
                 self._auth_kind, self._auth_username, self._auth_secret = selected_auth
+            self._session_generation += 1
             return self._session_projection()
 
     async def get_session(self) -> dict[str, Any]:
@@ -914,6 +986,7 @@ class _HTTPSession:
                     self._clear_mutable_session()
                 raise
             self._clear_mutable_session()
+            self._session_generation += 1
             return self._session_projection()
 
     async def _save_cookies(
@@ -939,6 +1012,7 @@ class _HTTPSession:
             # clear the session-owned copy independently here.
             self._clear_local_session()
             self._checkpoint.close()
+            self._observation_sink = None
             self._cached_body = None
             self._nonce = ""
             self._secrets_for_metrics = ()
@@ -984,6 +1058,7 @@ class _HTTPSession:
         self._cookies.clear()
         self._history.clear()
         self._captures.clear("http")
+        self._observation_context = ()
         self._cached_body = None
         self._erase_auth()
 

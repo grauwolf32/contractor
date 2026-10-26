@@ -1560,6 +1560,16 @@ different authorization role (CTL-R23, CTL-R38, CTL-R145).
   [operations](../operations/operations.md). Retired Registry entries leave
   that current-state snapshot (CTL-R66).
 
+**CTL-R167.** Private HTTP observation publication requires the allocation's
+explicit pinned collection policy and ordinary allocation write gate. Identity,
+Project, Run and source mode derive from the allocation. Fencing joins an
+admitted publication and rejects later ones. Because finalization fences writes
+before calling Runtime finalize, the best-effort checkpoint runs at Worker
+invocation completion. Missing collector data or a final Runtime report adds no
+sitemap-specific Run state. [SMT-R13](../artifacts/project-sitemap.md) and
+[SMT-R18](../artifacts/project-sitemap.md) through [SMT-R21](../artifacts/project-sitemap.md)
+own the domain policy, private ingress and lifecycle.
+
 ## Invariants
 
 1. Physical placement belongs to Control Plane, not the Workflow Scheduler or

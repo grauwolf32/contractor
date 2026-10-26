@@ -7,7 +7,6 @@ import (
 	"errors"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -62,7 +61,7 @@ func checkProject(ctx context.Context, db postgres.DBTX, ownerID, projectID stri
 // Read returns empty only for a missing binding, never for malformed content.
 // revision selects exact retained history and never falls back to current.
 func (s *Service) Read(ctx context.Context, ownerID, projectID, revision string) (View, error) {
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, OperationTimeout)
 	defer cancel()
 	var view View
 	err := postgres.InTx(ctx, s.pool, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
@@ -116,7 +115,7 @@ func (s *Service) Mutate(ctx context.Context, a Authority, idempotencyKey string
 	if m.ExpectedRevision != "" && !contracts.ValidResourceID(m.ExpectedRevision) {
 		return Result{}, ErrInvalid
 	}
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, OperationTimeout)
 	defer cancel()
 	var result Result
 	var err error
@@ -153,6 +152,7 @@ type receiptRecord struct {
 type projectedRequest struct {
 	Observations           []projectedObservation `json:"observations"`
 	MetadataOmitted        bool                   `json:"metadataOmitted"`
+	SessionGenerations     []string               `json:"sessionGenerations,omitempty"`
 	ManualLocationsOmitted bool                   `json:"manualLocationsOmitted"`
 }
 
@@ -210,6 +210,7 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 		policy = current.Rules
 	}
 	intent, observations, replayPolicy, err := projectIntent(m, a, policy)
+	observations.SessionGenerations = slices.Clone(m.sessionGenerations)
 	if err != nil {
 		return Result{}, err
 	}
@@ -356,7 +357,7 @@ func projectIntent(m Mutation, a Authority, rules []Rule) (Mutation, projectedRe
 			}
 		}
 		for _, rule := range m.Source.Rules {
-			if validateRule(rule) != nil || !safeText(rule.Path, a.Secrets) || !safeText(rule.Origin, a.Secrets) || !safeText(rule.Pointer, a.Secrets) {
+			if validateRule(rule) != nil || !safeText(rule.Path, a.Secrets) || !validSafeOrigin(rule.Origin, a.Secrets) || !safeText(rule.Pointer, a.Secrets) {
 				return Mutation{}, projectedRequest{}, nil, ErrInvalid
 			}
 			for _, name := range rule.Parameters {

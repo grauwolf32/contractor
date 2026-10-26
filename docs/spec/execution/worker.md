@@ -1595,6 +1595,14 @@ mTLS peer identity itself is owned by [Security](../platform/security.md).
 Metrics and OTLP conventions shared by every component are owned by
 [Observability](../platform/observability.md).
 
+**WRK-R180.** Allocation composition may install a bounded infrastructure
+checkpoint at invocation completion, after tool producers settle and before
+returning the Worker result. Automatic collection failures produce technical logs and leave HTTP results,
+Worker results, Runtime reports and Run state unchanged.
+Resource I/O has its own allowance outside the five-second State finalization
+budget. The sitemap checkpoint runs while allocation writes are still authorized;
+[SMT-R21](../artifacts/project-sitemap.md) owns its flush and loss semantics.
+
 ## Invariants
 
 These properties follow from the cited requirements, which are authoritative.
