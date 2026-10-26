@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V62-007
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V62-017
 languages:
@@ -25,6 +25,10 @@ context:
   specification:
   - docs/spec/platform/persistence.md
   - docs/spec/audits/scans.md
+  migration: 000051 reserved on this branch; main currently ends at 000050. Recheck before integration.
+  database_guarantee: Foreign embedded plan rejection refers to audit_id/item_key, matching the removed
+    column constraint. Existing admission owns owner/project/source/route validation; no new lookup is
+    introduced.
 scope:
   in:
   - Add a forward migration removing the standalone column and moving its shape/identity and immutability

@@ -5,13 +5,14 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-125 open tasks: 5 in progress, 109 pending, 11 deferred. 1153 finished: 1143 completed, 10 archived.
+125 open tasks: 6 in progress, 108 pending, 11 deferred. 1153 finished: 1143 completed, 10 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
+| [V62-018](v62-018-remove-duplicate-accepted-plan-column.yml) | audits | chore | P2 | Remove the unread accepted plan column |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
@@ -108,7 +109,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V62-018](v62-018-remove-duplicate-accepted-plan-column.yml) | chore | P2 | — | Remove the unread accepted plan column |
 | [V62-019](v62-019-derive-check-method-phase.yml) | chore | P2 | V62-018 | Derive check routing phase from the method registry |
 | [V62-020](v62-020-slim-execution-manifest.yml) | chore | P2 | V62-019 | Remove duplicated plan payloads from execution manifests |
 | [V62-021](v62-021-single-admission-page-chain.yml) | chore | P2 | V62-020 | Use one immutable admission page chain and root |
