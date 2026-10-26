@@ -163,6 +163,72 @@ class ReportReuseTest(unittest.TestCase):
                 except ProcessLookupError:
                     pass
 
+    def test_cancellation_joins_descendant_processes(self) -> None:
+        import signal
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            childfile, grandfile = Path(directory) / "child", Path(directory) / "grandchild"
+            grandchild = "import os,signal; from pathlib import Path; " + f"Path({str(grandfile)!r}).write_text(str(os.getpid())); signal.pause()"
+            child = ("import os,signal,subprocess,sys,time; from pathlib import Path\n"
+                     + f"Path({str(childfile)!r}).write_text(str(os.getpid()))\n"
+                     + f"process=subprocess.Popen([sys.executable,'-c',{grandchild!r}])\n"
+                     + "def stop(*_):\n process.wait(timeout=5)\n sys.exit(0)\n"
+                     + "signal.signal(signal.SIGTERM,stop)\n"
+                     + f"while not Path({str(grandfile)!r}).exists(): time.sleep(0.01)\n"
+                     + "os.kill(os.getppid(),signal.SIGTERM)\nsignal.pause()\n")
+            result = subprocess.run([sys.executable, str(Path(reports.__file__)), "run", "--report", str(Path(directory) / "report"), "--", sys.executable, "-c", child], capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 130, result.stderr)
+            for path in (childfile, grandfile):
+                pid = int(path.read_text())
+                try:
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(pid, 0)
+                finally:
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
+    def test_deadline_joins_silent_child(self) -> None:
+        import signal
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as directory:
+            pidfile = Path(directory) / "pid"
+            child = "import os,signal; from pathlib import Path; " + f"Path({str(pidfile)!r}).write_text(str(os.getpid())); " + "signal.signal(signal.SIGTERM, signal.SIG_IGN); signal.pause()"
+            with mock.patch.object(reports, "CLEANUP_GRACE_SECONDS", 0.05), contextlib.redirect_stdout(io.StringIO()):
+                with self.assertRaises(TimeoutError):
+                    reports.capture(Path(directory) / "report", [sys.executable, "-c", child], timeout_seconds=0.2)
+            self.assertTrue(pidfile.is_file())
+            with self.assertRaises(ProcessLookupError):
+                os.kill(int(pidfile.read_text()), 0)
+
+    def test_capture_bounds_malformed_output_and_joins(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            for text, options in (("x" * 65537, {}), ("bounded diagnostic", {"max_report_bytes": 4})):
+                with self.subTest(options=options), self.assertRaises(ValueError):
+                    reports.capture(Path(directory) / "report", [sys.executable, "-c", f"print({text!r})"], **options)
+            for timeout in (0, -1, float("nan"), float("inf")):
+                with self.subTest(timeout=timeout), self.assertRaises(ValueError):
+                    reports.capture(Path(directory) / "report", [sys.executable, "-c", "pass"], timeout_seconds=timeout)
+
+    def test_iterative_report_cli_reuses_canonical_cases(self) -> None:
+        from unittest import mock
+        from test_audit_iterative_gate import gate as iterative, selection, events, write_report
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(iterative, "matrix", return_value=selection()):
+            path = Path(directory) / "go.jsonl"
+            write_report(path, events())
+            module = {"matrix": iterative.matrix, "verify": iterative.verify}
+            with mock.patch.object(reports, "gate", return_value=module):
+                for action in ("verify-iterative-postgres", "verify-iterative-process"):
+                    with self.subTest(action=action), mock.patch.object(sys, "argv", ["reports", action, "--report", str(path)]):
+                        self.assertEqual(reports.main(), 0)
+                with mock.patch.object(sys, "argv", ["reports", "iterative-pattern"]), contextlib.redirect_stdout(io.StringIO()) as output:
+                    self.assertEqual(reports.main(), 0)
+                self.assertEqual(output.getvalue(), "TestJourney\n")
+                write_report(path, [])
+                with mock.patch.object(sys, "argv", ["reports", "verify-iterative-postgres", "--report", str(path)]), self.assertRaises(ValueError):
+                    reports.main()
+
     def test_non_event_json_diagnostics_are_redacted(self) -> None:
         from unittest import mock
 
