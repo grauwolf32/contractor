@@ -15,6 +15,7 @@ from typing import Any
 import jcs
 
 from contractor_runtime.digests import sha256_digest
+from contractor_runtime.toolsets.audit_results.dependencies import validate_retained_dependencies
 
 PACKAGE_SCHEMA = "contractor.audit.package.v1"
 TASK_SCHEMA = "contractor.audit.item-task.v1"
@@ -85,6 +86,8 @@ def _decode_task_package(payload: bytes, media_type: str) -> tuple[dict[str, Any
         "finding-verification",
     }:
         raise ValueError("task profile mode is invalid")
+    if "dependencies" in task:
+        validate_retained_dependencies(task["dependencies"], task.get("item_key"))
     return task, manifest["package_id"]
 
 
@@ -175,6 +178,8 @@ def _decode_execution_manifest(payload: bytes, media_type: str) -> dict[str, Any
             raise ValueError("execution manifest item is invalid")
         if item["item_key"] in seen_items or item["task_package_id"] in seen_packages:
             raise ValueError("execution manifest identity is duplicated")
+        if "dependencies" in item:
+            validate_retained_dependencies(item["dependencies"], item["item_key"])
         seen_items.add(item["item_key"])
         seen_packages.add(item["task_package_id"])
     return manifest
@@ -194,6 +199,7 @@ def _match_trusted_inputs(
             or item.get("subject_key") != task.get("subject_key")
             or item.get("task_package_id") != task_package_id
             or item.get("task_package_digest") != task_package_digest
+            or item.get("dependencies") != task.get("dependencies")
         ):
             raise ValueError("task and execution manifest identities differ")
         if not isinstance(task.get("item_key"), str) or not isinstance(

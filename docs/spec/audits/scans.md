@@ -13,6 +13,8 @@ This document owns:
   accepted output descriptors and retained output sizes;
 - preparation attempts, accepted preparation outputs and the public
   `preparation.roles` projection;
+- exact retained item dependency manifests and the declared
+  `retained-dependency` check input source;
 - the `inventory` phase of a prepared Audit, the atomic acceptance of its first
   Round, and owner controls and Controller outcomes before the first Round;
 - the OpenAPI Audit scan adapter: the `openapi-scans@1` inventory builder, the
@@ -63,7 +65,8 @@ document owns are:
   prepare role, retained with its exact revision and accepted atomically with
   the role's other mapped outputs.
 - **Mapping source.** The kind of a mapping reference: `audit-input`,
-  `prepare-output`, `item-package`, `execution-manifest`, `retained-output` or `round-results`.
+  `prepare-output`, `item-package`, `execution-manifest`, `retained-output`,
+  `round-results` or `retained-dependency`.
 - **Generated inventory.** An inventory built in the `inventory` phase from
   accepted preparation outputs instead of from the original baseline.
 - **`initial-inventory` link.** The protected Artifact link that pins the
@@ -207,6 +210,7 @@ consumers, and with the scope, that this table allows:
 | `execution-manifest` | forbidden | forbidden | the item execution manifest ([AUD-R40](audits.md)) | Assigned execution |
 | `retained-output` | forbidden | forbidden | the discovery and assessment dependency rules ([AUD-R41](audits.md)) | Same Round |
 | `round-results` | forbidden | forbidden | required assessment input (ASC-R154) | Complete immutable settled current Round |
+| `retained-dependency` | forbidden | forbidden | named check input ([ASC-R170](#exact-retained-item-dependencies)) | Accepted item manifest of this Audit |
 
 **ASC-R18.** A prepare output cannot be consumed as
 `retained-output`; a check, discovery or assessment output cannot be consumed
@@ -1002,6 +1006,93 @@ three-attempt original deadline. Recovery never reruns a target check merely
 to rebuild context. Pending and accepted snapshot rows/links and incomplete
 Run-local copies purge through existing Audit/Run lifecycle, with no new TTL,
 receipt table or independent holder service (LIFE-ASC-3, LIFE-ASC-4).
+## Exact retained item dependencies
+
+**ASC-R170.** A check may declare `retained-dependency` with one portable
+Artifact name and no producer `role`. The name resolves only through that
+accepted item's manifest, never by searching Project bindings, previous role
+names, batches or attempts. A profile without these mappings follows its
+existing baseline, prepare-output and same-Round retained-output paths.
+
+**ASC-R171.** The strict `contractor.audit.retained-dependencies.v1` manifest
+pins owner, Project, Audit, item key, baseline and profile digests, and the
+selected consumer Workflow and Skill closure digests. The Server proves these
+pins against the immutable accepted records. The same manifest occurs in the
+item task and execution item; their agreement is part of inventory and Runtime
+trusted-input validation. Changing a dependency changes the deterministic task
+package identity, without rewriting the source inventory's semantic identity.
+
+**ASC-R172.** Registered exact source kinds are `baseline`, `prepare-output`,
+`accepted-item-result` and `finding-receipt`. Each variant has only its own
+required fields. A baseline names its input; a prepare source names its role,
+logical output, accepted execution/attempt and Run; an item result names its
+Round, item, execution/attempt and Run; a finding source alone names an exact
+held receipt and proposed-check ordinal. A manifest's own claim of an origin
+is insufficient: trusted admission verifies same-owner/Project/Audit/baseline
+membership, exact source content, accepted attempt and consumer authorization.
+Unknown, foreign or ambiguous origins and unsupported projections fail before
+model-visible context is supplied. These source classes describe provenance;
+they do not grant source-mode or target-action authority.
+
+**ASC-R173.** Every dependency has a unique sorted name, `projection: exact`,
+complete original and retained exact descriptors, a trusted origin and a
+sorted `requires` list. Original and retained digest, media type and byte size
+must agree. The explicitly enumerated graph is closed and acyclic; all its
+required descriptors must be present before acceptance. Preparation dependencies
+expand only the pinned declared input graph, and accepted result dependencies
+use the selected collection's explicitly retained evidence. References embedded
+in arbitrary JSON are inert provenance and are never recursively loaded.
+
+**ASC-R174.** Admission retains each required source in the protected Audit
+Project namespace before accepting the immutable next-Round membership. It
+reuses the exact Audit copy and existing lineage/holder machinery on replay.
+The accepted item's authoritative retained refs acquire strict holds in the
+same database transaction as that item, against automatic history eviction
+([DEL-R65](../artifacts/retention-and-deletion.md)). Staged retention is not an
+accepted item. Distinct retained revisions consume `maxEvidenceBytes` once,
+without a second debit on retry or reuse by another item; bytes and originals
+remain attributable after the producer Run is deleted.
+
+**ASC-R175.** Before intent creation, dispatch validates every named mapping's
+exact retained descriptor and its Workflow media contract against the accepted
+manifest. Different required input closures cannot be unioned into one batch.
+The Audit-owned materializer verifies and forks the complete authorized closure
+into the child Run, retaining original-to-retained-to-consumer refs and digests
+in its frozen context. It supplies ordinary Run-local exact refs and finishes
+behind the existing input-initialization fence: no Stage or allocation starts
+with a partial closure. Generic Run creation keeps [ART-R80](../artifacts/artifact-store.md).
+A missing, denied, corrupt or incompatible exact source fails input preparation;
+there is no latest fallback or preparation/target rerun to repair context.
+
+**ASC-R176.** One manifest contains at most 32 exact descriptors and 256 KiB of
+canonical metadata (LIM-ASC-23), with payloads separate. Dependency retention,
+validation and materialization advance in slices bounded by 128 primary records, 512 related
+descriptors and 1 MiB metadata (LIM-ASC-24); exact descriptions use at most
+32 refs per statement (LIM-ART-8), and retained-link calls keep LIM-AUX-15.
+Only indexed selected source/accepted-item rows and holder counts determine
+availability. Containing Audit or unrelated Project bindings add no per-item
+scan. Tighter item-package, evidence, Artifact history and Run insertion
+limits remain authoritative; exceeded bounds reject explicitly, without
+truncating a declared closure or publishing partial membership.
+
+**ASC-R177.** Existing ControllerClaims, accepted item identities, keyed
+mutations, source lineage and child submission intents own recovery. A lost
+retention, acceptance or fork reply resumes the same exact source and child,
+retains only missing work and cannot charge evidence or launch a target check
+twice. Transaction conflicts and history-maintenance backpressure keep their
+existing bounded retry/deadline rules; deterministic validation, missing exact
+content and protected-history conflicts are permanent. Admission/storage work
+and Run input preparation have separate finite allowances from target execution
+(FAIL-ASC-10).
+
+**ASC-R178.** Pause, deadline, cancel and deletion use the existing Audit
+admission and drain fences. In-flight materialization joins before owner
+release; an incomplete child stays non-schedulable and follows its ordinary
+Run lifecycle. Accepted manifests and Audit copies remain immutable through
+normal cancellation. Audit purge removes manifest references and releases only
+its own obligations within the shared bounded purge; child Run purge removes
+its local copies independently. No new TTL, lease, hold table or quota refund
+is introduced (LIFE-ASC-5).
 
 ## Interfaces
 
@@ -1023,6 +1114,12 @@ receipt table or independent holder service (LIFE-ASC-3, LIFE-ASC-4).
   (ASC-R95 to ASC-R104).
 
 ## Limits, failures and errors
+
+- [LIM-ASC-23](../platform/limits.md) and [LIM-ASC-24](../platform/limits.md):
+  exact item dependency manifest and admission/materialization slice bounds.
+- [FAIL-ASC-10](../platform/failure-model.md): exact dependency admission and
+  materialization recovery.
+- [LIFE-ASC-5](../platform/lifecycle.md): accepted item dependency lifetime.
 
 Registry entries owned by this document:
 
@@ -1134,8 +1231,8 @@ The `auditTask` executor declaration is shown with ASC-R72.
 
 ## Non-goals
 
-- The preparation contract introduces no `finalize` or proposed-check routing.
-  The separate settled-Round mapping is owned by ASC-R154 to ASC-R162.
+- Preparation introduces no `finalize` or proposed-check routing. Settled-Round
+  inputs and exact retained item dependencies use the separate contracts above.
 - Profiles whose preparation requires classified active-check tools before
   item approval (ASC-R9).
 - The OpenAPI scan adapter does not interpret snapshot attachments, retained

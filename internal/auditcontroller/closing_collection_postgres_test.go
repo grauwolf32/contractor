@@ -341,7 +341,7 @@ func runtimeSubmissionID(invocationID, clientKey string) string {
 func submitChildFindingProposal(
 	t *testing.T, ctx context.Context, intake *findingintake.Service,
 	grant controlplane.AllocationGrant, clientKey string,
-	standardRefs []auditdomain.StandardReference,
+	standardRefs []auditdomain.StandardReference, proposedChecks ...auditdomain.ProposedCheck,
 ) findingintake.Receipt {
 	t.Helper()
 	if standardRefs == nil {
@@ -356,7 +356,7 @@ func submitChildFindingProposal(
 			Title: "Late candidate", Description: "A candidate found before the Audit closed.",
 			Subject:       &auditdomain.FindingSubject{Kind: "code", Key: "handler"},
 			Preconditions: []string{}, StandardRefs: standardRefs,
-			EvidenceIDs: []string{}, ProposedChecks: []auditdomain.ProposedCheck{},
+			EvidenceIDs: []string{}, ProposedChecks: append([]auditdomain.ProposedCheck{}, proposedChecks...),
 			Limitations: []string{},
 		},
 		EvidenceRefs: []contracts.ArtifactRef{},

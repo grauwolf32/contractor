@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-128 open tasks: 13 in progress, 104 pending, 11 deferred. 1144 finished: 1134 completed, 10 archived.
+127 open tasks: 13 in progress, 103 pending, 11 deferred. 1145 finished: 1135 completed, 10 archived.
 
 ## In progress
 
@@ -108,13 +108,12 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V62-006](v62-006-audit-retained-dependencies.yml) | feature | P2 | — | Retain exact item dependencies across Audit rounds |
-| [V62-007](v62-007-audit-check-routing.yml) | feature | P2 | V62-006 | Route trusted typed check plans through explicit profile bindings |
-| [V62-013](v62-013-audit-iterative-composition-release.yml) | chore | P2 | V62-006, V62-007 | Gate generic iterative Audit composition through real processes |
+| [V62-007](v62-007-audit-check-routing.yml) | feature | P2 | — | Route trusted typed check plans through explicit profile bindings |
+| [V62-013](v62-013-audit-iterative-composition-release.yml) | chore | P2 | V62-007 | Gate generic iterative Audit composition through real processes |
 | [V64-001](v64-001-audit-priority-contracts.yml) | feature | P2 | — | Specify optional Audit research contracts and deterministic bypass |
 | [V64-002](v64-002-audit-priority-store.yml) | feature | P2 | V64-001, V64-012 | Persist research cycles and exact selection decisions |
 | [V64-003](v64-003-planner-only-priority-execution.yml) | feature | P2 | V64-002 | Execute resumable research phases through ordinary Workflow Runs |
-| [V64-004](v64-004-audit-priority-context.yml) | feature | P2 | V64-012, V62-006, V64-003 | Assemble bounded exact research context for each experiment |
+| [V64-004](v64-004-audit-priority-context.yml) | feature | P2 | V64-012, V64-003 | Assemble bounded exact research context for each experiment |
 | [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-003, V64-004, V64-006 | Add optional model evaluation of bounded experiment shortlists |
 | [V64-006](v64-006-audit-priority-selection.yml) | feature | P2 | V64-002, V64-004, V64-013, V62-007 | Select feasible experiments deterministically and admit exact work |
 | [V64-007](v64-007-audit-priority-controller.yml) | feature | P2 | V64-003, V64-006, V64-013, V64-014, V64-015 | Close the deterministic hypothesis feedback loop across Audit rounds |
@@ -134,7 +133,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-006](v411-006-cumulative-budget-finalization.yml) | feature | P1 | V411-002, V411-003 | Enforce cumulative pentest budgets and finalize at the hard active-time cap |
 | [V411-008](v411-008-stateful-actions-cleanup.yml) | feature | P1 | V411-003, V411-004, V411-006, V411-007 | Serialize stateful target checks and retain unresolved cleanup effects |
 | [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V411-002 | Pin optional pentest programs and nonblocking finding review |
-| [V411-012](v411-012-pentest-admission-rounds.yml) | feature | P1 | V411-009, V411-010, V62-006, V62-007 | Admit typed pentest plans and derive exact later-round replay |
+| [V411-012](v411-012-pentest-admission-rounds.yml) | feature | P1 | V411-009, V411-010, V62-007 | Admit typed pentest plans and derive exact later-round replay |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
@@ -236,7 +235,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 8 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 35 | 33 | 7 | 40 |
-| Audits (`audits`) | 31 | 67 | 81 | 27 | 107 |
+| Audits (`audits`) | 30 | 67 | 81 | 27 | 107 |
 | Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |

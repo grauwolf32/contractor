@@ -5,7 +5,7 @@ milestone: audit-iterative-composition-2026-10
 epic: audits
 kind: feature
 priority: P2
-status: pending
+status: completed
 reactivation:
   date: '2026-10-24'
   previous_status: deferred
@@ -16,8 +16,9 @@ previous_deferral:
   previous_status: pending
   reason: Cross-round item dependencies belong to the later iterative Audit slice.
   reactivate_when: Explicit user approval of an actual later-round consumer and its exact dependency contract.
-implementation_commit: null
+implementation_commit: 97b8fcabcdd4cb87593dd97d804460cf84b7cf77
 depends_on:
+- V62-005
 - V62-004
 - V410-010
 languages:
@@ -263,3 +264,54 @@ lifecycle:
     reference is removed.
   retention: Accepted manifests and source mappings are immutable through retries and cancellation; no
     TTL, no quota refund or latest substitution. Receipt retention is not itself an artifact hold.
+
+integration_dependency:
+  task: V62-005
+  reason: >-
+    Final child input materialization reuses the durable Run initialization fence
+    delivered by V62-005. Contract and source admission work was independent;
+    integrated Run preparation is verified only after that task is complete.
+
+verification:
+  date: '2026-10-26'
+  result: passed
+  actuality: >-
+    The starting implementation had no accepted exact cross-round dependency
+    manifest or production Run materializer. The finding receipt adapter now
+    proves baseline, accepted preparation and accepted producer result origins;
+    exact original-to-retained-to-consumer mappings survive producer deletion.
+    The ordinary durable input fence from V62-005 is reused.
+  commands:
+  - command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditservice ./internal/auditstore/... ./internal/auditcontroller ./internal/runservice ./internal/auditimport ./internal/artifacts
+    result: passed with real PostgreSQL; controller and importer repeated after the V62-014 cancellation correction.
+  - command: go test -count=1 ./internal/config/...
+    result: passed.
+  - command: go test -tags=integration -count=1 ./internal/persistence/...
+    result: passed after the independently completed V62-015 inventory correction.
+  - command: make test-audit-composition-e2e
+    result: passed; 40 mandatory store cases, 10 process cases and the real browser journey, with zero skips.
+  - command: make test-wire-cross-language verify-public-api
+    result: passed; 281 fixtures, 331 Go and 229 Python shared tests, 1287 selected Python tests and complete selected public-operation coverage.
+  - command: CI=true UV_OFFLINE=1 make lint
+    result: passed, including layers, test-only exports, task/specification inventories and release-graph guard.
+  - command: CI=true UV_OFFLINE=1 make ui-verify
+    result: passed, including generated-client check, lint, typecheck, complete UI tests and production build.
+  - command: cd runtime && uv run pytest -W error tests/test_audit_retained_dependencies.py tests/test_audit_result_collector.py tests/test_audit_results_*.py tests/test_audit_completion_*.py tests/test_contracts.py tests/test_performance_contracts.py tests/test_artifacts.py tests/test_run_artifacts_toolset.py tests/test_security_findings_toolset.py tests/test_shared_memory_reservation.py tests/test_shared_round_results.py
+    result: 679 passed; one process-driver test requires its Go harness and is exercised by the mandatory process gate.
+  evidence: >-
+    Real-store coverage includes the maximum 32-descriptor closure, 2000
+    unrelated bindings and links, strict source/consumer pins, metadata bounds,
+    same-child replay, evidence charged once and weighted bounded purge. The
+    production journey accepts prepare and item results, deletes both producer
+    Runs, builds the later Round, materializes all four exact inputs, cancels and
+    collects the consumer, then purges it. Run progress, local revisions and
+    lineage disappear; independent Audit payloads remain readable and their
+    hold counts fall by exactly the consumer's incoming lineage obligations.
+  additional_check_limitation: >-
+    The optional broader make test-runtime run did not pass on this macOS host:
+    105 failures, 5030 passes, 39 skips and one error. Unchanged main reproduced
+    the representative failures: Linux-only SOCK_SEQPACKET/pidfd/proc behavior,
+    Darwin path/normalization/resource-limit assumptions and a 100ms wall-clock
+    parser assertion. All failing modules are unchanged by this task; the full
+    affected Runtime owner suites and actual Server/Runtime process gate pass.
+    No test was weakened or skipped to conceal this result.

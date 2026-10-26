@@ -393,6 +393,9 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		if findErr != nil {
 			return PreparedSubmission{}, findErr
 		}
+		if err := b.validateItemDependencies(ctx, snapshot, binding, baseline, item, manifestItem); err != nil {
+			return PreparedSubmission{}, err
+		}
 		task, resolveErr := b.artifacts.ResolveProjectExact(ctx, audit.ProjectID, item.Task)
 		if resolveErr != nil {
 			return PreparedSubmission{}, resolveErr
@@ -461,6 +464,12 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		if len(selected) > 1 {
 			memberInputs = append(memberInputs, taskInput.Clone())
 		}
+		if manifestItems[index].Dependencies != nil {
+			memberInputs, err = uniqueDependencyInputs(memberInputs)
+			if err != nil {
+				return PreparedSubmission{}, err
+			}
+		}
 		members[index] = auditstore.ExecutionMemberIntent{
 			ItemID: member.Item.ItemID, BatchOrdinal: index, ItemAttempt: member.Attempt,
 			Task: tasks[index], Inputs: memberInputs,
@@ -523,6 +532,10 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		ProjectHTTPTarget: baseline.ProjectHTTPTarget,
 		Parameters:        parameters, Inputs: runInputs,
 		ExecutionManifest: manifestArtifact, RequestDigest: requestDigest,
+	}
+	if manifestItems[0].Dependencies != nil {
+		run.InputMaterializationID = auditdomain.DigestBytes([]byte("retained-dependency:" + manifestDigest))
+		run.MaterializeInputs = runservice.MaterializeAuditRetainedDependencies
 	}
 	return PreparedSubmission{Intent: intent, Run: run}, nil
 }
@@ -695,6 +708,11 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 		names = append(names, name)
 	}
 	sort.Strings(names)
+	if manifest.Dependencies != nil {
+		for _, dependency := range manifest.Dependencies.Dependencies {
+			memberInputs = append(memberInputs, dependency.Retained.Clone())
+		}
+	}
 	consumed := 0
 	for _, slot := range names {
 		mapping := binding.Inputs[slot]
@@ -729,6 +747,30 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 			}
 			runInputs[slot] = descriptor.Clone()
 			memberInputs = append(memberInputs, descriptor.Clone())
+			consumed++
+
+		case auditprofile.AuditInputFromRetainedDependency:
+			var dependency *auditdomain.RetainedDependency
+			if manifest.Dependencies != nil {
+				for index := range manifest.Dependencies.Dependencies {
+					candidate := &manifest.Dependencies.Dependencies[index]
+					if candidate.Name == mapping.Name {
+						dependency = candidate
+						break
+					}
+				}
+			}
+			if dependency == nil {
+				if binding.Workflow.Inputs[slot].Required {
+					return nil, nil, invalidSubmission("required retained dependency is missing")
+				}
+				continue
+			}
+			pinned, present := manifestInputs[slot]
+			if !present || pinned.Digest != dependency.Retained.Digest || !pinned.Ref.SameExact(dependency.Retained.Ref) || !contracts.AcceptsMediaType(binding.Workflow.Inputs[slot].MediaTypes, dependency.Retained.MediaType) {
+				return nil, nil, invalidSubmission("retained dependency mapping differs or has incompatible media")
+			}
+			runInputs[slot] = dependency.Retained.Clone()
 			consumed++
 		case auditprofile.AuditInputFromRetainedOutput:
 			if b.outputs == nil || snapshot.Round == nil {

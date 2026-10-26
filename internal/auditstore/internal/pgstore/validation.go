@@ -518,14 +518,30 @@ func validateAcceptRound(params auditstore.AcceptRoundParams) error {
 	if err := validateExactArtifact("round manifest", params.Manifest, false); err != nil {
 		return err
 	}
+	if _, err := validateArtifactLinks(params.Retained); err != nil {
+		return err
+	}
 	if len(params.Items) == 0 {
 		return invalidf("next Round must contain work")
 	}
 	if err := validateRoundItems(params.Items); err != nil {
 		return err
 	}
+	dependencyItems, dependencyDescriptors, dependencyBytes := 0, 0, 0
 	seenSources := make(map[string]struct{}, len(params.Items))
 	for _, item := range params.Items {
+		if item.Dependencies != nil {
+			encoded, err := auditdomain.EncodeRetainedDependencies(*item.Dependencies)
+			if err != nil {
+				return invalidf("retained dependency manifest is invalid")
+			}
+			dependencyItems++
+			dependencyDescriptors += len(item.Dependencies.Dependencies)
+			dependencyBytes += len(encoded)
+			if dependencyItems > 128 || dependencyDescriptors > 512 || dependencyBytes > 1<<20 {
+				return invalidf("retained dependency admission slice is too large")
+			}
+		}
 		if len(item.ProposalSources) != 1 {
 			return invalidf("next Round item must have one exact proposal source")
 		}
@@ -599,6 +615,11 @@ func validateRoundItems(items []auditstore.MaterializedItem) error {
 		}
 		if err := validateExactArtifact("item task", item.Task, false); err != nil {
 			return err
+		}
+		if item.Dependencies != nil {
+			if item.Dependencies.ItemKey != item.ItemKey || auditdomain.ValidateRetainedDependencies(*item.Dependencies) != nil {
+				return invalidf("retained dependency manifest is invalid")
+			}
 		}
 		if err := validateItemOrigin(item.Origin, item.ItemKey); err != nil {
 			return err

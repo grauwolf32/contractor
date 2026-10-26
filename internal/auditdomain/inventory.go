@@ -208,6 +208,9 @@ func ValidateInventory(value Inventory) error {
 			generated.Document.SourceContentDigest != value.SourceContentDigest || generated.Document.CanonicalInventoryDigest != value.CanonicalInventoryDigest {
 			return invalid(CodeInventoryInvalid, "inventory.membership")
 		}
+		if !sameCanonicalValue(executionItem.Dependencies, generated.Document.Dependencies) {
+			return invalid(CodeInventoryInvalid, "inventory.dependencies")
+		}
 		if coverage.Status != "not-tested" || len(coverage.Completed) != 0 {
 			return invalid(CodeInventoryInvalid, "inventory.coverage")
 		}

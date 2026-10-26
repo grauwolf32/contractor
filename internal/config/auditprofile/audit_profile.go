@@ -94,12 +94,13 @@ type AuditStandardSelection struct {
 type AuditWorkflowInputSource string
 
 const (
-	AuditInputFromAudit             AuditWorkflowInputSource = "audit-input"
-	AuditInputFromItemPackage       AuditWorkflowInputSource = "item-package"
-	AuditInputFromExecutionManifest AuditWorkflowInputSource = "execution-manifest"
-	AuditInputFromRetainedOutput    AuditWorkflowInputSource = "retained-output"
-	AuditInputFromPreparation       AuditWorkflowInputSource = "prepare-output"
-	AuditInputFromRoundResults      AuditWorkflowInputSource = "round-results"
+	AuditInputFromAudit              AuditWorkflowInputSource = "audit-input"
+	AuditInputFromItemPackage        AuditWorkflowInputSource = "item-package"
+	AuditInputFromExecutionManifest  AuditWorkflowInputSource = "execution-manifest"
+	AuditInputFromRetainedOutput     AuditWorkflowInputSource = "retained-output"
+	AuditInputFromPreparation        AuditWorkflowInputSource = "prepare-output"
+	AuditInputFromRoundResults       AuditWorkflowInputSource = "round-results"
+	AuditInputFromRetainedDependency AuditWorkflowInputSource = "retained-dependency"
 )
 
 type AuditWorkflowInputMapping struct {
@@ -545,6 +546,10 @@ func resolveAuditWorkflowInputMapping(
 		}
 		if !resolved.MediaTypesIntersect([]string{"application/json"}, slot.MediaTypes) {
 			return AuditWorkflowInputMapping{}, fmt.Errorf("%s Workflow input does not accept application/json", field)
+		}
+	case AuditInputFromRetainedDependency:
+		if mapping.Role != "" || contracts.ValidateArtifactName(mapping.Name) != nil {
+			return AuditWorkflowInputMapping{}, fmt.Errorf("%s retained-dependency requires name and forbids role", field)
 		}
 	case AuditInputFromRetainedOutput, AuditInputFromPreparation:
 		if validateAuditMapKey(field+".role", mapping.Role) != nil ||

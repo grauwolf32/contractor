@@ -1,4 +1,4 @@
-import { MEDIA_TYPE_PATTERN } from "../../api/artifacts";
+import { ARTIFACT_NAME_PATTERN, MEDIA_TYPE_PATTERN } from "../../api/artifacts";
 import {
   CONFIG_NAME_PATTERN,
   CONFIG_VERSION_PATTERN,
@@ -560,6 +560,7 @@ export function validateDraft(draft: Draft): Problem[] {
             "prepare-output",
             "retained-output",
             "round-results",
+            "retained-dependency",
           ].includes(textValue(row.source))
         )
           error([...path, "source"], "Choose a supported input source.");
@@ -570,6 +571,12 @@ export function validateDraft(draft: Draft): Problem[] {
           (row.name || row.role)
         )
           error(path, "This input source forbids name and role.");
+        if (row.source === "retained-dependency") {
+          if (role.kind !== "check")
+            error(path, "retained-dependency requires a check role.");
+          if (row.role || !ARTIFACT_NAME_PATTERN.test(textValue(row.name)))
+            error(path, "Choose a named dependency and omit producer role.");
+        }
         if (row.source === "round-results" && role.kind !== "assessment")
           error(path, "round-results requires an assessment role.");
         if (row.source === "audit-input" && row.role)

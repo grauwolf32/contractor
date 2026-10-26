@@ -4,6 +4,23 @@ package pgstore
 // immutable targets, then removes leaf rows before parents. The caller shares
 // one remaining-row budget across all statements and commits each pass. Empty
 // tables use their Audit FK indexes; pointer resets use partial purge indexes.
+// purgeAuditItemsSQL selects a bounded ordered prefix by primary-row and
+// distinct exact-hold counter cost. An unfit next row consumes the remainder
+// of this pass, so later parent deletes cannot cascade past the item fence.
+const purgeAuditItemsSQL = `
+WITH candidates AS MATERIALIZED (
+ SELECT ctid,item_id,1+retained_dependency_hold_count AS work
+ FROM audit_items WHERE audit_id=$1 ORDER BY item_id LIMIT $2
+), weighted AS MATERIALIZED (
+ SELECT *,sum(work) OVER (ORDER BY item_id) AS cumulative FROM candidates
+), deleted AS (
+ DELETE FROM audit_items AS target USING weighted AS batch
+ WHERE target.ctid=batch.ctid AND batch.cumulative<=$2
+ RETURNING batch.work
+)
+SELECT CASE WHEN EXISTS(SELECT 1 FROM weighted WHERE cumulative>$2) THEN $2
+ ELSE COALESCE((SELECT sum(work) FROM deleted),0)::integer END`
+
 var purgeAuditDomainSQL = []string{
 	`WITH batch AS (
   SELECT ctid FROM audit_round_result_pages WHERE audit_id = $1 LIMIT $2
@@ -43,10 +60,7 @@ DELETE FROM audit_findings AS target USING batch WHERE target.ctid = batch.ctid`
   SELECT ctid FROM audit_execution_items WHERE audit_id = $1 LIMIT $2
 )
 DELETE FROM audit_execution_items AS target USING batch WHERE target.ctid = batch.ctid`,
-	`WITH batch AS (
-  SELECT ctid FROM audit_items WHERE audit_id = $1 LIMIT $2
-)
-DELETE FROM audit_items AS target USING batch WHERE target.ctid = batch.ctid`,
+	purgeAuditItemsSQL,
 	`WITH batch AS (
   SELECT ctid FROM audit_executions WHERE audit_id = $1 LIMIT $2
 )
