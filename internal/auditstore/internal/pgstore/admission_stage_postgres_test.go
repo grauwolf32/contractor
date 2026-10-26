@@ -35,7 +35,7 @@ func stagedAdmissionProfile(t *testing.T, f collectingAuditFixture) *auditbaseli
 		t.Fatal(err)
 	}
 	text := strings.Replace(string(data), "PROFILE_NAME", "staged-finding", 1)
-	text = strings.Replace(text, "  workflows:", "  methods:\n    trace:\n      planSchema: contractor.audit.finding-check-plan.v1\n      method: static-trace\n      phase: verify\n      workflowRole: check\n      requiredCapabilities: []\n  workflows:", 1)
+	text = strings.Replace(text, "  workflows:", "  methods:\n    trace:\n      planSchema: contractor.audit.finding-check-plan.v1\n      method: static-trace\n      workflowRole: check\n      requiredCapabilities: []\n  workflows:", 1)
 	if err = os.MkdirAll(filepath.Join(root, "audit-profiles"), 0755); err != nil {
 		t.Fatal(err)
 	}

@@ -32,7 +32,7 @@ func typedRoutingControllerConfig(t *testing.T, customize ...func(map[string]str
 		profile = strings.Replace(profile, "maxEvidenceBytes: 1048576", "maxEvidenceBytes: 8388608", 1)
 		methods := "  methods:\n"
 		for _, entry := range []struct{ method, role string }{{"verify", "blue"}, {"replay", "red"}, {"applicability", "green"}} {
-			methods += fmt.Sprintf("    %s-route:\n      planSchema: contractor.audit.finding-check-plan.v1\n      method: %s\n      phase: %s\n      workflowRole: %s\n      requiredCapabilities: []\n", entry.role, entry.method, entry.method, entry.role)
+			methods += fmt.Sprintf("    %s-route:\n      planSchema: contractor.audit.finding-check-plan.v1\n      method: %s\n      workflowRole: %s\n      requiredCapabilities: []\n", entry.role, entry.method, entry.role)
 		}
 		profile = strings.Replace(profile, "  workflows:\n", methods+"  workflows:\n", 1)
 		roles := ""
