@@ -2,6 +2,7 @@ package auditservice
 
 import (
 	"fmt"
+
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -40,7 +41,4 @@ func (c *RoutedCheckContext) Validate(plan auditdomain.AcceptedPlan, deps *audit
 		return fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
 	return nil
-}
-func canonicalAdmissionDigest(value any) (string, error) {
-	return auditbaseline.CheckAdmissionDigest(value)
 }
