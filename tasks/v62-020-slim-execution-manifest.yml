@@ -36,6 +36,10 @@ context:
     batches read each exact task once before typed authorization and reuse its decoded bytes for assembly.
     Ordinary singletons retain their accepted SQL dependency/exact-descriptor path with zero task payload
     reads; Runtime verifies actual task bytes before model context.
+  verification_lanes: The full persistence package and other full Go owners run in separate worktrees/databases.
+    This splits only command scheduling; every declared package remains covered. The integrated controller
+    suite is repeated after the final payload-counter tests; canonical gates run on the combined clean
+    source.
 scope:
   in:
   - Remove full plan and dependency values from transported ExecutionItem; retain item identity, exact
@@ -66,9 +70,14 @@ acceptance_criteria:
   text: Old transport fields are rejected; no permissive legacy reader or model-authored execution authority
     is added.
 tests:
-- command: go test -tags=integration -count=1 ./internal/persistence/postgres ./internal/auditdomain ./internal/auditbaseline
-    ./internal/auditstore/... ./internal/auditservice ./internal/auditcontroller ./internal/auditimport
-    ./internal/runservice
+- command: go test -tags=integration -count=1 ./internal/persistence/postgres
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditbaseline ./internal/auditstore/...
+    ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/runservice
   covers:
   - A1
   - A2
