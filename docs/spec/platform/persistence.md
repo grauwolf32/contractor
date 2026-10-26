@@ -909,6 +909,18 @@ selected immutable execution entries. It never reads whole pages to select
 sparse items. A lost acceptance response replays the same root and generation
 without another debit or accepted event.
 
+**PER-R40.** The incompatible Audit worklist execution-manifest transition
+requires the previous Server to finish or cancel Audits that already have a
+Round before the operator stops it and applies the forward migration. The
+migration rejects an Audit in `active`, `waiting_review`, `paused`,
+`finalizing`, `cancelling` or `deleting` with any Round, using only indexed
+Audit/Round metadata. The check is not limited to typed finding worklists.
+Drafts and preparation without Rounds may remain. Terminal historical
+artifacts and records are preserved without rewriting their frozen content;
+current readers accept only the current execution format. The migration's
+metadata locks keep the preflight stable until commit; they do not provide a
+mixed-version Server protocol or permission to restart the previous writer.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
