@@ -1472,6 +1472,38 @@ evidence membership.
   `contractor.findings.collection.v1` for `collection.json`, and schema
   `contractor.audit.finding-proposal.v1` for proposals.
 
+### Exact proposed-check indexes
+
+**FND-R188.** Finding intake derives a private
+`contractor.audit.finding-checks-projection.v1` index from the final exact
+proposal bytes and the same validated document it publishes. The index holds
+at most 512 ordinal headers and 256 KiB serialized JSON: byte offsets, lengths
+and fragment digests, registered method/phase and canonical plan digest/size,
+plus exact subject and limitations fragment locations. It stores no objective
+prose and grants no source, route or execution authority. Unknown methods and
+oversized typed plans remain explicit unsupported headers without rejecting an
+otherwise valid ordinary finding.
+
+**FND-R189.** A source adapter first proves the receipt and destination Audit
+hold, then reads the exact original content or its byte-identical retained
+copy through ArtifactStore. It verifies and strictly decodes only selected
+check and context fragments, and recomputes registered plan digests. A missing
+index is data-migration-pending, never a fallback to a full proposal parser or
+mutable current content. Discard clears all index entries and context; existing
+Run/Audit/Project deletion owns its lifecycle (LIFE-FND-5).
+
+**FND-R190.** Existing retained receipts receive their indexes only through
+the explicit bounded `data-migrate finding-checks` operation. It reads actual
+exact proposal bytes using the configured inline or filesystem blob reader,
+strictly validates the current FindingProposal, and compare-and-sets the
+previously NULL index against the unchanged receipt descriptor. Each batch
+examines at most 128 small source headers and reads at most 32 exact proposals
+and 64 MiB payload. Committed indexes are durable progress and replay unchanged;
+the operation creates no receipt or lease. Missing, corrupt, unavailable or
+invalid sources fail explicitly without changing their provenance or inventing
+an empty index. Cancellation/transient I/O leaves remaining rows NULL. Ordinary
+finding readers and profiles without typed mappings retain their existing path.
+
 ## Limits, failures and errors
 
 - [Limits](../platform/limits.md): proposal `limitations` LIM-FND-1;
