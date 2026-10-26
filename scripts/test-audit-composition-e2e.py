@@ -15,6 +15,7 @@ MATRIX = ROOT / "tests/e2e/audit_composition_matrix.yml"
 PROCESS_TESTS = (
     "TestAuditCompositionAcrossProductionProcesses",
     "TestAuditRoundResultsAcrossProductionProcesses",
+    "TestAuditTypedCheckRoutingAcrossProductionProcesses",
     "TestOpenAPIAuditScanAcrossProductionProcesses",
 )
 
