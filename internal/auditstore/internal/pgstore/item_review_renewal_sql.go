@@ -25,6 +25,7 @@ SELECT item.item_id, item.approval_kind, item.approval_subject_digest,
    AND review.subject_revision=1
    AND review.subject_digest=item.approval_subject_digest
  WHERE item.audit_id=$1 AND item.state IN ('ready','awaiting_review')
+   AND ` + acceptedItemSQL("item") + `
    AND item.approval_kind <> 'none'
    AND (review.state='expired' OR (
        review.state IN ('pending','decided')

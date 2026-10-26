@@ -25,6 +25,9 @@ languages:
 - go
 - json
 - yaml
+- python
+- sql
+- typescript
 goal: Route accepted typed check plans through profile-owned exact Workflow bindings and immutable next-Round
   admission, preserving the existing finding receipt adapter and deterministic default paths.
 context:

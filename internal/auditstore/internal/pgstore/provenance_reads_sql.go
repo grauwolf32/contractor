@@ -7,7 +7,7 @@ package pgstore
 // the receipts and execution items. The union is paged by (created_at,
 // record_id) so a caller resuming from a cursor sees each record once.
 // Used by QueryStore.ListFindingProvenance.
-const listFindingProvenanceSQL = `
+var listFindingProvenanceSQL = `
 WITH anchors AS (
     SELECT assessment.finding_id, assessment.audit_id,
            assessment.receipt_id, assessment.item_id
@@ -22,6 +22,7 @@ WITH anchors AS (
         ON contribution.audit_id = source.audit_id
        AND contribution.receipt_id = source.proposal_receipt_id
      WHERE source.audit_id = $1 AND contribution.finding_id = $2
+       AND ` + acceptedItemSQL("source") + `
 ), records AS (
     SELECT contribution.created_at, 'proposal:' || contribution.receipt_id AS record_id,
            'source-proposal'::text AS kind, contribution.receipt_id,
@@ -74,6 +75,7 @@ WITH anchors AS (
        AND selected.receipt_id = anchor.receipt_id
        AND selected.execution_item_id = member.execution_item_id
      WHERE anchor.audit_id = $1 AND anchor.finding_id = $2
+       AND ` + acceptedItemSQL("item") + `
     UNION ALL
     SELECT assessment.accepted_at, 'assessment:' || assessment.assessment_id,
            'direct-verification'::text,

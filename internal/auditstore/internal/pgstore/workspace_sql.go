@@ -18,6 +18,7 @@ SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.current_roun
        findings.total, findings.unreviewed,
        (SELECT count(*) FROM audit_review_requests AS request
          WHERE request.audit_id = audit.audit_id AND request.state = 'pending'
+           AND ` + visibleItemReviewSQL + `
            AND ` + reviewUnexpiredSQL + `)
   FROM audits AS audit
  CROSS JOIN LATERAL (
@@ -28,6 +29,7 @@ SELECT audit.audit_id, audit.revision, statement_timestamp(), audit.current_roun
               count(*) FILTER (WHERE item.coverage_status = ANY($6::text[])) AS unchecked
          FROM audit_items AS item
         WHERE item.audit_id = audit.audit_id AND item.round_id = audit.current_round_id
+          AND ` + acceptedItemSQL("item") + `
        ) AS coverage
  CROSS JOIN LATERAL (
        SELECT count(*) AS total,

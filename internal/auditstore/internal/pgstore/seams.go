@@ -162,7 +162,11 @@ func (s *QueryStore) Get(ctx context.Context, ownerID, auditID string) (auditsto
 
 // GetRound reads one Round of an Audit.
 func (s *QueryStore) GetRound(ctx context.Context, auditID, roundID string) (auditstore.Round, error) {
-	return s.getRound(ctx, auditID, roundID)
+	round, err := s.getRound(ctx, auditID, roundID)
+	if err == nil && round.State == auditstore.RoundProposed {
+		return auditstore.Round{}, auditstore.ErrNotFound
+	}
+	return round, err
 }
 
 // ListExecutionItems reads the members of one execution in batch order.
