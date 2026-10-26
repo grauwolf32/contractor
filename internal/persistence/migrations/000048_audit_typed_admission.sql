@@ -44,8 +44,8 @@ BEGIN
    RAISE EXCEPTION 'finding comparison projection does not match its immutable sources' USING ERRCODE='23514';
   END IF;
   NEW.comparison_projection:=contractor_finding_comparison_projection(NEW.report_projection,NEW.fingerprint_projection,NEW.anchor_projection,NEW.retention_state);
-  IF to_jsonb(NEW)-ARRAY['retention_state','source_run_deleted_at','discarded_at','retention_updated_at','report_projection','fingerprint_projection','anchor_projection','comparison_projection','checks_projection']
-   =to_jsonb(OLD)-ARRAY['retention_state','source_run_deleted_at','discarded_at','retention_updated_at','report_projection','fingerprint_projection','anchor_projection','comparison_projection','checks_projection']
+  IF to_jsonb(NEW)-ARRAY['retention_state','source_run_deleted_at','discarded_at','retention_updated_at','report_projection','fingerprint_projection','anchor_projection','comparison_projection','checks_projection','checks_projection_bytes','checks_projection_count']
+   =to_jsonb(OLD)-ARRAY['retention_state','source_run_deleted_at','discarded_at','retention_updated_at','report_projection','fingerprint_projection','anchor_projection','comparison_projection','checks_projection','checks_projection_bytes','checks_projection_count']
    AND (NEW.report_projection=OLD.report_projection OR NEW.retention_state='discarded')
    AND (NEW.anchor_projection=OLD.anchor_projection OR NEW.retention_state='discarded')
    AND (NEW.fingerprint_projection=OLD.fingerprint_projection OR NEW.retention_state='discarded')
@@ -114,3 +114,32 @@ CREATE OR REPLACE VIEW audit_live_item_reviews AS
    WHERE decision.request_id=request.request_id AND decision.audit_id=request.audit_id
     AND decision.action='approve' AND decision.subject_revision=request.subject_revision
     AND decision.subject_digest=request.subject_digest)));
+
+-- These constant-size counters seal bounded staged pages without an unbounded
+-- final membership scan. A deletion invalidates the physical count immediately.
+ALTER TABLE audit_rounds ADD COLUMN prepared_generation text;
+ALTER TABLE audit_rounds ADD COLUMN prepared_page_count integer;
+ALTER TABLE audit_rounds ADD COLUMN prepared_pages_digest text;
+ALTER TABLE audit_rounds ADD COLUMN prepared_staged_count integer NOT NULL DEFAULT 0 CHECK(prepared_staged_count BETWEEN 0 AND 4096);
+ALTER TABLE audit_rounds ADD COLUMN prepared_review_count integer NOT NULL DEFAULT 0 CHECK(prepared_review_count BETWEEN 0 AND 4096);
+CREATE FUNCTION contractor_protect_prepared_audit_item() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF TG_OP='UPDATE' THEN
+  IF ROW(NEW.accepted_plan::text,NEW.prepared_execution::text,NEW.prepared_page_ordinal,NEW.prepared_related_count)
+   IS DISTINCT FROM ROW(OLD.accepted_plan::text,OLD.prepared_execution::text,OLD.prepared_page_ordinal,OLD.prepared_related_count) THEN
+   RAISE EXCEPTION 'prepared Audit membership is immutable' USING ERRCODE='23514'; END IF;
+  RETURN NEW;
+ END IF;
+ IF OLD.prepared_execution IS NOT NULL THEN
+  IF EXISTS(SELECT 1 FROM audit_rounds WHERE audit_id=OLD.audit_id AND round_id=OLD.round_id AND state<>'proposed')
+   AND EXISTS(SELECT 1 FROM audits WHERE audit_id=OLD.audit_id AND state<>'deleting') THEN
+   RAISE EXCEPTION 'accepted prepared Audit membership cannot be deleted' USING ERRCODE='23514'; END IF;
+  UPDATE audit_rounds SET prepared_staged_count=prepared_staged_count-1,
+   prepared_review_count=prepared_review_count-CASE WHEN OLD.approval_kind='none' THEN 0 ELSE 1 END
+  WHERE audit_id=OLD.audit_id AND round_id=OLD.round_id;
+ END IF;
+ RETURN OLD;
+END;
+$$;
+CREATE TRIGGER audit_items_protect_prepared BEFORE UPDATE OR DELETE ON audit_items
+ FOR EACH ROW EXECUTE FUNCTION contractor_protect_prepared_audit_item();

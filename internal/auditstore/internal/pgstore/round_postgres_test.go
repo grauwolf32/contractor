@@ -192,8 +192,13 @@ func insertAuditProposalHoldForRoundTest(
 	audit auditstore.Audit,
 	proposal auditstore.ExactArtifact,
 	receiptID string,
+	sourceRun ...string,
 ) {
 	t.Helper()
+	runID := "run-source-one"
+	if len(sourceRun) > 0 {
+		runID = sourceRun[0]
+	}
 	proposalRef, err := json.Marshal(proposal.Ref)
 	if err != nil {
 		t.Fatal(err)
@@ -215,13 +220,13 @@ INSERT INTO finding_proposal_receipts (
 ) VALUES (
     $1, 'proposal-one', 'allocation-one', 'runtime-one', 'instance-one',
     'stage-one', 'worker', 'invocation-one', 'submission-one', 'candidate-one', $2,
-    'run-source-one', $3, $4,
+    $9, $3, $4,
     'source-workflow', '1', 'contractor/v1alpha1',
     '{"name":"source-workflow","version":"1"}'::jsonb, $5,
     $6::jsonb, $7, 'application/json', $8, '[]'::jsonb,
     '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
 )`, receiptID, testDigest("5"), audit.OwnerID, audit.ProjectID,
-		testDigest("6"), proposalRef, proposal.Digest, proposal.SizeBytes); err != nil {
+		testDigest("6"), proposalRef, proposal.Digest, proposal.SizeBytes, runID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Exec(ctx, `

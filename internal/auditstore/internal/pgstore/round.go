@@ -114,6 +114,9 @@ func (s *ClaimStore) AcceptNextRound(
 	ctx context.Context,
 	params auditstore.AcceptRoundParams,
 ) (auditstore.Round, bool, error) {
+	if params.PreparedRoot != nil || params.Generation != "" {
+		return s.acceptPreparedRound(ctx, params)
+	}
 	if err := validateAcceptRound(params); err != nil {
 		return auditstore.Round{}, false, err
 	}

@@ -1,0 +1,300 @@
+package pgstore
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/strictjson"
+	"github.com/jackc/pgx/v5"
+)
+
+type admissionReader struct {
+	*QueryStore
+	db             pgx.Tx
+	state          auditstore.AdmissionProgress
+	owner, project string
+	work           *admissionWork
+	indexes        map[string]auditdomain.FindingChecksProjection
+	sources        map[string]auditstore.AdmissionFindingSource
+	payloads       map[string][]byte
+	contexts       map[string]auditdomain.FindingCheckContext
+	readPage       bool
+	selectionCache map[int]admissionCachedPage
+	cursors        map[auditstore.AdmissionCursor]bool
+}
+
+func newAdmissionReader(tx pgx.Tx, state auditstore.AdmissionProgress, owner, project string) *admissionReader {
+	return &admissionReader{QueryStore: NewQueryStore(tx), db: tx, state: state, owner: owner, project: project,
+		work: &admissionWork{}, indexes: map[string]auditdomain.FindingChecksProjection{}, sources: map[string]auditstore.AdmissionFindingSource{},
+		payloads: map[string][]byte{}, contexts: map[string]auditdomain.FindingCheckContext{}, selectionCache: map[int]admissionCachedPage{}, cursors: map[auditstore.AdmissionCursor]bool{state.Cursor: true}}
+}
+
+func (r *admissionReader) ReadCandidates(ctx context.Context, cursor auditstore.AdmissionCursor, limit int) (auditstore.AdmissionCandidatePage, error) {
+	result := auditstore.AdmissionCandidatePage{Candidates: []auditstore.AdmissionCandidate{}}
+	if r.readPage || limit < 1 || limit > auditstore.MaxAdmissionPrimary || cursor != r.state.Cursor {
+		return result, auditstore.ErrInvalid
+	}
+	r.readPage = true
+	rows, err := r.db.Query(ctx, admissionCandidateHeadersSQL, r.state.AuditID, r.project, cursor.CreatedAt, cursor.ReceiptID,
+		r.state.SourceUpper.CreatedAt, r.state.SourceUpper.ReceiptID, r.state.SourceCutoffAt, limit, cursor.Ordinal)
+	if err != nil {
+		return result, err
+	}
+	type header struct {
+		id           string
+		at           auditstore.AdmissionCursor
+		late         bool
+		bytes, count *int
+		proposal     auditstore.ExactArtifact
+	}
+	var headers []header
+	for rows.Next() {
+		var h header
+		var proposal []byte
+		if err := rows.Scan(&h.id, &h.at.CreatedAt, &h.late, &proposal, &h.bytes, &h.count); err != nil {
+			rows.Close()
+			return result, err
+		}
+		if strictjson.Decode(proposal, &h.proposal) != nil || h.proposal.Validate() != nil {
+			rows.Close()
+			return result, auditstore.ErrInvalid
+		}
+		if err := r.work.add(0, 1, len(proposal), 0); err != nil {
+			rows.Close()
+			return result, err
+		}
+		h.at.ReceiptID = h.id
+		headers = append(headers, h)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return result, err
+	}
+	if err := r.work.add(0, len(headers), 0, 0); err != nil {
+		return result, err
+	}
+	complete := true
+	for _, h := range headers {
+		if len(result.Candidates) == limit {
+			complete = false
+			break
+		}
+		start := 0
+		if h.id == cursor.ReceiptID {
+			start = cursor.Ordinal + 1
+		}
+		if h.count != nil && start >= *h.count && !h.late {
+			continue
+		}
+		if h.late || h.count == nil || *h.count == 0 {
+			candidate := auditstore.AdmissionCandidate{ReceiptID: h.id, Proposal: h.proposal, CreatedAt: h.at.CreatedAt, Ordinal: -1,
+				LateSource: h.late, MigrationPending: h.count == nil, NoChecks: h.count != nil && *h.count == 0,
+				Cursor: auditstore.AdmissionCursor{CreatedAt: h.at.CreatedAt, ReceiptID: h.id, Ordinal: 512}}
+			if err := r.work.add(1, 0, 256, 0); err != nil {
+				return result, err
+			}
+			result.Candidates = append(result.Candidates, candidate)
+			continue
+		}
+		if *h.bytes > auditstore.MaxAdmissionMetadataBytes-r.work.metadata {
+			complete = false
+			break
+		}
+		projection, err := r.readIndex(ctx, h.id, *h.bytes)
+		if err != nil {
+			return result, err
+		}
+		for ordinal := start; ordinal < len(projection.Checks); ordinal++ {
+			if len(result.Candidates) == limit {
+				complete = false
+				break
+			}
+			entry := projection.Checks[ordinal]
+			if err := r.work.add(1, 0, 0, 0); err != nil {
+				return result, err
+			}
+			candidate := auditstore.AdmissionCandidate{ReceiptID: h.id, Proposal: h.proposal, CreatedAt: h.at.CreatedAt, Ordinal: ordinal, Header: entry,
+				ProjectionBytes: *h.bytes, Cursor: auditstore.AdmissionCursor{CreatedAt: h.at.CreatedAt, ReceiptID: h.id, Ordinal: ordinal}}
+			var used, rejected bool
+			key := admissionSourceKey(h.id, ordinal, projection.ProposalDigest, entry.Fragment.Digest)
+			if err := r.db.QueryRow(ctx, admissionSourceStatusSQL, r.state.AuditID, h.id, ordinal, key, admissionPolicyDigest(r.state)).Scan(&used, &rejected); err != nil {
+				return result, err
+			}
+			candidate.AlreadyConsumed, candidate.AlreadyRejected = used, rejected
+			result.Candidates = append(result.Candidates, candidate)
+		}
+	}
+	for _, candidate := range result.Candidates {
+		r.cursors[candidate.Cursor] = true
+	}
+	result.Exhausted = complete && len(headers) < limit
+	if err := r.db.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM finding_proposal_audit_holds WHERE audit_id=$1 AND created_at>$2 LIMIT 1)`, r.state.AuditID, r.state.SourceCutoffAt).Scan(&result.LateSources); err != nil {
+		return result, err
+	}
+	return result, nil
+}
+
+func (r *admissionReader) readIndex(ctx context.Context, id string, size int) (auditdomain.FindingChecksProjection, error) {
+	if value, ok := r.indexes[id]; ok {
+		return value, nil
+	}
+	if size < 1 || size > auditdomain.MaximumFindingChecksProjectionBytes {
+		return auditdomain.FindingChecksProjection{}, auditstore.ErrInvalid
+	}
+	if err := r.work.add(0, 0, size, 0); err != nil {
+		return auditdomain.FindingChecksProjection{}, err
+	}
+	var data []byte
+	if err := r.db.QueryRow(ctx, `SELECT checks_projection FROM finding_proposal_receipts WHERE receipt_id=$1`, id).Scan(&data); err != nil {
+		return auditdomain.FindingChecksProjection{}, err
+	}
+	if len(data) != size {
+		return auditdomain.FindingChecksProjection{}, auditstore.ErrInvalid
+	}
+	value, err := auditdomain.DecodeFindingChecksProjection(data)
+	if err != nil || value.Discarded {
+		return value, auditstore.ErrInvalid
+	}
+	r.indexes[id] = value
+	return value, nil
+}
+
+func (r *admissionReader) FindingSource(ctx context.Context, id string) (auditstore.AdmissionFindingSource, error) {
+	if value, ok := r.sources[id]; ok {
+		return value, nil
+	}
+	var value auditstore.AdmissionFindingSource
+	var original, retained, originalEvidence, retainedEvidence []byte
+	var projectionBytes *int
+	var overflow bool
+	err := r.db.QueryRow(ctx, admissionFindingSourceSQL, r.state.AuditID, r.owner, r.project, id).Scan(&value.ReceiptID, &value.ProjectID,
+		&original, &value.Original.Digest, &value.Original.MediaType, &value.Original.SizeBytes, &retained, &value.OriginRunID, &value.OriginExecutionID,
+		&value.OriginAuditID, &projectionBytes, &originalEvidence, &retainedEvidence, &overflow)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return value, auditstore.ErrNotFound
+	}
+	if err != nil {
+		return value, err
+	}
+	if projectionBytes == nil {
+		return value, auditstore.ErrChecksProjectionPending
+	}
+	if strictjson.Decode(original, &value.Original.Ref) != nil || strictjson.Decode(retained, &value.Retained) != nil || value.Original.Validate() != nil || value.Retained.Validate() != nil ||
+		value.Original.Digest != value.Retained.Digest || value.Original.MediaType != value.Retained.MediaType || value.Original.SizeBytes != value.Retained.SizeBytes {
+		return value, auditstore.ErrInvalid
+	}
+	value.EvidenceLimitExceeded = overflow
+	value.OriginalEvidence, value.RetainedEvidence = []auditstore.ExactArtifact{}, []auditstore.ExactArtifact{}
+	if !overflow && (strictjson.Decode(originalEvidence, &value.OriginalEvidence) != nil || strictjson.Decode(retainedEvidence, &value.RetainedEvidence) != nil || len(value.OriginalEvidence) != len(value.RetainedEvidence)) {
+		return value, auditstore.ErrInvalid
+	}
+	if err := r.work.add(0, 2+len(value.OriginalEvidence)+len(value.RetainedEvidence), len(original)+len(retained)+len(originalEvidence)+len(retainedEvidence)+256, 0); err != nil {
+		return value, err
+	}
+	value.Projection, err = r.readIndex(ctx, id, *projectionBytes)
+	if err != nil {
+		return value, err
+	}
+	if value.Projection.ProposalDigest != value.Original.Digest || value.Projection.SizeBytes != value.Original.SizeBytes {
+		return value, auditstore.ErrInvalid
+	}
+	r.sources[id] = value
+	return value, nil
+}
+
+func (r *admissionReader) ReadFindingCheck(ctx context.Context, id string, ordinal int) (auditstore.AdmissionFindingCheck, error) {
+	var result auditstore.AdmissionFindingCheck
+	source, err := r.FindingSource(ctx, id)
+	if err != nil {
+		return result, err
+	}
+	if ordinal < 0 || ordinal >= len(source.Projection.Checks) {
+		return result, auditstore.ErrInvalid
+	}
+	entry := source.Projection.Checks[ordinal]
+	if err := r.work.add(0, 0, int(entry.Fragment.Length), 0); err != nil {
+		return result, err
+	}
+	data, ok := r.payloads[id]
+	if !ok {
+		if err := r.work.add(0, 0, 0, source.Retained.SizeBytes); err != nil {
+			return result, err
+		}
+		store, _ := artifacts.NewService(artifacts.NewPostgresRepository(r.db)).Project(r.project)
+		read, err := store.ReadExact(ctx, source.Retained)
+		if err != nil {
+			return result, err
+		}
+		data = read.Payload.Data
+		r.payloads[id] = data
+	}
+	contextValue, ok := r.contexts[id]
+	if !ok {
+		if source.Projection.Subject == nil || source.Projection.Limitations == nil {
+			return result, auditstore.ErrInvalid
+		}
+		if err := r.work.add(0, 0, int(source.Projection.Subject.Length+source.Projection.Limitations.Length), 0); err != nil {
+			return result, err
+		}
+		contextValue, err = auditdomain.ExtractFindingChecksContext(data, *source.Projection.Subject, *source.Projection.Limitations)
+		if err != nil {
+			return result, err
+		}
+		r.contexts[id] = contextValue
+	}
+	check, plan, err := auditdomain.ExtractFindingCheck(data, entry)
+	if err != nil {
+		return result, err
+	}
+	result.Source, result.Check, result.Plan, result.Context = source, check, plan, contextValue
+	return result, nil
+}
+
+func (r *admissionReader) ReadSelectionPage(ctx context.Context, ordinal int) (auditstore.ExactArtifact, []byte, error) {
+	if cached, ok := r.selectionCache[ordinal]; ok {
+		return cached.exact, append([]byte(nil), cached.data...), nil
+	}
+	var exact auditstore.ExactArtifact
+	var data []byte
+	if ordinal < 0 || ordinal >= r.state.SelectionPages {
+		return exact, nil, auditstore.ErrInvalid
+	}
+	if err := r.db.QueryRow(ctx, `SELECT artifact_ref,artifact_digest,media_type,size_bytes FROM audit_artifact_links WHERE audit_id=$1 AND logical_key=$2`, r.state.AuditID, admissionPageKey(r.state.Generation, "selection", ordinal)).Scan(&data, &exact.Digest, &exact.MediaType, &exact.SizeBytes); err != nil {
+		return exact, nil, err
+	}
+	if strictjson.Decode(data, &exact.Ref) != nil || exact.Validate() != nil {
+		return exact, nil, auditstore.ErrInvalid
+	}
+	if err := r.work.add(0, 1, int(exact.SizeBytes), 0); err != nil {
+		return exact, nil, err
+	}
+	store, _ := artifacts.NewService(artifacts.NewPostgresRepository(r.db)).Project(r.project)
+	read, err := store.ReadExact(ctx, exact)
+	if err != nil {
+		return exact, nil, err
+	}
+	r.selectionCache[ordinal] = admissionCachedPage{exact: exact, data: read.Payload.Data}
+	return exact, append([]byte(nil), read.Payload.Data...), nil
+}
+
+func admissionSourceKey(receipt string, ordinal int, proposal, fragment string) string {
+	return auditdomain.DigestBytes([]byte(fmt.Sprintf("%s\x00%d\x00%s\x00%s", receipt, ordinal, proposal, fragment)))
+}
+func admissionPolicyDigest(state auditstore.AdmissionProgress) string {
+	return auditdomain.DigestBytes([]byte(state.ProfileDigest + "\n" + state.BaselineDigest))
+}
+func admissionPageKey(generation, kind string, ordinal int) string {
+	return fmt.Sprintf("admission/%s/%s/%06d", generation, kind, ordinal)
+}
+
+var _ auditstore.AdmissionReader = (*admissionReader)(nil)
+
+type admissionCachedPage struct {
+	exact auditstore.ExactArtifact
+	data  []byte
+}

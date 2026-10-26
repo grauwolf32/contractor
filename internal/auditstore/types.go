@@ -477,6 +477,8 @@ type MaterializeRoundParams struct {
 }
 
 type AcceptRoundParams struct {
+	PreparedRoot          *ExactArtifact
+	Generation            string
 	Retained              []ArtifactLink
 	Claim                 ControllerClaim
 	ExpectedAuditRevision uint64
