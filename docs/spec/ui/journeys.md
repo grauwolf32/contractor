@@ -576,7 +576,7 @@ alone does not imply high quality and quality assessment requires an
 explicitly selected evaluator or a human decision; that native execution is
 independent of Playground while optional external clients use the same public
 protocol; and that grouping ordinary Runs by `eval.*` labels remains available
-as legacy history, are specified in [Managed Evals](../evals/managed-evals.md).
+as unassociated history, are specified in [Managed Evals](../evals/managed-evals.md).
 
 ### US-11 — Monitor and configure execution
 

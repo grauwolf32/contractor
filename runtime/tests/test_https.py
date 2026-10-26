@@ -269,7 +269,7 @@ def private_pki(tmp_path_factory: pytest.TempPathFactory) -> PrivatePKI:
     root, foreign = work / "pki", work / "foreign"
     pki("init-ca", "--root", str(root))
     pki("issue-control-plane", "--root", str(root))
-    pki("issue-agent", "--root", str(root), "--name", "agent-1")
+    pki("issue-runtime", "--root", str(root), "--name", "agent-1")
     original = work / "original"
     original.mkdir()
     for name in ("control-plane.crt", "control-plane.key"):

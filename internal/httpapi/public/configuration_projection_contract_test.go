@@ -10,6 +10,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/getkin/kin-openapi/routers/gorillamux"
 	"github.com/grauwolf32/contractor/internal/config"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -184,4 +185,50 @@ func TestPublicConfigurationProjectionContracts(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestSharedPublicWorkerSessionModeContract(t *testing.T) {
+	document := loadPublicOpenAPI(t)
+	encoded, err := json.Marshal(document.Components.Schemas["WorkflowResource"].Value.Example)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var example struct {
+		Stages map[string]map[string]any `json:"stages"`
+	}
+	if err := json.Unmarshal(encoded, &example); err != nil {
+		t.Fatal(err)
+	}
+	stage, ok := example.Stages["copy"]
+	if !ok {
+		t.Fatal("Workflow example has no copy Stage")
+	}
+	type sessionCase struct {
+		Name  string `json:"name"`
+		Omit  bool   `json:"omit"`
+		Value any    `json:"value"`
+	}
+	var cases struct {
+		Valid   []sessionCase `json:"valid"`
+		Invalid []sessionCase `json:"invalid"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "worker-session-mode-cases.json"), &cases); err != nil {
+		t.Fatal(err)
+	}
+	schema := document.Components.Schemas["WorkflowStageContract"].Value
+	for _, group := range []struct {
+		cases []sessionCase
+		valid bool
+	}{{cases.Valid, true}, {cases.Invalid, false}} {
+		for _, item := range group.cases {
+			if item.Omit {
+				delete(stage, "session")
+			} else {
+				stage["session"] = item.Value
+			}
+			if err := schema.VisitJSON(stage); (err == nil) != group.valid {
+				t.Fatalf("session %s: valid=%t, want %t: %v", item.Name, err == nil, group.valid, err)
+			}
+		}
+	}
 }

@@ -740,15 +740,15 @@ mode, or request persistence outside declared Stage result slots.
 `WorkspaceWriter` and `WorkspaceChanges` handles, never raw fsspec objects or
 host paths.
 
-**WSP-R129.** `openapi@1` declares optional read access for provenance
-checks. When a project workspace is present, every `evidence_files` path is
+**WSP-R129.** `openapi@1` requires read access for provenance checks.
+Every `evidence_files` path is
 validated against one `WorkspaceReader` snapshot, the same logical tree exposed
 through `filesystem@1`, and `openapi@1` must not inspect `AllocationWorkspace`
 scratch.
 
-**WSP-R130.** Without a project workspace, `openapi@1` retains the legacy
-`source-analysis@1` compatibility path below allocation-private
-`scratch/source`.
+**WSP-R130.** Selecting `openapi@1` without a project workspace is rejected
+by Server configuration validation and Runtime allocation preparation. OpenAPI
+provenance never reads allocation-private scratch or a separately opened archive.
 
 The allocation-private `source-analysis@1` reader uses the Server-selected
 `RuntimeSettings.sourceArchiveLimits` admission budgets
@@ -769,13 +769,11 @@ tree until that thread returns (WSP-R75, FAIL-WSP-3); the guard's operation
 deadline bounds the step and fences the session when it expires. Results,
 ordering, totals and truncation do not depend on where the step runs.
 
-**WSP-R131.** The project workspace and the
-`source-analysis@1` path are never combined, and project-workspace presence
-always takes precedence, including for a missing path.
+**WSP-R131.** A missing evidence path in the current project workspace is
+rejected. No other source tree or previously opened archive can supply it.
 
 `openapi@1` acquires that snapshot before it takes its document-session lock
-and checks the evidence paths against the snapshot or the allocation-private
-source tree in the session's worker thread
+and checks the evidence paths against that snapshot in the session's worker thread
 ([RTA-R115](../execution/runtime-agent.md)).
 
 The read-only `code-analysis@1` Toolset consumes the same `WorkspaceReader`

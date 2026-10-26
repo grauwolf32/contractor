@@ -70,7 +70,7 @@ def test_openapi_tools_build_validate_and_expose_exact_refs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("@app.get('/health')\ndef health(): ...\n")
         client = MemoryArtifactClient()
@@ -177,6 +177,30 @@ def test_openapi_tools_build_validate_and_expose_exact_refs(
     asyncio.run(scenario())
 
 
+def test_openapi_rejects_missing_workspace_before_creating_clients(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        scratch = tmp_path / "source"
+        scratch.mkdir()
+        (scratch / "app.py").write_text("def handler(): pass\n")
+
+        def forbidden_client(_allocation, _settings):
+            raise AssertionError("missing workspace reached client construction")
+
+        factory = OpenAPIToolsetFactory(forbidden_client)
+        with pytest.raises(ValueError, match="requires a project workspace"):
+            await factory.create_selected(
+                selected=["upsert_openapi_path"],
+                allocation_id="allocation-1",
+                run_id="run-1",
+                namespace="openapi",
+                runtime_settings=runtime_settings(),
+                workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
+                state=WorkerState(),
+            )
+
+    asyncio.run(scenario())
+
+
 def test_project_workspace_is_authoritative_for_openapi_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -223,7 +247,7 @@ def test_minimal_openapi_30_shape_is_clean_with_real_vacuum(tmp_path: Path) -> N
         pytest.skip("Vacuum executable is unavailable")
 
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("@app.get('/health')\ndef health(): ...\n")
         tools = await make_tools(
@@ -434,7 +458,7 @@ def test_json_compatible_yaml_seed_with_31_boolean_schemas_loads_and_validates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/items'\n")
         client = MemoryArtifactClient()
@@ -611,7 +635,7 @@ def test_mutations_write_strings_every_reader_reads_back_and_bound_numbers(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("@app.get('/health')\ndef health(): ...\n")
         client = MemoryArtifactClient()
@@ -994,7 +1018,7 @@ def test_partial_path_updates_validate_after_merge_and_reject_invalid_result(
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/health'\n")
         client = MemoryArtifactClient()
@@ -1062,7 +1086,7 @@ def test_partial_component_updates_validate_after_merge(
     tmp_path: Path, section: str, initial: dict[str, Any], patch: dict[str, Any]
 ) -> None:
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/health'\n")
         client = MemoryArtifactClient()
@@ -1082,7 +1106,7 @@ def test_partial_component_updates_validate_after_merge(
 
 def test_invalid_mutations_and_stale_cas_leave_document_unchanged(tmp_path: Path) -> None:
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/health'\n")
         (source / "spec.yaml").write_text("not implementation evidence\n")
@@ -1147,7 +1171,7 @@ def test_validation_checks_seed_provenance_and_never_treats_missing_vacuum_as_cl
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/health'\n")
         client = MemoryArtifactClient()
@@ -1195,7 +1219,7 @@ def test_openapi_30_component_aliases_mutate_and_path_item_refs_are_rejected(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/health'\n")
         client = MemoryArtifactClient()
@@ -1260,7 +1284,7 @@ def test_seeded_openapi_30_aliases_validate_and_missing_provenance_names_entry(
         return await tools["validate_openapi"]()
 
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/health'\n")
         monkeypatch.setattr(openapi_module, "_run_vacuum", clean_vacuum)
@@ -1340,7 +1364,7 @@ def test_openapi_30_path_item_ref_guidance_holds_against_real_vacuum(tmp_path: P
         }
 
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("@app.get('/health')\ndef health(): ...\n")
         tools = await make_tools(
@@ -1391,7 +1415,7 @@ def test_schema_mutations_replace_refs_atomically_and_reject_vacuum_shape_errors
     tmp_path: Path,
 ) -> None:
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("value = 'example'\n")
         client = MemoryArtifactClient()
@@ -1464,7 +1488,7 @@ def test_schema_mutations_replace_refs_atomically_and_reject_vacuum_shape_errors
 @pytest.mark.parametrize("keyword", ["allOf", "anyOf", "oneOf"])
 def test_single_schema_combinations_are_preserved_and_empty_ones_rejected(tmp_path, keyword):
     async def scenario():
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("def handler(): pass\n")
         client, state = MemoryArtifactClient(), WorkerState()
@@ -1590,6 +1614,7 @@ def test_factory_rejects_unknown_tools_and_builtin_registry_matches(tmp_path: Pa
             runtime_settings=runtime_settings(),
             workspace=AllocationWorkspace(root=tmp_path.parent, path=tmp_path),
             state=WorkerState(),
+            project_workspace=StaticWorkspaceReader({}),
         )
         assert set(selected) == {"get_openapi_info"}
         with pytest.raises(ValueError, match="unknown selected tools"):
@@ -1727,7 +1752,7 @@ def test_openapi_document_work_runs_on_worker_threads_while_the_loop_runs(
             "contractor_runtime.core.process.run_command",
             AsyncMock(return_value=subprocess.CompletedProcess(["vacuum"], 0, b"[]", b"")),
         )
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/health'\n")
         client = MemoryArtifactClient()
@@ -1832,7 +1857,7 @@ def test_accepted_upsert_validates_its_merged_document_once(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, target: str
 ) -> None:
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/health'\n")
         client = MemoryArtifactClient()
@@ -2055,7 +2080,7 @@ def test_close_cancels_validation_after_joining_its_preparation(
 
 def test_openapi_written_bytes_and_noop_results_are_unchanged(tmp_path: Path) -> None:
     async def scenario() -> None:
-        source = tmp_path / "source" / "src"
+        source = tmp_path / "project" / "src"
         source.mkdir(parents=True)
         (source / "app.py").write_text("route = '/health'\n")
         client = MemoryArtifactClient()
@@ -2190,6 +2215,15 @@ async def make_tools(
     project_workspace: Any = None,
 ) -> dict[str, Any]:
     factory = OpenAPIToolsetFactory(lambda _allocation, _settings: client)
+    if project_workspace is None:
+        project = tmp_path / "project"
+        project_workspace = StaticWorkspaceReader(
+            {
+                path.relative_to(project).as_posix(): path.read_text()
+                for path in project.rglob("*")
+                if path.is_file()
+            }
+        )
     selected = await factory.create_selected(
         selected=sorted(factory.exported_tools),
         allocation_id="allocation-1",

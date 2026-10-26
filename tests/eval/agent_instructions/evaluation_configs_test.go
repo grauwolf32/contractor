@@ -6,11 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"testing"
-
-	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/configload"
 )
 
 func TestEvaluationReleasePreservesPairedContracts(t *testing.T) {
@@ -35,62 +31,38 @@ func TestEvaluationReleasePreservesPairedContracts(t *testing.T) {
 	for path, want := range manifest.Files {
 		checkEvaluationDigest(t, filepath.Join("evaluation-configs", path), want)
 	}
-	directory := t.TempDir()
-	for path, raw := range frozen.Files {
-		if strings.HasPrefix(path, "configs/audit-profiles/") {
-			continue
-		}
-		rel, err := filepath.Rel("configs", path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		dest := filepath.Join(directory, rel)
-		if err := os.MkdirAll(filepath.Dir(dest), 0700); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.WriteFile(dest, []byte(raw), 0600); err != nil {
-			t.Fatal(err)
-		}
-	}
-	for _, overlay := range []string{"candidate/configs", "evaluation-configs/configs"} {
-		copyArchivedExecutionConfigs(t, directory, overlay)
-	}
-	registerArchivedToolsets(t, directory)
-	snapshot, err := configload.Load(directory)
-	if err != nil {
-		t.Fatal(err)
-	}
+	catalog := archivedCatalog(t, frozen.Files, "candidate/configs", "evaluation-configs/configs")
 	if len(manifest.Cases) != 6 {
 		t.Fatalf("expected six pilot cases, got %d", len(manifest.Cases))
 	}
 	for _, id := range []string{"d1", "o1", "l1", "t1", "t2", "a1"} {
 		t.Run(id, func(t *testing.T) {
 			arms := manifest.Cases[id]
-			var pair []resolved.ResolvedWorkflow
+			var pair []map[string]any
 			for _, arm := range []string{"baseline", "candidate"} {
 				entry := arms[arm]
-				workflow, err := snapshot.Workflow(entry.Workflow)
-				if err != nil {
-					t.Fatal(err)
-				}
-				source, err := snapshot.Workflow(entry.Source)
-				if err != nil {
-					t.Fatal(err)
-				}
+				workflow := archivedSelection(t, catalog, "Workflow", entry.Workflow)
+				source := archivedSelection(t, catalog, "Workflow", entry.Source)
 				if id != "d1" {
-					copy := workflow
-					copy.Ref = source.Ref
+					copy := archiveDocument(t, catalog["Workflow/"+entry.Workflow])
+					copy["metadata"] = source["metadata"]
 					if !reflect.DeepEqual(source, copy) {
 						t.Fatal("wrapper changed source workflow")
 					}
 				} else {
-					if len(workflow.Stages) != 1 || workflow.EntryStage != "dependency_discovery" {
+					spec := workflow["spec"].(map[string]any)
+					stages := spec["stages"].(map[string]any)
+					if len(stages) != 1 || spec["entryStage"] != "dependency_discovery" {
 						t.Fatal("D1 must execute only dependency discovery")
 					}
-					stage := workflow.Stages["dependency_discovery"]
-					prior := source.Stages["dependency_discovery"]
-					stage.On = prior.On
-					stage.WorkflowOutputs = prior.WorkflowOutputs
+					stage := stages["dependency_discovery"].(map[string]any)
+					prior := source["spec"].(map[string]any)["stages"].(map[string]any)["dependency_discovery"].(map[string]any)
+					stage["on"] = prior["on"]
+					if value, ok := prior["workflowOutputs"]; ok {
+						stage["workflowOutputs"] = value
+					} else {
+						delete(stage, "workflowOutputs")
+					}
 					if !reflect.DeepEqual(prior, stage) {
 						t.Fatal("D1 changed discovery execution contract")
 					}
@@ -102,22 +74,7 @@ func TestEvaluationReleasePreservesPairedContracts(t *testing.T) {
 						entry.Profile, entry.Workflow)
 				}
 			}
-			before, after := pair[0], pair[1]
-			after.Ref = before.Ref
-			for key, stage := range after.Stages {
-				prior := before.Stages[key]
-				stage.Instructions = prior.Instructions
-				for role, agent := range stage.Agents {
-					old := prior.Agents[role]
-					assertTemplateContract(t, old.Template, agent.Template)
-					agent.Template = old.Template
-					stage.Agents[role] = agent
-				}
-				after.Stages[key] = stage
-			}
-			if !reflect.DeepEqual(before, after) {
-				t.Fatal("A/B differs beyond instructions and dependent refs")
-			}
+			assertArchivedWorkflowContract(t, catalog, pair[0], pair[1])
 		})
 	}
 }

@@ -339,7 +339,7 @@ model {
         #contractor
       }
 
-      localPki = component 'Local PKI CLI — pki init-ca / issue-control-plane / issue-agent; deployment-local mTLS material, not a certificate-management system' {
+      localPki = component 'Local PKI CLI — pki init-ca / issue-control-plane / issue-runtime; deployment-local mTLS material, not a certificate-management system' {
         #contractor #optional
       }
     }
@@ -1207,7 +1207,7 @@ model {
   server.productSurface.publicApi -> server.runtimeOperations.gatewayRecovery 'POST /v1/runs/{runId}/retry-gateway reopens the bounded window; RunStatus.recovery'
 
   // Deployment-local PKI (internal/localpki)
-  operator -> server.identityConfiguration.localPki 'Offline CLI: init-ca, issue-control-plane, issue-agent'
+  operator -> server.identityConfiguration.localPki 'Offline CLI: init-ca, issue-control-plane, issue-runtime'
   server.identityConfiguration.localPki -> server.runtimeOperations.controlPlane 'Control Plane certificate and key files'
   server.identityConfiguration.localPki -> runtimeAgent.agentControl 'Per-agent certificate and key files'
 

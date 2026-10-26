@@ -518,7 +518,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Lease-session loss** — A single liveness probe of the lease session that fails within the tolerance window, upon which the active Server closes its listeners and cancels the Scheduler. Owner: [Persistence](platform/persistence.md).
 
-**Legacy labelled Run** — An ordinary WorkflowRun grouped only by evaluation labels, outside any managed experiment's verified membership. Owner: [Managed Evals](evals/managed-evals.md).
+**Unassociated Run** — An ordinary WorkflowRun grouped only by evaluation labels, outside any managed experiment's verified membership. Owner: [Managed Evals](evals/managed-evals.md).
 
 **Library** — The user-facing name of the Catalog, which groups reusable execution definitions. Owner: [Web UI](ui/ui.md).
 

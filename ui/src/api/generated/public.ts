@@ -5770,10 +5770,10 @@ export interface components {
             instructions: components["schemas"]["InstructionsRef"];
             planner: components["schemas"]["PlannerRef"];
             /**
-             * @description Current Servers always emit the resolved mode; optional here only for additive v1 client compatibility.
+             * @description Resolved Worker session mode. Always present; omission in source Workflow YAML resolves to isolated before publication.
              * @enum {string}
              */
-            session?: "isolated" | "shared";
+            session: "isolated" | "shared";
             agents: {
                 [key: string]: components["schemas"]["WorkflowAgentBinding"];
             };

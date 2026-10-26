@@ -737,7 +737,7 @@ def generate_pki(root: Path) -> dict[str, Path]:
     for arguments in (
         ("init-ca", "--root", str(root)),
         ("issue-control-plane", "--root", str(root)),
-        ("issue-agent", "--root", str(root), "--name", "agent-1"),
+        ("issue-runtime", "--root", str(root), "--name", "agent-1"),
     ):
         subprocess.run(
             ["go", "run", "./cmd/contractor-pki", *arguments],

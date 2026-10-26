@@ -62,7 +62,7 @@ func (c *CLI) runPKI(args []string, printer *Printer) error {
 			return err
 		}
 		caCertificate = localpki.CAPaths(root).Certificate
-	case "issue-runtime", "issue-agent":
+	case "issue-runtime":
 		var root, name, rawDNS, rawIPs string
 		var force bool
 		flags, err := parseFlags("contractor pki issue-runtime", c.stderr, args[1:], func(flags *flag.FlagSet) {

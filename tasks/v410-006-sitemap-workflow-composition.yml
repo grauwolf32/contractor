@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: workflows
 kind: feature
 priority: P1
-status: in_progress
+status: pending
 depends_on:
 - V410-003
 - V410-004
@@ -190,10 +190,15 @@ test_prerequisites:
   features.
 
 execution:
-  branch: codex/v410-sitemap
-  claimed_on: "2026-10-26"
+  released_on: "2026-10-26"
+  previous_branch: codex/v410-sitemap
   note: >-
-    Taken into work by Codex at the user's explicit request. The seven-task
-    batch is reserved together; implementation proceeds in dependency order,
-    and dependent tasks do not start implementation before their prerequisites
-    complete. Status records assignment, not completed implementation or tests.
+    Returned to pending at the user's request to finish V410-002 and pause.
+    Implementation of this task has not started; the prior batch reservation
+    is released.
+
+implementation_decisions:
+- date: 2026-10-26
+  decision: Required sitemap persistence is checked by deterministic completion code at the declared boundary,
+    outside the model-visible HTTP result. Run owners receive collection status; a failed final required report
+    is an execution failure and never relabels target transport or repeats target traffic.

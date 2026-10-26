@@ -47,6 +47,11 @@ spec:
           template: openapi_builder@3
           namespace: openapi
       context:
+        workspace:
+          mode: overlay
+          sources:
+            - artifact: source
+              target: ""
         artifacts:
           source:
             namespace: inputs

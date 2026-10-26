@@ -168,9 +168,8 @@ def test_builtin_discovery_keeps_editing_tools_without_optional_validators(
         assert CODE_ANALYSIS_REF not in toolsets
         assert "write_likec4" in toolsets["likec4@1"]
         assert "validate_likec4" not in toolsets["likec4@1"]
-        assert "upsert_openapi_path" in toolsets["openapi@1"]
-        assert "validate_openapi" not in toolsets["openapi@1"]
-        assert probes == [("likec4", ("version",)), ("vacuum", ("version",))]
+        assert "openapi@1" not in toolsets
+        assert probes == [("likec4", ("version",))]
         assert list(work_root.iterdir()) == []
 
         state = RuntimeState(instance_id="stable-runtime", capabilities=snapshot)

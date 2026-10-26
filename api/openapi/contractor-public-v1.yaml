@@ -15433,7 +15433,7 @@ components:
     WorkflowStageContract:
       type: object
       additionalProperties: false
-      required: [objective, instructions, planner, agents, executionConfig, contextArtifacts, resultArtifacts, workflowOutputs, on]
+      required: [objective, instructions, planner, session, agents, executionConfig, contextArtifacts, resultArtifacts, workflowOutputs, on]
       properties:
         objective: {type: string, minLength: 1, maxLength: 65536}
         instructions: {$ref: '#/components/schemas/InstructionsRef'}
@@ -15441,7 +15441,7 @@ components:
         session:
           type: string
           enum: [isolated, shared]
-          description: Current Servers always emit the resolved mode; optional here only for additive v1 client compatibility.
+          description: Resolved Worker session mode. Always present; omission in source Workflow YAML resolves to isolated before publication.
         agents:
           type: object
           minProperties: 1
