@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V62-013
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V62-007
 - V62-013
@@ -90,7 +90,7 @@ lifecycle:
   bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
 verification:
   date: '2026-10-27'
-  source_revision: dc44a7d10dd089fbb0b0a18d5075f65fb84c5241
+  source_revision: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
   results:
   - 'Full scripts unittest: 167 passed; full untagged tests/e2e package passed in 6.834s.'
   - make lint passed including release graph, inventories, generated client check, Python/UI gates and
@@ -103,6 +103,11 @@ verification:
     without running tests again.
   - All 66 selected identities and 54 acceptance edges match the pre-change matrix, including 13 supporting
     regressions.
+  - After fixing the demonstrated review/finalization race, full tests/e2e passed (5.831s; see owner log),
+    the complete iterative PostgreSQL/process command passed on clean 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+    (53 required PG / 100 actual, 5 required process / 6 actual, zero skips), followed by make lint. Prior
+    independent report-helper/composition/completion evidence remains unchanged by this isolated fixture
+    ordering fix.
   reports:
     postgres:
       path: .local/audit-iterative-gate/postgres-v7vpewk9/result.json
@@ -124,6 +129,35 @@ verification:
         path: tests/e2e/audit_iterative_matrix.yml
         digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
       report_digest: sha256:34dadf75bccc6921c429fde1517af56244fee97247eb39983a9c6ace468476e3
+    final:
+      postgres:
+        path: .local/audit-iterative-gate/postgres-4_e8zag5/result.json
+        source:
+          revision: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+          dirty: false
+        counts:
+          required: 53
+          passed: 100
+          skipped: 0
+        matrix:
+          path: tests/e2e/audit_iterative_matrix.yml
+          digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+        report_digest: sha256:c21423d952085962cea7920f4b9354e8f049784a4ff57a1a85a554c00a87fc60
+      process:
+        path: .local/audit-iterative-gate/process-pv3qlwss/result.json
+        source:
+          revision: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+          dirty: false
+        counts:
+          required: 5
+          passed: 6
+          skipped: 0
+        matrix:
+          path: tests/e2e/audit_iterative_matrix.yml
+          digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+        report_digest: sha256:5b1b93d7f012f856e1585cceb3bb5710db7ac4aee0dd74c5417b2c6ebb9d8145
+      lint_log: /private/tmp/v62-019-final-lint.log
+      owner_log: /private/tmp/v62-017-lifecycle-owner.log
   history:
   - Initial real gates exposed legal slash-containing Go test names and completion console redaction regressions;
     both fixed with targeted regressions and full owner tests.
@@ -135,5 +169,11 @@ verification:
     requested review while controller finalization could still change Audit revision. Public paged reads
     correctly returned 409; finding review rejects finalizing. Wait for automatic Audit completion before
     the explicit review. Prior gate implementation: dc44a7d10dd089fbb0b0a18d5075f65fb84c5241.'
+  - Detailed rerun log /private/tmp/v62-019-joined-diagnostic.log establishes HTTP 409 from the paged
+    findings revision fence while controller finalization was in progress. The fixture now awaits public
+    completed state, proves the finding is still proposed/unreviewed, makes the explicit analyst decision,
+    and verifies Audit remains completed and its report readable. No retry, assertion or production fence
+    was weakened. The earlier content-free failure cannot be conclusively attributed to this cause.
   limits:
   - No deployment, live-model quality evaluation or full release-verify run claimed.
+implementation_commit: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5

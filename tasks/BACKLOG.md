@@ -5,14 +5,13 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-126 open tasks: 8 in progress, 107 pending, 11 deferred. 1152 finished: 1142 completed, 10 archived.
+125 open tasks: 7 in progress, 107 pending, 11 deferred. 1153 finished: 1143 completed, 10 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
-| [V62-017](v62-017-consolidate-audit-gates.yml) | audits | chore | P2 | Consolidate Audit gate reports and evidence |
 | [V62-018](v62-018-remove-duplicate-accepted-plan-column.yml) | audits | chore | P2 | Remove the unread accepted plan column |
 | [V62-019](v62-019-derive-check-method-phase.yml) | audits | chore | P2 | Derive check routing phase from the method registry |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
@@ -239,7 +238,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 8 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 35 | 33 | 7 | 41 |
-| Audits (`audits`) | 33 | 67 | 81 | 32 | 112 |
+| Audits (`audits`) | 32 | 67 | 81 | 32 | 112 |
 | Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |
