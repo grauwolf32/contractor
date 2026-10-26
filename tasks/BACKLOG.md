@@ -5,14 +5,13 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-122 open tasks: 6 in progress, 105 pending, 11 deferred. 1151 finished: 1141 completed, 10 archived.
+121 open tasks: 5 in progress, 105 pending, 11 deferred. 1152 finished: 1142 completed, 10 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
-| [V62-013](v62-013-audit-iterative-composition-release.yml) | audits | chore | P2 | Gate generic iterative Audit composition through real processes |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
@@ -119,7 +118,7 @@ the epics are in [epics.yml](epics.yml).
 | [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P2 | V64-007 | Expose paginated research state and separate coverage through the public API |
 | [V64-009](v64-009-audit-priority-ui.yml) | feature | P2 | V64-008 | Show hypotheses, selection reasons and bounded lineage in the Audit UI |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P2 | V64-007, V64-008 | Publish opt-in guide and material research profiles with deterministic selection |
-| [V64-011](v64-011-audit-priority-release.yml) | chore | P2 | V64-009, V64-010, V64-015, V62-013 | Verify deterministic hypothesis search and unchanged direct execution end to end |
+| [V64-011](v64-011-audit-priority-release.yml) | chore | P2 | V64-009, V64-010, V64-015 | Verify deterministic hypothesis search and unchanged direct execution end to end |
 | [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P2 | V64-001 | Store Audit hypotheses and sparse provenance with trusted ingestion |
 | [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P2 | V64-003, V64-004, V64-012 | Generate cold hypotheses and accept bounded concrete experiment plans |
 | [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P2 | V64-003, V64-004, V64-012, V64-006 | Import scoped research assessments and preserve conflicting contributions |
@@ -235,7 +234,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 8 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 35 | 33 | 7 | 41 |
-| Audits (`audits`) | 29 | 67 | 81 | 27 | 107 |
+| Audits (`audits`) | 28 | 67 | 81 | 27 | 107 |
 | Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |

@@ -1028,8 +1028,8 @@
     "status": "passed",
     "source_revision": "51bc9e21064b006040b124423ad7bee41f6dfc84",
     "commands": [
-      "python3 scripts/release_test_reports.py verify-iterative-postgres --report <actual iterative PostgreSQL report>",
-      "python3 scripts/release_test_reports.py verify-iterative-process --report <actual iterative process report>"
+      "python3 scripts/release_test_reports.py verify-iterative-postgres --report .local/audit-iterative-gate/postgres-eap0qr7s/go.jsonl",
+      "python3 scripts/release_test_reports.py verify-iterative-process --report .local/audit-iterative-gate/process-eva45y52/go.jsonl"
     ],
     "scope": "Both canonical-report verification actions accepted the actual executed direct gate reports. Consolidated family dry-run executes no Go, pytest or unittest suites; the release graph verifies exact coverage and single process selection.",
     "report": {

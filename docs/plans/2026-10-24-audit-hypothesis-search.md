@@ -80,7 +80,7 @@ update references, while preserving the IDs and completed history.
 | V62-005 | Immutable complete, bounded settled-round snapshots and authorized child inputs | V62-004, V410-010 |
 | V62-006 | Exact retained dependencies with original-to-child mappings and existing holds/lifecycle | V62-004, V410-010 |
 | V62-007 | Generic trusted continuation admission and profile-owned method routing | V62-005, V62-006 |
-| V62-013, new | Generic iterative-composition process gate, including source deletion and unchanged direct paths | V62-005, V62-006, V62-007 |
+| [V62-013](../../tasks/done/v62-013-audit-iterative-composition-release.yml) | **Completed:** generic iterative-composition process gate, including source deletion and unchanged direct paths | V62-005, V62-006, V62-007 |
 | V64-001 | Strict opt-in/domain contracts, trusted human origin/requested attention, capability gates and direct-path guarantees | V64-000, V62-001, V25-011 |
 | V64-012, new | Audit-owned registry, immutable revisions, sparse lineage, producer ingestion and authorized audited human create/revise | V64-001, V410-010 |
 | V64-002 | Durable cycle/decision metadata, reservations, atomic admission and owned lifecycle | V64-001, V64-012, V62-002 |
@@ -235,8 +235,8 @@ silently change accepted context or the Audit baseline.
 | V64-001–011 | Use the revised scopes and dependency graph above; status is pending under the explicit 2026-10-24 instruction, with earlier deferrals retained as history. |
 | V64-012–018 | Keep the new tasks pending with explicit consumers, limits, failure outcomes, lifecycle and runnable verification commands. |
 | V64-001/012/006/005/008/009/011 human-input boundary | Define authenticated human origin and requested attention; implement audited create/revise, deterministic attention precedence, protection from model demotion, API/UI entry and real-process priority/blocked-state evidence. |
-| V62-005/006/007 | Keep the revised shared contracts and generic iterative-composition milestone; status is pending and there is no V64 dependency. |
-| V62-013 | Keep the generic gate pending; it proves composition independently of research and pentest. |
+| V62-005/006/007 | Completed shared contracts; retain the generic iterative-composition boundary with no V64 dependency. |
+| [V62-013](../../tasks/done/v62-013-audit-iterative-composition-release.yml) | Completed generic gate; source-pinned process evidence proves composition independently of research and pentest. |
 | Completed V62 tasks | Keep their history and once-per-Audit preparation guarantees; do not reopen completed implementations merely because a later extension uses them. |
 | Seven related unfinished task files | Apply only the exact boundary clarifications in the table below; retain their statuses and dependencies. |
 | V410-010 | Consume its shared ArtifactStore retention contract after completion; do not take over its active work. |
