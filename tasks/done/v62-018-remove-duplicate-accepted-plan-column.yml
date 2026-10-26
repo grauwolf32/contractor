@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V62-007
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V62-017
 languages:
@@ -73,3 +73,35 @@ cardinality:
     whole-history hydration.
 lifecycle:
   bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
+implementation_commit: a149e7f9bfbb80be286806d706e49a6c8a9e28d1
+verification:
+  date: '2026-10-27'
+  source_revision: a149e7f9bfbb80be286806d706e49a6c8a9e28d1
+  results:
+  - go test -tags=integration -count=1 ./internal/persistence/postgres ./internal/auditstore/... passed
+    on equivalent implementation 7b2d5999d77d23bd15c231839c8692d15765c91b (persistence 40.721s; pgstore
+    131.130s).
+  - make test-audit-iterative-postgres passed on bec39a003f10c86736c096fc6ab04ec5d4eda5a9; 53 required
+    cases, no selected skips.
+  - After shared fixture reader correction, full persistence/postgres passed again (39.280s); fixture
+    source guard passed.
+  - make lint passed on final implementation.
+  - make docs-erd and spec/ERD guards passed; schema 51, 74 tables and 103 foreign keys.
+  reports:
+    postgres:
+      path: .local/audit-iterative-gate/postgres-7uyliyd6/result.json
+      source:
+        revision: bec39a003f10c86736c096fc6ab04ec5d4eda5a9
+        dirty: false
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+    owner_log: /private/tmp/v62-018-owners.log
+    fixture_fix_log: /private/tmp/v62-018-persistence-fixture-fix.log
+    lint_log: /private/tmp/v62-018-lint-final.log
+  history:
+  - Initial lint rejected direct shared-fixture access in the migration test. Switched to contractstest
+    and TestShared naming, reran the complete affected persistence package and lint. No runtime behavior
+    changed.
+  limits:
+  - No deployment or full release-verify run claimed.
