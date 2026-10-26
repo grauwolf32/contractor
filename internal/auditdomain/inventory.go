@@ -84,10 +84,34 @@ func finishInventory(
 			inputs = append(inputs, settings)
 			sort.Slice(inputs, func(i, j int) bool { return inputs[i].Name < inputs[j].Name })
 		}
+		var executionPlan *AcceptedPlan
+		var executionDependencies *RetainedDependencyManifest
+		if subject.dependencies != nil {
+			encoded, err := EncodeRetainedDependencies(*subject.dependencies)
+			if err != nil {
+				return Inventory{}, err
+			}
+			cloned, err := DecodeRetainedDependencies(encoded)
+			if err != nil {
+				return Inventory{}, err
+			}
+			executionDependencies = &cloned
+		}
+		if subject.acceptedPlan != nil {
+			encoded, err := EncodeAcceptedPlan(*subject.acceptedPlan, executionDependencies)
+			if err != nil {
+				return Inventory{}, err
+			}
+			cloned, err := DecodeAcceptedPlan(encoded, executionDependencies)
+			if err != nil {
+				return Inventory{}, err
+			}
+			executionPlan = &cloned
+		}
 		execution.Items = append(execution.Items, ExecutionItem{
 			ItemKey: subject.itemKey, Ordinal: ordinal, SubjectKey: subject.subjectKey,
 			TaskPackageID: packageID, TaskPackageDigest: validatedPackage.Digest,
-			Inputs: inputs, AcceptedPlan: subject.acceptedPlan, Dependencies: subject.dependencies,
+			Inputs: inputs, AcceptedPlan: executionPlan, Dependencies: executionDependencies,
 		})
 		coverage.Rows = append(coverage.Rows, newCoverageRow(subject))
 		tasks = append(tasks, GeneratedTask{

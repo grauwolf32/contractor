@@ -283,7 +283,7 @@ func ExtractFindingChecksContext(finalBytes []byte, subject, limitations Finding
 	if err = strictjson.Decode(raw, &result.Limitations); err != nil {
 		return result, err
 	}
-	if result.Limitations == nil || validateStringList(result.Limitations, MaximumCoverageValues, "limitations") != nil {
+	if ValidateFindingLimitations(result.Limitations) != nil {
 		return result, invalid(CodeInvalid, "checks_projection.limitations")
 	}
 	return result, nil

@@ -26,6 +26,7 @@ var (
 // Inventory.SourceRef and TaskRevision are provisional values that must be at
 // least as long as the revisions the artifact store assigns.
 type FindingRoundShape struct {
+	Paged           bool
 	Inventory       InventoryOptions
 	TaskNamespace   string
 	TaskRevision    string
