@@ -125,7 +125,7 @@ func preparedTestItem(t *testing.T, ctx context.Context, s *AdmissionSession, ro
 		t.Fatal(err)
 	}
 	sourceExact := writeStagedDocument(t, ctx, s, fmt.Sprintf("candidate-source-%03d", ordinal), auditdomain.JSONMediaType, sourceBytes)
-	inventory, err := auditdomain.BuildFindingCheckInventory(sourceBytes, auditdomain.FindingCheckInventoryOptions{Common: auditdomain.InventoryOptions{Round: s.State.RoundOrdinal, WorkflowRole: "check", SourceInputName: "proposal_inventory", SourceRef: sourceExact.Ref, ApprovalRequirement: auditdomain.ApprovalNone}, Check: auditdomain.FindingCheckOptions{WorkflowRole: "check", ApprovalRequirement: auditdomain.ApprovalNone, AcceptedPlan: &accepted}})
+	inventory, err := auditdomain.BuildFindingCheckInventory(sourceBytes, auditdomain.FindingCheckInventoryOptions{Common: auditdomain.InventoryOptions{Round: s.State.RoundOrdinal, ProfileMode: "custom-checklist", WorkflowRole: "check", SourceInputName: "proposal_inventory", SourceRef: sourceExact.Ref, ApprovalRequirement: auditdomain.ApprovalNone}, Check: auditdomain.FindingCheckOptions{WorkflowRole: "check", ApprovalRequirement: auditdomain.ApprovalNone, AcceptedPlan: &accepted}})
 	if err != nil {
 		t.Fatal(err)
 	}
