@@ -8,6 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 func TestCheckMethodAuthoringStrictRegistryAndPersistedPins(t *testing.T) {
@@ -124,5 +125,41 @@ func TestCheckMethodCapabilitiesUseExactWorkerAndClone(t *testing.T) {
 		if _, err := auditprofile.CompileCheckMethods(bad); err == nil {
 			t.Fatal("capability escaped its exact Worker selection")
 		}
+	}
+}
+
+func TestSharedCheckMethodMappingNameText(t *testing.T) {
+	var fixture struct {
+		MappingNameCases []struct {
+			Name, Value string
+			Valid       bool
+		}
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-check-plans", "accepted-plan-cases.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range fixture.MappingNameCases {
+		t.Run(test.Name, func(t *testing.T) {
+			root := copyCatalog(t, "audit-profile-catalog")
+			name, _ := json.Marshal(test.Value)
+			methods := "  methods:\n    " + string(name) + ":\n      planSchema: contractor.audit.finding-check-plan.v1\n      method: verify\n      phase: verify\n      workflowRole: check\n      requiredCapabilities: []\n  workflows:"
+			manifest := strings.Replace(templateAuditProfileYAML(t, "mapping-text"), "  workflows:", methods, 1)
+			writeAuditProfile(t, root, "mapping-text", manifest)
+			catalog, err := configload.Load(root)
+			if (err == nil) != test.Valid {
+				t.Fatalf("valid=%t want%t: %v", err == nil, test.Valid, err)
+			}
+			if err != nil {
+				return
+			}
+			profile, err := catalog.AuditProfile("mapping-text@1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			encoded, _ := json.Marshal(profile)
+			if _, err := auditprofile.DecodeResolvedAuditProfileSnapshot(encoded); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

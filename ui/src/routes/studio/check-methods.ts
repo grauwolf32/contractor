@@ -45,7 +45,8 @@ export function validateCheckMethods(
     )
       error(path, "Use the complete registered method mapping.");
     if (
-      !name.trim() ||
+      /^\p{White_Space}*$/u.test(name) ||
+      name.includes("\0") ||
       name.includes("/") ||
       new TextEncoder().encode(name).length > 128
     )
@@ -108,7 +109,12 @@ export function validateCheckMethods(
         !Array.isArray(tools) ||
         tools.length < 1 ||
         tools.length > MAX_CHECK_CAPABILITY_TOOLS ||
-        tools.some((tool) => typeof tool !== "string" || !tool.trim()) ||
+        tools.some(
+          (tool) =>
+            typeof tool !== "string" ||
+            /^\p{White_Space}*$/u.test(tool) ||
+            tool.includes("\0"),
+        ) ||
         new Set(tools).size !== tools.length
       )
         error([...p, "tools"], "Choose nonempty unique tools, up to 128.");

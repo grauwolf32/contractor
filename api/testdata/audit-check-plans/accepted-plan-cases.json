@@ -552,6 +552,267 @@
           "value": null
         }
       ]
+    },
+    {
+      "name": "mapping-name-information-separator",
+      "valid": true,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "mapping_id"
+          ],
+          "value": "\u001c"
+        }
+      ]
+    },
+    {
+      "name": "mapping-name-unit-separator",
+      "valid": true,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "mapping_id"
+          ],
+          "value": "\u001f"
+        }
+      ]
+    },
+    {
+      "name": "mapping-name-byte-order-mark",
+      "valid": true,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "mapping_id"
+          ],
+          "value": "﻿"
+        }
+      ]
+    },
+    {
+      "name": "mapping-name-unicode-next-line",
+      "valid": false,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "mapping_id"
+          ],
+          "value": ""
+        }
+      ]
+    },
+    {
+      "name": "mapping-name-unicode-line-separator",
+      "valid": false,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "mapping_id"
+          ],
+          "value": " "
+        }
+      ]
+    },
+    {
+      "name": "mapping-name-ordinary-spaces",
+      "valid": false,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "mapping_id"
+          ],
+          "value": " \n\t"
+        }
+      ]
+    },
+    {
+      "name": "mapping-name-nul-character",
+      "valid": false,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "mapping_id"
+          ],
+          "value": "route\u0000name"
+        }
+      ]
+    },
+    {
+      "name": "opaque-tool-information-separator",
+      "valid": true,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "required_capabilities",
+            0,
+            "tools"
+          ],
+          "value": [
+            "\u001c"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "opaque-tool-unit-separator",
+      "valid": true,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "required_capabilities",
+            0,
+            "tools"
+          ],
+          "value": [
+            "\u001f"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "opaque-tool-byte-order-mark",
+      "valid": true,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "required_capabilities",
+            0,
+            "tools"
+          ],
+          "value": [
+            "﻿"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "opaque-tool-unicode-next-line",
+      "valid": false,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "required_capabilities",
+            0,
+            "tools"
+          ],
+          "value": [
+            ""
+          ]
+        }
+      ]
+    },
+    {
+      "name": "opaque-tool-unicode-line-separator",
+      "valid": false,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "required_capabilities",
+            0,
+            "tools"
+          ],
+          "value": [
+            " "
+          ]
+        }
+      ]
+    },
+    {
+      "name": "opaque-tool-ordinary-spaces",
+      "valid": false,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "required_capabilities",
+            0,
+            "tools"
+          ],
+          "value": [
+            " \n\t"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "opaque-tool-nul-character",
+      "valid": false,
+      "patches": [
+        {
+          "path": [
+            "plan",
+            "route",
+            "required_capabilities",
+            0,
+            "tools"
+          ],
+          "value": [
+            "route\u0000name"
+          ]
+        }
+      ]
+    }
+  ],
+  "mappingNameCases": [
+    {
+      "name": "information-separator",
+      "value": "\u001c",
+      "valid": true
+    },
+    {
+      "name": "unit-separator",
+      "value": "\u001f",
+      "valid": true
+    },
+    {
+      "name": "byte-order-mark",
+      "value": "﻿",
+      "valid": true
+    },
+    {
+      "name": "unicode-next-line",
+      "value": "",
+      "valid": false
+    },
+    {
+      "name": "unicode-line-separator",
+      "value": " ",
+      "valid": false
+    },
+    {
+      "name": "ordinary-spaces",
+      "value": " \n\t",
+      "valid": false
+    },
+    {
+      "name": "nul-character",
+      "value": "route\u0000name",
+      "valid": false
     }
   ]
 }

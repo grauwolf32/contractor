@@ -6,7 +6,7 @@ from typing import Any
 
 import jcs
 
-from contractor_runtime.contracts.base import _require_resource_id, _require_selector
+from contractor_runtime.contracts.base import _require_resource_id, _require_selector, is_blank
 from contractor_runtime.toolsets.audit_results.dependencies import (
     _exact,
     validate_retained_dependencies,
@@ -38,7 +38,7 @@ def _digest(value: Any) -> None:
 def _mapping(value: Any) -> None:
     if (
         type(value) is not str
-        or not value.strip()
+        or is_blank(value)
         or "/" in value
         or "\x00" in value
         or len(value.encode("utf-8")) > 128
@@ -72,7 +72,7 @@ def _capabilities(values: Any) -> None:
         if (
             not isinstance(tools, list)
             or not 1 <= len(tools) <= MAX_CHECK_CAPABILITY_TOOLS
-            or any(type(tool) is not str or not tool.strip() or "\x00" in tool for tool in tools)
+            or any(type(tool) is not str or is_blank(tool) or "\x00" in tool for tool in tools)
         ):
             raise ValueError("accepted plan tools are invalid")
         if tools != sorted(set(tools)):

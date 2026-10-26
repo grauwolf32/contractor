@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"strings"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -59,7 +60,7 @@ func CompileCheckMethods(profile ResolvedAuditProfile) (CheckMethodIndex, error)
 	}
 	for _, name := range slices.Sorted(maps.Keys(profile.Methods)) {
 		method := profile.Methods[name]
-		if validateAuditMapKey("methods name", name) != nil {
+		if validateAuditMapKey("methods name", name) != nil || strings.ContainsRune(name, 0) {
 			return result, fmt.Errorf("methods name is invalid")
 		}
 		key, known := contracts.LookupCheckPlanMethod(method.PlanSchema, method.Method)

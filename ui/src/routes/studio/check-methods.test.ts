@@ -52,6 +52,40 @@ describe("registered check routes", () => {
       ).toBeGreaterThan(0);
     }
   });
+  it("uses the shared blank-text and NUL rules for method names", () => {
+    for (const test of fixture.mappingNameCases) {
+      const draft = patchDraft(starter("AuditProfile"), ["spec", "methods"], {
+        [test.value]: {
+          planSchema: FINDING_CHECK_PLAN_SCHEMA,
+          method: "verify",
+          phase: "verify",
+          workflowRole: "check",
+          requiredCapabilities: [],
+        },
+      });
+      expect(validateDraft(draft).length === 0, test.name).toBe(test.valid);
+      const capabilities = patchDraft(
+        starter("AuditProfile"),
+        ["spec", "methods", "route"],
+        {
+          planSchema: FINDING_CHECK_PLAN_SCHEMA,
+          method: "verify",
+          phase: "verify",
+          workflowRole: "check",
+          requiredCapabilities: [
+            {
+              ...fixture.base.plan.route.required_capabilities[0],
+              tools: [test.value],
+            },
+          ],
+        },
+      );
+      expect(
+        validateDraft(capabilities).length === 0,
+        `tool ${test.name}`,
+      ).toBe(test.valid);
+    }
+  });
   it("rejects unknown methods, duplicate semantic keys and non-check targets", () => {
     const mapping = {
       planSchema: FINDING_CHECK_PLAN_SCHEMA,
