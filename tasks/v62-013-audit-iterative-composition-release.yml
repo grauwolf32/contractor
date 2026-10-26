@@ -5,7 +5,7 @@ milestone: audit-iterative-composition-2026-10
 epic: audits
 kind: chore
 priority: P2
-status: pending
+status: in_progress
 reactivation:
   date: '2026-10-24'
   previous_status: deferred
