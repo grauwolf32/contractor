@@ -79,3 +79,25 @@ func TestControllerClassifiesNextRoundPreparationFailures(t *testing.T) {
 		})
 	}
 }
+
+func TestControllerStopsAfterRetainedDependencyBudgetRefusal(t *testing.T) {
+	h := newControllerHarness(t, 1, 1)
+	h.store.mu.Lock()
+	h.store.round.State = auditstore.RoundClosed
+	h.store.items = nil
+	h.store.executions = nil
+	h.store.audit.Limits.MaxRounds = 2
+	h.store.nextRoundAcceptErr = auditstore.ErrEvidenceBudgetExhausted
+	h.store.mu.Unlock()
+	builder := &fakeRoundBuilder{}
+	h.controller.roundBuilder = builder
+	for range 2 {
+		if _, err := h.controller.RunOnce(h.ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	audit := h.store.auditSnapshot()
+	if audit.State != auditstore.AuditFinalizing || audit.StopReason == nil || audit.StopReason.Code != "evidence_budget_exhausted" || builder.calls.Load() != 1 {
+		t.Fatalf("permanent dependency budget was retried: %+v calls=%d", audit, builder.calls.Load())
+	}
+}

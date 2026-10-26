@@ -4,7 +4,6 @@ package auditimport
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -88,21 +87,4 @@ func New(
 	return result, nil
 }
 
-type sourceProvenance struct {
-	Schema                string                   `json:"schema"`
-	AuditID               string                   `json:"auditId"`
-	ExecutionID           string                   `json:"executionId"`
-	ExecutionItemID       string                   `json:"executionItemId"`
-	ItemID                string                   `json:"itemId"`
-	ItemKey               string                   `json:"itemKey"`
-	ItemAttempt           int                      `json:"itemAttempt"`
-	RunID                 string                   `json:"runId"`
-	WorkflowName          string                   `json:"workflowName"`
-	WorkflowVersion       string                   `json:"workflowVersion"`
-	WorkflowSchemaVersion string                   `json:"workflowSchemaVersion"`
-	WorkflowClosureDigest string                   `json:"workflowClosureDigest"`
-	ExecutionManifest     auditstore.ExactArtifact `json:"executionManifest"`
-	Task                  auditstore.ExactArtifact `json:"task"`
-	TaskSource            json.RawMessage          `json:"taskSource"`
-	SourceOutput          auditstore.ExactArtifact `json:"sourceOutput"`
-}
+type sourceProvenance = auditstore.ResultSourceProvenance

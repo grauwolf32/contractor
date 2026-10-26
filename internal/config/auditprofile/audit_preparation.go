@@ -125,6 +125,9 @@ func ValidateAuditPreparationProfile(profile ResolvedAuditProfile) error {
 			return fmt.Errorf("workflows.%s.maxRunAttempts is only valid for prepare roles", role)
 		}
 		for name, mapping := range binding.Inputs {
+			if mapping.Source == AuditInputFromRetainedDependency && binding.Kind != AuditWorkflowCheck {
+				return fmt.Errorf("workflows.%s.inputs.%s retained-dependency requires a check consumer", role, name)
+			}
 			if _, exists := binding.Workflow.Inputs[name]; !exists {
 				return fmt.Errorf("workflows.%s names unknown input %s", role, name)
 			}

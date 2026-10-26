@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-126 open tasks: 6 in progress, 109 pending, 11 deferred. 1144 finished: 1134 completed, 10 archived.
+123 open tasks: 4 in progress, 108 pending, 11 deferred. 1150 finished: 1140 completed, 10 archived.
 
 ## In progress
 
@@ -15,8 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V417-002](v417-002-adk-compaction-continuation-spike.yml) | planner-worker | chore | P1 | Prove safe context checkpoints and continuation on accepted ADK 2.13 |
-| [V420-001](v420-001-planner-compaction-contract-spike.yml) | planner-worker | chore | P1 | Prove Planner compaction checkpoints and freeze the integration contract |
 
 ## Pending
 
@@ -38,11 +36,11 @@ the epics are in [epics.yml](epics.yml).
 | [V371-006](v371-006-workspace-observation-descriptor.yml) | chore | P3 | — | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
 | [V414-007](v414-007-planner-session-state-limit.yml) | chore | P3 | — | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
 | [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | feature | P1 | — | Make terminal summarizer reasoning input explicitly configurable |
-| [V417-003](v417-003-isolated-worker-context-compaction.yml) | feature | P1 | V417-002 | Continue an isolated Worker through workflow-selected context compaction |
+| [V417-003](v417-003-isolated-worker-context-compaction.yml) | feature | P1 | — | Continue an isolated Worker through workflow-selected context compaction |
 | [V417-004](v417-004-shared-session-context-compaction.yml) | feature | P1 | V417-003 | Preserve compacted context across shared-session invocations |
 | [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Resolve reference-only compactor model policy overrides |
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
-| [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | V420-001 | Implement opt-in bounded compaction for Streamline and Router Planners |
+| [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | — | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
 
@@ -110,13 +108,12 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V62-006](v62-006-audit-retained-dependencies.yml) | feature | P2 | — | Retain exact item dependencies across Audit rounds |
-| [V62-007](v62-007-audit-check-routing.yml) | feature | P2 | V62-006 | Route trusted typed check plans through explicit profile bindings |
-| [V62-013](v62-013-audit-iterative-composition-release.yml) | chore | P2 | V62-006, V62-007 | Gate generic iterative Audit composition through real processes |
+| [V62-007](v62-007-audit-check-routing.yml) | feature | P2 | — | Route trusted typed check plans through explicit profile bindings |
+| [V62-013](v62-013-audit-iterative-composition-release.yml) | chore | P2 | V62-007 | Gate generic iterative Audit composition through real processes |
 | [V64-001](v64-001-audit-priority-contracts.yml) | feature | P2 | — | Specify optional Audit research contracts and deterministic bypass |
 | [V64-002](v64-002-audit-priority-store.yml) | feature | P2 | V64-001, V64-012 | Persist research cycles and exact selection decisions |
 | [V64-003](v64-003-planner-only-priority-execution.yml) | feature | P2 | V64-002 | Execute resumable research phases through ordinary Workflow Runs |
-| [V64-004](v64-004-audit-priority-context.yml) | feature | P2 | V64-012, V62-006, V64-003 | Assemble bounded exact research context for each experiment |
+| [V64-004](v64-004-audit-priority-context.yml) | feature | P2 | V64-012, V64-003 | Assemble bounded exact research context for each experiment |
 | [V64-005](v64-005-independent-priority-verdicts.yml) | feature | P2 | V64-003, V64-004, V64-006 | Add optional model evaluation of bounded experiment shortlists |
 | [V64-006](v64-006-audit-priority-selection.yml) | feature | P2 | V64-002, V64-004, V64-013, V62-007 | Select feasible experiments deterministically and admit exact work |
 | [V64-007](v64-007-audit-priority-controller.yml) | feature | P2 | V64-003, V64-006, V64-013, V64-014, V64-015 | Close the deterministic hypothesis feedback loop across Audit rounds |
@@ -136,7 +133,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-006](v411-006-cumulative-budget-finalization.yml) | feature | P1 | V411-002, V411-003 | Enforce cumulative pentest budgets and finalize at the hard active-time cap |
 | [V411-008](v411-008-stateful-actions-cleanup.yml) | feature | P1 | V411-003, V411-004, V411-006, V411-007 | Serialize stateful target checks and retain unresolved cleanup effects |
 | [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V411-002 | Pin optional pentest programs and nonblocking finding review |
-| [V411-012](v411-012-pentest-admission-rounds.yml) | feature | P1 | V411-009, V411-010, V62-006, V62-007 | Admit typed pentest plans and derive exact later-round replay |
+| [V411-012](v411-012-pentest-admission-rounds.yml) | feature | P1 | V411-009, V411-010, V62-007 | Admit typed pentest plans and derive exact later-round replay |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
@@ -228,7 +225,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 4 | 41 | 56 | 19 | 84 |
-| Planners and the Worker model boundary (`planner-worker`) | 14 | 34 | 47 | 27 | 63 |
+| Planners and the Worker model boundary (`planner-worker`) | 12 | 34 | 47 | 27 | 63 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 42 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -238,12 +235,12 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 8 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 35 | 33 | 7 | 40 |
-| Audits (`audits`) | 31 | 67 | 80 | 26 | 105 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 35 | 33 | 7 | 41 |
+| Audits (`audits`) | 30 | 67 | 81 | 27 | 107 |
 | Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 16 | 42 | 7 | 15 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 17 | 1 | 27 | 98 | 23 |
+| Quality, CI and process (`quality`) | 17 | 1 | 27 | 99 | 23 |

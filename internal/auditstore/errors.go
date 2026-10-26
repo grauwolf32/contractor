@@ -32,3 +32,9 @@ var (
 	// collection request can never succeed and needs a terminal receipt.
 	ErrEvidenceBudgetExhausted = fmt.Errorf("%w: Audit evidence budget is exhausted", ErrPrecondition)
 )
+
+// Exact accepted dependency lookup failures are permanent, classified source outcomes.
+var (
+	ErrDependencyClosureLimit    = errors.New("accepted dependency closure exceeds its bounds")
+	ErrDependencySourceAmbiguous = errors.New("accepted dependency source attempt is ambiguous")
+)

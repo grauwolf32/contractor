@@ -24,6 +24,7 @@ type PreparationOutput struct {
 }
 
 type AcceptedPreparationOutput struct {
+	Inputs       map[string]ExactArtifact
 	ExecutionID  string
 	WorkflowRole string
 	RoleAttempt  int

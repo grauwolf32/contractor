@@ -126,8 +126,8 @@ equals, for the life of the Run; a Planner session's completed result and
 its scan plan, input and report references; a Run's selected Skill sources and the explicit exact local closure of an
 Audit-owned input materialization (ASC-R161);
 an Audit's selected inputs and its baseline inputs and Skill sources, for
-the life of the Audit; and a finding proposal receipt's proposal and
-evidence while its source Run holds it. A reference to a binding that has
+the life of the Audit; an accepted Audit item's exact retained dependency
+closure; and a finding proposal receipt's proposal and evidence while its source Run holds it. A reference to a binding that has
 only one revision for its whole life, such as a frozen Audit-managed
 binding, a finding proposal or a Run output, is protected as that binding's
 current revision.
@@ -171,6 +171,7 @@ scope purge removes the revisions of its own scope whatever their holds
 | Audit selected inputs and baseline inputs | `audits.input_selection`, `audits.baseline_snapshot` | Audit creation and preparation | strict | the update that replaces them, or Audit deletion |
 | Audit baseline Skill sources | `audits.baseline_snapshot` | Audit preparation | lenient | Audit deletion |
 | Finding proposal receipt proposal and evidence | `finding_proposal_receipts` | finding intake, while the source Run holds the receipt | strict | the source Run's purge |
+| Accepted Audit item dependency retained refs | `audit_items` accepted dependency manifest | Trusted next-Round acceptance after exact source retention | strict | Item removal in bounded owning Audit purge |
 
 Rationale: every holder increments one counter per revision in the
 transaction that records it, so retention decides eligibility from an

@@ -356,13 +356,13 @@ func (s *QueryStore) GetPreparationOutput(ctx context.Context, auditID, workflow
 		return auditstore.AcceptedPreparationOutput{}, invalidf("preparation output identity is invalid")
 	}
 	var result auditstore.AcceptedPreparationOutput
-	var encoded []byte
+	var encoded, inputs []byte
 	err := s.db.QueryRow(ctx, `
-SELECT execution.execution_id, execution.workflow_role, execution.role_attempt, execution.run_id, output
+SELECT execution.execution_id, execution.workflow_role, execution.role_attempt, COALESCE(execution.run_id, execution.run_provenance->>'runId'), output, execution.preparation_snapshot->'inputs'
   FROM audit_executions AS execution CROSS JOIN LATERAL jsonb_array_elements(execution.preparation_outputs) AS output
  WHERE execution.audit_id = $1 AND execution.workflow_role = $2 AND execution.role = 'prepare'
    AND execution.collection_disposition = 'accepted-result' AND output->>'logicalName' = $3`, auditID, workflowRole, logicalName).
-		Scan(&result.ExecutionID, &result.WorkflowRole, &result.RoleAttempt, &result.RunID, &encoded)
+		Scan(&result.ExecutionID, &result.WorkflowRole, &result.RoleAttempt, &result.RunID, &encoded, &inputs)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return auditstore.AcceptedPreparationOutput{}, auditstore.ErrNotFound
 	}
@@ -371,6 +371,9 @@ SELECT execution.execution_id, execution.workflow_role, execution.role_attempt, 
 	}
 	if err := decodeStoredProvenance(encoded, &result.Output); err != nil {
 		return auditstore.AcceptedPreparationOutput{}, err
+	}
+	if err := decodeStoredProvenance(inputs, &result.Inputs); err != nil || result.Inputs == nil || len(result.Inputs) > auditprofile.MaxAuditWorkflowMappings {
+		return auditstore.AcceptedPreparationOutput{}, invalidf("accepted preparation inputs are invalid")
 	}
 	return result, nil
 }

@@ -123,6 +123,10 @@ func (c *Controller) progressRound(ctx context.Context, claim auditstore.Control
 					}
 					if params.RoundID != "" {
 						_, _, acceptErr := c.store.AcceptNextRound(ctx, params)
+						if errors.Is(acceptErr, auditstore.ErrEvidenceBudgetExhausted) {
+							return reconciliationDone(c.closeActiveAudit(ctx, claim, audit, &auditstore.StopReason{Code: "evidence_budget_exhausted", Message: "Exact retained dependencies exceed the Audit's remaining evidence budget."}))
+						}
+
 						if errors.Is(acceptErr, auditstore.ErrPrecondition) {
 							return reconciliationDone(false, nil)
 						}

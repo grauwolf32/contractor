@@ -36,9 +36,6 @@ type Options struct {
 	Limits *Limits
 	// CompressionLevel zero keeps archive/zip's default Deflate compressor.
 	CompressionLevel int
-	// ModifiedField preserves Git import's historical ZIP header encoding.
-	// Local bundles use FileHeader.SetModTime instead.
-	ModifiedField bool
 	// MaxBytes defaults to MaxArchiveBytes. A smaller bound is useful in tests.
 	MaxBytes int
 }
@@ -86,11 +83,7 @@ func Encode(ctx context.Context, members []Member, options Options) ([]byte, err
 		}
 		header := &zip.FileHeader{Name: member.Name, Method: zip.Deflate}
 		header.SetMode(0o644)
-		if options.ModifiedField {
-			header.Modified = fixedTime
-		} else {
-			header.SetModTime(fixedTime)
-		}
+		header.SetModTime(fixedTime)
 		entry, err := writer.CreateHeader(header)
 		if err != nil {
 			return nil, err

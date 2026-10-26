@@ -117,22 +117,23 @@ type WorklistItem struct {
 }
 
 type ItemTask struct {
-	Schema                   string                `json:"schema"`
-	ProfileMode              string                `json:"profile_mode,omitempty"`
-	ItemKey                  string                `json:"item_key"`
-	Kind                     string                `json:"kind"`
-	SubjectKey               string                `json:"subject_key"`
-	WorkflowRole             string                `json:"workflow_role"`
-	SourceContentDigest      string                `json:"source_content_digest"`
-	SourceMediaType          string                `json:"source_media_type"`
-	SourceRef                contracts.ArtifactRef `json:"source_ref"`
-	CanonicalInventoryDigest string                `json:"canonical_inventory_digest"`
-	Scope                    map[string]string     `json:"scope,omitempty"`
-	Checklist                *ChecklistTask        `json:"checklist,omitempty"`
-	Standard                 *StandardMappingTask  `json:"standard,omitempty"`
-	Operation                *OperationTask        `json:"operation,omitempty"`
-	Scan                     *ScanTask             `json:"scan,omitempty"`
-	Finding                  *FindingTask          `json:"finding,omitempty"`
+	Dependencies             *RetainedDependencyManifest `json:"dependencies,omitempty"`
+	Schema                   string                      `json:"schema"`
+	ProfileMode              string                      `json:"profile_mode,omitempty"`
+	ItemKey                  string                      `json:"item_key"`
+	Kind                     string                      `json:"kind"`
+	SubjectKey               string                      `json:"subject_key"`
+	WorkflowRole             string                      `json:"workflow_role"`
+	SourceContentDigest      string                      `json:"source_content_digest"`
+	SourceMediaType          string                      `json:"source_media_type"`
+	SourceRef                contracts.ArtifactRef       `json:"source_ref"`
+	CanonicalInventoryDigest string                      `json:"canonical_inventory_digest"`
+	Scope                    map[string]string           `json:"scope,omitempty"`
+	Checklist                *ChecklistTask              `json:"checklist,omitempty"`
+	Standard                 *StandardMappingTask        `json:"standard,omitempty"`
+	Operation                *OperationTask              `json:"operation,omitempty"`
+	Scan                     *ScanTask                   `json:"scan,omitempty"`
+	Finding                  *FindingTask                `json:"finding,omitempty"`
 }
 
 // StandardMappingTask is the immutable, Worker-visible authority copied from
@@ -212,13 +213,14 @@ type ExecutionManifest struct {
 }
 
 type ExecutionItem struct {
-	ItemKey           string                 `json:"item_key"`
-	Ordinal           int                    `json:"ordinal"`
-	SubjectKey        string                 `json:"subject_key"`
-	TaskPackageID     string                 `json:"task_package_id"`
-	TaskPackageDigest string                 `json:"task_package_digest"`
-	TaskRef           *contracts.ArtifactRef `json:"task_ref,omitempty"`
-	Inputs            []ExactInput           `json:"inputs"`
+	Dependencies      *RetainedDependencyManifest `json:"dependencies,omitempty"`
+	ItemKey           string                      `json:"item_key"`
+	Ordinal           int                         `json:"ordinal"`
+	SubjectKey        string                      `json:"subject_key"`
+	TaskPackageID     string                      `json:"task_package_id"`
+	TaskPackageDigest string                      `json:"task_package_digest"`
+	TaskRef           *contracts.ArtifactRef      `json:"task_ref,omitempty"`
+	Inputs            []ExactInput                `json:"inputs"`
 }
 
 // ExactInput pins one named Workflow input of an execution manifest to an

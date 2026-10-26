@@ -5054,7 +5054,8 @@
             "execution-manifest",
             "retained-output",
             "prepare-output",
-            "round-results"
+            "round-results",
+            "retained-dependency"
           ]
         },
         "name": {
@@ -5066,7 +5067,9 @@
       },
       "oneOf": [
         {
-          "properties": { "source": { "const": "audit-input" } },
+          "properties": {
+            "source": { "enum": ["audit-input", "retained-dependency"] }
+          },
           "required": ["name"],
           "not": { "required": ["role"] }
         },
@@ -11018,6 +11021,7 @@
         "objective",
         "instructions",
         "planner",
+        "session",
         "agents",
         "executionConfig",
         "contextArtifacts",

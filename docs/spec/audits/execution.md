@@ -714,11 +714,16 @@ The stop reason carries a fixed message, and the Controller logs the Store's
 cause with the Audit and the refused operation. A child Run creation that
 the Run Service, the Run Store or the Audit Store refuses as invalid fails
 its submission intent once and is never resumed (FAIL-AUX-1); collection
-settles check members non-retryably as `collection-contract-invalid`;
-retrying a definite rejection cannot repair the immutable submission. A
-declared round-results role whose first submission fails, or whose bound
-child fails exact input initialization, is likewise non-retryable with
-`audit_input_initialization_failed`. Ordinary retryable execution failures
+settles check members non-retryably as `collection-contract-invalid` while
+dispatch remains open; retrying a definite rejection cannot repair the immutable
+submission. A declared round-results role whose first submission fails is
+likewise non-retryable with `audit_input_initialization_failed`. Closed dispatch
+also records `submission-failed` for unbound intents as part of safe draining;
+that observation follows ordinary failed-execution collection and closing
+settlement, including cancellation, rather than establishing an input rejection.
+A contract-invalid receipt committed before closure replays unchanged. A bound
+child whose exact owned Run reports `audit_input_initialization_failed` remains
+non-retryable even after dispatch closes. Ordinary retryable execution failures
 keep their attempt policy (AUX-R31).
 Collection's own refusals are AUX-R96's. A failure that is not classified invalid, such as a serialization
 failure or a lost connection, stays retryable: the step fails, its claim is

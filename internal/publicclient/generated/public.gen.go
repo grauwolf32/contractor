@@ -8204,12 +8204,12 @@ type WorkflowStageContract struct {
 	Planner          PlannerRef                         `json:"planner"`
 	ResultArtifacts  map[string]StageResultArtifactSlot `json:"resultArtifacts"`
 
-	// Session Current Servers always emit the resolved mode; optional here only for additive v1 client compatibility.
-	Session         *WorkflowStageContractSession `json:"session,omitempty"`
-	WorkflowOutputs map[string]ArtifactName       `json:"workflowOutputs"`
+	// Session Resolved Worker session mode. Always present; omission in source Workflow YAML resolves to isolated before publication.
+	Session         WorkflowStageContractSession `json:"session"`
+	WorkflowOutputs map[string]ArtifactName      `json:"workflowOutputs"`
 }
 
-// WorkflowStageContractSession Current Servers always emit the resolved mode; optional here only for additive v1 client compatibility.
+// WorkflowStageContractSession Resolved Worker session mode. Always present; omission in source Workflow YAML resolves to isolated before publication.
 type WorkflowStageContractSession string
 
 // WorkflowSucceedTransition defines model for WorkflowSucceedTransition.

@@ -1,0 +1,73 @@
+schema_version: '1.0'
+id: V62-015
+title: Align settled snapshot tests and persistence ownership inventory
+milestone: audit-iterative-composition-2026-10
+epic: audits
+kind: chore
+introduced_by: V62-005
+priority: P3
+status: completed
+implementation_commit: a9d1ffe3228a8bd558513f6d8e1029c81b26dfa6
+depends_on:
+- V62-005
+languages:
+- go
+- markdown
+- yaml
+goal: Restore persistence gate coherence for settled Round snapshot integration without changing product behavior.
+context:
+  review: Coordinator verification of the V62-006 integration exposed two V62-005 maintenance omissions.
+  finding: >-
+    internal/auditcontroller/round_results_errors_test.go:21 and :23 spell PostgreSQL
+    state values directly instead of using the existing classifier constants.
+    docs/spec/platform/persistence.md:171 omits audit_round_result_pages from
+    the Table owners index even though the migrated schema, ownership registry
+    and ERD metadata already assign it to internal/auditstore/internal/pgstore.
+  specification:
+  - docs/spec/platform/persistence.md
+scope:
+  in:
+  - Replace the snapshot failure-classification test's state literals with the existing named PostgreSQL constants.
+  - Add the existing snapshot page table to its current owner in the specification index.
+  - Make the iterative composition exit task depend on this maintenance repair.
+  out:
+  - Production behavior, persistence rules, table ownership assignments, schema changes and new constants.
+  - SQLSTATE allowlist widening, unrelated user work and V62-007 routing.
+acceptance_criteria:
+- id: A1
+  text: Snapshot classification tests use the existing named PostgreSQL state constants and the SQLSTATE literal gate passes without allowlist changes.
+- id: A2
+  text: The Table owners specification index includes audit_round_result_pages under its existing registered owner, and the schema ownership document gate passes.
+- id: A3
+  text: Full persistence and Audit controller integration suites pass against disposable PostgreSQL, and make lint passes with the exit dependency and task metadata consistent.
+tests:
+- command: go test -tags=integration -count=1 ./internal/persistence/... ./internal/auditcontroller
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+test_prerequisites:
+- Set CONTRACTOR_TEST_DATABASE_URL to the dedicated disposable contractor_v62_015 database; a configured unavailable database must fail.
+- Install this worktree's own locked Runtime and UI dependencies if required by lint; do not share or modify the primary checkout environments.
+verification:
+  date: '2026-10-26'
+  result: passed
+  environment: >-
+    Isolated worktree based on main 0889ef86a3a31794f586762970959fd998cc2533;
+    Go 1.26.9 with GOMAXPROCS=2 and GOFLAGS=-p=2; dedicated disposable PostgreSQL
+    contractor_v62_015; own locked Runtime and UI dependencies.
+  commands:
+  - command: go test -tags=integration -count=1 ./internal/persistence/... ./internal/auditcontroller
+    result: >-
+      Passed all packages, including persistence in 1.849 seconds, PostgreSQL
+      persistence in 40.034 seconds and Audit controller in 42.040 seconds.
+      The database was configured and reached; database cases were not skipped.
+  - command: make lint
+    result: >-
+      Passed generated client, dependency graph, model configuration, UI,
+      Go formatting/vet/staticcheck, export, script/deployment, release graph,
+      task/specification, fixture/ERD and Runtime checks.
+  evidence: >-
+    The existing SQLSTATE and ownership-document gates pass with named constants
+    and the missing table index entry. No production behavior, registry ownership,
+    schema, SQLSTATE value or gate allowlist changed. V62-013 now requires this
+    repair before its release verification can begin.

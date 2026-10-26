@@ -9,7 +9,7 @@ This document owns the portable evaluation contract shared with
 cases and suites, provider bindings and the adapter contract, experiments,
 frozen plans and member identity, durable submission and recovery, execution
 results and assessments, comparison and denominators, the Contractor transport
-and publication, v1 compatibility, the `playground-eval experiment` command
+and publication, strict format versioning, the `playground-eval experiment` command
 line and the conformance behaviour of the format.
 
 Other documents own the adjacent concepts:
@@ -1024,43 +1024,17 @@ Project artifacts (LIFE-EVF-1).
 comparison explicitly incomplete; a cached score cannot silently recreate
 proof.
 
-### v1 compatibility
+### Supported format versions
 
-**EVF-R208.** v1 suites and result files remain readable.
+**EVF-R208.** Portable documents must use the exact schema versions supported
+by the local schema catalog. In particular, suites and results use
+`playground.suite/v2` and `playground.result/v2`; their previous v1 forms are
+unsupported. Version numbers belong to each document kind independently: a
+current `binding/v1`, `plan/v1` or `assessment/v1` is not a legacy format.
 
-**EVF-R209.** Converters are local, deterministic and side-effect
-free.
-
-**EVF-R210.** Converters preserve the original bytes and their
-digest; a v1 file is never overwritten in place and its score is never
-silently changed (LIFE-EVF-5).
-
-**EVF-R211.** Existing data is handled as follows:
-
-| Existing data | v2 handling |
-| --- | --- |
-| `project/v1`, corpus/target manifests | Retain; materialize cases and source refs through existing loaders/packagers |
-| `suite/v1` with workflow/adapter fields | Convert portable selection/scoring plus a generated explicit provider binding; preserve original suite provenance |
-| `contractor-v2-audit` suite | Contractor provider, mode audit, exact profile and current input mappings |
-| `result/v1` `contractor_*` IDs | Opaque provider execution refs; keep all child refs and source record digest |
-| v1 `outcome` (`passed` or `failed`) and scalar score | Preserve as a legacy assessment, not inferred provider success/failure |
-| v1 `harness_error` | Diagnostic/legacy evaluator error, provider execution state unknown unless independently evidenced |
-| Missing experiment/sample/usage/pins | Explicit unknown/legacy-unpaired; never derive sample identity from timestamps, array order or a random local run ID |
-
-A v1 result records its outcome as `outcome=passed|failed`.
-
-**EVF-R212.** Legacy records can be displayed and scored under their
-legacy provenance, but cannot enter a strict paired A/B without an explicit
-member association backed by receipts and the required pins.
-
-**EVF-R213.** An operator-supplied association is a new, attributed
-record, never an unnoticed migration guess.
-
-**EVF-R214.** Existing CLI commands remain usable through the
-compatibility path.
-
-**EVF-R215.** Unsupported legacy extension data is retained
-privately and reported as such rather than lost or guessed.
+**EVF-R209.** An unsupported version is rejected before execution, scoring or
+publication. Readers never convert an older document, infer missing provenance,
+or preserve an alternate command path to accept an older protocol.
 
 ### Command line
 
@@ -1222,7 +1196,6 @@ Registry entries owned by this document:
 - [LIFE-EVF-3](../platform/lifecycle.md): assessments (EVF-R159).
 - [LIFE-EVF-4](../platform/lifecycle.md): submission intents and receipts
   (EVF-R106).
-- [LIFE-EVF-5](../platform/lifecycle.md): v1 files (EVF-R210).
 - [LIFE-EVF-6](../platform/lifecycle.md): per-member targets and sessions
   (EVF-R121).
 - [LIFE-EVF-7](../platform/lifecycle.md): the experiment bundle

@@ -132,6 +132,32 @@ describe("workflow graph rules", () => {
     );
     expect(validateDraft(draft)).toEqual([]);
   });
+  it("validates named retained dependency inputs on check roles", () => {
+    const base = starter("AuditProfile");
+    const path = ["spec", "workflows", "check", "inputs", "source"];
+    const dependency = patchDraft(base, path, {
+      source: "retained-dependency",
+      name: "baseline.source",
+    });
+    expect(validateDraft(dependency)).toEqual([]);
+    for (const mapping of [
+      { source: "retained-dependency" },
+      { source: "retained-dependency", name: "source", role: "check" },
+      { source: "retained-dependency", name: "bad/name" },
+    ]) {
+      expect(
+        validateDraft(patchDraft(base, path, mapping)).length,
+      ).toBeGreaterThan(0);
+    }
+    const assessment = patchDraft(base, ["spec", "workflows", "assess"], {
+      kind: "assessment",
+      ref: "assess@1",
+      inputs: { source: { source: "retained-dependency", name: "source" } },
+      parameters: {},
+      outputs: { result: "report" },
+    });
+    expect(validateDraft(assessment).length).toBeGreaterThan(0);
+  });
   it("validates settled result inputs by consumer kind", () => {
     const base = starter("AuditProfile");
     expect(

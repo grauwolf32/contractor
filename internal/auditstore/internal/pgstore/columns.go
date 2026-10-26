@@ -44,7 +44,7 @@ var itemColumnList = []string{
 	"task_ref", "task_digest", "origin", "workflow_role", "state",
 	"approval_kind", "approval_subject_digest",
 	"final_disposition", "accepted_result_ref", "accepted_result_digest",
-	"last_execution_item_id", "created_at", "updated_at",
+	"last_execution_item_id", "created_at", "updated_at", "retained_dependencies",
 }
 
 // receiptColumn is one column of a collection receipt: the AuditExecution
