@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: pending
 depends_on:
 - V410-002
 - V55-007
@@ -201,10 +201,9 @@ test_prerequisites:
   browser or external model is needed. PostgreSQL-backed source races and receipt/quota cases are mandatory.
 
 execution:
-  branch: codex/v410-sitemap
-  claimed_on: "2026-10-26"
+  released_on: "2026-10-26"
+  previous_branch: codex/v410-sitemap
   note: >-
-    Taken into work by Codex at the user's explicit request. The seven-task
-    batch is reserved together; implementation proceeds in dependency order,
-    and dependent tasks do not start implementation before their prerequisites
-    complete. Status records assignment, not completed implementation or tests.
+    Returned to pending at the user's request to finish V410-002 and pause.
+    Implementation of this task has not started; the prior batch reservation
+    is released.
