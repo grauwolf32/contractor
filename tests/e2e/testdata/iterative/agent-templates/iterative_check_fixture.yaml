@@ -1,0 +1,18 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: iterative-check-fixture, version: "1"}
+spec:
+  description: Inspect exact retained result members before recording one bounded check
+  runtime: adk@1
+  instructions: {ref: instructions/iterative-check-fixture.md}
+  modelPolicy: audit_completion_worker@1
+  toolsets:
+    - ref: audit-results@2
+      tools: [read_audit_task, submit_check_result]
+    - ref: security-findings@1
+      tools: [finding]
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+    - ref: source-analysis@1
+      tools: [open_source_archive, read_source]
+  sandboxProfile: local-workdir@1
