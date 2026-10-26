@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V410-002
 languages:
@@ -187,12 +187,12 @@ test_prerequisites:
   evidence, with mandatory collector cases registered in the gate manifest.
 
 execution:
-  released_on: "2026-10-26"
-  previous_branch: codex/v410-sitemap
+  branch: codex/v410-sitemap
+  claimed_on: "2026-10-26"
   note: >-
-    Returned to pending at the user's request to finish V410-002 and pause.
-    Implementation of this task has not started; the prior batch reservation
-    is released.
+    Resumed at the user's request after V410-001 and V410-002 were merged
+    into main. Implement this task in dependency order; V410-004 through
+    V410-007 remain pending until their own implementation starts.
 
 implementation_decisions:
 - date: 2026-10-26
