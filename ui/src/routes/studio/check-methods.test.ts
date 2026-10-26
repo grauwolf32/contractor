@@ -6,7 +6,6 @@ import {
   CHECK_METHOD_PHASES,
   MAX_CHECK_METHODS,
   MAX_CHECK_CAPABILITIES,
-  MAX_CHECK_CAPABILITY_TOOLS,
   FINDING_CHECK_PLAN_SCHEMA,
 } from "./check-methods";
 
@@ -14,7 +13,6 @@ describe("registered check routes", () => {
   it("shares every method/phase with Go and Runtime", () => {
     expect(MAX_CHECK_METHODS).toBe(fixture.maximumMethods);
     expect(MAX_CHECK_CAPABILITIES).toBe(fixture.maximumCapabilities);
-    expect(MAX_CHECK_CAPABILITY_TOOLS).toBe(fixture.maximumCapabilityTools);
     expect(CHECK_METHOD_PHASES).toEqual(
       Object.fromEntries(
         fixture.methods.map((entry) => [entry.method, entry.phase]),
@@ -50,6 +48,36 @@ describe("registered check routes", () => {
           ),
         ).length,
       ).toBeGreaterThan(0);
+    }
+  });
+  it("enforces the shared capability tool limit through validation", () => {
+    for (const count of [
+      0,
+      fixture.maximumCapabilityTools,
+      fixture.maximumCapabilityTools + 1,
+    ]) {
+      const draft = patchDraft(
+        starter("AuditProfile"),
+        ["spec", "methods", "route"],
+        {
+          planSchema: FINDING_CHECK_PLAN_SCHEMA,
+          method: "verify",
+          phase: "verify",
+          workflowRole: "check",
+          requiredCapabilities: [
+            {
+              ...fixture.base.plan.route.required_capabilities[0],
+              tools: Array.from(
+                { length: count },
+                (_, index) => `tool${index}`,
+              ),
+            },
+          ],
+        },
+      );
+      expect(validateDraft(draft).length === 0, `${count} tools`).toBe(
+        count === fixture.maximumCapabilityTools,
+      );
     }
   });
   it("uses the shared blank-text and NUL rules for method names", () => {

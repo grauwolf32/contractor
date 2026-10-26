@@ -5,7 +5,7 @@ export const FINDING_CHECK_PLAN_SCHEMA =
   "contractor.audit.finding-check-plan.v1";
 export const MAX_CHECK_METHODS = 128;
 export const MAX_CHECK_CAPABILITIES = 32;
-export const MAX_CHECK_CAPABILITY_TOOLS = 128;
+const MAX_CHECK_CAPABILITY_TOOLS = 128;
 export const CHECK_METHOD_PHASES: Readonly<Record<string, string>> = {
   verify: "verify",
   replay: "replay",
