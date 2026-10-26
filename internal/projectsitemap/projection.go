@@ -81,7 +81,7 @@ func projectURL(raw string, secrets []contracts.SecretString) (origin, path stri
 	if path == "" {
 		path = "/"
 	}
-	if !safeText(origin, secrets) || !safeText(path, secrets) {
+	if !safeOrigin(u, secrets) || !safeText(path, secrets) {
 		return "", "", nil, ErrUnsafe
 	}
 	segments := strings.Split(path, "/")
@@ -107,6 +107,29 @@ func projectURL(raw string, secrets []contracts.SecretString) (origin, path stri
 	}
 	slices.Sort(parameters)
 	return origin, path, parameters, nil
+}
+
+// A three-label DNS name (or IPv4 address) is not a JWT. Apply opaque-token
+// heuristics to individual host labels while matching known secrets across
+// the complete original host, before canonicalization or hashing.
+func validSafeOrigin(origin string, secrets []contracts.SecretString) bool {
+	projected, _, _, err := projectURL(origin+"/", secrets)
+	return err == nil && projected == origin
+}
+
+func safeOrigin(u *url.URL, secrets []contracts.SecretString) bool {
+	host := strings.ToLower(u.Host)
+	for _, secret := range secrets {
+		if value := strings.ToLower(secret.Reveal()); value != "" && strings.Contains(host, value) {
+			return false
+		}
+	}
+	for _, label := range strings.Split(u.Hostname(), ".") {
+		if !safeText(label, nil) {
+			return false
+		}
+	}
+	return true
 }
 
 func projectedLocations(raw string) bool {
@@ -151,6 +174,9 @@ func (a Authority) provenance() Provenance {
 
 func (a Authority) contextKey() string {
 	if a.IdentityID == "" {
+		if a.SessionGeneration != "" {
+			return key("unknown-session", a.Engagement, a.RunID, a.SessionGeneration)
+		}
 		return key("unknown", a.Engagement, a.RunID)
 	}
 	if a.Engagement != "" {

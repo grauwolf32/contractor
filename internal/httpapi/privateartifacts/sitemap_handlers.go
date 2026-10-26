@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -41,7 +40,7 @@ func (h *handler) withSitemapGrant(r *http.Request, allowed func(controlplane.Al
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), projectsitemap.OperationTimeout)
 	defer cancel()
 	return h.dependencies.Registry.WithWriteGrant(r.PathValue("allocationID"), func(grant controlplane.AllocationGrant) error {
 		if grant.RuntimeAgentID != identity.principalID || grant.RuntimeInstanceID != identity.instanceID || grant.AllocationID != r.PathValue("allocationID") {

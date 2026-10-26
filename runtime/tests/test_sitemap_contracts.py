@@ -47,9 +47,27 @@ def test_shared_sitemap_private_wire() -> None:
     )
     models = {
         model.__name__: model
-        for model in (SitemapAccess, SitemapMutationResponse, SitemapSnapshotResponse)
+        for model in (
+            SitemapAccess,
+            SitemapMutationResponse,
+            SitemapSnapshotResponse,
+        )
     }
-    assert len(cases["valid"]) == 5 and len(cases["invalid"]) >= 15
+    from contractor_runtime.sitemap import MAX_SITEMAP_COMMAND_BYTES
+    from contractor_runtime.sitemap_collection import (
+        FLUSH_BUDGET_SECONDS,
+        FLUSH_INTERVAL_SECONDS,
+        MAX_ATTEMPTS,
+        MAX_BYTES,
+        MAX_ITEMS,
+    )
+
+    assert cases["collectorLimits"]["items"] == MAX_ITEMS
+    assert cases["collectorLimits"]["batchBytes"] == MAX_BYTES == MAX_SITEMAP_COMMAND_BYTES
+    assert cases["collectorLimits"]["attempts"] == MAX_ATTEMPTS
+    assert cases["collectorLimits"]["flushBudgetSeconds"] == FLUSH_BUDGET_SECONDS
+    assert cases["collectorLimits"]["flushIntervalSeconds"] == FLUSH_INTERVAL_SECONDS
+    assert len(cases["valid"]) == 6 and len(cases["invalid"]) >= 15
     for valid, group in ((True, cases["valid"]), (False, cases["invalid"])):
         for case in group:
             validator = private_validator("project-sitemap.schema.json#/$defs/" + case["type"])

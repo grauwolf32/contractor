@@ -30,9 +30,10 @@ const (
 type httpCaidoTarget struct {
 	server *httptest.Server
 
-	mu       sync.Mutex
-	requests int
-	failures []string
+	mu        sync.Mutex
+	requests  int
+	failures  []string
+	onRequest func()
 }
 
 func newHTTPCaidoTarget() *httpCaidoTarget {
@@ -48,7 +49,11 @@ func (t *httpCaidoTarget) close() { t.server.Close() }
 func (t *httpCaidoTarget) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	t.mu.Lock()
 	t.requests++
+	callback := t.onRequest
 	t.mu.Unlock()
+	if callback != nil {
+		callback()
+	}
 	if r.Method != http.MethodPost || r.URL.Path != "/failure" ||
 		r.Header.Get("Authorization") != "Bearer "+httpCaidoSessionCanary {
 		t.mu.Lock()

@@ -1134,6 +1134,13 @@ outcomes are domain results, not error codes (HTP-R91, HTP-R111).
 - Header removal from retained metrics (HTP-R61).
 - The adapter owns its safe metrics (HTP-R16).
 
+**HTP-R135.** HTTP capture may notify an optional transport-neutral allocation
+subscriber before evidence-buffer admission. HTTP tools do not own sitemap
+projection, persistence, retry or drain. The automatic subscriber cannot add
+sitemap failure fields to HTTP results, repeat target traffic or replace its
+outcome. Caller cancellation remains joined. [SMT-R18](../artifacts/project-sitemap.md)
+through [SMT-R21](../artifacts/project-sitemap.md) own collector behavior.
+
 ## Invariants
 
 These properties follow from the cited requirements, which are authoritative.

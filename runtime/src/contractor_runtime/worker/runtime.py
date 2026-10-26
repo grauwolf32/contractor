@@ -1344,8 +1344,15 @@ class AdkWorkerRuntime:
             await self._sync_worker_state(snapshot, session_id)
             return snapshot
 
+        async def checkpoint_and_finish() -> dict[str, Any]:
+            # Resource I/O has its own bounded allowance, separate from the
+            # five-second State finalization budget.
+            if self._worker_state.before_completion is not None:
+                await self._worker_state.before_completion()
+            return await asyncio.wait_for(finish(), timeout=INVOCATION_CLEANUP_TIMEOUT_SECONDS)
+
         task = asyncio.create_task(
-            asyncio.wait_for(finish(), timeout=INVOCATION_CLEANUP_TIMEOUT_SECONDS),
+            checkpoint_and_finish(),
             name="worker-invocation-state-finalize",
         )
         try:

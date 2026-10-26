@@ -26,6 +26,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestAgentSkillsMVPProcesses",
     "TestArtifactHistoryAcrossProductionProcesses",
     "TestProjectSitemapToolsAcrossProductionProcesses",
+    "TestProjectSitemapHTTPCollectionAcrossProductionProcesses",
     "TestAuditProgramCatalogReplacementRestartsServer",
     "TestAuditProgramsAcrossProductionProcesses",
     "TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses",

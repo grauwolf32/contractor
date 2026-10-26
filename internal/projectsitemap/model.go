@@ -3,11 +3,14 @@
 package projectsitemap
 
 import (
+	"time"
+
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const (
+	OperationTimeout         = 15 * time.Second
 	Version                  = "project-sitemap@1"
 	Projection               = "sitemap-safe-projection@1"
 	MediaType                = "application/vnd.contractor.project-sitemap+json"
@@ -154,16 +157,17 @@ type Gap struct {
 // Mutation is a typed command, never a replacement document. ExpectedRevision
 // is mandatory for edits; observation batches rebase the same intent on CAS.
 type Mutation struct {
-	Operation        string        `json:"operation" strictjson:"required"`
-	ExpectedRevision string        `json:"expectedRevision,omitempty"`
-	Observations     []Observation `json:"observations,omitempty"`
-	URL              string        `json:"url,omitempty"`
-	Method           string        `json:"method,omitempty"`
-	MemberIDs        []string      `json:"memberIds,omitempty"`
-	Note             string        `json:"note,omitempty"`
-	Tags             []string      `json:"tags,omitempty"`
-	MarkerID         string        `json:"markerId,omitempty"`
-	Source           *SourceUpdate `json:"source,omitempty"`
+	sessionGenerations []string      // trusted allocation contexts; never public JSON
+	Operation          string        `json:"operation" strictjson:"required"`
+	ExpectedRevision   string        `json:"expectedRevision,omitempty"`
+	Observations       []Observation `json:"observations,omitempty"`
+	URL                string        `json:"url,omitempty"`
+	Method             string        `json:"method,omitempty"`
+	MemberIDs          []string      `json:"memberIds,omitempty"`
+	Note               string        `json:"note,omitempty"`
+	Tags               []string      `json:"tags,omitempty"`
+	MarkerID           string        `json:"markerId,omitempty"`
+	Source             *SourceUpdate `json:"source,omitempty"`
 }
 
 // UnmarshalJSON closes optional values too: omission is allowed, typed null is

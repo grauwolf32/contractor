@@ -23,6 +23,7 @@ from contractor_runtime.projectfs import (
     DirectWorkspaceSession,
 )
 from contractor_runtime.sandbox.lifecycle import PreparedExecution
+from contractor_runtime.sitemap_collection import SitemapCollector
 from contractor_runtime.state import ProcessState
 from contractor_runtime.telemetry.resources import ResourceCollector
 from contractor_runtime.worker.state import WorkerStateStore
@@ -60,6 +61,7 @@ class _AllocationContext:
     runtime_settings: RuntimeSettings | None = field(repr=False)
     worker: WorkerRuntime | None = field(repr=False)
     execution: PreparedExecution | None = field(default=None, repr=False)
+    collector: SitemapCollector | None = field(default=None, repr=False)
     resource_metrics: ResourceCollector | None = field(default=None, repr=False)
     prepare_response: PrepareAllocationResponse | None = None
     termination_kind: str | None = None
