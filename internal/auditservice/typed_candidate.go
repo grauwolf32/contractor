@@ -45,7 +45,7 @@ func prepareTypedCandidate(ctx context.Context, service *artifacts.Service, read
 	if check.Source.OriginAuditID != "" {
 		receipt.Origin.Audit = &findingintake.AuditOrigin{AuditID: check.Source.OriginAuditID, ExecutionID: check.Source.OriginExecutionID}
 	}
-	// Only the A-owned complete source factory below publishes a task. This
+	// Only the complete source factory below publishes a task. This
 	// internal descriptor supplies the existing trusted dependency constructor.
 	task := auditdomain.ItemTask{ItemKey: itemKey, SubjectKey: subjectKey, WorkflowRole: route.route.WorkflowRole, Finding: &auditdomain.FindingTask{ReceiptID: check.Source.ReceiptID, ProposedCheckOrdinal: ordinal}}
 	writer := auditArtifactWriter{service: service, projectID: audit.ProjectID}

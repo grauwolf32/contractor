@@ -23,14 +23,12 @@ func (s *Service) prepareTypedNextRound(ctx context.Context, claim auditstore.Co
 		return auditstore.AcceptRoundParams{}, nil, err
 	}
 	capacity := roundItemCapacity(snapshot.Audit.Limits.MaxItemsPerRound, snapshot.Audit.Limits.MaxItemsTotal, total)
-	var finished bool
 	progress, err := hookstore.NewClaimedAdmission(s.pool).WithStep(ctx, auditstore.AdmissionStepParams{Claim: claim, PreviousRoundID: snapshot.Round.RoundID, Now: s.now()}, func(ctx context.Context, session *hookstore.AdmissionSession) (auditstore.AdmissionMutation, error) {
 		state := session.State
 		if state.PreparedRoot != nil {
 			return auditstore.AdmissionMutation{Next: state}, nil
 		}
 		if state.StopCode != "" {
-			finished = true
 			return auditstore.AdmissionMutation{Next: state}, nil
 		}
 		if state.SelectionRoot != nil {
@@ -48,7 +46,6 @@ func (s *Service) prepareTypedNextRound(ctx context.Context, claim auditstore.Co
 				if page.LateSources {
 					return auditstore.AdmissionMutation{Next: state, Restart: true}, nil
 				}
-				finished = true
 				return auditstore.AdmissionMutation{Next: state}, nil
 			}
 			return sealTypedSelectionRoot(ctx, session, snapshot.Audit)
@@ -74,7 +71,7 @@ func (s *Service) prepareTypedNextRound(ctx context.Context, claim auditstore.Co
 	if progress.PreparedRoot != nil {
 		return auditstore.AcceptRoundParams{Claim: claim, ExpectedAuditRevision: snapshot.Audit.Revision, PreviousRoundID: snapshot.Round.RoundID, RoundID: progress.RoundID, RoundOrdinal: progress.RoundOrdinal, Manifest: progress.PreparedRoot.Clone(), PreparedRoot: progress.PreparedRoot, Generation: progress.Generation}, nil, nil
 	}
-	if finished {
+	if progress.Exhausted && progress.SelectedCount == 0 && !progress.Changed {
 		return auditstore.AcceptRoundParams{}, typedAdmissionStopReason("round_complete"), nil
 	}
 	if !progress.Changed && progress.BlockedReceiptID != "" {
