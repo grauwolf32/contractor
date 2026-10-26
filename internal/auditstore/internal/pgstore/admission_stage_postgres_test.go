@@ -283,7 +283,7 @@ func TestPostgresAdmissionCancellationRemovesPrivateRowsInBoundedPasses(t *testi
 		t.Fatalf("closed admission=%v", err)
 	}
 	previous := 17
-	for step := 0; step < 4; step++ {
+	for step := 0; step < 8; step++ {
 		changed, e := f.store.SettleUndispatched(f.ctx, f.claim, 8)
 		if e != nil {
 			t.Fatal(e)
@@ -308,5 +308,76 @@ func TestPostgresAdmissionCancellationRemovesPrivateRowsInBoundedPasses(t *testi
 	}
 	if visible, e := f.store.CountItems(f.ctx, audit.AuditID); e != nil || visible != 1 {
 		t.Fatalf("private drain changed accepted count=%d,%v", visible, e)
+	}
+}
+
+func TestPostgresAdmissionPreparedAndAcceptedMembershipPurgeWithAudit(t *testing.T) {
+	for _, publish := range []bool{false, true} {
+		t.Run(fmt.Sprint(publish), func(t *testing.T) {
+			f, _, p, state := preparedAdmissionFixture(t, 9)
+			if publish {
+				audit, e := f.store.Get(f.ctx, f.audit.OwnerID, f.audit.AuditID)
+				if e != nil {
+					t.Fatal(e)
+				}
+				_, changed, e := f.store.AcceptNextRound(f.ctx, auditstore.AcceptRoundParams{Claim: f.claim, ExpectedAuditRevision: audit.Revision, PreviousRoundID: p.PreviousRoundID, RoundID: state.RoundID, RoundOrdinal: state.RoundOrdinal, Manifest: *state.PreparedRoot, PreparedRoot: state.PreparedRoot, Generation: state.Generation})
+				if e != nil || !changed {
+					t.Fatalf("publish=%v,%v", changed, e)
+				}
+			}
+			code := "fixture_invalid_result"
+			source := testExact("outputs", "invalid-result", "result-r1")
+			if _, inserted, e := f.store.Collect(f.ctx, auditstore.CollectParams{Claim: f.claim, ReceiptID: "typed-purge-collection", ExecutionID: f.execution.ExecutionID, Disposition: auditstore.CollectionInvalidResult, SourceOutput: &source, ErrorCode: &code, RequestDigest: auditdomain.DigestBytes([]byte(code)), Items: []auditstore.CollectionItem{{ExecutionItemID: f.memberID, Disposition: auditstore.CollectionInvalidResult, FinalDisposition: auditstore.FinalInvalidResult, Coverage: auditstore.Coverage{Status: auditstore.CoverageInconclusive, Requested: []string{}, Completed: []string{}, Gaps: []string{code}}}}}); e != nil || !inserted {
+				t.Fatalf("collect=%v,%v", inserted, e)
+			}
+			claim := drainDeletedAuditForPurge(t, f)
+			// This shared purge fixture removes the native Run row directly. Seed the
+			// exact receipt boundary that the Run deletion hook records; its complete
+			// production path is covered by finding intake's deletion integration tests.
+			tag, e := f.pool.Exec(f.ctx, `UPDATE finding_proposal_receipts SET source_run_deleted_at=clock_timestamp(),retention_state='audit-held' WHERE run_id=$1 AND NOT EXISTS(SELECT 1 FROM workflow_runs WHERE run_id=$1)`, *f.execution.RunID)
+			if e != nil || tag.RowsAffected() != 1 {
+				t.Fatalf("deleted producer boundary=%d,%v", tag.RowsAffected(), e)
+			}
+			for range 8 {
+				n, e := f.store.SettleUndispatched(f.ctx, claim, 8)
+				if e != nil {
+					t.Fatal(e)
+				}
+				if n == 0 {
+					break
+				}
+			}
+			namespace := auditdomain.ArtifactNamespace(f.audit.AuditID)
+			for attempt := range 16 {
+				if e := f.store.PurgeClaimed(f.ctx, claim, namespace); e != nil {
+					t.Fatal(e)
+				}
+				_, e := f.store.Get(f.ctx, f.audit.OwnerID, f.audit.AuditID)
+				if errors.Is(e, auditstore.ErrNotFound) {
+					break
+				}
+				if e != nil {
+					t.Fatal(e)
+				}
+				if attempt == 15 {
+					t.Fatal("typed Audit purge did not converge")
+				}
+			}
+			for _, table := range []string{"audit_items", "audit_rounds", "audit_artifact_links", "finding_proposal_audit_holds", "audit_review_requests"} {
+				assertPurgedTable(t, f, table)
+			}
+			var bindings int
+			if e := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM artifact_bindings WHERE scope_kind='project' AND scope_id=$1 AND namespace=$2`, f.audit.ProjectID, namespace).Scan(&bindings); e != nil || bindings != 0 {
+				t.Fatalf("typed frozen namespace remains=%d,%v", bindings, e)
+			}
+			var projectionBytes []byte
+			if e := f.pool.QueryRow(f.ctx, `SELECT checks_projection FROM finding_proposal_receipts WHERE receipt_id='receipt-staged-source'`).Scan(&projectionBytes); e != nil {
+				t.Fatal(e)
+			}
+			projection, e := auditdomain.DecodeFindingChecksProjection(projectionBytes)
+			if e != nil || !projection.Discarded || len(projection.Checks) != 0 {
+				t.Fatalf("last hold source discarded=%v checks=%d error=%v", projection.Discarded, len(projection.Checks), e)
+			}
+		})
 	}
 }

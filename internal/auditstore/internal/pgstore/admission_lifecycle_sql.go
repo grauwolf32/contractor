@@ -10,7 +10,7 @@ WITH live_claim AS MATERIALIZED (
  SELECT audit.audit_id FROM audits AS audit JOIN live_claim USING(audit_id)
  WHERE audit.state IN ('finalizing','cancelling','deleting') FOR UPDATE OF audit
 ), candidates AS MATERIALIZED (
- SELECT item.item_id,1+item.retained_dependency_hold_count+
+ SELECT item.item_id,1+item.retained_dependency_hold_count+CASE WHEN item.prepared_page_ordinal IS NULL THEN 0 ELSE 1 END+
   CASE WHEN item.approval_kind='none' THEN 0 ELSE 1 END AS work
  FROM audit_items AS item JOIN audit_rounds AS round USING(audit_id,round_id) JOIN target USING(audit_id)
  WHERE round.state='proposed' ORDER BY item.item_id LIMIT $4

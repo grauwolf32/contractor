@@ -149,7 +149,7 @@ BEGIN
    RAISE EXCEPTION 'accepted prepared Audit membership cannot be deleted' USING ERRCODE='23514'; END IF;
   UPDATE audit_rounds SET prepared_staged_count=prepared_staged_count-1,
    prepared_review_count=prepared_review_count-CASE WHEN OLD.approval_kind='none' THEN 0 ELSE 1 END
-  WHERE audit_id=OLD.audit_id AND round_id=OLD.round_id;
+  WHERE audit_id=OLD.audit_id AND round_id=OLD.round_id AND state='proposed';
  END IF;
  RETURN OLD;
 END;
