@@ -895,7 +895,11 @@ key may commit in the outer transaction.
 registered through existing ArtifactLinks. A non-current `proposed` Round stages
 at most one bounded prepared page per phase. Its private execution rows pin
 that verified page and freeze original source, item identity, role, task,
-origin and approval authority. A final seal checks fixed-size generation,
+origin and approval authority. The accepted plan is stored only inside that
+immutable execution projection; its object/schema, 64 KiB encoded-byte bound
+and owning Audit/item identity are enforced there, without a separate plan
+column. Ordinary items have no prepared projection or its page/cost headers.
+A final seal checks fixed-size generation,
 count and chain-digest parent fields and atomically publishes the Round and
 current pointer; it neither inserts nor rebuilds the complete item collection.
 Deletion updates physical staging counters in the same transaction, so a
