@@ -66,6 +66,14 @@ func hasRetainedDependencyMapping(binding auditprofile.ResolvedAuditWorkflowBind
 // exact baseline inputs, accepted prepare outputs, and the receipt's exact
 // accepted producer attempt and held evidence are candidates.
 func (s *Service) buildAcceptedDependencies(ctx context.Context, writer auditArtifactWriter, audit auditstore.Audit, profile auditprofile.ResolvedAuditProfile, baseline BaselineSnapshot, inventory auditdomain.Inventory, receipts map[string]findingintake.Receipt) (map[string]auditdomain.RetainedDependencyManifest, []auditstore.ArtifactLink, int, error) {
+	return buildAcceptedDependenciesWithReader(ctx, writer, s.reads(), audit, profile, baseline, inventory, receipts)
+}
+
+// buildAcceptedDependenciesWithReader also serves one bounded typed admission
+// candidate. Its reader and writer join that candidate's existing claim-bound
+// transaction, so accepted source checks, exact retention and staging commit
+// together without a second pool acquisition.
+func buildAcceptedDependenciesWithReader(ctx context.Context, writer auditArtifactWriter, reads dependencySourceReader, audit auditstore.Audit, profile auditprofile.ResolvedAuditProfile, baseline BaselineSnapshot, inventory auditdomain.Inventory, receipts map[string]findingintake.Receipt) (map[string]auditdomain.RetainedDependencyManifest, []auditstore.ArtifactLink, int, error) {
 	manifests := map[string]auditdomain.RetainedDependencyManifest{}
 	retainedLinks := map[string]auditstore.ArtifactLink{}
 	retainedBaseline := map[string]auditstore.ExactArtifact{}
@@ -140,7 +148,7 @@ func (s *Service) buildAcceptedDependencies(ctx context.Context, writer auditArt
 						output, exists := acceptedPrepare[name]
 						if !exists {
 							var err error
-							output, err = s.reads().GetPreparationOutput(ctx, audit.AuditID, role, logical)
+							output, err = reads.GetPreparationOutput(ctx, audit.AuditID, role, logical)
 							if err != nil {
 								return nil, nil, 0, err
 							}
@@ -183,7 +191,7 @@ func (s *Service) buildAcceptedDependencies(ctx context.Context, writer auditArt
 				}
 				retained, cached := retainedBaseline[source.Ref.Key()]
 				if !cached {
-					err = writer.writes.WithArtifactWrite(ctx, *writer.claim, audit.ProjectID, auditdomain.ArtifactNamespace(audit.AuditID), func(service *artifacts.Service) error {
+					err = writer.withArtifactService(ctx, auditdomain.ArtifactNamespace(audit.AuditID), func(service *artifacts.Service) error {
 						scope, _ := service.Project(audit.ProjectID)
 						metadata, err := scope.Metadata(ctx, source.Ref)
 						if err != nil {
@@ -211,7 +219,7 @@ func (s *Service) buildAcceptedDependencies(ctx context.Context, writer auditArt
 				provenance, _ := json.Marshal(dependency)
 
 				if _, planned := retainedLinks[key]; !planned {
-					existing, err := s.reads().GetArtifactLink(ctx, audit.AuditID, key)
+					existing, err := reads.GetArtifactLink(ctx, audit.AuditID, key)
 					if errors.Is(err, auditstore.ErrNotFound) {
 						newlyRetainedBytes += retained.SizeBytes
 						if newlyRetainedBytes > audit.Limits.MaxEvidenceBytes-audit.RetainedEvidenceBytes {
@@ -241,7 +249,7 @@ func (s *Service) buildAcceptedDependencies(ctx context.Context, writer auditArt
 						output, exists := acceptedPrepare[name]
 						if !exists {
 							var err error
-							output, err = s.reads().GetPreparationOutput(ctx, audit.AuditID, role, logical)
+							output, err = reads.GetPreparationOutput(ctx, audit.AuditID, role, logical)
 							if err != nil {
 								return nil, nil, 0, err
 							}
@@ -279,7 +287,7 @@ func (s *Service) buildAcceptedDependencies(ctx context.Context, writer auditArt
 				result, cached := acceptedResults[resultKey]
 				if !cached {
 					var err error
-					result, err = s.reads().DependencyResultSource(ctx, audit.AuditID, receipt.Origin.Audit.ExecutionID, task.Document.SubjectKey)
+					result, err = reads.DependencyResultSource(ctx, audit.AuditID, receipt.Origin.Audit.ExecutionID, task.Document.SubjectKey)
 					if err != nil {
 						return nil, nil, 0, err
 					}
