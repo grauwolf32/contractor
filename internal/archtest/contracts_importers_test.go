@@ -62,7 +62,7 @@ var contractsImporters = map[string][]string{
 	"internal/evalservice":                 {"ArtifactRef"},
 	"internal/evalstore":                   {"ArtifactRef", "ValidResourceID"},
 	"internal/findingintake":               {"ArtifactRef", "ToolsetSelection"},
-	"internal/httpapi/privateartifacts":    {"ArtifactReadResult", "ArtifactWriteResult", "ValidateArtifactListCursor"},
+	"internal/httpapi/privateartifacts":    {"ArtifactWriteResult", "ValidateArtifactListCursor"},
 	"internal/httpapi/public":              {"ArtifactRef", "ValidRuntimeAgentID", "WorkerSessionMode"},
 	"internal/httpapi/public/events":       {"ValidResourceID"},
 	"internal/mtls":                        {"ValidRuntimeAgentID"},

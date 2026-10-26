@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-127 open tasks: 13 in progress, 103 pending, 11 deferred. 1145 finished: 1135 completed, 10 archived.
+127 open tasks: 13 in progress, 103 pending, 11 deferred. 1146 finished: 1136 completed, 10 archived.
 
 ## In progress
 
@@ -234,7 +234,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 8 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 35 | 33 | 7 | 40 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 35 | 33 | 7 | 41 |
 | Audits (`audits`) | 30 | 67 | 81 | 27 | 107 |
 | Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
@@ -242,4 +242,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 16 | 42 | 7 | 15 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
-| Quality, CI and process (`quality`) | 17 | 1 | 27 | 98 | 23 |
+| Quality, CI and process (`quality`) | 17 | 1 | 27 | 99 | 23 |
