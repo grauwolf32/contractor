@@ -124,7 +124,18 @@ ALTER TABLE audit_rounds ADD COLUMN prepared_staged_count integer NOT NULL DEFAU
 ALTER TABLE audit_rounds ADD COLUMN prepared_review_count integer NOT NULL DEFAULT 0 CHECK(prepared_review_count BETWEEN 0 AND 4096);
 CREATE FUNCTION contractor_protect_prepared_audit_item() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
+ IF TG_OP='INSERT' THEN
+  IF NEW.prepared_execution IS NOT NULL AND NOT EXISTS(SELECT 1 FROM audit_rounds
+   WHERE audit_id=NEW.audit_id AND round_id=NEW.round_id AND state='proposed' AND prepared_page_count IS NULL) THEN
+   RAISE EXCEPTION 'prepared Audit membership is sealed' USING ERRCODE='23514'; END IF;
+  RETURN NEW;
+ END IF;
  IF TG_OP='UPDATE' THEN
+  IF OLD.prepared_execution IS NOT NULL AND ROW(NEW.item_id,NEW.audit_id,NEW.round_id,NEW.item_key,NEW.ordinal,NEW.kind,NEW.subject_key,
+    NEW.workflow_role,NEW.task_ref,NEW.task_digest,NEW.origin,NEW.approval_kind,NEW.approval_subject_digest)
+   IS DISTINCT FROM ROW(OLD.item_id,OLD.audit_id,OLD.round_id,OLD.item_key,OLD.ordinal,OLD.kind,OLD.subject_key,
+    OLD.workflow_role,OLD.task_ref,OLD.task_digest,OLD.origin,OLD.approval_kind,OLD.approval_subject_digest) THEN
+   RAISE EXCEPTION 'prepared Audit item authority is immutable' USING ERRCODE='23514'; END IF;
   IF ROW(NEW.accepted_plan::text,NEW.prepared_execution::text,NEW.prepared_page_ordinal,NEW.prepared_related_count)
    IS DISTINCT FROM ROW(OLD.accepted_plan::text,OLD.prepared_execution::text,OLD.prepared_page_ordinal,OLD.prepared_related_count) THEN
    RAISE EXCEPTION 'prepared Audit membership is immutable' USING ERRCODE='23514'; END IF;
@@ -141,5 +152,5 @@ BEGIN
  RETURN OLD;
 END;
 $$;
-CREATE TRIGGER audit_items_protect_prepared BEFORE UPDATE OR DELETE ON audit_items
+CREATE TRIGGER audit_items_protect_prepared BEFORE INSERT OR UPDATE OR DELETE ON audit_items
  FOR EACH ROW EXECUTE FUNCTION contractor_protect_prepared_audit_item();
