@@ -103,7 +103,7 @@ verification:
     without running tests again.
   - All 66 selected identities and 54 acceptance edges match the pre-change matrix, including 13 supporting
     regressions.
-  - After fixing the demonstrated review/finalization race, full tests/e2e passed (5.831s; see owner log),
+  - After fixing the demonstrated review/finalization race, full tests/e2e passed (5.530s; see owner log),
     the complete iterative PostgreSQL/process command passed on clean 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
     (53 required PG / 100 actual, 5 required process / 6 actual, zero skips), followed by make lint. Prior
     independent report-helper/composition/completion evidence remains unchanged by this isolated fixture
