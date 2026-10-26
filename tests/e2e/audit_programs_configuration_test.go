@@ -26,7 +26,7 @@ func TestAuditProgramsE2EConfigurationLoads(t *testing.T) {
 		t.Fatal(err)
 	}
 	methods, err := auditprofile.CompileCheckMethods(profile)
-	if err != nil || !methods.Enabled() {
+	if err != nil {
 		t.Fatalf("typed fixture routes: %v", err)
 	}
 	for method, role := range map[string]string{"verify": "second", "replay": "first"} {

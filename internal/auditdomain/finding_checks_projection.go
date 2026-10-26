@@ -146,11 +146,6 @@ func projectionFragment(raw []byte, end int64) FindingFragment {
 	return FindingFragment{Offset: end - int64(len(raw)), Length: int64(len(raw)), Digest: DigestBytes(raw)}
 }
 
-func DiscardedFindingChecksProjection(proposalDigest string, sizeBytes int64) (FindingChecksProjection, error) {
-	value := FindingChecksProjection{Schema: FindingChecksProjectionSchema, ProposalDigest: proposalDigest, SizeBytes: sizeBytes, Discarded: true, Checks: []FindingCheckProjection{}}
-	return value, ValidateFindingChecksProjection(value)
-}
-
 func EncodeFindingChecksProjection(value FindingChecksProjection) ([]byte, error) {
 	if err := ValidateFindingChecksProjection(value); err != nil {
 		return nil, err

@@ -27,7 +27,7 @@ func TestCheckMethodAuthoringStrictRegistryAndPersistedPins(t *testing.T) {
 				t.Fatal(err)
 			}
 			index, err := auditprofile.CompileCheckMethods(profile)
-			if err != nil || !index.Enabled() {
+			if err != nil {
 				t.Fatal(err)
 			}
 			selected, ok := index.Select(key)

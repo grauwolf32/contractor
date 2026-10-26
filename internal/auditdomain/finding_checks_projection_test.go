@@ -84,10 +84,7 @@ func TestFindingChecksProjectionBounds512HeadersAndDiscard(t *testing.T) {
 	if err != nil || len(encoded) > MaximumFindingChecksProjectionBytes {
 		t.Fatalf("maximum projection = %d,%v", len(encoded), err)
 	}
-	projection, err = DiscardedFindingChecksProjection(DigestBytes(data), int64(len(data)))
-	if err != nil {
-		t.Fatal(err)
-	}
+	projection = FindingChecksProjection{Schema: FindingChecksProjectionSchema, ProposalDigest: DigestBytes(data), SizeBytes: int64(len(data)), Discarded: true, Checks: []FindingCheckProjection{}}
 	encoded, err = EncodeFindingChecksProjection(projection)
 	if err != nil {
 		t.Fatal(err)

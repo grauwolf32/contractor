@@ -46,7 +46,6 @@ type CheckMethodIndex struct {
 	methods map[contracts.CheckPlanKey]NamedCheckMethod
 }
 
-func (index CheckMethodIndex) Enabled() bool { return len(index.methods) > 0 }
 func (index CheckMethodIndex) Select(key contracts.CheckPlanKey) (NamedCheckMethod, bool) {
 	value, ok := index.methods[key]
 	value.Mapping = cloneCheckMethod(value.Mapping)
