@@ -70,7 +70,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V410-004](v410-004-sitemap-structured-imports.yml) | feature | P1 | — | Import bounded scanner and selected Caido observations |
+| [V410-004](v410-004-sitemap-structured-imports.yml) | feature | P1 | V410-003 | Import bounded scanner and selected Caido observations |
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020, V410-004 | Gate controlled ffuf execution through the pentest transport |
 
 ### Findings tools and collections (`findings`)
@@ -102,7 +102,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | — | Reconcile exact OpenAPI declarations with live sitemap members |
+| [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | V410-004 | Reconcile exact OpenAPI declarations with live sitemap members |
 
 ### Audits (`audits`)
 

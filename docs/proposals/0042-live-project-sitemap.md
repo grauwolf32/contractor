@@ -5,6 +5,18 @@ Proposal 0042 · Status: **Draft design; not implemented.** Recorded on
 records the user's selected direction and proposed contracts. The pending tasks
 in section 12 do not establish implementation or reactivate deferred work.
 
+Review update, 2026-10-27: automatic HTTP/scanner contributions are bounded
+best effort, isolated from tool outcomes and Run contracts. Earlier generic
+collection-completeness statuses, loss markers and required automatic-collection
+completion policies below are superseded. Concrete source facts, such as a
+scanner's explicit report truncation, and errors of explicitly requested imports,
+mutations or snapshots retain their own meaning. The normative contracts are in
+[Project sitemap](../spec/artifacts/project-sitemap.md). Structured imports first
+reuse ffuf, Katana and selected Caido reports; another format needs a concrete
+caller. Reconciliation extends the existing import operation and produces only
+artifacts required by its declared consumer. No new collection job framework,
+duplicate gate registry or mandatory duplicate map/patch/report package is needed.
+
 This complements the frozen surface and evidence contracts in
 [proposal 0033](0033-autonomous-pentest-audits.md). A live sitemap is shared
 research context; it does not replace that proposal's exact proof inputs.

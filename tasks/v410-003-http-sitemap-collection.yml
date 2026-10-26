@@ -11,17 +11,21 @@ depends_on:
 languages:
 - go
 - python
+- json
 - yaml
 - markdown
-goal: Make ordinary selected HTTP tools contribute safe research metadata automatically while preserving target-call
-  outcomes and allocation cleanup guarantees.
+goal: Collect ordinary opted-in HTTP attempt metadata into the Project sitemap through an isolated best-effort background
+  publisher, without adding Run states, collection reports or completeness markers.
 context:
-  authority: User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
-    this task records planned work, not implementation or verification evidence.
+  authority: 'User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
+    this task records planned work, not implementation or verification evidence. User review on 2026-10-27 supersedes
+    generic collection-completeness/status requirements: automatic sitemap updates are best effort and must remain
+    isolated from HTTP/scanner outcomes and Run contracts.'
   proposal: docs/proposals/0042-live-project-sitemap.md
-  proposal_sections: 'Sections 3-5 and 7-11: safe attempted-request observations, bounded batching, publication
-    failures and collection status.'
+  proposal_sections: 'Sections 3-5 and 7-11, revised by the 2026-10-27 user direction: bounded best-effort collection;
+    no generic completeness/status surface.'
   specification:
+  - docs/spec/artifacts/project-sitemap.md
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/artifacts/projects.md
   - docs/spec/artifacts/retention-and-deletion.md
@@ -32,8 +36,7 @@ context:
   - docs/spec/execution/worker.md
   - docs/spec/execution/control-plane.md
   boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
-    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64
-    work.
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64 work.
   code:
   - runtime/src/contractor_runtime/toolsets/http/capture.py
   - runtime/src/contractor_runtime/toolsets/http/tools.py
@@ -42,71 +45,79 @@ context:
   - runtime/tests/test_http_cookie_session.py
   - runtime/tests/test_http_toolset_lifecycle.py
   - tests/e2e
-  reuse: V377-001 already persists target cookies; use its separate target-response/checkpoint outcome precedent
-    without changing cookie state, credential handling or the configured model.
+  reuse: V377-001 already persists target cookies; use its separate target-response/checkpoint outcome precedent without
+    changing cookie state, credential handling or the configured model.
 scope:
   in:
-  - Observe actual attempted requests before buffer eviction, available responses/failures and each redirect/retry
-    hop through the existing HTTP capture boundary.
-  - Feed safe typed observations and Run-scoped identity/session provenance into the common collector; no model
-    recording call is required.
-  - Coalesce batches by group, flush by declared count/time bounds and flush the caller before its live sitemap
-    read.
-  - Join flushes at completion/cancellation/release; record incomplete source collection after crash, quota exhaustion,
-    conflict retry exhaustion or lost pending batch.
-  - Keep automatic collection status outside model-visible HTTP results. Target outcomes remain ordinary HTTP
-    results; deterministic code records collection failures for the Run owner and enforces explicitly required
-    collection only at the declared completion boundary. Explicit sitemap operations report their own failures.
+  - Emit minimal actual-attempt metadata through an optional transport-neutral subscriber. HTTP tools keep transport,
+    retry, auth/session and evidence ownership.
+  - Use a bounded private allocation-memory batch; never await storage/network I/O from the HTTP subscriber. The batch
+    contains no headers or bodies and is never persisted.
+  - Publish one versioned keyed request per batch. Go performs safe projection before sitemap identities, receipt
+    hashing and Artifact bytes, then coalesces through the existing reducer. Do not add a separate projection RPC
+    or a second Python URL/reducer implementation.
+  - Flush by count/time and attempt a flush before acquiring a fresh live view and before Server allocation fencing.
+    Reads still return committed data when automatic publication fails.
+  - Join publisher/timer work during completion/cancellation/release. Log bounded technical failures; loss of the
+    final private batch on crash or exhausted publication is accepted.
   out:
   - Changing target transport retry policy, auth/session persistence, model selection or HTTP scope enforcement.
   - Complete request/response archival, selected finding evidence changes or browser/Caido history collection.
+  - New Run/Allocation report fields, public collection-state API, generic incomplete-source markers, required automatic-collection
+    completion policies or a durable event queue.
+  - New receipt journals, retention ownership, cumulative Run publication quotas or a Workflow per request.
 requirements:
 - id: R1
-  text: Collection is explicitly opted in by template/grant; HTTP readers or an input artifact alone do not activate
-    it.
+  text: Collection requires the explicit pinned template/grant permission. Reader selection or an input artifact does
+    not activate a writer.
 - id: R2
-  text: Safe projection precedes identity, buffer persistence and publication; URL/query/body/header/structural
-    value canaries are absent from map bytes and correlation keys. A timeout is an attempt, not a received response.
+  text: Raw minimal transport metadata and matching secrets exist only in bounded private allocation RAM and the private
+    request. Go projects before any sitemap key, receipt digest or persisted content; headers and body values are
+    never map input. No raw persistent queue is introduced.
 - id: R3
-  text: A Location header does not establish a visited endpoint; redirects and retries are distinct observed physical
-    attempts with existing request tags where available.
+  text: Only actual attempted requests contribute, including physical redirects/retries and negative outcomes. Existing
+    HTTP evidence owns request IDs/tags. A Location-only destination is not observed; no exact global traffic count
+    is claimed.
 - id: R4
-  text: Use proposal section 10 batch limits and bounded flush count/time settings from the owning registry. Repeated
-    observations use set membership/min-max summaries instead of unbounded event storage or exact global traffic
-    counters.
+  text: Keep one pending and one in-flight batch, each at most 100 attempt rows/256 KiB including matching inputs;
+    flush at the owning five-second/count bounds. Go coalesces group/source/context/outcome sets and min/max times.
+    Publication has one original three-request/15-second allowance, honoring Retry-After and not multiplying Server-exhausted
+    transaction retries.
 - id: R5
-  text: A map write failure cannot replace a valid HTTP response with target failure or resend target traffic. Receipt/unknown
-    acknowledgements reconcile only publication. ArtifactStore owns shared policy admission, retention/accounting,
-    CAS, receipts and blob GC; the collector never deletes revisions or implements a custom cumulative Run quota.
+  text: Automatic persistence failure cannot replace/repeat a target call, fail a successful HTTP/scanner result,
+    introduce Run/report states or publish a generic completeness marker. Diagnostics remain technical collector logs.
+    Explicit mutations/imports/snapshots report their own operation errors.
 - id: R6
-  text: Completion/cancellation/release joins the collector and fences publication; on Runtime crash, Run closure/collection
-    status truthfully reports the bounded pending loss without claiming zero-loss capture.
+  text: Composition owns admission, a bounded pre-fence flush and joined cleanup. A live read attempts its local flush
+    and reads committed data; automatic flush failure is not a read failure. Crash/buffer overflow may drop a bounded
+    batch. No publisher survives release and no business decision depends on collection completeness.
 failure_outcomes:
-- operation: HTTP target call followed by collection submission/flush
-  permanent: Preserve the real target outcome; invalid projection, generic Artifact admission rejection,
-    all-protected history capacity or collection denial is a separate nonautomatic-retry sitemap outcome. Invalid unsent requests
-    create no successful observation.
-  retryable: Storage conflicts and bounded history-cleanup backpressure use only the reducer/flush budget;
-    target retries remain governed solely by existing HTTP policy.
-  ambiguous: Reconcile the same publication receipt even after its revision is evicted; confirm the old commit
-    without republishing or resending the target request. Exact evicted bytes remain unavailable.
-  cancelled: Join target/capture/collector work before release and mark unsaved metadata incomplete.
-  timeout: HTTP request and sitemap flush have separate owning deadlines; flush cannot extend target permission
-    or turn a timeout into a response.
-- operation: Read barrier or terminal collector drain
-  permanent: Return/report a collection gap when flushing is permanently rejected; required completion policy may
-    fail without rewriting HTTP data.
-  retryable: Retry storage only within the remaining flush/closure allowance.
-  ambiguous: Query accepted receipt/revision when publication acknowledgement is lost.
-  cancelled: Closure joins publisher work; fenced allocation cannot complete a late write.
-  timeout: Exhausted drain allowance records bounded loss/incomplete status and releases only after local work is
-    joined.
+- operation: HTTP attempt metadata submission and background publication
+  permanent: Keep target outcomes unchanged. Drop an inadmissible frame or stop the allocation publisher after a definite
+    refusal; log its classified technical cause. Add no Run/report field or generic map marker.
+  retryable: Retry only publication/cleanup backpressure inside its original allowance. Server-exhausted transaction
+    conflicts receive no new Runtime retry allowance; target policy remains independent.
+  ambiguous: Repeat only the identical keyed metadata request inside the remaining allowance. Existing receipt replay
+    confirms an original evicted result without another publication; never repeat target traffic.
+  cancelled: Join admitted private publication before release; allocation fencing rejects late requests. Dropping
+    unsaved metadata is allowed.
+  timeout: The publisher owns its deadline; HTTP submission never awaits network/storage. Exhaustion logs and stops
+    automatic publication instead of renewing its budget.
+- operation: Fresh live read or terminal collector cleanup
+  permanent: A failed automatic flush does not prevent reading the committed map. Explicit read authorization/storage
+    failures and explicit snapshot/mutation errors retain their normal contracts.
+  retryable: Use only the current publication allowance; reads and closure do not renew an exhausted request budget.
+  ambiguous: Preserve the original key during admitted retries; accepted Project metadata remains after local cleanup.
+  cancelled: Join active timers/publishers through composition cleanup; do not leak work past release.
+  timeout: Drop the remaining bounded private batch after joined cleanup and emit technical diagnostics, without changing
+    HTTP results or adding collection business state.
 cardinality:
 - collection: Pending observations and publication batches
   expected: 1-10 Workers coalescing repeated requests into small batches
-  maximum: Batch rows/bytes, generic Artifact admission/operation limits and automatic common per-binding history policy;
-    one explicitly bounded pending buffer per allocation
-  bound: Flush at count/time limits and never retain one unbounded queue item per target request.
+  maximum: One pending and one in-flight private batch, each at most 100 attempts/256 KiB; at most 2,048 transient
+    matching secrets per ingress.
+  bound: Batch by count/time; coalesce only in the owning Go reducer, not with Runtime URL hashes. On backpressure
+    drop excess metadata with bounded technical logging.
 - collection: Attempt outcomes, contexts and omitted metadata
   expected: A few response/auth variants per group
   maximum: Shared group/member/context/provenance bounds
@@ -114,17 +125,18 @@ cardinality:
     loop.
 lifecycle:
 - entity: HTTP allocation collector and pending batch
-  delete: Allocation finalize/abort/release joins and clears the separate collector through composition-owned
-    lifecycle hooks. The HTTP Toolset has no sitemap publication or drain responsibility.
-  cascade: Session cleanup removes allocation-memory observations; committed Project metadata remains.
+  delete: Allocation finalize/abort/release joins and clears the separate collector through composition-owned lifecycle
+    hooks. The HTTP Toolset has no sitemap publication or drain responsibility.
+  cascade: Cleanup clears private pending metadata; committed Project data remains. No collection state is attached
+    to Run lifecycle.
   retention: Selected finding evidence keeps its existing retention; ordinary traffic remains bounded memory-only
     except safe map summaries.
 acceptance_criteria:
 - id: A1
   given: Selected and unselected HTTP Workers against a controlled local target
   when: They issue GET/POST, redirects, retries, transport failures and timeouts
-  then: Only opted-in actual attempts contribute, hop/outcome attribution is correct and no Location-only target
-    becomes observed.
+  then: Only opted-in actual attempts contribute, hop/outcome attribution is correct and no Location-only target becomes
+    observed.
 - id: A2
   given: Secret canaries in all request locations and repeated contexts
   when: Automatic observation runs without any model recording call
@@ -132,21 +144,24 @@ acceptance_criteria:
 - id: A3
   given: A target that counts side effects and a store that loses publication responses or rejects writes
   when: A successful request is followed by failed/ambiguous collection, history eviction or cleanup backpressure
-  then: Its HTTP response remains available, the target count does not increase, old receipts never republish,
-    and protected-capacity conflicts stay distinct from retryable cleanup backpressure.
+  then: HTTP response and target side-effect count stay unchanged; only identical publication is retried. Receipts
+    never republish evicted commits and protected refusal remains distinct from cleanup backpressure. No collection
+    state/marker is introduced.
 - id: A4
   given: Many observations up to pending/batch/publication bounds
   when: A Worker reads the live map and another Run reads committed state
-  then: The caller first flushes bounded pending data, another Run sees only committed batches and limit exhaustion
-    is explicit.
+  then: Submission returns while storage is blocked; both batches stay within row/byte bounds. Fresh reads attempt
+    their own flush and return committed state, including after automatic refusal. Other Runs see committed batches
+    only.
 - id: A5
   given: In-flight capture/publication and a Runtime crash/cancel/release
   when: Allocation closure executes through production processes
-  then: No publisher survives release, committed data remains and bounded pending loss is reported by collection
-    status.
+  then: No publisher survives release and committed Project data remains after Runtime crash. Ordinary Runtime-loss
+    handling applies; no sitemap-specific Run status, collection report or generic completeness marker appears.
 deliverables:
-- path: runtime/src/contractor_runtime/toolsets/common
-  description: Joined bounded collector integration shared without sibling Toolset imports.
+- path: runtime/src/contractor_runtime/sitemap_collection.py
+  description: Composition-owned bounded best-effort publisher behind a transport-neutral subscriber; one private
+    batch RPC.
 - path: tests/e2e
   description: HTTP collector production-process cases added to the registered sitemap gate, including side-effect-counting
     and failure injection.
@@ -182,26 +197,56 @@ tests:
   - A3
   - A4
   - A5
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
 test_prerequisites:
-- Use injected clocks for flush budgets; local HTTP fixtures and real Server/Runtime/PostgreSQL provide process
-  evidence, with mandatory collector cases registered in the gate manifest.
-
+- Use injected clocks for flush budgets; local HTTP fixtures and real Server/Runtime/PostgreSQL provide process evidence,
+  with mandatory collector cases registered in the gate manifest.
 execution:
   branch: codex/v410-sitemap
-  claimed_on: "2026-10-26"
-  note: >-
-    Resumed at the user's request after V410-001 and V410-002 were merged
-    into main. Implement this task in dependency order; V410-004 through
-    V410-007 remain pending until their own implementation starts.
-
+  claimed_on: '2026-10-26'
+  note: Resumed at the user's request after V410-001 and V410-002 were merged into main. Implement this task in dependency
+    order; V410-004 through V410-007 remain pending until their own implementation starts.
 implementation_decisions:
 - date: 2026-10-26
-  decision: Automatic sitemap persistence failures are infrastructure status for the Run owner, not an extra
-    model-visible HTTP result field. The user questioned the purpose of exposing these failures to the Worker;
-    deterministic collection code owns recovery and required-completion checks. Explicit sitemap tools retain
-    truthful operation failures. HTTP target traffic must never repeat to recover collection.
+  decision: 'Superseded by the 2026-10-27 review: Automatic sitemap persistence failures are infrastructure status
+    for the Run owner, not an extra model-visible HTTP result field. The user questioned the purpose of exposing these
+    failures to the Worker; deterministic collection code owns recovery and required-completion checks. Explicit sitemap
+    tools retain truthful operation failures. HTTP target traffic must never repeat to recover collection.'
 - date: 2026-10-26
-  decision: HTTP tools and scanner execution do not depend on sitemap. Allocation composition wires an optional,
-    narrow observation subscriber; the separate collector owns buffering, projection, persistence and drain.
-    Subscriber failure cannot change target transport outcomes. Scanner imports consume exact structured
-    reports independently. Verify subscriber failure isolation through the real capture path.
+  decision: HTTP tools and scanner execution do not depend on sitemap. Allocation composition wires an optional, narrow
+    observation subscriber; the separate collector owns buffering, projection, persistence and drain. Subscriber failure
+    cannot change target transport outcomes. Scanner imports consume exact structured reports independently. Verify
+    subscriber failure isolation through the real capture path.
+- date: 2026-10-26
+  decision: Process verification exposed that the existing opaque-token heuristic classified three-label DNS names
+    and IPv4 origins as JWTs. Apply host heuristics per label and known-secret matching across the original complete
+    host before canonicalization. Paths retain the existing conservative token heuristic. This repairs the shared
+    projector used by all ingress siblings and is covered by HTTP collection real-store/process regressions.
+- date: 2026-10-26
+  decision: 'Superseded by the 2026-10-27 review: Safe projection is a stateless bounded Server RPC before Runtime
+    pending admission, reusing the single Go URL/context/structural implementation. This adds bounded metadata latency
+    while HTTP still owns its capture; it introduces no raw pending queue or second projector. HTTP-tools owns the
+    cost and reopens placement if measured throughput requires it. Buffering, publication, explicit-read barriers
+    and closure remain collector/composition responsibilities.'
+- date: 2026-10-26
+  decision: Real Server/Runtime verification established that Server finalization fences writes before Runtime finalize.
+    Drain therefore runs in the infrastructure invocation-completion checkpoint before the Worker result is returned.
+    Finalize/abort/release close and join the collector, dropping unsaved private metadata with technical logging; they do not bypass
+    fencing. No required-collection failure policy is introduced in this task.
+- date: 2026-10-27
+  decision: A pending publication keeps one original 15-second deadline and at most three keyed HTTP requests through
+    cancellation and drain. A Server-exhausted transaction conflict receives no new Runtime transaction retry budget.
+    Cleanup retries honor Retry-After. Definite refusal or exhausted acknowledgement/retry allowance disables automatic
+    publication for the allocation and logs the technical cause; later reads and closure cannot silently renew
+    it.
+- date: '2026-10-27'
+  decision: No consumer or decision uses automatic collection completeness. Remove the draft sitemapCollection/unconfirmedItems/pendingLossPossible
+    report/API extension and generic loss markers. Keep only bounded private buffers, keyed publication recovery,
+    technical logs and joined lifecycle. Automatic flush does not make reads fail. Replace per-exchange projection
+    plus publication RPCs with one background batch request; Go owns projection and coalescing before persistence.
