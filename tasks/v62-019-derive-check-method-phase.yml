@@ -57,6 +57,11 @@ tests:
   - A1
   - A2
   - A3
+- command: go test -tags=integration -count=1 ./internal/httpapi/public
+  covers:
+  - A1
+  - A2
+  - A3
 - command: make verify-public-api verify-public-api-postgres test-wire-cross-language
   covers:
   - A1
