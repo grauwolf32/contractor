@@ -1285,7 +1285,8 @@ The `auditTask` executor declaration is shown with ASC-R72.
 ## Non-goals
 
 - Preparation introduces no `finalize` or proposed-check routing. Settled-Round
-  inputs and exact retained item dependencies use the separate contracts above.
+  inputs, exact retained item dependencies and typed check routing use the
+  separate contracts above.
 - Profiles whose preparation requires classified active-check tools before
   item approval (ASC-R9).
 - The OpenAPI scan adapter does not interpret snapshot attachments, retained
