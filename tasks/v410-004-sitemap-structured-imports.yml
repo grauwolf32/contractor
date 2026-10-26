@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: scan-tools
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V410-002
 - V410-003
@@ -190,10 +190,9 @@ test_prerequisites:
   test-scan-e2e is unnecessary for import-only changes; if implementation also changes scanner execution, its existing
   execution gate becomes required.
 execution:
-  released_on: '2026-10-26'
-  previous_branch: codex/v410-sitemap
-  note: Returned to pending at the user's request to finish V410-002 and pause. Implementation of this task has not
-    started; the prior batch reservation is released.
+  branch: codex/v410-sitemap
+  claimed_on: '2026-10-27'
+  note: Resumed after the reviewed V410-003 implementation and its main merge. V410-005 through V410-007 remain pending until their own implementation starts.
 implementation_decisions:
 - date: 2026-10-26
   decision: Preserve the user-requested isolation between tools and sitemap. Scanner execution and Caido tools retain
@@ -204,3 +203,5 @@ implementation_decisions:
     emit minimal events or exact report refs. Automatic failure never changes scanner/Caido results or Run state;
     explicit imports fail as explicit operations. Keep factual report truncation metadata, not a generic collection-status
     subsystem. Defer new dirsearch format work until a concrete caller/contract exists.
+- date: '2026-10-27'
+  decision: Existing normalized ffuf and Katana reports each retain at most 100 results and 128 KiB. Validate those owning bounds and import one exact report as one bounded batch through existing receipts. No continuation cursor or durable import checkpoint is needed for these concrete callers; reopen only when a selected versioned format exceeds the shared batch bound.
