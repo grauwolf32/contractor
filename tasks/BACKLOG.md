@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-127 open tasks: 7 in progress, 109 pending, 11 deferred. 1143 finished: 1133 completed, 10 archived.
+126 open tasks: 6 in progress, 109 pending, 11 deferred. 1144 finished: 1134 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V410-002](v410-002-project-sitemap-toolset.yml) | projects-artifacts | feature | P1 | Expose authorized live sitemap tools to Project allocations |
 | [V417-002](v417-002-adk-compaction-continuation-spike.yml) | planner-worker | chore | P1 | Prove safe context checkpoints and continuation on accepted ADK 2.13 |
 | [V420-001](v420-001-planner-compaction-contract-spike.yml) | planner-worker | chore | P1 | Prove Planner compaction checkpoints and freeze the integration contract |
 
@@ -58,9 +57,9 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V386-004](v386-004-caido-catalog-cardinality.yml) | defect | P2 | — | Keep Caido catalog selection usable above one hundred entries |
-| [V410-003](v410-003-http-sitemap-collection.yml) | feature | P1 | V410-002 | Collect HTTP observations into the live Project sitemap |
+| [V410-003](v410-003-http-sitemap-collection.yml) | feature | P1 | — | Collect HTTP observations into the live Project sitemap |
 | [V410-008](v410-008-sitemap-caido-history.yml) | feature | P2 | V410-004, V410-007 | Import selected Caido history incrementally with durable checkpoints |
-| [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-002, V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
+| [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
 | [V411-004](v411-004-controlled-http-conformance.yml) | chore | P1 | V411-003 | Verify controlled HTTP transport against an independent denial and fault matrix |
 | [V411-005](v411-005-identity-sessions-http-login.yml) | feature | P1 | V411-004 | Isolate target identities and execute bounded private HTTP login recipes |
 | [V411-009](v411-009-http-recipes-predicates.yml) | feature | P1 | V411-005, V411-007, V411-008 | Execute frozen HTTP recipes and evaluate trusted three-valued predicates |
@@ -73,7 +72,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V410-004](v410-004-sitemap-structured-imports.yml) | feature | P1 | V410-002 | Import bounded scanner and selected Caido observations |
+| [V410-004](v410-004-sitemap-structured-imports.yml) | feature | P1 | — | Import bounded scanner and selected Caido observations |
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020, V410-004 | Gate controlled ffuf execution through the pentest transport |
 
 ### Findings tools and collections (`findings`)
@@ -105,7 +104,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | V410-002 | Reconcile exact OpenAPI declarations with live sitemap members |
+| [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | — | Reconcile exact OpenAPI declarations with live sitemap members |
 
 ### Audits (`audits`)
 
@@ -239,7 +238,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 8 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 35 | 33 | 7 | 40 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 35 | 33 | 7 | 40 |
 | Audits (`audits`) | 31 | 67 | 80 | 26 | 105 |
 | Evaluations (`evals`) | 7 | 21 | 38 | 14 | 46 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |

@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V410-001
 languages:
@@ -226,3 +226,78 @@ execution:
     batch is reserved together; implementation proceeds in dependency order,
     and dependent tasks do not start implementation before their prerequisites
     complete. Status records assignment, not completed implementation or tests.
+
+implementation_commit: e9465c6cf571648c16d7a1a753b89188ffaae556
+verification:
+  date: '2026-10-26'
+  environment: >-
+    macOS arm64; Go 1.26.9; locked Python 3.13 Runtime; Node 24.20.0 and
+    pnpm 11.24.0; dedicated PostgreSQL 17 contractor_v410_test with isolated
+    per-test schemas and 48 migrations; canonical TMPDIR=/private/tmp.
+  commands:
+  - >-
+    make test-project-sitemap-postgres passed on the final source tree:
+    13 complete owner packages, 14 mandatory domain/private-API/grant cases,
+    zero mandatory skips. The realistic publication regression accepted 257
+    updates and 360501946 encoded bytes from one Run while retaining only two
+    revisions / 2980786 bytes through ordinary ArtifactStore history.
+  - >-
+    make test-project-sitemap-tools-e2e passed: actual Server, Runtime, mTLS,
+    catalog, Scheduler, model-free tool execution and PostgreSQL verified
+    blackbox/source-assisted separation, two-Project scope, a permanent stale
+    edit and grant revocation after release. The manifest rejects missing,
+    unstarted or skipped mandatory process scenarios.
+  - >-
+    uv run --project runtime pytest runtime/tests/test_sitemap_*.py
+    runtime/tests/test_contracts.py runtime/tests/test_capabilities.py passed:
+    320 tests, including 14 sitemap tests. Maximum encoded view was 32 MiB
+    with 10000 groups and 50000 members, below 128 MiB total retained graph;
+    cached page work and page bytes were bounded. Joined cancellation/close,
+    no-refetch cursors, current authority, input canaries and transport-only
+    keyed reconciliation were verified. All seven positively advertised
+    tools also built real ADK FunctionTool declarations in a direct check.
+  - >-
+    make test-wire-cross-language passed: 283 fixtures, 334 Go and 228 Python
+    shared tests. Private command wrappers, policy/digests, generated domain
+    schemas and matching Runtime readers agree.
+  - >-
+    make verify-public-api verify-public-api-postgres and make ui-verify
+    passed, including generated clients, operation coverage, race-enabled
+    owner handlers and permanent sitemap_conflict. The public Gap source ID
+    permits the owning reducer's empty aggregate source and resource IDs.
+  - >-
+    make lint passed on the final implementation, including staticcheck,
+    testonlyexports, spec/task/schema checks, release graph, Ruff and all
+    four Runtime import contracts. Full internal/config/... and
+    internal/contracts/... suites passed with real PostgreSQL enabled.
+  evidence:
+  - >-
+    Source authority resolves only the original Run-creation input_fork at
+    a selected name, with a two-row inconsistency bound, then reads exact
+    metadata. Updating inputs/* cannot declassify another source. Real-store
+    regression verifies both permitted immutable materialization and an
+    unheld working revision being evicted normally.
+  - >-
+    Exact context selection races history eviction atomically: either frozen
+    context plus legitimate lineage commits, or exact-source absence leaves
+    no consumer artifacts. Needed permitted input bytes use ordinary frozen
+    forks; foreign mentions cannot materialize bytes or create arbitrary holds.
+  - >-
+    Intermediate sandboxed config tests were blocked from loopback; the full
+    suites were rerun with test-database access and passed. An isolated repeated
+    domain run was interrupted and replaced with the final complete 13-package
+    gate above; no pass is claimed for that interrupted run.
+  limitations:
+  - >-
+    Automatic HTTP collection, structured format parsers and OpenAPI
+    reconciliation are outside this task and remain pending. Import dispatch
+    is an explicit seam; no import capability is advertised without its adapter.
+  - >-
+    V410-001 and V410-002 are committed on codex/v410-sitemap, not merged into
+    main. Main has advanced independently; integration must reconcile the
+    branch-owned migration numbers with main and verify that integrated tree.
+    No full V410 release or current-main integration result is claimed.
+  - >-
+    At the user's request, stop after this task. V410-003 through V410-007
+    were not implemented and their reservations were returned to pending in
+    both this branch and main.
