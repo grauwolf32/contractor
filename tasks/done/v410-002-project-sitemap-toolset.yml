@@ -293,11 +293,54 @@ verification:
     reconciliation are outside this task and remain pending. Import dispatch
     is an explicit seam; no import capability is advertised without its adapter.
   - >-
-    V410-001 and V410-002 are committed on codex/v410-sitemap, not merged into
-    main. Main has advanced independently; integration must reconcile the
-    branch-owned migration numbers with main and verify that integrated tree.
-    No full V410 release or current-main integration result is claimed.
+    Initial closure was on codex/v410-sitemap before main integration.
+    Subsequent coordinated migration numbers and verified integration are
+    recorded in main_integration below. No full V410 release is claimed.
   - >-
     At the user's request, stop after this task. V410-003 through V410-007
     were not implemented and their reservations were returned to pending in
     both this branch and main.
+
+main_integration:
+  requested_on: '2026-10-26'
+  base_main: 8309914fbfaf4c8bb59d86188fd7b3cf69e98c45
+  verified_commit: c55a0d0a708433c8cd143088ae2bd119fe947b5b
+  migrations:
+  - 000049_project_sitemap_receipts.sql
+  - 000050_context_projection_lineage.sql
+  evidence:
+  - >-
+    Existing main migrations 000001 through 000048 remain byte-identical.
+    The real PostgreSQL upgrade preserves all 48 existing ledger entries
+    and an existing receipt, applies 000049/000050, permits sitemap receipts
+    and applies nothing on the next startup. A new regression is
+    TestPostgresProjectSitemapMigrationsPreserveMainLedgerAndReceipts.
+  - >-
+    make test-project-sitemap-postgres passed on the combined tree:
+    13 complete packages, 14 mandatory cases, zero mandatory skips.
+  - >-
+    make test-project-sitemap-tools-e2e test-artifact-history-e2e passed
+    through actual Server/Runtime/PostgreSQL processes.
+  - >-
+    make verify-public-api verify-public-api-postgres passed. The API
+    coverage selection preserves the existing Worker session-mode check
+    and adds the sitemap owner operations.
+  - >-
+    GOFLAGS='-p=2' make test-wire-cross-language passed: 285 fixtures,
+    341 Go shared tests, 237 Python shared tests. An earlier unconstrained
+    run failed two unrelated PostgreSQL cases; both passed separately,
+    then the entire bounded gate passed without code or timeout changes.
+  - >-
+    make ui-verify passed: 196 test files, 2433 passed tests and one declared
+    expected failure, plus generated types, lint, static-server checks and build.
+  - >-
+    Runtime sitemap/contracts/capability and affected Audit/OpenAPI/finding
+    suites passed: 599 tests. make lint passed, including generation checks,
+    staticcheck, import ownership, tasks/specs and the release graph.
+  - >-
+    Generated clients, dependency graph, ERD and backlog were regenerated.
+    Main's DEL-R66 remains intact; the unlanded sitemap purge requirement
+    is assigned DEL-R67 to avoid an ID collision.
+  scope: >-
+    User-authorized main delivery covers V410-001 and V410-002 only.
+    V410-003 through V410-007 remain pending and unimplemented.
