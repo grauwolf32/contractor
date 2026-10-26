@@ -191,14 +191,62 @@ class ReportReuseTest(unittest.TestCase):
 
     def test_deadline_joins_silent_child(self) -> None:
         import signal
+        import subprocess
+        import threading
+        from types import SimpleNamespace
         from unittest import mock
         with tempfile.TemporaryDirectory() as directory:
             pidfile = Path(directory) / "pid"
-            child = "import os,signal; from pathlib import Path; " + f"Path({str(pidfile)!r}).write_text(str(os.getpid())); " + "signal.signal(signal.SIGTERM, signal.SIG_IGN); signal.pause()"
-            with mock.patch.object(reports, "CLEANUP_GRACE_SECONDS", 0.05), contextlib.redirect_stdout(io.StringIO()):
+            child = ("import os,signal; from pathlib import Path; "
+                     "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                     + f"Path({str(pidfile)!r}).write_text(str(os.getpid())); "
+                     + "print('ready',flush=True); signal.pause()")
+            ready, finished = threading.Event(), threading.Event()
+            waits = []
+
+            class ControlledFinished:
+                def wait(self, timeout=None):
+                    waits.append(timeout)
+                    if len(waits) == 1:
+                        # The deadline cannot expire before the real child's
+                        # SIGTERM handler and PID publication are ready.
+                        ready.wait()
+                    return finished.is_set()
+
+                def set(self):
+                    finished.set()
+
+            class ReadyOutput:
+                def __init__(self, stream):
+                    self.stream = stream
+
+                def readline(self, *args):
+                    line = self.stream.readline(*args)
+                    if line == "ready\n" or not line:
+                        ready.set()
+                    return line
+
+                def close(self):
+                    self.stream.close()
+
+            real_popen = subprocess.Popen
+            def start(*args, **kwargs):
+                process = real_popen(*args, **kwargs)
+                process.stdout = ReadyOutput(process.stdout)
+                return process
+
+            supplied = iter((ControlledFinished(), threading.Event()))
+            # Patch this module's bindings, not threading.Event/Popen globally:
+            # Thread itself must retain its real internal synchronization.
+            owned_threads = SimpleNamespace(Event=lambda: next(supplied), Thread=threading.Thread)
+            owned_processes = SimpleNamespace(Popen=start, TimeoutExpired=subprocess.TimeoutExpired, PIPE=subprocess.PIPE, STDOUT=subprocess.STDOUT)
+            with (mock.patch.object(reports, "threading", owned_threads),
+                  mock.patch.object(reports, "subprocess", owned_processes),
+                  contextlib.redirect_stdout(io.StringIO())):
                 with self.assertRaises(TimeoutError):
-                    reports.capture(Path(directory) / "report", [sys.executable, "-c", child], timeout_seconds=0.2)
+                    reports.capture(Path(directory) / "report", [sys.executable, "-c", child], timeout_seconds=60)
             self.assertTrue(pidfile.is_file())
+            self.assertEqual(waits, [60, reports.CLEANUP_GRACE_SECONDS])
             with self.assertRaises(ProcessLookupError):
                 os.kill(int(pidfile.read_text()), 0)
 

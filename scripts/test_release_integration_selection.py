@@ -1,4 +1,4 @@
-"""The consolidated integration pass keeps the former Audit gate's broad selection."""
+"""The consolidated integration pass keeps both Audit selections without duplicates."""
 
 from pathlib import Path
 import tempfile
@@ -17,11 +17,18 @@ class IntegrationSelectionTest(unittest.TestCase):
                 'PATTERN = "AuditCompletion|^TestImporter|^TestStandard"\n'
                 'def matrix(): return {"go": {"github.com/grauwolf32/contractor/internal/a": []}}\n'
             )
+            (root / "scripts/test-audit-iterative.py").write_text(
+                'def matrix(): return {"postgres": {\n'
+                '"github.com/grauwolf32/contractor/internal/a": '
+                '["TestImporterVariant/retained", "TestIterativeStorage/custom", "TestIterativeStorage/generic"],\n'
+                '"github.com/grauwolf32/contractor/internal/b": ["TestTagged/recovery"]}}\n'
+            )
             package = root / "internal/a"
             package.mkdir(parents=True)
             (package / "plain_test.go").write_text(
                 "package a\nfunc TestAuditCompletionExtra(t *testing.T) {}\n"
                 "func TestImporterVariant(t *testing.T) {}\nfunc TestStandardVariant(t *testing.T) {}\n"
+                "func TestIterativeStorage(t *testing.T) {}\n"
                 "func TestUnrelated(t *testing.T) {}\n"
             )
             (package / "tagged_test.go").write_text(
@@ -44,6 +51,7 @@ class IntegrationSelectionTest(unittest.TestCase):
                             "TestImporterVariant",
                             "TestStandardVariant",
                             "TestAuditCompletionTagged",
+                            "TestIterativeStorage",
                         },
                         "./internal/b": {"TestTagged"},
                     },
