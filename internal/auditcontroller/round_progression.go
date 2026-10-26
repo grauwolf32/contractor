@@ -112,6 +112,9 @@ func (c *Controller) progressRound(ctx context.Context, claim auditstore.Control
 				if c.roundBuilder != nil {
 					params, closureReason, buildErr := c.roundBuilder.PrepareNextRound(ctx, claim, snapshot)
 					if buildErr != nil {
+						if errors.Is(buildErr, auditservice.ErrNextRoundAdmissionPending) {
+							return reconciliationDone(true, nil)
+						}
 						var inconsistent *auditservice.RoundPreparationError
 						if errors.As(buildErr, &inconsistent) {
 							return c.closeInconsistentNextRound(ctx, claim, audit, inconsistent)
