@@ -53,7 +53,7 @@ def verify_python_report(path: Path) -> list[str]:
 
 
 def run_command(command: list[str], *, cwd: Path, report: Path) -> None:
-    status = reports.capture(report, command, cwd=cwd, timeout_seconds=900, max_report_bytes=32 << 20)
+    status = reports.capture(report, command, cwd=cwd, timeout_seconds=900, max_report_bytes=32 << 20, display_events=False)
     if status:
         raise GateError(f"test command failed (exit {status}); see {report.name}")
 

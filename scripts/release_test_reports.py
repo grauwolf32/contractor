@@ -87,7 +87,7 @@ def verify_go_report(report: Path, required: dict[str, list[str]], *, root_patte
     if not required or any(not cases for cases in required.values()):
         raise GateError("empty test selection")
     expected = {(package, case) for package, cases in required.items() for case in cases}
-    ancestors = {(package, "/".join(case.split("/")[:length])) for package, case in expected for length in range(1, len(case.split("/")) + 1)}
+    mandatory = expected | {(package, case.split("/", 1)[0]) for package, case in expected}
     roots = {package: {case.split("/", 1)[0] for case in cases} for package, cases in required.items()}
     started, passed, packages = set(), set(), set()
     with report.open(encoding="utf-8") as source:
@@ -115,22 +115,24 @@ def verify_go_report(report: Path, required: dict[str, list[str]], *, root_patte
                 if len(started) >= 8192 and key not in started:
                     raise GateError("selected test identities exceed their bound")
                 if action == "run":
-                    parents = {(package, "/".join(case.split("/")[:length]))
-                               for length in range(1, len(case.split("/")))}
-                    if key in started or parents - started or parents & passed:
-                        raise GateError("selected case run is duplicated or outside its parent lifetime")
+                    # T.Run names may themselves contain slashes. Go JSON cannot
+                    # distinguish those literal names from intermediate parents;
+                    # only the top-level test is a guaranteed ancestor.
+                    parent = (package, root)
+                    if key in started or case != root and (parent not in started or parent in passed):
+                        raise GateError("selected case run is duplicated or outside its root lifetime")
                     started.add(key)
                 elif action == "pass":
-                    descendants = {child for child in ancestors | started
-                                   if child[0] == package and child[1].startswith(case + "/")}
+                    descendants = {child for child in mandatory | started
+                                   if child[0] == package and child[1].startswith(root + "/")} if case == root else set()
                     if key not in started or key in passed or descendants - passed:
                         raise GateError("selected case pass is duplicated, premature or has no prior run")
                     passed.add(key)
             elif action == "pass":
-                if package in packages or any(key not in passed for key in ancestors | started if key[0] == package):
+                if package in packages or any(key not in passed for key in mandatory | started if key[0] == package):
                     raise GateError("package passed without complete selected execution")
                 packages.add(package)
-    if not expected or ancestors - passed or started != passed or set(required) - packages:
+    if not expected or mandatory - passed or started != passed or set(required) - packages:
         raise GateError("mandatory cases or package passes are missing")
     return sorted(f"{package}/{case}" for package, case in passed)
 
@@ -218,6 +220,7 @@ def _cleanup_group(process: subprocess.Popen) -> None:
 def capture(
     report: Path, command: list[str], *, timeout_seconds: float | None = None,
     max_report_bytes: int | None = None, retain_output: bool = True, cwd: Path | None = None,
+    display_events: bool = True,
 ) -> int:
     """Capture redacted output with an independent deadline and joined process group."""
     if not command:
@@ -256,6 +259,7 @@ def capture(
                         break
                     if len(line) > 65536:
                         raise ValueError("test command output line exceeds its bound")
+                    displayed = None
                     try:
                         event = parse_go_event(line)
                     except GateError:
@@ -270,12 +274,14 @@ def capture(
                             else:
                                 del event["Output"]
                         line = json.dumps(event) + "\n"
+                        if not display_events:
+                            displayed = event.get("Output", "")
                     size += len(line.encode("utf-8"))
                     if max_report_bytes is not None and size > max_report_bytes:
                         raise ValueError("test command report exceeds its bound")
                     output.write(line)
                     output.flush()
-                    print(line, end="", flush=True)
+                    print(line if displayed is None else displayed, end="", flush=True)
                 status = process.wait()
                 if expired.is_set():
                     raise TimeoutError("test command deadline expired")

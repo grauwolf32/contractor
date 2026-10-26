@@ -113,6 +113,39 @@ class ReportReuseTest(unittest.TestCase):
             self.assertIn(package + "/TestImporterExtra", reports.verify_go_report(
                 path, required, root_pattern="AuditCompletion|^TestImporter|^TestStandard"))
 
+    def test_literal_slashes_do_not_invent_intermediate_parent_tests(self) -> None:
+        package = "example/audit"
+        names = ("TestRoot/x", "TestRoot/x/y", "TestRoot/virtual/middle/leaf")
+        events = [dict(Action="run", Package=package, Test="TestRoot")]
+        for name in names:
+            events.extend(dict(Action=action, Package=package, Test=name) for action in ("run", "pass"))
+        events += [dict(Action="pass", Package=package, Test="TestRoot"), dict(Action="pass", Package=package)]
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "go.jsonl"
+            report.write_text("".join(json.dumps(event) + "\n" for event in events))
+            self.assertEqual(reports.verify_go_report(report, {package: names}),
+                             sorted(package + "/" + name for name in ("TestRoot", *names)))
+            # The guaranteed root still cannot pass before a required or running subcase.
+            early = [events[0], events[-2], *events[1:-2], events[-1]]
+            report.write_text("".join(json.dumps(event) + "\n" for event in early))
+            with self.assertRaises(ValueError):
+                reports.verify_go_report(report, {package: names})
+
+    def test_diagnostic_console_keeps_credentials_out_of_framework_identity(self) -> None:
+        from unittest import mock
+        for password in ("pass", "contractor"):
+            event = dict(Action="pass", Package="contractor", Test="TestCase", Output=password)
+            with self.subTest(password=password), tempfile.TemporaryDirectory() as directory, mock.patch.dict(
+                os.environ, {"CONTRACTOR_TEST_DATABASE_URL": "postgres://u:" + password + "@localhost/db"},
+            ), contextlib.redirect_stdout(io.StringIO()) as displayed:
+                report = Path(directory) / "go.jsonl"
+                self.assertEqual(reports.capture(report, [sys.executable, "-c", "print(" + repr(json.dumps(event)) + ")"], display_events=False), 0)
+                self.assertNotIn(password, displayed.getvalue())
+                saved = json.loads(report.read_text())
+                self.assertEqual(saved["Action"], "pass")
+                self.assertEqual(saved["Package"], "contractor")
+                self.assertEqual(saved["Output"], "[redacted]")
+
     def test_capture_truncates_old_evidence_and_propagates_failure(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "report.jsonl"
