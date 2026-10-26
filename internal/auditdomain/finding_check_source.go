@@ -20,11 +20,12 @@ type FindingCheckSourceDocument struct {
 }
 
 type FindingCheckOptions struct {
-	WorkflowRole        string
-	ApprovalRequirement ApprovalRequirement
-	ExecutionInputs     []ExactInput
-	AcceptedPlan        *AcceptedPlan
-	Dependencies        *RetainedDependencyManifest
+	PreparedMetadataBytes int64
+	WorkflowRole          string
+	ApprovalRequirement   ApprovalRequirement
+	ExecutionInputs       []ExactInput
+	AcceptedPlan          *AcceptedPlan
+	Dependencies          *RetainedDependencyManifest
 }
 type FindingCheckInventoryOptions struct {
 	Common InventoryOptions

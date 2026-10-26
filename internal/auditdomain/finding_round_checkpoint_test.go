@@ -10,6 +10,7 @@ import (
 func TestFindingRoundCheckpointStaysConstantAcross4096TypedMembers(t *testing.T) {
 	shape := testFindingRoundShape()
 	shape.Paged = true
+	shape.PreparedRootMetadataBytes = 4096
 	budget, err := NewFindingRoundBudget(MaximumItems, shape)
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +31,7 @@ func TestFindingRoundCheckpointStaysConstantAcross4096TypedMembers(t *testing.T)
 		if err != nil {
 			t.Fatal(err)
 		}
-		options := FindingCheckInventoryOptions{Common: shape.Inventory, Check: FindingCheckOptions{WorkflowRole: plan.Route.WorkflowRole, ApprovalRequirement: ApprovalNone, AcceptedPlan: &plan, ExecutionInputs: []ExactInput{}}}
+		options := FindingCheckInventoryOptions{Common: shape.Inventory, Check: FindingCheckOptions{WorkflowRole: plan.Route.WorkflowRole, ApprovalRequirement: ApprovalNone, AcceptedPlan: &plan, ExecutionInputs: []ExactInput{}, PreparedMetadataBytes: 4096}}
 		result, err := budget.AdmitCheck(encoded, options)
 		if err != nil || !result.Admitted {
 			t.Fatalf("candidate%d rejected: %+v,%v", i, result, err)

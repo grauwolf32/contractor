@@ -146,6 +146,20 @@ func (b *FindingRoundBudget) AdmitCheck(source []byte, options FindingCheckInven
 		return FindingCheckAdmission{}, err
 	}
 	candidate := measuredCandidate{entry: jsonExtentOf(source), ordinals: []int{0}, worklist: workExtent, execution: executionExtent, checks: []measuredCheck{{canonical: entry, coverage: coverage, tasks: int64(len(inventory.Tasks[0].Package))}}}
+	if options.Check.PreparedMetadataBytes < 0 || options.Check.PreparedMetadataBytes > 1<<20 {
+		return FindingCheckAdmission{}, invalid(CodeLimitExceeded, "prepared_round.page_metadata")
+	}
+	if b.shape.Paged && options.Check.PreparedMetadataBytes > 0 {
+		if options.Check.PreparedMetadataBytes < executionExtent.bytes {
+			return FindingCheckAdmission{}, invalid(CodeInvalid, "prepared_round.page_metadata")
+		}
+		// Complete DTO bytes supersede legacy whole-document estimates. Each
+		// prepared/selection page is independently parsed and bounded by its owner.
+		candidate.checks[0].canonical = jsonExtent{}
+		candidate.checks[0].coverage = jsonExtent{}
+		candidate.worklist = jsonExtent{bytes: options.Check.PreparedMetadataBytes, nodes: workExtent.nodes + executionExtent.nodes + coverage.nodes, depth: max(workExtent.depth, executionExtent.depth, coverage.depth)}
+		candidate.execution = jsonExtent{}
+	}
 	next, limit := b.withFindingCheck(b.round, candidate)
 	if limit != "" {
 		if _, emptyLimit := b.withFindingCheck(b.empty, candidate); emptyLimit != "" {
