@@ -10,6 +10,12 @@ Keep positive cases with partial coverage or gaps: valid data can still yield
 inconclusive Audit coverage. Standard minimum evidence applies only to conclusive
 results; its assessment, evidence-kind and maximum-count restrictions always apply.
 
+`execution-manifest-cases.json` pins the compact execution transport shared by
+Go and Runtime. Each member names its exact task package; accepted plans and
+retained dependencies stay in that task, and their former execution-item fields
+are rejected even when null. The shared cases cover member identity and closed
+fields without changing the separate generic-inventory and allocated-batch bounds.
+
 ## Completion diagnostics
 
 `diagnostics.json` is shared by the Go and Python report and live-State
