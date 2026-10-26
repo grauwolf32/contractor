@@ -84,7 +84,7 @@ func TestPostgresFindingChecksIndexIntakeRebuildAndRetention(t *testing.T) {
 				t.Fatal(err)
 			}
 			var before, after string
-			if err := pool.QueryRow(ctx, `SELECT (to_jsonb(receipt)-'checks_projection')::text FROM finding_proposal_receipts receipt WHERE receipt_id=$1`, receipt.ReceiptID).Scan(&before); err != nil {
+			if err := pool.QueryRow(ctx, `SELECT (to_jsonb(receipt)-ARRAY['checks_projection','checks_projection_bytes','checks_projection_count'])::text FROM finding_proposal_receipts receipt WHERE receipt_id=$1`, receipt.ReceiptID).Scan(&before); err != nil {
 				t.Fatal(err)
 			}
 			f := deletionImportFixture{ctx: ctx, pool: pool, intake: service, receiptID: receipt.ReceiptID,
@@ -106,14 +106,14 @@ func TestPostgresFindingChecksIndexIntakeRebuildAndRetention(t *testing.T) {
 				t.Fatal(err)
 			}
 			// Capture preservation after the expected retention transition.
-			if err := pool.QueryRow(ctx, `SELECT (to_jsonb(receipt)-'checks_projection')::text FROM finding_proposal_receipts receipt WHERE receipt_id=$1`, receipt.ReceiptID).Scan(&before); err != nil {
+			if err := pool.QueryRow(ctx, `SELECT (to_jsonb(receipt)-ARRAY['checks_projection','checks_projection_bytes','checks_projection_count'])::text FROM finding_proposal_receipts receipt WHERE receipt_id=$1`, receipt.ReceiptID).Scan(&before); err != nil {
 				t.Fatal(err)
 			}
 			report, err := service.RebuildChecksProjectionBatch(ctx, 128)
 			if err != nil || report.Rebuilt != 1 || report.More || !bytes.Equal(initial, readIndex()) {
 				t.Fatalf("held source rebuild: %+v %v", report, err)
 			}
-			if err := pool.QueryRow(ctx, `SELECT (to_jsonb(receipt)-'checks_projection')::text FROM finding_proposal_receipts receipt WHERE receipt_id=$1`, receipt.ReceiptID).Scan(&after); err != nil || before != after {
+			if err := pool.QueryRow(ctx, `SELECT (to_jsonb(receipt)-ARRAY['checks_projection','checks_projection_bytes','checks_projection_count'])::text FROM finding_proposal_receipts receipt WHERE receipt_id=$1`, receipt.ReceiptID).Scan(&after); err != nil || before != after {
 				t.Fatalf("data migration changed receipt provenance: %v", err)
 			}
 			report, err = service.RebuildChecksProjectionBatch(ctx, 128)

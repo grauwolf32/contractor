@@ -162,8 +162,8 @@ func (s *ClaimedAdmission) WithStep(ctx context.Context, params auditstore.Admis
 func encodeAdmissionProgress(state auditstore.AdmissionProgress) ([]byte, error) {
 	if state.Schema != auditstore.AdmissionSchema || state.Revision == 0 || state.Generation == "" || state.DeadlineAt.IsZero() ||
 		state.SelectedCount < 0 || state.SelectedCount > auditdomain.MaximumItems || state.StagedCount < 0 || state.StagedCount > state.SelectedCount ||
-		state.SelectionPages < 0 || state.PreparedPages < 0 || state.PreparedPages > state.SelectionPages || validateJSONObject("admission budget", state.Budget, 4096) != nil || state.SourceCutoffAt.IsZero() || state.RoundOrdinal < 2 || state.RoundOrdinal > 32 ||
-		state.StopCode != "" && state.StopCode != "round_budget_exhausted" && state.StopCode != "item_budget_exhausted" && state.StopCode != "evidence_budget_exhausted" ||
+		state.SelectionPages < 0 || state.PreparedPages < 0 || state.PreparedPages > state.SelectionPages || validateJSONObject("admission budget", state.Budget, 4096) != nil || state.SourceCutoffAt.IsZero() || state.RoundOrdinal < 2 || state.RoundOrdinal > 33 || state.RoundOrdinal == 33 && state.SelectedCount > 0 ||
+		state.StopCode != "" && state.StopCode != "round_budget_exhausted" && state.StopCode != "item_budget_exhausted" && state.StopCode != "evidence_budget_exhausted" && state.StopCode != "submission_budget_exhausted" ||
 		(state.BlockedCode == "") != (state.BlockedReceiptID == "") || state.Cursor.Ordinal < 0 || state.Cursor.Ordinal > 512 {
 		return nil, auditstore.ErrInvalid
 	}

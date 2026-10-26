@@ -57,8 +57,12 @@ func (s *AdmissionSession) stageItems(ctx context.Context, page auditdomain.Prep
 		return auditstore.ErrPrecondition
 	}
 	ref, _ := json.Marshal(state.SelectionRoot.Ref)
-	if _, err := s.tx.Exec(ctx, admissionCreateProposedSQL, state.AuditID, state.RoundID, state.RoundOrdinal, ref, state.SelectionRoot.Digest, state.SelectedCount); err != nil {
+	created, err := s.tx.Exec(ctx, admissionCreateProposedSQL, state.AuditID, state.RoundID, state.RoundOrdinal, ref, state.SelectionRoot.Digest, state.SelectedCount, state.Generation)
+	if err != nil {
 		return err
+	}
+	if created.RowsAffected() != 1 {
+		return auditstore.ErrConflict
 	}
 	encoded, err := preparedPageStageRows(page)
 	if err != nil {

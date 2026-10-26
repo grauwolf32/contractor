@@ -86,7 +86,6 @@ type AdmissionMutation struct {
 	SelectionPage *ExactArtifact
 	PreparedPage  *ExactArtifact
 	PageContent   json.RawMessage
-	Items         []MaterializedItem
 	Retained      []ArtifactLink
 	Decisions     []AdmissionDecision
 	SelectionRoot *ExactArtifact

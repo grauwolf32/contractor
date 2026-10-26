@@ -289,7 +289,7 @@ func (s *AdmissionSession) recordDecision(ctx context.Context, decision auditsto
 	if strictjson.Decode(heldBytes, &held) != nil {
 		return auditstore.ErrInvalid
 	}
-	if decision.ProposedCheckOrdinal >= len(projection.Checks) || decision.Proposal.Verify(held) != nil || decision.SourceCheckDigest != projection.Checks[decision.ProposedCheckOrdinal].Fragment.Digest {
+	if decision.ProposedCheckOrdinal >= len(projection.Checks) || decision.Proposal.Verify(held) != nil || decision.SourceCheckDigest != projection.Checks[decision.ProposedCheckOrdinal].Fragment.Digest || decision.PlanDigest != "" && decision.PlanDigest != projection.Checks[decision.ProposedCheckOrdinal].PlanDigest {
 		return auditstore.ErrInvalid
 	}
 	keySource := admissionSourceKey(decision.ReceiptID, decision.ProposedCheckOrdinal, projection.ProposalDigest, decision.SourceCheckDigest)

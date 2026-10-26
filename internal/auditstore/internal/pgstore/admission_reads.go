@@ -167,11 +167,26 @@ func (r *admissionReader) FindingSource(ctx context.Context, id string) (auditst
 	if value, ok := r.sources[id]; ok {
 		return value, nil
 	}
+	var cost, related int
+	var projectionCost *int
+	if err := r.db.QueryRow(ctx, admissionFindingSourceCostSQL, r.state.AuditID, r.owner, r.project, id).Scan(&cost, &related, &projectionCost); err != nil {
+		return auditstore.AdmissionFindingSource{}, admissionReadError(err)
+	}
+	if projectionCost == nil {
+		return auditstore.AdmissionFindingSource{}, auditstore.ErrChecksProjectionPending
+	}
+	if err := r.work.add(0, related, cost, 0); err != nil {
+		return auditstore.AdmissionFindingSource{}, err
+	}
+	projection, err := r.readIndex(ctx, id, *projectionCost)
+	if err != nil {
+		return auditstore.AdmissionFindingSource{}, err
+	}
 	var value auditstore.AdmissionFindingSource
 	var original, retained, originalEvidence, retainedEvidence []byte
 	var projectionBytes *int
 	var overflow bool
-	err := r.db.QueryRow(ctx, admissionFindingSourceSQL, r.state.AuditID, r.owner, r.project, id).Scan(&value.ReceiptID, &value.ProjectID,
+	err = r.db.QueryRow(ctx, admissionFindingSourceSQL, r.state.AuditID, r.owner, r.project, id).Scan(&value.ReceiptID, &value.ProjectID,
 		&original, &value.Original.Digest, &value.Original.MediaType, &value.Original.SizeBytes, &retained, &value.OriginRunID, &value.OriginExecutionID,
 		&value.OriginAuditID, &projectionBytes, &originalEvidence, &retainedEvidence, &overflow)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -192,13 +207,7 @@ func (r *admissionReader) FindingSource(ctx context.Context, id string) (auditst
 	if !overflow && (strictjson.Decode(originalEvidence, &value.OriginalEvidence) != nil || strictjson.Decode(retainedEvidence, &value.RetainedEvidence) != nil || len(value.OriginalEvidence) != len(value.RetainedEvidence)) {
 		return value, auditstore.ErrInvalid
 	}
-	if err := r.work.add(0, 2+len(value.OriginalEvidence)+len(value.RetainedEvidence), len(original)+len(retained)+len(originalEvidence)+len(retainedEvidence)+256, 0); err != nil {
-		return value, err
-	}
-	value.Projection, err = r.readIndex(ctx, id, *projectionBytes)
-	if err != nil {
-		return value, err
-	}
+	value.Projection = projection
 	if value.Projection.ProposalDigest != value.Original.Digest || value.Projection.SizeBytes != value.Original.SizeBytes {
 		return value, auditstore.ErrInvalid
 	}

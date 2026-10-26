@@ -75,12 +75,16 @@ SELECT EXISTS(SELECT 1 FROM audit_artifact_links WHERE audit_id=$1
  AND artifact_ref->>'revision'=$4 AND artifact_digest=$5)`
 
 const admissionCreateProposedSQL = `
-INSERT INTO audit_rounds(round_id,audit_id,ordinal,manifest_ref,manifest_digest,state,expected_item_count)
-SELECT $2,$1,$3,$4::jsonb,$5,'proposed',$6
+INSERT INTO audit_rounds(round_id,audit_id,ordinal,manifest_ref,manifest_digest,state,expected_item_count,prepared_generation)
+SELECT $2,$1,$3,$4::jsonb,$5,'proposed',$6,$7
 FROM audits WHERE audit_id=$1 AND state='active' AND dispatch_state='open'
  AND $3<=max_rounds AND $6<=max_items_per_round
  AND (SELECT COALESCE(sum(expected_item_count),0) FROM audit_rounds WHERE audit_id=$1 AND state<>'proposed')+$6<=max_items_total
-ON CONFLICT(round_id) DO NOTHING`
+ON CONFLICT(round_id) DO UPDATE SET prepared_generation=EXCLUDED.prepared_generation
+WHERE audit_rounds.audit_id=EXCLUDED.audit_id AND audit_rounds.state='proposed'
+ AND audit_rounds.prepared_generation=EXCLUDED.prepared_generation
+ AND audit_rounds.expected_item_count=EXCLUDED.expected_item_count
+ AND audit_rounds.manifest_ref=EXCLUDED.manifest_ref AND audit_rounds.manifest_digest=EXCLUDED.manifest_digest`
 
 const admissionStageItemsSQL = `
 WITH input AS MATERIALIZED (
@@ -118,3 +122,17 @@ SELECT octet_length(output::text)+octet_length((execution.preparation_snapshot->
 FROM audit_executions AS execution CROSS JOIN LATERAL jsonb_array_elements(execution.preparation_outputs) AS output
 WHERE execution.audit_id=$1 AND execution.workflow_role=$2 AND execution.role='prepare'
  AND execution.collection_disposition='accepted-result' AND output->>'logicalName'=$3`
+
+// Cost-only preflight touches stored lengths/counts but returns no evidence
+// JSON. The same closed CASE as the hydration query caps unsupported closures.
+const admissionFindingSourceCostSQL = `
+SELECT octet_length(receipt.proposal_ref::text)+octet_length(hold.proposal_ref::text)+2048+
+ CASE WHEN jsonb_array_length(receipt.evidence)<=31 AND jsonb_array_length(hold.evidence)<=31
+ AND octet_length(receipt.evidence::text)+octet_length(hold.evidence::text)<=524288
+ THEN octet_length(receipt.evidence::text)+octet_length(hold.evidence::text) ELSE 4 END,
+ 2+CASE WHEN jsonb_array_length(receipt.evidence)<=31 AND jsonb_array_length(hold.evidence)<=31
+ AND octet_length(receipt.evidence::text)+octet_length(hold.evidence::text)<=524288
+ THEN jsonb_array_length(receipt.evidence)+jsonb_array_length(hold.evidence) ELSE 0 END,
+ receipt.checks_projection_bytes
+FROM finding_proposal_receipts AS receipt JOIN finding_proposal_audit_holds AS hold USING(receipt_id)
+WHERE hold.audit_id=$1 AND receipt.owner_id=$2 AND hold.project_id=$3 AND receipt.receipt_id=$4`

@@ -125,8 +125,10 @@ ALTER TABLE audit_rounds ADD COLUMN prepared_review_count integer NOT NULL DEFAU
 CREATE FUNCTION contractor_protect_prepared_audit_item() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
  IF TG_OP='INSERT' THEN
-  IF NEW.prepared_execution IS NOT NULL AND NOT EXISTS(SELECT 1 FROM audit_rounds
-   WHERE audit_id=NEW.audit_id AND round_id=NEW.round_id AND state='proposed' AND prepared_page_count IS NULL) THEN
+  IF (NEW.prepared_execution IS NOT NULL OR EXISTS(SELECT 1 FROM audit_rounds
+   WHERE audit_id=NEW.audit_id AND round_id=NEW.round_id AND prepared_generation IS NOT NULL))
+   AND NOT EXISTS(SELECT 1 FROM audit_rounds WHERE audit_id=NEW.audit_id AND round_id=NEW.round_id
+    AND state='proposed' AND prepared_page_count IS NULL AND NEW.prepared_execution IS NOT NULL) THEN
    RAISE EXCEPTION 'prepared Audit membership is sealed' USING ERRCODE='23514'; END IF;
   RETURN NEW;
  END IF;
@@ -154,3 +156,18 @@ END;
 $$;
 CREATE TRIGGER audit_items_protect_prepared BEFORE INSERT OR UPDATE OR DELETE ON audit_items
  FOR EACH ROW EXECUTE FUNCTION contractor_protect_prepared_audit_item();
+
+-- Once the exact root seals a typed Round, the publication identity cannot be
+-- rewritten while ordinary Round state and item lifecycle continue normally.
+CREATE FUNCTION contractor_protect_prepared_audit_round() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF OLD.prepared_page_count IS NOT NULL AND ROW(NEW.round_id,NEW.audit_id,NEW.ordinal,NEW.manifest_ref,NEW.manifest_digest,
+  NEW.acceptance_digest,NEW.expected_item_count,NEW.prepared_generation,NEW.prepared_page_count,NEW.prepared_pages_digest)
+ IS DISTINCT FROM ROW(OLD.round_id,OLD.audit_id,OLD.ordinal,OLD.manifest_ref,OLD.manifest_digest,
+  OLD.acceptance_digest,OLD.expected_item_count,OLD.prepared_generation,OLD.prepared_page_count,OLD.prepared_pages_digest) THEN
+  RAISE EXCEPTION 'prepared Audit root is immutable' USING ERRCODE='23514'; END IF;
+ RETURN NEW;
+END;
+$$;
+CREATE TRIGGER audit_rounds_protect_prepared BEFORE UPDATE ON audit_rounds
+ FOR EACH ROW EXECUTE FUNCTION contractor_protect_prepared_audit_round();

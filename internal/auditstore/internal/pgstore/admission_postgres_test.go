@@ -279,3 +279,31 @@ func TestPostgresAdmissionRaw128HeadersAndAllPortsUseSingleConnection(t *testing
 		t.Fatalf("canceled admission=%v", err)
 	}
 }
+
+func TestPostgresAdmissionFinalRoundHasBoundedBudgetDispositionIntent(t *testing.T) {
+	f, store, p := admissionFixture(t, "admission-last-round")
+	if _, err := f.pool.Exec(f.ctx, `UPDATE audit_rounds SET ordinal=32 WHERE audit_id=$1`, f.audit.AuditID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `UPDATE audits SET max_rounds=32 WHERE audit_id=$1`, f.audit.AuditID); err != nil {
+		t.Fatal(err)
+	}
+	state, err := store.WithStep(f.ctx, p, func(context.Context, *AdmissionSession) (auditstore.AdmissionMutation, error) {
+		return auditstore.AdmissionMutation{}, nil
+	})
+	if err != nil || state.RoundOrdinal != 33 {
+		t.Fatalf("terminal admission=%+v,%v", state, err)
+	}
+	state, err = store.WithStep(f.ctx, p, func(_ context.Context, s *AdmissionSession) (auditstore.AdmissionMutation, error) {
+		next := s.State
+		next.StopCode = "round_budget_exhausted"
+		next.Exhausted = true
+		return auditstore.AdmissionMutation{Next: next}, nil
+	})
+	if err != nil || !state.Changed || state.StopCode != "round_budget_exhausted" {
+		t.Fatalf("budget disposition=%+v,%v", state, err)
+	}
+	if count, e := f.store.CountItems(f.ctx, f.audit.AuditID); e != nil || count != 1 {
+		t.Fatalf("sentinel published membership=%d,%v", count, e)
+	}
+}

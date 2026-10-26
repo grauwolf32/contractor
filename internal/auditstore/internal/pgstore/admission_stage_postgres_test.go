@@ -246,6 +246,10 @@ func TestPostgresAdmissionStagesMoreThan128AndAcceptsConstantParentSeal(t *testi
 	if err != nil || len(selected) != 1 {
 		t.Fatalf("bounded prefix=%d,%v", len(selected), err)
 	}
+	if _, err = f.pool.Exec(f.ctx, `INSERT INTO audit_items(item_id,audit_id,round_id,item_key,ordinal,kind,subject_key,task_ref,task_digest,origin,workflow_role)
+ SELECT 'untyped-rogue',audit_id,$2,'untyped-rogue',130,kind,subject_key,task_ref,task_digest,origin,workflow_role FROM audit_items WHERE item_id=$1`, f.itemID, state.RoundID); err == nil {
+		t.Fatal("untyped row inserted into sealed typed membership")
+	}
 	if _, err = f.pool.Exec(f.ctx, `UPDATE audit_items SET prepared_execution='{}' WHERE item_id='typed-item-000'`); err == nil {
 		t.Fatal("private execution projection mutable")
 	}
