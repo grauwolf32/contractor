@@ -10,12 +10,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
-	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
@@ -23,33 +22,11 @@ import (
 // dependencyConsumerPins binds configuration/Skills to their exact content,
 // never a mutable catalog name/version. The baseline already owns their holds.
 func dependencyConsumerPins(binding auditprofile.ResolvedAuditWorkflowBinding, baseline BaselineSnapshot) (string, string, error) {
-	workflow, err := json.Marshal(binding.Workflow)
+	workflow, skills, err := auditbaseline.ConsumerContentPins(binding, baseline)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("%w: %w", ErrInvalid, err)
 	}
-	refs, err := resolved.WorkflowSkillRefs(binding.Workflow)
-	if err != nil {
-		return "", "", err
-	}
-	selected := make([]agentskills.RunSkillSnapshot, 0, len(refs))
-	for _, ref := range refs {
-		found := false
-		for _, skill := range baseline.Skills {
-			if skill.Name == ref.Name {
-				selected = append(selected, skill)
-				found = true
-				break
-			}
-		}
-		if !found {
-			return "", "", fmt.Errorf("%w: retained_dependency_skill_unavailable", ErrInvalid)
-		}
-	}
-	skills, err := json.Marshal(selected)
-	if err != nil {
-		return "", "", err
-	}
-	return auditdomain.DigestBytes(workflow), auditdomain.DigestBytes(skills), nil
+	return workflow, skills, nil
 }
 
 func hasRetainedDependencyMapping(binding auditprofile.ResolvedAuditWorkflowBinding) bool {
