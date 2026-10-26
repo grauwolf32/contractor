@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V62-007
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V62-019
 languages:
@@ -28,24 +28,34 @@ context:
   - docs/spec/audits/scans.md
   - docs/spec/audits/execution.md
   - docs/spec/platform/persistence.md
-  format_transition: Update all current readers/writers together. No legacy fallback. Deployment requires
-    no active Audit using the previous execution format; historical immutable artifacts remain evidence
-    and are not rewritten. No deployment is part of this task.
+  format_transition: Forward migration 000052 rejects reconcilable Audits with an existing Round, including
+    ordinary worklists; only parent metadata is read. Stop the old Server before applying. Drafts/preparation
+    without Rounds and terminal historical evidence are preserved. No deployment or permissive legacy
+    reader is included.
+  dispatch_read_boundary: Finalize the selected fitting prefix first. Typed singletons and final multi-item
+    batches read each exact task once before typed authorization and reuse its decoded bytes for assembly.
+    Ordinary singletons retain their accepted SQL dependency/exact-descriptor path with zero task payload
+    reads; Runtime verifies actual task bytes before model context.
 scope:
   in:
   - Remove full plan and dependency values from transported ExecutionItem; retain item identity, exact
     task package identity/digest and inputs.
-  - Read and verify the selected task package before authorization, reuse that read for task input assembly,
-    and retain the bounded internal prepared projection.
+  - Verify selected typed/batched task packages before authorization and reuse that read for input assembly;
+    preserve ordinary singleton zero-read behavior and the bounded immutable private PreparedExecutionItem
+    projection.
   - Update Go/Runtime strict contracts, package size accounting, shared fixtures and specs atomically.
     Keep ordinary V62-006 dependency manifests and FindingTask.
+  - Add a minimal forward-migration preflight for the incompatible worklist format and real migration
+    tests, without new tables, endpoints or recovery mechanisms.
   out:
   - No new model authority, arbitrary Workflow routing, receipt/lease store or permissive legacy reader.
   - No deployment, live model changes or modification of historical frozen evidence.
 acceptance_criteria:
 - id: A1
-  text: Task package digest and strict content validation replace payload-copy comparisons in Server and
-    Runtime; forged task/source/owner/route/dependency inputs fail before a child intent.
+  text: Server validates exact descriptors and accepted SQL dependencies before child intent. Selected
+    typed/batched task bodies are strictly verified once before typed route authorization; ordinary singleton
+    dispatch retains its accepted-descriptor path. Runtime verifies actual task bytes and strict plan/dependency
+    content before model context.
 - id: A2
   text: Dispatch performs no additional per-item payload reads and no whole-page/whole-Round scan; internal
     prepared projections remain bounded and immutable.
@@ -56,8 +66,19 @@ acceptance_criteria:
   text: Old transport fields are rejected; no permissive legacy reader or model-authored execution authority
     is added.
 tests:
-- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditbaseline ./internal/auditstore/...
-    ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/runservice
+- command: go test -tags=integration -count=1 ./internal/persistence/postgres ./internal/auditdomain ./internal/auditbaseline
+    ./internal/auditstore/... ./internal/auditservice ./internal/auditcontroller ./internal/auditimport
+    ./internal/runservice
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: cd runtime && UV_OFFLINE=1 uv run --frozen python -m pytest -q tests/test_audit_accepted_plans.py
+    tests/test_audit_retained_dependencies.py tests/test_audit_results_toolset.py tests/test_audit_result_collector.py
+    tests/test_audit_result_publication.py tests/test_audit_completion_contracts.py tests/test_audit_completion_runtime.py
+    tests/test_audit_completion_continuation.py tests/test_audit_completion_e2e.py tests/test_audit_completion_diagnostics.py
+    tests/test_audit_arguments.py tests/test_worker_completion.py
   covers:
   - A1
   - A2
