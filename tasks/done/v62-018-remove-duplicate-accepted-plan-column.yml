@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V62-007
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V62-017
 languages:
@@ -80,7 +80,7 @@ lifecycle:
   bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
 verification:
   date: '2026-10-27'
-  source_revision: a149e7f9bfbb80be286806d706e49a6c8a9e28d1
+  source_revision: 1080898d3385de6e87315be0156eaf23a16d8319
   results:
   - go test -tags=integration -count=1 ./internal/persistence/postgres ./internal/auditstore/... passed
     on equivalent implementation 7b2d5999d77d23bd15c231839c8692d15765c91b (persistence 40.721s; pgstore
@@ -91,6 +91,11 @@ verification:
     source guard passed.
   - make lint passed on final implementation.
   - make docs-erd and spec/ERD guards passed; schema 51, 74 tables and 103 foreign keys.
+  - The missed process SQL assertion now inspects prepared_execution->accepted_plan with the same zero-plan
+    expectation. Full tests/e2e passed after the fix (5.620s), then passed again with the independent
+    lifecycle fix (5.530s). Complete iterative PostgreSQL/process command and make lint passed on clean
+    07d4962a76d65af60b9a69d727612d0bb2f1d6d5. Persistence and store code are unchanged from the previously
+    passing full suites; the full pgstore suite also passed during integrated V62-019 verification (147.498s).
   reports:
     postgres:
       path: .local/audit-iterative-gate/postgres-7uyliyd6/result.json
@@ -103,6 +108,28 @@ verification:
     owner_log: /private/tmp/v62-018-owners.log
     fixture_fix_log: /private/tmp/v62-018-persistence-fixture-fix.log
     lint_log: /private/tmp/v62-018-lint-final.log
+    final:
+      postgres:
+        path: .local/audit-iterative-gate/postgres-4_e8zag5/result.json
+        source:
+          revision: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+          dirty: false
+        counts:
+          required: 53
+          passed: 100
+          skipped: 0
+        report_digest: sha256:c21423d952085962cea7920f4b9354e8f049784a4ff57a1a85a554c00a87fc60
+      process:
+        path: .local/audit-iterative-gate/process-pv3qlwss/result.json
+        source:
+          revision: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+          dirty: false
+        counts:
+          required: 5
+          passed: 6
+          skipped: 0
+        report_digest: sha256:5b1b93d7f012f856e1585cceb3bb5710db7ac4aee0dd74c5417b2c6ebb9d8145
+      lint_log: /private/tmp/v62-019-final-lint.log
   history:
   - Initial lint rejected direct shared-fixture access in the migration test. Switched to contractstest
     and TestShared naming, reran the complete affected persistence package and lint. No runtime behavior
@@ -110,5 +137,9 @@ verification:
   - 'Reopened during V62-019 process verification: default_audit_bypass still selected the removed standalone
     column at tests/e2e/audit_iterative_assertions_test.go:220. The ordinary Audit completed; its SQL
     assertion failed. Prior verified implementation: a149e7f9bfbb80be286806d706e49a6c8a9e28d1.'
+  - Sibling SQL search found no other current-schema reader of the removed column; historical migration
+    seeding and explicit column-absence assertions remain intentional. The failed first process run is
+    retained at .local/audit-iterative-gate/process-ah1dvy78/result.json.
   limits:
   - No deployment or full release-verify run claimed.
+implementation_commit: 1080898d3385de6e87315be0156eaf23a16d8319
