@@ -99,7 +99,7 @@ func TestSharedPostgresFindingCorrelationMigrationFreezesRetainedPrimaryKeys(t *
 	for _, c := range cases {
 		var project, algorithm, value, group, reason, receipt string
 		if err := pool.QueryRow(ctx, `SELECT correlation_project_id,correlation_algorithm,correlation_value,correlation_group_key,correlation_reason,
- (SELECT (to_jsonb(r)-'comparison_projection')::text FROM finding_proposal_receipts r WHERE receipt_id=f.first_receipt_id) FROM audit_findings f WHERE finding_id=$1`, c.name).Scan(&project, &algorithm, &value, &group, &reason, &receipt); err != nil {
+ (SELECT (to_jsonb(r)-ARRAY['comparison_projection','checks_projection','checks_projection_bytes','checks_projection_count'])::text FROM finding_proposal_receipts r WHERE receipt_id=f.first_receipt_id) FROM audit_findings f WHERE finding_id=$1`, c.name).Scan(&project, &algorithm, &value, &group, &reason, &receipt); err != nil {
 			t.Fatal(err)
 		}
 		expected := ""

@@ -85,11 +85,11 @@ VALUES($1,$1,'allocation','runtime','instance','stage','worker',$1,$1,$1,'sha256
 	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(receipt)-'checks_projection' ORDER BY receipt_id)::text FROM finding_proposal_receipts receipt`).Scan(&after); err != nil || before != after {
+	if err := pool.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(receipt)-ARRAY['checks_projection','checks_projection_bytes','checks_projection_count'] ORDER BY receipt_id)::text FROM finding_proposal_receipts receipt`).Scan(&after); err != nil || before != after {
 		t.Fatal("migration rewrote retained receipt data", err)
 	}
 	var pending int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM finding_proposal_receipts WHERE receipt_id LIKE 'checks-%' AND checks_projection IS NULL`).Scan(&pending); err != nil || pending != 2 {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM finding_proposal_receipts WHERE receipt_id LIKE 'checks-%' AND checks_projection IS NULL AND checks_projection_bytes IS NULL AND checks_projection_count IS NULL`).Scan(&pending); err != nil || pending != 2 {
 		t.Fatalf("existing exact sources were guessed instead of marked pending: %d %v", pending, err)
 	}
 	fileAfter, err := os.ReadFile(filename)
