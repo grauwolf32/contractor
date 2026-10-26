@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V62-007
 priority: P2
-status: completed
+status: in_progress
 depends_on:
 - V62-017
 languages:
@@ -58,6 +58,11 @@ tests:
   - A1
   - A2
   - A3
+- command: go test -count=1 ./tests/e2e && make test-audit-iterative-e2e
+  covers:
+  - A1
+  - A2
+  - A3
 - command: make lint
   covers:
   - A1
@@ -73,7 +78,6 @@ cardinality:
     whole-history hydration.
 lifecycle:
   bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
-implementation_commit: a149e7f9bfbb80be286806d706e49a6c8a9e28d1
 verification:
   date: '2026-10-27'
   source_revision: a149e7f9bfbb80be286806d706e49a6c8a9e28d1
@@ -103,5 +107,8 @@ verification:
   - Initial lint rejected direct shared-fixture access in the migration test. Switched to contractstest
     and TestShared naming, reran the complete affected persistence package and lint. No runtime behavior
     changed.
+  - 'Reopened during V62-019 process verification: default_audit_bypass still selected the removed standalone
+    column at tests/e2e/audit_iterative_assertions_test.go:220. The ordinary Audit completed; its SQL
+    assertion failed. Prior verified implementation: a149e7f9bfbb80be286806d706e49a6c8a9e28d1.'
   limits:
   - No deployment or full release-verify run claimed.
