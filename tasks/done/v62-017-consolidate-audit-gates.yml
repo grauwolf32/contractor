@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V62-013
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V62-007
 - V62-013
@@ -73,6 +73,11 @@ tests:
   - A2
   - A3
   - A4
+- command: go test -count=1 ./tests/e2e
+  covers:
+  - A2
+  - A3
+  - A4
 failure_outcomes:
   permanent: Invalid source, route, schema or exact bytes fail before target execution; no fallback.
   retryable: Reuse existing bounded retries and original deadlines.
@@ -83,3 +88,49 @@ cardinality:
     whole-history hydration.
 lifecycle:
   bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
+implementation_commit: dc44a7d10dd089fbb0b0a18d5075f65fb84c5241
+verification:
+  date: '2026-10-27'
+  source_revision: dc44a7d10dd089fbb0b0a18d5075f65fb84c5241
+  results:
+  - 'Full scripts unittest: 167 passed; full untagged tests/e2e package passed in 6.834s.'
+  - make lint passed including release graph, inventories, generated client check, Python/UI gates and
+    layer contracts.
+  - make test-audit-iterative-postgres test-audit-iterative-e2e passed as one sequential final command;
+    53 required PG cases / 100 actual, 5 required process cases / 6 actual including parents; no skips.
+  - 'make test-audit-composition-e2e test-audit-completion-e2e passed: 58 store + 11 process + real browser,
+    then 250 Go + 469 Runtime cases; no selected skips.'
+  - Canonical verify-iterative-postgres and verify-iterative-process accepted those same actual reports
+    without running tests again.
+  - All 66 selected identities and 54 acceptance edges match the pre-change matrix, including 13 supporting
+    regressions.
+  reports:
+    postgres:
+      path: .local/audit-iterative-gate/postgres-v7vpewk9/result.json
+      counts:
+        required: 53
+        passed: 100
+        skipped: 0
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+      report_digest: sha256:6579803209f272f47f1a63fffc6652d0a1d1defe442001c0590b3732b721fb21
+    process:
+      path: .local/audit-iterative-gate/process-hpbsvlmm/result.json
+      counts:
+        required: 5
+        passed: 6
+        skipped: 0
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+      report_digest: sha256:34dadf75bccc6921c429fde1517af56244fee97247eb39983a9c6ace468476e3
+  history:
+  - Initial real gates exposed legal slash-containing Go test names and completion console redaction regressions;
+    both fixed with targeted regressions and full owner tests.
+  - One first joined process case failed while the separate composition family was active. Content-free
+    report preserves failure identity but not cause; the detailed isolated case passed (71.42s), followed
+    by the complete sequential iterative command passing unchanged. No assertion, model or timeout was
+    weakened. Cause is unproven; reopen process-fixture diagnosis on recurrence with full redacted output.
+  limits:
+  - No deployment, live-model quality evaluation or full release-verify run claimed.
