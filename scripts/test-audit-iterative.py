@@ -168,8 +168,8 @@ def run(boundary: str, output_dir: Path) -> Path:
     evidence = {"schema": "contractor.audit-iterative-gate.v1", "status": "incomplete", "boundary": boundary}
     destination = directory / "result.json"
     try:
-        _prerequisites(boundary)
         evidence["source"] = _source()
+        _prerequisites(boundary)
         selected = matrix()[boundary]
         evidence["matrix_digest"] = "sha256:" + hashlib.sha256(MATRIX.read_bytes()).hexdigest()
         evidence["environment"] = {"os": platform.system(), "arch": platform.machine(), "database_configured": True, "runtime_required": boundary == "process"}

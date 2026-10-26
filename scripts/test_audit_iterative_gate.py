@@ -89,6 +89,8 @@ class AuditIterativeGateTest(unittest.TestCase):
             capture.assert_not_called()
             result = json.loads(next(Path(temporary).glob("*/result.json")).read_text())
             self.assertEqual(result["status"], "failed")
+            self.assertRegex(result["source"]["revision"], r"^[0-9a-f]{40}$")
+            self.assertIsInstance(result["source"]["dirty"], bool)
             for boundary in ("postgres", "process"):
                 with mock.patch.dict(os.environ, {"CONTRACTOR_TEST_DATABASE_URL": "configured"}), mock.patch.object(gate.shutil, "which", return_value=None):
                     with self.assertRaisesRegex(ValueError, "Go"):
