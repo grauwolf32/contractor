@@ -1,0 +1,85 @@
+schema_version: '1.0'
+id: V62-017
+title: Consolidate Audit gate reports and evidence
+milestone: audit-iterative-simplification-2026-10
+epic: audits
+kind: chore
+introduced_by: V62-013
+priority: P2
+status: in_progress
+depends_on:
+- V62-007
+- V62-013
+languages:
+- python
+- yaml
+- markdown
+goal: One report verifier and capture lifecycle serve the Audit family gates; one case inventory owns
+  iterative selection and acceptance coverage.
+context:
+  authority: The user explicitly requested creation, sequential implementation, verification, task closure
+    and merge of the five reviewed simplifications on 2026-10-27.
+  finding: scripts/test-audit-iterative.py:89, scripts/test-audit-composition-e2e.py:36 and scripts/test-audit-completion-e2e.py:44
+    implement overlapping Go report verification; the iterative matrix and evidence duplicate coverage
+    prose.
+  review: Read-only review of main 4d50b1cfc4961adad9dfa1fef160ef338cbd86ba and the accepted five-step
+    simplification plan.
+scope:
+  in:
+  - Move strict Go event verification, selection patterns, redaction and subprocess capture into the existing
+    release_test_reports owner; retain family prerequisite, JUnit and browser policies.
+  - Represent every existing iterative case once with its boundary/package/case/covers metadata; derive
+    selection and coverage without dropping supporting regressions.
+  - Keep historical task evidence immutable; new evidence references the exact matrix and report instead
+    of copying coverage prose. Keep canonical report reuse and existing Make entrypoints.
+  out:
+  - No new model authority, arbitrary Workflow routing, receipt/lease store or permissive legacy reader.
+  - No deployment, live model changes or modification of historical frozen evidence.
+acceptance_criteria:
+- id: A1
+  text: All 66 existing iterative identities (53 PostgreSQL, 5 process, 8 harness), including 13 supporting
+    regressions without acceptance links, remain selected.
+- id: A2
+  text: Missing, zero, skipped, failed, duplicate, malformed, oversized, out-of-order and unfinished selected
+    cases fail. Unrelated optional roots retain their policy.
+- id: A3
+  text: Cancellation and timeout stop and join descendants; secrets are redacted. Fresh execution evidence
+    pins source and matrix; report-only verification cannot claim a new execution.
+- id: A4
+  text: The direct gates pass against real PostgreSQL/Server/Runtime; canonical release consumers reuse
+    reports without duplicate execution.
+tests:
+- command: python3 -m unittest discover -s scripts -p "test_*.py"
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-iterative-postgres test-audit-iterative-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-composition-e2e test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+failure_outcomes:
+  permanent: Invalid source, route, schema or exact bytes fail before target execution; no fallback.
+  retryable: Reuse existing bounded retries and original deadlines.
+  ambiguous: Reconcile existing receipt, generation, cursor and child intent; never append/recharge blindly.
+  cancelled: Join owned work and preserve immutable accepted evidence; partial staged work stays private.
+cardinality:
+  bound: Preserve existing per-slice rows/bytes, page/closure ceilings and canonical report bounds; no
+    whole-history hydration.
+lifecycle:
+  bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.

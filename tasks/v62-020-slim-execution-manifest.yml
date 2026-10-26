@@ -1,0 +1,99 @@
+schema_version: '1.0'
+id: V62-020
+title: Remove duplicated plan payloads from execution manifests
+milestone: audit-iterative-simplification-2026-10
+epic: audits
+kind: chore
+introduced_by: V62-007
+priority: P2
+status: pending
+depends_on:
+- V62-019
+languages:
+- go
+- python
+- json
+- markdown
+goal: Use the exact task package as the single transported plan/dependency document and keep execution
+  manifests compact.
+context:
+  authority: The user explicitly requested creation, sequential implementation, verification, task closure
+    and merge of the five reviewed simplifications on 2026-10-27.
+  finding: internal/auditdomain/types.go ExecutionItem duplicates ItemTask AcceptedPlan/Dependencies;
+    Runtime packages.py verifies both those copies and the exact task package digest.
+  review: Read-only review of main 4d50b1cfc4961adad9dfa1fef160ef338cbd86ba and the accepted five-step
+    simplification plan.
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/scans.md
+  - docs/spec/audits/execution.md
+  - docs/spec/platform/persistence.md
+  format_transition: Update all current readers/writers together. No legacy fallback. Deployment requires
+    no active Audit using the previous execution format; historical immutable artifacts remain evidence
+    and are not rewritten. No deployment is part of this task.
+scope:
+  in:
+  - Remove full plan and dependency values from transported ExecutionItem; retain item identity, exact
+    task package identity/digest and inputs.
+  - Read and verify the selected task package before authorization, reuse that read for task input assembly,
+    and retain the bounded internal prepared projection.
+  - Update Go/Runtime strict contracts, package size accounting, shared fixtures and specs atomically.
+    Keep ordinary V62-006 dependency manifests and FindingTask.
+  out:
+  - No new model authority, arbitrary Workflow routing, receipt/lease store or permissive legacy reader.
+  - No deployment, live model changes or modification of historical frozen evidence.
+acceptance_criteria:
+- id: A1
+  text: Task package digest and strict content validation replace payload-copy comparisons in Server and
+    Runtime; forged task/source/owner/route/dependency inputs fail before a child intent.
+- id: A2
+  text: Dispatch performs no additional per-item payload reads and no whole-page/whole-Round scan; internal
+    prepared projections remain bounded and immutable.
+- id: A3
+  text: Typed and ordinary dependency consumers, retained-to-local exact bytes, approval/lifecycle checks,
+    lost replies and initialization recovery remain correct.
+- id: A4
+  text: Old transport fields are rejected; no permissive legacy reader or model-authored execution authority
+    is added.
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditbaseline ./internal/auditstore/...
+    ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/runservice
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-iterative-postgres test-audit-iterative-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-composition-e2e test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+failure_outcomes:
+  permanent: Invalid source, route, schema or exact bytes fail before target execution; no fallback.
+  retryable: Reuse existing bounded retries and original deadlines.
+  ambiguous: Reconcile existing receipt, generation, cursor and child intent; never append/recharge blindly.
+  cancelled: Join owned work and preserve immutable accepted evidence; partial staged work stays private.
+cardinality:
+  bound: Preserve existing per-slice rows/bytes, page/closure ceilings and canonical report bounds; no
+    whole-history hydration.
+lifecycle:
+  bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
