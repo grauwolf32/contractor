@@ -927,7 +927,10 @@ a new item, target action or budget reservation.
 
 **AUX-R103.** Typed admission and dispatch validate the exact pinned profile,
 baseline scope, effective active-check policy, binding/capability closure and
-current exact item approval. The effective Project policy remains the
+current exact item approval. An eligible candidate is deferred with
+`submission_budget_exhausted` before selection when all cumulative child Run
+reservations are spent; it cannot create a new accepted Round just to close
+at dispatch. The effective Project policy remains the
 start-time policy under PRJ-R104; editing Project policy applies to new
 Audits and does not reinterpret the accepted authorization of an existing
 Audit. Live owner/Project lifecycle fences and expiring approvals still

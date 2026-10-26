@@ -125,6 +125,7 @@ func typedAdmissionStopReason(code string) *auditstore.StopReason {
 		"round_complete":                 "The immutable Audit Round has no further admissible typed finding checks; retained decisions describe rejected or blocked candidates.",
 		"round_budget_exhausted":         "Typed finding checks remain after the configured Round budget was exhausted.",
 		"item_budget_exhausted":          "Typed finding checks remain after the cumulative item budget was exhausted.",
+		"submission_budget_exhausted":    "Typed finding checks remain after the cumulative child Run submission budget was exhausted.",
 		"evidence_budget_exhausted":      "The complete retained typed-check context exceeds the remaining evidence budget.",
 		"next_round_validation_deadline": "The durable next-Round validation deadline expired before complete immutable membership was accepted.",
 	}[code]

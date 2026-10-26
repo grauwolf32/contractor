@@ -15,10 +15,30 @@ import (
 )
 
 func TestPostgresTypedAdmissionDefersAtNonTimeRoundBudgetWithoutTargetRetry(t *testing.T) {
+	for _, budget := range []string{"round", "submission"} {
+		t.Run(budget, func(t *testing.T) { testTypedNonTimeBudget(t, budget) })
+	}
+}
+
+func testTypedNonTimeBudget(t *testing.T, budget string) {
+	t.Helper()
+	code := "round_budget_exhausted"
+	if budget == "submission" {
+		code = "submission_budget_exhausted"
+	}
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
 	catalog := typedRoutingControllerConfig(t, func(files map[string]string) {
-		files["audit-profiles/checklist.yaml"] = strings.Replace(files["audit-profiles/checklist.yaml"], "maxRounds: 3", "maxRounds: 1", 1)
+		profile := files["audit-profiles/checklist.yaml"]
+		if budget == "submission" {
+			profile = strings.Replace(profile, "maxSubmittedRuns: 16", "maxSubmittedRuns: 1", 1)
+			profile = strings.Replace(profile, "maxItemsPerRound: 8", "maxItemsPerRound: 2", 1)
+			profile = strings.Replace(profile, "maxItemsTotal: 8", "maxItemsTotal: 2", 1)
+			profile = strings.Replace(profile, "batchSize: 1", "batchSize: 2", 1)
+		} else {
+			profile = strings.Replace(profile, "maxRounds: 3", "maxRounds: 1", 1)
+		}
+		files["audit-profiles/checklist.yaml"] = profile
 	})
 	h := newPostgresControllerHarnessWithConfig(t, ctx, 0, 1, catalog)
 	intake, err := findingintake.New(h.pool)
@@ -47,7 +67,7 @@ func TestPostgresTypedAdmissionDefersAtNonTimeRoundBudgetWithoutTargetRetry(t *t
 			break
 		}
 	}
-	if err != nil || audit.State != auditstore.AuditFinalizing || audit.StopReason == nil || audit.StopReason.Code != "round_budget_exhausted" || audit.SubmittedRunCount != 1 || audit.ReservedRunCount != 1 {
+	if err != nil || audit.State != auditstore.AuditFinalizing || audit.StopReason == nil || audit.StopReason.Code != code || audit.SubmittedRunCount != 1 || audit.ReservedRunCount != 1 {
 		t.Fatalf("non-time budget: state=%s reason=%+v submitted=%d reserved=%d error=%v", audit.State, audit.StopReason, audit.SubmittedRunCount, audit.ReservedRunCount, err)
 	}
 	var deferred int
@@ -55,7 +75,7 @@ func TestPostgresTypedAdmissionDefersAtNonTimeRoundBudgetWithoutTargetRetry(t *t
 		t.Fatalf("bounded defer disposition count=%d error=%v", deferred, err)
 	}
 	progress := readTypedAdmissionProgress(t, ctx, h)
-	if progress.SelectedCount != 0 || progress.StopCode != "round_budget_exhausted" || progress.SelectionRoot != nil || progress.PreparedRoot != nil {
+	if progress.SelectedCount != 0 || progress.StopCode != code || progress.SelectionRoot != nil || progress.PreparedRoot != nil {
 		t.Fatal("exhausted non-time budget created partial accepted work")
 	}
 }

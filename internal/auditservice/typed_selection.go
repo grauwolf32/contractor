@@ -69,6 +69,13 @@ func (s *Service) selectTypedCandidate(ctx context.Context, session *hookstore.A
 		mutation.Next.Exhausted = true
 		return typedSelectionCheckpoint(mutation, budget)
 	}
+	if audit.ReservedRunCount >= audit.Limits.MaxSubmittedRuns {
+		decision.Disposition, decision.Code = "deferred", "submission_budget_exhausted"
+		mutation.Decisions = []auditstore.AdmissionDecision{decision}
+		mutation.Next.StopCode = decision.Code
+		mutation.Next.Exhausted = true
+		return typedSelectionCheckpoint(mutation, budget)
+	}
 	if budget.Full() {
 		decision.Disposition, decision.Code = "deferred", "round_metadata_or_item_limit"
 		mutation.Decisions = []auditstore.AdmissionDecision{decision}
