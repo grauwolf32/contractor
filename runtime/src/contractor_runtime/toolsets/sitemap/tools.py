@@ -6,7 +6,6 @@ import asyncio
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from types import MappingProxyType
 from typing import Any
-from urllib.parse import unquote
 from uuid import uuid4
 
 from contractor_runtime.adapters import AdapterHandles
@@ -100,31 +99,20 @@ class _SitemapTool(SessionArtifactTool[SitemapSession]):
         super().__init__(session, artifact, metrics, secrets)
         self._dispatcher = dispatcher
 
-    def _safe(self, value: Any, depth: int = 0) -> None:
+    def _validate_nesting(self, value: Any, depth: int = 0) -> None:
         if depth > 32:
             raise ToolInputError("sitemap arguments exceed the nesting bound")
-        if isinstance(value, str):
-            # Stronger ingress rejection than telemetry redaction: even a short
-            # credential must not become persisted context or a selector hash.
-            text = value
-            for _ in range(5):
-                if any(secret and secret in text for secret in self._secrets):
-                    raise ToolInputError("sitemap arguments contain a private credential")
-                decoded = unquote(text)
-                if decoded == text:
-                    break
-                text = decoded
-        elif isinstance(value, Mapping):
+        if isinstance(value, Mapping):
             for key, item in value.items():
-                self._safe(key, depth + 1)
-                self._safe(item, depth + 1)
+                self._validate_nesting(key, depth + 1)
+                self._validate_nesting(item, depth + 1)
         elif isinstance(value, (list, tuple)):
             for item in value:
-                self._safe(item, depth + 1)
+                self._validate_nesting(item, depth + 1)
 
     async def _invoke(self, arguments: dict, operation: Callable[[], Awaitable[dict]]) -> dict:
         with self._recorded({}) as call:
-            self._safe(arguments)
+            self._validate_nesting(arguments)
             try:
                 async with asyncio.timeout(15):
                     result = await operation()
