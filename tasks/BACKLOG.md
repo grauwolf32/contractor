@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-124 open tasks: 9 in progress, 104 pending, 11 deferred. 1153 finished: 1143 completed, 10 archived.
+125 open tasks: 10 in progress, 104 pending, 11 deferred. 1153 finished: 1143 completed, 10 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-012](v410-012-grouping-consistency.yml) | http-tools | defect | P1 | Keep sitemap member identity consistent across declarations and regrouping |
 | [V410-013](v410-013-receipt-projection-replay.yml) | http-tools | defect | P1 | Preserve structural omission intent during sitemap receipt replay |
 | [V410-014](v410-014-read-flush-deadlines.yml) | http-tools | defect | P1 | Keep sitemap reads available after automatic flush exhaustion |
+| [V410-015](v410-015-invalid-http-outcomes.yml) | http-tools | defect | P1 | Normalize malformed target responses before sitemap collection |
 
 ## Pending
 
@@ -232,7 +233,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
-| HTTP and Caido tools (`http-tools`) | 13 | 20 | 19 | 5 | 18 |
+| HTTP and Caido tools (`http-tools`) | 14 | 20 | 20 | 5 | 19 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 8 | 16 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
