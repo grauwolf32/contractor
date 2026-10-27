@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-127 open tasks: 5 in progress, 111 pending, 11 deferred. 1161 finished: 1151 completed, 10 archived.
+127 open tasks: 6 in progress, 110 pending, 11 deferred. 1161 finished: 1151 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
+| [V421-006](v421-006-reject-human-review-parameters.yml) | evals | defect | P3 | Reject unsupported parameters on managed human-review checks |
 
 ## Pending
 
@@ -148,7 +149,6 @@ the epics are in [epics.yml](epics.yml).
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | chore | P3 | — | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
 | [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | V417-001, V417-003 | Build frozen context-compaction evaluation fixtures and an opt-in harness |
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-008, V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
-| [V421-006](v421-006-reject-human-review-parameters.yml) | defect | P3 | — | Reject unsupported parameters on managed human-review checks |
 
 ### Podman sandbox (`sandbox`)
 
