@@ -361,6 +361,12 @@ export type PublicSchemaName =
   | "MetricsSummary"
   | "WorkerCompletionDiagnostics"
   | "AttemptDiagnostic"
+  | "DiagnosticUnsignedDecimal"
+  | "DiagnosticMillisDecimal"
+  | "DroppedSpanDiagnosticCounts"
+  | "RuntimeAdapterDiagnostic"
+  | "RuntimeDiagnostic"
+  | "RuntimeDiagnosticPage"
   | "AttemptDiagnostics"
   | "ModelPolicyRef"
   | "LLMGatewayConfigRef"
@@ -1490,6 +1496,15 @@ export const RESPONSE_SCHEMAS = {
     "400": "Error",
     "401": "Error",
     "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics": {
+    "200": "RuntimeDiagnosticPage",
+    "400": "Error",
+    "401": "Error",
     "404": "Error",
     "409": "Error",
     "500": "Error",

@@ -264,6 +264,8 @@ export const queryKeys = {
       ["credentials", "detail", credentialId] as const,
   },
   runs: {
+    runtimeDiagnostics: (runId: string, stageExecutionId: string) =>
+      ["attempt-runtime-diagnostics", runId, stageExecutionId] as const,
     all: ["runs"] as const,
     list: (
       state: string | undefined,

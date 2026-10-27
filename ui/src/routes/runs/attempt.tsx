@@ -13,6 +13,7 @@ import {
   type RunDisclosureProps,
 } from "./components";
 import type { PlannerProjection } from "./planner-projection";
+import { RuntimeDiagnostics } from "./runtime-diagnostics";
 import {
   allocationStatusLabel,
   stageStateLabel,
@@ -451,6 +452,7 @@ function AttemptFacts({ attempt }: { attempt: StageAttempt }) {
 
 /** One Stage attempt of the Run page's Technical details. */
 export function StageAttemptView({
+  diagnosticsEnabled,
   runId,
   attempt,
   active,
@@ -460,6 +462,7 @@ export function StageAttemptView({
   instructionDisclosure,
 }: {
   runId: string;
+  diagnosticsEnabled: boolean;
   attempt: StageAttempt;
   active: boolean;
   projection: PlannerProjection;
@@ -518,6 +521,11 @@ export function StageAttemptView({
         )}
         <RuntimeConfigurationView attempt={attempt} />
         <ResourceView attempt={attempt} />
+        <RuntimeDiagnostics
+          runId={runId}
+          attempt={attempt}
+          open={diagnosticsEnabled && disclosure.open}
+        />
         {attempt.diagnostics === undefined ? null : (
           <DiagnosticsView diagnostics={attempt.diagnostics} />
         )}

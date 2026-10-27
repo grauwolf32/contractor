@@ -46,6 +46,7 @@ import {
 import { parseWorkflowIdentity } from "./output-model";
 import { RunOutputGallery, RunOutputPublications } from "./outputs";
 import { runStatusQuery } from "./status";
+import { useRuntimeDiagnosticRefresh } from "./runtime-diagnostics-refresh";
 import {
   LiveAttempts,
   type LiveStatus,
@@ -287,6 +288,7 @@ function RunBody({
   liveError: string | undefined;
   onLiveStatus: (status: LiveStatus) => void;
 }) {
+  useRuntimeDiagnosticRefresh(run.runId, run.attempts);
   const queryClient = useQueryClient();
   const invalidatedPublication = useRef<string | undefined>(undefined);
   useEffect(() => {
@@ -432,6 +434,7 @@ function RunBody({
             {...disclosure("attempts")}
           >
             <LiveAttempts
+              diagnosticsEnabled={disclosures.attempts}
               key={`${liveKey}:${snapshotVersion}`}
               run={run}
               focusStageExecutionId={triage.stageExecutionId}

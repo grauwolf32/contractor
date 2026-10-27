@@ -4795,6 +4795,45 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
+  /v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics:
+    parameters:
+      - $ref: '#/components/parameters/RunId'
+      - name: stageExecutionId
+        in: path
+        required: true
+        schema: {$ref: '#/components/schemas/ResourceId'}
+    get:
+      operationId: getRunRuntimeDiagnostics
+      tags: [Runs]
+      summary: Inspect retained Runtime adapter diagnostics for an owned Stage attempt
+      description: >-
+        Reads only bounded Runtime projections from retained StageMetrics, including
+        Eval-held metrics. Counters and durations are lossless decimal strings.
+        Missing reports are not zero usage. No-store; read-only; selected Stage
+        must belong to the owned Run. Cursor binds the retained metric generation;
+        409 requires refreshing the first page. Report availability is diagnostic
+        and never changes a Run outcome. No prompts or tool content are returned.
+      parameters:
+        - name: limit
+          in: query
+          schema: {type: integer, minimum: 1, maximum: 10, default: 5}
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: A bounded page; pending/unavailable telemetry is explicit
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RuntimeDiagnosticPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+
   /v1/runs/{runId}/repeat-draft:
     parameters:
       - $ref: '#/components/parameters/RunId'
@@ -14856,6 +14895,74 @@ components:
           then: {not: {required: [logicalAgent]}}
         - if: {properties: {participant: {const: worker}}}
           then: {required: [logicalAgent]}
+    DiagnosticUnsignedDecimal:
+      type: string
+      minLength: 1
+      maxLength: 20
+      pattern: '^(0|[1-9][0-9]*)$'
+      description: Canonical decimal uint64, at most 18446744073709551615. Never parse through a JavaScript number.
+    DiagnosticMillisDecimal:
+      type: string
+      minLength: 1
+      maxLength: 19
+      pattern: '^(0|[1-9][0-9]*)$'
+      description: Canonical nonnegative int64 milliseconds, at most 9223372036854775807.
+    DroppedSpanDiagnosticCounts:
+      type: object
+      additionalProperties: false
+      required: [queueOverflow, encodingFailed, nonRetryable, retryExhausted, collectorRejected, deadlineExceeded, cancelled, shutdown]
+      properties:
+        queueOverflow: {$ref: '#/components/schemas/DiagnosticUnsignedDecimal'}
+        encodingFailed: {$ref: '#/components/schemas/DiagnosticUnsignedDecimal'}
+        nonRetryable: {$ref: '#/components/schemas/DiagnosticUnsignedDecimal'}
+        retryExhausted: {$ref: '#/components/schemas/DiagnosticUnsignedDecimal'}
+        collectorRejected: {$ref: '#/components/schemas/DiagnosticUnsignedDecimal'}
+        deadlineExceeded: {$ref: '#/components/schemas/DiagnosticUnsignedDecimal'}
+        cancelled: {$ref: '#/components/schemas/DiagnosticUnsignedDecimal'}
+        shutdown: {$ref: '#/components/schemas/DiagnosticUnsignedDecimal'}
+    RuntimeAdapterDiagnostic:
+      type: object
+      additionalProperties: false
+      required: [ref, operations, failedOperations]
+      properties:
+        ref: {type: string, enum: [otlp-http@1, http-proxy@1, caido-graphql@1, interactsh-http@1]}
+        operations: {$ref: '#/components/schemas/DiagnosticUnsignedDecimal'}
+        failedOperations: {$ref: '#/components/schemas/DiagnosticUnsignedDecimal'}
+        flushAttempted: {type: boolean}
+        flushSucceeded: {type: boolean}
+        lastErrorCode: {type: string, enum: [close_failed, delivery_failed, flush_failed, flush_timeout, queue_overflow, request_failed]}
+        droppedSpans: {$ref: '#/components/schemas/DroppedSpanDiagnosticCounts'}
+      dependentRequired:
+        flushAttempted: [flushSucceeded]
+        flushSucceeded: [flushAttempted]
+    RuntimeDiagnostic:
+      type: object
+      additionalProperties: false
+      required: [logicalAgent, status, stopReasonTruncated, adapters]
+      properties:
+        logicalAgent: {$ref: '#/components/schemas/ConfigId'}
+        status: {type: string, enum: [available, partial, unavailable]}
+        reason: {type: string, enum: [invalid_report]}
+        complete: {type: boolean}
+        durationMs: {$ref: '#/components/schemas/DiagnosticMillisDecimal'}
+        stopReason: {type: string, minLength: 1, maxLength: 4096}
+        stopReasonTruncated: {type: boolean}
+        adapters:
+          type: array
+          maxItems: 64
+          items: {$ref: '#/components/schemas/RuntimeAdapterDiagnostic'}
+    RuntimeDiagnosticPage:
+      type: object
+      additionalProperties: false
+      required: [status, items, page]
+      properties:
+        status: {type: string, enum: [available, pending, unavailable]}
+        reason: {type: string, enum: [report_missing, invalid_report]}
+        items:
+          type: array
+          maxItems: 10
+          items: {$ref: '#/components/schemas/RuntimeDiagnostic'}
+        page: {$ref: '#/components/schemas/PageInfo'}
     AttemptDiagnostics:
       type: object
       additionalProperties: false

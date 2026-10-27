@@ -60,6 +60,7 @@ func (c contextHandlers) routes() []route {
 		{"POST", "/v1/projects/{projectId}/runs", "createProjectRun", c.runs.createProjectRun},
 		{"GET", "/v1/projects/{projectId}/runs", "listProjectRuns", c.runs.listProjectRuns},
 		{"GET", "/v1/runs/{runId}", "getRun", c.runs.getRun},
+		{"GET", "/v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics", "getRunRuntimeDiagnostics", c.runs.runtimeDiagnostics},
 		{"DELETE", "/v1/runs/{runId}", "deleteRun", c.runs.deleteRun},
 		{"POST", "/v1/runs/{runId}/cancel", "cancelRun", c.runs.cancelRun},
 		{"POST", "/v1/runs/{runId}/resume", "resumeRun", c.runs.resumeRun},

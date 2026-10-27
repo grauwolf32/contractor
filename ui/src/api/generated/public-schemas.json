@@ -8863,6 +8863,153 @@
         }
       ]
     },
+    "DiagnosticUnsignedDecimal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20,
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "DiagnosticMillisDecimal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 19,
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "DroppedSpanDiagnosticCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "queueOverflow",
+        "encodingFailed",
+        "nonRetryable",
+        "retryExhausted",
+        "collectorRejected",
+        "deadlineExceeded",
+        "cancelled",
+        "shutdown"
+      ],
+      "properties": {
+        "queueOverflow": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "encodingFailed": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "nonRetryable": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "retryExhausted": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "collectorRejected": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "deadlineExceeded": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "cancelled": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "shutdown": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        }
+      }
+    },
+    "RuntimeAdapterDiagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "operations", "failedOperations"],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "enum": [
+            "otlp-http@1",
+            "http-proxy@1",
+            "caido-graphql@1",
+            "interactsh-http@1"
+          ]
+        },
+        "operations": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "failedOperations": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "flushAttempted": { "type": "boolean" },
+        "flushSucceeded": { "type": "boolean" },
+        "lastErrorCode": {
+          "type": "string",
+          "enum": [
+            "close_failed",
+            "delivery_failed",
+            "flush_failed",
+            "flush_timeout",
+            "queue_overflow",
+            "request_failed"
+          ]
+        },
+        "droppedSpans": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DroppedSpanDiagnosticCounts"
+        }
+      },
+      "dependentRequired": {
+        "flushAttempted": ["flushSucceeded"],
+        "flushSucceeded": ["flushAttempted"]
+      }
+    },
+    "RuntimeDiagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["logicalAgent", "status", "stopReasonTruncated", "adapters"],
+      "properties": {
+        "logicalAgent": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["available", "partial", "unavailable"]
+        },
+        "reason": { "type": "string", "enum": ["invalid_report"] },
+        "complete": { "type": "boolean" },
+        "durationMs": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticMillisDecimal"
+        },
+        "stopReason": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "stopReasonTruncated": { "type": "boolean" },
+        "adapters": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeAdapterDiagnostic"
+          }
+        }
+      }
+    },
+    "RuntimeDiagnosticPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "items", "page"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["available", "pending", "unavailable"]
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["report_missing", "invalid_report"]
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeDiagnostic"
+          }
+        },
+        "page": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
+        }
+      }
+    },
     "AttemptDiagnostics": {
       "type": "object",
       "additionalProperties": false,

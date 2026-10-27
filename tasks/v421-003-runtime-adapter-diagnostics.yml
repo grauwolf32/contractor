@@ -138,7 +138,7 @@ failure_outcomes:
 cardinality:
   - collection: Attempts in the containing Run
     expected: A few Stage attempts
-    maximum: Existing LIM-RUN-2 bound of 1024 Stage attempts
+    maximum: Attempt ordinals use LIM-RUN-2 (1..1024); the reader does not enumerate the containing Run
     bound: One explicitly selected attempt per diagnostics request; no all-attempt report decode in Run detail.
   - collection: Selected logical Worker Runtime reports and adapter entries
     expected: One to eight Workers with a few adapters each
@@ -171,6 +171,8 @@ acceptance_criteria:
     when: Contract, owner-package and browser checks run
     then: Specs and implementations agree, both clients are generated, themes and 390 px work, and a real-path regression fails without the feature.
 tests:
+  - command: go test -count=1 ./internal/contracts/...
+    covers: [A2, A5]
   - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -tags=integration -count=1 ./internal/telemetry ./internal/runservice ./internal/httpapi/public ./internal/controlplane'
     covers: [A1, A2, A3, A4, A5]
   - command: make verify-public-api verify-public-api-postgres

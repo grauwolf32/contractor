@@ -99,7 +99,8 @@ func configureHTTP(
 			ProjectDeletionNotifier: workflows.projectDeletion, NewID: randomid.New,
 		},
 		Runs: publicapi.RunDependencies{
-			Runs: runStore, RunDetails: runDetails, RunLifecycle: runStore,
+			Diagnostics: telemetry.NewRepository(pool),
+			Runs:        runStore, RunDetails: runDetails, RunLifecycle: runStore,
 			RunDeletion: rundeletion.New(pool), RunCreator: audits.runs,
 			RunNotifier: workflows.scheduler, GatewayRecovery: workflows.gatewayRecovery,
 			Projects: projects, NewID: randomid.New, Now: time.Now,

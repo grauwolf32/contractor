@@ -64,6 +64,42 @@ async function installRunAPI(page: Page): Promise<void> {
       });
       return;
     }
+    if (url.pathname.endsWith("/runtime-diagnostics")) {
+      await fulfillJSON(route, {
+        status: "available",
+        items: [
+          {
+            logicalAgent: "validator",
+            status: "partial",
+            complete: false,
+            stopReasonTruncated: false,
+            durationMs: "9007199254740993",
+            adapters: [
+              {
+                ref: "otlp-http@1",
+                operations: "18446744073709551615",
+                failedOperations: "1",
+                flushAttempted: true,
+                flushSucceeded: false,
+                lastErrorCode: "flush_failed",
+                droppedSpans: {
+                  queueOverflow: "0",
+                  encodingFailed: "0",
+                  nonRetryable: "0",
+                  retryExhausted: "0",
+                  collectorRejected: "0",
+                  deadlineExceeded: "0",
+                  cancelled: "0",
+                  shutdown: "9007199254740993",
+                },
+              },
+            ],
+          },
+        ],
+        page: { hasMore: false },
+      });
+      return;
+    }
     if (url.pathname === `/v1/runs/${RUN_ID}/artifacts`) {
       await fulfillJSON(route, { items: [], page: { hasMore: false } });
       return;
@@ -142,3 +178,38 @@ test("Run list prioritizes compact facts on narrow screens", async ({
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
     .toBe(320);
 });
+
+for (const theme of ["light", "dark", "black"] as const) {
+  test(`Runtime delivery diagnostics remain exact at 390 px in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(
+      (theme) => localStorage.setItem("contractor.theme", theme),
+      theme,
+    );
+    await installRunAPI(page);
+    await page.goto(`/runs/${RUN_ID}`);
+    const attempts = page.locator("#run-attempts");
+    if ((await attempts.getAttribute("open")) === null)
+      await attempts.locator(":scope > summary").click();
+    const attempt = page.locator(".runs-attempt").first();
+    if ((await attempt.getAttribute("open")) === null)
+      await attempt.locator(":scope > summary").click();
+    await expect(
+      attempt.getByRole("heading", { name: "Runtime adapter diagnostics" }),
+    ).toBeVisible();
+    await expect(
+      attempt.getByText("18446744073709551615", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      attempt.getByText("flush_failed", { exact: true }),
+    ).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBe(390);
+    await attempt.screenshot({
+      path: testInfo.outputPath(`runtime-diagnostics-${theme}.png`),
+    });
+  });
+}

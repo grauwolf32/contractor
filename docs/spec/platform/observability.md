@@ -1061,7 +1061,38 @@ and `tool_call_failed` (OBS-R32).
 
 This whole document is the shared observability model.
 
-### Telemetry rules owned by other documents
+#### Owner-visible retained Runtime diagnostics
+
+**OBS-R113.** The authenticated Run owner can read one exact Stage attempt's
+Runtime diagnostics through `GET /v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics`.
+The reader authorizes the owner and Stage-to-Run association in the same SQL
+statement before projecting data. Retained `stage_metrics` is authoritative,
+including Eval-held metrics after source report rows expire. It reads Runtime
+participant projections only, never full Worker reports or tool arguments.
+
+**OBS-R114.** A page defaults to five and permits at most ten logical Workers,
+128 KiB compact UTF-8 JSON, eleven participant selections including lookahead,
+and 2 MiB of returned Runtime-only JSON before Go decoding (LIM-OBS-18).
+Participants use deterministic bytewise name order. A signed cursor binds the
+owner, Run, Stage, last name and retained metric generation. Generation hashes
+the row update time and MVCC tuple generation, so updating the same timestamp
+still invalidates a cursor. A changed generation returns 409 conflict and
+requires a fresh first page; reads create no snapshot rows or retention holds.
+
+**OBS-R115.** Public adapter counters are canonical unsigned decimal strings
+bounded by uint64; optional Runtime milliseconds use nonnegative int64 decimal
+strings (LIM-OBS-19). Browser clients preserve them without passing through a
+JavaScript number. The projection preserves absent flush/duration facts, exact
+adapter refs, closed error codes and optional local dropped-span counters.
+Stop reasons are URL-redacted and limited to 4096 UTF-8 bytes with explicit
+truncation. A missing live report is pending; missing terminal telemetry is
+unavailable (it may have expired). A malformed participant remains unavailable
+without hiding healthy siblings. Reports marked incomplete remain partial.
+These supplementary facts never change execution results, retries or Eval
+usage. The UI reads on disclosure open, observed Stage state change and
+explicit refresh, backs off retryable failures and does not poll settled data.
+
+## Telemetry rules owned by other documents
 
 | Topic | Owner |
 | --- | --- |

@@ -61,7 +61,12 @@ type GatewayRecovery interface {
 
 // RunDependencies serve Run creation, listing, detail, cancellation, resume,
 // gateway retry and deletion.
+type AttemptDiagnosticReader interface {
+	ReadRuntimeDiagnostics(context.Context, telemetry.RuntimeDiagnosticParams) (telemetry.RuntimeDiagnosticPage, error)
+}
+
 type RunDependencies struct {
+	Diagnostics     AttemptDiagnosticReader
 	Runs            RunReader
 	RunDetails      RunDetailReader
 	RunLifecycle    RunLifecycle

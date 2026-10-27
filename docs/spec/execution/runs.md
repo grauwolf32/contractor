@@ -803,6 +803,12 @@ report, session and allocation identities are never part of public Run status.
 present record with no normalized errors returns an empty list, so the UI can
 distinguish "no participant errors" from "telemetry unavailable".
 
+**RUN-R110.** The separate owner-only Runtime diagnostic endpoint of
+OBS-R113 exposes bounded retained adapter facts in the attempt's Technical
+details, not in public Run status. RUN-R94 continues excluding raw reports,
+physical identities and model/tool content. Run/Stage ownership, generation
+conflicts, unknown measurements and report availability remain explicit.
+
 ### Repeat draft
 
 **RUN-R96.** For every terminal Run the detail page may offer

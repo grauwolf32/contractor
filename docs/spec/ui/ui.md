@@ -1304,3 +1304,14 @@ coverage kind identity; hosts retain authorized evidence links and receipts.
 Unknown reports keep raw preview; unsupported scanner input views remain
 explicit and preserve evidence access. Generic lifecycle and format-based
 OpenAPI/LikeC4 previews remain shared.
+
+### Runtime adapter diagnostic disclosure
+
+**UI-R208.** One Stage attempt's Technical details has an on-demand retained
+Runtime adapter diagnostic view (OBS-R113 to OBS-R115). It displays exact
+lossless decimal counters, logical attribution, flush results, local discard
+reasons and available duration/stop facts. Missing, partial, unavailable and
+shortened data remain visibly distinct. Every page is reachable through Load
+more, a generation conflict requires refresh, navigation cancels obsolete
+reads and terminal data is not polled indefinitely. Use shared components and
+tokens at 390 px and in light, dark and black themes.
