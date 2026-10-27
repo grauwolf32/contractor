@@ -471,7 +471,11 @@ schema checks that use allowlisted existing validators, and `human-review@1`.
 semantic correctness.
 
 **EVM-R58.** A native human rubric or check configuration is versioned and
-pinned separately from visible inputs.
+pinned separately from visible inputs. A managed private rubric contains
+only `id`, `revision`, `rubric` and `expected`. An additional `schema` member
+is invalid: structural schema checks use the registered `Check.parameters.schema`
+selector, not a private-rubric field. This pre-production API narrowing follows
+API-R3; it adds no legacy reader and never rewrites retained immutable bytes.
 
 **EVM-R59.** External semantic and domain scorers are supported through
 attributed assessment ingestion.

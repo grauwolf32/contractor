@@ -5347,7 +5347,6 @@ type EvalPrivateCheck struct {
 	Id       EvalId            `json:"id"`
 	Revision EvalOpaque        `json:"revision"`
 	Rubric   string            `json:"rubric"`
-	Schema   *string           `json:"schema,omitempty"`
 }
 
 // EvalProgressPoint defines model for EvalProgressPoint.

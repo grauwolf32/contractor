@@ -2862,7 +2862,6 @@ export interface components {
             expected: {
                 [key: string]: string;
             };
-            schema?: string;
         };
         EvalDatasetInput: {
             datasetId: components["schemas"]["EvalId"];
