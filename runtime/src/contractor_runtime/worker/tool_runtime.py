@@ -100,7 +100,6 @@ def _metrics(tool: str, calls: int = 0, failed: bool = False) -> dict:
         ),
         "toolCalls": calls,
         "toolErrors": int(failed and calls > 0),
-        "latestPromptTokens": None,
         "tools": {tool: {"calls": calls, "failures": int(failed)}} if calls else {},
         "truncated": False,
     }

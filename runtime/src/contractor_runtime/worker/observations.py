@@ -60,7 +60,6 @@ class _Interaction:
 class WorkspaceObservationReducer:
     """Accumulate bounded unique path interactions for one invocation."""
 
-    workspace_digest: str
     scope_paths: tuple[str, ...]
     scope_complete: bool
     _interactions: dict[str, _Interaction] = field(default_factory=dict, repr=False)
@@ -103,7 +102,6 @@ class WorkspaceObservationReducer:
             admitted.append(path)
             encoded_bytes += addition
         return cls(
-            workspace_digest=metadata.digest,
             scope_paths=tuple(admitted),
             scope_complete=complete,
         )
@@ -155,7 +153,6 @@ class WorkspaceObservationReducer:
             key=lambda item: (item.first_ordinal, item.path),
         )
         return {
-            "workspaceDigest": self.workspace_digest,
             "scopePaths": list(self.scope_paths),
             "scopeComplete": self.scope_complete,
             "interactions": [item.wire() for item in interactions],
@@ -169,20 +166,16 @@ def validate_workspace_observation(value: Mapping[str, Any] | None) -> dict[str,
     if value is None:
         return None
     if not isinstance(value, Mapping) or set(value) != {
-        "workspaceDigest",
         "scopePaths",
         "scopeComplete",
         "interactions",
         "detailComplete",
     }:
         raise ValueError("Worker workspace observation fields are invalid")
-    digest = value.get("workspaceDigest")
     scope_paths = value.get("scopePaths")
     scope_complete = value.get("scopeComplete")
     interactions = value.get("interactions")
     detail_complete = value.get("detailComplete")
-    if not isinstance(digest, str) or _DIGEST.fullmatch(digest) is None:
-        raise ValueError("Worker workspace observation digest is invalid")
     if (
         not isinstance(scope_paths, list)
         or len(scope_paths) > MAX_WORKSPACE_SCOPE_PATHS
@@ -208,7 +201,6 @@ def validate_workspace_observation(value: Mapping[str, Any] | None) -> dict[str,
     ):
         raise ValueError("Worker workspace interaction paths exceed their bound")
     return {
-        "workspaceDigest": digest,
         "scopePaths": copied_scope,
         "scopeComplete": scope_complete,
         "interactions": copied_interactions,

@@ -37,9 +37,7 @@ _INVOCATION_COUNTER_FIELDS = (
     "toolCalls",
     "toolErrors",
 )
-_INVOCATION_METRIC_FIELDS = frozenset(
-    (*_INVOCATION_COUNTER_FIELDS, "latestPromptTokens", "tools", "truncated")
-)
+_INVOCATION_METRIC_FIELDS = frozenset((*_INVOCATION_COUNTER_FIELDS, "tools", "truncated"))
 _SUMMARIZER_COUNTER_FIELDS = (
     "modelCalls",
     "inputTokens",
@@ -324,12 +322,6 @@ def _invocation_metrics_copy(value: Mapping[str, Any]) -> dict[str, Any]:
         if type(counter) is not int or not 0 <= counter <= _MAX_UINT64:
             raise WorkerStateError(f"Worker invocation metric {field} is invalid")
         result[field] = counter
-    latest_prompt = value.get("latestPromptTokens")
-    if latest_prompt is not None and (
-        type(latest_prompt) is not int or not 0 <= latest_prompt <= _MAX_UINT64
-    ):
-        raise WorkerStateError("Worker invocation latest prompt tokens are invalid")
-    result["latestPromptTokens"] = latest_prompt
     tools = value.get("tools")
     if not isinstance(tools, Mapping) or len(tools) > _MAX_INVOCATION_TOOL_NAMES:
         raise WorkerStateError("Worker invocation tool metrics are invalid")

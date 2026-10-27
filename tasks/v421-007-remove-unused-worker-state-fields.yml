@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V18-002
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python, json]
 goal: >-
@@ -143,3 +143,14 @@ test_prerequisites:
   - Use locked Runtime dependencies and testdata catalogs; tests must not read the live configs tree.
   - Set CONTRACTOR_TEST_DATABASE_URL to a disposable real PostgreSQL database for required gates; a configured unreachable database or skipped required case is a failure.
   - Run complete suites for every touched Go package; zero selected tests fail. Use deterministic budgets/injected clocks and existing semantic regressions, not timing thresholds or tests that merely restate field deletion.
+
+implementation_notes:
+  host_verification: >-
+    On Darwin, full touched Go suites, make lint and make test-wire-cross-language
+    passed. Focused Runtime State/Worker/observation suites passed 499 cases.
+    Full make test-runtime failed: 105 failed, 5185 passed, 39 skipped; failures
+    include Linux /proc socket and pidfd paths, parser address-space/platform
+    behavior and a wall-clock gap assertion. This failed run is not acceptance.
+  linux_verification: >-
+    Pending an exact-source snapshot on the dedicated nonroot Linux runner; keep
+    this task in_progress until the required Runtime and process gates pass.

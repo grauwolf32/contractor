@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-130 open tasks: 5 in progress, 114 pending, 11 deferred. 1158 finished: 1148 completed, 10 archived.
+130 open tasks: 6 in progress, 113 pending, 11 deferred. 1158 finished: 1148 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
+| [V421-007](v421-007-remove-unused-worker-state-fields.yml) | planner-worker | chore | P3 | Remove unused prompt and workspace fields from exported Worker State |
 
 ## Pending
 
@@ -45,7 +46,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | — | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
-| [V421-007](v421-007-remove-unused-worker-state-fields.yml) | chore | P3 | — | Remove unused prompt and workspace fields from exported Worker State |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
