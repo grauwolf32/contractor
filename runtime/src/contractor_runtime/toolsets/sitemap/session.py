@@ -132,6 +132,30 @@ class SitemapSession:
             raise ToolInputError("sitemap page exceeds its byte bound")
         return result
 
+    def _parts_page(
+        self,
+        query: str,
+        offset: int,
+        count: int,
+        limit: int,
+        load: Callable[[int], dict | None],
+    ) -> dict:
+        if offset > count:
+            raise self.expired()
+        rows, scanned = [], 0
+        budget = MAX_PAGE_BYTES - 4096
+        while offset < count and len(rows) < limit and scanned < MAX_PAGE_ITEMS:
+            row = load(offset)
+            if row is not None:
+                size = len(json.dumps(row, ensure_ascii=False).encode())
+                if size > budget:
+                    break
+                rows.append(row)
+                budget -= size
+            offset += 1
+            scanned += 1
+        return self._page(rows, query, offset if offset < count else None)
+
     async def list(
         self,
         *,
@@ -142,13 +166,21 @@ class SitemapSession:
         origin: str | None,
         path_prefix: str | None,
         include_suppressed: bool,
+        scope: str = "entries",
     ) -> dict:
         limit = require_limit(limit, MAX_PAGE_ITEMS, lambda: ToolInputError("limit must be 1..100"))
+        if scope not in ("entries", "metadata"):
+            raise ToolInputError("scope must be entries or metadata")
+        if scope == "metadata" and (
+            any(value is not None for value in (method, origin, path_prefix)) or include_suppressed
+        ):
+            raise ToolInputError("metadata scope does not accept entry filters")
         for text in (method, origin, path_prefix):
             if text is not None and (not isinstance(text, str) or len(text.encode()) > 8192):
                 raise ToolInputError("sitemap filters must be bounded strings")
         filters = {
             "operation": "list",
+            "scope": scope,
             "method": method,
             "origin": origin,
             "pathPrefix": path_prefix,
@@ -157,6 +189,17 @@ class SitemapSession:
         }
         query = query_digest(filters)
         async with self._reading(refresh, cursor, query) as (view, offset):
+            if scope == "metadata":
+                return self._parts_page(
+                    query,
+                    offset,
+                    len(view.metadata),
+                    limit,
+                    lambda position: {
+                        "kind": view.metadata[position][0],
+                        "value": view.load(view.metadata[position][1]),
+                    },
+                )
             # Indexed headers only, and at most 100 inspected candidates per page.
             identities = view.entry_ids
             if offset > len(identities):
@@ -212,47 +255,23 @@ class SitemapSession:
             entry = view.entries.get(identity)
             if entry is None:
                 raise ArtifactAPIError(404, "artifact_not_found", False)
-            # Source/gap rows are bounded global context; each exact part is
-            # decoded independently, never a large member or group object.
-            sources = [
-                span
-                for source, span in view.sources.items()
-                if entry.sources & (1 << view.source_bits.get(source, 128))
-            ]
-            global_rows = (
-                [("source", span) for span in sources]
-                + [("rule", span) for span in view.rules]
-                + [
-                    ("marker", (entry.markers[i], entry.markers[i + 1]))
-                    for i in range(0, len(entry.markers), 2)
-                ]
-                + [("gap", span) for span in view.gaps]
+            return self._parts_page(
+                query,
+                offset,
+                len(entry.parts) // 4 + len(entry.markers) // 2,
+                limit,
+                lambda position: self._read_row(view, entry, position, include_suppressed),
             )
-            count = len(entry.parts) // 4 + len(global_rows)
-            if offset > count:
-                raise self.expired()
-            rows, scanned = [], 0
-            budget = MAX_PAGE_BYTES - 4096
-            while offset < count and len(rows) < limit and scanned < MAX_PAGE_ITEMS:
-                row = self._read_row(view, entry, global_rows, offset, include_suppressed)
-                if row is not None:
-                    size = len(json.dumps(row, ensure_ascii=False).encode())
-                    if size > budget:
-                        break
-                    rows.append(row)
-                    budget -= size
-                offset += 1
-                scanned += 1
-            return self._page(rows, query, offset if offset < count else None)
 
     @staticmethod
     def _read_row(
-        view: ViewIndex, entry: Entry, globals_: list, offset: int, include_suppressed: bool
+        view: ViewIndex, entry: Entry, offset: int, include_suppressed: bool
     ) -> dict | None:
         part_count = len(entry.parts) // 4
         if offset >= part_count:
-            kind, span = globals_[offset - part_count]
-            return {"kind": kind, "value": view.load(span)}
+            marker = (offset - part_count) * 2
+            span = (entry.markers[marker], entry.markers[marker + 1])
+            return {"kind": "marker", "value": view.load(span)}
         kind, member, start, end = entry.parts[offset * 4 : offset * 4 + 4]
         identity = None if member == 0xFFFFFFFF else entry.members[member]
         if identity is not None and identity in view.suppressed and not include_suppressed:

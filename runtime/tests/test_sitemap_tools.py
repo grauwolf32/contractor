@@ -176,6 +176,84 @@ def test_cached_page_authority_error_is_a_tool_result_but_bad_wire_is_exception(
     asyncio.run(scenario())
 
 
+def test_empty_map_metadata_supplies_complete_source_precondition_to_editor():
+    from google.adk.tools import FunctionTool
+
+    async def scenario():
+        source = {
+            "provenance": {
+                "sourceId": identity("manual"),
+                "kind": "manual",
+                "mode": "blackbox",
+                "runId": "previous-producer",
+            },
+            "generation": 2,
+            "policyDigest": "b" * 64,
+        }
+        value = document(0)
+        value["sources"] = [source]
+        transport = SitemapTransport(value)
+        tools, _ = await tools_for(
+            transport, ["list_sitemap_entries", "configure_sitemap_grouping"]
+        )
+        listing = tools["list_sitemap_entries"]
+        declaration = FunctionTool(listing)._get_declaration()
+        assert declaration.parameters_json_schema["properties"]["scope"]["enum"] == [
+            "entries",
+            "metadata",
+        ]
+        assert "scope" not in declaration.parameters_json_schema.get("required", [])
+        assert (await listing())["entries"] == []
+        first = await listing(scope="metadata", limit=1)
+        assert first["entries"] == [{"kind": "source", "value": source}]
+        second = await listing(scope="metadata", limit=1, cursor=first["nextCursor"])
+        assert second["entries"] == [{"kind": "gap", "value": value["gaps"][0]}]
+        assert second["nextCursor"] is None
+        rules = [
+            {
+                "origin": "https://example.test",
+                "method": "GET",
+                "path": "/new",
+                "pointer": "",
+                "parameters": [],
+                "structural": [],
+            }
+        ]
+        result = await tools["configure_sitemap_grouping"](
+            first["revision"], rules, expected_source=first["entries"][0]["value"]
+        )
+        assert result["status"] == "completed"
+        command = json.loads(transport.requests[-1][3])["mutation"]
+        assert command["source"]["expected"] == source
+        assert command["source"]["rules"] == [{**rules[0], "sourceId": identity("manual")}]
+        for tool in tools.values():
+            await tool.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"scope": "unknown"},
+        {"scope": "metadata", "method": "GET"},
+        {"scope": "metadata", "origin": "https://example.test"},
+        {"scope": "metadata", "path_prefix": "/"},
+        {"scope": "metadata", "include_suppressed": True},
+    ],
+)
+def test_metadata_scope_rejects_entry_filters_before_fetching(arguments):
+    async def scenario():
+        transport = SitemapTransport()
+        tools, _ = await tools_for(transport, ["list_sitemap_entries"])
+        with pytest.raises(ToolInputError):
+            await tools["list_sitemap_entries"](**arguments)
+        assert transport.requests == []
+        await tools["list_sitemap_entries"].close()
+
+    asyncio.run(scenario())
+
+
 def test_import_dispatch_seam_is_explicit_and_uses_same_allocation_client():
     async def scenario():
         calls = []

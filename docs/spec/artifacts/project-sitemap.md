@@ -193,6 +193,14 @@ Server allocation, Project and source-mode authority; local bytes confer no
 authority. Publication or source eviction does not change an existing view.
 Refresh, absence, replacement and release invalidate old cursors with
 `sitemap_cursor_expired`. There is no view TTL or implicit Artifact hold.
+The existing `list_sitemap_entries` operation accepts `scope="entries"` by
+default and `scope="metadata"` for independently paged sources, rules and gaps,
+including maps with no entries. Metadata uses the same view and page bounds,
+checks current authority and binds its scope into cursors; entry filters are
+invalid in metadata scope. Entry reads contain only their own parts and removal
+markers, without repeating global sources, rules or gaps. Complete Source
+metadata remains discoverable after its rules are cleared so a later editor can
+supply the exact source precondition.
 
 **SMT-R16.** A context snapshot must contain only the selected authorized
 projection, original map revision, projection policy and authorized exact inputs.
