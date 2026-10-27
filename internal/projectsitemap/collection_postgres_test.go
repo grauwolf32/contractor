@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 func TestPostgresSitemapHTTPCollectionProjectionSessionsAndReceipt(t *testing.T) {
@@ -21,14 +20,16 @@ func TestPostgresSitemapHTTPCollectionProjectionSessionsAndReceipt(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := CollectionIngress{Secrets: []contracts.SecretString{contracts.NewSecretString("private-canary")}, Observations: []HTTPObservation{}}
+	input := CollectionIngress{Observations: []HTTPObservation{}}
 	for _, row := range []struct {
 		path, outcome, generation string
 		status                    int
 	}{
-		{"/safe?q=private-canary&token=private-canary", "response", "session-one", 200},
-		{"/safe?q=other", "timeout", "session-two", 0},
-		{"/private-canary", "response", "session-one", 200},
+		{"/safe?q=query-canary&token=query-canary&password=query-canary", "response", "session-one", 200},
+		{"/safe?q=other-query-value", "timeout", "session-two", 0},
+		{"/session/short-password", "response", "session-one", 200},
+		{"/users/short%252Dpassword", "response", "session-one", 200},
+		{"/opaque/ABCDEFGHIJKLMNOPQRSTUVWXYZ123456", "response", "session-one", 200},
 		{"/redirect", "response", "session-one", 302},
 	} {
 		o := observation(row.path)
@@ -45,12 +46,17 @@ func TestPostgresSitemapHTTPCollectionProjectionSessionsAndReceipt(t *testing.T)
 		t.Fatal(err)
 	}
 	safe, _ := json.Marshal(view.Document)
-	for _, secret := range []string{"private-canary", "other", "token"} {
-		if bytes.Contains(safe, []byte(secret)) {
-			t.Fatalf("unsafe projection retained %q", secret)
+	for _, excluded := range []string{"query-canary", "other-query-value"} {
+		if bytes.Contains(safe, []byte(excluded)) {
+			t.Fatalf("non-structural query value retained %q", excluded)
 		}
 	}
-	if len(view.Document.Groups) != 2 {
+	for _, retained := range []string{"/session/short-password", "/users/short%252Dpassword", "/opaque/ABCDEFGHIJKLMNOPQRSTUVWXYZ123456", `"token"`, `"password"`} {
+		if !bytes.Contains(safe, []byte(retained)) {
+			t.Fatalf("HTTP surface metadata was discarded: %q", retained)
+		}
+	}
+	if len(view.Document.Groups) != 5 {
 		t.Fatalf("unexpected visited routes: %+v", view.Document.Groups)
 	}
 	contexts := map[string]bool{}
@@ -89,5 +95,60 @@ func TestPostgresSitemapHTTPCollectionProjectionSessionsAndReceipt(t *testing.T)
 	access.Policy.CollectObservations = false
 	if _, err = s.CollectHTTPAllocation(ctx, access, "denied", input); err == nil {
 		t.Fatal("reader gained collection authority")
+	}
+}
+
+func TestPostgresSitemapRetainsCredentialNamedMetadata(t *testing.T) {
+	pool := sitemapPool(t)
+	ctx := t.Context()
+	createSitemapRun(t, ctx, pool, "metadata-consumer")
+	service := NewService(pool)
+	policy := readerPolicy("blackbox")
+	policy.CollectObservations = true
+	access, err := service.AllocationAccess(ctx, "metadata-consumer", "research", policy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rule := Rule{SourceID: access.ManualSourceID, Origin: "https://example.test", Method: "GET", Path: "/dispatch", Pointer: "#/paths/~1session~1short-password", Parameters: []string{"password", "token"}, Structural: []StructuralParameter{{Name: "token", Allowed: []string{"short-password", "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"}}}}
+	_, err = service.MutateAllocation(ctx, access, "configure", Mutation{Operation: "replace-source", ExpectedRevision: "absent", Source: &SourceUpdate{SourceID: access.ManualSourceID, Rules: []Rule{rule}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.CollectHTTPAllocation(ctx, access, "observe", CollectionIngress{Observations: []HTTPObservation{{Observation: observation("/dispatch?token=short-password&password=excluded-query-value"), SessionGeneration: "session-one"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err := service.ReadAllocation(ctx, access, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var memberID string
+	for _, group := range view.Document.Groups {
+		if len(group.Structural) == 1 && group.Structural[0].Name == "token" && len(group.Structural[0].Values) == 1 && group.Structural[0].Values[0] == "short-password" && len(group.Members) == 1 {
+			memberID = group.Members[0].ID
+		}
+	}
+	if memberID == "" {
+		t.Fatal("credential-named structural selection was discarded")
+	}
+	_, err = service.MutateAllocation(ctx, access, "annotate", Mutation{Operation: "annotate", ExpectedRevision: view.Revision, MemberIDs: []string{memberID}, Note: "password token short-password ABCDEFGHIJKLMNOPQRSTUVWXYZ123456", Tags: []string{"password", "token", "short-password", "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	view, err = service.ReadAllocation(ctx, access, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(view.Document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, retained := range []string{"password token short-password ABCDEFGHIJKLMNOPQRSTUVWXYZ123456", `"password"`, `"token"`, `"short-password"`, `"ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"`, "#/paths/~1session~1short-password"} {
+		if !bytes.Contains(data, []byte(retained)) {
+			t.Fatalf("metadata lost after real-store read: %q", retained)
+		}
+	}
+	if bytes.Contains(data, []byte("excluded-query-value")) {
+		t.Fatal("non-structural query value persisted")
 	}
 }

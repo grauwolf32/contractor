@@ -91,15 +91,14 @@
         "input": {
           "observations": [
             {
-              "url": "https://api.example.test/path",
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
               "method": "GET",
               "outcome": "response",
               "status": 200,
               "at": "2026-10-26T00:00:00Z",
               "sessionGeneration": "session-one"
             }
-          ],
-          "secrets": []
+          ]
         }
       }
     }
@@ -477,8 +476,7 @@
               "at": "2026-10-26T00:00:00Z",
               "sessionGeneration": "session-one"
             }
-          ],
-          "secrets": []
+          ]
         }
       }
     },
@@ -496,6 +494,24 @@
               "at": "2026-10-26T00:00:00Z",
               "sessionGeneration": "session-one"
             }
+          ]
+        }
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z",
+              "sessionGeneration": "session-one"
+            }
           ],
           "secrets": []
         }
@@ -505,7 +521,6 @@
   "collectorLimits": {
     "items": 100,
     "batchBytes": 262144,
-    "secrets": 2048,
     "flushIntervalSeconds": 5,
     "flushBudgetSeconds": 15,
     "attempts": 3,

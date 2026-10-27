@@ -3,7 +3,7 @@ package projectsitemap
 import "testing"
 
 func TestSitemapOriginProjectionUsesURLLabelsAndConcreteExamples(t *testing.T) {
-	for _, origin := range []string{"https://api.example.test", "http://127.0.0.1:8080", "https://one.two.three.test"} {
+	for _, origin := range []string{"https://api.example.test", "http://127.0.0.1:8080", "https://one.two.three.test", "https://abcdefghijklmnopqrstuvwxyz123456.example.test", "https://password.example.test"} {
 		t.Run(origin, func(t *testing.T) {
 			a := httpAuthority("origin-producer")
 			o := observation("/path")

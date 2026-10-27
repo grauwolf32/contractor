@@ -618,18 +618,10 @@
               "items": {
                 "$ref": "#/$defs/SitemapCollectionAttempt"
               }
-            },
-            "secrets": {
-              "type": "array",
-              "maxItems": 2048,
-              "items": {
-                "type": "string"
-              }
             }
           },
           "required": [
-            "observations",
-            "secrets"
+            "observations"
           ]
         }
       },
