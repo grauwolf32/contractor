@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../test/builders";
 import { QueryClient } from "@tanstack/react-query";
 import { act, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -32,6 +33,7 @@ function renderInventory(handle: Fallback): () => Inventory {
 
 const artifact = (name: string) =>
   build.conforming("ArtifactMetadata", {
+    storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: { namespace: "sources", name, revision: "r1" },
     mediaType: "application/zip",
     size: 10,

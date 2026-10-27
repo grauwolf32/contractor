@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +10,7 @@ import { failure, json, page } from "../test/responses";
 
 function skill(name: string, revision: string) {
   return conforming("ArtifactMetadata", {
+    storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: { namespace: "skills", name, revision },
     mediaType: "application/zip",
     size: 2048,

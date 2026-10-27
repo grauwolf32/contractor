@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -51,6 +52,7 @@ async function fixture(
   let configured = false;
   const metadata = [
     {
+      storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "sources",
         name: "previous",
@@ -63,6 +65,7 @@ async function fixture(
       createdAt: timestamp,
     },
     {
+      storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "notes",
         name: "context",
@@ -157,6 +160,7 @@ async function fixture(
             : {}),
         };
         const item = {
+          storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
           artifact: { namespace, name, revision: "rev-imported" },
           mediaType: "application/zip",
           size: 123,

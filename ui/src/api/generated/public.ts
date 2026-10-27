@@ -5068,7 +5068,21 @@ export interface components {
             size: number;
             text: string;
         };
+        /** Format: date-time */
+        ArtifactStorageTimestamp: string;
+        /** @description Registry dates; shared blob/version dates may predate this material. At most 512 encoded UTF-8 bytes. */
+        ArtifactStorageTimestamps: {
+            /** @description Creation of the containing ArtifactRegistry scope row. */
+            scopeCreatedAt: components["schemas"]["ArtifactStorageTimestamp"];
+            /** @description First registration of the shared blob row, not upload time, file mtime or the current file generation creation time. */
+            blobCreatedAt: components["schemas"]["ArtifactStorageTimestamp"];
+            /** @description Creation of the selected immutable storage-version row, preserved by exact forks. */
+            versionCreatedAt: components["schemas"]["ArtifactStorageTimestamp"];
+            /** @description Last change of the current logical binding, including freeze/thaw; not a content-modification claim. */
+            bindingUpdatedAt: components["schemas"]["ArtifactStorageTimestamp"];
+        };
         ArtifactMetadata: {
+            storageTimestamps: components["schemas"]["ArtifactStorageTimestamps"];
             gitSource?: components["schemas"]["GitSource"];
             artifact: components["schemas"]["ExactArtifactRef"];
             mediaType: components["schemas"]["MediaType"];

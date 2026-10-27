@@ -18,7 +18,9 @@ func (r *PostgresRepository) Metadata(
 		scope.kind, scope.id, ref.Namespace, ref.Name, ref.Revision,
 	).Scan(
 		&revision, &result.MediaType, &result.Size, &result.Digest, &result.ContentCacheKey, &result.Current,
-		&result.Frozen, &result.CreatedAt, &result.GitSource,
+		&result.Frozen, &result.CreatedAt, &result.StorageTimestamps.ScopeCreatedAt,
+		&result.StorageTimestamps.BlobCreatedAt, &result.StorageTimestamps.VersionCreatedAt,
+		&result.StorageTimestamps.BindingUpdatedAt, &result.GitSource,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Metadata{}, ErrArtifactNotFound
@@ -27,6 +29,9 @@ func (r *PostgresRepository) Metadata(
 		return Metadata{}, fmt.Errorf("read artifact metadata %s/%s: %w", ref.Namespace, ref.Name, err)
 	}
 	result.Ref = artifactExactRef(ref.Namespace, ref.Name, revision)
+	if err := normalizeMetadataDates(&result); err != nil {
+		return Metadata{}, err
+	}
 	return result, nil
 }
 
@@ -135,11 +140,16 @@ func scanMetadata(row metadataRowScanner) (Metadata, error) {
 	var revision string
 	if err := row.Scan(
 		&result.Ref.Namespace, &result.Ref.Name, &revision,
-		&result.MediaType, &result.Size, &result.Current, &result.Frozen, &result.CreatedAt, &result.GitSource,
+		&result.MediaType, &result.Size, &result.Current, &result.Frozen, &result.CreatedAt, &result.StorageTimestamps.ScopeCreatedAt,
+		&result.StorageTimestamps.BlobCreatedAt, &result.StorageTimestamps.VersionCreatedAt,
+		&result.StorageTimestamps.BindingUpdatedAt, &result.GitSource,
 	); err != nil {
 		return Metadata{}, err
 	}
 	result.Ref.Revision = &revision
+	if err := normalizeMetadataDates(&result); err != nil {
+		return Metadata{}, err
+	}
 	return result, nil
 }
 

@@ -14733,11 +14733,40 @@ components:
         path: {type: string, minLength: 1, maxLength: 1024}
         size: {type: integer, minimum: 0, maximum: 1048576}
         text: {type: string, maxLength: 1048576}
+    ArtifactStorageTimestamp:
+      type: string
+      format: date-time
+      pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$'
+      not:
+        anyOf:
+          - {pattern: '^0000-'}
+          - {pattern: '^0001-01-01T00:00:00(\.0{1,9})?Z$'}
+      readOnly: true
+    ArtifactStorageTimestamps:
+      type: object
+      additionalProperties: false
+      readOnly: true
+      required: [scopeCreatedAt, blobCreatedAt, versionCreatedAt, bindingUpdatedAt]
+      description: Registry dates; shared blob/version dates may predate this material. At most 512 encoded UTF-8 bytes.
+      properties:
+        scopeCreatedAt:
+          allOf: [{$ref: '#/components/schemas/ArtifactStorageTimestamp'}]
+          description: Creation of the containing ArtifactRegistry scope row.
+        blobCreatedAt:
+          allOf: [{$ref: '#/components/schemas/ArtifactStorageTimestamp'}]
+          description: First registration of the shared blob row, not upload time, file mtime or the current file generation creation time.
+        versionCreatedAt:
+          allOf: [{$ref: '#/components/schemas/ArtifactStorageTimestamp'}]
+          description: Creation of the selected immutable storage-version row, preserved by exact forks.
+        bindingUpdatedAt:
+          allOf: [{$ref: '#/components/schemas/ArtifactStorageTimestamp'}]
+          description: Last change of the current logical binding, including freeze/thaw; not a content-modification claim.
     ArtifactMetadata:
       type: object
       additionalProperties: false
-      required: [artifact, mediaType, size, current, frozen, createdAt]
+      required: [artifact, mediaType, size, current, frozen, createdAt, storageTimestamps]
       properties:
+        storageTimestamps: {$ref: '#/components/schemas/ArtifactStorageTimestamps'}
         gitSource: {$ref: '#/components/schemas/GitSource'}
         artifact: {$ref: '#/components/schemas/ExactArtifactRef'}
         mediaType: {$ref: '#/components/schemas/MediaType'}

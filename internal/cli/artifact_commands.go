@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/publicclient"
 	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 type artifactScope struct {
@@ -463,7 +465,7 @@ func artifactMetadata(ctx context.Context, client *publicclient.Client, scope ar
 		if err := publicclient.CheckResponse(response, http.StatusOK); err != nil {
 			return nil, err
 		}
-		return response.JSON200, nil
+		return decodeArtifactMetadata(response.Body, namespace, name, revision)
 	case scope.runID != "":
 		response, err := client.API.GetRunArtifactMetadataWithResponse(ctx, scope.runID, namespace, name, &publicapi.GetRunArtifactMetadataParams{Revision: revisionValue})
 		if err != nil {
@@ -472,7 +474,7 @@ func artifactMetadata(ctx context.Context, client *publicclient.Client, scope ar
 		if err := publicclient.CheckResponse(response, http.StatusOK); err != nil {
 			return nil, err
 		}
-		return response.JSON200, nil
+		return decodeArtifactMetadata(response.Body, namespace, name, revision)
 	default:
 		response, err := client.API.GetArtifactMetadataWithResponse(ctx, namespace, name, &publicapi.GetArtifactMetadataParams{Revision: revisionValue})
 		if err != nil {
@@ -481,8 +483,43 @@ func artifactMetadata(ctx context.Context, client *publicclient.Client, scope ar
 		if err := publicclient.CheckResponse(response, http.StatusOK); err != nil {
 			return nil, err
 		}
-		return response.JSON200, nil
+		return decodeArtifactMetadata(response.Body, namespace, name, revision)
 	}
+}
+
+// decodeArtifactMetadata checks the exact server facts used by Artifact CLI
+// downloads; generated Go models alone do not reject absent required fields.
+func decodeArtifactMetadata(body []byte, namespace, name, revision string) (*publicapi.ArtifactMetadata, error) {
+	var result publicapi.ArtifactMetadata
+	if err := strictjson.Decode(body, &result); err != nil {
+		return nil, fmt.Errorf("invalid Artifact metadata: %w", err)
+	}
+	if result.Artifact.Namespace != namespace || result.Artifact.Name != name || result.Artifact.Revision == "" || (revision != "" && string(result.Artifact.Revision) != revision) {
+		return nil, errors.New("Artifact metadata did not match the requested revision")
+	}
+	var wire struct {
+		StorageTimestamps map[string]string `json:"storageTimestamps"`
+	}
+	// The complete strict decode above closes every member. This projection checks
+	// spelling too, because time.Time accepts a noncanonical UTC offset.
+	if err := json.Unmarshal(body, &wire); err != nil {
+		return nil, errors.New("invalid Artifact storage dates")
+	}
+	for _, value := range wire.StorageTimestamps {
+		date, err := time.Parse(time.RFC3339Nano, value)
+		if err != nil || date.IsZero() || !strings.HasSuffix(value, "Z") {
+			return nil, errors.New("invalid Artifact storage date")
+		}
+	}
+	if len(wire.StorageTimestamps) != 4 {
+		return nil, errors.New("missing Artifact storage dates")
+	}
+	for _, date := range []time.Time{result.CreatedAt, result.StorageTimestamps.ScopeCreatedAt, result.StorageTimestamps.BlobCreatedAt, result.StorageTimestamps.VersionCreatedAt, result.StorageTimestamps.BindingUpdatedAt} {
+		if date.IsZero() || date.Year() < 1 || date.Year() > 9999 {
+			return nil, errors.New("missing or invalid Artifact date")
+		}
+	}
+	return &result, nil
 }
 
 func downloadArtifact(ctx context.Context, client *publicclient.Client, scope artifactScope, namespace, name, revision string) ([]byte, error) {

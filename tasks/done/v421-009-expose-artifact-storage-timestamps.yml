@@ -5,7 +5,8 @@ milestone: data-model-consumers-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P2
-status: pending
+status: completed
+implementation_commit: a7da863e71b33bc9373c2b987ad72c9482aa134c
 depends_on: []
 languages: [go, typescript]
 goal: >-
@@ -328,6 +329,8 @@ tests:
     covers: [A1, A4, A6, A7]
   - command: make ui-browser-mocked
     covers: [A4, A6]
+  - command: "TMPDIR=/private/tmp go test -count=1 ./internal/cli ./internal/runstore"
+    covers: [A1, A3, A4, A7]
   - command: make lint
     covers: [A1, A4, A5, A6, A7]
 verification_notes: >-
@@ -340,3 +343,60 @@ verification_notes: >-
   changes a store or handler beyond the packages listed above, run that touched
   package's full suite too. No verification command is claimed executed by
   this pending task.
+
+implementation_notes:
+  - >-
+    Existing metadata/list/version SQL now joins the single scope row and projects
+    four original registry dates. Stored dates are validated and normalized to
+    UTC, without payload reads, new storage objects or chronology guesses.
+  - >-
+    Migration 000054 adds a column-scoped creation-time guard for artifact_scopes;
+    its revision counter remains writable. Blob/version guards and all existing
+    retention/purge behavior remain unchanged.
+  - >-
+    Both public clients were regenerated. The actual handwritten CLI metadata
+    reader additionally rejects absent/null/noncanonical dates and a wrong exact
+    revision; the generated Go model alone does not enforce required properties.
+  - >-
+    Run input uploads/imports now fetch authoritative exact metadata instead
+    of constructing timestamps from the browser clock/import date. Metadata
+    requests consume cancellation signals; a newer input selection/confirmation
+    or component release cancels a pending read and prevents a late overwrite.
+  - >-
+    All four dates have a shared Technical details reader, absolute timezone
+    labels and exact UTC tooltips. UI release is 0.10.9; ordinary Created remains
+    the selected revision's timestamp. Existing response fixtures were updated
+    to the required public shape, not repaired by a production fallback.
+verification_results:
+  date: "2026-10-27"
+  postgres: >-
+    Full internal/artifacts, internal/httpapi/public, internal/projectlifecycle
+    and internal/memory suites passed with PostgreSQL and filesystem blob
+    modes on the lane's disposable database. The new real-path cases cover
+    dedup/fork/CAS/freeze/thaw/repair/purge, exact/public scope reads, bad dates,
+    1001 bindings and 251 tied-date revisions with one query per page and no
+    payload operations. Full internal/cli and internal/runstore suites passed.
+  contracts: >-
+    make verify-public-api, make verify-public-api-postgres and
+    make test-artifact-history-postgres passed. A shared Go/UI fixture closes
+    missing/null/extra fields, non-UTC and zero dates without imposing false
+    scope-versus-shared-version chronology.
+  ui: >-
+    Final make ui-verify passed 197 test files, 2458 tests plus one expected
+    failure, 17 server tests and the build. make ui-browser-mocked passed all
+    100 browser tests across 23 specs after final cancellation changes.
+    Storage-date screenshots were visually inspected at 390 px in light,
+    dark and black; the new checks also exercise desktop layout and keyboard
+    disclosure. Earlier runs caught and corrected missing metadata/ETag/size
+    test-fixture responses; no skipped database case is claimed as a pass.
+  generated: >-
+    Public Go and UI clients, ERD and the Audit/Workflow dependency page were
+    regenerated with their owning commands. git diff --check passed.
+  lint: >-
+    Final make lint passed after all code, fixture and verification updates,
+    including generated clients, release graph, task layout, specification,
+    shared-fixture source ownership, ERD freshness, layers and Runtime checks.
+  merge_status: >-
+    Implementation is on codex/v421-artifact-times and is not merged into main.
+    The coordinator owns the preserving branch merge and integrated V421-010
+    verification; no integrated release-verify run is claimed by this lane.

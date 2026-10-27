@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { expect, test } from "@playwright/test";
 
 import {
@@ -39,6 +40,7 @@ for (const width of [1440, 390]) {
           : "sources";
         const artifact = { namespace, name: "package", revision: "r1" };
         const metadata = {
+          storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
           artifact,
           mediaType:
             namespace === "skills"

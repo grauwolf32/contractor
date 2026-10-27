@@ -3194,6 +3194,9 @@ type ArtifactMetadata struct {
 	GitSource *GitSource       `json:"gitSource,omitempty"`
 	MediaType MediaType        `json:"mediaType"`
 	Size      int              `json:"size"`
+
+	// StorageTimestamps Registry dates; shared blob/version dates may predate this material. At most 512 encoded UTF-8 bytes.
+	StorageTimestamps *ArtifactStorageTimestamps `json:"storageTimestamps,omitempty"`
 }
 
 // ArtifactName defines model for ArtifactName.
@@ -3223,6 +3226,24 @@ type ArtifactSlot struct {
 
 // ArtifactSlotSourceScope Owner UserScope for the optional Nuclei rulepack input only.
 type ArtifactSlotSourceScope string
+
+// ArtifactStorageTimestamp defines model for ArtifactStorageTimestamp.
+type ArtifactStorageTimestamp = time.Time
+
+// ArtifactStorageTimestamps Registry dates; shared blob/version dates may predate this material. At most 512 encoded UTF-8 bytes.
+type ArtifactStorageTimestamps struct {
+	// BindingUpdatedAt Last change of the current logical binding, including freeze/thaw; not a content-modification claim.
+	BindingUpdatedAt ArtifactStorageTimestamp `json:"bindingUpdatedAt"`
+
+	// BlobCreatedAt First registration of the shared blob row, not upload time, file mtime or the current file generation creation time.
+	BlobCreatedAt ArtifactStorageTimestamp `json:"blobCreatedAt"`
+
+	// ScopeCreatedAt Creation of the containing ArtifactRegistry scope row.
+	ScopeCreatedAt ArtifactStorageTimestamp `json:"scopeCreatedAt"`
+
+	// VersionCreatedAt Creation of the selected immutable storage-version row, preserved by exact forks.
+	VersionCreatedAt ArtifactStorageTimestamp `json:"versionCreatedAt"`
+}
 
 // ArtifactWriteResponse defines model for ArtifactWriteResponse.
 type ArtifactWriteResponse struct {

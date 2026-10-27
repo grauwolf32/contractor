@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
@@ -172,6 +173,7 @@ describe("Evals and global Skills routes", () => {
   it("uses only UserScope Artifact APIs for global Skill packages", async () => {
     let created = false;
     const existing = build.conforming("ArtifactMetadata", {
+      storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "skills",
         name: "architecture-review",

@@ -8555,6 +8555,59 @@
         "text": { "type": "string", "maxLength": 1048576 }
       }
     },
+    "ArtifactStorageTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$",
+      "not": {
+        "anyOf": [
+          { "pattern": "^0000-" },
+          { "pattern": "^0001-01-01T00:00:00(\\.0{1,9})?Z$" }
+        ]
+      },
+      "readOnly": true
+    },
+    "ArtifactStorageTimestamps": {
+      "type": "object",
+      "additionalProperties": false,
+      "readOnly": true,
+      "required": [
+        "scopeCreatedAt",
+        "blobCreatedAt",
+        "versionCreatedAt",
+        "bindingUpdatedAt"
+      ],
+      "properties": {
+        "scopeCreatedAt": {
+          "allOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactStorageTimestamp"
+            }
+          ]
+        },
+        "blobCreatedAt": {
+          "allOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactStorageTimestamp"
+            }
+          ]
+        },
+        "versionCreatedAt": {
+          "allOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactStorageTimestamp"
+            }
+          ]
+        },
+        "bindingUpdatedAt": {
+          "allOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactStorageTimestamp"
+            }
+          ]
+        }
+      }
+    },
     "ArtifactMetadata": {
       "type": "object",
       "additionalProperties": false,
@@ -8564,9 +8617,13 @@
         "size",
         "current",
         "frozen",
-        "createdAt"
+        "createdAt",
+        "storageTimestamps"
       ],
       "properties": {
+        "storageTimestamps": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactStorageTimestamps"
+        },
         "gitSource": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/GitSource"
         },
