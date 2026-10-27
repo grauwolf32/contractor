@@ -2445,6 +2445,84 @@ func (e StageContentResultApiVersion) Valid() bool {
 	}
 }
 
+// Defines values for ToolCallDiagnosticOutcome.
+const (
+	ToolCallDiagnosticOutcomeFailed    ToolCallDiagnosticOutcome = "failed"
+	ToolCallDiagnosticOutcomeSucceeded ToolCallDiagnosticOutcome = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the ToolCallDiagnosticOutcome enum.
+func (e ToolCallDiagnosticOutcome) Valid() bool {
+	switch e {
+	case ToolCallDiagnosticOutcomeFailed:
+		return true
+	case ToolCallDiagnosticOutcomeSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ToolDiagnosticPageParticipant.
+const (
+	ToolDiagnosticPageParticipantPlanner ToolDiagnosticPageParticipant = "planner"
+	ToolDiagnosticPageParticipantWorker  ToolDiagnosticPageParticipant = "worker"
+)
+
+// Valid indicates whether the value is a known member of the ToolDiagnosticPageParticipant enum.
+func (e ToolDiagnosticPageParticipant) Valid() bool {
+	switch e {
+	case ToolDiagnosticPageParticipantPlanner:
+		return true
+	case ToolDiagnosticPageParticipantWorker:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ToolDiagnosticPageReason.
+const (
+	ToolDiagnosticPageReasonInvalidReport   ToolDiagnosticPageReason = "invalid_report"
+	ToolDiagnosticPageReasonReportMissing   ToolDiagnosticPageReason = "report_missing"
+	ToolDiagnosticPageReasonReportOversized ToolDiagnosticPageReason = "report_oversized"
+)
+
+// Valid indicates whether the value is a known member of the ToolDiagnosticPageReason enum.
+func (e ToolDiagnosticPageReason) Valid() bool {
+	switch e {
+	case ToolDiagnosticPageReasonInvalidReport:
+		return true
+	case ToolDiagnosticPageReasonReportMissing:
+		return true
+	case ToolDiagnosticPageReasonReportOversized:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ToolDiagnosticPageStatus.
+const (
+	ToolDiagnosticPageStatusAvailable   ToolDiagnosticPageStatus = "available"
+	ToolDiagnosticPageStatusPending     ToolDiagnosticPageStatus = "pending"
+	ToolDiagnosticPageStatusUnavailable ToolDiagnosticPageStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the ToolDiagnosticPageStatus enum.
+func (e ToolDiagnosticPageStatus) Valid() bool {
+	switch e {
+	case ToolDiagnosticPageStatusAvailable:
+		return true
+	case ToolDiagnosticPageStatusPending:
+		return true
+	case ToolDiagnosticPageStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ToolExecutionConfigArguments0Source.
 const (
 	ToolExecutionConfigArguments0SourceParameter ToolExecutionConfigArguments0Source = "parameter"
@@ -2552,25 +2630,25 @@ func (e WorkerCompletionDiagnosticsKind) Valid() bool {
 
 // Defines values for WorkerCompletionDiagnosticsPhase.
 const (
-	Collecting WorkerCompletionDiagnosticsPhase = "collecting"
-	Failed     WorkerCompletionDiagnosticsPhase = "failed"
-	Published  WorkerCompletionDiagnosticsPhase = "published"
-	Publishing WorkerCompletionDiagnosticsPhase = "publishing"
-	Sealed     WorkerCompletionDiagnosticsPhase = "sealed"
+	WorkerCompletionDiagnosticsPhaseCollecting WorkerCompletionDiagnosticsPhase = "collecting"
+	WorkerCompletionDiagnosticsPhaseFailed     WorkerCompletionDiagnosticsPhase = "failed"
+	WorkerCompletionDiagnosticsPhasePublished  WorkerCompletionDiagnosticsPhase = "published"
+	WorkerCompletionDiagnosticsPhasePublishing WorkerCompletionDiagnosticsPhase = "publishing"
+	WorkerCompletionDiagnosticsPhaseSealed     WorkerCompletionDiagnosticsPhase = "sealed"
 )
 
 // Valid indicates whether the value is a known member of the WorkerCompletionDiagnosticsPhase enum.
 func (e WorkerCompletionDiagnosticsPhase) Valid() bool {
 	switch e {
-	case Collecting:
+	case WorkerCompletionDiagnosticsPhaseCollecting:
 		return true
-	case Failed:
+	case WorkerCompletionDiagnosticsPhaseFailed:
 		return true
-	case Published:
+	case WorkerCompletionDiagnosticsPhasePublished:
 		return true
-	case Publishing:
+	case WorkerCompletionDiagnosticsPhasePublishing:
 		return true
-	case Sealed:
+	case WorkerCompletionDiagnosticsPhaseSealed:
 		return true
 	default:
 		return false
@@ -3021,6 +3099,24 @@ func (e ListOwnerReviewsParamsState) Valid() bool {
 	case ListOwnerReviewsParamsStateExpired:
 		return true
 	case ListOwnerReviewsParamsStatePending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetRunToolCallsParamsParticipant.
+const (
+	GetRunToolCallsParamsParticipantPlanner GetRunToolCallsParamsParticipant = "planner"
+	GetRunToolCallsParamsParticipantWorker  GetRunToolCallsParamsParticipant = "worker"
+)
+
+// Valid indicates whether the value is a known member of the GetRunToolCallsParamsParticipant enum.
+func (e GetRunToolCallsParamsParticipant) Valid() bool {
+	switch e {
+	case GetRunToolCallsParamsParticipantPlanner:
+		return true
+	case GetRunToolCallsParamsParticipantWorker:
 		return true
 	default:
 		return false
@@ -4689,8 +4785,8 @@ type DeployedModelChoice struct {
 	UpstreamModel string `json:"upstreamModel"`
 }
 
-// DiagnosticMillisDecimal Canonical nonnegative int64 milliseconds, at most 9223372036854775807.
-type DiagnosticMillisDecimal = string
+// DiagnosticInt64Decimal Canonical nonnegative int64 decimal, at most 9223372036854775807. Field names define milliseconds or byte units.
+type DiagnosticInt64Decimal = string
 
 // DiagnosticUnsignedDecimal Canonical decimal uint64, at most 18446744073709551615. Never parse through a JavaScript number.
 type DiagnosticUnsignedDecimal = string
@@ -7536,8 +7632,8 @@ type RuntimeDiagnostic struct {
 	Adapters []RuntimeAdapterDiagnostic `json:"adapters"`
 	Complete *bool                      `json:"complete,omitempty"`
 
-	// DurationMs Canonical nonnegative int64 milliseconds, at most 9223372036854775807.
-	DurationMs          *DiagnosticMillisDecimal `json:"durationMs,omitempty"`
+	// DurationMs Canonical nonnegative int64 decimal, at most 9223372036854775807. Field names define milliseconds or byte units.
+	DurationMs          *DiagnosticInt64Decimal  `json:"durationMs,omitempty"`
 	LogicalAgent        ConfigId                 `json:"logicalAgent"`
 	Reason              *RuntimeDiagnosticReason `json:"reason,omitempty"`
 	Status              RuntimeDiagnosticStatus  `json:"status"`
@@ -8162,6 +8258,58 @@ type TerminationError struct {
 	Message   string   `json:"message"`
 	Retryable bool     `json:"retryable"`
 }
+
+// ToolCallDiagnostic defines model for ToolCallDiagnostic.
+type ToolCallDiagnostic struct {
+	// ArgumentsJson At most 4096 UTF-8 bytes of canonical sanitized JSON TEXT. Render as text without parsing numeric literals through JavaScript numbers.
+	ArgumentsJson      *string `json:"argumentsJson,omitempty"`
+	ArgumentsTruncated bool    `json:"argumentsTruncated"`
+
+	// CallReference Opaque reference derived from the selected report generation and retained record ordinal; never a source call ID.
+	CallReference   string                                    `json:"callReference"`
+	DurationMs      nullable.Nullable[DiagnosticInt64Decimal] `json:"durationMs"`
+	Error           *ToolCallDiagnosticError                  `json:"error,omitempty"`
+	Outcome         ToolCallDiagnosticOutcome                 `json:"outcome"`
+	ResultSizeBytes nullable.Nullable[DiagnosticInt64Decimal] `json:"resultSizeBytes"`
+
+	// Tool At most 128 UTF-8 bytes; unavailable marker replaces an oversized or malformed vocabulary name.
+	Tool          string `json:"tool"`
+	ToolTruncated bool   `json:"toolTruncated"`
+}
+
+// ToolCallDiagnosticOutcome defines model for ToolCallDiagnostic.Outcome.
+type ToolCallDiagnosticOutcome string
+
+// ToolCallDiagnosticError defines model for ToolCallDiagnosticError.
+type ToolCallDiagnosticError struct {
+	Code ConfigId `json:"code"`
+
+	// Message At most 4096 UTF-8 bytes; URL-shaped text removed.
+	Message          string `json:"message"`
+	MessageTruncated bool   `json:"messageTruncated"`
+	Retryable        *bool  `json:"retryable,omitempty"`
+}
+
+// ToolDiagnosticPage defines model for ToolDiagnosticPage.
+type ToolDiagnosticPage struct {
+	Complete        *bool                         `json:"complete,omitempty"`
+	DetailTruncated bool                          `json:"detailTruncated"`
+	Items           []ToolCallDiagnostic          `json:"items"`
+	LogicalAgent    *ConfigId                     `json:"logicalAgent,omitempty"`
+	Page            PageInfo                      `json:"page"`
+	Participant     ToolDiagnosticPageParticipant `json:"participant"`
+	Reason          *ToolDiagnosticPageReason     `json:"reason,omitempty"`
+	Status          ToolDiagnosticPageStatus      `json:"status"`
+}
+
+// ToolDiagnosticPageParticipant defines model for ToolDiagnosticPage.Participant.
+type ToolDiagnosticPageParticipant string
+
+// ToolDiagnosticPageReason defines model for ToolDiagnosticPage.Reason.
+type ToolDiagnosticPageReason string
+
+// ToolDiagnosticPageStatus defines model for ToolDiagnosticPage.Status.
+type ToolDiagnosticPageStatus string
 
 // ToolExecutionConfig defines model for ToolExecutionConfig.
 type ToolExecutionConfig struct {
@@ -9729,6 +9877,19 @@ type GetRunRuntimeDiagnosticsParams struct {
 	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
+
+// GetRunToolCallsParams defines parameters for GetRunToolCalls.
+type GetRunToolCallsParams struct {
+	Participant GetRunToolCallsParamsParticipant `form:"participant" json:"participant"`
+
+	// LogicalAgent Required for worker; forbidden for planner.
+	LogicalAgent *ConfigId `form:"logicalAgent,omitempty" json:"logicalAgent,omitempty"`
+	Limit        *int      `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor       *Cursor   `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// GetRunToolCallsParamsParticipant defines parameters for GetRunToolCalls.
+type GetRunToolCallsParamsParticipant string
 
 // CancelRunParams defines parameters for CancelRun.
 type CancelRunParams struct {
@@ -16057,6 +16218,13 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics (the `GetRunRuntimeDiagnostics` operationId).
 	GetRunRuntimeDiagnostics(ctx context.Context, runId RunId, stageExecutionId ResourceId, params *GetRunRuntimeDiagnosticsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetRunToolCalls Inspect retained sanitized tool calls for one owned attempt participant
+	//
+	// Reads only one selected participant from retained StageMetrics, including Eval-held metrics. This is retained call detail, not a complete event history. Arguments are bounded canonical JSON TEXT; clients must render them without JSON.parse-to-number. Metrics are exact decimal strings; absent measurements are null. No wall-clock call timestamps, source call/report identities, results, provider content or URLs are exposed. Cursor binds the selected participant and retained metric generation; 409 requires a fresh first page.
+	//
+	// Corresponds with GET /v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls (the `GetRunToolCalls` operationId).
+	GetRunToolCalls(ctx context.Context, runId RunId, stageExecutionId ResourceId, params *GetRunToolCallsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CancelRunWithBody Request cancellation of a non-terminal Run
 	//
 	// Takes any type of body and a specified content type.
@@ -18997,6 +19165,23 @@ func (c *Client) ListRunArtifactVersions(ctx context.Context, runId RunId, names
 // Corresponds with GET /v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics (the `GetRunRuntimeDiagnostics` operationId).
 func (c *Client) GetRunRuntimeDiagnostics(ctx context.Context, runId RunId, stageExecutionId ResourceId, params *GetRunRuntimeDiagnosticsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetRunRuntimeDiagnosticsRequest(c.Server, runId, stageExecutionId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetRunToolCalls Inspect retained sanitized tool calls for one owned attempt participant
+//
+// Reads only one selected participant from retained StageMetrics, including Eval-held metrics. This is retained call detail, not a complete event history. Arguments are bounded canonical JSON TEXT; clients must render them without JSON.parse-to-number. Metrics are exact decimal strings; absent measurements are null. No wall-clock call timestamps, source call/report identities, results, provider content or URLs are exposed. Cursor binds the selected participant and retained metric generation; 409 requires a fresh first page.
+//
+// Corresponds with GET /v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls (the `GetRunToolCalls` operationId).
+func (c *Client) GetRunToolCalls(ctx context.Context, runId RunId, stageExecutionId ResourceId, params *GetRunToolCallsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRunToolCallsRequest(c.Server, runId, stageExecutionId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -29297,6 +29482,106 @@ func NewGetRunRuntimeDiagnosticsRequest(server string, runId RunId, stageExecuti
 	return req, nil
 }
 
+// NewGetRunToolCallsRequest constructs an http.Request for the GetRunToolCalls method
+func NewGetRunToolCallsRequest(server string, runId RunId, stageExecutionId ResourceId, params *GetRunToolCallsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "runId", runId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "stageExecutionId", stageExecutionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/runs/%s/attempts/%s/tool-calls", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "participant", params.Participant, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if params.LogicalAgent != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "logicalAgent", *params.LogicalAgent, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewCancelRunRequest calls the generic CancelRun builder with application/json body
 func NewCancelRunRequest(server string, runId RunId, params *CancelRunParams, body CancelRunJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -31614,6 +31899,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics (the `GetRunRuntimeDiagnostics` operationId).
 	GetRunRuntimeDiagnosticsWithResponse(ctx context.Context, runId RunId, stageExecutionId ResourceId, params *GetRunRuntimeDiagnosticsParams, reqEditors ...RequestEditorFn) (*GetRunRuntimeDiagnosticsResponse, error)
+
+	// GetRunToolCallsWithResponse Inspect retained sanitized tool calls for one owned attempt participant
+	//
+	// Reads only one selected participant from retained StageMetrics, including Eval-held metrics. This is retained call detail, not a complete event history. Arguments are bounded canonical JSON TEXT; clients must render them without JSON.parse-to-number. Metrics are exact decimal strings; absent measurements are null. No wall-clock call timestamps, source call/report identities, results, provider content or URLs are exposed. Cursor binds the selected participant and retained metric generation; 409 requires a fresh first page.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls (the `GetRunToolCalls` operationId).
+	GetRunToolCallsWithResponse(ctx context.Context, runId RunId, stageExecutionId ResourceId, params *GetRunToolCallsParams, reqEditors ...RequestEditorFn) (*GetRunToolCallsResponse, error)
 
 	// CancelRunWithBodyWithResponse Request cancellation of a non-terminal Run
 	//
@@ -51336,6 +51630,141 @@ func (r GetRunRuntimeDiagnosticsResponse) ContentType() string {
 	return ""
 }
 
+// GetRunToolCallsResponse200Headers the declared response headers of an HTTP 200 response for GetRunToolCalls
+type GetRunToolCallsResponse200Headers struct {
+	CacheControl string
+	XRequestID   RequestId
+}
+
+// GetRunToolCallsResponse400Headers the declared response headers of an HTTP 400 response for GetRunToolCalls
+type GetRunToolCallsResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunToolCallsResponse401Headers the declared response headers of an HTTP 401 response for GetRunToolCalls
+type GetRunToolCallsResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// GetRunToolCallsResponse404Headers the declared response headers of an HTTP 404 response for GetRunToolCalls
+type GetRunToolCallsResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunToolCallsResponse409Headers the declared response headers of an HTTP 409 response for GetRunToolCalls
+type GetRunToolCallsResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunToolCallsResponse500Headers the declared response headers of an HTTP 500 response for GetRunToolCalls
+type GetRunToolCallsResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// GetRunToolCallsResponse503Headers the declared response headers of an HTTP 503 response for GetRunToolCalls
+type GetRunToolCallsResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type GetRunToolCallsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ToolDiagnosticPage
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetRunToolCallsResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetRunToolCallsResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *GetRunToolCallsResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetRunToolCallsResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *GetRunToolCallsResponse409Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *GetRunToolCallsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *GetRunToolCallsResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetRunToolCallsResponse) GetJSON200() *ToolDiagnosticPage {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetRunToolCallsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetRunToolCallsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetRunToolCallsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r GetRunToolCallsResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetRunToolCallsResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r GetRunToolCallsResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r GetRunToolCallsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetRunToolCallsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetRunToolCallsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetRunToolCallsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // CancelRunResponse2200Headers the declared response headers of an HTTP 200 response for CancelRun
 type CancelRunResponse2200Headers struct {
 	XRequestID RequestId
@@ -56061,6 +56490,21 @@ func (c *ClientWithResponses) GetRunRuntimeDiagnosticsWithResponse(ctx context.C
 		return nil, err
 	}
 	return ParseGetRunRuntimeDiagnosticsResponse(rsp)
+}
+
+// GetRunToolCallsWithResponse Inspect retained sanitized tool calls for one owned attempt participant
+//
+// Reads only one selected participant from retained StageMetrics, including Eval-held metrics. This is retained call detail, not a complete event history. Arguments are bounded canonical JSON TEXT; clients must render them without JSON.parse-to-number. Metrics are exact decimal strings; absent measurements are null. No wall-clock call timestamps, source call/report identities, results, provider content or URLs are exposed. Cursor binds the selected participant and retained metric generation; 409 requires a fresh first page.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls (the `GetRunToolCalls` operationId).
+func (c *ClientWithResponses) GetRunToolCallsWithResponse(ctx context.Context, runId RunId, stageExecutionId ResourceId, params *GetRunToolCallsParams, reqEditors ...RequestEditorFn) (*GetRunToolCallsResponse, error) {
+	rsp, err := c.GetRunToolCalls(ctx, runId, stageExecutionId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetRunToolCallsResponse(rsp)
 }
 
 // CancelRunWithBodyWithResponse Request cancellation of a non-terminal Run
@@ -80327,6 +80771,168 @@ func ParseGetRunRuntimeDiagnosticsResponse(rsp *http.Response) (*GetRunRuntimeDi
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers GetRunRuntimeDiagnosticsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetRunToolCallsResponse parses an HTTP response from a GetRunToolCallsWithResponse call
+func ParseGetRunToolCallsResponse(rsp *http.Response) (*GetRunToolCallsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetRunToolCallsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ToolDiagnosticPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetRunToolCallsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers GetRunToolCallsResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers GetRunToolCallsResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetRunToolCallsResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers GetRunToolCallsResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 500:
+		var headers GetRunToolCallsResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers GetRunToolCallsResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

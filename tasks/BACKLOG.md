@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-129 open tasks: 5 in progress, 113 pending, 11 deferred. 1159 finished: 1149 completed, 10 archived.
+129 open tasks: 6 in progress, 112 pending, 11 deferred. 1159 finished: 1149 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
+| [V421-004](v421-004-attempt-tool-call-diagnostics.yml) | operations | feature | P2 | Add a bounded diagnostic interface for retained tool-call detail |
 
 ## Pending
 
@@ -165,12 +166,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V403-003](v403-003-openapi-preview-at-1mib.yml) | defect | P3 | — | Keep a 1 MiB OpenAPI preview from blocking the page |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the autonomous HTTP pentest setup and evidence journey |
-
-### Operations, authentication, CLI and deployment (`operations`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V421-004](v421-004-attempt-tool-call-diagnostics.yml) | feature | P2 | — | Add a bounded diagnostic interface for retained tool-call detail |
 
 ### Public API and wire contracts (`api-contracts`)
 

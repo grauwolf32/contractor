@@ -1092,6 +1092,58 @@ These supplementary facts never change execution results, retries or Eval
 usage. The UI reads on disclosure open, observed Stage state change and
 explicit refresh, backs off retryable failures and does not poll settled data.
 
+#### Owner-visible retained tool-call diagnostics
+
+**OBS-R116.** The authenticated Run owner can read retained call detail through
+`GET /v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls`. The same SQL
+statement authorizes the owner and exact Stage-to-Run association before
+selecting only `planner`, or `worker` with a required logical Agent name in the
+shared name grammar. A Planner selector forbids a logical Agent name. Retained
+StageMetrics is authoritative, including Eval-held metrics after source report
+cleanup; no new report, retention hold or call ledger is created. Selected
+reports are decoded strictly under stored-report rules (OBS-R110); malformed
+selected data is unavailable and does not hide a healthy other participant.
+
+**OBS-R117.** One request decodes at most one selected participant projection,
+limited in PostgreSQL to 8 MiB of JSON text before it leaves the database. A
+larger projection is unavailable with `report_oversized`. Pages default to 25
+records and permit at most 100 and 128 KiB of compact UTF-8 response JSON,
+including string escaping (LIM-OBS-20). Retained source order is preserved. A
+byte-limited page stops before its first nonfitting row; every bounded row fits
+an empty page. Opaque signed cursors bind the owner, Run, Stage, participant,
+logical name, retained metric generation and record offset. Each scope member
+is framed unambiguously, including resource IDs containing colons. A changed
+generation requires a fresh first page with 409 conflict. Reads do no per-tool
+query or all-participant report scan and stop when the request is cancelled.
+
+**OBS-R118.** Each public row contains an opaque 64-character hexadecimal
+`callReference` derived from the selected report generation and record ordinal,
+never a source CallID or report identity. It contains the Runtime vocabulary
+tool name, succeeded/failed outcome, nullable nonnegative int64 decimal-string
+`durationMs` and `resultSizeBytes`, and the sanitized argument/error summary.
+The public boundary reuses the common persistence sanitizer and removes
+URL-shaped text recursively, including argument keys, while preserving
+`json.Number` values. `argumentsJson` is canonical JSON **text**, at most 4096
+UTF-8 bytes under OBS-R42, rendered without parsing through browser numbers.
+Oversized argument text becomes an explicit valid JSON truncation summary.
+Names outside the public 128-byte vocabulary bound become an unavailable-name
+marker with `toolTruncated`; error messages are bounded to 4096 UTF-8 bytes
+with `messageTruncated` (LIM-OBS-21). Error codes follow OBS-R32's existing name
+grammar and fallback. Arguments preserve `argumentsTruncated` and additionally
+mark public redaction or truncation. No raw results, model/provider content,
+physical identities, URLs, credentials or invented call timestamps are added.
+
+**OBS-R119.** This surface is retained call detail, not a full event history.
+Report completeness, report-level detail truncation, argument truncation, an
+empty retained call list, a pending live report, unavailable terminal telemetry
+and read failure are distinct. Availability follows OBS-R115 and failures are
+FAIL-OBS-9. The UI selects one participant, expands arguments on demand and
+loads later pages explicitly. It refreshes on disclosure open, that Stage's
+observed state change or explicit action, uses bounded retry backoff and
+preserves loaded facts visibly on failed refresh. Other Run updates, projection
+remounts and settled objects do not cause perpetual polling. Diagnostic reads
+never change execution results, aggregate counters or Eval usage.
+
 ## Telemetry rules owned by other documents
 
 | Topic | Owner |

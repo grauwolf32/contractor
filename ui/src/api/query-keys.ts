@@ -266,6 +266,10 @@ export const queryKeys = {
   runs: {
     runtimeDiagnostics: (runId: string, stageExecutionId: string) =>
       ["attempt-runtime-diagnostics", runId, stageExecutionId] as const,
+    toolCalls: (runId: string, stageExecutionId: string) =>
+      ["attempt-tool-calls", runId, stageExecutionId] as const,
+    toolCallSelection: (runId: string, stageExecutionId: string) =>
+      ["attempt-tool-call-selection", runId, stageExecutionId] as const,
     all: ["runs"] as const,
     list: (
       state: string | undefined,

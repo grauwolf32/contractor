@@ -63,6 +63,7 @@ type GatewayRecovery interface {
 // gateway retry and deletion.
 type AttemptDiagnosticReader interface {
 	ReadRuntimeDiagnostics(context.Context, telemetry.RuntimeDiagnosticParams) (telemetry.RuntimeDiagnosticPage, error)
+	ReadToolCallDiagnostics(context.Context, telemetry.ToolDiagnosticParams) (telemetry.ToolDiagnosticPage, error)
 }
 
 type RunDependencies struct {

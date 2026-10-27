@@ -38,6 +38,8 @@ export async function getRuntimeDiagnostics(
   const value = requireData(result);
   const valid = value.items.every(
     (item) =>
+      (item.stopReason === undefined ||
+        new TextEncoder().encode(item.stopReason).byteLength <= 4096) &&
       (item.durationMs === undefined ||
         exactUnsigned(item.durationMs, 9223372036854775807n)) &&
       item.adapters.every(

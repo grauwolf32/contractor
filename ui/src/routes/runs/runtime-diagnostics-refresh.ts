@@ -14,7 +14,7 @@ export function useRuntimeDiagnosticRefresh(
   useEffect(() => {
     const next = new Map<string, string>();
     for (const attempt of attempts) {
-      const identity = `${runId}:${attempt.stageExecutionId}`;
+      const identity = JSON.stringify([runId, attempt.stageExecutionId]);
       next.set(identity, attempt.state);
       const state = previous.current.get(identity);
       if (state !== undefined && state !== attempt.state) {
@@ -24,6 +24,9 @@ export function useRuntimeDiagnosticRefresh(
             attempt.stageExecutionId,
           ),
           exact: true,
+        });
+        void client.invalidateQueries({
+          queryKey: queryKeys.runs.toolCalls(runId, attempt.stageExecutionId),
         });
       }
     }

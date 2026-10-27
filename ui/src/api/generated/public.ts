@@ -1443,6 +1443,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+                stageExecutionId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Inspect retained sanitized tool calls for one owned attempt participant
+         * @description Reads only one selected participant from retained StageMetrics, including Eval-held metrics. This is retained call detail, not a complete event history. Arguments are bounded canonical JSON TEXT; clients must render them without JSON.parse-to-number. Metrics are exact decimal strings; absent measurements are null. No wall-clock call timestamps, source call/report identities, results, provider content or URLs are exposed. Cursor binds the selected participant and retained metric generation; 409 requires a fresh first page.
+         */
+        get: operations["getRunToolCalls"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/runs/{runId}/repeat-draft": {
         parameters: {
             query?: never;
@@ -5200,8 +5223,8 @@ export interface components {
         } & (unknown & unknown);
         /** @description Canonical decimal uint64, at most 18446744073709551615. Never parse through a JavaScript number. */
         DiagnosticUnsignedDecimal: string;
-        /** @description Canonical nonnegative int64 milliseconds, at most 9223372036854775807. */
-        DiagnosticMillisDecimal: string;
+        /** @description Canonical nonnegative int64 decimal, at most 9223372036854775807. Field names define milliseconds or byte units. */
+        DiagnosticInt64Decimal: string;
         DroppedSpanDiagnosticCounts: {
             queueOverflow: components["schemas"]["DiagnosticUnsignedDecimal"];
             encodingFailed: components["schemas"]["DiagnosticUnsignedDecimal"];
@@ -5230,11 +5253,46 @@ export interface components {
             /** @enum {string} */
             reason?: "invalid_report";
             complete?: boolean;
-            durationMs?: components["schemas"]["DiagnosticMillisDecimal"];
+            durationMs?: components["schemas"]["DiagnosticInt64Decimal"];
             stopReason?: string;
             stopReasonTruncated: boolean;
             adapters: components["schemas"]["RuntimeAdapterDiagnostic"][];
         };
+        ToolCallDiagnosticError: {
+            code: components["schemas"]["ConfigId"];
+            /** @description At most 4096 UTF-8 bytes; URL-shaped text removed. */
+            message: string;
+            messageTruncated: boolean;
+            retryable?: boolean;
+        };
+        ToolCallDiagnostic: {
+            /** @description Opaque reference derived from the selected report generation and retained record ordinal; never a source call ID. */
+            callReference: string;
+            /** @description At most 128 UTF-8 bytes; unavailable marker replaces an oversized or malformed vocabulary name. */
+            tool: string;
+            toolTruncated: boolean;
+            /** @enum {string} */
+            outcome: "succeeded" | "failed";
+            /** @description At most 4096 UTF-8 bytes of canonical sanitized JSON TEXT. Render as text without parsing numeric literals through JavaScript numbers. */
+            argumentsJson?: string;
+            argumentsTruncated: boolean;
+            durationMs: components["schemas"]["DiagnosticInt64Decimal"] | null;
+            resultSizeBytes: components["schemas"]["DiagnosticInt64Decimal"] | null;
+            error?: components["schemas"]["ToolCallDiagnosticError"];
+        } & (unknown & unknown);
+        ToolDiagnosticPage: {
+            /** @enum {string} */
+            status: "available" | "pending" | "unavailable";
+            /** @enum {string} */
+            reason?: "report_missing" | "invalid_report" | "report_oversized";
+            /** @enum {string} */
+            participant: "planner" | "worker";
+            logicalAgent?: components["schemas"]["ConfigId"];
+            complete?: boolean;
+            detailTruncated: boolean;
+            items: components["schemas"]["ToolCallDiagnostic"][];
+            page: components["schemas"]["PageInfo"];
+        } & (unknown & unknown);
         RuntimeDiagnosticPage: {
             /** @enum {string} */
             status: "available" | "pending" | "unavailable";
@@ -11142,6 +11200,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RuntimeDiagnosticPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getRunToolCalls: {
+        parameters: {
+            query: {
+                participant: "planner" | "worker";
+                /** @description Required for worker; forbidden for planner. */
+                logicalAgent?: components["schemas"]["ConfigId"];
+                limit?: number;
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+                stageExecutionId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A bounded page; pending/unavailable telemetry is explicit */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolDiagnosticPage"];
                 };
             };
             400: components["responses"]["BadRequest"];

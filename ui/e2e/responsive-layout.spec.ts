@@ -100,6 +100,41 @@ async function installRunAPI(page: Page): Promise<void> {
       });
       return;
     }
+    if (url.pathname.endsWith("/tool-calls")) {
+      const worker = url.searchParams.get("participant") === "worker";
+      const next = url.searchParams.has("cursor");
+      await fulfillJSON(route, {
+        status: "available",
+        participant: worker ? "worker" : "planner",
+        ...(worker ? { logicalAgent: "validator" } : {}),
+        complete: !worker,
+        detailTruncated: worker,
+        items: [
+          {
+            callReference: (next ? "b" : "a").repeat(64),
+            tool: next ? "second_probe" : "probe",
+            toolTruncated: false,
+            outcome: "failed",
+            argumentsJson:
+              '{"large":9007199254740993,"unsigned":18446744073709551615}',
+            argumentsTruncated: worker,
+            durationMs: "9223372036854775807",
+            resultSizeBytes: "9007199254740993",
+            error: {
+              code: "tool_call_failed",
+              message: "The probe failed with a retained diagnostic.",
+              messageTruncated: false,
+              retryable: false,
+            },
+          },
+        ],
+        page:
+          worker || next
+            ? { hasMore: false }
+            : { hasMore: true, nextCursor: "next-tool-page" },
+      });
+      return;
+    }
     if (url.pathname === `/v1/runs/${RUN_ID}/artifacts`) {
       await fulfillJSON(route, { items: [], page: { hasMore: false } });
       return;
@@ -180,6 +215,59 @@ test("Run list prioritizes compact facts on narrow screens", async ({
 });
 
 for (const theme of ["light", "dark", "black"] as const) {
+  test(`Tool-call detail remains exact at 390 px in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(
+      (theme) => localStorage.setItem("contractor.theme", theme),
+      theme,
+    );
+    await installRunAPI(page);
+    await page.goto(`/runs/${RUN_ID}`);
+    const attempts = page.locator("#run-attempts");
+    if ((await attempts.getAttribute("open")) === null)
+      await attempts.locator(":scope > summary").click();
+    const attempt = page.locator(".runs-attempt").first();
+    if ((await attempt.getAttribute("open")) === null)
+      await attempt.locator(":scope > summary").click();
+    const panel = attempt.locator(".runs-block").filter({
+      has: page.getByRole("heading", { name: "Tool calls", exact: true }),
+    });
+    await expect(
+      panel.getByText("9223372036854775807", { exact: true }),
+    ).toBeVisible();
+    await panel.getByText("Sanitized arguments", { exact: true }).click();
+    await expect(
+      panel.getByText(
+        '{"large":9007199254740993,"unsigned":18446744073709551615}',
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await panel.getByRole("button", { name: "Load more tool calls" }).click();
+    await expect(
+      panel.getByText("second_probe", { exact: true }),
+    ).toBeVisible();
+    await panel
+      .getByLabel("Tool-call participant")
+      .selectOption("worker:validator");
+    await expect(
+      panel.getByText("The selected report is incomplete."),
+    ).toBeVisible();
+    await expect(
+      panel.getByText(
+        "Retained detail was shortened; older records may have been removed.",
+      ),
+    ).toBeVisible();
+    await panel.getByText("Sanitized arguments", { exact: true }).click();
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBe(390);
+    await panel.getByRole("heading", { name: "Tool calls", exact: true }).click();
+    await panel.screenshot({
+      path: testInfo.outputPath(`tool-diagnostics-${theme}.png`),
+    });
+  });
   test(`Runtime delivery diagnostics remain exact at 390 px in ${theme}`, async ({
     page,
   }, testInfo) => {

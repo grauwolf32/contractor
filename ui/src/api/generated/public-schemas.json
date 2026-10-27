@@ -8869,7 +8869,7 @@
       "maxLength": 20,
       "pattern": "^(0|[1-9][0-9]*)$"
     },
-    "DiagnosticMillisDecimal": {
+    "DiagnosticInt64Decimal": {
       "type": "string",
       "minLength": 1,
       "maxLength": 19,
@@ -8972,7 +8972,7 @@
         "reason": { "type": "string", "enum": ["invalid_report"] },
         "complete": { "type": "boolean" },
         "durationMs": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticMillisDecimal"
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticInt64Decimal"
         },
         "stopReason": { "type": "string", "minLength": 1, "maxLength": 4096 },
         "stopReasonTruncated": { "type": "boolean" },
@@ -8984,6 +8984,119 @@
           }
         }
       }
+    },
+    "ToolCallDiagnosticError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "messageTruncated"],
+      "properties": {
+        "code": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
+        },
+        "message": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "messageTruncated": { "type": "boolean" },
+        "retryable": { "type": "boolean" }
+      }
+    },
+    "ToolCallDiagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "callReference",
+        "tool",
+        "toolTruncated",
+        "outcome",
+        "argumentsTruncated",
+        "durationMs",
+        "resultSizeBytes"
+      ],
+      "properties": {
+        "callReference": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "tool": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "toolTruncated": { "type": "boolean" },
+        "outcome": { "type": "string", "enum": ["succeeded", "failed"] },
+        "argumentsJson": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 4096
+        },
+        "argumentsTruncated": { "type": "boolean" },
+        "durationMs": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticInt64Decimal"
+            },
+            { "type": "null" }
+          ]
+        },
+        "resultSizeBytes": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticInt64Decimal"
+            },
+            { "type": "null" }
+          ]
+        },
+        "error": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ToolCallDiagnosticError"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "outcome": { "const": "succeeded" } } },
+          "then": { "not": { "required": ["error"] } }
+        },
+        {
+          "if": { "properties": { "outcome": { "const": "failed" } } },
+          "then": { "required": ["error"] }
+        }
+      ]
+    },
+    "ToolDiagnosticPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "participant", "detailTruncated", "items", "page"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["available", "pending", "unavailable"]
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["report_missing", "invalid_report", "report_oversized"]
+        },
+        "participant": { "type": "string", "enum": ["planner", "worker"] },
+        "logicalAgent": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
+        },
+        "complete": { "type": "boolean" },
+        "detailTruncated": { "type": "boolean" },
+        "items": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ToolCallDiagnostic"
+          }
+        },
+        "page": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "participant": { "const": "planner" } } },
+          "then": { "not": { "required": ["logicalAgent"] } }
+        },
+        {
+          "if": { "properties": { "participant": { "const": "worker" } } },
+          "then": { "required": ["logicalAgent"] }
+        }
+      ]
     },
     "RuntimeDiagnosticPage": {
       "type": "object",

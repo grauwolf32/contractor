@@ -322,6 +322,22 @@ func (w *countingWaker) Wake() { w.calls++ }
 
 type emptyAttemptDiagnostics struct{ OwnerID, RunID, StageExecutionID string }
 
+func (f emptyAttemptDiagnostics) ReadToolCallDiagnostics(ctx context.Context, p telemetry.ToolDiagnosticParams) (telemetry.ToolDiagnosticPage, error) {
+	if err := ctx.Err(); err != nil {
+		return telemetry.ToolDiagnosticPage{}, err
+	}
+	if p.Limit < 1 || p.Limit > telemetry.MaxToolDiagnosticLimit ||
+		(p.Participant != "planner" && p.Participant != "worker") ||
+		(p.Participant == "planner" && p.LogicalAgent != "") ||
+		(p.Participant == "worker" && !contracts.ValidName(p.LogicalAgent)) {
+		return telemetry.ToolDiagnosticPage{}, telemetry.ErrInvalid
+	}
+	if p.OwnerID != f.OwnerID || p.RunID != f.RunID || p.StageExecutionID != f.StageExecutionID {
+		return telemetry.ToolDiagnosticPage{}, telemetry.ErrNotFound
+	}
+	return telemetry.ToolDiagnosticPage{Status: "unavailable", Reason: "report_missing", Participant: p.Participant, LogicalAgent: p.LogicalAgent, Items: []telemetry.ToolCallDiagnostic{}}, nil
+}
+
 func (f emptyAttemptDiagnostics) ReadRuntimeDiagnostics(ctx context.Context, p telemetry.RuntimeDiagnosticParams) (telemetry.RuntimeDiagnosticPage, error) {
 	if err := ctx.Err(); err != nil {
 		return telemetry.RuntimeDiagnosticPage{}, err

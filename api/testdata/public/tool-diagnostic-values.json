@@ -1,0 +1,13 @@
+{
+  "cases": [
+    {"value": "0", "accepted": true},
+    {"value": "9007199254740993", "accepted": true},
+    {"value": "9223372036854775807", "accepted": true},
+    {"value": "9223372036854775808", "accepted": false},
+    {"value": "01", "accepted": false},
+    {"value": "-1", "accepted": false},
+    {"value": "1.5", "accepted": false},
+    {"value": "1e3", "accepted": false}
+  ],
+  "argumentsJson": "{\"large\":9007199254740993,\"unsigned\":18446744073709551615}"
+}
