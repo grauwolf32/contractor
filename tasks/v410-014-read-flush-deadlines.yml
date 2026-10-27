@@ -1,0 +1,72 @@
+schema_version: '1.0'
+id: V410-014
+title: Keep sitemap reads available after automatic flush exhaustion
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-003
+priority: P1
+status: in_progress
+depends_on:
+- V410-003
+languages:
+- python
+goal: Keep sitemap reads available after automatic flush exhaustion.
+context:
+  authority: User requested a second assessment, task creation and fixes on 2026-10-27. The raw owner-selected blackbox
+    input finding is withdrawn; secret filtering is removed by V410-011.
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  severity: medium
+  finding: 'runtime/src/contractor_runtime/toolsets/sitemap/tools.py:129 and session.py:80: an automatic checkpoint
+    uses the entire 15-second explicit-tool deadline, preventing any committed-state read.'
+  siblings: Give best-effort pre-read flushing and explicit reads distinct bounded allowances; preserve caller cancellation,
+    collection retry ceilings, immutable existing pages and joined cleanup.
+scope:
+  in:
+  - Give best-effort pre-read flushing and explicit reads distinct bounded allowances; preserve caller cancellation,
+    collection retry ceilings, immutable existing pages and joined cleanup.
+  - Regression coverage on the existing production path and owning contract updates.
+  out:
+  - Unrelated pending sitemap imports, reconciliation and workflow delivery; new persistence or retention mechanisms.
+failure_outcomes:
+- operation: Existing sitemap operation
+  permanent: Preserve classified syntax, authority, exact selection and stale-intent errors.
+  retryable: Use existing attempt and deadline bounds; no new blanket retries.
+  ambiguous: Keep original operation identity and existing receipt or immutable view.
+  cancelled: Join work through existing allocation/transaction lifecycle.
+  timeout: Keep independent operations within their documented bounded allowance.
+cardinality:
+- collection: Existing map, view, source and observation collections
+  expected: Existing proposal workload and realistic regression fixtures
+  maximum: Existing LIM-SMT ceilings; no silently increased limit
+  bound: Every page, batch and transaction remains bounded by existing count and byte constraints.
+lifecycle:
+- entity: Existing sitemap resources
+  delete: Existing Project and allocation lifecycle
+  cascade: No new lifetime or independent persistence owner
+  retention: Existing ArtifactStore exact-reference protection and bounded history
+acceptance_criteria:
+- id: A1
+  text: An exhausted automatic flush still permits a fresh list or read to fetch committed state.
+- id: A2
+  text: Explicit authorization/storage errors retain their classified outcome; caller cancellation is preserved
+    and no publisher survives release.
+- id: A3
+  text: Injected-clock tests cover the real collector and tool path without wall-clock correctness assertions.
+tests:
+- command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-project-sitemap-tools-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
