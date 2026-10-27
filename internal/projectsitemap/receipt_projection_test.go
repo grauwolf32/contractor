@@ -194,3 +194,42 @@ func TestSitemapReceiptConflictsStayWithinBatchAndReceiptBounds(t *testing.T) {
 	}
 	t.Logf("batch_bytes=%d receipt_bytes=%d paths=%d replay_rules=%d", len(jsonBytes(command)), len(encoded), len(command.Observations), len(policy))
 }
+
+func TestPostgresSitemapDeclarationReceiptPreservesParameterNames(t *testing.T) {
+	pool := sitemapPool(t)
+	service := NewService(pool)
+	ctx := t.Context()
+	owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual", Mode: "blackbox"}
+	command := Mutation{Operation: "declare", ExpectedRevision: "absent", URL: "https://example.test/search?q=one", Method: "GET"}
+	first, err := service.Mutate(ctx, owner, "declare", command)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkReplay := func() {
+		t.Helper()
+		changed := command
+		changed.URL = "https://example.test/search?token=one"
+		if _, err := service.Mutate(ctx, owner, "declare", changed); !errors.Is(err, contracts.ErrIdempotencyConflict) {
+			t.Fatalf("changed declaration parameter name: %v", err)
+		}
+		for _, raw := range []string{"https://example.test/search?q=two", "https://example.test/search?q=two&q=three"} {
+			same := command
+			same.URL = raw
+			replayed, err := service.Mutate(ctx, owner, "declare", same)
+			if err != nil || !replayed.Replayed || !replayed.Ref.SameExact(first.Ref) {
+				t.Fatalf("ordinary parameter values changed receipt identity: %+v %v", replayed, err)
+			}
+		}
+	}
+	checkReplay()
+	view, err := service.Read(ctx, "owner", "project", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := view.Document.Sources[0]
+	rule := receiptProjectionRule("/search", StructuralParameter{Name: "q", Allowed: []string{"one"}})
+	if _, err := service.Mutate(ctx, owner, "configure-selector", Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: owner.SourceID, Expected: &expected, Rules: []Rule{rule}}}); err != nil {
+		t.Fatal(err)
+	}
+	checkReplay()
+}

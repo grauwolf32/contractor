@@ -154,6 +154,7 @@ type projectedRequest struct {
 	SessionGenerations      []string               `json:"sessionGenerations,omitempty"`
 	ManualLocationsOmitted  bool                   `json:"manualLocationsOmitted"`
 	ManualStructural        []StructuralValue      `json:"manualStructural"`
+	ManualParameters        []string               `json:"manualParameters"`
 	ManualStructuralOmitted bool                   `json:"manualStructuralOmitted"`
 }
 
@@ -324,9 +325,10 @@ func projectIntent(m Mutation, a Authority, rules []Rule) (Mutation, projectedRe
 		statuses[i] = status
 	}
 	manualStructural := []StructuralValue{}
+	manualParameters := []string{}
 	manualStructuralOmitted := false
 	if m.URL != "" {
-		origin, path, _, err := projectURL(m.URL)
+		origin, path, parameters, err := projectURL(m.URL)
 		if err != nil {
 			return Mutation{}, projectedRequest{}, nil, err
 		}
@@ -340,6 +342,7 @@ func projectIntent(m Mutation, a Authority, rules []Rule) (Mutation, projectedRe
 			manualStructural = values
 		}
 		replay = addReplayPolicy(replay, rules, origin, m.Method, route, path, manualStructural, manualStructuralOmitted)
+		manualParameters = parameters
 		copy.URL = origin + path
 	}
 	annotation, err := projectAnnotation(m.Note, m.Tags, a)
@@ -382,7 +385,7 @@ func projectIntent(m Mutation, a Authority, rules []Rule) (Mutation, projectedRe
 			}
 		}
 	}
-	return copy, projectedRequest{Observations: statuses, ManualLocationsOmitted: projectedLocations(m.URL), ManualStructural: manualStructural, ManualStructuralOmitted: manualStructuralOmitted}, replay, nil
+	return copy, projectedRequest{Observations: statuses, ManualLocationsOmitted: projectedLocations(m.URL), ManualStructural: manualStructural, ManualParameters: manualParameters, ManualStructuralOmitted: manualStructuralOmitted}, replay, nil
 }
 
 func addReplayPolicy(saved, rules []Rule, origin, method, route, path string, values []StructuralValue, omitted bool) []Rule {
