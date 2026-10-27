@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-122 open tasks: 7 in progress, 104 pending, 11 deferred. 1173 finished: 1163 completed, 10 archived.
+121 open tasks: 6 in progress, 104 pending, 11 deferred. 1174 finished: 1164 completed, 10 archived.
 
 ## In progress
 
@@ -17,7 +17,6 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
 | [V421-010](v421-010-verify-data-model-consumers.yml) | quality | chore | P3 | Verify the agreed data-model consumers and contract simplifications |
-| [V421-016](v421-016-preserve-sitemap-scale-production-timing.yml) | quality | chore | P3 | Keep the large sitemap publication test under production timing |
 
 ## Pending
 
@@ -242,4 +241,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 43 | 7 | 18 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 44 | 13 |
-| Quality, CI and process (`quality`) | 19 | 1 | 27 | 101 | 23 |
+| Quality, CI and process (`quality`) | 18 | 1 | 27 | 101 | 23 |

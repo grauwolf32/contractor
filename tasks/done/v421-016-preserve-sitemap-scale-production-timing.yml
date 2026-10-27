@@ -6,7 +6,8 @@ epic: quality
 kind: chore
 introduced_by: V410-001
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: b9f7366193adca40c6f2c1266866f7ffac0dc0fb
 depends_on: [V410-001]
 languages: [go, markdown, yaml]
 goal: >-
@@ -67,3 +68,28 @@ tests:
     covers: [A1, A3]
   - command: make lint
     covers: [A1, A3]
+verification:
+  evidence: tasks/evidence/v421-016-sitemap-production-scale.json
+  source: b9f7366193adca40c6f2c1266866f7ffac0dc0fb
+  unchanged_proof: >-
+    Independent review and Linux acceptance recomputed the original function
+    SHA-256 9bd02614aee3e900f9fd7387ec57c8b993fd78a855990b0fb676e577892fa7bf;
+    the body and the remaining 11 source-file functions are unchanged. No
+    production file, fixture size, publication count, assertion or deadline changed.
+  owner_checks: >-
+    Complete real-PostgreSQL host owner suites passed normally (27 roots,
+    261.895 seconds) and under race detection (26 roots, 9.687 seconds), with
+    zero skips. Clean Linux b9f73661 passed all 36 normal identities/27 roots
+    and 35 race identities/26 roots, zero failures or skips; the original scale
+    case passed in 272.26 seconds only in the normal build. Concurrent writers,
+    receipts, holds and lifecycle cases remain raced. Linux used the stricter
+    default ten-minute package timeout; the original eight-minute fixture
+    context and production 15-second operation timeout are unchanged.
+  static_checks: >-
+    The explicit release graph command passed in 133.395 seconds; make lint
+    passed in 186.435 seconds. The graph requires the normal complete owner
+    pass and retains the package's race coverage without an exception.
+  release_status: >-
+    This focused acceptance does not pass the integrated release gate.
+    V421-010 remains in progress and requires a fresh full attempt after this
+    completed correction. The failed/cancelled 30329ddb attempt is preserved.
