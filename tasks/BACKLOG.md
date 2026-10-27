@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-130 open tasks: 5 in progress, 114 pending, 11 deferred. 1158 finished: 1148 completed, 10 archived.
+130 open tasks: 6 in progress, 113 pending, 11 deferred. 1158 finished: 1148 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
+| [V421-003](v421-003-runtime-adapter-diagnostics.yml) | operations | feature | P2 | Expose retained Runtime adapter failures in owner-visible attempt diagnostics |
 
 ## Pending
 
@@ -170,7 +171,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V421-003](v421-003-runtime-adapter-diagnostics.yml) | feature | P2 | — | Expose retained Runtime adapter failures in owner-visible attempt diagnostics |
 | [V421-004](v421-004-attempt-tool-call-diagnostics.yml) | feature | P2 | V421-003 | Add a bounded diagnostic interface for retained tool-call detail |
 
 ### Public API and wire contracts (`api-contracts`)
