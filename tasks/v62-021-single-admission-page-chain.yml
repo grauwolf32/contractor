@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V62-007
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V62-020
 languages:
@@ -30,9 +30,13 @@ context:
   - docs/spec/platform/persistence.md
   - docs/spec/platform/limits.md
   - docs/spec/execution/scheduler.md
-  format_transition: Update all current readers/writers together. No legacy fallback. Deployment requires
-    no active Audit using the previous execution format; historical immutable artifacts remain evidence
-    and are not rewritten. No deployment is part of this task.
+  format_transition: Forward migration000053 rejects live Audits with old admission checkpoints or typed
+    prepared membership metadata using parent-only reads. Stop the previous Server before applying. Terminal
+    historical evidence is preserved byte-for-byte; no legacy reader or deployment.
+  implementation_boundary: One PreparedRoundPage chain and PreparedRoundRoot; selected/published and staged
+    counts remain distinct. The last bounded trusted-page staging phase atomically installs the existing
+    SQL membership seal; root publication alone never grants membership. No new table, phase flag or recovery
+    mechanism.
 scope:
   in:
   - Use one strict canonical page/root format, remove second artifact publication/root reference/digest
@@ -58,8 +62,9 @@ acceptance_criteria:
   text: More-than-128-item staging and maximum containing populations respect existing row/byte limits;
     accepted dispatch reads only compact root and selected entries.
 - id: A5
-  text: All five simplification tasks are complete, specs/contracts and real-process gates pass, and the
-    branch is merged into main with --no-ff.
+  text: The preceding four simplification tasks are complete; this task meets its criteria and all specs/contracts
+    and real-process gates pass on the integrated branch, ready for the user-authorized no-ff merge into
+    main.
 tests:
 - command: go test -tags=integration -count=1 ./internal/persistence/postgres ./internal/auditdomain ./internal/auditstore/...
     ./internal/auditservice ./internal/auditcontroller
@@ -107,3 +112,5 @@ cardinality:
     whole-history hydration.
 lifecycle:
   bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
+delivery: After task closure and a clean main recheck, merge the completed branch into main with --no-ff
+  and record the resulting commit in the user report.
