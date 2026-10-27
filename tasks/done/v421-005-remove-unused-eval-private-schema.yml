@@ -6,7 +6,8 @@ epic: evals
 kind: chore
 introduced_by: V38-002
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 63385f67d968112ddf2224fdf57b5b777334cdf3
 depends_on: []
 languages: [go, json, typescript, yaml]
 goal: >-
@@ -143,3 +144,4 @@ implementation_notes:
     Full Eval owner race suites, full public/publicclient owner suites,
     verify-public-api, verify-public-api-postgres, ui-verify and make lint
     passed with the owned disposable PostgreSQL database configured.
+  evidence: tasks/evidence/v421-005-private-rubric.json
