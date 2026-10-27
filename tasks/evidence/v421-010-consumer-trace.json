@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
   "task": "V421-010",
-  "verification_status": "paused_by_user_after_focused_checks",
-  "main_baseline": "1716e40db37cb3221a0892c1d8703a8790598627",
+  "verification_status": "resumed_awaiting_integrated_release_gate",
+  "main_baseline": "f18dec3dbf9316b3347859db1da6873f54ffa1b0",
   "dependencies": [
     {
       "task": "V421-001",
@@ -205,5 +205,7 @@
     "Original implementation commits are ancestors of this branch; main has not been modified."
   ],
   "independent_review": "Combined review found two actionable UI defects, tracked and completed as V421-011/012; sibling domains reviewed without additional concrete findings.",
-  "checkpoint": "tasks/evidence/v421-010-checkpoint.json"
+  "checkpoint": "tasks/evidence/v421-010-checkpoint.json",
+  "initial_main_baseline": "1716e40db37cb3221a0892c1d8703a8790598627",
+  "resumption": "Explicit user resume on2026-10-27. Current main only adds already-valid sitemap table-reader declarations and task metadata; independent review confirms existing telemetry foreign-read declarations cover both diagnostic queries. Cancelled checkpoint remains historical."
 }
