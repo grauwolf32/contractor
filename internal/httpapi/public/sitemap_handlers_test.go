@@ -35,7 +35,7 @@ func (f *fakeSitemap) Mutate(ctx context.Context, a projectsitemap.Authority, _ 
 	if m.ExpectedRevision != expected {
 		return projectsitemap.Result{}, projectsitemap.ErrConflict
 	}
-	document, err := projectsitemap.Reduce(view.Document, m, a)
+	document, _, err := projectsitemap.Reduce(view.Document, m, a)
 	if err != nil {
 		return projectsitemap.Result{}, err
 	}

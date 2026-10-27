@@ -23,10 +23,10 @@ func SafeProjection(document Document, policy contracts.ProjectSitemapPolicy, ru
 			return Document{}, ErrInvalid
 		}
 	}
-	copy, err := Decode(jsonBytes(document))
-	if err != nil {
-		return Document{}, err
+	if validateDocument(document) != nil || len(jsonBytes(document)) > MaxDocumentBytes {
+		return Document{}, ErrInvalid
 	}
+	copy := cloneDocument(document)
 	if policy.SourceMode == "source-assisted" {
 		return copy, nil
 	}
@@ -130,7 +130,6 @@ func SafeProjection(document Document, policy contracts.ProjectSitemapPolicy, ru
 	if err := regroup(&copy); err != nil {
 		return Document{}, ErrProjectionUnavailable
 	}
-	canonicalize(&copy)
 	if _, err := encode(copy); err != nil {
 		return Document{}, ErrProjectionUnavailable
 	}

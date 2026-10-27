@@ -150,6 +150,9 @@ func validateDocument(d Document) error {
 		sources[source.Provenance.SourceID] = source
 	}
 	for _, rule := range d.Rules {
+		if rule.Parameters == nil || rule.Structural == nil {
+			return ErrInvalid
+		}
 		if _, found := sources[rule.SourceID]; !found {
 			return ErrInvalid
 		}
@@ -159,14 +162,21 @@ func validateDocument(d Document) error {
 	}
 	groups, members := map[string]bool{}, map[string]bool{}
 	for _, g := range d.Groups {
-		if g.ID != groupID(g.Origin, g.Method, g.Route, g.Structural...) || groups[g.ID] || !methodPattern.MatchString(g.Method) || !validStructural(g.Structural) ||
+		if g.Structural == nil || g.Members == nil || g.Declarations == nil ||
+			g.ID != groupID(g.Origin, g.Method, g.Route, g.Structural...) || groups[g.ID] || !methodPattern.MatchString(g.Method) || !validStructural(g.Structural) ||
 			len(g.Members) > MaxGroupMembers || len(g.Declarations) > MaxRules || g.Omitted > MaxOmissionCount || !validRoute(g.Origin, g.Route) {
 			return ErrInvalid
 		}
 		groups[g.ID] = true
+		for _, value := range g.Structural {
+			if value.Values == nil {
+				return ErrInvalid
+			}
+		}
 		contexts, examples := map[string]bool{}, 0
 		for _, m := range g.Members {
-			if m.ID != memberID(g.Origin, g.Method, m.Path, g.Structural...) || members[m.ID] ||
+			if m.Summaries == nil || m.Examples == nil || m.Evidence == nil || m.Annotations == nil ||
+				m.ID != memberID(g.Origin, g.Method, m.Path, g.Structural...) || members[m.ID] ||
 				len(m.Summaries) > MaxSummaries || len(m.Evidence) > MaxProvenance || len(m.Annotations) > MaxSources ||
 				len(m.Path) > MaxMemberKeyBytes || m.Omitted > MaxOmissionCount || !validRoute(g.Origin, m.Path) {
 				return ErrInvalid
@@ -174,7 +184,7 @@ func validateDocument(d Document) error {
 			members[m.ID] = true
 			seenSummaries := map[string]bool{}
 			for _, s := range m.Summaries {
-				if !observedKind(s.Provenance.Kind) || !admittedProvenance(s.Provenance, sources) || !hashPattern.MatchString(s.Context) || seenSummaries[summaryKey(s)] || !validOutcome(s.Outcome, s.Status) ||
+				if s.Parameters == nil || !observedKind(s.Provenance.Kind) || !admittedProvenance(s.Provenance, sources) || !hashPattern.MatchString(s.Context) || seenSummaries[summaryKey(s)] || !validOutcome(s.Outcome, s.Status) ||
 					!validTime(s.First) || !validTime(s.Last) || timeBefore(s.Last, s.First) || !validNames(s.Parameters) {
 					return ErrInvalid
 				}
@@ -193,7 +203,7 @@ func validateDocument(d Document) error {
 				}
 			}
 			for _, annotation := range m.Annotations {
-				if !admittedProvenance(annotation.Provenance, sources) || len(annotation.Note) > MaxNoteBytes ||
+				if annotation.Tags == nil || !admittedProvenance(annotation.Provenance, sources) || len(annotation.Note) > MaxNoteBytes ||
 					!validText(annotation.Note) || len(annotation.Tags) > MaxTags || !validNames(annotation.Tags) {
 					return ErrInvalid
 				}
@@ -203,7 +213,7 @@ func validateDocument(d Document) error {
 			return ErrInvalid
 		}
 		for _, declaration := range g.Declarations {
-			if !admittedProvenance(declaration.Provenance, sources) || !validNames(declaration.Parameters) || len(declaration.Pointer) > MaxExampleBytes ||
+			if declaration.Parameters == nil || !admittedProvenance(declaration.Provenance, sources) || !validNames(declaration.Parameters) || len(declaration.Pointer) > MaxExampleBytes ||
 				!validText(declaration.Pointer) {
 				return ErrInvalid
 			}
@@ -305,80 +315,78 @@ func validateRule(rule Rule) error {
 
 // Reduce applies the command to a private copy; callers retain the original
 // document on every invalid or conflicting operation, including regrouping.
-func Reduce(current Document, mutation Mutation, authority Authority) (Document, error) {
+// Successful results include the validated canonical bytes for publication.
+func Reduce(current Document, mutation Mutation, authority Authority) (Document, []byte, error) {
 	if authority.validate() != nil || validateDocument(current) != nil || len(jsonBytes(mutation)) > MaxBatchBytes {
-		return Document{}, ErrInvalid
+		return Document{}, nil, ErrInvalid
 	}
-	var next Document
-	if err := strictjson.Decode(jsonBytes(current), &next); err != nil {
-		return Document{}, ErrInvalid
-	}
+	next := cloneDocument(current)
 	if mutation.Operation != "replace-source" {
 		provenance := authority.provenance()
 		provenance.RunID, provenance.CredentialRevision, provenance.SessionGeneration = "", "", ""
 		index := slices.IndexFunc(next.Sources, func(s Source) bool { return s.Provenance.SourceID == authority.SourceID })
 		if index < 0 {
 			if len(next.Sources) == MaxSources {
-				return Document{}, ErrConflict
+				return Document{}, nil, ErrConflict
 			}
 			next.Sources = append(next.Sources, Source{Provenance: provenance, Generation: 1, PolicyDigest: key(Projection)})
 		} else {
 			stable := next.Sources[index].Provenance
 			stable.RunID, stable.CredentialRevision, stable.SessionGeneration = "", "", ""
 			if stable != provenance {
-				return Document{}, ErrConflict
+				return Document{}, nil, ErrConflict
 			}
 		}
 	}
 	switch mutation.Operation {
 	case "observe":
 		if !authority.CanObserve || len(mutation.Observations) == 0 || len(mutation.Observations) > MaxBatch || !onlyFields(mutation, "observe") {
-			return Document{}, ErrInvalid
+			return Document{}, nil, ErrInvalid
 		}
 		if mutation.sessionGenerations != nil && len(mutation.sessionGenerations) != len(mutation.Observations) {
-			return Document{}, ErrInvalid
+			return Document{}, nil, ErrInvalid
 		}
 		for index, observation := range mutation.Observations {
 			context := authority
 			if mutation.sessionGenerations != nil {
 				context.SessionGeneration = mutation.sessionGenerations[index]
 				if !contracts.ValidResourceID(context.SessionGeneration) {
-					return Document{}, ErrInvalid
+					return Document{}, nil, ErrInvalid
 				}
 			}
 			if err := observe(&next, observation, context); err != nil {
-				return Document{}, err
+				return Document{}, nil, err
 			}
 		}
 	case "declare":
 		if !onlyFields(mutation, "declare") {
-			return Document{}, ErrInvalid
+			return Document{}, nil, ErrInvalid
 		}
 		if err := declare(&next, mutation, authority); err != nil {
-			return Document{}, err
+			return Document{}, nil, err
 		}
 	case "annotate", "remove", "restore":
 		if !onlyFields(mutation, mutation.Operation) {
-			return Document{}, ErrInvalid
+			return Document{}, nil, ErrInvalid
 		}
 		if err := edit(&next, mutation, authority); err != nil {
-			return Document{}, err
+			return Document{}, nil, err
 		}
 	case "replace-source":
 		if !onlyFields(mutation, "replace-source") || mutation.Source == nil {
-			return Document{}, ErrInvalid
+			return Document{}, nil, ErrInvalid
 		}
 		if err := replaceSource(&next, *mutation.Source, authority); err != nil {
-			return Document{}, err
+			return Document{}, nil, err
 		}
 	default:
-		return Document{}, ErrInvalid
+		return Document{}, nil, ErrInvalid
 	}
-	canonicalize(&next)
-	if _, err := encode(next); err != nil {
-		return Document{}, err
+	data, err := encode(next)
+	if err != nil {
+		return Document{}, nil, err
 	}
-	return next, nil
+	return next, data, nil
 }
 
 // onlyFields closes each command variant as well as the enclosing JSON type.

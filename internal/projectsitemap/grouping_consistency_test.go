@@ -13,7 +13,7 @@ func TestSitemapDeclarationObservationSharePlacement(t *testing.T) {
 				document := Empty()
 				exerciseSitemapMemberPlacement(t, structural, declarationFirst, func(authority Authority, mutation Mutation) Document {
 					var err error
-					document, err = Reduce(document, mutation, authority)
+					document, _, err = Reduce(document, mutation, authority)
 					if err != nil {
 						t.Fatalf("%s: %v", mutation.Operation, err)
 					}
@@ -162,7 +162,7 @@ func TestSitemapRegroupReportsAmbiguousTemplates(t *testing.T) {
 			}}}
 			applyRules := func() {
 				var err error
-				document, err = Reduce(document, rules, authority)
+				document, _, err = Reduce(document, rules, authority)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -185,18 +185,18 @@ func TestSitemapRegroupReportsAmbiguousTemplates(t *testing.T) {
 func TestSitemapManualDeclarationsRecoverConcreteRoutesInBlackboxView(t *testing.T) {
 	rules := Authority{SourceID: "restricted-rules", Kind: "manual", Mode: "source-assisted"}
 	owner := Authority{SourceID: "manual", Kind: "manual", Mode: "blackbox"}
-	document, err := Reduce(Empty(), Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: rules.SourceID, Rules: []Rule{{SourceID: rules.SourceID, Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{}}}}}, rules)
+	document, _, err := Reduce(Empty(), Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: rules.SourceID, Rules: []Rule{{SourceID: rules.SourceID, Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{}}}}}, rules)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"/users/alice", "/users/bob"} {
-		document, err = Reduce(document, Mutation{Operation: "declare", URL: "https://example.test" + path, Method: "GET"}, owner)
+		document, _, err = Reduce(document, Mutation{Operation: "declare", URL: "https://example.test" + path, Method: "GET"}, owner)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 	alice := memberID("https://example.test", "GET", "/users/alice")
-	document, err = Reduce(document, Mutation{Operation: "remove", MarkerID: "only-alice", MemberIDs: []string{alice}}, owner)
+	document, _, err = Reduce(document, Mutation{Operation: "remove", MarkerID: "only-alice", MemberIDs: []string{alice}}, owner)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -21,7 +21,7 @@ func observation(path string) Observation {
 }
 func applyObservations(t *testing.T, d Document, a Authority, observations ...Observation) Document {
 	t.Helper()
-	result, err := Reduce(d, Mutation{Operation: "observe", Observations: observations}, a)
+	result, _, err := Reduce(d, Mutation{Operation: "observe", Observations: observations}, a)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func TestReducerRegroupsRetainedMembersAndKeepsSuppression(t *testing.T) {
 	selected := memberID("https://example.test", "GET", "/users/123")
 	owner := Authority{SourceID: "owner", Kind: "manual", Mode: "source-assisted"}
 	var err error
-	d, err = Reduce(d, Mutation{Operation: "remove", MemberIDs: []string{selected}, MarkerID: "hidden"}, owner)
+	d, _, err = Reduce(d, Mutation{Operation: "remove", MemberIDs: []string{selected}, MarkerID: "hidden"}, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestReducerRegroupsRetainedMembersAndKeepsSuppression(t *testing.T) {
 		{SourceID: "schema", Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{}},
 		{SourceID: "schema", Origin: "https://example.test", Method: "GET", Path: "/users/me", Parameters: []string{}},
 	}}
-	d, err = Reduce(d, Mutation{Operation: "replace-source", Source: &update}, schema)
+	d, _, err = Reduce(d, Mutation{Operation: "replace-source", Source: &update}, schema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +193,7 @@ func TestReducerRegroupsRetainedMembersAndKeepsSuppression(t *testing.T) {
 		}
 	}
 	before, _ := encode(d)
-	if _, err := Reduce(d, Mutation{Operation: "replace-source", Source: &update}, schema); !errors.Is(err, ErrConflict) {
+	if _, _, err := Reduce(d, Mutation{Operation: "replace-source", Source: &update}, schema); !errors.Is(err, ErrConflict) {
 		t.Fatalf("stale source: %v", err)
 	}
 	after, _ := encode(d)
@@ -216,7 +216,7 @@ func TestReducerOverflowNeverInventsMembership(t *testing.T) {
 	rules := []Rule{{SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/items/{id}", Parameters: []string{}}}
 	owner := Authority{SourceID: "owner", Kind: "manual", Mode: "blackbox"}
 	var err error
-	d, err = Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: rules}}, owner)
+	d, _, err = Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: rules}}, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +237,7 @@ func TestReducerOverflowNeverInventsMembership(t *testing.T) {
 func TestReducerStructuralSelectionAndSuppressionConflict(t *testing.T) {
 	owner := Authority{SourceID: "owner", Kind: "manual", Mode: "blackbox"}
 	rule := Rule{SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/dispatch", Parameters: []string{}, Structural: []StructuralParameter{{Name: "action", Allowed: []string{"read", "short-password"}}}}
-	d, err := Reduce(Empty(), Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: []Rule{rule}}}, owner)
+	d, _, err := Reduce(Empty(), Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: []Rule{rule}}}, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -252,13 +252,13 @@ func TestReducerStructuralSelectionAndSuppressionConflict(t *testing.T) {
 			member = g.Members[0].ID
 		}
 	}
-	d, err = Reduce(d, Mutation{Operation: "remove", MarkerID: "hidden", MemberIDs: []string{member}}, owner)
+	d, _, err = Reduce(d, Mutation{Operation: "remove", MarkerID: "hidden", MemberIDs: []string{member}}, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
 	index := slices.IndexFunc(d.Sources, func(s Source) bool { return s.Provenance.SourceID == "owner" })
 	expected := d.Sources[index]
-	if _, err := Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Expected: &expected, Rules: []Rule{}}}, owner); !errors.Is(err, ErrConflict) {
+	if _, _, err := Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Expected: &expected, Rules: []Rule{}}}, owner); !errors.Is(err, ErrConflict) {
 		t.Fatalf("structural suppression widened or resurrected: %v", err)
 	}
 }
@@ -279,7 +279,7 @@ func TestReducerSourceCanonicalizationDoesNotMutateIntent(t *testing.T) {
 	a := Authority{SourceID: "owner", Kind: "manual", Mode: "source-assisted"}
 	m := Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: []Rule{{SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{"beta", "alpha"}}}}}
 	before := jsonBytes(m)
-	d, err := Reduce(Empty(), m, a)
+	d, _, err := Reduce(Empty(), m, a)
 	if err != nil {
 		t.Fatal(err)
 	}

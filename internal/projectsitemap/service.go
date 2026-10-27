@@ -243,11 +243,7 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 				return postgres.Receipt{}, err
 			}
 		}
-		next, err := Reduce(current, m, a)
-		if err != nil {
-			return postgres.Receipt{}, err
-		}
-		data, err := encode(next)
+		_, data, err := Reduce(current, m, a)
 		if err != nil {
 			return postgres.Receipt{}, err
 		}

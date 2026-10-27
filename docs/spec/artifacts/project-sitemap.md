@@ -161,7 +161,9 @@ policy in the AgentTemplate and exact selected `sitemap@1` operations. The
 policy fixes `sourceMode` (`blackbox` or `source-assisted`), an optional deployment
 identity and explicitly authorized OpenAPI input names. Authority resolves each
 name to its immutable original Run-creation input fork, never the Worker-editable
-current binding. Advancing a working copy cannot declassify another source. Reader, editor and
+current binding. Resolving the at-most-eight selected inputs uses a bounded
+batch of original references and exact metadata, with query count independent
+of the selected count; every request still checks current authority. Advancing a working copy cannot declassify another source. Reader, editor and
 importer authority derives from the selected operations. Only the policy's
 explicit `collectObservations` setting grants the separate observation writer;
 reader selection alone grants no collection. Project and owner come from the
