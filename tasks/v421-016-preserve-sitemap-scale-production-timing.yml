@@ -1,0 +1,69 @@
+schema_version: "1.0"
+id: V421-016
+title: Keep the large sitemap publication test under production timing
+milestone: data-model-consumers-2026-10
+epic: quality
+kind: chore
+introduced_by: V410-001
+priority: P3
+status: in_progress
+depends_on: [V410-001]
+languages: [go, markdown, yaml]
+goal: >-
+  Preserve the complete sitemap publication-volume proof with its real production
+  deadline while keeping the package's concurrency paths under the race detector.
+context:
+  review: >-
+    The integrated release attempt on 30329ddb380083ecbb52fd7fdb082a1e614342fd
+    passed the large fixture normally in 247.19 seconds, then failed its first
+    publication under the race detector. The attempt was stopped and retained
+    as unsuccessful; no full release pass is claimed.
+  finding: >-
+    internal/projectsitemap/service_postgres_test.go:139 reports publication 0:
+    context deadline exceeded under race instrumentation. Service.Mutate owns
+    a 15-second operation deadline; the fixture's eight-minute context does not
+    extend that deadline. The fixture exercises 257 serial publications of a
+    map with 300 annotated operations and over 256 MiB cumulative encoded bytes.
+  baseline: >-
+    The exact focused race command failed on clean main f18dec3dbf9316b3347859db1da6873f54ffa1b0
+    and clean integrated 30329ddb380083ecbb52fd7fdb082a1e614342fd in the same
+    isolated Linux runner, in 26.273 and 26.206 seconds respectively. The original
+    test file has identical Git blob 982b2597fbd68fb78b2b1a53aecacb53c11091a5.
+    Evidence: /private/tmp/v421-sitemap-race-baseline-compare-s1/result.json.
+  introduction: >-
+    V410-001 commit 7318b118541cd98c257d02a437d80c40a91d85ae introduced both the
+    fixture and the 15-second production budget. New V421 Artifact metadata
+    reads occur only after the failed Mutate and are not on its failing path.
+  specification:
+    - docs/testing/README.md
+    - docs/spec/artifacts/project-sitemap.md
+  boundary: >-
+    This is a production-volume and deadline proof, not a concurrency fixture.
+    Keep its exact name and body in a !race test file. The full ordinary release
+    unit pass must still run it, and the graph guard must require complete
+    non-race owner coverage. All other package tests, including ten concurrent
+    writers, receipts, retention holds and fences, remain in the race pass.
+scope:
+  in:
+    - Move only the original large serial test into a documented !race test file with its body unchanged.
+    - Document its production-timing proof and the retained package race coverage.
+    - Verify complete owner suites normally and under race detection with real PostgreSQL, release graph and lint.
+  out:
+    - Production changes, larger operation/test timeouts, smaller fixtures, fewer publications, weaker assertions or package race exceptions.
+    - Treating an excluded test as a race pass or reusing the failed integrated attempt as a successful release gate.
+acceptance_criteria:
+  - id: A1
+    text: The test name, function body, 257 publications, 300 annotated operations, cumulative byte check, retention assertions and existing deadlines remain unchanged in a !race file.
+  - id: A2
+    text: The complete normal owner suite passes and actually executes the large fixture; the complete race owner suite passes with the remaining concurrency tests executed and no mandatory skips.
+  - id: A3
+    text: The release graph confirms a complete normal owner pass and unchanged package race coverage; lint passes and V421-010 requires this completed correction before its fresh integrated gate.
+tests:
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -count=1 -timeout=15m -v ./internal/projectsitemap'
+    covers: [A1, A2]
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -race -count=1 -timeout=15m -v ./internal/projectsitemap'
+    covers: [A2, A3]
+  - command: python3 scripts/check_release_verify_graph.py
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A3]
