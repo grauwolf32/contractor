@@ -10,6 +10,7 @@ from contractor_runtime.toolsets.audit_results.contracts import IDENTIFIER, MAX_
 class EvidenceArgument(TypedDict):
     kind: str
     summary: str
+    http_request_id: NotRequired[int]
 
 
 class BatchResultArgument(TypedDict):

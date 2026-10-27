@@ -764,3 +764,89 @@ async def finish(tools):
         deadline=asyncio.get_running_loop().time() + 5,
         check_active=lambda: None,
     )
+
+
+def test_http_capture_evidence_retains_trusted_time_identity_and_exact_content(
+    tmp_path, monkeypatch
+):
+    import httpx
+    from test_http_toolset import create_tools
+
+    from contractor_runtime.toolsets.http.capture import CapturedAttempt
+
+    original = CapturedAttempt.from_request
+
+    def capture(cls, request, **kwargs):
+        value = original(request, **kwargs)
+        value.at = "2026-10-27T12:00:00.125Z"
+        return value
+
+    monkeypatch.setattr(CapturedAttempt, "from_request", classmethod(capture))
+
+    async def scenario():
+        async def handler(request):
+            return httpx.Response(200, content=b"real exchange proof", request=request)
+
+        http, state = await create_tools(tmp_path, handler)
+        # This is pinned factory configuration, never model input.
+        http["http_request"]._session._deployment_marker = "deployment-test"
+        task, manifest = fixture_inputs()
+        client = FakeAuditArtifactClient(task, manifest)
+        tools = await prepared_tools(client, state)
+        context = FakeToolContext("worker-invocation-1")
+        try:
+            await http["http_request"]("https://target.example/", tool_context=context)
+            submit = tools["submit_check_result"]
+            kwargs = dict(
+                assessment="satisfied",
+                summary="Observed control.",
+                completed=["source-trace"],
+                gaps=[],
+                evidence=[
+                    {"kind": "source-trace", "summary": "Response proof", "http_request_id": 1}
+                ],
+            )
+            first = await submit(context, **kwargs)
+            assert first["status"] == "recorded"
+            state.http_captures.clear("http")
+            assert await submit(context, **kwargs) == first
+            forged = await submit(
+                context,
+                **{
+                    **kwargs,
+                    "evidence": [
+                        {
+                            "kind": "source-trace",
+                            "summary": "bad",
+                            "observed_at": "2026-10-27T12:00:00Z",
+                        }
+                    ],
+                },
+            )
+            assert forged["status"] == "error"
+            before = await submit._collector.snapshot()
+            for bad in (0, True, 2, "1"):
+                result = await submit(
+                    context,
+                    **{
+                        **kwargs,
+                        "evidence": [
+                            {"kind": "source-trace", "summary": "bad", "http_request_id": bad}
+                        ],
+                    },
+                )
+                assert result["status"] == "error"
+                assert await submit._collector.snapshot() == before
+            assert (await finish(tools)).kind == "complete"
+            with zipfile.ZipFile(io.BytesIO(client.written_payload)) as archive:
+                evidence = json.loads(archive.read("evidence.json"))["evidence"][0]
+                assert evidence["observed_at"] == "2026-10-27T12:00:00.125Z"
+                assert evidence["deployment_marker"] == "deployment-test"
+                assert evidence["http_request_id"] == "1"
+                capture = json.loads(archive.read("evidence/ev-1.json"))
+                assert capture["request_tag"] == evidence["http_request_tag"]
+                assert capture["attempts"][0]["response"]["message"]["body_base64"]
+        finally:
+            await http["http_request"].close()
+
+    asyncio.run(scenario())

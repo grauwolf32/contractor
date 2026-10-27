@@ -3258,10 +3258,14 @@ type AuditCoverage struct {
 // AuditCoverageDetails defines model for AuditCoverageDetails.
 type AuditCoverageDetails struct {
 	Evidence []struct {
-		ContentMemberId *string `json:"contentMemberId,omitempty"`
-		Id              string  `json:"id"`
-		Kind            string  `json:"kind"`
-		Summary         string  `json:"summary"`
+		ContentMemberId  *string    `json:"contentMemberId,omitempty"`
+		DeploymentMarker *string    `json:"deploymentMarker,omitempty"`
+		HttpRequestId    *string    `json:"httpRequestId,omitempty"`
+		HttpRequestTag   *string    `json:"httpRequestTag,omitempty"`
+		Id               string     `json:"id"`
+		Kind             string     `json:"kind"`
+		ObservedAt       *time.Time `json:"observedAt,omitempty"`
+		Summary          string     `json:"summary"`
 	} `json:"evidence"`
 	Methods       []string             `json:"methods"`
 	Objective     string               `json:"objective"`

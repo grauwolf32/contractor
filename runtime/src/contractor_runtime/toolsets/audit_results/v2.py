@@ -33,6 +33,10 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     NormalizedAuditItem,
 )
 from contractor_runtime.toolsets.audit_results.packages import MAX_BATCH_ITEMS
+from contractor_runtime.toolsets.common.http_capture import (
+    HTTPObservation,
+    allocation_http_captures,
+)
 
 
 def _text(value, field, key):
@@ -62,7 +66,7 @@ def _values(value, field, key, maximum=MAX_VALUES):
         raise
 
 
-def _normalize(key, value):
+def _normalize(key, value, captures=None, invocation_id=None, retained=None):
     allowed = {"assessment", "summary", "completed", "gaps", "evidence", "proposal_keys"}
     if not isinstance(value, dict) or set(value) - allowed:
         raise AuditCollectionError("result", "Use only documented result fields.", item_key=key)
@@ -76,17 +80,52 @@ def _normalize(key, value):
     evidence = array_argument("evidence", value.get("evidence", []), MAX_EVIDENCE)
     normalized_evidence = []
     for entry in evidence:
-        if not isinstance(entry, dict) or set(entry) != {"kind", "summary"}:
+        if (
+            not isinstance(entry, dict)
+            or not {"kind", "summary"} <= set(entry)
+            or set(entry) - {"kind", "summary", "http_request_id"}
+        ):
             raise AuditCollectionError(
                 "evidence",
-                "Each evidence record requires exactly kind and summary.",
+                "Each evidence record requires kind, summary and optional http_request_id.",
                 item_key=key,
             )
         kind = entry["kind"]
         if not isinstance(kind, str) or not IDENTIFIER.fullmatch(kind):
             raise AuditCollectionError("evidence.kind", "Use a bounded identifier.", item_key=key)
+        capture, observation = None, None
+        if "http_request_id" in entry:
+            request_id = entry["http_request_id"]
+            if type(request_id) is not int or not 1 <= request_id <= 2**53 - 1 or captures is None:
+                raise AuditCollectionError(
+                    "evidence.http_request_id",
+                    "Choose an HTTP request from this invocation.",
+                    item_key=key,
+                )
+            try:
+                prior = retained(key, str(request_id)) if retained is not None else None
+                if prior is not None:
+                    capture = prior.http_capture
+                    observation = HTTPObservation(prior.observed_at, prior.deployment_marker)
+                else:
+                    capture, observation = captures.select_observation(
+                        str(request_id), invocation_id
+                    )
+            except ValueError:
+                raise AuditCollectionError(
+                    "evidence.http_request_id",
+                    "HTTP observation is unavailable; record a gap and inconclusive result.",
+                    item_key=key,
+                ) from None
         normalized_evidence.append(
-            AuditEvidence(kind, _text(entry["summary"], "evidence.summary", key))
+            AuditEvidence(
+                kind,
+                _text(entry["summary"], "evidence.summary", key),
+                capture,
+                observation.observed_at if observation else None,
+                observation.deployment_marker if observation else None,
+                str(entry["http_request_id"]) if observation else None,
+            )
         )
     return NormalizedAuditItem(
         key,
@@ -162,9 +201,11 @@ class SubmitCheckResultTool:
         self,
         collector: InvocationAuditCollector | Callable[[], InvocationAuditCollector],
         metrics: ToolMetrics,
+        captures=None,
     ):
         self._collector_source = collector
         self._metrics = metrics
+        self._captures = captures
         self.__name__ = self.name
         self.__doc__ = """Record Audit results locally; success does not publish or accept an Audit.
 
@@ -192,8 +233,14 @@ class SubmitCheckResultTool:
                 allowed. These need not appear in requestedCoverage. Use letters,
                 digits, '.', '_', ':', '-' only; start with a letter or digit;
                 at most 160 characters each. Required for individual submission.
-            evidence: Optional array of objects with kind and summary only.
-                Each summary follows the same text rule as the result summary.
+            evidence: Optional array of kind and summary objects, optionally selecting
+                http_request_id from http_request in this invocation. Runtime retains
+                that exact exchange and its request time; do not supply timestamps,
+                deployment text or artifact refs. Without a selected request the text
+                is a model assertion, not an HTTP observation. A conclusive http-probe
+                or required http-observation kind needs selected HTTP evidence.
+                Missing capture: use an explicit gap and inconclusive assessment.
+                Summaries are at most 16 KiB.
                 Follow the assigned task's requested evidence kinds and bounds.
             proposal_keys: Optional array of client_key values returned by successful
                 finding calls in this invocation. A linked finding on a standard
@@ -262,7 +309,16 @@ class SubmitCheckResultTool:
                         "results", "Provide the complete batch in task order."
                     )
                 receipt = await collector.record_batch(
-                    tuple(_normalize(key, value) for key, value in zip(keys, results, strict=True))
+                    tuple(
+                        _normalize(
+                            key,
+                            value,
+                            self._captures,
+                            tool_context.invocation_id,
+                            getattr(collector, "retained_http_evidence", None),
+                        )
+                        for key, value in zip(keys, results, strict=True)
+                    )
                 )
             else:
                 if item_key is None and len(keys) == 1:
@@ -280,7 +336,13 @@ class SubmitCheckResultTool:
                     "proposal_keys": [] if proposal_keys is None else proposal_keys,
                 }
                 receipt = await collector.record(
-                    _normalize(item_key, value),
+                    _normalize(
+                        item_key,
+                        value,
+                        self._captures,
+                        tool_context.invocation_id,
+                        getattr(collector, "retained_http_evidence", None),
+                    ),
                     expected_revision=expected_revision,
                 )
             binding = getattr(self, "completion_binding", None)
@@ -368,7 +430,9 @@ class AuditResultsToolsetFactory:
             "read_audit_task": ReadAuditTaskTool(
                 binding.current, completion_contract.task, state.metrics
             ),
-            "submit_check_result": SubmitCheckResultTool(binding.current, state.metrics),
+            "submit_check_result": SubmitCheckResultTool(
+                binding.current, state.metrics, allocation_http_captures(state)
+            ),
         }
         for tool in tools.values():
             tool.completion_binding = binding

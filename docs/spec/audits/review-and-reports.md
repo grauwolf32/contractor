@@ -228,7 +228,26 @@ instrument and version, actor role, observation time, output refs, scope,
 limitations and truncation.
 
 **REV-R8.** For live HTTP observations, evidence also records the
-observation time and an available deployment marker.
+observation time and an available deployment marker. For an Audit-selected
+Runtime HTTP capture, `observed_at` is the first outgoing request's dispatch
+instant (UTC RFC 3339); it is not response completion, evidence submission or
+report generation time. `http_request_id` and `http_request_tag` bind the exact
+copied capture member. `deployment_marker`, when available, comes only from
+the allocation's pinned sitemap deployment policy; it is owner-provided
+attribution, not proof that the target software stayed unchanged. Coverage
+reads preserve these fields; the check evidence view labels the time as HTTP
+request dispatch and the deployment as declared, with request identity under
+Technical details. Exact retained result ZIP members remain independently
+readable after source Run deletion.
+
+A summary without a selected capture is model-authored assertion evidence and
+carries no inferred target observation time or deployment. Exact Run, task,
+Workflow and actor attribution and the collection event remain in the existing
+collection provenance/receipt. A required `http-observation` kind or registered
+`http-probe` finding check needs selected HTTP evidence for a conclusive result;
+`active-test` alone does not identify an instrument. Other active/source checks
+retain their evidence policy. Missing capture yields an explicit gap and an
+inconclusive/blocked result, never a fabricated current-time observation.
 
 Rationale: pinned source does not prove that a live target remained unchanged.
 

@@ -140,3 +140,24 @@ def test_capture_buffer_byte_eviction_is_independent_of_count(monkeypatch):
         assert len(buffer._entries) == 2
 
     asyncio.run(scenario())
+
+
+def test_observation_metadata_shares_capture_ownership_eviction_and_byte_budget(monkeypatch):
+    async def scenario():
+        metadata = http_capture.HTTPObservation("2026-10-27T12:00:00Z", "deployment-test")
+        buffer = RecentHTTPCaptures()
+        await buffer.put(capture(), "owner", observation=metadata)
+        body, selected = buffer.select_observation("1", "owner")
+        assert selected == metadata
+        assert buffer._bytes == len(body) + metadata.size_bytes
+        with pytest.raises(ValueError, match="unavailable"):
+            buffer.select_observation("1", "foreign")
+        monkeypatch.setattr(http_capture, "MAX_CAPTURE_BUFFER_BYTES", buffer._bytes + 10)
+        await buffer.put(capture("2"), "owner", observation=metadata)
+        assert len(buffer._entries) == len(buffer._observations) == 1
+        with pytest.raises(ValueError, match="unavailable"):
+            buffer.select_observation("1", "owner")
+        buffer.clear("http")
+        assert buffer._bytes == 0 and not buffer._observations
+
+    asyncio.run(scenario())

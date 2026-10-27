@@ -1141,6 +1141,15 @@ sitemap failure fields to HTTP results, repeat target traffic or replace its
 outcome. Caller cancellation remains joined. [SMT-R18](../artifacts/project-sitemap.md)
 through [SMT-R21](../artifacts/project-sitemap.md) own collector behavior.
 
+**HTP-R136.** The private recent Runtime HTTP capture retains its first attempt's
+request-dispatch timestamp and optional pinned deployment marker with the same
+invocation ownership, count/byte eviction and teardown as its exact capture
+bytes. Metadata is charged to the existing buffer byte bound. Audit result
+selection may retain one of these captures through AWC-R126; selection performs
+no target request, history enumeration or durable write. Model arguments cannot
+set observation facts. A generic Caido history read does not establish the
+original observation instant and cannot manufacture one from read time.
+
 ## Invariants
 
 These properties follow from the cited requirements, which are authoritative.

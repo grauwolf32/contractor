@@ -6,9 +6,9 @@ epic: audits
 kind: defect
 introduced_by: V39-003
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
-languages: [go, python, json, yaml]
+languages: [go, python, json, typescript, yaml]
 goal: >-
   Connect the existing Audit evidence observation-time and deployment-marker fields to real
   Runtime observations, preserve them through result collection and retention, and let report
@@ -53,6 +53,13 @@ context:
     existing generic Audit evidence path. Coordinate edits to shared HTTP capture code.
   revalidated_on_main: >-
     Still applicable on main 1716e40db. Preserve V62 compact execution manifests and sealed single-chain admission: observation provenance belongs to selected evidence/task authority, never duplicated accepted_plan/dependencies in the compact manifest. Current HTTP sitemap collection is merged and may supply shared capture plumbing without becoming a new dependency.
+implementation_decision: >-
+  Summary-only evidence remains an attributed model assertion without an invented target
+  timestamp. Selected http_request_id evidence retains exact invocation-owned capture bytes,
+  the actual first dispatch time and optional pinned deployment attribution. A live HTTP
+  requirement is explicit (http-probe or required http-observation kind); active-test alone
+  cannot identify an instrument. Already accepted capture facts remain available for matching
+  item replays after recent-buffer eviction. No compact manifest or admission-chain duplication.
 scope:
   in:
     - Define the trusted source and precise meaning of each evidence observation timestamp and optional deployment marker in the owning specs.
@@ -150,5 +157,9 @@ tests:
     covers: [A1, A2, A3, A4, A5]
   - command: make test-audit-completion-e2e
     covers: [A1, A2, A3, A5]
+  - command: make verify-public-api
+    covers: [A1, A2, A5]
+  - command: make ui-verify
+    covers: [A5]
   - command: make lint
     covers: [A2, A4, A5]

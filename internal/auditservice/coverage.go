@@ -153,6 +153,8 @@ func describeCoverageResult(pkg auditdomain.CheckResultPackage, row *auditstore.
 			if ids[evidence.ID] {
 				row.Details.Evidence = append(row.Details.Evidence, auditstore.CoverageEvidence{
 					ID: evidence.ID, Kind: evidence.Kind, Summary: evidence.Summary, ContentMemberID: evidence.ContentMemberID,
+					ObservedAt: evidence.ObservedAt, DeploymentMarker: evidence.DeploymentMarker,
+					HTTPRequestID: evidence.HTTPRequestID, HTTPRequestTag: evidence.HTTPRequestTag,
 				})
 			}
 		}
