@@ -6,7 +6,8 @@ epic: execution-core
 kind: chore
 introduced_by: V8-003
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 537139ac98b16ebdac7bfcd38093b602019ecebd
 depends_on: []
 languages: [go, python, json]
 goal: >-
@@ -149,4 +150,7 @@ implementation_notes:
     Full touched Go packages passed after correcting the test's use of placement
     eligibility before its first heartbeat. make test-wire-cross-language and
     real cross-language mTLS integration passed; focused Runtime tests passed.
-    Required lint and exact-source full Linux Runtime acceptance are pending.
+    make lint passed. Exact-source commit 537139ac98b16ebdac7bfcd38093b602019ecebd
+    passed make test-runtime and verify-runtime on nonroot Linux: 5280 passed,
+    55 allowed optional skips, zero failures/errors.
+    Evidence: tasks/evidence/v421-008-registration-response.json.
