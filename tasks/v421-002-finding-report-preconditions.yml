@@ -45,6 +45,8 @@ context:
     V411-016 extends pentest proof reports and V64-018 maps research/pentest reports; preserve
     their separate authority dimensions. This task only adds the existing proposal conditions
     to the generic finding report projection and needs neither unfinished feature.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. Finding intake report projections and final report still omit preconditions. Preserve discarded-receipt tombstone {} shape and the new sealed single-chain admission. Reserve migration 000055 if an incompatible projection-format preflight is required; preserve immutable report bytes and use no legacy default-empty reader.
 scope:
   in:
     - Extend FND-R158 and the report contract to include the original proposal preconditions with their existing validation and bound.

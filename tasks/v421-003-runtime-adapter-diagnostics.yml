@@ -53,10 +53,12 @@ context:
     is needed. Record the public projection and its reversal condition in the
     owning specs: reopen if a selected adapter's failure cannot be explained
     from the bounded retained facts.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. Use bounded SQL projections from retained stage_metrics as the reader authority, including Eval-held metrics after original allocation/planner reports expire. Reuse the existing effective report assembly semantics; do not call ListAllocationReports on every page or decode an entire Stage in Go. Generation is the retained StageMetrics update generation.
 scope:
   in:
     - Add an owner-only GET /v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics with a production consumer in the attempt Technical details panel.
-    - Reuse the effective allocation report selection already owned by telemetry; bind Stage membership to the owned Run before reading report contents.
+    - Read bounded Runtime-only projections from retained StageMetrics, whose assembly already applies the effective-report rule; bind Stage membership to the owned Run before reading content.
     - Return logical Worker attribution, exact adapter refs and their safe typed metrics, Runtime duration/stop reason, availability and truncation facts; expose no credentials, physical addresses or raw report bodies.
     - Amend RUN-R91/R94 and OBS rules with this explicit bounded diagnostic surface, update OpenAPI and both generated clients through their generators, and register limits, failure outcomes and lifecycle semantics.
     - Share only the minimal attempt authorization and effective-report selection helper needed by this endpoint and V421-004; keep SQL under the table owner.
@@ -79,8 +81,9 @@ requirements:
       The set of adapter refs retains its existing completeness semantics.
   - id: R3
     text: >-
-      Select effective reports with the repository's existing complete-first,
-      newest fallback rule, without a second competing definition. Treat
+      Read the effective reports already assembled into retained StageMetrics
+      using the repository's complete-first/newest rule, without a second
+      competing definition or dependence on expired source report rows. Treat
       malformed optional siblings independently. Sanitize stopReason through
       the existing secret policy and public URL-shaped-text policy before
       presentation; lastErrorCode remains a closed vocabulary.
@@ -89,9 +92,9 @@ requirements:
       Return at most 10 logical participants and 128 KiB compact UTF-8 JSON per
       page, default 5 participants; each report has at most the existing 64
       adapter refs. Use deterministic participant order and an opaque cursor
-      bound to the owner, Run, Stage and selected report generation. Do not
+      bound to the owner, Run, Stage and retained StageMetrics update generation. Do not
       reread full reports for every attempt in Run detail or issue N+1 reads.
-      Select at most 11 participant/report identities (including lookahead)
+      Select at most 11 participant keys (including lookahead)
       before loading JSON; decode at most 10 Runtime-only projections and
       2 MiB of projected JSON per request. Bound stopReason to 4096 UTF-8
       bytes with an explicit truncation flag before presentation. Do not
@@ -143,7 +146,7 @@ cardinality:
     bound: At most 10 participants and 128 KiB per response; query and decode budgets must be independent of other attempts.
 lifecycle:
   - entity: Owner-visible Runtime diagnostic projection
-    delete: No independent deletion; follows Run/Stage and existing report deletion.
+    delete: No independent deletion; follows Run/Stage and retained StageMetrics deletion.
     cascade: Parent deletion invalidates the view and every cursor; never recreates deleted telemetry.
     retention: Existing 30-day telemetry retention and Eval holds remain authoritative; no new retention extension.
 acceptance_criteria:

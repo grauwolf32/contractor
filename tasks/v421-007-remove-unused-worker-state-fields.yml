@@ -63,6 +63,8 @@ context:
     own actually consumed, invocation/generation-correlated fields; do not restore
     these unused exports merely to populate a future shape. Update overlapping
     pending task wording where necessary without marking that work implemented.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. V417/V420 compaction implementations remain pending and no consumer of the two exports has appeared. The user now explicitly authorizes implementation; preserve internal Worker budget and projectfs integrity values.
 scope:
   in:
     - Remove both members from exported Go/Python State DTOs, producers, validation, schemas and fixtures in one change.

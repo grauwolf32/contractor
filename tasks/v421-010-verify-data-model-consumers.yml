@@ -70,6 +70,12 @@ context:
     - "make tasks-backlog passed using the existing locked Python environment without dependency synchronization; scripts/check_tasks.py reports 1283 consistent records."
     - "python3 -m unittest discover -s scripts -p test_check_tasks.py passed all 11 tests; python3 scripts/check_spec.py reports 48 consistent specification documents; git diff --check passed."
     - "make lint was attempted and stopped before checks: /bin/sh: go: command not found at generate-public-client-check. No full lint, implementation tests, database tests or release gate is claimed by this intake."
+  implementation_authorization: >-
+    On 2026-10-27 the user asked to revalidate against newly merged main and
+    implement all agreed V421 changes. Main 1716e40db was merged into this
+    branch; all nine changes remain relevant, with the V421-006 UI switch
+    already correct. Revalidation notes in child tasks update the affected
+    authority and retention boundaries; no accepted task is silently dropped.
 scope:
   in:
     - Verify every dependency is completed with full implementation commit and real acceptance evidence; pending, deferred and archived tasks never satisfy the exit.

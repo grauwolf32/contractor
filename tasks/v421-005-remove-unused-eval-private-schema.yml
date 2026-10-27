@@ -45,6 +45,8 @@ context:
     V421-006 edits the same Eval check/authoring/contract packages but addresses unsupported
     human-review parameters rather than PrivateCheck.Schema. They are independently testable
     and need no semantic dependency; coordinate shared schema/fixture generation and commits.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db; the unused managed PrivateCheck.Schema and all declared contracts remain. The user now authorizes implementation, not only the original task intake.
 scope:
   in:
     - Remove the unsupported PrivateCheck.Schema member end to end and reject it as unknown under the current strict managed contract.

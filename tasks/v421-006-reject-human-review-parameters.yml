@@ -50,11 +50,13 @@ context:
     V421-005 removes a different unsupported managed field, PrivateCheck.Schema. Both tasks
     touch managed Eval contracts and fixtures; keep independent tasks/commits, regenerate
     shared outputs after reconciliation and add no artificial dependency between them.
+  revalidated_on_main: >-
+    Server rejection remains applicable on main 1716e40db. UI assessment-setup.tsx already constructs a fresh EvalCheck without parameters on evaluator switch; preserve that implementation and add its regression rather than rewriting it or bumping the UI release for an unnecessary UI code change.
 scope:
   in:
     - Define the empty supported parameter set for managed human-review@1 in its owning spec and validators.
     - Reject every nonempty parameter map at managed authoring/registration boundaries and retain an internal preparation guard so direct builders cannot freeze an ignored configuration.
-    - Keep the UI evaluator switch from carrying stale structural-check parameters into a human-review check.
+    - Preserve the already correct UI evaluator switch that clears stale structural-check parameters and add a regression for it; avoid redundant UI implementation changes.
     - Add shared valid/invalid fixtures and authenticated PostgreSQL write/prepare/review regressions covering each sibling path.
   out:
     - Removing Check.Parameters globally, changing rubric or expected fields, adding human-review parameter semantics or silently discarding a supplied map.

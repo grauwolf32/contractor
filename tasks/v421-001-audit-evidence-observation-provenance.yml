@@ -51,6 +51,8 @@ context:
     V410-008 add sitemap/HTTP/Caido observations. Reuse their shared capture provenance when
     present, but do not depend on unfinished pentest or sitemap features to repair the
     existing generic Audit evidence path. Coordinate edits to shared HTTP capture code.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. Preserve V62 compact execution manifests and sealed single-chain admission: observation provenance belongs to selected evidence/task authority, never duplicated accepted_plan/dependencies in the compact manifest. Current HTTP sitemap collection is merged and may supply shared capture plumbing without becoming a new dependency.
 scope:
   in:
     - Define the trusted source and precise meaning of each evidence observation timestamp and optional deployment marker in the owning specs.

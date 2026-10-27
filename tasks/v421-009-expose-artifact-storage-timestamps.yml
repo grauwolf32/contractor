@@ -67,6 +67,8 @@ context:
     - >-
       V410-010 owns retained-history eviction and exact holds. This task
       consumes existing dates and does not change that retention policy.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. Preserve all four columns. artifact_scopes.created_at lacks a creation-time immutability guard: reserve migration 000054 for a column-scoped guard that permits existing revision_count updates. Artifact JSON payload bytes may contain arbitrary keys; never use payload fields as authoritative storage metadata.
 scope:
   in:
     - >-

@@ -52,10 +52,12 @@ context:
     results, physical identities, new telemetry table or per-call wall-clock
     timestamps are introduced. Reopen collection requirements only if a real
     diagnostic question cannot be answered by these existing facts.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. Read retained stage_metrics participant detail, including Eval-held records whose source report rows have expired. Reuse V421-003 owner/stage authorization and generation semantics; do not silently shorten diagnostic retention to the original report tables.
 scope:
   in:
     - Add an owner-only paginated GET /v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls and consume it from the attempt Technical details Tool calls panel.
-    - Select Planner or a logical Worker through a closed validated participant selector; pin opaque pagination to one immutable selected report and its retained record order.
+    - Select Planner or a logical Worker through a closed validated participant selector; pin opaque pagination to one selected retained StageMetrics generation and its participant record order.
     - Return tool, bounded opaque per-report callReference, outcome, nullable lossless decimal-string durationMs/resultSizeBytes, bounded argumentsJson text, argumentsTruncated and sanitized call error, plus report availability and detail truncation.
     - Define this narrow public projection in specs/OpenAPI, generate both clients, reuse UI primitives and bump the UI package version.
     - Add real-store, API, privacy, byte-budget, cursor and browser regressions across every participant kind.
@@ -95,7 +97,7 @@ requirements:
       per response, using deterministic retained source order. A byte-limited
       page ends before the first nonfitting record and yields a continuation;
       each bounded record must fit an otherwise empty page. Decode at most
-      one selected report per request; cap its stored JSON read/projection to
+      one selected participant report from StageMetrics per request; cap its JSON projection to
       8 MiB to accommodate documented jsonb textual expansion, treating an
       oversized stored document as unavailable without loading it into Go.
       No scan of every report in the selected Stage is permitted. Cursor binds owner,

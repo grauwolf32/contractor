@@ -52,6 +52,8 @@ context:
     - api/v1alpha1/agent-registration-response.schema.json and API README/owning spec
     - api/testdata/v1alpha1/valid/agent-registration-response.json and generated required-member/mutation cases
     - Integration/e2e/fake registration response bodies anywhere in the repository
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. The user now explicitly authorizes removing only runtimeAgentId, labels and labelRevision from the registration response; all Server principal, labels and revision authority remains required.
 scope:
   in:
     - Remove runtimeAgentId, labels and labelRevision from the registration response DTO, producer, schema, validation and shared fixtures.
