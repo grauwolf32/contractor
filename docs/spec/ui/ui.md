@@ -1327,3 +1327,17 @@ shortened data remain visibly distinct. Every page is reachable through Load
 more, a generation conflict requires refresh, navigation cancels obsolete
 reads and terminal data is not polled indefinitely. Use shared components and
 tokens at 390 px and in light, dark and black themes.
+
+### Retained tool-call disclosure
+
+**UI-R209.** An attempt's Technical details has an owner-only Tool calls panel
+(OBS-R116 to OBS-R119). It selects the Planner or one logical Worker, renders
+exact decimal measurements and sanitized argument JSON as text, expands
+arguments on demand and loads every later page explicitly. It explains that
+retained records are not a complete event history and do not have recorded
+wall-clock start times. Missing measurements, unavailable or pending reports,
+incomplete reports, empty lists, report/field truncation and failed reads stay
+distinct. A generation conflict requires refresh; failed refresh keeps prior
+facts visibly stale. Unrelated Run updates and projection remounts do not
+refetch loaded settled pages. Navigation cancels obsolete reads. Use shared
+components and tokens at 390 px and in light, dark and black themes.

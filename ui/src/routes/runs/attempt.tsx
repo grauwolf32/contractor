@@ -14,6 +14,7 @@ import {
 } from "./components";
 import type { PlannerProjection } from "./planner-projection";
 import { RuntimeDiagnostics } from "./runtime-diagnostics";
+import { ToolCallDiagnostics } from "./tool-diagnostics";
 import {
   allocationStatusLabel,
   stageStateLabel,
@@ -522,6 +523,11 @@ export function StageAttemptView({
         <RuntimeConfigurationView attempt={attempt} />
         <ResourceView attempt={attempt} />
         <RuntimeDiagnostics
+          runId={runId}
+          attempt={attempt}
+          open={diagnosticsEnabled && disclosure.open}
+        />
+        <ToolCallDiagnostics
           runId={runId}
           attempt={attempt}
           open={diagnosticsEnabled && disclosure.open}

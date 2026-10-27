@@ -364,10 +364,13 @@ export type PublicSchemaName =
   | "WorkerCompletionDiagnostics"
   | "AttemptDiagnostic"
   | "DiagnosticUnsignedDecimal"
-  | "DiagnosticMillisDecimal"
+  | "DiagnosticInt64Decimal"
   | "DroppedSpanDiagnosticCounts"
   | "RuntimeAdapterDiagnostic"
   | "RuntimeDiagnostic"
+  | "ToolCallDiagnosticError"
+  | "ToolCallDiagnostic"
+  | "ToolDiagnosticPage"
   | "RuntimeDiagnosticPage"
   | "AttemptDiagnostics"
   | "ModelPolicyRef"
@@ -1505,6 +1508,15 @@ export const RESPONSE_SCHEMAS = {
   },
   "GET /v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics": {
     "200": "RuntimeDiagnosticPage",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls": {
+    "200": "ToolDiagnosticPage",
     "400": "Error",
     "401": "Error",
     "404": "Error",

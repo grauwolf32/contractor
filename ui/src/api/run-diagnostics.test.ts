@@ -11,6 +11,53 @@ const config = {
 };
 
 describe("retained Runtime diagnostics", () => {
+  it.each([
+    { count: 2048, accepted: true },
+    { count: 2049, accepted: false },
+  ])(
+    "checks the UTF-8 stop-reason bound at $count multibyte characters",
+    async ({ count, accepted }) => {
+      const api = new PublicAPI(
+        config,
+        vi.fn(
+          async () =>
+            new Response(
+              JSON.stringify({
+                status: "available",
+                items: [
+                  {
+                    logicalAgent: "reviewer",
+                    status: "available",
+                    complete: true,
+                    stopReason: "я".repeat(count),
+                    stopReasonTruncated: false,
+                    adapters: [],
+                  },
+                ],
+                page: { hasMore: false },
+              }),
+              {
+                status: 200,
+                headers: {
+                  "content-type": "application/json",
+                  "X-Contractor-API-Version": "contractor.public.v1",
+                },
+              },
+            ),
+        ),
+      );
+      if (accepted) {
+        expect(
+          (await getRuntimeDiagnostics(api, "run-1", "stage-1")).items[0]
+            ?.stopReason,
+        ).toHaveLength(count);
+      } else {
+        await expect(
+          getRuntimeDiagnostics(api, "run-1", "stage-1"),
+        ).rejects.toThrow();
+      }
+    },
+  );
   it.each(decimals.cases)(
     "reads counter $value without browser rounding",
     async ({ value, accepted }) => {

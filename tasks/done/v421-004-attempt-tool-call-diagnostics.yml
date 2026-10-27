@@ -5,7 +5,8 @@ milestone: data-model-consumers-2026-10
 epic: operations
 kind: feature
 priority: P2
-status: pending
+status: completed
+implementation_commit: a74a097c7dda03e26b5eea5cfa7c74f2328470b7
 depends_on: [V421-003]
 languages: [go, typescript, yaml, markdown]
 goal: >-
@@ -54,6 +55,15 @@ context:
     diagnostic question cannot be answered by these existing facts.
   revalidated_on_main: >-
     Still applicable on main 1716e40db. Read retained stage_metrics participant detail, including Eval-held records whose source report rows have expired. Reuse V421-003 owner/stage authorization and generation semantics; do not silently shorten diagnostic retention to the original report tables.
+  shared_boundary_review: >-
+    Quote each owner/Run/Stage/participant scope member before hashing the
+    diagnostic cursor context, because ResourceId permits colons; apply to
+    both diagnostic endpoints. Refresh correlation uses an encoded tuple too.
+    Preserve OBS-R32's existing Runtime vocabulary error-code grammar and
+    fallback rather than inventing a closed list that drops toolset codes.
+    Both diagnostic UI readers enforce UTF-8 byte bounds as well as generated
+    character limits. Storage conflicts use the existing retryable envelope;
+    UI honors Retry-After when present, otherwise bounded exponential backoff.
 scope:
   in:
     - Add an owner-only paginated GET /v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls and consume it from the attempt Technical details Tool calls panel.
