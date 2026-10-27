@@ -53,9 +53,8 @@ func TestPostgresFindingHoldReceiptTimeMigrationBackfillsHolds(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
-		t.Fatal(err)
-	}
+	// Preserve this historical fixture before the incompatible required-conditions transition.
+	applyMigrationsThrough(t, ctx, pool, "audit_admission_chain_transition")
 	var mismatched, nullable int
 	if err := pool.QueryRow(ctx, `
 SELECT (SELECT count(*) FROM finding_proposal_audit_holds AS hold

@@ -119,6 +119,7 @@ type reportFinding struct {
 	Locations          []auditdomain.FindingLocation    `json:"locations,omitempty"`
 	HTTPExchange       *auditdomain.FindingHTTPExchange `json:"httpExchange,omitempty"`
 	Hypothesis         string                           `json:"hypothesis,omitempty"`
+	Preconditions      []string                         `json:"preconditions"`
 	SeveritySuggestion string                           `json:"severitySuggestion,omitempty"`
 	StandardRefs       []auditdomain.StandardReference  `json:"standardRefs"`
 	Limitations        []string                         `json:"limitations"`

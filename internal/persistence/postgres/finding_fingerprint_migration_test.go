@@ -21,9 +21,8 @@ func TestPostgresFindingFingerprintMigrationPreservesReceipts(t *testing.T) {
 	if err := pool.QueryRow(ctx, "SELECT to_jsonb(r)::text FROM finding_proposal_receipts r").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
-		t.Fatal(err)
-	}
+	// Preserve this historical fixture before the incompatible required-conditions transition.
+	applyMigrationsThrough(t, ctx, pool, "audit_admission_chain_transition")
 	if err := pool.QueryRow(ctx, "SELECT (to_jsonb(r)-ARRAY['fingerprint_projection','anchor_projection','comparison_projection','checks_projection','checks_projection_bytes','checks_projection_count'])::text,fingerprint_projection FROM finding_proposal_receipts r").Scan(&after, &projection); err != nil {
 		t.Fatal(err)
 	}
@@ -60,9 +59,8 @@ func TestPostgresFindingAnchorMigrationPreservesReceipts(t *testing.T) {
 	if err := pool.QueryRow(ctx, "SELECT to_jsonb(r)::text FROM finding_proposal_receipts r").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
-		t.Fatal(err)
-	}
+	// Preserve this historical fixture before the incompatible required-conditions transition.
+	applyMigrationsThrough(t, ctx, pool, "audit_admission_chain_transition")
 	if err := pool.QueryRow(ctx, "SELECT (to_jsonb(r)-ARRAY['anchor_projection','comparison_projection','checks_projection','checks_projection_bytes','checks_projection_count'])::text,anchor_projection FROM finding_proposal_receipts r").Scan(&after, &projection); err != nil {
 		t.Fatal(err)
 	}

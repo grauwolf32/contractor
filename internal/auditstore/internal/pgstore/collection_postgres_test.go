@@ -340,7 +340,7 @@ INSERT INTO finding_proposal_receipts (
     'audit-check', '1', 'contractor/v1alpha1',
     '{"name":"audit-check","version":"1"}'::jsonb, $8,
     $9::jsonb, $10, 'application/json', $11, '[]'::jsonb,
-    '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
+    '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
 )`,
 		receiptID, testDigest("d"), *f.execution.RunID, f.audit.OwnerID, f.project.ProjectID,
 		f.execution.ExecutionID, f.audit.AuditID, testDigest("e"),

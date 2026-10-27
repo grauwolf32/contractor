@@ -181,6 +181,8 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 
 type completionOptions struct {
 	acceptance, findingConfirmation string
+	// findingWriter selects the real intake tool for report-projection regressions.
+	findingWriter bool
 	// standards, when set, retains standard packages in the fixture Project
 	// and returns their pins for the Audit baseline.
 	standards func(*testing.T, *completionFixture) []auditstandards.PinnedPackage
@@ -263,6 +265,9 @@ func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options c
 				t.Fatal("catalog fixture no longer selects the unused trace Skill")
 			}
 			data = edited
+			if options.findingWriter {
+				data = bytes.ReplaceAll(data, []byte("  sandboxProfile:"), []byte("    - ref: security-findings@1\n      tools: [finding]\n  sandboxProfile:"))
+			}
 		}
 		if strings.HasPrefix(name, "audit-profiles/") {
 			data = bytes.ReplaceAll(data, []byte("reportAcceptance: automatic"), []byte("reportAcceptance: "+acceptance))

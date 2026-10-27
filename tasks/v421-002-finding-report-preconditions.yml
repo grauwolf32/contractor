@@ -5,9 +5,9 @@ milestone: data-model-consumers-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
-languages: [go, json, yaml]
+languages: [go, sql, json, yaml]
 goal: >-
   Carry the preconditions of a finding proposal into its immutable report projection and the
   final machine-readable Audit report, so a confirmed finding retains the conditions under
@@ -21,7 +21,7 @@ context:
     - docs/spec/audits/review-and-reports.md#REV-R196
     - docs/spec/audits/review-and-reports.md#REV-R197
     - docs/spec/platform/limits.md
-    - docs/spec/platform/persistence.md
+    - docs/spec/platform/persistence.md#PER-R43
   review: User-requested detailed data-model consumer review on 2026-10-27, finding 2.
   finding: >-
     FindingProposal.Preconditions is a useful field (internal/auditdomain/types.go:296):
@@ -130,12 +130,31 @@ acceptance_criteria:
     given: An imported finding whose source Run is later deleted and an already accepted report.
     when: The retained report is downloaded and ordinary purge/lifecycle tests run.
     then: The condition remains attributable and readable through existing holds; immutable report bytes and deletion ownership remain intact.
+  - id: A6
+    given: A stopped previous writer and source-held or audit-held receipt projections missing an array preconditions member, together with immutable history and discarded {} tombstones.
+    when: Forward migration 000055 is attempted.
+    then: The upgrade refuses atomically with SQLSTATE 55000, preserves every stored byte and the ledger, and names the explicit operator disposition; current projections and discarded tombstones migrate without rewriting accepted reports.
   - id: A5
     given: Updated spec, strict codecs, schemas/fixtures and touched packages.
     when: The listed checks run with a disposable PostgreSQL database.
     then: The original omission regression fails before the change, all required suites pass, and no database skip or empty test selection is counted as success.
+implementation_plan:
+  transition: >-
+    Reserved migration 000055 and PER-R43 use a strict retained-projection preflight,
+    excluding intentional discarded {} tombstones. The previous writer must be stopped.
+    No data deletion, backfill, old-format fallback or demo database action is included;
+    the operator preserves the old database and chooses a fresh database or a separately
+    authorized explicit data disposition before upgrading.
+  sibling_tests: >-
+    Current-format SQL receipt fixtures in app, Project lifecycle and Eval purge tests
+    explicitly encode empty conditions. Historical migration fixtures keep their original
+    bytes and stop at the preceding schema rather than bypassing the new precondition.
 tests:
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -race -count=1 ./internal/persistence/postgres ./internal/app ./internal/projectlifecycle ./internal/evalservice'
+    covers: [A4, A5, A6]
   - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -race -count=1 ./internal/auditdomain ./internal/findingintake ./internal/auditimport ./internal/auditstore/internal/pgstore ./internal/auditservice'
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-audit-completion-e2e
     covers: [A1, A2, A3, A4, A5]
   - command: make test-findings-e2e
     covers: [A1, A2, A4, A5]

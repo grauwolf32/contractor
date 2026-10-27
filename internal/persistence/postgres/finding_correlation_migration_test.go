@@ -93,9 +93,8 @@ func TestSharedPostgresFindingCorrelationMigrationFreezesRetainedPrimaryKeys(t *
 		}
 		before[c.name] = raw
 	}
-	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
-		t.Fatal(err)
-	}
+	// Preserve this historical fixture before the incompatible required-conditions transition.
+	applyMigrationsThrough(t, ctx, pool, "audit_admission_chain_transition")
 	for _, c := range cases {
 		var project, algorithm, value, group, reason, receipt string
 		if err := pool.QueryRow(ctx, `SELECT correlation_project_id,correlation_algorithm,correlation_value,correlation_group_key,correlation_reason,

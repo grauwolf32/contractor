@@ -82,9 +82,8 @@ VALUES($1,$1,'allocation','runtime','instance','stage','worker',$1,$1,$1,'sha256
 	if err := pool.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(receipt) ORDER BY receipt_id)::text FROM finding_proposal_receipts receipt`).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
-		t.Fatal(err)
-	}
+	// Preserve this historical fixture before the incompatible required-conditions transition.
+	applyMigrationsThrough(t, ctx, pool, "audit_admission_chain_transition")
 	if err := pool.QueryRow(ctx, `SELECT jsonb_agg(to_jsonb(receipt)-ARRAY['checks_projection','checks_projection_bytes','checks_projection_count'] ORDER BY receipt_id)::text FROM finding_proposal_receipts receipt`).Scan(&after); err != nil || before != after {
 		t.Fatal("migration rewrote retained receipt data", err)
 	}

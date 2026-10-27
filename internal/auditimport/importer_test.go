@@ -951,6 +951,7 @@ func TestImporterFinalizesTruthfulReportWithZeroDenominator(t *testing.T) {
 		!containsBytes(machineBytes, `"confirmed":[{"findingId":"finding-confirmed"`) ||
 		!containsBytes(machineBytes, `"proposed":[{"findingId":"finding-proposed"`) ||
 		!containsBytes(machineBytes, `"severitySuggestion":"medium"`) ||
+		!containsBytes(machineBytes, `"preconditions":[]`) ||
 		!containsBytes(machineBytes, `"verdict":"true_positive"`) {
 		t.Fatalf("machine report is not truthful: %s", machineBytes)
 	}

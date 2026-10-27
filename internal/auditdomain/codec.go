@@ -566,7 +566,7 @@ func validateFindingProposal(proposal FindingProposal) error {
 	if proposal.Schema != FindingProposalSchema {
 		return invalid(CodeSchemaUnsupported, "schema")
 	}
-	if proposal.Preconditions == nil || proposal.EvidenceIDs == nil || proposal.ProposedChecks == nil {
+	if proposal.EvidenceIDs == nil || proposal.ProposedChecks == nil {
 		return invalid(CodeInvalid, "proposal.arrays")
 	}
 	if validateIdentifier(proposal.ClientKey, "client_key") != nil {
@@ -578,8 +578,7 @@ func validateFindingProposal(proposal FindingProposal) error {
 	if err := validateFindingEvidenceReferences(proposal); err != nil {
 		return err
 	}
-	if validateStringList(proposal.Preconditions, MaximumCoverageValues, "preconditions") != nil ||
-		validateUniqueStrings(proposal.EvidenceIDs, MaximumEvidencePerItem, "evidence_ids", true) != nil ||
+	if validateUniqueStrings(proposal.EvidenceIDs, MaximumEvidencePerItem, "evidence_ids", true) != nil ||
 		len(proposal.ProposedChecks) > MaximumCoverageValues {
 		return invalid(CodeLimitExceeded, "proposal")
 	}

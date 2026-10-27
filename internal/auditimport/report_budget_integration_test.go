@@ -218,8 +218,9 @@ UPDATE audit_items
 	// finding rows directly, since admission is not under test here.
 	projection, err := auditdomain.EncodeFindingReportProjection(auditdomain.FindingReportProjection{
 		Title: "Large report candidate", Description: "A finding admitted by the large report fixture.",
-		Subject:      &auditdomain.FindingSubject{Kind: "component", Key: "handler"},
-		StandardRefs: []auditdomain.StandardReference{}, SeveritySuggestion: "low",
+		Subject:       &auditdomain.FindingSubject{Kind: "component", Key: "handler"},
+		Preconditions: []string{"Только для роли читателя", "The account already owns an order."},
+		StandardRefs:  []auditdomain.StandardReference{}, SeveritySuggestion: "low",
 		Limitations: []string{"Static review only."},
 	})
 	mustCompletion(t, err)
@@ -390,7 +391,8 @@ func assertLargeReport(
 		for index, finding := range findings {
 			ids[index] = finding.FindingID
 			if finding.State != state || finding.Title != "Large report candidate" ||
-				!slices.Equal(finding.Limitations, []string{"Static review only."}) {
+				!slices.Equal(finding.Limitations, []string{"Static review only."}) ||
+				!slices.Equal(finding.Preconditions, []string{"Только для роли читателя", "The account already owns an order."}) {
 				t.Fatalf("%s finding %d = %+v", state, index, finding)
 			}
 			if (state == "confirmed" || state == "rejected") != (finding.AnalystDecision != nil) {
