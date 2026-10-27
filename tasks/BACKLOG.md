@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-130 open tasks: 6 in progress, 113 pending, 11 deferred. 1158 finished: 1148 completed, 10 archived.
+129 open tasks: 5 in progress, 113 pending, 11 deferred. 1159 finished: 1149 completed, 10 archived.
 
 ## In progress
 
@@ -16,7 +16,6 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
-| [V421-009](v421-009-expose-artifact-storage-timestamps.yml) | projects-artifacts | feature | P2 | Expose retained Artifact storage timestamps through metadata and Technical details |
 
 ## Pending
 
@@ -211,7 +210,7 @@ the epics are in [epics.yml](epics.yml).
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
-| [V421-010](v421-010-verify-data-model-consumers.yml) | chore | P3 | V421-001, V421-002, V421-003, V421-004, V421-005, V421-006, V421-007, V421-008, V421-009 | Verify the agreed data-model consumers and contract simplifications |
+| [V421-010](v421-010-verify-data-model-consumers.yml) | chore | P3 | V421-001, V421-002, V421-003, V421-004, V421-005, V421-006, V421-007, V421-008 | Verify the agreed data-model consumers and contract simplifications |
 
 ## Deferred
 
@@ -247,7 +246,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 9 | 17 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 33 | 7 | 41 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 36 | 33 | 7 | 41 |
 | Audits (`audits`) | 29 | 67 | 82 | 32 | 113 |
 | Evaluations (`evals`) | 9 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
