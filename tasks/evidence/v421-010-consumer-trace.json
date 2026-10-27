@@ -69,6 +69,24 @@
       "implementation_commit": "26669965907e57cf9684919ac6285e5d846a9757",
       "record": "tasks/done/v421-012-refresh-reopened-attempt-diagnostics.yml",
       "status": "completed"
+    },
+    {
+      "task": "V421-013",
+      "implementation_commit": "2f99dfb2764c58f07ca9568d103c5ddd0895da72",
+      "record": "tasks/done/v421-013-artifact-state-classification.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-014",
+      "implementation_commit": "2f99dfb2764c58f07ca9568d103c5ddd0895da72",
+      "record": "tasks/done/v421-014-diagnostic-state-constant.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-015",
+      "implementation_commit": "e660fd6557926ff23f9e95ca2b589ba763fe849c",
+      "record": "tasks/done/v421-015-bound-diagnostic-jsonb-projections.yml",
+      "status": "completed"
     }
   ],
   "consumer_traces": [
@@ -209,7 +227,21 @@
   "initial_main_baseline": "1716e40db37cb3221a0892c1d8703a8790598627",
   "resumption": "Explicit user resume on2026-10-27. Current main only adds already-valid sitemap table-reader declarations and task metadata; independent review confirms existing telemetry foreign-read declarations cover both diagnostic queries. Cancelled checkpoint remains historical.",
   "verification_followups": [
-    "V421-013/014 correct both SQLSTATE fixture definitions; complete owner/API/lint checks passed.",
-    "V421-015 tracks the Linux large-Runtime pagination timeout before a new full release source is frozen."
-  ]
+    "V421-013/014 correct both SQLSTATE fixture definitions; complete real-store owner/API/lint checks passed.",
+    "V421-015 removes repeated JSONB extraction and serialization; unchanged Linux120s regression passes6.238s, fullLinuxtelemetry owner187pass/1existingoptional-skip, host complete owners/API/lint pass."
+  ],
+  "prior_resumed_attempt": {
+    "revision": "baee4e57a9f6bc7bf8d1c9c28178af13cd987479",
+    "go_unit_failures": [
+      "TestSQLStateLiteralsLiveOnlyInTheClassifier",
+      "TestRuntimeDiagnosticsPostgresBoundsOwnershipGenerationAndRetainedAuthority"
+    ],
+    "checkpoint": "/private/tmp/v421-final-release-baee4e57-b1/failed-go-unit-checkpoint.json",
+    "full_release_pass_claimed": false,
+    "corrected_by": [
+      "V421-013",
+      "V421-014",
+      "V421-015"
+    ]
+  }
 }
