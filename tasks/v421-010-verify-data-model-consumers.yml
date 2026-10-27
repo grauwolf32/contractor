@@ -5,7 +5,7 @@ milestone: data-model-consumers-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: in_progress
+status: deferred
 depends_on:
   - V421-001
   - V421-002
@@ -24,6 +24,7 @@ goal: >-
   real producer and consumer or has been removed end to end, and that the
   combined landing revision passes the deterministic release gate.
 context:
+  checkpoint: tasks/evidence/v421-010-checkpoint.json
   integration_followups: >-
     Independent combined review found two concrete UI defects before release:
     V421-011 now guards unresolved replacement inputs and retained recovery;
@@ -119,3 +120,19 @@ tests:
     covers: [A1, A4]
   - command: python3 scripts/check_spec.py
     covers: [A2, A4]
+deferral:
+  date: "2026-10-27"
+  previous_status: in_progress
+  reason: >-
+    The user explicitly paused the full release gate and all work after asking
+    for a clean intermediate checkpoint. All nine original implementations
+    and both integration defects are complete and committed. Combined public
+    API/PostgreSQL and UI/109-browser checks passed on source 485d0e09190902ffc201df97a50ac3eea86bd414.
+    Linux setup passed; the full gate was cancelled during early lint with
+    exit130 and is not a pass. A dependency cache miss and DNS failure were
+    preserved without repair or retry. All owned gate processes have joined.
+  reactivate_when: >-
+    Explicit user instruction to resume. Read the checkpoint, verify current
+    code/main state, prepare a fresh clean pin, resolve the owned runner's
+    dependency network/cache prerequisite and rerun the full required gate.
+    Do not resume automatically or mark the exit complete from focused tests.

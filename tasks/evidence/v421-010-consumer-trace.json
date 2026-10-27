@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "task": "V421-010",
-  "verification_status": "awaiting_integrated_release_gate",
+  "verification_status": "paused_by_user_after_focused_checks",
   "main_baseline": "1716e40db37cb3221a0892c1d8703a8790598627",
   "dependencies": [
     {
@@ -204,5 +204,6 @@
     "Migration055 refuses incompatible retained projections atomically with55000; discarded{} tombstones and literal immutable artifacts are preserved.",
     "Original implementation commits are ancestors of this branch; main has not been modified."
   ],
-  "independent_review": "Combined review found two actionable UI defects, tracked and completed as V421-011/012; sibling domains reviewed without additional concrete findings."
+  "independent_review": "Combined review found two actionable UI defects, tracked and completed as V421-011/012; sibling domains reviewed without additional concrete findings.",
+  "checkpoint": "tasks/evidence/v421-010-checkpoint.json"
 }
