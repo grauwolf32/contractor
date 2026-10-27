@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-121 open tasks: 5 in progress, 104 pending, 12 deferred. 1169 finished: 1159 completed, 10 archived.
+121 open tasks: 6 in progress, 104 pending, 11 deferred. 1169 finished: 1159 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
+| [V421-010](v421-010-verify-data-model-consumers.yml) | quality | chore | P3 | Verify the agreed data-model consumers and contract simplifications |
 
 ## Pending
 
@@ -213,7 +214,6 @@ the epics are in [epics.yml](epics.yml).
 | [V61-009](v61-009-toolset-configuration-release.yml) | runtime-config | 2026-10-11 | Explicit user decision that external MCP tools are needed (for example for autonomous pentest Audits, proposal 0033); then port the branch onto main rather than reimplementing, renumber its migration and rerun the V61-009 release gate. |
 | [V62-008](v62-008-project-analysis-preparation.yml) | audits | 2026-09-20 | Explicit user approval of standalone analysis-report reuse and the additional two-Workflow chain. |
 | [V365-016](v365-016-fold-planner-execution-reports.yml) | persistence | 2026-10-04 | Explicit user approval of making Planner reports a mutable slot on stage_metrics. |
-| [V421-010](v421-010-verify-data-model-consumers.yml) | quality | 2026-10-27 | Explicit user instruction to resume. Read the checkpoint, verify current code/main state, prepare a fresh clean pin, resolve the owned runner's dependency network/cache prerequisite and rerun the full required gate. Do not resume automatically or mark the exit complete from focused tests. |
 
 ## Epics
 
