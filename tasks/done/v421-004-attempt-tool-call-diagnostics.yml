@@ -5,7 +5,8 @@ milestone: data-model-consumers-2026-10
 epic: operations
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: a74a097c7dda03e26b5eea5cfa7c74f2328470b7
 depends_on: [V421-003]
 languages: [go, typescript, yaml, markdown]
 goal: >-
