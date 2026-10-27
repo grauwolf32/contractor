@@ -143,7 +143,7 @@ func TestPostgresArtifactStorageDatesExactForkCASAndPurge(t *testing.T) {
 	assertStoredTimestampFacts(t, ctx, pool, projectScope, published.TargetRef, surviving)
 	// Creation guards reject changes without blocking the mutable scope counter.
 	for _, sql := range []string{`UPDATE artifact_scopes SET created_at=created_at+interval '1 second'`, `UPDATE artifact_blobs SET created_at=created_at+interval '1 second'`, `UPDATE artifact_versions SET created_at=created_at+interval '1 second'`} {
-		if _, err := pool.Exec(ctx, sql); postgres.SQLState(err) != "23514" {
+		if _, err := pool.Exec(ctx, sql); postgres.Classify(err) != postgres.ClassRejected {
 			t.Fatalf("creation guard=%v", err)
 		}
 	}

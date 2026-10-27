@@ -12,6 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
@@ -128,7 +129,7 @@ func (f failingToolDiagnostics) ReadToolCallDiagnostics(ctx context.Context, p t
 
 func TestToolDiagnosticStorageConflictPreservesRetryPolicy(t *testing.T) {
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(s *testServices) {
-		s.RunDiagnostics = failingToolDiagnostics{emptyAttemptDiagnostics: emptyAttemptDiagnostics{OwnerID: "user-1", RunID: "run-one", StageExecutionID: "stage-one"}, err: &pgconn.PgError{Code: "40001"}}
+		s.RunDiagnostics = failingToolDiagnostics{emptyAttemptDiagnostics: emptyAttemptDiagnostics{OwnerID: "user-1", RunID: "run-one", StageExecutionID: "stage-one"}, err: &pgconn.PgError{Code: persistencepostgres.SQLStateSerializationFailure}}
 	})
 	router, err := gorillamux.NewRouter(loadPublicOpenAPI(t))
 	if err != nil {
