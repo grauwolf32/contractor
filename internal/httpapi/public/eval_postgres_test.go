@@ -289,7 +289,7 @@ func (h *evalAPIHarness) finish(t *testing.T, kind string) {
 	}
 }
 
-func (h *evalAPIHarness) registerExternal(t *testing.T, kind string) (evalservice.ExperimentView, evaldomain.PublicPlan, []evaldomain.Check) {
+func (h *evalAPIHarness) externalCreateRequest(t *testing.T, kind string) (evaldomain.CreateExperiment, evaldomain.PublicPlan, []evaldomain.Check) {
 	t.Helper()
 	draft, data := h.dataset(t, kind)
 	pre := map[string]evalservice.Preflight{}
@@ -319,12 +319,18 @@ func (h *evalAPIHarness) registerExternal(t *testing.T, kind string) (evalservic
 		recipes = append(recipes, evaldomain.MemberRecipe{MemberID: m.MemberID, Case: bundle.Cases[m.MemberID]})
 	}
 	create := evaldomain.CreateExperiment{Name: "Independent producer", ControlMode: "external", Registration: &evaldomain.ExternalRegistration{SchemaVersion: "contractor.eval-registration/v1", SourcePlanSHA256: bundle.Plan.Digest(), Manifest: manifest, Source: evaldomain.Source{System: "fixture", ID: "independent-client"}, Variants: draft.Variants, Recipes: recipes, Checks: setup.Checks, Comparison: draft.Comparison, Budgets: draft.Budgets}}
+	return create, manifest, setup.Checks
+}
+
+func (h *evalAPIHarness) registerExternal(t *testing.T, kind string) (evalservice.ExperimentView, evaldomain.PublicPlan, []evaldomain.Check) {
+	t.Helper()
+	create, manifest, checks := h.externalCreateRequest(t, kind)
 	receipt := h.request(t, "POST", "/v1/projects/evaluation/eval-experiments", create, "create", "", 201)
 	ref := apiDecode[struct {
 		ID string `json:"experimentId"`
 	}](t, receipt)
 	h.tick(t)
-	return h.get(t, ref.ID), manifest, setup.Checks
+	return h.get(t, ref.ID), manifest, checks
 }
 
 func TestSharedEvalPostgresExternalWorkflowAndAuditSubmission(t *testing.T) {

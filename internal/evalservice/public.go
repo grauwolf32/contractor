@@ -101,10 +101,8 @@ func (s *Service) Get(ctx context.Context, owner, id string) (ExperimentView, er
 				out.Setup = plan.Setup
 				out.Readiness = plan.Readiness
 				out.PlanSHA256 = &plan.SHA256
-				var setup struct {
-					Variants []evaldomain.Variant `json:"variants"`
-				}
-				if err = json.Unmarshal(plan.Setup, &setup); err != nil {
+				var setup preparedSetup
+				if err = decodePreparedSetup(plan.Setup, &setup); err != nil {
 					return err
 				}
 				out.ExecutionKind = setup.Variants[0].Kind

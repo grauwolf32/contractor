@@ -6,7 +6,8 @@ epic: evals
 kind: defect
 introduced_by: V38-006
 priority: P3
-status: pending
+status: completed
+implementation_commit: f8047c0b9217cfb15040191b8cd746e5c18a0740
 depends_on: []
 languages: [go, json, typescript, yaml]
 goal: >-
@@ -92,6 +93,12 @@ requirements:
       Update managed/OpenAPI/public-client/UI contract declarations where the evaluator-specific
       restriction is expressed; regenerate generated files. Record strict rejection and the
       unchanged external-scorer boundary in the owning spec and shared conformance cases.
+  - id: R6
+    text: >-
+      Semantic reads of frozen check policy reject retained nonempty human-review
+      parameters before review, assessment or selected-view processing. Validate the
+      already-read bounded policy projection without a full document/matrix rescan,
+      extra database reads, immutable-byte rewriting or a compatibility reader.
 failure_outcomes:
   - operation: Author or register a managed experiment/check policy
     permanent: Nonempty human-review parameters return 422 eval_invalid before draft/experiment/resource/receipt writes, and invalid bodies are not auto-retried.
@@ -130,12 +137,44 @@ acceptance_criteria:
     given: Shared fixtures, current generated contracts and all touched Eval/UI packages.
     when: The listed checks run using a disposable database.
     then: All boundaries agree, the new rejection test can fail, every required suite passes and no skipped database test or zero-test selector is reported as success.
+  - id: A6
+    given: A retained frozen policy with nonempty human-review parameters and an otherwise valid result/rubric.
+    when: Direct owner review, public plan/member/review reads and human or native reassessment consume it.
+    then: Each returns eval_invalid and exact plan, record, selection, authority and receipt bytes remain unchanged; the immutable-plan member-ceiling read budget still passes.
 tests:
   - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./api/evals/v1 ./internal/evaldomain ./internal/evalstore ./internal/evalservice ./internal/evalcoordinator'
-    covers: [A1, A2, A3, A5]
+    covers: [A1, A2, A3, A5, A6]
+  - command: go test -count=1 ./internal/httpapi/public ./internal/publicclient/...
+    covers: [A1, A2, A4, A5, A6]
+  - command: make verify-public-api
+    covers: [A1, A5]
   - command: make verify-public-api-postgres
-    covers: [A1, A2, A5]
+    covers: [A5]
   - command: make ui-verify
     covers: [A2, A4, A5]
   - command: make lint
     covers: [A1, A3, A5]
+
+implementation_notes:
+  authority_boundary: >-
+    One Check.ValidateHumanReviewParameters rule is used by managed authoring,
+    direct plan building, the registered validator, native execution and bounded
+    frozen-policy projections used by review, assessment and selected views.
+    Real PostgreSQL retained-byte regression rejects reads and both assessment
+    modes without changing records, selections, receipts or immutable plans. The
+    JSON Schema/OpenAPI condition and shared fixtures enforce the same empty
+    set. Other producer-owned evaluators and portable schemas are unchanged.
+    Existing UI evaluator-switch implementation is preserved; shared validator
+    and actual component regressions cover its parameter clearing and retain
+    structural parameters during ordinary edits. No UI implementation release
+    or policy-pin change is introduced by this validation correction.
+  gate_coverage: >-
+    Full public/publicclient owner suites and verify-public-api are mandatory
+    alongside the existing PostgreSQL boundary target, whose original selection
+    did not exercise Eval authoring mutations.
+  verification: >-
+    Full Eval owner race suites, full public/publicclient owner suites,
+    verify-public-api, verify-public-api-postgres, ui-verify and make lint
+    passed after the frozen-policy guard with the owned disposable PostgreSQL
+    configured. Focused retained-policy regression and independent review passed.
+  evidence: tasks/evidence/v421-006-human-review-parameters.json

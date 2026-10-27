@@ -24,7 +24,7 @@ func validateNativeCheck(c evaldomain.Check) error {
 	allowed := map[string]bool{}
 	switch c.Evaluator {
 	case "human-review@1":
-		return nil
+		return c.ValidateHumanReviewParameters()
 	case "required-artifact@1":
 		allowed["output"] = true
 	case "media-type@1":

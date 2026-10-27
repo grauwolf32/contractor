@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-124 open tasks: 5 in progress, 108 pending, 11 deferred. 1164 finished: 1154 completed, 10 archived.
+123 open tasks: 5 in progress, 107 pending, 11 deferred. 1165 finished: 1155 completed, 10 archived.
 
 ## In progress
 
@@ -146,7 +146,6 @@ the epics are in [epics.yml](epics.yml).
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | chore | P3 | — | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
 | [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | V417-001, V417-003 | Build frozen context-compaction evaluation fixtures and an opt-in harness |
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-008, V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
-| [V421-006](v421-006-reject-human-review-parameters.yml) | defect | P3 | — | Reject unsupported parameters on managed human-review checks |
 
 ### Podman sandbox (`sandbox`)
 
@@ -205,7 +204,7 @@ the epics are in [epics.yml](epics.yml).
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
-| [V421-010](v421-010-verify-data-model-consumers.yml) | chore | P3 | V421-002, V421-004, V421-006 | Verify the agreed data-model consumers and contract simplifications |
+| [V421-010](v421-010-verify-data-model-consumers.yml) | chore | P3 | V421-002, V421-004 | Verify the agreed data-model consumers and contract simplifications |
 
 ## Deferred
 
@@ -243,7 +242,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 36 | 33 | 7 | 41 |
 | Audits (`audits`) | 28 | 67 | 82 | 32 | 113 |
-| Evaluations (`evals`) | 8 | 21 | 39 | 15 | 48 |
+| Evaluations (`evals`) | 7 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 42 | 7 | 15 |

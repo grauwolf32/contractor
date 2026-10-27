@@ -89,6 +89,8 @@ func validateSemantics(kind string, v map[string]any) error {
 			}
 			checks[key] = true
 		}
+	case "Check":
+		return typedCheck(v, Check.ValidateHumanReviewParameters)
 	case "Case":
 		return typedCheck(v, validateCase)
 	case "PublicPlan":
@@ -154,6 +156,9 @@ func validateVariants(variants []Variant, comparison Comparison, checks []Check,
 	}
 	seen, required := map[string]bool{}, false
 	for _, check := range checks {
+		if err := check.ValidateHumanReviewParameters(); err != nil {
+			return err
+		}
 		if seen[check.ID] {
 			return Failure("eval_invalid")
 		}
