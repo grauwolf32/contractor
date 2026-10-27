@@ -1,0 +1,208 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-010",
+  "verification_status": "awaiting_integrated_release_gate",
+  "main_baseline": "1716e40db37cb3221a0892c1d8703a8790598627",
+  "dependencies": [
+    {
+      "task": "V421-001",
+      "implementation_commit": "16b4378e33a5c3cb58a56b6246f8ae05d3fa5f17",
+      "record": "tasks/done/v421-001-audit-evidence-observation-provenance.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-002",
+      "implementation_commit": "afc93839ad938f268af260e26fceea43d4506ac0",
+      "record": "tasks/done/v421-002-finding-report-preconditions.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-003",
+      "implementation_commit": "61f79e8ebcb9d9087109f4bd6ebb1a6e80e00066",
+      "record": "tasks/done/v421-003-runtime-adapter-diagnostics.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-004",
+      "implementation_commit": "a74a097c7dda03e26b5eea5cfa7c74f2328470b7",
+      "record": "tasks/done/v421-004-attempt-tool-call-diagnostics.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-005",
+      "implementation_commit": "63385f67d968112ddf2224fdf57b5b777334cdf3",
+      "record": "tasks/done/v421-005-remove-unused-eval-private-schema.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-006",
+      "implementation_commit": "f8047c0b9217cfb15040191b8cd746e5c18a0740",
+      "record": "tasks/done/v421-006-reject-human-review-parameters.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-007",
+      "implementation_commit": "28e8d25b42de61a7f7e7edf950fec93103e40b43",
+      "record": "tasks/done/v421-007-remove-unused-worker-state-fields.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-008",
+      "implementation_commit": "537139ac98b16ebdac7bfcd38093b602019ecebd",
+      "record": "tasks/done/v421-008-trim-registration-response.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-009",
+      "implementation_commit": "a7da863e71b33bc9373c2b987ad72c9482aa134c",
+      "record": "tasks/done/v421-009-expose-artifact-storage-timestamps.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-011",
+      "implementation_commit": "c86130f3a22766a185360cc77b4b68b89c496fa4",
+      "record": "tasks/done/v421-011-block-unresolved-input-replacements.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-012",
+      "implementation_commit": "26669965907e57cf9684919ac6285e5d846a9757",
+      "record": "tasks/done/v421-012-refresh-reopened-attempt-diagnostics.yml",
+      "status": "completed"
+    }
+  ],
+  "consumer_traces": [
+    {
+      "task": "V421-001",
+      "fields": "observed_at/deployment_marker/http_request_id/http_request_tag",
+      "flow": "Runtime transport capture and pinned deployment policy \u2192 allocation-local accepted evidence \u2192 retained Audit evidence \u2192 owner API and check Technical details",
+      "paths": [
+        "runtime/src/contractor_runtime/toolsets/http/tools.py",
+        "runtime/src/contractor_runtime/toolsets/common/http_capture.py",
+        "runtime/src/contractor_runtime/toolsets/audit_results/v2.py",
+        "internal/auditservice/coverage.go",
+        "ui/src/routes/projects/audits/check-item.tsx"
+      ]
+    },
+    {
+      "task": "V421-002",
+      "fields": "FindingProposal.preconditions",
+      "flow": "First receipt stores copied ordered conditions \u2192 strict required report projection \u2192 shared constructor for every final finding section \u2192 standalone immutable report download",
+      "paths": [
+        "internal/auditdomain/finding_report.go",
+        "internal/findingintake",
+        "internal/auditimport/report_build.go",
+        "internal/persistence/migrations/000055_finding_report_preconditions_transition.sql"
+      ]
+    },
+    {
+      "task": "V421-003",
+      "fields": "Runtime adapter counters/flush/drop/duration/stop facts",
+      "flow": "Normalized private reports \u2192 retained stage_metrics \u2192 owner/Run/Stage-authorized bounded SQL pages \u2192 on-demand UI with exact decimal strings",
+      "paths": [
+        "internal/telemetry/repository.go",
+        "internal/telemetry/attempt_diagnostics_sql.go",
+        "internal/httpapi/public/run_diagnostic_handlers.go",
+        "ui/src/routes/runs/runtime-diagnostics.tsx"
+      ]
+    },
+    {
+      "task": "V421-004",
+      "fields": "ExecutionReport.toolCalls",
+      "flow": "Retained Planner/Worker report \u2192 selected 8MiB-bounded SQL projection \u2192 generation-bound count/byte pages \u2192 selected participant UI and arguments JSON text",
+      "paths": [
+        "internal/telemetry/tool_diagnostics_sql.go",
+        "internal/telemetry/tool_diagnostics.go",
+        "ui/src/api/tool-diagnostics.ts",
+        "ui/src/routes/runs/tool-diagnostics.tsx"
+      ]
+    },
+    {
+      "task": "V421-005",
+      "fields": "PrivateCheck.Schema removed",
+      "flow": "Removed only from managed private check, schema, public clients and readers; strict shared rejection fixtures remain; portable schemas and structural parameters.schema remain consumed",
+      "paths": [
+        "internal/evaldomain/types.go",
+        "api/evals/v1/managed.schema.json",
+        "api/openapi/contractor-public-v1.yaml",
+        "internal/publicclient/generated/public.gen.go",
+        "ui/src/api/generated/public.ts"
+      ]
+    },
+    {
+      "task": "V421-006",
+      "fields": "human-review parameters",
+      "flow": "Nonempty unsupported parameters rejected at authoring, freeze, native/manual execution and all semantic retained-policy readers; current UI evaluator switching and structural/external parameters preserved",
+      "paths": [
+        "internal/evaldomain",
+        "internal/evalservice",
+        "internal/httpapi/public/eval_human_parameters_postgres_test.go",
+        "ui/src/api/evals.ts"
+      ]
+    },
+    {
+      "task": "V421-007",
+      "fields": "exported latestPromptTokens/workspaceDigest removed",
+      "flow": "Removed from current/last Worker state transport snapshots and both language schemas; internal prompt budgets and workspace integrity still have their existing callers",
+      "paths": [
+        "internal/contracts/reporting/agent_state.go",
+        "api/v1alpha1/agent-state.schema.json",
+        "runtime/src/contractor_runtime/worker/state.py",
+        "runtime/src/contractor_runtime/worker/observations.py"
+      ]
+    },
+    {
+      "task": "V421-008",
+      "fields": "registration response runtimeAgentId/labels/labelRevision removed",
+      "flow": "Echo-only response fields removed strictly across Go/Python/schema; Server principal identity, placement labels and revision validation/storage remain authoritative",
+      "paths": [
+        "internal/contracts/control/registration.go",
+        "internal/controlplane/http.go",
+        "internal/controlplane/registry.go",
+        "runtime/src/contractor_runtime/contracts/registration.py",
+        "api/v1alpha1/agent-registration-response.schema.json"
+      ]
+    },
+    {
+      "task": "V421-009",
+      "fields": "scopeCreatedAt/blobCreatedAt/versionCreatedAt/bindingUpdatedAt",
+      "flow": "Original physical registry timestamps \u2192 five metadata projections \u2192 strict public/CLI/UI reads and shared material Technical details; no invented source-file times or chronology relation",
+      "paths": [
+        "internal/artifacts",
+        "internal/cli",
+        "ui/src/api/artifacts.ts",
+        "ui/src/routes/artifacts",
+        "internal/persistence/migrations/000054_artifact_scope_creation_immutable.sql"
+      ]
+    },
+    {
+      "task": "V421-011",
+      "fields": "unresolved replacement input intent",
+      "flow": "Exact replacement revokes prior confirmation \u2192 per-slot read/error/retry and synchronous submit guard \u2192 successful exact binding or explicit cancellation/reselection; retained missing ref stays clearable",
+      "paths": [
+        "ui/src/routes/workflows/run-form-fields.tsx",
+        "ui/src/routes/workflows/run-form.tsx",
+        "ui/src/routes/workflows/run-form-state.ts"
+      ]
+    },
+    {
+      "task": "V421-012",
+      "fields": "diagnostic page-entry cache intent",
+      "flow": "Capture cached fact identities before child mount \u2192 bounded batch invalidation on genuine page entry/state change \u2192 active disclosures refresh; local participant selection and unrelated remounts remain untouched",
+      "paths": [
+        "ui/src/routes/runs/runtime-diagnostics-refresh.ts",
+        "ui/src/routes/runs/runtime-diagnostics.tsx",
+        "ui/src/routes/runs/tool-diagnostics.tsx"
+      ]
+    }
+  ],
+  "shared_guarantees": [
+    "No compatibility readers, telemetry tables, new receipts or changed retention were introduced.",
+    "Both public clients were regenerated after branch combination; UI release0.10.12 includes the combined changes.",
+    "Unsigned/signed64-bit diagnostic values remain exact strings and argument numbers remain JSON text in the browser.",
+    "Diagnostic reads preserve owner isolation, exact attempt association, bounded projections and cancellation; failures preserve visibly stale facts.",
+    "Migration055 refuses incompatible retained projections atomically with55000; discarded{} tombstones and literal immutable artifacts are preserved.",
+    "Original implementation commits are ancestors of this branch; main has not been modified."
+  ],
+  "independent_review": "Combined review found two actionable UI defects, tracked and completed as V421-011/012; sibling domains reviewed without additional concrete findings."
+}
