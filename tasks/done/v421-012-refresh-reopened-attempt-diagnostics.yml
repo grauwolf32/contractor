@@ -6,7 +6,8 @@ epic: ui
 kind: defect
 introduced_by: V421-003
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 26669965907e57cf9684919ac6285e5d846a9757
 depends_on: [V421-003, V421-004]
 languages: [typescript, yaml, markdown]
 goal: Refresh previously cached open attempt diagnostics once on a real Run page entry while preserving protection from live projection remounts and failed-refresh data loss.
