@@ -87,6 +87,12 @@
       "implementation_commit": "e660fd6557926ff23f9e95ca2b589ba763fe849c",
       "record": "tasks/done/v421-015-bound-diagnostic-jsonb-projections.yml",
       "status": "completed"
+    },
+    {
+      "task": "V421-016",
+      "implementation_commit": "b9f7366193adca40c6f2c1266866f7ffac0dc0fb",
+      "record": "tasks/done/v421-016-preserve-sitemap-scale-production-timing.yml",
+      "status": "completed"
     }
   ],
   "consumer_traces": [
@@ -228,7 +234,8 @@
   "resumption": "Explicit user resume on2026-10-27. Current main only adds already-valid sitemap table-reader declarations and task metadata; independent review confirms existing telemetry foreign-read declarations cover both diagnostic queries. Cancelled checkpoint remains historical.",
   "verification_followups": [
     "V421-013/014 correct both SQLSTATE fixture definitions; complete real-store owner/API/lint checks passed.",
-    "V421-015 removes repeated JSONB extraction and serialization; unchanged Linux120s regression passes6.238s, fullLinuxtelemetry owner187pass/1existingoptional-skip, host complete owners/API/lint pass."
+    "V421-015 removes repeated JSONB extraction and serialization; unchanged Linux120s regression passes6.238s, fullLinuxtelemetry owner187pass/1existingoptional-skip, host complete owners/API/lint pass.",
+    "V421-016 preserves the exact serial sitemap volume fixture under production timing; baseline main and integrated source reproduce the race timeout. Full host and clean Linux owner suites pass normally and under race detection, and release graph/lint pass; no production budget or fixture assertion changed."
   ],
   "prior_resumed_attempt": {
     "revision": "baee4e57a9f6bc7bf8d1c9c28178af13cd987479",
@@ -243,5 +250,16 @@
       "V421-014",
       "V421-015"
     ]
+  },
+  "prior_integrated_attempt": {
+    "revision": "30329ddb380083ecbb52fd7fdb082a1e614342fd",
+    "checkpoint": "tasks/evidence/v421-010-release-attempt-30329ddb.json",
+    "checkpoint_sha256": "81838ff26841aa6dff732367cc54701f8f17f58b01ff91c11d3e182cb28ebdf6",
+    "status": "failed_gate_cancelled_and_joined",
+    "full_release_pass_claimed": false,
+    "failure": "Pre-existing sitemap volume fixture exceeds the 15-second production operation deadline under race instrumentation; reproduced on main.",
+    "corrected_by": "V421-016",
+    "integration": "started_cancelled_unproven",
+    "process_shards": "not_started"
   }
 }

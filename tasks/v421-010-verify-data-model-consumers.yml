@@ -36,6 +36,15 @@ context:
     complete release gate. The prior cancelled attempt remains historical
     evidence and is not reused as a pass.
   checkpoint: tasks/evidence/v421-010-checkpoint.json
+  integrated_gate_followups: >-
+    The resumed baee4e57 attempt exposed two corrected SQLSTATE fixtures and
+    repeated diagnostic JSONB work, completed in V421-013/014/015. The next
+    clean 30329ddb attempt completed seven stages, then exposed a pre-existing
+    sitemap volume fixture timeout under race instrumentation; the same failure
+    was reproduced on main and corrected by V421-016 without changing its
+    original body or production deadlines. Its integration stage started but
+    was cancelled and remains unproven. Both unsuccessful attempts are retained;
+    a fresh complete release attempt is still required.
   integration_followups: >-
     Independent combined review found two concrete UI defects before release:
     V421-011 now guards unresolved replacement inputs and retained recovery;
