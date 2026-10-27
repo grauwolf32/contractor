@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V410-001
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V410-001
 languages:
@@ -73,3 +73,29 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 334c295df7c35c312f8d72a9923d7ffd99b28f28
+verification:
+  date: '2026-10-28'
+  result: passed
+  tested_commit: ab35b1afbd246ebe62418873a40bc71e98bbaf31
+  commands:
+  - command: make test-project-sitemap-postgres
+    result: 'Passed on the integrated tree: 13 complete packages, 15 mandatory cases, zero mandatory skips. Includes
+      all new real-store regressions and full projectsitemap/controlplane suites. One producer accepted 257 publications
+      totalling 360501946 encoded bytes with ordinary history retention.'
+  - command: make lint
+    result: Passed generated checks, UI gates, go vet/staticcheck/testonlyexports, deployment tests, release graph,
+      tasks/specs/fixtures, Ruff and all four Runtime import contracts.
+  evidence:
+  - Declaration and observation share member identity and grouping; both orders with and without structural selectors
+    preserve declarations, annotations and fixed suppression through source replacement.
+  - Regroup reports ambiguous matching templates instead of silently ignoring ambiguity. Blackbox projections retain
+    only authorized concrete declaration provenance.
+  - Selected member/group snapshots retain matching concrete declarations, including structural identity, without
+    adding unrelated members or restricted sources. Eight real-store order/snapshot combinations fail against the
+    original implementations and pass with the fixes.
+  limitations:
+  - Verification used disposable local PostgreSQL 17, Go 1.26.9, Node 24.20 and the locked Runtime environment.
+    No demo data or primary checkout files were changed.
+  - The working branch codex/v410-011-sitemap-metadata is not merged into main. Original structured-import, reconciliation
+    and remaining delivery tasks retain their status; this does not claim the full V410 release gate.
