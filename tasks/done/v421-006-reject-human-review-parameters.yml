@@ -6,7 +6,8 @@ epic: evals
 kind: defect
 introduced_by: V38-006
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: f8047c0b9217cfb15040191b8cd746e5c18a0740
 depends_on: []
 languages: [go, json, typescript, yaml]
 goal: >-
@@ -171,3 +172,9 @@ implementation_notes:
     Full public/publicclient owner suites and verify-public-api are mandatory
     alongside the existing PostgreSQL boundary target, whose original selection
     did not exercise Eval authoring mutations.
+  verification: >-
+    Full Eval owner race suites, full public/publicclient owner suites,
+    verify-public-api, verify-public-api-postgres, ui-verify and make lint
+    passed after the frozen-policy guard with the owned disposable PostgreSQL
+    configured. Focused retained-policy regression and independent review passed.
+  evidence: tasks/evidence/v421-006-human-review-parameters.json
