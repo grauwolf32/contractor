@@ -1,0 +1,89 @@
+schema_version: '1.0'
+id: V410-016
+title: Expose bounded sitemap metadata independently of entries
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-002
+priority: P1
+status: in_progress
+depends_on:
+- V410-002
+languages:
+- python
+- go
+- yaml
+- json
+goal: Expose bounded sitemap metadata independently of entries.
+context:
+  authority: User requested a second assessment, task creation and fixes on 2026-10-27. The raw owner-selected blackbox
+    input finding is withdrawn; secret filtering is removed by V410-011.
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  severity: medium
+  finding: 'runtime/src/contractor_runtime/toolsets/sitemap/session.py:196 and :206: an empty map hides retained
+    Source generations needed by configure_sitemap_grouping, while every entry read repeats all map rules and gaps.'
+  siblings: Provide a bounded authorized metadata read for sources, rules and gaps even without entries; integrate
+    the narrowest usable tool contract and capability declaration, preserve source-mode checks and view-bound cursors,
+    and remove unrelated global metadata repetition from entry pages.
+scope:
+  in:
+  - Provide a bounded authorized metadata read for sources, rules and gaps even without entries; integrate the narrowest
+    usable tool contract and capability declaration, preserve source-mode checks and view-bound cursors, and remove
+    unrelated global metadata repetition from entry pages.
+  - Regression coverage on the existing production path and owning contract updates.
+  out:
+  - Unrelated pending sitemap imports, reconciliation and workflow delivery; new persistence or retention mechanisms.
+failure_outcomes:
+- operation: Existing sitemap operation
+  permanent: Preserve classified syntax, authority, exact selection and stale-intent errors.
+  retryable: Use existing attempt and deadline bounds; no new blanket retries.
+  ambiguous: Keep original operation identity and existing receipt or immutable view.
+  cancelled: Join work through existing allocation/transaction lifecycle.
+  timeout: Keep independent operations within their documented bounded allowance.
+cardinality:
+- collection: Existing map, view, source and observation collections
+  expected: Existing proposal workload and realistic regression fixtures
+  maximum: Existing LIM-SMT ceilings; no silently increased limit
+  bound: Every page, batch and transaction remains bounded by existing count and byte constraints.
+lifecycle:
+- entity: Existing sitemap resources
+  delete: Existing Project and allocation lifecycle
+  cascade: No new lifetime or independent persistence owner
+  retention: Existing ArtifactStore exact-reference protection and bounded history
+acceptance_criteria:
+- id: A1
+  text: After rules are cleared, a fresh allocation can discover the complete current source precondition and configure
+    it again.
+- id: A2
+  text: Metadata is paged within existing count/byte limits and checks live authority; entry pages do not repeat
+    unrelated global rules and gaps.
+- id: A3
+  text: Real tool/process and shared capability fixtures cover the selected metadata operation, stale cursors, authorization
+    and empty map.
+tests:
+- command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_capabilities.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test ./internal/contracts ./internal/controlplane ./internal/config
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-project-sitemap-tools-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
