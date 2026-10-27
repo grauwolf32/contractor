@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V410-003
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V410-003
 languages:
@@ -70,3 +70,28 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: ae179ddcc14b9d0cd14f3b44d3e24405f8ff3601
+verification:
+  date: '2026-10-28'
+  result: passed
+  tested_commit: ab35b1afbd246ebe62418873a40bc71e98bbaf31
+  commands:
+  - command: make test-project-sitemap-tools-e2e
+    result: 'Passed on the integrated tree: both actual Server/Runtime/PostgreSQL mandatory scenarios, zero skips,
+      including retained credential-like metadata, owner-selected full input, empty-map metadata and exact source
+      reconfiguration.'
+  - command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_http_*.py runtime/tests/test_capabilities*.py
+    result: 218 passed. This includes every listed narrower Runtime selection.
+  - command: make lint
+    result: Passed generated checks, UI gates, go vet/staticcheck/testonlyexports, deployment tests, release graph,
+      tasks/specs/fixtures, Ruff and all four Runtime import contracts.
+  evidence:
+  - Invalid target response statuses become transport-error observations with status zero while the HTTP tool retains
+    http_response_invalid.
+  - Six direct/proxy regressions at statuses 99, 600 and 700 exercise actual HTTP tools, collector and schema-validated
+    client payloads; valid siblings and later observations still publish.
+  limitations:
+  - Verification used disposable local PostgreSQL 17, Go 1.26.9, Node 24.20 and the locked Runtime environment.
+    No demo data or primary checkout files were changed.
+  - The working branch codex/v410-011-sitemap-metadata is not merged into main. Original structured-import, reconciliation
+    and remaining delivery tasks retain their status; this does not claim the full V410 release gate.
