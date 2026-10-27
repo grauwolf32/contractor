@@ -1068,9 +1068,10 @@ becomes `last_completed_invocation`. Beginning the next invocation does not
 mutate the previous completed snapshot; completing it replaces that one-slot
 history. Allocation-wide metrics continue across sequential invocations.
 
-**WRK-R107.** State schema version 2 includes the nullable most-recent
-provider prompt-token count in invocation metrics and a required closed
-summarizer section. The section is `disabled` when the pinned AgentTemplate has
+**WRK-R107.** State schema version 2 includes bounded invocation metrics
+and a required closed summarizer section. Prompt-token trigger tracking stays
+internal to the invocation budget; workspace integrity digests stay in the
+workspace owner. Neither is an exported State field. The section is `disabled` when the pinned AgentTemplate has
 no summarizer; otherwise it moves monotonically through
 `not_requested -> requested -> succeeded|failed`. No completed invocation
 keeps a `requested` section: when an invocation ends after the request and

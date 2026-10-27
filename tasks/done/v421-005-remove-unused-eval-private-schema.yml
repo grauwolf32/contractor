@@ -6,7 +6,8 @@ epic: evals
 kind: chore
 introduced_by: V38-002
 priority: P3
-status: pending
+status: completed
+implementation_commit: 63385f67d968112ddf2224fdf57b5b777334cdf3
 depends_on: []
 languages: [go, json, typescript, yaml]
 goal: >-
@@ -117,9 +118,30 @@ acceptance_criteria:
 tests:
   - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./api/evals/v1 ./internal/evaldomain ./internal/evalstore ./internal/evalservice ./internal/evalcoordinator'
     covers: [A1, A2, A3, A4]
-  - command: make verify-public-api-postgres
+  - command: go test -count=1 ./internal/httpapi/public ./internal/publicclient/...
     covers: [A1, A2, A4]
+  - command: make verify-public-api
+    covers: [A1, A4]
+  - command: make verify-public-api-postgres
+    covers: [A4]
   - command: make ui-verify
     covers: [A2, A3, A4]
   - command: make lint
     covers: [A1, A3, A4]
+
+implementation_notes:
+  contract_change: >-
+    API-R3 removal is limited to managed PrivateCheck.schema. The managed codec,
+    public OpenAPI and regenerated Go/TypeScript clients reject it; frozen
+    portable schemas, structural Check.parameters.schema and assessment pins
+    are unchanged. Shared fixtures and the real-PG public regression prove
+    rejection before writes/receipts and corrected reuse of the same key.
+  gate_coverage: >-
+    The existing verify-public-api-postgres target selects Audit pagination and
+    sitemap tests, so its execution alone cannot prove this Eval mutation. Full
+    public/publicclient owner suites and verify-public-api are mandatory too.
+  verification: >-
+    Full Eval owner race suites, full public/publicclient owner suites,
+    verify-public-api, verify-public-api-postgres, ui-verify and make lint
+    passed with the owned disposable PostgreSQL database configured.
+  evidence: tasks/evidence/v421-005-private-rubric.json

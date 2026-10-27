@@ -43,6 +43,13 @@
     "workspace-capabilities.json": {"type": "WorkspaceCapabilities", "schema": "agent-registration.schema.json#/$defs/WorkspaceCapabilities"}
   },
   "invalid": {
+    "registration-response-removed-runtimeAgentId.json": {"type": "AgentRegistrationResponse", "schema": "agent-registration-response.schema.json", "strict": true},
+    "registration-response-removed-labels.json": {"type": "AgentRegistrationResponse", "schema": "agent-registration-response.schema.json", "strict": true},
+    "registration-response-removed-labelRevision.json": {"type": "AgentRegistrationResponse", "schema": "agent-registration-response.schema.json", "strict": true},
+    "agent-state-removed-currentInvocation-latestPromptTokens.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json", "strict": true},
+    "agent-state-removed-currentInvocation-workspaceDigest.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json", "strict": true},
+    "agent-state-removed-lastCompletedInvocation-latestPromptTokens.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json", "strict": true},
+    "agent-state-removed-lastCompletedInvocation-workspaceDigest.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json", "strict": true},
     "artifact-metadata-snake-key.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json", "strict": true},
     "artifact-read-result-content-key.json": {"type": "ArtifactReadResult", "schema": "artifact.schema.json", "strict": true},
     "artifact-metadata-key-newline.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json", "strict": true},

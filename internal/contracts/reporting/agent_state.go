@@ -83,7 +83,6 @@ type WorkerStateInvocationMetric struct {
 	TotalTokens           uint64                                     `json:"totalTokens" strictjson:"required"`
 	CachedInputTokens     uint64                                     `json:"cachedInputTokens" strictjson:"required"`
 	TokenUsageUnavailable uint64                                     `json:"tokenUsageUnavailable" strictjson:"required"`
-	LatestPromptTokens    *uint64                                    `json:"latestPromptTokens" strictjson:"required,nullable"`
 	ToolCalls             uint64                                     `json:"toolCalls" strictjson:"required"`
 	ToolErrors            uint64                                     `json:"toolErrors" strictjson:"required"`
 	Tools                 map[string]WorkerStateInvocationToolMetric `json:"tools" strictjson:"required"`
@@ -107,11 +106,10 @@ type WorkerStateInvocationToolMetric struct {
 }
 
 type WorkerStateWorkspace struct {
-	WorkspaceDigest string                            `json:"workspaceDigest" strictjson:"required"`
-	ScopePaths      []string                          `json:"scopePaths" strictjson:"required"`
-	ScopeComplete   bool                              `json:"scopeComplete" strictjson:"required"`
-	Interactions    []WorkerStateWorkspaceInteraction `json:"interactions" strictjson:"required"`
-	DetailComplete  bool                              `json:"detailComplete" strictjson:"required"`
+	ScopePaths     []string                          `json:"scopePaths" strictjson:"required"`
+	ScopeComplete  bool                              `json:"scopeComplete" strictjson:"required"`
+	Interactions   []WorkerStateWorkspaceInteraction `json:"interactions" strictjson:"required"`
+	DetailComplete bool                              `json:"detailComplete" strictjson:"required"`
 }
 
 type WorkerStateWorkspaceInteraction struct {
@@ -339,9 +337,6 @@ func (m WorkerStateInvocationMetric) validate() error {
 }
 
 func (s WorkerStateWorkspace) validate() error {
-	if err := contracts.ValidateDigest("Worker State workspaceDigest", s.WorkspaceDigest); err != nil {
-		return err
-	}
 	if s.ScopePaths == nil || s.Interactions == nil || len(s.ScopePaths) > maxStateWorkspacePaths ||
 		len(s.Interactions) > maxStateWorkspacePaths || !sort.StringsAreSorted(s.ScopePaths) {
 		return contracts.Invalidf("Worker State workspace collections are invalid")

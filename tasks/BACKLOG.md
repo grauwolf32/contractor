@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-129 open tasks: 5 in progress, 113 pending, 11 deferred. 1159 finished: 1149 completed, 10 archived.
+126 open tasks: 5 in progress, 110 pending, 11 deferred. 1162 finished: 1152 completed, 10 archived.
 
 ## In progress
 
@@ -27,7 +27,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-007](v372-007-terminal-stage-state-set.yml) | chore | P3 | — | Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them |
 | [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | chore | P3 | — | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
 | [V414-014](v414-014-standby-shutdown-race.yml) | defect | P3 | — | Exit a standby Server cleanly when shutdown races its readiness listener |
-| [V421-008](v421-008-trim-registration-response.yml) | chore | P3 | — | Remove unused principal metadata from the Runtime registration response |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -45,7 +44,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | — | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
-| [V421-007](v421-007-remove-unused-worker-state-fields.yml) | chore | P3 | — | Remove unused prompt and workspace fields from exported Worker State |
 
 ### Runtime labels, configuration and credentials (`runtime-config`)
 
@@ -150,7 +148,6 @@ the epics are in [epics.yml](epics.yml).
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | chore | P3 | — | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
 | [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | V417-001, V417-003 | Build frozen context-compaction evaluation fixtures and an opt-in harness |
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-008, V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
-| [V421-005](v421-005-remove-unused-eval-private-schema.yml) | chore | P3 | — | Remove the unused schema field from managed Eval private rubrics |
 | [V421-006](v421-006-reject-human-review-parameters.yml) | defect | P3 | — | Reject unsupported parameters on managed human-review checks |
 
 ### Podman sandbox (`sandbox`)
@@ -210,7 +207,7 @@ the epics are in [epics.yml](epics.yml).
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
-| [V421-010](v421-010-verify-data-model-consumers.yml) | chore | P3 | V421-001, V421-002, V421-004, V421-005, V421-006, V421-007, V421-008, V421-009 | Verify the agreed data-model consumers and contract simplifications |
+| [V421-010](v421-010-verify-data-model-consumers.yml) | chore | P3 | V421-001, V421-002, V421-004, V421-006, V421-009 | Verify the agreed data-model consumers and contract simplifications |
 
 ## Deferred
 
@@ -235,8 +232,8 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 5 | 41 | 56 | 20 | 84 |
-| Planners and the Worker model boundary (`planner-worker`) | 13 | 34 | 47 | 28 | 64 |
+| Run execution core (`execution-core`) | 4 | 41 | 56 | 20 | 84 |
+| Planners and the Worker model boundary (`planner-worker`) | 12 | 34 | 47 | 28 | 64 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 43 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -248,7 +245,7 @@ tasks in `introduced_by`.
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 33 | 7 | 41 |
 | Audits (`audits`) | 29 | 67 | 82 | 32 | 113 |
-| Evaluations (`evals`) | 9 | 21 | 39 | 15 | 48 |
+| Evaluations (`evals`) | 8 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |
 | Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 42 | 7 | 15 |

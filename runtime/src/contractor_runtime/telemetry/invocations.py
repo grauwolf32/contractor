@@ -23,7 +23,6 @@ class InvocationMetricsReducer:
     total_tokens: int = 0
     cached_input_tokens: int = 0
     token_usage_unavailable: int = 0
-    latest_prompt_tokens: int | None = None
     tool_calls: int = 0
     tool_errors: int = 0
     tools: dict[str, dict[str, int]] = field(default_factory=dict)
@@ -34,7 +33,6 @@ class InvocationMetricsReducer:
 
     def record_model_usage(self, usage: Any | None) -> None:
         projected = project_token_usage(usage)
-        self.latest_prompt_tokens = projected.prompt_tokens
         if projected.total_unavailable:
             self.token_usage_unavailable = _saturating_add(self.token_usage_unavailable, 1)
         for value, field_name in (
@@ -75,7 +73,6 @@ class InvocationMetricsReducer:
             "totalTokens": self.total_tokens,
             "cachedInputTokens": self.cached_input_tokens,
             "tokenUsageUnavailable": self.token_usage_unavailable,
-            "latestPromptTokens": self.latest_prompt_tokens,
             "toolCalls": self.tool_calls,
             "toolErrors": self.tool_errors,
             "tools": {name: dict(values) for name, values in sorted(self.tools.items())},

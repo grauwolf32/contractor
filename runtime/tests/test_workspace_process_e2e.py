@@ -111,8 +111,8 @@ os.utime(path, ns=(before.st_atime_ns, before.st_mtime_ns))
         assert observed.files_read == ["source.txt"]
         assert context.worker_state is not None
         retained = await context.worker_state.snapshot()
-        assert (
-            retained["lastCompletedInvocation"]["workspace"]["workspaceDigest"] == metadata.digest
+        assert retained["lastCompletedInvocation"]["workspace"]["scopePaths"] == list(
+            metadata.managed_text_paths
         )
         assert completed.result.artifacts == {}
         assert "podman@1" not in service._factories.sandbox_profiles

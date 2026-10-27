@@ -15,7 +15,6 @@ from pydantic import (
 from contractor_runtime.contracts.artifacts import ArtifactRef, is_reserved_result_binding
 from contractor_runtime.contracts.base import (
     _STATE_METRIC_NAME_PATTERN,
-    DIGEST_PATTERN,
     ID_PATTERN,
     MAX_AGENT_STATE_SNAPSHOT_BYTES,
     MAX_STATE_WORKSPACE_PATH_BYTES,
@@ -279,7 +278,6 @@ class WorkerStateInvocationMetrics(WireModel):
     total_tokens: int = Field(ge=0, le=MAX_UINT64)
     cached_input_tokens: int = Field(ge=0, le=MAX_UINT64)
     token_usage_unavailable: int = Field(ge=0, le=MAX_UINT64)
-    latest_prompt_tokens: int | None = Field(ge=0, le=MAX_UINT64)
     tool_calls: int = Field(ge=0, le=MAX_UINT64)
     tool_errors: int = Field(ge=0, le=MAX_UINT64)
     tools: dict[str, WorkerStateInvocationToolMetrics] = Field(max_length=256)
@@ -333,7 +331,6 @@ class WorkerStateToolCall(WireModel):
 
 
 class WorkerStateWorkspaceObservation(WireModel):
-    workspace_digest: str = Field(pattern=DIGEST_PATTERN.pattern)
     scope_paths: list[str] = Field(max_length=MAX_STATE_WORKSPACE_PATHS)
     scope_complete: bool
     interactions: list[WorkerStateWorkspaceInteraction] = Field(

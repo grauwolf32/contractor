@@ -121,7 +121,6 @@
         "totalTokens",
         "cachedInputTokens",
         "tokenUsageUnavailable",
-        "latestPromptTokens",
         "toolCalls",
         "toolErrors",
         "tools",
@@ -135,12 +134,6 @@
         "totalTokens": {"$ref": "#/$defs/uint64"},
         "cachedInputTokens": {"$ref": "#/$defs/uint64"},
         "tokenUsageUnavailable": {"$ref": "#/$defs/uint64"},
-        "latestPromptTokens": {
-          "oneOf": [
-            {"type": "null"},
-            {"$ref": "#/$defs/uint64"}
-          ]
-        },
         "toolCalls": {"$ref": "#/$defs/uint64"},
         "toolErrors": {"$ref": "#/$defs/uint64"},
         "tools": {
@@ -224,17 +217,12 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "workspaceDigest",
         "scopePaths",
         "scopeComplete",
         "interactions",
         "detailComplete"
       ],
       "properties": {
-        "workspaceDigest": {
-          "type": "string",
-          "pattern": "^sha256:[0-9a-f]{64}$"
-        },
         "scopePaths": {
           "type": "array",
           "maxItems": 10000,

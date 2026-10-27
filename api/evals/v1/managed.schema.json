@@ -266,11 +266,6 @@
             "maxLength": 8192
           },
           "maxProperties": 128
-        },
-        "schema": {
-          "type": "string",
-          "minLength": 0,
-          "maxLength": 65536
         }
       },
       "required": [

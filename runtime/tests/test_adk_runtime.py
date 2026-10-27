@@ -2206,14 +2206,12 @@ def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
             {"namespace": "inputs", "name": "source", "revision": "input-r1"},
             call_id="read-before-summary",
         )
-        expected_prompt_tokens = 7
         expected_normal_total = 10
         if trigger == "context-window":
             assert first_response.usage_metadata is not None
             # min(floor(8192 * .9), 8192 - 1024) == 7168.
             first_response.usage_metadata.prompt_token_count = 7168
             first_response.usage_metadata.total_token_count = 7171
-            expected_prompt_tokens = 7168
             expected_normal_total = 7171
         normal_model = scripted_model([first_response])
         summary_model = scripted_model(
@@ -2260,7 +2258,7 @@ def test_adk_worker_uses_one_terminal_summarizer_at_a_safe_tool_boundary(
         assert finished["summarizer"]["modelCalls"] == 1
         assert finished["summarizer"]["totalTokens"] == 10
         assert finished["metrics"]["modelCalls"] == 1
-        assert finished["metrics"]["latestPromptTokens"] == expected_prompt_tokens
+        assert "latestPromptTokens" not in finished["metrics"]
         report = state.metrics.build_report(report_id="worker-report", duration_ms=1)
         assert report.metrics.model_calls == 1
         assert report.metrics.total_tokens == expected_normal_total
@@ -2524,7 +2522,7 @@ def test_adk_worker_does_not_guess_missing_usage_for_summarization(tmp_path: Pat
         assert len(normal_model.requests) == 3
         assert summary_model.requests == []
         snapshot = await state.snapshot()
-        assert snapshot["lastCompletedInvocation"]["metrics"]["latestPromptTokens"] == 7
+        assert "latestPromptTokens" not in snapshot["lastCompletedInvocation"]["metrics"]
         assert snapshot["lastCompletedInvocation"]["metrics"]["tokenUsageUnavailable"] == 1
         assert snapshot["lastCompletedInvocation"]["summarizer"]["phase"] == "not_requested"
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))

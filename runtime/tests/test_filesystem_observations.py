@@ -406,7 +406,7 @@ def test_extractor_failure_is_non_fatal_and_sequential_invocations_reset() -> No
         await plugin.before_run_callback(invocation_context=second_context)
         current = await state.snapshot()
         current_workspace = current["currentInvocation"]["workspace"]
-        assert current_workspace["workspaceDigest"] == "sha256:" + "2" * 64
+        assert current_workspace["scopePaths"] == ["b.py", "new.py"]
         assert current_workspace["interactions"] == []
         await call(
             plugin,
@@ -471,10 +471,7 @@ def test_real_adk_runtime_projects_workspace_observations_into_worker_result(
         assert observed.files_read == ["docs/readme.txt"]
         assert completion.result.observations.truncated is False
         snapshot = await state.snapshot()
-        assert (
-            snapshot["lastCompletedInvocation"]["workspace"]["workspaceDigest"]
-            == (await project_workspace.observation_metadata()).digest
-        )
+        assert "workspaceDigest" not in snapshot["lastCompletedInvocation"]["workspace"]
         retained = completion.model_dump_json(by_alias=True) + json.dumps(snapshot)
         assert SECRET not in retained
         assert REVISION not in retained

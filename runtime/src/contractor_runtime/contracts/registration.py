@@ -11,7 +11,6 @@ from pydantic import (
 )
 
 from contractor_runtime.contracts.base import (
-    _RUNTIME_AGENT_ID_PATTERN,
     MAX_RUNTIME_CAPABILITY_REFS,
     MAX_TOOLSET_CAPABILITY_TOOLS,
     NAME_PATTERN,
@@ -65,21 +64,11 @@ def _validate_observed_allocation(state: AgentObservedState, allocation_id: str 
 class AgentRegistrationResponse(VersionedWireModel):
     heartbeat_interval_seconds: int = Field(gt=0)
     confirmed_lease_seconds: int = Field(gt=0)
-    runtime_agent_id: str = Field(pattern=_RUNTIME_AGENT_ID_PATTERN.pattern)
-    labels: list[str] = Field(max_length=32)
-    label_revision: int = Field(gt=0, le=2**64 - 1)
 
     @model_validator(mode="after")
     def validate_timing(self) -> Self:
         if self.confirmed_lease_seconds <= self.heartbeat_interval_seconds:
             raise ValueError("confirmed lease must exceed heartbeat interval")
-        return self
-
-    @model_validator(mode="after")
-    def validate_labels(self) -> Self:
-        for label in self.labels:
-            _require_runtime_label("labels", label)
-        _require_sorted_unique("labels", self.labels, maximum=32)
         return self
 
 

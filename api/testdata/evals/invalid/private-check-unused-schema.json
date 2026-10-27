@@ -1,0 +1,10 @@
+{
+  "id": "evidence-review",
+  "revision": "r1",
+  "rubric": "PRIVATE_RUBRIC_SENTINEL",
+  "expected": {
+    "answer": "PRIVATE_TRUTH_SENTINEL",
+    "location": "/private/oracles/SECRET_PATH_SENTINEL"
+  },
+  "schema": "json@1"
+}

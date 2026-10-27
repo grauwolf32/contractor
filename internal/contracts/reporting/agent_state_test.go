@@ -19,11 +19,6 @@ func TestSharedAgentStateRejectsMissingNestedRequiredFields(t *testing.T) {
 			current := state["currentInvocation"].(map[string]any)
 			delete(current["metrics"].(map[string]any), "modelCalls")
 		},
-		"latest prompt tokens": func(value map[string]any) {
-			state := value["state"].(map[string]any)
-			current := state["currentInvocation"].(map[string]any)
-			delete(current["metrics"].(map[string]any), "latestPromptTokens")
-		},
 		"summarizer state": func(value map[string]any) {
 			state := value["state"].(map[string]any)
 			current := state["currentInvocation"].(map[string]any)

@@ -1438,3 +1438,26 @@ func (c *testClock) MonotonicNow() time.Duration {
 	defer c.mu.Unlock()
 	return c.monotonic
 }
+
+func TestAuthenticatedPrincipalValidationSurvivesResponseProjection(t *testing.T) {
+	valid := AuthenticatedPrincipal{RuntimeAgentID: strings.Repeat("a", 64), Labels: []string{"local"}, LabelRevision: 1}
+	if err := validateAuthenticatedPrincipal(valid); err != nil {
+		t.Fatal(err)
+	}
+	for name, mutate := range map[string]func(*AuthenticatedPrincipal){
+		"invalid identity": func(p *AuthenticatedPrincipal) { p.RuntimeAgentID = "untrusted" },
+		"zero revision":    func(p *AuthenticatedPrincipal) { p.LabelRevision = 0 },
+		"nil labels":       func(p *AuthenticatedPrincipal) { p.Labels = nil },
+		"default label":    func(p *AuthenticatedPrincipal) { p.Labels = []string{"default"} },
+		"duplicate labels": func(p *AuthenticatedPrincipal) { p.Labels = []string{"local", "local"} },
+		"unordered labels": func(p *AuthenticatedPrincipal) { p.Labels = []string{"z", "a"} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			principal := valid
+			mutate(&principal)
+			if err := validateAuthenticatedPrincipal(principal); !errors.Is(err, ErrInvalidRequest) {
+				t.Fatalf("invalid principal accepted: %v", err)
+			}
+		})
+	}
+}

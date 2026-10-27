@@ -682,5 +682,25 @@
     "file": "invalid/experiment-page-private.json",
     "valid": false,
     "errorCode": "eval_invalid"
+  },
+  {
+    "name": "private-check",
+    "kind": "PrivateCheck",
+    "file": "valid/private-check.json",
+    "valid": true
+  },
+  {
+    "name": "private-check-unused-schema",
+    "kind": "PrivateCheck",
+    "file": "invalid/private-check-unused-schema.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "dataset-unused-private-schema",
+    "kind": "DatasetInput",
+    "file": "invalid/dataset-unused-private-schema.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
   }
 ]
