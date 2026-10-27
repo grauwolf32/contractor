@@ -6,7 +6,8 @@ epic: operations
 kind: defect
 introduced_by: V421-003
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: e660fd6557926ff23f9e95ca2b589ba763fe849c
 depends_on:
 - V421-003
 - V421-004
@@ -17,6 +18,7 @@ languages:
 goal: Keep realistic retained diagnostic pagination inside its existing read budgets by avoiding repeated
   expansion/projection of the containing JSONB document.
 context:
+  evidence: tasks/evidence/v421-015-diagnostic-projections.json
   review: Complete canonical Go unit pass on Linux pin baee4e57a9f6bc7bf8d1c9c28178af13cd987479; no additional
     application failure besides this case.
   specification:
