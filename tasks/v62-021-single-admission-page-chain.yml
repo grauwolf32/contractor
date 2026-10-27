@@ -37,6 +37,9 @@ context:
     counts remain distinct. The last bounded trusted-page staging phase atomically installs the existing
     SQL membership seal; root publication alone never grants membership. No new table, phase flag or recovery
     mechanism.
+  verification_lanes: Full owner packages run in separate worktrees with separate disposable databases,
+    at most two heavy lanes. Only scheduling is split; no package or test selection is removed. Required
+    process, wire, public API and lint gates run on the combined clean branch.
 scope:
   in:
   - Use one strict canonical page/root format, remove second artifact publication/root reference/digest
@@ -66,14 +69,17 @@ acceptance_criteria:
     and real-process gates pass on the integrated branch, ready for the user-authorized no-ff merge into
     main.
 tests:
-- command: go test -tags=integration -count=1 ./internal/persistence/postgres ./internal/auditdomain ./internal/auditstore/...
-    ./internal/auditservice ./internal/auditcontroller
-  covers:
+- command: go test -tags=integration -count=1 ./internal/persistence/postgres
+  covers: &id001
   - A1
   - A2
   - A3
   - A4
   - A5
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditstore/...
+  covers: *id001
+- command: go test -tags=integration -count=1 ./internal/auditservice ./internal/auditcontroller
+  covers: *id001
 - command: make test-audit-iterative-postgres test-audit-iterative-e2e
   covers:
   - A1
