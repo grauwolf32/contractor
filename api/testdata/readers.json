@@ -26,6 +26,8 @@
     "audit-composition/public-cases.json": {"readers": ["go", "ui"]},
     "audit-composition/round-results-cases.json": {"readers": ["go", "python"]},
     "evals/": {"readers": ["go"], "reason": "managed Eval conformance examples for the Server's codecs and independent public API clients; no second implementation parses these documents"},
+    "evals/valid/human-review-empty-parameters.json": {"readers": ["go", "ui"]},
+    "evals/invalid/human-review-empty-parameters-human-review-parameters.json": {"readers": ["go", "ui"]},
     "evals/lifecycle-states.json": {"readers": ["go", "ui"]},
     "evals/plan-size-cases.json": {"readers": ["go", "ui"]},
     "evals/valid/dataset-view.json": {"readers": ["go", "ui"]},

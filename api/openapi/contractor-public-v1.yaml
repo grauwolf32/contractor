@@ -8909,6 +8909,12 @@ components:
         "evaluator",
         "required"
       ],
+      "allOf": [
+        {
+          "if": {"properties": {"evaluator": {"const": "human-review@1"}}},
+          "then": {"properties": {"parameters": {"maxProperties": 0}}}
+        }
+      ],
       "additionalProperties": false
     }
     EvalBudgets: {

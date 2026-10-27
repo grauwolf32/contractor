@@ -2929,7 +2929,7 @@ export interface components {
                 [key: string]: string;
             };
             allowNotApplicable?: boolean;
-        };
+        } & unknown;
         EvalBudgets: {
             maxMembers: number;
             maxInFlight: number;

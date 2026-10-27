@@ -107,7 +107,7 @@ func sameExecution(a, b evaldomain.ExecutionView) bool {
 
 func buildAssessment(ctx context.Context, db pg.DBTX, st *evalstore.Store, e evalstore.Experiment, member evalstore.Member, plan evalstore.PlanMetadata, doc evaldomain.Frozen) (evaldomain.Frozen, error) {
 	var setup preparedSetup
-	if err := json.Unmarshal(plan.Setup, &setup); err != nil {
+	if err := decodePreparedSetup(plan.Setup, &setup); err != nil {
 		return evaldomain.Frozen{}, err
 	}
 	var assessment evaldomain.AssessmentInput
