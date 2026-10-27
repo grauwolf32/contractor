@@ -5,7 +5,7 @@ milestone: data-model-consumers-2026-10
 epic: operations
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V421-003]
 languages: [go, typescript, yaml, markdown]
 goal: >-
