@@ -891,23 +891,37 @@ same transaction, including with one pool connection. A rejected candidate
 rolls back its speculative forks and task artifacts while its natural decision
 key may commit in the outer transaction.
 
-**PER-R39.** Selection and prepared pages are immutable frozen Audit artifacts
-registered through existing ArtifactLinks. A non-current `proposed` Round stages
-at most one bounded prepared page per phase. Its private execution rows pin
-that verified page and freeze original source, item identity, role, task,
-origin and approval authority. The accepted plan is stored only inside that
-immutable execution projection; its object/schema, 64 KiB encoded-byte bound
-and owning Audit/item identity are enforced there, without a separate plan
-column. Ordinary items have no prepared projection or its page/cost headers.
-A final seal checks fixed-size generation,
-count and chain-digest parent fields and atomically publishes the Round and
-current pointer; it neither inserts nor rebuilds the complete item collection.
-Deletion updates physical staging counters in the same transaction, so a
-withdrawn source cannot leave an acceptable stale seal. Dispatch preflights
-stored selected-row bytes and descriptor counts before hydrating only the
-selected immutable execution entries. It never reads whole pages to select
-sparse items. A lost acceptance response replays the same root and generation
-without another debit or accepted event.
+**PER-R39.** One immutable prepared page chain and one root are frozen Audit
+artifacts registered and charged once through existing ArtifactLinks. Each page
+pins its preceding exact page digest; the root pins the complete ordered chain,
+selected count, generation and profile/baseline digests. Published selection and
+private staging keep independent item/page counters. The root has no second
+selection-root reference and its publication grants no membership authority.
+
+A non-current `proposed` Round stages at most one bounded stored page per phase.
+The caller supplies only its next ordinal; the transaction reads the trusted
+natural-key page once and revalidates original receipt/source and pinned route
+before staging. Private execution rows freeze the verified page's source, item
+identity, role, task, origin and approval authority. The accepted plan is stored
+only inside that immutable execution projection; its object/schema, 64 KiB
+encoded-byte bound and owning Audit/item identity are enforced there, without a
+separate plan column. Ordinary items have no prepared projection or page/cost
+headers.
+
+The final bounded staging transaction verifies that staged item/page counts
+match the published chain and atomically installs the existing SQL membership
+seal. Acceptance separately checks fixed-size generation, count and chain-digest
+parent fields and atomically publishes the Round and current pointer; it neither
+inserts nor rebuilds the complete item collection. Partial membership remains
+invisible to reads, review and dispatch. Deletion updates physical staging
+counters in the same transaction, so a withdrawn source cannot leave an
+acceptable stale seal. Dispatch preflights stored selected-row bytes and
+descriptor counts before hydrating only selected immutable execution entries.
+It never reads whole pages to select sparse items. Lost page, root, stage or
+acceptance responses resume the same generation, exact artifacts and counters
+without another debit or accepted event. Checkpoint readers reject removed
+selection/prepared duplicate fields rather than reinterpret historical data;
+the forward transition is defined by [PER-R41](#PER-R41).
 
 **PER-R40.** The incompatible Audit worklist execution-manifest transition
 requires the previous Server to finish or cancel Audits that already have a

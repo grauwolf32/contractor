@@ -1791,8 +1791,10 @@ A selected toolset or enabled capability never grants target or approval authori
 
 **AUD-R237.** Typed admission measures each candidate's own role, approval,
 inputs, accepted plan and full dependency closure before accepting it. Paged
-Round construction accounts exact source/task bytes, complete selected and
-prepared page metadata, and bounded root metadata within 64MiB. Its durable
+Round construction publishes and charges one immutable prepared page chain and
+one compact root, accounting exact source/task bytes and that complete page/root
+metadata within 64MiB. Published selection and database staging keep separate
+item/page counters; publishing the root alone grants no accepted membership. Its durable
 budget state contains fixed document totals and a shape digest, at most 4KiB,
 independent of the selected and containing Audit population. Resume validates
 that exact generation and shape; it does not reconstruct a growing history map.

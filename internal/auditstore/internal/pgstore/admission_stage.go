@@ -53,11 +53,11 @@ func (s *AdmissionSession) validatePreparedSource(ctx context.Context, item audi
 
 func (s *AdmissionSession) stageItems(ctx context.Context, page auditdomain.PreparedRoundPage) error {
 	state := s.State
-	if state.SelectionRoot == nil {
+	if state.Root == nil {
 		return auditstore.ErrPrecondition
 	}
-	ref, _ := json.Marshal(state.SelectionRoot.Ref)
-	created, err := s.tx.Exec(ctx, admissionCreateProposedSQL, state.AuditID, state.RoundID, state.RoundOrdinal, ref, state.SelectionRoot.Digest, state.SelectedCount, state.Generation)
+	ref, _ := json.Marshal(state.Root.Ref)
+	created, err := s.tx.Exec(ctx, admissionCreateProposedSQL, state.AuditID, state.RoundID, state.RoundOrdinal, ref, state.Root.Digest, state.SelectedCount, state.Generation)
 	if err != nil {
 		return err
 	}

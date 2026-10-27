@@ -8,15 +8,11 @@ import (
 const (
 	ItemOriginSchema = "contractor.audit.item-origin.v1"
 
-	PreparedRoundRootSchema  = "contractor.audit.prepared-round.v1"
-	PreparedRoundPageSchema  = "contractor.audit.prepared-round-page.v1"
-	RoundSelectionRootSchema = "contractor.audit.round-selection.v1"
-	RoundSelectionPageSchema = "contractor.audit.round-selection-page.v1"
+	PreparedRoundRootSchema = "contractor.audit.prepared-round.v1"
+	PreparedRoundPageSchema = "contractor.audit.prepared-round-page.v1"
 
-	PreparedRoundRootMediaType  = "application/vnd.contractor.audit.prepared-round+json"
-	PreparedRoundPageMediaType  = "application/vnd.contractor.audit.prepared-round-page+json"
-	RoundSelectionRootMediaType = "application/vnd.contractor.audit.round-selection+json"
-	RoundSelectionPageMediaType = "application/vnd.contractor.audit.round-selection-page+json"
+	PreparedRoundRootMediaType = "application/vnd.contractor.audit.prepared-round+json"
+	PreparedRoundPageMediaType = "application/vnd.contractor.audit.prepared-round-page+json"
 
 	MaximumPreparedRoundPageItems = 128
 	MaximumPreparedRoundRelated   = 512
@@ -24,10 +20,11 @@ const (
 	MaximumPreparedRoundRootBytes = 256 << 10
 )
 
-// RoundSelectionRoot seals the ordered exact source/task selection before its
-// prepared pages become accepted membership. Each task pins its actual bounded
-// candidate source; this aggregate is not substituted for those source bytes.
-type RoundSelectionRoot struct {
+// PreparedRoundRoot is a compact immutable manifest. The owning indexed store
+// seals the complete published chain before database membership is staged.
+// The final bounded staging transaction installs a separate SQL membership seal;
+// publication alone grants no membership. Dispatch reads indexed selected entries.
+type PreparedRoundRoot struct {
 	Schema         string `json:"schema" strictjson:"required"`
 	AuditID        string `json:"audit_id" strictjson:"required"`
 	RoundID        string `json:"round_id" strictjson:"required"`
@@ -37,22 +34,6 @@ type RoundSelectionRoot struct {
 	PageCount      int    `json:"page_count" strictjson:"required"`
 	ItemCount      int    `json:"item_count" strictjson:"required"`
 	PagesDigest    string `json:"pages_digest" strictjson:"required"`
-}
-
-// PreparedRoundRoot is a compact immutable manifest. The owning indexed store
-// verifies the complete page chain and counters before accepting it. A dispatch
-// reads only the pages containing its already selected item IDs.
-type PreparedRoundRoot struct {
-	Schema         string                  `json:"schema" strictjson:"required"`
-	AuditID        string                  `json:"audit_id" strictjson:"required"`
-	RoundID        string                  `json:"round_id" strictjson:"required"`
-	Generation     string                  `json:"generation" strictjson:"required"`
-	ProfileDigest  string                  `json:"profile_digest" strictjson:"required"`
-	BaselineDigest string                  `json:"baseline_digest" strictjson:"required"`
-	Source         contracts.ExactArtifact `json:"source" strictjson:"required"`
-	PageCount      int                     `json:"page_count" strictjson:"required"`
-	ItemCount      int                     `json:"item_count" strictjson:"required"`
-	PagesDigest    string                  `json:"pages_digest" strictjson:"required"`
 }
 
 // PreparedRoundPage contains complete immutable item metadata and a page-local
@@ -131,14 +112,6 @@ type PreparedProposalSource struct {
 	Proposal             contracts.ExactArtifact `json:"proposal" strictjson:"required"`
 }
 
-func EncodeRoundSelectionRoot(value RoundSelectionRoot) ([]byte, error) {
-	return encodePreparedDocument(value, validateRoundSelectionRoot, MaximumPreparedRoundRootBytes)
-}
-
-func DecodeRoundSelectionRoot(data []byte) (RoundSelectionRoot, error) {
-	return decodePreparedDocument(data, validateRoundSelectionRoot, MaximumPreparedRoundRootBytes)
-}
-
 func EncodePreparedRoundRoot(value PreparedRoundRoot) ([]byte, error) {
 	return encodePreparedDocument(value, validatePreparedRoundRoot, MaximumPreparedRoundRootBytes)
 }
@@ -147,35 +120,17 @@ func DecodePreparedRoundRoot(data []byte) (PreparedRoundRoot, error) {
 	return decodePreparedDocument(data, validatePreparedRoundRoot, MaximumPreparedRoundRootBytes)
 }
 
-func EncodeRoundSelectionPage(value PreparedRoundPage) ([]byte, error) {
-	return encodePreparedDocument(value, func(page PreparedRoundPage) error { return validatePreparedRoundPage(page, RoundSelectionPageSchema) }, MaximumPreparedRoundPageBytes)
-}
-
-func DecodeRoundSelectionPage(data []byte) (PreparedRoundPage, error) {
-	return decodePreparedDocument(data, func(page PreparedRoundPage) error { return validatePreparedRoundPage(page, RoundSelectionPageSchema) }, MaximumPreparedRoundPageBytes)
-}
-
 func EncodePreparedRoundPage(value PreparedRoundPage) ([]byte, error) {
-	return encodePreparedDocument(value, func(page PreparedRoundPage) error { return validatePreparedRoundPage(page, PreparedRoundPageSchema) }, MaximumPreparedRoundPageBytes)
+	return encodePreparedDocument(value, validatePreparedRoundPage, MaximumPreparedRoundPageBytes)
 }
 
 func DecodePreparedRoundPage(data []byte) (PreparedRoundPage, error) {
-	return decodePreparedDocument(data, func(page PreparedRoundPage) error { return validatePreparedRoundPage(page, PreparedRoundPageSchema) }, MaximumPreparedRoundPageBytes)
-}
-
-func validateRoundSelectionRoot(value RoundSelectionRoot) error {
-	if value.Schema != RoundSelectionRootSchema {
-		return invalid(CodeSchemaUnsupported, "selection.schema")
-	}
-	return validatePreparedRootHeader(value.AuditID, value.RoundID, value.Generation, value.ProfileDigest, value.BaselineDigest, value.PageCount, value.ItemCount, value.PagesDigest)
+	return decodePreparedDocument(data, validatePreparedRoundPage, MaximumPreparedRoundPageBytes)
 }
 
 func validatePreparedRoundRoot(value PreparedRoundRoot) error {
 	if value.Schema != PreparedRoundRootSchema {
 		return invalid(CodeSchemaUnsupported, "prepared.schema")
-	}
-	if !validPreparedArtifact(value.Source, RoundSelectionRootMediaType) {
-		return invalid(CodeReferenceInvalid, "prepared.source")
 	}
 	return validatePreparedRootHeader(value.AuditID, value.RoundID, value.Generation, value.ProfileDigest, value.BaselineDigest, value.PageCount, value.ItemCount, value.PagesDigest)
 }
@@ -190,8 +145,8 @@ func validatePreparedRootHeader(auditID, roundID, generation, profileDigest, bas
 	return nil
 }
 
-func validatePreparedRoundPage(value PreparedRoundPage, schema string) error {
-	if value.Schema != schema {
+func validatePreparedRoundPage(value PreparedRoundPage) error {
+	if value.Schema != PreparedRoundPageSchema {
 		return invalid(CodeSchemaUnsupported, "prepared_page.schema")
 	}
 	if !validPreparedIdentity(value.AuditID, value.RoundID, value.Generation) || !contentdigest.Valid(value.PreviousPageDigest) {

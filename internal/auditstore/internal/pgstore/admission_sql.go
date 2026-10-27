@@ -136,3 +136,12 @@ SELECT octet_length(receipt.proposal_ref::text)+octet_length(hold.proposal_ref::
  receipt.checks_projection_bytes
 FROM finding_proposal_receipts AS receipt JOIN finding_proposal_audit_holds AS hold USING(receipt_id)
 WHERE hold.audit_id=$1 AND receipt.owner_id=$2 AND hold.project_id=$3 AND receipt.receipt_id=$4`
+
+// The final bounded staging transaction installs the database membership seal.
+// Root publication precedes staging and cannot set these nullable seal fields.
+const admissionSealMembershipSQL = `
+UPDATE audit_rounds SET acceptance_digest=$4,prepared_page_count=$5,prepared_pages_digest=$6
+WHERE audit_id=$1 AND round_id=$2 AND state='proposed'
+ AND prepared_generation=$3 AND manifest_digest=$4
+ AND prepared_page_count IS NULL AND prepared_pages_digest IS NULL
+ AND prepared_staged_count=$7 AND expected_item_count=$7`

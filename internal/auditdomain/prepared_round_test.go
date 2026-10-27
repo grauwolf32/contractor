@@ -44,29 +44,22 @@ func TestPreparedRoundDocumentsPinExactBoundedSelection(t *testing.T) {
 	if err != nil || len(decoded.Items) != 2 {
 		t.Fatalf("page round trip = %+v %v", decoded, err)
 	}
-	page.Schema = RoundSelectionPageSchema
-	selectionPage, err := EncodeRoundSelectionPage(page)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := DecodePreparedRoundPage(selectionPage); err == nil {
-		t.Fatal("selection page accepted as prepared membership")
-	}
 	digest := DigestBytes([]byte("pin"))
-	selection := RoundSelectionRoot{Schema: RoundSelectionRootSchema, AuditID: page.AuditID, RoundID: page.RoundID, Generation: page.Generation, ProfileDigest: digest, BaselineDigest: digest, PageCount: 1, ItemCount: 2, PagesDigest: DigestBytes(selectionPage)}
-	selectionBytes, err := EncodeRoundSelectionRoot(selection)
-	if err != nil {
-		t.Fatal(err)
-	}
-	revision := "selection-r1"
-	source := contracts.ExactContent(contracts.ArtifactRef{Namespace: ArtifactNamespace("audit"), Name: "selection-root", Revision: &revision}, RoundSelectionRootMediaType, selectionBytes)
-	root := PreparedRoundRoot{Schema: PreparedRoundRootSchema, AuditID: page.AuditID, RoundID: page.RoundID, Generation: page.Generation, ProfileDigest: digest, BaselineDigest: digest, Source: source, PageCount: 1, ItemCount: 2, PagesDigest: DigestBytes(data)}
+	root := PreparedRoundRoot{Schema: PreparedRoundRootSchema, AuditID: page.AuditID, RoundID: page.RoundID, Generation: page.Generation, ProfileDigest: digest, BaselineDigest: digest, PageCount: 1, ItemCount: 2, PagesDigest: DigestBytes(data)}
 	encoded, err := EncodePreparedRoundRoot(root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := DecodePreparedRoundRoot(encoded); err != nil {
 		t.Fatal(err)
+	}
+	for _, old := range []string{`"source":null,`, `"source":{},`, `"selection_root":null,`} {
+		if _, err := DecodePreparedRoundRoot(bytes.Replace(encoded, []byte(`"schema":`), []byte(old+`"schema":`), 1)); err == nil {
+			t.Fatalf("removed root member accepted: %s", old)
+		}
+	}
+	if _, err := DecodePreparedRoundPage(bytes.Replace(data, []byte(PreparedRoundPageSchema), []byte("contractor.audit.round-selection-page.v1"), 1)); err == nil {
+		t.Fatal("removed selection schema accepted")
 	}
 	if _, err := DecodePreparedRoundRoot(bytes.Replace(encoded, []byte(`"schema":`), []byte(`"unknown":1,"schema":`), 1)); err == nil {
 		t.Fatal("unknown root field accepted")
