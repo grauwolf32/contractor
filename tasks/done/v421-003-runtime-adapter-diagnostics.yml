@@ -5,7 +5,7 @@ milestone: data-model-consumers-2026-10
 epic: operations
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, typescript, yaml, markdown]
 goal: >-
@@ -13,6 +13,7 @@ goal: >-
   delivery failures and shutdown facts for one Stage attempt, so failed flushes
   and discarded spans no longer disappear into retained PostgreSQL JSON.
 context:
+  evidence: tasks/evidence/v421-003-runtime-diagnostics.json
   review: >-
     User-requested data-model consumer review on 2026-10-27, finding 3. The user
     accepted connecting these existing facts to diagnostics. This task adds a
@@ -181,3 +182,4 @@ tests:
     covers: [A1, A2, A3, A4, A5]
   - command: make lint
     covers: [A3, A5]
+implementation_commit: 61f79e8ebcb9d9087109f4bd6ebb1a6e80e00066

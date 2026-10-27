@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-003",
+  "implementation_commit": "61f79e8ebcb9d9087109f4bd6ebb1a6e80e00066",
+  "checks": [
+    {
+      "command": "go test -tags=integration -count=1 ./internal/telemetry ./internal/runservice ./internal/httpapi/public ./internal/controlplane ./internal/contracts/...",
+      "exit_code": 0,
+      "log_sha256": "626d6c069eee3015af029d7d1a532c430e3d2258128a68362ce1fb3ccf5ba1fd"
+    },
+    {
+      "command": "go test -tags=integration -count=1 ./internal/telemetry",
+      "exit_code": 0,
+      "log_sha256": "0124b756a45307f7b1bf52ae8e26a88ab0079dce1dd4dd2c756789e5948bfd00"
+    },
+    {
+      "command": "make verify-public-api verify-public-api-postgres",
+      "exit_code": 0,
+      "log_sha256": "f71536209cf62ad65a85787c6ef14247b6adea8d306b075aa1beed324879ac1c"
+    },
+    {
+      "command": "make ui-verify",
+      "exit_code": 0,
+      "log_sha256": "510204ddc58bdae60b9b56bfde1bd8246798d15b0d1dc3b9d0c59822682c0765"
+    },
+    {
+      "command": "make ui-browser-mocked",
+      "exit_code": 0,
+      "log_sha256": "a2f59d563f1e818228393bb4203a45b8872d13f1d88ee5605b6f6db763cd4674"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log_sha256": "9bb19a377d4ccf5eb561d5492fcc9bc211de5421192c775a54e1797888230fc1"
+    }
+  ],
+  "database": "Dedicated disposable PostgreSQL database; real integration tests enabled.",
+  "ui": {
+    "unit_files_passed": 198,
+    "unit_tests_passed": 2457,
+    "expected_failures": 1,
+    "server_tests_passed": 17,
+    "browser_tests_passed": 100,
+    "visual_inspection": "390 px light/dark/black screenshots inspected; no horizontal overflow."
+  },
+  "regressions": [
+    "1003 healthy retained participants are reachable despite an oversized malformed sibling key; upper-case, period and initial-digit names follow the existing shared grammar.",
+    "Exact uint64 max and 2^53+1 remain decimal strings in the browser.",
+    "Owner/Run/Stage isolation, generation conflict, source-report deletion, request cancellation and unavailable real store tested.",
+    "Live Run invalidation and projection remounts do not refetch diagnostic pages; failed attempt-state refresh preserves previously loaded facts with an error."
+  ],
+  "intermediate_failures": [
+    "New handler file and Stage path fixture needed registration in existing architectural/route tests.",
+    "Contract ledger initially lacked the new operation; added explicit static and real-store selectors and absolute contract request helper.",
+    "Independent review corrected logical Worker grammar and diagnostic cache invalidation before completion."
+  ]
+}

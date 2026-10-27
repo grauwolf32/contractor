@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-130 open tasks: 6 in progress, 113 pending, 11 deferred. 1158 finished: 1148 completed, 10 archived.
+129 open tasks: 5 in progress, 113 pending, 11 deferred. 1159 finished: 1149 completed, 10 archived.
 
 ## In progress
 
@@ -16,7 +16,6 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
-| [V421-003](v421-003-runtime-adapter-diagnostics.yml) | operations | feature | P2 | Expose retained Runtime adapter failures in owner-visible attempt diagnostics |
 
 ## Pending
 
@@ -171,7 +170,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V421-004](v421-004-attempt-tool-call-diagnostics.yml) | feature | P2 | V421-003 | Add a bounded diagnostic interface for retained tool-call detail |
+| [V421-004](v421-004-attempt-tool-call-diagnostics.yml) | feature | P2 | — | Add a bounded diagnostic interface for retained tool-call detail |
 
 ### Public API and wire contracts (`api-contracts`)
 
@@ -211,7 +210,7 @@ the epics are in [epics.yml](epics.yml).
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
-| [V421-010](v421-010-verify-data-model-consumers.yml) | chore | P3 | V421-001, V421-002, V421-003, V421-004, V421-005, V421-006, V421-007, V421-008, V421-009 | Verify the agreed data-model consumers and contract simplifications |
+| [V421-010](v421-010-verify-data-model-consumers.yml) | chore | P3 | V421-001, V421-002, V421-004, V421-005, V421-006, V421-007, V421-008, V421-009 | Verify the agreed data-model consumers and contract simplifications |
 
 ## Deferred
 
@@ -252,7 +251,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 9 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |
-| Operations, authentication, CLI and deployment (`operations`) | 2 | 18 | 42 | 7 | 15 |
+| Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 42 | 7 | 15 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 42 | 13 |
 | Quality, CI and process (`quality`) | 18 | 1 | 27 | 100 | 23 |
