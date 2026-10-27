@@ -1317,6 +1317,13 @@ show another material's dates; no missing date is guessed. Use shared Facts and
 TechnicalDetails, keyboard disclosure, theme tokens and a layout that fits
 390 px in light, dark and black themes.
 
+An uploaded/imported input replacement immediately revokes the prior confirmed
+selection. Every Run submission path remains blocked while its exact metadata
+is unresolved, including optional slots and failed reads. A successful read or
+an explicit new library selection, confirmation or cancellation resolves the
+intent; superseded completions cannot restore an older choice. A retained draft
+keeps the new exact reference unconfirmed when a pending read is cancelled.
+
 ### Runtime adapter diagnostic disclosure
 
 **UI-R208.** One Stage attempt's Technical details has an on-demand retained

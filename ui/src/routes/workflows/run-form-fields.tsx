@@ -230,6 +230,8 @@ export function InputFields({
   isCurrent,
   onSelect,
   onConfirm,
+  unresolvedStored,
+  onStoredSelectionChanged,
 }: {
   workflow: WorkflowResource;
   presentation: "page" | "drawer";
@@ -242,8 +244,11 @@ export function InputFields({
     slot: string,
     selected: string,
     metadata?: ArtifactMetadata,
+    reviewed?: boolean,
   ) => void;
   onConfirm: (slot: string) => void;
+  unresolvedStored: ReadonlySet<string>;
+  onStoredSelectionChanged: (slot: string, unresolved: boolean) => void;
 }) {
   const [gitSlot, setGitSlot] = useState<string | null>(null);
   const [uploadSlot, setUploadSlot] = useState<string | null>(null);
@@ -256,8 +261,14 @@ export function InputFields({
     uploadSlot === null ? undefined : inventories.inputs[uploadSlot]?.projectId;
 
   const api = usePublicAPI();
-  const [storedError, setStoredError] = useState<unknown>(undefined);
+  const [storedErrors, setStoredErrors] = useState<Record<string, unknown>>({});
   const storedReads = useRef(new Map<string, AbortController>());
+  const storedChoices = useRef(
+    new Map<
+      string,
+      { artifact: ArtifactMetadata["artifact"]; projectId: string | undefined }
+    >(),
+  );
   useEffect(() => {
     const reads = storedReads.current;
     return () => {
@@ -268,6 +279,13 @@ export function InputFields({
   function cancelStoredSelection(slot: string): void {
     storedReads.current.get(slot)?.abort();
     storedReads.current.delete(slot);
+    storedChoices.current.delete(slot);
+    onStoredSelectionChanged(slot, false);
+    setStoredErrors((current) => {
+      const next = { ...current };
+      delete next[slot];
+      return next;
+    });
   }
   async function selectStored(
     slot: string,
@@ -277,7 +295,11 @@ export function InputFields({
     cancelStoredSelection(slot);
     const read = new AbortController();
     storedReads.current.set(slot, read);
-    setStoredError(undefined);
+    storedChoices.current.set(slot, { artifact, projectId: scopeProjectId });
+    onStoredSelectionChanged(slot, true);
+    // Keep the new exact intent across draft release without confirming it or
+    // allowing the previous revision to remain eligible for submission.
+    onSelect(slot, artifactOptionKey(artifact), undefined, false);
     try {
       const metadata = await scopedArtifactAPI(
         api,
@@ -285,10 +307,14 @@ export function InputFields({
           ? { kind: "user" }
           : { kind: "project", id: scopeProjectId },
       ).metadata({ ...artifact, signal: read.signal });
-      if (!read.signal.aborted && isCurrent())
+      if (!read.signal.aborted && isCurrent()) {
         onSelect(slot, artifactOptionKey(artifact), metadata);
+        storedChoices.current.delete(slot);
+        onStoredSelectionChanged(slot, false);
+      }
     } catch (error) {
-      if (!read.signal.aborted && isCurrent()) setStoredError(error);
+      if (!read.signal.aborted && isCurrent())
+        setStoredErrors((current) => ({ ...current, [slot]: error }));
     } finally {
       if (storedReads.current.get(slot) === read)
         storedReads.current.delete(slot);
@@ -362,6 +388,12 @@ export function InputFields({
                           ? "Select a revision"
                           : `No ${inputNoun} supplied`}
                       </option>
+                      {unresolvedStored.has(name) &&
+                      selectedMetadata === undefined ? (
+                        <option value={selected}>
+                          Unresolved replacement {selected}
+                        </option>
+                      ) : null}
                       {compatible.map((metadata) => (
                         <option
                           key={artifactOptionKey(metadata.artifact)}
@@ -373,6 +405,45 @@ export function InputFields({
                     </select>
                   )}
                 </Field>
+                {unresolvedStored.has(name) ? (
+                  <>
+                    <p className="field-guidance">
+                      {storedReads.current.has(name)
+                        ? "Loading the selected revision's exact metadata…"
+                        : "Resolve this replacement or explicitly select another revision before starting."}
+                    </p>
+                    {storedErrors[name] === undefined ? null : (
+                      <ErrorNotice error={storedErrors[name]} />
+                    )}
+                    <div className="run-field-actions">
+                      {storedReads.current.has(name) ? null : (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const choice = storedChoices.current.get(name);
+                            if (choice !== undefined)
+                              void selectStored(
+                                name,
+                                choice.artifact,
+                                choice.projectId,
+                              );
+                          }}
+                        >
+                          Retry metadata for {name}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          cancelStoredSelection(name);
+                          onSelect(name, "");
+                        }}
+                      >
+                        Cancel replacement for {name}
+                      </Button>
+                    </div>
+                  </>
+                ) : null}
                 {selectedMetadata === undefined ? null : (
                   <InputReview
                     name={name}
@@ -464,7 +535,6 @@ export function InputFields({
           }}
         />
       )}
-      {storedError === undefined ? null : <ErrorNotice error={storedError} />}
       {inventories.artifactInventories.map(
         ({ projectId: scopeProjectId, query }) =>
           query.error === null ? null : (

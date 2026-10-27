@@ -1,4 +1,10 @@
-import { act, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -19,7 +25,7 @@ import {
 } from "../../test/builders";
 import { runStatus, workflowSummary } from "../../test/builders-execution";
 import { deferred } from "../../test/deferred";
-import { fakeServer, type Routes } from "../../test/fake-server";
+import { fakeServer, type FakeCall, type Routes } from "../../test/fake-server";
 import { failure, json, page } from "../../test/responses";
 import { CSRF_TOKEN, renderWithAPI } from "../../test/render";
 import { WorkflowRunForm } from "./run-form";
@@ -1653,6 +1659,174 @@ describe("Workflow routes", () => {
       labels: { team: "infra", debug: "", release: "next" },
     });
   });
+
+  it.each(
+    [false, true].flatMap((projectScope) =>
+      [false, true].flatMap((required) =>
+        ["upload", "git"].map((method) => ({ projectScope, required, method })),
+      ),
+    ),
+  )(
+    "blocks unresolved $method replacements (Project=$projectScope, required=$required)",
+    async ({ projectScope, required, method }) => {
+      const projectId = projectScope ? "input-project" : undefined;
+      const base = projectScope ? "/v1/projects/{projectId}" : "/v1";
+      const uploaded = artifactMetadata(
+        projectScope ? "artifacts" : "inputs",
+        "new-source",
+        {
+          size: 3,
+          artifact: {
+            namespace: projectScope ? "artifacts" : "inputs",
+            name: "new-source",
+            revision: "uploaded",
+          },
+        },
+      );
+      const response = deferred<Response>();
+      let reads = 0;
+      const requests: unknown[] = [];
+      const { user } = renderRunForm(
+        <WorkflowRunForm
+          workflow={{
+            ...workflow,
+            inputs: { source: { required, mediaTypes: ["application/zip"] } },
+          }}
+          {...(projectId === undefined ? {} : { projectId })}
+        />,
+        {
+          ...inventoryRoutes,
+          [`GET ${base}/artifacts`]: () => json(page([sourceArtifact])),
+          [`GET ${base}/artifacts/{namespace}/{name}/metadata`]: ({
+            url,
+          }: FakeCall) =>
+            !url.searchParams.has("revision")
+              ? failure(404)
+              : ++reads === 1
+                ? response.promise
+                : json(uploaded),
+          [`PUT ${base}/artifacts/{namespace}/{name}`]: () =>
+            json(artifactWrite(uploaded), 201, { ETag: '"uploaded"' }),
+          [`POST ${base}/artifacts/{namespace}/{name}/git-import`]: () =>
+            json(
+              {
+                ...artifactWrite(uploaded),
+                gitSource: {
+                  repositoryUrl: "https://example.test/repo.git",
+                  requestedRef: null,
+                  resolvedCommit: "a".repeat(40),
+                  importedAt: "2026-10-27T06:00:00Z",
+                },
+              },
+              201,
+              { ETag: '"uploaded"' },
+            ),
+          [projectScope ? "POST /v1/projects/{projectId}/runs" : CREATE_RUN]:
+            async ({ request }: FakeCall) => {
+              requests.push(await request.json());
+              return responseLost();
+            },
+        },
+      );
+      await user.type(
+        await screen.findByLabelText(/^objective/i),
+        "Use the intended replacement",
+      );
+      await screen.findByRole("option", {
+        name: /projects\/source@revision-7/,
+      });
+      await user.selectOptions(
+        screen.getByLabelText(/^source/i),
+        "projects/source@revision-7",
+      );
+      const start = screen.getByRole("button", {
+        name: projectScope
+          ? "Start Project Workflow Run"
+          : "Start Workflow Run",
+      });
+      expect(start).toBeEnabled();
+      await user.click(
+        screen.getByRole("button", {
+          name:
+            method === "upload"
+              ? "Upload local file for source"
+              : "Import Git for source",
+        }),
+      );
+      const dialog = screen.getByRole("dialog", {
+        name:
+          method === "upload"
+            ? "Upload local file for source"
+            : "Import Git repository",
+      });
+      if (method === "upload") {
+        await user.upload(
+          within(dialog).getByLabelText("Drop a file here"),
+          new File(["zip"], "new-source.zip", { type: "application/zip" }),
+        );
+      } else {
+        await user.type(
+          within(dialog).getByLabelText("Repository URL"),
+          "https://example.test/repo.git",
+        );
+        await user.clear(within(dialog).getByLabelText("Namespace"));
+        await user.type(
+          within(dialog).getByLabelText("Namespace"),
+          uploaded.artifact.namespace,
+        );
+        await user.clear(within(dialog).getByLabelText("Name"));
+        await user.type(
+          within(dialog).getByLabelText("Name"),
+          uploaded.artifact.name,
+        );
+      }
+      await user.click(
+        within(dialog).getByRole("button", {
+          name: method === "upload" ? "Upload and select" : "Import snapshot",
+        }),
+      );
+      await waitFor(() => expect(reads).toBe(1));
+      expect(start).toBeDisabled();
+      expect(screen.getByLabelText(/^source/i)).not.toHaveValue(
+        "projects/source@revision-7",
+      );
+      await user.click(start);
+      await user.click(screen.getByLabelText(/^objective/i));
+      await user.keyboard("{Enter}");
+      fireEvent.submit(start.closest("form")!);
+      expect(requests).toHaveLength(0);
+      await act(async () => {
+        response.resolve(
+          failure(404, "not_found", "Replacement metadata missing"),
+        );
+        await response.promise;
+      });
+      expect(
+        await screen.findByText("Replacement metadata missing"),
+      ).toBeVisible();
+      expect(start).toBeDisabled();
+      fireEvent.submit(start.closest("form")!);
+      expect(requests).toHaveLength(0);
+      if (required) {
+        await user.click(
+          screen.getByRole("button", { name: "Retry metadata for source" }),
+        );
+        await waitFor(() => expect(start).toBeEnabled());
+      } else {
+        await user.click(
+          screen.getByRole("button", { name: "Cancel replacement for source" }),
+        );
+        await waitFor(() => expect(start).toBeEnabled());
+      }
+      await user.click(start);
+      await waitFor(() => expect(requests).toHaveLength(1));
+      expect(requests[0]).toMatchObject({
+        artifacts: required ? { source: uploaded.artifact } : {},
+      });
+      if (!required)
+        expect((requests[0] as { artifacts: object }).artifacts).toEqual({});
+    },
+  );
 
   it("cancels late stored metadata after a newer input selection", async () => {
     const uploaded = artifactMetadata("inputs", "new-source", {

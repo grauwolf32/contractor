@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
@@ -251,6 +251,16 @@ function WorkflowRunFormBody({
   const state = useRunDraftState(draftEntry, draftStore);
   const { draft, errors, setErrors, clearError, change } = state;
   const [discardRequested, setDiscardRequested] = useState(false);
+  const unresolvedStoredRef = useRef(new Set<string>());
+  const [unresolvedStored, setUnresolvedStored] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  function storedSelectionChanged(slot: string, unresolved: boolean): void {
+    if (unresolvedStoredRef.current.has(slot) === unresolved) return;
+    if (unresolved) unresolvedStoredRef.current.add(slot);
+    else unresolvedStoredRef.current.delete(slot);
+    setUnresolvedStored(new Set(unresolvedStoredRef.current));
+  }
   const [ambiguousSubmission, setAmbiguousSubmission] = useState(
     draftEntry.ambiguousSubmission,
   );
@@ -350,6 +360,18 @@ function WorkflowRunFormBody({
   function submit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     if (mutation.isPending) return;
+    if (unresolvedStoredRef.current.size > 0) {
+      setErrors((current) => ({
+        ...current,
+        ...Object.fromEntries(
+          [...unresolvedStoredRef.current].map((slot) => [
+            `artifact:${slot}`,
+            "Resolve the replacement metadata or explicitly choose another input before starting.",
+          ]),
+        ),
+      }));
+      return;
+    }
     mutation.reset();
     if (draft.repeat !== undefined && !draft.repeat.reviewed) {
       setErrors((current) => ({
@@ -399,7 +421,8 @@ function WorkflowRunFormBody({
   const readiness = runDraftReadiness({
     workflow,
     draft,
-    valid: currentValidation.request !== undefined,
+    valid:
+      currentValidation.request !== undefined && unresolvedStored.size === 0,
     artifactsPending,
     inputNoun: projectId === undefined ? "file" : "material",
   });
@@ -500,6 +523,8 @@ function WorkflowRunFormBody({
         inventories={inventories}
         isCurrent={() => draftStore.isCurrent(draftEntry)}
         onSelect={state.selectArtifact}
+        unresolvedStored={unresolvedStored}
+        onStoredSelectionChanged={storedSelectionChanged}
         onConfirm={state.confirmArtifact}
       />
       {presentation === "drawer" ? (
@@ -619,6 +644,7 @@ function WorkflowRunFormBody({
               projectId === undefined ? "Submitting…" : "Starting Project Run…"
             }
             disabled={
+              unresolvedStored.size > 0 ||
               readiness.repeatReviewPending ||
               (Object.keys(workflow.inputs).length > 0 && artifactsPending)
             }
