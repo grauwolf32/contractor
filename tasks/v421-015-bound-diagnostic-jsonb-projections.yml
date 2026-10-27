@@ -31,6 +31,12 @@ context:
   siblings: Review both Runtime participant paging and selected Planner/Worker tool-call projection in
     tool_diagnostics_sql.go. Preserve one-query owner/Run/Stage authorization, retained authority after
     raw report deletion, key-first pagination, UTF8/decimal limits and generation semantics.
+  implementation: Runtime SQL materializes the single extracted map and its key enumeration, then only
+    narrow selected values and their serialized bounded documents. Tool SQL uses a direct selected
+    path with a strict object-container predicate (numeric logical names never become array indices),
+    and serializes the selected report once. The original pagination fixture and 2min context remain
+    unchanged. A selected-tool regression adds an oversized unselected sibling; malformed-container
+    read coverage deliberately drops the container CHECK only inside its isolated test schema.
 scope:
   in:
   - Reproduce/profile the large real-PostgreSQL path and record EXPLAIN/projection evidence.

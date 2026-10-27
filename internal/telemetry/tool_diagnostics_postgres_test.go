@@ -55,6 +55,11 @@ func TestToolDiagnosticsPostgresRetainedPagesPrivacyAndBoundaries(t *testing.T) 
 	if len(record.Metrics.Workers["builder"].ToolCalls) != 1000 {
 		t.Fatalf("fixture did not admit 1000 calls: %d", len(record.Metrics.Workers["builder"].ToolCalls))
 	}
+	// The containing Worker map exceeds the selected-report budget. A large
+	// corrupt sibling must neither cross the read boundary nor hide this report.
+	if _, err := pool.Exec(ctx, `UPDATE stage_metrics SET metrics=jsonb_set(metrics,'{workers,unselected}',to_jsonb(repeat('unselected-sentinel-',600000))) WHERE stage_execution_id=$1`, stage); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := pool.Exec(ctx, `DELETE FROM allocation_execution_reports WHERE stage_execution_id=$1`, stage); err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +82,7 @@ func TestToolDiagnosticsPostgresRetainedPagesPrivacyAndBoundaries(t *testing.T) 
 		if len(encoded) > telemetry.MaxDiagnosticPageBytes-2048 {
 			t.Fatalf("response bound: %d", len(encoded))
 		}
-		for _, sentinel := range []string{"private-call-", postgresSecret, "url-sentinel.invalid", "private-planner"} {
+		for _, sentinel := range []string{"private-call-", postgresSecret, "url-sentinel.invalid", "private-planner", "unselected-sentinel-"} {
 			if strings.Contains(string(encoded), sentinel) {
 				t.Fatalf("leak: %s", sentinel)
 			}
@@ -143,6 +148,41 @@ func TestToolDiagnosticsPostgresRetainedPagesPrivacyAndBoundaries(t *testing.T) 
 	}
 	if page, err := repo.ReadToolCallDiagnostics(ctx, p); err != nil || page.Status != "unavailable" || page.Reason != "report_oversized" {
 		t.Fatalf("oversize: %+v %v", page, err)
+	}
+}
+
+func TestToolDiagnosticsPostgresRejectsArrayWorkerContainerWithNumericName(t *testing.T) {
+	ctx := t.Context()
+	pool := isolatedTelemetryPool(t, ctx)
+	runs := runstore.NewPostgresStore(pool)
+	repo := telemetry.NewRepository(pool)
+	createTelemetryRun(t, ctx, runs)
+	stage := createTelemetryStage(t, ctx, runs, "array-tool-stage", "array-allocation", "array-session")
+	if err := repo.RecordAllocationReport(ctx, allocationEnvelope(stage, "array-allocation", time.Now().UTC(), true)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repo.RebuildStageMetrics(ctx, stage, contracts.APIVersion); err != nil {
+		t.Fatal(err)
+	}
+	p := telemetry.ToolDiagnosticParams{OwnerID: "user", RunID: "run-telemetry", StageExecutionID: stage, Participant: "worker", LogicalAgent: "0", Limit: 1}
+	// Numeric names are valid, but must remain object keys rather than become
+	// array indices when a direct JSONB path selects the retained participant.
+	if _, err := pool.Exec(ctx, `UPDATE stage_metrics SET metrics=jsonb_set(metrics,'{workers}',jsonb_build_object('0',metrics->'workers'->'builder')) WHERE stage_execution_id=$1`, stage); err != nil {
+		t.Fatal(err)
+	}
+	if page, err := repo.ReadToolCallDiagnostics(ctx, p); err != nil || page.Status != "available" {
+		t.Fatalf("numeric object key: %+v %v", page, err)
+	}
+	// Model malformed retained storage only in this isolated test schema; the
+	// normal write constraint rejects this shape before it can be persisted.
+	if _, err := pool.Exec(ctx, `ALTER TABLE stage_metrics DROP CONSTRAINT stage_metrics_metrics_check`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE stage_metrics SET metrics=jsonb_set(metrics,'{workers}',jsonb_build_array(metrics->'workers'->'0')) WHERE stage_execution_id=$1`, stage); err != nil {
+		t.Fatal(err)
+	}
+	if page, err := repo.ReadToolCallDiagnostics(ctx, p); err != nil || page.Status != "pending" || page.Reason != "report_missing" || len(page.Items) != 0 {
+		t.Fatalf("array element became a selected report: %+v %v", page, err)
 	}
 }
 
