@@ -101,14 +101,23 @@ metadata and selection, and must conflict when a structural change would make
 an existing suppression ambiguous. Unknown discarded membership must remain a
 regrouping gap. Example selection may shrink deterministically within its bound;
 retained concrete members and evidence must not be dropped to make room.
+Manual declarations and observations use the same concrete member identity and
+route/structural-selector placement, regardless of arrival order. A manual
+declaration retains its concrete path and structural selection separately from
+the group's template route, so its provenance can recover the member after
+other contributions are excluded. Annotation and suppression selections continue
+to name that same member.
 
 **SMT-R7.** A source replacement must compare its expected generation,
 predecessor exact descriptor and policy digest, together with stable source and
 deployment attribution. Creation requires absence. Code assigns the next
 generation and computes the new policy digest. It must preserve independent
 observations and reject stale source intent; retry must never refresh that
-intent automatically. Exact concrete declarations precede templates; ambiguous
-template matches remain concrete and explicitly ambiguous.
+intent automatically. Exact concrete source rules precede templates; ambiguous template matches
+remain concrete and explicitly ambiguous both on ingress and when a source
+replacement regroups already retained members. Manual declaration metadata does
+not override a source's grouping rule: it identifies a concrete member while
+observations and declarations share the same placement policy.
 
 **SMT-R8.** The service must publish through the ordinary caller-owned
 ArtifactStore transaction and CAS. Its keyed mutation must use the shared

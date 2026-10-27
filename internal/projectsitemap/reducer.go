@@ -354,30 +354,8 @@ func Reduce(current Document, mutation Mutation, authority Authority) (Document,
 		if !onlyFields(mutation, "declare") {
 			return Document{}, ErrInvalid
 		}
-		origin, path, _, err := projectURL(mutation.URL)
-		if err != nil {
+		if err := declare(&next, mutation, authority); err != nil {
 			return Document{}, err
-		}
-		if projectedLocations(mutation.URL) {
-			markProjectionGap(&next, authority.SourceID)
-		}
-		if !methodPattern.MatchString(mutation.Method) {
-			return Document{}, ErrInvalid
-		}
-		g, err := ensureGroup(&next, origin, mutation.Method, path)
-		if err != nil {
-			return Document{}, err
-		}
-		declaration := Declaration{Provenance: authority.provenance(), Pointer: "manual", Parameters: []string{}}
-		if !slices.ContainsFunc(g.Declarations, func(v Declaration) bool { return reflect.DeepEqual(v, declaration) }) {
-			g.Declarations = append(g.Declarations, declaration)
-		}
-		id := memberID(origin, mutation.Method, path)
-		if !slices.ContainsFunc(g.Members, func(v Member) bool { return v.ID == id }) {
-			if len(g.Members) == MaxGroupMembers {
-				return Document{}, ErrConflict
-			}
-			g.Members = append(g.Members, Member{ID: id, Path: path, Summaries: []Summary{}, Examples: []string{}, Evidence: []Evidence{}, Annotations: []Annotation{}})
 		}
 	case "annotate", "remove", "restore":
 		if !onlyFields(mutation, mutation.Operation) {
@@ -460,6 +438,89 @@ func ensureGroup(d *Document, origin, method, route string, structural ...Struct
 	return &d.Groups[len(d.Groups)-1], nil
 }
 
+// resolveMemberSelection applies the same route and finite-selector policy to
+// observations and manual declarations. Neither arrival order creates a second
+// identity for the same concrete request.
+func resolveMemberSelection(d *Document, origin, method, path, raw, source string) (string, []StructuralValue, bool, error) {
+	route, ambiguous := routeFor(d.Rules, origin, method, path)
+	if ambiguous {
+		addGap(d, source, "ambiguous", 1)
+	}
+	structural, err := projectStructural(d.Rules, origin, method, route, raw)
+	if errors.Is(err, errStructuralSelection) {
+		addGap(d, source, "structural", 1)
+		return route, nil, true, nil
+	}
+	return route, structural, false, err
+}
+
+// ensureMember preserves the globally unique concrete identity, including its
+// existing annotations, evidence and suppression selection if placement changes.
+// The containing group is already admitted; no group append invalidates target.
+func ensureMember(d *Document, target *Group, path string) (*Member, error) {
+	id := memberID(target.Origin, target.Method, path, target.Structural...)
+	if index := slices.IndexFunc(target.Members, func(m Member) bool { return m.ID == id }); index >= 0 {
+		return &target.Members[index], nil
+	}
+	if len(target.Members) == MaxGroupMembers {
+		return nil, ErrConflict
+	}
+	count := 0
+	for i := range d.Groups {
+		group := &d.Groups[i]
+		count += len(group.Members)
+		if index := slices.IndexFunc(group.Members, func(m Member) bool { return m.ID == id }); index >= 0 {
+			target.Members = append(target.Members, group.Members[index])
+			group.Members = slices.Delete(group.Members, index, index+1)
+			return &target.Members[len(target.Members)-1], nil
+		}
+	}
+	if count == MaxMembers {
+		return nil, ErrConflict
+	}
+	target.Members = append(target.Members, Member{ID: id, Path: path, Summaries: []Summary{}, Examples: []string{}, Evidence: []Evidence{}, Annotations: []Annotation{}})
+	return &target.Members[len(target.Members)-1], nil
+}
+
+func declare(d *Document, mutation Mutation, authority Authority) error {
+	if !methodPattern.MatchString(mutation.Method) {
+		return ErrInvalid
+	}
+	origin, path, parameters, err := projectURL(mutation.URL)
+	if err != nil {
+		return err
+	}
+	if projectedLocations(mutation.URL) {
+		markProjectionGap(d, authority.SourceID)
+	}
+	route, structural, omitted, err := resolveMemberSelection(d, origin, mutation.Method, path, mutation.URL, authority.SourceID)
+	if err != nil || omitted {
+		return err
+	}
+	target, err := ensureGroup(d, origin, mutation.Method, route, structural...)
+	if err != nil {
+		return err
+	}
+	if _, err := ensureMember(d, target, path); err != nil {
+		return err
+	}
+	// A declaration records the concrete path, independently of a template that
+	// groups its member. Projection and regrouping can recover its exact member
+	// even after observations or the template source are excluded.
+	concrete, err := ensureGroup(d, origin, mutation.Method, path, structural...)
+	if err != nil {
+		return err
+	}
+	declaration := Declaration{Provenance: authority.provenance(), Pointer: "manual", Parameters: parameters}
+	if !slices.ContainsFunc(concrete.Declarations, func(v Declaration) bool { return reflect.DeepEqual(v, declaration) }) {
+		if len(concrete.Declarations) == MaxRules {
+			return ErrConflict
+		}
+		concrete.Declarations = append(concrete.Declarations, declaration)
+	}
+	return nil
+}
+
 func observe(d *Document, o Observation, a Authority) error {
 	if !methodPattern.MatchString(o.Method) || !validOutcome(o.Outcome, o.Status) || !validTime(o.At) || len(o.Parameters) > MaxBatch {
 		return ErrInvalid
@@ -483,16 +544,8 @@ func observe(d *Document, o Observation, a Authority) error {
 	if len(parameters) > MaxBatch {
 		return ErrInvalid
 	}
-	route, ambiguous := routeFor(d.Rules, origin, o.Method, path)
-	if ambiguous {
-		addGap(d, a.SourceID, "ambiguous", 1)
-	}
-	structural, err := projectStructural(d.Rules, origin, o.Method, route, o.URL)
-	if errors.Is(err, errStructuralSelection) {
-		addGap(d, a.SourceID, "structural", 1)
-		return nil
-	}
-	if err != nil {
+	route, structural, omitted, err := resolveMemberSelection(d, origin, o.Method, path, o.URL, a.SourceID)
+	if err != nil || omitted {
 		return err
 	}
 	g, err := ensureGroup(d, origin, o.Method, route, structural...)
@@ -500,22 +553,12 @@ func observe(d *Document, o Observation, a Authority) error {
 		addGap(d, a.SourceID, "groups", 1)
 		return nil
 	}
-	id := memberID(origin, o.Method, path, structural...)
-	memberIndex := slices.IndexFunc(g.Members, func(m Member) bool { return m.ID == id })
-	if memberIndex < 0 {
-		count := 0
-		for _, group := range d.Groups {
-			count += len(group.Members)
-		}
-		if len(g.Members) == MaxGroupMembers || count == MaxMembers {
-			g.Omitted = saturated(g.Omitted, 1)
-			addGap(d, a.SourceID, "members", 1)
-			return nil
-		}
-		g.Members = append(g.Members, Member{ID: id, Path: path, Summaries: []Summary{}, Examples: []string{}, Evidence: []Evidence{}, Annotations: []Annotation{}})
-		memberIndex = len(g.Members) - 1
+	m, err := ensureMember(d, g, path)
+	if err != nil {
+		g.Omitted = saturated(g.Omitted, 1)
+		addGap(d, a.SourceID, "members", 1)
+		return nil
 	}
-	m := &g.Members[memberIndex]
 	summary := Summary{Provenance: a.provenance(), Context: a.contextKey(), Outcome: o.Outcome, Status: o.Status, Parameters: parameters, First: o.At, Last: o.At}
 	for i := range m.Summaries {
 		if summaryKey(m.Summaries[i]) == summaryKey(summary) {
@@ -701,7 +744,10 @@ func regroup(d *Document) error {
 			addGap(d, "", "regrouping", g.Omitted)
 		}
 		for _, m := range g.Members {
-			route, _ := routeFor(d.Rules, g.Origin, g.Method, m.Path)
+			route, ambiguous := routeFor(d.Rules, g.Origin, g.Method, m.Path)
+			if ambiguous {
+				addGap(d, "", "ambiguous", 1)
+			}
 			if suppressed[m.ID] && !sameStructuralNames(d.Rules, g.Origin, g.Method, route, g.Structural) {
 				return ErrConflict
 			}

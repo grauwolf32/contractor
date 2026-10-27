@@ -62,7 +62,7 @@ func SafeProjection(document Document, policy contracts.ProjectSitemapPolicy, ru
 	for _, group := range copy.Groups {
 		for _, declaration := range group.Declarations {
 			if !declaration.Rule && allowed[declaration.Provenance.SourceID] {
-				declaredMembers[memberID(group.Origin, group.Method, group.Route)] = true
+				declaredMembers[memberID(group.Origin, group.Method, group.Route, group.Structural...)] = true
 			}
 		}
 	}
