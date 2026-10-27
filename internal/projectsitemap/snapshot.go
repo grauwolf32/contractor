@@ -186,12 +186,35 @@ func selectSnapshot(view Document, selection SnapshotSelection, runID string, in
 	if len(groups) > 0 || len(members) > 0 {
 		return Document{}, nil, artifacts.ErrArtifactNotFound
 	}
-	view.Groups = kept
 	view.Rules = slices.DeleteFunc(view.Rules, func(rule Rule) bool {
 		return !slices.ContainsFunc(kept, func(group Group) bool {
 			return group.Origin == rule.Origin && group.Method == rule.Method && group.Route == rule.Path
 		})
 	})
+	// Grouping stores a manual declaration at its concrete path, separately
+	// from the template group holding its member. Preserve only declarations
+	// for the exact selected identities; a companion group adds no other
+	// members, rule declarations or grouping policy to the selection.
+	selectedGroups := make(map[string]bool, len(kept))
+	for _, group := range kept {
+		selectedGroups[group.ID] = true
+	}
+	for _, group := range view.Groups {
+		if selectedGroups[group.ID] || !keptMembers[memberID(group.Origin, group.Method, group.Route, group.Structural...)] {
+			continue
+		}
+		declarations := []Declaration{}
+		for _, declaration := range group.Declarations {
+			if !declaration.Rule {
+				declarations = append(declarations, declaration)
+			}
+		}
+		if len(declarations) > 0 {
+			group.Members, group.Declarations, group.Omitted = []Member{}, declarations, 0
+			kept = append(kept, group)
+		}
+	}
+	view.Groups = kept
 	used := map[string]bool{}
 	for _, rule := range view.Rules {
 		used[rule.SourceID] = true

@@ -211,8 +211,11 @@ accepting it. Needed permitted original Run input bytes are frozen with ordinary
 exact forks in the same transaction; foreign provenance alone grants no byte
 read. Derived context has its own bytes and must not claim byte identity
 with the full map. A lost eviction race returns exact-source unavailability;
-Runtime memory and disk caches cannot revive the source. A snapshot does not
-change an existing Audit baseline or grant arbitrary foreign-Run reads.
+Runtime memory and disk caches cannot revive the source. A snapshot preserves
+the selected members' authorized concrete manual declarations even when their members belong to template groups; companion
+declaration groups add no unselected members or unrelated declarations. A
+snapshot does not change an existing Audit baseline or grant arbitrary foreign-Run
+reads.
 
 **SMT-R17.** Allocation fencing and release must join mutations, view construction
 and materialization through the existing allocation gate. Clearing/replacing a
