@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 )
@@ -17,7 +18,8 @@ import (
 // intent and source selections, rather than a second wire reducer.
 func TestSharedSitemapPrivateWire(t *testing.T) {
 	var cases struct {
-		Valid, Invalid []struct {
+		CollectorLimits map[string]int `json:"collectorLimits"`
+		Valid, Invalid  []struct {
 			Type  string          `json:"type"`
 			Value json.RawMessage `json:"value"`
 		}
@@ -25,7 +27,12 @@ func TestSharedSitemapPrivateWire(t *testing.T) {
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "sitemap-wire-cases.json"), &cases); err != nil {
 		t.Fatal(err)
 	}
-	if len(cases.Valid) != 5 || len(cases.Invalid) < 15 {
+	for name, want := range map[string]int{"items": projectsitemap.MaxBatch, "batchBytes": projectsitemap.MaxBatchBytes, "secrets": projectsitemap.MaxCollectionSecrets, "attempts": projectsitemap.MaxAttempts, "flushBudgetSeconds": int(projectsitemap.OperationTimeout.Seconds())} {
+		if cases.CollectorLimits[name] != want {
+			t.Fatalf("collector limit %s differs: %d want %d", name, cases.CollectorLimits[name], want)
+		}
+	}
+	if len(cases.Valid) != 6 || len(cases.Invalid) < 15 {
 		t.Fatal("incomplete private sitemap cases")
 	}
 	compiler := jsonschema.NewCompiler()
@@ -71,6 +78,13 @@ func TestSharedSitemapPrivateWire(t *testing.T) {
 				valid := err == nil && input.APIVersion == contracts.APIVersion
 				if valid != group.valid {
 					t.Fatalf("mutation command valid=%t: %s: %v", group.valid, c.Value, err)
+				}
+			case "SitemapCollectionRequest":
+				var input sitemapCollectionRequest
+				err := strictjson.DecodeNonNull(c.Value, &input)
+				valid := err == nil && input.APIVersion == contracts.APIVersion
+				if valid != group.valid {
+					t.Fatalf("collection command valid=%t: %s: %v", group.valid, c.Value, err)
 				}
 			case "SitemapSnapshotRequest":
 				var input sitemapSnapshotRequest

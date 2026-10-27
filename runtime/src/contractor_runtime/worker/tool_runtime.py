@@ -557,8 +557,11 @@ class ToolWorkerRuntime:
             if error == "tool_report_failed":
                 self._state.metrics.record_tool_report_failure()
             self._state.metrics.record_outcome("failed" if error else "succeeded")
-            finishing = asyncio.create_task(
-                asyncio.wait_for(
+
+            async def finish_state():
+                if begun and self._state.before_completion is not None:
+                    await self._state.before_completion()
+                return await asyncio.wait_for(
                     self._state.complete_invocation(
                         invocation_id=invocation_id,
                         phase="cancelled"
@@ -572,7 +575,8 @@ class ToolWorkerRuntime:
                     else self._state.sync_metrics(),
                     timeout=STATE_TIMEOUT_SECONDS,
                 )
-            )
+
+            finishing = asyncio.create_task(finish_state())
             # Read the bounded publication's result only after every repeated
             # cancellation has been absorbed and its work has actually settled.
             cancelled = await _join_owned_task(finishing) or cancelled

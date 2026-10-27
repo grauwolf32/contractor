@@ -51,8 +51,9 @@ _ALLOWED_CHILD_ENV = frozenset(
 
 
 class ProxyRequestError(RuntimeError):
-    def __init__(self) -> None:
+    def __init__(self, *, timed_out: bool = False) -> None:
         super().__init__("allocation proxy request failed")
+        self.timed_out = timed_out
 
 
 class ProxyTargetDenied(ProxyRequestError):
@@ -90,6 +91,9 @@ class _ObservedProxyTransport(httpx.AsyncBaseTransport):
             response = await transport.handle_async_request(request)
         except asyncio.CancelledError:
             raise
+        except httpx.TimeoutException:
+            self._metrics.record_operation(succeeded=False, error_code="request_failed")
+            raise ProxyRequestError(timed_out=True) from None
         except Exception:
             self._metrics.record_operation(succeeded=False, error_code="request_failed")
             raise ProxyRequestError from None
@@ -176,11 +180,11 @@ class ProxyHTTPClient:
             raise
         except ProxyRequestError:
             raise
-        except HTTP_TRANSPORT_ERRORS:
+        except HTTP_TRANSPORT_ERRORS as error:
             # Any other exception is an implementation failure outside the
             # route transport and keeps its type. Inside the route transport,
             # which the model Gateway shares, every failure is a route failure.
-            raise ProxyRequestError from None
+            raise ProxyRequestError(timed_out=isinstance(error, httpx.TimeoutException)) from None
 
     def clear_cookies(self) -> None:
         """Erase allocation-session cookies retained by httpx."""

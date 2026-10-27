@@ -74,7 +74,9 @@ class SitemapToolsetFactory:
         require_selected_tools(selected, await self.probe())
         metrics = require_metrics(state, self.ref)
         artifact = self._clients(allocation_id, runtime_settings)
-        session = SitemapSession(SitemapClient(artifact))
+        session = SitemapSession(
+            SitemapClient(artifact), getattr(state, "sitemap_read_flush", None)
+        )
         secrets = runtime_secrets(runtime_settings)
         classes = (
             ListSitemapEntries,

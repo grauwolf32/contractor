@@ -85,6 +85,7 @@ class ArtifactAPIError(ArtifactClientError):
         self.code = code
         self.retryable = retryable
         self.request_id = request_id
+        self.retry_after_seconds: float | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -19,12 +19,22 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
+	testHTTPAndCaidoProcesses(t, false)
+}
+
+func TestProjectSitemapHTTPCollectionAcrossProductionProcesses(t *testing.T) {
+	testHTTPAndCaidoProcesses(t, true)
+}
+
+func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	if testing.Short() {
 		t.Skip("end-to-end process test")
 	}
@@ -47,12 +57,27 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	t.Cleanup(newCaido.close)
 	gateway := newHTTPCaidoGateway(llmGatewayToken, forwardProxy.TargetURL())
 	t.Cleanup(gateway.close)
+	if collection {
+		gateway.stages[0] = sitemapHTTPGatewayStage(gateway.stages[0])
+		gateway.stages[2] = sitemapHTTPGatewayStage(gateway.stages[2])
+	}
 
 	configRoot := stageE2EConfiguration(
 		t, filepath.Join(repositoryRoot, "configs"),
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
 	writeHTTPAnalysisE2EWorkflow(t, configRoot)
+	if collection {
+		path := filepath.Join(configRoot, "agent-templates", "http_explorer_v3_memory.yaml")
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data = bytes.Replace(data, []byte("  toolsets:"), []byte("  sitemap: {version: sitemap-access@1, sourceMode: blackbox, collectObservations: true}\n  toolsets:\n    - ref: sitemap@1\n      tools: [list_sitemap_entries]"), 1)
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
 	serverBinary := sharedServerBinary(t)
@@ -96,12 +121,18 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	if err := os.WriteFile(masterKeyFile, []byte(masterKey), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	advertisedPrivateURL := privateBaseURL
+	var publicationProxy *sitemapPublicationProxy
+	if collection {
+		publicationProxy = newSitemapPublicationProxy(t, privateBaseURL, caPaths.Certificate, []localpki.Paths{httpIdentity, caidoIdentity}, controlPlanePaths)
+		advertisedPrivateURL = publicationProxy.server.URL
+	}
 	server := startProcess(t, "Go Server HTTP/Caido", repositoryRoot, map[string]string{
 		"CONTRACTOR_DATABASE_URL":            isolateURL,
 		"CONTRACTOR_OPERATOR_CONFIG_ROOT":    configRoot,
 		"CONTRACTOR_PUBLIC_LISTEN":           publicAddress,
 		"CONTRACTOR_PRIVATE_LISTEN":          privateAddress,
-		"CONTRACTOR_PRIVATE_URL":             privateBaseURL,
+		"CONTRACTOR_PRIVATE_URL":             advertisedPrivateURL,
 		"CONTRACTOR_CA_FILE":                 caPaths.Certificate,
 		"CONTRACTOR_CONTROL_PLANE_CERT_FILE": controlPlanePaths.Certificate,
 		"CONTRACTOR_CONTROL_PLANE_KEY_FILE":  controlPlanePaths.PrivateKey,
@@ -121,7 +152,7 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	caidoWorkRoot := filepath.Join(temporaryRoot, "runtime-caido-work")
 	httpRuntime := startRuntimeWithAdapters(
 		t, "Python Runtime Agent HTTP proxy", repositoryRoot, python,
-		privateBaseURL, httpRuntimeAddress, httpWorkRoot, caPaths.Certificate,
+		advertisedPrivateURL, httpRuntimeAddress, httpWorkRoot, caPaths.Certificate,
 		httpIdentity, []string{"http-proxy@1"},
 	)
 	releaseProxy := newRuntimeReleaseLossProxy(
@@ -234,9 +265,13 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	caidoPrincipal := principalWithAdapters(t, principals, "caido-graphql@1")
 	caidoPrincipal = operations.replacePrincipalLabels(caidoPrincipal, []string{"agent-caido"})
 
+	projectID := ""
+	if collection {
+		projectID = createProjectResource(t, publicClient, publicBaseURL).ProjectID
+	}
 	httpInitial := createHTTPCaidoRun(
 		operations, "http-analysis-e2e@1", "http-caido-http-initial", forwardProxy.TargetURL(),
-		[]string{"http-route"},
+		[]string{"http-route"}, projectID,
 	)
 	httpInitialStatus := waitForRunAcross(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, httpInitial.RunID,
@@ -280,9 +315,12 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 
 	// The Caido release acknowledgement remains unavailable here. A separate
 	// HTTP Run must still claim and finish on the other physical slot.
+	if collection {
+		publicationProxy.rejectPublications()
+	}
 	httpUnrelated := createHTTPCaidoRun(
 		operations, "http-analysis-e2e@1", "http-caido-http-unrelated", forwardProxy.TargetURL(),
-		[]string{"http-route"},
+		[]string{"http-route"}, projectID,
 	)
 	httpUnrelatedStatus := waitForRunAcross(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, httpUnrelated.RunID,
@@ -295,6 +333,34 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 		t, operations, publicClient, publicBaseURL, httpUnrelatedStatus, "report", httpCaidoHTTPReport,
 	)
 	assertHTTPInspectionRetainsOnlyReportAndCookies(t, operations, httpUnrelated.RunID)
+	if collection {
+		for _, runID := range []string{httpInitial.RunID, httpUnrelated.RunID} {
+			status := operations.request(http.MethodGet, "/v1/runs/"+runID, nil, 200, nil)
+			if bytes.Contains(status, []byte("sitemapCollection")) || bytes.Contains(status, []byte("unconfirmedItems")) || bytes.Contains(status, []byte("pendingLossPossible")) {
+				t.Fatal("automatic collection extended Run state")
+			}
+		}
+		if !bytes.Contains([]byte(httpRuntime.logs.redacted(publicToken, llmGatewayToken)), []byte("artifact_history_protected")) {
+			t.Fatal("collector publication failure was not diagnosed")
+		}
+		publicationProxy.verify(t)
+		data := operations.request(http.MethodGet, "/v1/projects/"+projectID+"/sitemap", nil, 200, nil)
+		var view struct {
+			Document projectsitemap.Document `json:"document"`
+		}
+		if err := json.Unmarshal(data, &view); err != nil {
+			t.Fatal(err)
+		}
+		if len(view.Document.Groups) != 1 || view.Document.Groups[0].Route != "/failure" || len(view.Document.Groups[0].Members[0].Summaries) != 1 || view.Document.Groups[0].Members[0].Summaries[0].Status != 500 {
+			t.Fatalf("automatic HTTP map missing actual target outcome: %s", data)
+		}
+		for _, canary := range []string{httpCaidoSessionCanary, httpCaidoRawCanary, httpCaidoProxyCanary} {
+			if bytes.Contains(data, []byte(canary)) {
+				t.Fatal("HTTP collection persisted private traffic")
+			}
+		}
+
+	}
 
 	releaseProxy.allowReleaseAcknowledgement()
 	waitForObservedRuntimeAgents(
@@ -380,12 +446,72 @@ func TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 			httpCaidoRawCanary,
 		},
 	)
+	if collection {
+		gateway.mu.Lock()
+		gateway.stages = append(gateway.stages, sitemapHTTPGatewayStage(httpCaidoHTTPGatewayStage("http/collector-crash", forwardProxy.TargetURL())))
+		gateway.mu.Unlock()
+		publicationProxy.mu.Lock()
+		publicationProxy.reject = false
+		publicationProxy.mu.Unlock()
+		blockedReady := make(chan (<-chan struct{}), 1)
+		target.mu.Lock()
+		target.onRequest = func() {
+			blocked := gateway.blockNextRequest()
+			select {
+			case blockedReady <- blocked:
+			default:
+			}
+		}
+		target.mu.Unlock()
+		crash := createHTTPCaidoRun(operations, "http-analysis-e2e@1", "sitemap-crash", forwardProxy.TargetURL(), []string{"http-route"}, projectID)
+		var blocked <-chan struct{}
+		select {
+		case blocked = <-blockedReady:
+		case <-ctx.Done():
+			t.Fatal("crash target was not called")
+		}
+		select {
+		case <-blocked:
+		case <-ctx.Done():
+			t.Fatal("Worker did not reach the post-HTTP boundary")
+		}
+		if err := httpRuntime.cmd.Process.Kill(); err != nil {
+			t.Fatal(err)
+		}
+		select {
+		case <-httpRuntime.done:
+		case <-ctx.Done():
+			t.Fatal("Runtime crash was not joined")
+		}
+		waitForRunStateAcross(t, ctx, server, []*childProcess{caidoRuntime}, publicClient, publicBaseURL, crash.RunID, "failed")
+		executions, err := store.ListStageExecutions(ctx, crash.RunID)
+		if err != nil || len(executions) != 1 {
+			t.Fatal("crash execution unavailable")
+		}
+		reports, err := telemetry.NewRepository(pool).ListAllocationReports(ctx, executions[0].StageExecutionID)
+		if err != nil || len(reports) != 1 {
+			t.Fatal("crash report unavailable")
+		}
+		if reports[0].Report.Runtime.Complete {
+			t.Fatal("missing Runtime report claimed complete execution telemetry")
+		}
+
+		committed := operations.request(http.MethodGet, "/v1/projects/"+projectID+"/sitemap", nil, 200, nil)
+		if !bytes.Contains(committed, []byte(httpInitial.RunID)) {
+			t.Fatal("Runtime crash erased committed Project observations")
+		}
+		if calls, failures := target.snapshot(); calls != 3 || len(failures) != 0 {
+			t.Fatalf("crash repeated target traffic: %d %v", calls, failures)
+		}
+	}
+
 }
 
 func createHTTPCaidoRun(
 	operations *runtimeOperations,
 	workflow, idempotencyKey, target string,
 	labels []string,
+	projectIDs ...string,
 ) createdLabeledRun {
 	operations.t.Helper()
 	body := map[string]any{
@@ -397,13 +523,17 @@ func createHTTPCaidoRun(
 		"artifacts": map[string]artifactRef{}, "runtimeLabels": labels,
 	}
 	headers := map[string]string{"Idempotency-Key": idempotencyKey}
-	data := operations.request(http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers)
+	path := "/v1/runs"
+	if len(projectIDs) > 0 && projectIDs[0] != "" {
+		path = "/v1/projects/" + projectIDs[0] + "/runs"
+	}
+	data := operations.request(http.MethodPost, path, body, http.StatusAccepted, headers)
 	var result createdLabeledRun
 	if err := json.Unmarshal(data, &result); err != nil || result.RunID == "" ||
 		!isRunAdmissionState(result.State) {
 		operations.t.Fatalf("create HTTP/Caido Run = (%+v, %v): %s", result, err, data)
 	}
-	replay := operations.requestResponse(http.MethodPost, "/v1/runs", body, http.StatusAccepted, headers)
+	replay := operations.requestResponse(http.MethodPost, path, body, http.StatusAccepted, headers)
 	operations.requireReplay(replay, "HTTP/Caido Run create")
 	var replayed createdLabeledRun
 	if err := json.Unmarshal(replay.body, &replayed); err != nil || replayed.RunID != result.RunID ||

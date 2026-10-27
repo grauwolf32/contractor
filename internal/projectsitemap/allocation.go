@@ -3,7 +3,6 @@ package projectsitemap
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
@@ -33,7 +32,7 @@ func (s *Service) AllocationAccess(ctx context.Context, runID, namespace string,
 	if !contracts.ValidResourceID(runID) || !contracts.ValidName(namespace) || policy.Validate() != nil {
 		return AllocationAccess{}, ErrInvalid
 	}
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, OperationTimeout)
 	defer cancel()
 	access := AllocationAccess{APIVersion: contracts.APIVersion, RunID: runID, Namespace: namespace, Policy: *policy.Clone(), Inputs: []contracts.ExactArtifact{}}
 	err := postgres.InTx(ctx, s.pool, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {

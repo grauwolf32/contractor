@@ -183,7 +183,7 @@ func validateDocument(d Document) error {
 			}
 			examples += len(m.Examples)
 			for _, example := range m.Examples {
-				if len(example) > MaxExampleBytes || !safeText(example, nil) || strings.Contains(example, "?") {
+				if len(example) > MaxExampleBytes || example != g.Method+" "+g.Origin+m.Path {
 					return ErrInvalid
 				}
 			}
@@ -335,8 +335,18 @@ func Reduce(current Document, mutation Mutation, authority Authority) (Document,
 		if !authority.CanObserve || len(mutation.Observations) == 0 || len(mutation.Observations) > MaxBatch || !onlyFields(mutation, "observe") {
 			return Document{}, ErrInvalid
 		}
-		for _, observation := range mutation.Observations {
-			if err := observe(&next, observation, authority); err != nil {
+		if mutation.sessionGenerations != nil && len(mutation.sessionGenerations) != len(mutation.Observations) {
+			return Document{}, ErrInvalid
+		}
+		for index, observation := range mutation.Observations {
+			context := authority
+			if mutation.sessionGenerations != nil {
+				context.SessionGeneration = mutation.sessionGenerations[index]
+				if !contracts.ValidResourceID(context.SessionGeneration) {
+					return Document{}, ErrInvalid
+				}
+			}
+			if err := observe(&next, observation, context); err != nil {
 				return Document{}, err
 			}
 		}
@@ -399,6 +409,7 @@ func onlyFields(m Mutation, op string) bool {
 	switch op {
 	case "observe":
 		clean.Observations = m.Observations
+		clean.sessionGenerations = m.sessionGenerations
 	case "declare":
 		clean.URL, clean.Method = m.URL, m.Method
 	case "annotate":
@@ -666,7 +677,7 @@ func replaceSource(d *Document, u SourceUpdate, a Authority) error {
 	}
 	u.Rules = canonicalRules(u.Rules)
 	for _, rule := range u.Rules {
-		if rule.SourceID != u.SourceID || validateRule(rule) != nil || !safeText(rule.Path, a.Secrets) || !safeText(rule.Pointer, a.Secrets) {
+		if rule.SourceID != u.SourceID || validateRule(rule) != nil || !safeText(rule.Path, a.Secrets) || !validSafeOrigin(rule.Origin, a.Secrets) || !safeText(rule.Pointer, a.Secrets) {
 			return ErrInvalid
 		}
 	}

@@ -127,8 +127,24 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 		t.Fatalf("collector metadata: %d", access.Code)
 	}
 	assertPrivateErrorEnvelope(t, request(http.MethodGet, "", "", nil), 403, "sitemap_access_denied", false)
+	ingress := sitemapCollectionRequest{APIVersion: contracts.APIVersion, Input: projectsitemap.CollectionIngress{
+		Secrets:      []contracts.SecretString{contracts.NewSecretString("private-canary")},
+		Observations: []projectsitemap.HTTPObservation{{Observation: projectsitemap.Observation{URL: "https://example.test/http?q=private-canary", Method: "POST", Outcome: "response", Status: 201, At: "2026-10-26T00:00:00Z"}, SessionGeneration: "session-one"}},
+	}}
+	for range 2 {
+		published := request(http.MethodPost, "/observations", "http-publish", ingress)
+		if published.Code != 200 {
+			t.Fatalf("collector publication: %d %s", published.Code, published.Body.String())
+		}
+	}
+	registry.grant.SitemapPolicy.CollectObservations = false
+	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/observations", "denied-input", ingress), 403, "sitemap_access_denied", false)
+	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/observations", "denied-collect", ingress), 403, "sitemap_access_denied", false)
+	registry.grant.SitemapPolicy.CollectObservations = true
 	registry.grant.SitemapTools = []string{contracts.SitemapListTool, contracts.SitemapUpsertTool}
 	registry.grant.WriteFenced = true
+	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/observations", "late-collect", ingress), 409, "allocation_write_fenced", false)
+	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/observations", "denied-input", ingress), 409, "allocation_write_fenced", false)
 	assertPrivateErrorEnvelope(t, request(http.MethodGet, "/access", "", nil), 409, "allocation_write_fenced", false)
 	assertPrivateErrorEnvelope(t, request(http.MethodGet, "", "", nil), 409, "allocation_write_fenced", false)
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/mutations", "late", mutation), 409, "allocation_write_fenced", false)

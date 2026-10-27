@@ -83,6 +83,25 @@
           "replayed": false
         }
       }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/path",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z",
+              "sessionGeneration": "session-one"
+            }
+          ],
+          "secrets": []
+        }
+      }
     }
   ],
   "invalid": [
@@ -442,6 +461,54 @@
         },
         "foreignProject": "other"
       }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "projectId": "foreign",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/path",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z",
+              "sessionGeneration": "session-one"
+            }
+          ],
+          "secrets": []
+        }
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": null,
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/path",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z",
+              "sessionGeneration": "session-one"
+            }
+          ],
+          "secrets": []
+        }
+      }
     }
-  ]
+  ],
+  "collectorLimits": {
+    "items": 100,
+    "batchBytes": 262144,
+    "secrets": 2048,
+    "flushIntervalSeconds": 5,
+    "flushBudgetSeconds": 15,
+    "attempts": 3,
+    "pendingBatches": 2
+  }
 }

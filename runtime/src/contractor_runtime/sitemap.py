@@ -13,7 +13,9 @@ from dataclasses import dataclass, field
 from urllib.parse import urlencode
 
 from contractor_runtime import threads
+from contractor_runtime.adapters.otlp_retry import retry_after_seconds
 from contractor_runtime.artifacts import (
+    ArtifactAPIError,
     ArtifactClient,
     ArtifactResponseLimitError,
     ArtifactTransportError,
@@ -99,6 +101,10 @@ class SitemapClient:
             raise ArtifactResponseLimitError("sitemap view exceeds its byte bound")
         return SitemapViewBytes(actual, policy, response.body)
 
+    async def collect(self, batch: Mapping[str, object], key: str) -> SitemapMutationResult:
+        response = await self._post("observations", batch, key)
+        return decode_private(SitemapMutationResponse, response).result
+
     async def mutate(self, command: Mapping[str, object], key: str) -> SitemapMutationResult:
         response = await self._post("mutations", command, key)
         return decode_private(SitemapMutationResponse, response).result
@@ -112,7 +118,9 @@ class SitemapClient:
             lambda: json.dumps(
                 {
                     "apiVersion": "contractor/v1alpha1",
-                    "mutation" if operation == "mutations" else "selection": value,
+                    {"mutations": "mutation", "snapshots": "selection", "observations": "input"}[
+                        operation
+                    ]: value,
                 },
                 ensure_ascii=False,
                 sort_keys=True,
@@ -127,7 +135,7 @@ class SitemapClient:
         # The Server owns storage retry budgets and definite API failures.
         async with asyncio.timeout(15):
             response = None
-            for attempt in range(2):
+            for attempt in range(1 if operation == "observations" else 2):
                 try:
                     response = await self._transport.request(
                         "POST",
@@ -142,11 +150,15 @@ class SitemapClient:
                     )
                     break
                 except ArtifactTransportError:
-                    if attempt != 0:
+                    if operation == "observations" or attempt != 0:
                         raise
             if response is None:
                 raise RuntimeError("sitemap operation did not produce a response")
-            raise_for_status(response)
+            try:
+                raise_for_status(response)
+            except ArtifactAPIError as error:
+                error.retry_after_seconds = retry_after_seconds(response.headers.get("retry-after"))
+                raise
             require_json(response.headers)
             if response.status_code != 200 or len(response.body) > MAX_SITEMAP_METADATA_BYTES:
                 raise ArtifactTransportError("sitemap API returned invalid mutation metadata")

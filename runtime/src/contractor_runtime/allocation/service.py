@@ -62,6 +62,8 @@ from contractor_runtime.redaction import (
 )
 from contractor_runtime.sandbox.contracts import PODMAN_PROFILES
 from contractor_runtime.sandbox.lifecycle import PreparedExecution
+from contractor_runtime.sitemap import SitemapClient
+from contractor_runtime.sitemap_collection import SitemapCollector
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
 from contractor_runtime.threads import consume_task_exception
@@ -228,6 +230,7 @@ class AllocationService:
             project_workspace: DirectWorkspaceSession | None = None
             tools: dict[str, ToolInstance] = {}
             worker_state: WorkerStateStore | None = None
+            collector: SitemapCollector | None = None
             worker: WorkerRuntime | None = None
             execution: PreparedExecution | None = None
             # The slot lock and validation have accepted this owner. Include
@@ -287,6 +290,24 @@ class AllocationService:
                     )
                     await execution.prepare(deadline=adapter_deadline)
                 worker_state = WorkerStateStore()
+                if (
+                    spec.agent_template.sitemap is not None
+                    and spec.agent_template.sitemap.collect_observations
+                ):
+                    if self._factories.artifact_client_factory is None:
+                        raise RuntimeError(
+                            "automatic collection requires the allocation Artifact transport"
+                        )
+                    collector = SitemapCollector(
+                        SitemapClient(
+                            self._factories.artifact_client_factory(
+                                spec.allocation_id, spec.runtime_settings
+                            )
+                        )
+                    )
+                    worker_state.http_observation_sink = collector
+                    worker_state.sitemap_read_flush = collector.checkpoint
+                    worker_state.before_completion = collector.checkpoint
                 if execution is not None:
                     execution.bind_failure(worker_state.execution.fail)
                 async with asyncio.timeout(
@@ -373,6 +394,7 @@ class AllocationService:
                     worker=worker,
                     execution=execution,
                     resource_metrics=resource_metrics,
+                    collector=collector,
                     prepare_response=response,
                 )
                 await self._state.commit_allocation(spec.allocation_id)
@@ -389,6 +411,7 @@ class AllocationService:
                     worker,
                     adapter_host,
                     execution,
+                    collector=collector,
                 )
                 if not error.cleanup_confirmed:
                     await self._state.fence_allocation(spec.allocation_id)
@@ -409,6 +432,7 @@ class AllocationService:
                     worker,
                     adapter_host,
                     execution,
+                    collector=collector,
                 )
                 raise AllocationError(
                     error.code,
@@ -426,6 +450,7 @@ class AllocationService:
                     worker,
                     adapter_host,
                     execution,
+                    collector=collector,
                 )
                 if not error.cleanup_confirmed:
                     await self._state.fence_allocation(spec.allocation_id)
@@ -446,6 +471,7 @@ class AllocationService:
                     worker,
                     adapter_host,
                     execution,
+                    collector=collector,
                 )
                 raise
             except asyncio.CancelledError:
@@ -458,6 +484,7 @@ class AllocationService:
                     worker,
                     adapter_host,
                     execution,
+                    collector=collector,
                 )
                 raise
             except (FindingsError, HTTPToolError) as error:
@@ -470,6 +497,7 @@ class AllocationService:
                     worker,
                     adapter_host,
                     execution,
+                    collector=collector,
                 )
                 raise AllocationError(
                     error.code,
@@ -491,6 +519,7 @@ class AllocationService:
                     worker,
                     adapter_host,
                     execution,
+                    collector=collector,
                 )
                 raise AllocationError(
                     "allocation_preparation_failed",
@@ -634,6 +663,8 @@ class AllocationService:
         deadline: datetime,
     ) -> None:
         await _close_tools(context.tools)
+        if context.collector is not None:
+            await context.collector.close()
         if context.execution is not None:
             context.execution.reject()
             await context.execution.remove(deadline=deadline)
@@ -1006,7 +1037,7 @@ class AllocationService:
     ) -> None:
         try:
             await _await_before_deadline(
-                lambda: _close_tools(context.tools),
+                lambda: self._close_producers_and_collector(context),
                 deadline=deadline,
                 now=self._now,
             )
@@ -1023,6 +1054,12 @@ class AllocationService:
                 retryable=False,
                 status_code=503,
             ) from None
+
+    @staticmethod
+    async def _close_producers_and_collector(context: _AllocationContext) -> None:
+        await _close_tools(context.tools)
+        if context.collector is not None:
+            await context.collector.close()
 
     async def _stop_adapters_or_exit(
         self,
@@ -1121,6 +1158,7 @@ class AllocationService:
         worker: WorkerRuntime | None,
         adapter_host: AllocationAdapterHost | None,
         execution: PreparedExecution | None = None,
+        collector: SitemapCollector | None = None,
     ) -> None:
         if execution is not None:
             # Keep a full owner even when readiness was never committed. A
@@ -1144,6 +1182,7 @@ class AllocationService:
                 runtime_settings=spec.runtime_settings,
                 worker=worker,
                 execution=execution,
+                collector=collector,
             )
             self._context = context
             execution.reject()
@@ -1180,6 +1219,8 @@ class AllocationService:
         if worker is not None:
             await attempt(lambda: worker.abort(deadline))
         await attempt(lambda: _close_tools(tools))
+        if collector is not None:
+            await attempt(collector.close)
         # A Worker built before the failure already registered the tools in
         # ADK's process-wide caches, and this prepare never reaches release
         # (RTA-R116).
