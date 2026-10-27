@@ -93,6 +93,12 @@
       "implementation_commit": "b9f7366193adca40c6f2c1266866f7ffac0dc0fb",
       "record": "tasks/done/v421-016-preserve-sitemap-scale-production-timing.yml",
       "status": "completed"
+    },
+    {
+      "task": "V421-017",
+      "implementation_commit": "b53ec21440af5202b96aa5d8d13888648abd4ea9",
+      "record": "tasks/done/v421-017-use-public-artifact-page-in-memory-process-tests.yml",
+      "status": "completed"
     }
   ],
   "consumer_traces": [
@@ -235,7 +241,8 @@
   "verification_followups": [
     "V421-013/014 correct both SQLSTATE fixture definitions; complete real-store owner/API/lint checks passed.",
     "V421-015 removes repeated JSONB extraction and serialization; unchanged Linux120s regression passes6.238s, fullLinuxtelemetry owner187pass/1existingoptional-skip, host complete owners/API/lint pass.",
-    "V421-016 preserves the exact serial sitemap volume fixture under production timing; baseline main and integrated source reproduce the race timeout. Full host and clean Linux owner suites pass normally and under race detection, and release graph/lint pass; no production budget or fixture assertion changed."
+    "V421-016 preserves the exact serial sitemap volume fixture under production timing; baseline main and integrated source reproduce the race timeout. Full host and clean Linux owner suites pass normally and under race detection, and release graph/lint pass; no production budget or fixture assertion changed.",
+    "V421-017 replaces the stale strict Memory Artifact page DTO with the generated public type. Both real Memory scenarios, the complete 149-case untagged harness and Linux lint pass on clean b53ec214; required timestamps and media/exact-ref assertions are verified, with no production or deadline change."
   ],
   "prior_resumed_attempt": {
     "revision": "baee4e57a9f6bc7bf8d1c9c28178af13cd987479",
@@ -251,15 +258,38 @@
       "V421-015"
     ]
   },
-  "prior_integrated_attempt": {
-    "revision": "30329ddb380083ecbb52fd7fdb082a1e614342fd",
-    "checkpoint": "tasks/evidence/v421-010-release-attempt-30329ddb.json",
-    "checkpoint_sha256": "81838ff26841aa6dff732367cc54701f8f17f58b01ff91c11d3e182cb28ebdf6",
-    "status": "failed_gate_cancelled_and_joined",
-    "full_release_pass_claimed": false,
-    "failure": "Pre-existing sitemap volume fixture exceeds the 15-second production operation deadline under race instrumentation; reproduced on main.",
-    "corrected_by": "V421-016",
-    "integration": "started_cancelled_unproven",
-    "process_shards": "not_started"
-  }
+  "prior_integrated_attempts": [
+    {
+      "revision": "30329ddb380083ecbb52fd7fdb082a1e614342fd",
+      "checkpoint": "tasks/evidence/v421-010-release-attempt-30329ddb.json",
+      "checkpoint_sha256": "81838ff26841aa6dff732367cc54701f8f17f58b01ff91c11d3e182cb28ebdf6",
+      "status": "failed_gate_cancelled_and_joined",
+      "full_release_pass_claimed": false,
+      "failure": "Pre-existing sitemap volume fixture exceeds the 15-second production operation deadline under race instrumentation; reproduced on main.",
+      "corrected_by": "V421-016",
+      "integration": "started_cancelled_unproven",
+      "process_shards": "not_started"
+    },
+    {
+      "revision": "895fe2eb79c594e8acc5c53f8d224012b617f9ce",
+      "checkpoint": "tasks/evidence/v421-010-release-attempt-895fe2eb.json",
+      "checkpoint_sha256": "0122120dd3309a237cb643ea805c8fa187e901ce10980ff35d4478bbce2f3fc1",
+      "status": "complete_failed_release_attempt",
+      "all_12_stages_attempted": true,
+      "full_release_pass_claimed": false,
+      "process_roots": {
+        "passed": 29,
+        "failed": 2,
+        "skipped": 0,
+        "incomplete": 0
+      },
+      "failures": [
+        "TestMemoryMVPProcesses",
+        "TestProductionMemoryTemplatesAcrossProcesses"
+      ],
+      "cause": "Both strict Memory process consumers shared one copied public Artifact page DTO missing storageTimestamps.",
+      "corrected_by": "V421-017",
+      "exact_four_exit_commands": "not_started_because_whole_gate_failed"
+    }
+  ]
 }

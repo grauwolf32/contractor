@@ -44,7 +44,11 @@ context:
     sitemap volume fixture timeout under race instrumentation; the same failure
     was reproduced on main and corrected by V421-016 without changing its
     original body or production deadlines. Its integration stage started but
-    was cancelled and remains unproven. Both unsuccessful attempts are retained;
+    was cancelled and remains unproven. The subsequent 895fe2eb attempt ran
+    all twelve stages and failed only the two real Memory scenarios sharing
+    an outdated strict public Artifact page DTO. V421-017 now uses the
+    generated model; both complete real scenarios, the untagged harness and
+    Linux lint pass on b53ec214. All unsuccessful attempts remain historical;
     a fresh complete release attempt is still required.
   integration_followups: >-
     Independent combined review found two concrete UI defects before release:

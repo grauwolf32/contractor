@@ -1,0 +1,252 @@
+{
+  "status": "complete_failed_release_attempt",
+  "whole_release_passed": false,
+  "source_revision": "895fe2eb79c594e8acc5c53f8d224012b617f9ce",
+  "source_tree": "4d51f181a5ed98580c727f22912e2f543392635e",
+  "command": [
+    "make",
+    "-k",
+    "release-verify",
+    "RACE_PACKAGE_PARALLELISM=1"
+  ],
+  "setup": {
+    "client_exit_code": 0,
+    "elapsed_seconds": 4.387,
+    "exit_code": 0,
+    "finished_at_utc": "2026-10-27T20:20:00.168350+00:00",
+    "phase": "setup",
+    "redacted_output_bytes": 4646,
+    "started_at_utc": "2026-10-27T20:19:55.781648+00:00",
+    "status": "passed",
+    "timeout_seconds": 3600
+  },
+  "gate": {
+    "client_exit_code": 2,
+    "elapsed_seconds": 8882.196,
+    "exit_code": 2,
+    "finished_at_utc": "2026-10-27T22:48:03.306200+00:00",
+    "phase": "gate",
+    "redacted_output_bytes": 12968184,
+    "started_at_utc": "2026-10-27T20:20:01.109851+00:00",
+    "status": "failed",
+    "timeout_seconds": 28800
+  },
+  "all_12_stages_attempted": true,
+  "stages": [
+    {
+      "name": "release-verify-lint",
+      "status": "completed",
+      "standalone_exit_code": null
+    },
+    {
+      "name": "release-verify-unit",
+      "status": "completed",
+      "standalone_exit_code": null
+    },
+    {
+      "name": "release-verify-ui",
+      "status": "completed",
+      "standalone_exit_code": null
+    },
+    {
+      "name": "release-verify-families",
+      "status": "completed",
+      "standalone_exit_code": null
+    },
+    {
+      "name": "release-verify-browser-a",
+      "status": "completed",
+      "standalone_exit_code": null
+    },
+    {
+      "name": "release-verify-browser-b",
+      "status": "completed",
+      "standalone_exit_code": null
+    },
+    {
+      "name": "release-verify-race",
+      "status": "completed",
+      "standalone_exit_code": null
+    },
+    {
+      "name": "release-verify-race-discovered",
+      "status": "completed",
+      "standalone_exit_code": null
+    },
+    {
+      "name": "release-verify-integration",
+      "status": "completed",
+      "standalone_exit_code": null
+    },
+    {
+      "name": "release-verify-process-a",
+      "status": "failed",
+      "standalone_exit_code": null
+    },
+    {
+      "name": "release-verify-process-b",
+      "status": "completed",
+      "standalone_exit_code": null
+    },
+    {
+      "name": "release-verify-process-c",
+      "status": "failed",
+      "standalone_exit_code": null
+    }
+  ],
+  "source_proof": {
+    "clean_before": true,
+    "clean_after": true,
+    "revision_unchanged": true,
+    "tree_unchanged": true,
+    "locks_unchanged": true,
+    "lock_sha256": {
+      "go.mod": "39814d7a347628f48a62289abba63beba81db20dd51d1acf233d308e654bb937",
+      "go.sum": "33d3b901321b8f39d44e379736d2c9a42b8a0fcb7455ad6c20594ef5417cc195",
+      "runtime/uv.lock": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027",
+      "ui/pnpm-lock.yaml": "0e4c20b6ad30b3ba279b51deddfa6f9855423edfd96952a1493e8e1a137774e1"
+    },
+    "runtime_actual_import": {
+      "major_minor": [
+        3,
+        13
+      ],
+      "prefix": "/work/v421-integrated-final-895fe2eb-d1/runtime/.venv",
+      "resolved_prefix": "/work/v421-integrated-final-895fe2eb-d1/runtime/.venv",
+      "contractor_runtime_file": "/work/v421-integrated-final-895fe2eb-d1/runtime/src/contractor_runtime/__init__.py"
+    },
+    "source_files": 6415,
+    "capture": "/private/tmp/v421-final-capture-895fe2eb-d1/capture.json",
+    "capture_artifact_sha256": {
+      "repo.bundle": "5854daf9286fd1e3c7515ba32e4a7d4186f5ffea65beaa25a7ddbaffb7ed9e13",
+      "source.tar": "8822b03d97f263b12fba462e8c3487f54a41fea21098914dc9bc29c4e3fe0959",
+      "source-manifest.json": "bea20041914bc71fd490d10c3cbc4b24138ab0a1f2fedd36e20f06c243bc2c2f"
+    },
+    "frozen_host_source_for_analysis": "/private/tmp/v421-source-895fe2eb-evidence"
+  },
+  "failures": [
+    {
+      "test": "TestMemoryMVPProcesses",
+      "seconds": 32.3,
+      "source": "tests/e2e/shared_memory_test.go:189",
+      "cause": "strict copied public ArtifactPage DTO lacks required storageTimestamps",
+      "introduced_by": "V421-009",
+      "correction_task": "V421-017"
+    },
+    {
+      "test": "TestProductionMemoryTemplatesAcrossProcesses",
+      "seconds": 32.53,
+      "source": "tests/e2e/shared_memory_test.go:189",
+      "cause": "same shared strict ArtifactPage DTO",
+      "introduced_by": "V421-009",
+      "correction_task": "V421-017"
+    }
+  ],
+  "independent_final_counts": {
+    "path": "/private/tmp/v421-d1-failed-counts.json",
+    "sha256": "3bcfa913852670a7bb416be9ff62a6e1a1f824faee4aa582c4b8cb77e60b2c11",
+    "process_roots": {
+      "expected": 31,
+      "passed": 29,
+      "failed": 2,
+      "skipped": 0,
+      "incomplete": 0
+    }
+  },
+  "required_exact_4_exit_commands": {
+    "status": "not_run",
+    "reason": "whole release failed"
+  },
+  "owned_processes_after_join": 0,
+  "evidence_files": {
+    "result.json": {
+      "sha256": "65abe014e52a1eb4f9c81c96815a3493dc7de6a722c581c2b6f973f5fa18e014",
+      "bytes": 21291
+    },
+    "gate-result.json": {
+      "sha256": "aaff2afcec3abbe726215b0796db6d0a72517e2aa50aba12f870fefbd46f06df",
+      "bytes": 271
+    },
+    "setup-result.json": {
+      "sha256": "1fd890ab4b637a24de9dd21bf3ed3adedf2d1989fddae9738e9d76c3f5b6ac88",
+      "bytes": 264
+    },
+    "gate.log": {
+      "sha256": "be540d121b6056fde1acfee22b01952447efdec50db1acd19b7753fe00045ac3",
+      "bytes": 12968184
+    },
+    "setup.log": {
+      "sha256": "62e54967c8a57b73b901c434e31218bbb6ba5d6d80bda2568ecae40ad8cd5b44",
+      "bytes": 4646
+    },
+    "source-before.json": {
+      "sha256": "81925641a1748527a534bbe2f8406697c4f86d37c63195f96eba385f0b94ee08",
+      "bytes": 1160
+    },
+    "source-after-setup.json": {
+      "sha256": "39ebc75b1b7f2ef5d1f10da12b63610ac211dfa6d4a5de9bd4c04349bac990f5",
+      "bytes": 7359
+    },
+    "source-after.json": {
+      "sha256": "667edb5a575ed02be4eee37e8062f67d1adfe43760bb4451347bd39753857320",
+      "bytes": 7359
+    },
+    "joined-processes.json": {
+      "sha256": "fb89e08dfcd7ae9ecda013c511949e431bc79d5c303889bdc5bb669671ec053e",
+      "bytes": 117
+    },
+    "memory-process-failure.txt": {
+      "sha256": "60d450d84a4ec06bee830e9b27b84ced287552288b7d63c8e46d174d882da92c",
+      "bytes": 6426
+    },
+    "production-memory-process-failure.txt": {
+      "sha256": "4284d9872822bc47347ff7f611ded18b24d9c8abe36065ac4a9190862193606f",
+      "bytes": 6470
+    },
+    "resources-safe-samples.json": {
+      "sha256": "580c3aaaafdcdb30f11d59b21f22d76594c3f4ff71d9056f0b73d481f7eeac07",
+      "bytes": 9501
+    }
+  },
+  "canonical_reports": {
+    "evidence/reports/shared-fixture-reads.log": {
+      "sha256": "379abcbbab9a426db28f532b34db4dc8bcffbe8e5d7b903fa33e9931e1cae17b",
+      "bytes": 543922
+    },
+    "evidence/reports/runtime.xml": {
+      "sha256": "7b6cfe8e7a167367e0b56e2671a516a422dcd7acdec2507539aaba6038bf5fbb",
+      "bytes": 19279995
+    },
+    "evidence/reports/go-process-c.jsonl": {
+      "sha256": "85c9f83fb2f034222c320d26929d25b984318521bcc47f5a34a9399a44073480",
+      "bytes": 232569
+    },
+    "evidence/reports/go-process-a.jsonl": {
+      "sha256": "fea9a4cf90d6085334869de80bb1a1a5945522906072fbf26bf76457570f52af",
+      "bytes": 118435
+    },
+    "evidence/reports/go-unit.jsonl": {
+      "sha256": "a26ffcb322dacacf04a832db30a50c2d97a5eee240df7f29731a31a45d39f97d",
+      "bytes": 11030834
+    },
+    "evidence/reports/go-integration.jsonl": {
+      "sha256": "814d22284a7def1b031aa8be852c2c935c25b6a343579328a456c1c787e4dc31",
+      "bytes": 1170438
+    },
+    "evidence/reports/ui-stack/run-2542206056/browser-report.json": {
+      "sha256": "f969c6200200c9b18f224a548497eb9bb2a3c857240c66eb5c34747039776eee",
+      "bytes": 3327
+    },
+    "evidence/reports/ui-stack/run-1277255582/browser-report.json": {
+      "sha256": "6ec3b470a05186744b4cf1e33e404be1e29f7b2d719852a103e660f411061328",
+      "bytes": 140805
+    }
+  },
+  "postprocessor_false_negative": {
+    "source_rule": "tests/ui-stack/browser_report_test.go filepath.Base",
+    "before_helper_sha256": "290f9ebba9b70cfe3104e3af14b763b90752075e228380ad2237c1ccccd47eb3",
+    "correction_proof": "/private/tmp/v421-browser-basename-regression.json",
+    "note": "Reader correction validates existing96 actual browser executions; it does not change failed whole-gate outcome."
+  },
+  "created_at_utc": "2026-10-27T22:57:29.308303+00:00"
+}
