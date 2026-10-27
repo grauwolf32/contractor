@@ -16,6 +16,8 @@ depends_on:
   - V421-007
   - V421-008
   - V421-009
+  - V421-011
+  - V421-012
 languages: [go, python, typescript, sql, yaml, markdown]
 goal: >-
   Verify that every change accepted in the October 27 data-model review has a
