@@ -921,6 +921,20 @@ current readers accept only the current execution format. The migration's
 metadata locks keep the preflight stable until commit; they do not provide a
 mixed-version Server protocol or permission to restart the previous writer.
 
+**PER-R41.** The incompatible typed-admission page-chain transition requires
+the previous Server to finish or cancel Audits with admission checkpoints or
+typed prepared membership before it is stopped and the forward migration is
+applied. The migration rejects an Audit in `active`, `waiting_review`, `paused`,
+`finalizing`, `cancelling` or `deleting` when any of its Rounds has a non-NULL
+admission checkpoint, prepared generation or prepared page count. Only parent
+Audit/Round metadata is inspected under transaction-scoped metadata locks;
+no item, checkpoint JSON or artifact payload is parsed or rewritten. Ordinary
+live Rounds with none of these typed markers, and preparation without Rounds,
+may remain. Terminal checkpoints, private projections, frozen page/root bytes,
+exact holds and accounting remain unchanged. The new Server accepts only the
+current checkpoint and page/root format. The previous writer must remain
+stopped after migration commit; the locks are not a mixed-version protocol.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
