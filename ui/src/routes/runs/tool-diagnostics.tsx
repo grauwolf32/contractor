@@ -109,6 +109,12 @@ export function ToolCallDiagnostics({
         Refresh tool calls
       </Button>
       {open && query.isPending ? <p>Loading retained tool calls…</p> : null}
+      {query.isRefetching && pages !== undefined ? (
+        <p>
+          Refreshing retained tool calls. Previously loaded facts remain
+          visible.
+        </p>
+      ) : null}
       {query.error === null ? null : (
         <>
           <ErrorNotice error={query.error} />

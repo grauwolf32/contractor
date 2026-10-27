@@ -6,6 +6,14 @@ interface CatalogRef {
   digest: string;
 }
 
+function runtimeDiagnosticQueries(runId: string) {
+  return ["attempt-runtime-diagnostics", runId] as const;
+}
+
+function toolCallQueries(runId: string) {
+  return ["attempt-tool-calls", runId] as const;
+}
+
 export const queryKeys = {
   session: ["auth", "session"] as const,
   workflows: {
@@ -264,10 +272,12 @@ export const queryKeys = {
       ["credentials", "detail", credentialId] as const,
   },
   runs: {
+    runtimeDiagnosticQueries,
     runtimeDiagnostics: (runId: string, stageExecutionId: string) =>
-      ["attempt-runtime-diagnostics", runId, stageExecutionId] as const,
+      [...runtimeDiagnosticQueries(runId), stageExecutionId] as const,
+    toolCallQueries,
     toolCalls: (runId: string, stageExecutionId: string) =>
-      ["attempt-tool-calls", runId, stageExecutionId] as const,
+      [...toolCallQueries(runId), stageExecutionId] as const,
     toolCallSelection: (runId: string, stageExecutionId: string) =>
       ["attempt-tool-call-selection", runId, stageExecutionId] as const,
     all: ["runs"] as const,

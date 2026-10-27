@@ -77,6 +77,12 @@ export function RuntimeDiagnostics({
         Refresh Runtime diagnostics
       </Button>
       {open && query.isPending ? <p>Loading Runtime diagnostics…</p> : null}
+      {query.isRefetching && pages !== undefined ? (
+        <p>
+          Refreshing Runtime diagnostics. Previously loaded facts remain
+          visible.
+        </p>
+      ) : null}
       {query.error === null ? null : <ErrorNotice error={query.error} />}
       {query.error !== null && items !== undefined ? (
         <p>Refresh failed. Previously loaded facts are shown.</p>
