@@ -8,8 +8,11 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/projectsitemap"
 )
 
 // Only the inputs are scripted: the Server, model-free Runtime, mTLS, catalog,
@@ -104,6 +107,7 @@ func TestProjectSitemapToolsAcrossProductionProcesses(t *testing.T) {
 	if !bytes.Contains(report, []byte("source-assisted-canary")) || bytes.Contains(report, []byte("foreign-project-canary")) {
 		t.Fatal("trusted source mode or Project scope was not preserved")
 	}
+	assertEmptySitemapMetadataAcrossProcesses(t, h)
 	stale := create("sitemap-blackbox-edit", map[string]string{"revision": original, "url": "https://example.test/must-not-appear"})
 	status = h.terminal(t, stale, "failed")
 	assertSitemapToolReport(t, h, status, "upsert_sitemap_entry", "sitemap_conflict")
@@ -123,6 +127,75 @@ func TestProjectSitemapToolsAcrossProductionProcesses(t *testing.T) {
 	do(t, runtimeClient, request, http.StatusNotFound).Body.Close()
 	if exited, err := runtime.exited(); exited {
 		t.Fatalf("Runtime exited: %v", err)
+	}
+}
+
+func assertEmptySitemapMetadataAcrossProcesses(t *testing.T, h *placementProcessHarness) {
+	t.Helper()
+	var project projectResourceResponse
+	h.decode(t, h.operations.request(http.MethodPost, "/v1/projects", map[string]any{
+		"kind": "project", "name": "Empty sitemap metadata", "description": "Retained source precondition fixture",
+	}, http.StatusCreated, map[string]string{"Idempotency-Key": "empty-metadata-project"}), &project)
+	path := "/v1/projects/" + project.ProjectID + "/sitemap"
+	replace := func(revision string, expected *projectsitemap.Source, rules []projectsitemap.Rule, key string) projectsitemap.Result {
+		t.Helper()
+		var result projectsitemap.Result
+		h.decode(t, h.operations.request(http.MethodPost, path+"/mutations", projectsitemap.Mutation{
+			Operation: "replace-source", ExpectedRevision: revision,
+			Source: &projectsitemap.SourceUpdate{SourceID: projectsitemap.OwnerSourceID, Expected: expected, Rules: rules},
+		}, http.StatusOK, map[string]string{"Idempotency-Key": key}), &result)
+		if result.Ref.Revision == nil {
+			t.Fatal("source replacement returned no exact revision")
+		}
+		return result
+	}
+	read := func() projectsitemap.View {
+		t.Helper()
+		var view projectsitemap.View
+		h.decode(t, h.operations.request(http.MethodGet, path, nil, http.StatusOK, nil), &view)
+		return view
+	}
+	rule := projectsitemap.Rule{SourceID: projectsitemap.OwnerSourceID, Origin: "https://example.test", Method: "GET", Path: "/before-clear", Parameters: []string{}, Structural: []projectsitemap.StructuralParameter{}}
+	first := replace("absent", nil, []projectsitemap.Rule{rule}, "metadata-source-create")
+	view := read()
+	if len(view.Document.Sources) != 1 || view.Document.Sources[0].Generation != 1 || len(view.Document.Groups) != 1 {
+		t.Fatalf("initial grouping source: %+v", view)
+	}
+	cleared := replace(*first.Ref.Revision, &view.Document.Sources[0], []projectsitemap.Rule{}, "metadata-source-clear")
+	view = read()
+	if len(view.Document.Groups) != 0 || len(view.Document.Rules) != 0 || len(view.Document.Sources) != 1 || view.Document.Sources[0].Generation != 2 {
+		t.Fatalf("cleared source did not retain its generation in an empty map: %+v", view)
+	}
+	input := []byte(`{"workflow":"sitemap-source-assisted-metadata@1","parameters":{},"artifacts":{}}`)
+	runID := postProjectRun(t, h.operations.client, h.operations.baseURL, project.ProjectID, "sitemap-metadata-"+randomHex(t, 8), input, false)
+	status := h.terminal(t, runID, "succeeded")
+	report := assertSitemapToolReport(t, h, status, "list_sitemap_entries", "")
+	var result struct {
+		Observation struct {
+			Revision string `json:"revision"`
+			Entries  []struct {
+				Kind  string          `json:"kind"`
+				Value json.RawMessage `json:"value"`
+			} `json:"entries"`
+			NextCursor *string `json:"nextCursor"`
+		} `json:"observation"`
+	}
+	h.decode(t, report, &result)
+	if result.Observation.Revision != *cleared.Ref.Revision || result.Observation.NextCursor != nil || len(result.Observation.Entries) != 1 || result.Observation.Entries[0].Kind != "source" {
+		t.Fatalf("empty-map metadata report: %s", report)
+	}
+	var expected projectsitemap.Source
+	h.decode(t, result.Observation.Entries[0].Value, &expected)
+	if !reflect.DeepEqual(expected, view.Document.Sources[0]) {
+		t.Fatalf("Runtime metadata lost the complete source precondition: %+v", expected)
+	}
+	// Reuse the exact Source received from the real Runtime, without refreshing
+	// its generation or policy digest from a direct store read.
+	rule.Path = "/after-metadata-read"
+	reconfigured := replace(result.Observation.Revision, &expected, []projectsitemap.Rule{rule}, "metadata-source-reconfigure")
+	view = read()
+	if view.Revision != *reconfigured.Ref.Revision || len(view.Document.Sources) != 1 || view.Document.Sources[0].Generation != 3 || len(view.Document.Groups) != 1 || view.Document.Groups[0].Route != rule.Path {
+		t.Fatalf("metadata source precondition was not usable for reconfiguration: %+v", view)
 	}
 }
 
