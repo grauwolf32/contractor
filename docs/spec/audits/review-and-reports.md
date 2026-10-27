@@ -229,14 +229,15 @@ limitations and truncation.
 
 **REV-R8.** For live HTTP observations, evidence also records the
 observation time and an available deployment marker. For an Audit-selected
-Runtime HTTP capture, `observed_at` is the first outgoing request's dispatch
-instant (UTC RFC 3339); it is not response completion, evidence submission or
-report generation time. `http_request_id` and `http_request_tag` bind the exact
+Runtime HTTP capture, `observed_at` is the first captured request attempt's start
+instant, immediately before transport dispatch (UTC RFC 3339); it is not response completion, evidence submission or
+report generation time; a timestamp alone does not prove the request reached
+the target, and transport failures remain in the retained capture. `http_request_id` and `http_request_tag` bind the exact
 copied capture member. `deployment_marker`, when available, comes only from
 the allocation's pinned sitemap deployment policy; it is owner-provided
 attribution, not proof that the target software stayed unchanged. Coverage
-reads preserve these fields; the check evidence view labels the time as HTTP
-request dispatch and the deployment as declared, with request identity under
+reads preserve these fields; the check evidence view labels the time as the start of the HTTP
+request attempt and the deployment as declared, with request identity under
 Technical details. Exact retained result ZIP members remain independently
 readable after source Run deletion.
 

@@ -443,7 +443,7 @@ export function CheckItemView({
                   {piece.httpRequestId === undefined ? null : (
                     <>
                       <p className="ui-caption">
-                        HTTP request sent:{" "}
+                        HTTP request attempt began:{" "}
                         {piece.observedAt === undefined ? (
                           "time unavailable"
                         ) : (
