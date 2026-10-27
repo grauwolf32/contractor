@@ -1828,6 +1828,74 @@ describe("Workflow routes", () => {
     },
   );
 
+  it("retains an unavailable optional replacement as a clearable choice after reopening", async () => {
+    const uploaded = artifactMetadata("inputs", "missing-source", {
+      artifact: {
+        namespace: "inputs",
+        name: "missing-source",
+        revision: "uploaded",
+      },
+      size: 3,
+    });
+    const requests: unknown[] = [];
+    renderApplication(workflowRoute, {
+      server: workflowRoutes({
+        [WORKFLOW]: () =>
+          json({
+            ...workflow,
+            inputs: {
+              source: { required: false, mediaTypes: ["application/zip"] },
+            },
+          }),
+        "GET /v1/artifacts": () => json(page([])),
+        "PUT /v1/artifacts/{namespace}/{name}": () =>
+          json(artifactWrite(uploaded), 201, { ETag: '"uploaded"' }),
+        "GET /v1/artifacts/{namespace}/{name}/metadata": () =>
+          failure(404, "not_found", "Replacement disappeared"),
+        [CREATE_RUN]: async ({ request }) => {
+          requests.push(await request.json());
+          return responseLost();
+        },
+      }),
+    });
+    const user = userEvent.setup();
+    await openRunSetup();
+    await user.type(
+      await screen.findByLabelText(/^objective/i),
+      "Explicitly omit the unavailable replacement",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Upload local file for source" }),
+    );
+    const upload = screen.getByRole("dialog", {
+      name: "Upload local file for source",
+    });
+    await user.upload(
+      within(upload).getByLabelText("Drop a file here"),
+      new File(["zip"], "missing-source.zip", { type: "application/zip" }),
+    );
+    await user.click(
+      within(upload).getByRole("button", { name: "Upload and select" }),
+    );
+    expect(await screen.findByText("Replacement disappeared")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Close Run setup" }));
+    await openRunSetup();
+    const selection = await screen.findByLabelText(/^source/i);
+    expect(selection).toHaveValue("inputs/missing-source@uploaded");
+    expect(
+      screen.getByRole("option", {
+        name: /Selected revision metadata not loaded inputs\/missing-source@uploaded/,
+      }),
+    ).toBeInTheDocument();
+    const start = screen.getByRole("button", { name: "Start Workflow Run" });
+    fireEvent.submit(start.closest("form")!);
+    expect(requests).toHaveLength(0);
+    await user.selectOptions(selection, "");
+    await user.click(start);
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect((requests[0] as { artifacts: object }).artifacts).toEqual({});
+  });
+
   it("cancels late stored metadata after a newer input selection", async () => {
     const uploaded = artifactMetadata("inputs", "new-source", {
       size: 3,

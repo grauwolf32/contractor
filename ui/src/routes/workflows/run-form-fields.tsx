@@ -388,10 +388,12 @@ export function InputFields({
                           ? "Select a revision"
                           : `No ${inputNoun} supplied`}
                       </option>
-                      {unresolvedStored.has(name) &&
-                      selectedMetadata === undefined ? (
+                      {selected !== "" && selectedMetadata === undefined ? (
                         <option value={selected}>
-                          Unresolved replacement {selected}
+                          {unresolvedStored.has(name)
+                            ? "Unresolved replacement"
+                            : "Selected revision metadata not loaded"}{" "}
+                          {selected}
                         </option>
                       ) : null}
                       {compatible.map((metadata) => (
