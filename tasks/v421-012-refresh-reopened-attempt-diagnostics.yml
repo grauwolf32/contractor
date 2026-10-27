@@ -23,6 +23,13 @@ context:
     state map cannot detect the transition and old pending/partial facts stay
     without another read. An initially open disclosure is a user read intent.
   siblings: Runtime adapter and selected Planner/Worker tool-call diagnostics use the same stable RunBody hook and independent caches.
+  implementation_review: >-
+    Capture only previously loaded fact queries before child widgets mount to
+    avoid duplicating a fast cold read. Batch entry and state-change
+    invalidation into bounded QueryCache passes; do not scan the entire cache
+    separately for every retained attempt. A real 1000-attempt/3000-query
+    regression covers cold and warm closed histories and excludes local
+    selection state, another Run and unfetched facts.
 scope:
   in:
     - Refresh cached facts once per real RunBody entry when their disclosure is active; mark inactive caches stale until opened.
@@ -41,17 +48,17 @@ failure_outcomes:
 cardinality:
   - collection: Attempts and cached diagnostic queries
     expected: A few attempts and one selected tool participant
-    maximum: Existing Run attempt and diagnostic page bounds
-    bound: Mark only the reopened Run's exact attempt caches; fetch active disclosures only and do not add timers.
+    maximum: Complete retained Run history has no fixed attempt cap; each diagnostic page keeps its existing row and byte limits.
+    bound: One cache snapshot and bounded batch invalidation passes, linear in attempts plus cached queries. Mark only the reopened Run's exact fact caches, fetch active disclosures only and do not add timers.
 acceptance_criteria:
   - id: A1
     given: Cached running/pending facts and a terminal refresh cancelled by navigation
     when: The user reopens the Run with its diagnostic disclosure open
     then: A fresh read occurs once and updates or truthfully fails while preserving prior facts.
   - id: A2
-    given: Closed disclosures, multiple participants, unrelated Run changes and LiveAttempts remounts
+    given: Closed disclosures, multiple participants, a 1000-attempt history, unrelated Run changes and LiveAttempts remounts
     when: Cache invalidation or view changes occur
-    then: Closed facts are not fetched, selected state survives and unrelated remounts do not trigger page reloads.
+    then: Closed facts are not fetched, selected state survives, invalidation uses bounded cache passes and unrelated remounts do not trigger page reloads.
   - id: A3
     given: Runtime and tool-call widgets plus retryable/permanent read errors
     when: Focused regressions and complete UI/browser/lint checks run

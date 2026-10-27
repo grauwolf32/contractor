@@ -1332,6 +1332,8 @@ and refreshes active disclosures once; closed disclosures wait until opened.
 Cold initial reads are not duplicated, unrelated Run invalidation and
 same-page live projection remounts do not refetch, and previously loaded facts
 stay visibly identified while a background refresh is pending or has failed.
+Entry and state-change invalidation use bounded cache passes, with work linear
+in retained attempts and cached queries rather than a cache scan per attempt.
 
 ### Retained tool-call disclosure
 
