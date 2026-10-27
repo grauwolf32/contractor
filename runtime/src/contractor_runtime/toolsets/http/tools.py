@@ -512,11 +512,15 @@ class _HTTPSession:
                         error = (
                             captured.error if index == len(captured.attempts) - 1 else attempt.error
                         )
-                        outcome = "response" if attempt.status is not None else "transport-error"
-                        status = attempt.status or 0
-                        if attempt.timed_out or (error == "timeout" and attempt.status is None):
+                        status = (
+                            attempt.status
+                            if attempt.status is not None and 100 <= attempt.status <= 599
+                            else 0
+                        )
+                        outcome = "response" if status else "transport-error"
+                        if attempt.timed_out or (error == "timeout" and not status):
                             outcome, status = "timeout", 0
-                        elif error == "cancelled" and attempt.status is None:
+                        elif error == "cancelled" and not status:
                             outcome = "attempt"
                         observations.append(
                             {

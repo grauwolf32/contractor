@@ -503,6 +503,77 @@ def test_subscriber_join_preserves_caller_cancellation():
 
 
 @pytest.mark.parametrize("proxy", [False, True])
+@pytest.mark.parametrize("invalid_status", [99, 600, 700])
+def test_malformed_target_status_does_not_poison_observation_batch(tmp_path, proxy, invalid_status):
+    from private_schemas import private_validator
+
+    from contractor_runtime.adapters import AdapterHandles
+    from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
+    from contractor_runtime.toolsets.http.tools import HTTPToolError
+
+    async def scenario():
+        accepted, target_calls = [], []
+        validator = private_validator("project-sitemap.schema.json#/$defs/SitemapCollectionRequest")
+
+        class StrictTransport(SitemapTransport):
+            async def request(self, method, path, *, headers, body, max_response_bytes):
+                payload = json.loads(body)
+                validator.validate(payload)
+                accepted.extend(payload["input"]["observations"])
+                return await super().request(
+                    method, path, headers=headers, body=body, max_response_bytes=max_response_bytes
+                )
+
+        async def handler(request):
+            target_calls.append(request.url.path)
+            status = invalid_status if request.url.path == "/invalid" else 200
+            return httpx.Response(status, request=request)
+
+        collector = SitemapCollector(
+            SitemapClient(ArtifactClient("allocation", StrictTransport())), wait=no_timer
+        )
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        state = WorkerState()
+        state.http_observation_sink = collector
+        tools = await HTTPToolsetFactory(lambda: client).create_selected(
+            selected=["http_request"],
+            allocation_id="allocation",
+            run_id="run",
+            namespace="research",
+            runtime_settings=RuntimeSettings(
+                artifactApiUrl="https://control.example", requestTimeoutSeconds=10
+            ),
+            workspace=AllocationWorkspace(tmp_path, tmp_path / "allocation"),
+            state=state,
+            adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(client))
+            if proxy
+            else AdapterHandles(),
+        )
+        try:
+            await tools["http_request"]("https://target.example/before", method="POST")
+            with pytest.raises(HTTPToolError, match="http_response_invalid"):
+                await tools["http_request"]("https://target.example/invalid", method="POST")
+            await tools["http_request"]("https://target.example/after", method="POST")
+            await collector.checkpoint()
+            assert [(row["outcome"], row["status"]) for row in accepted] == [
+                ("response", 200),
+                ("transport-error", 0),
+                ("response", 200),
+            ]
+            assert not collector._disabled
+            await tools["http_request"]("https://target.example/later", method="POST")
+            await collector.checkpoint()
+            assert len(accepted) == 4 and accepted[-1]["status"] == 200
+            assert target_calls == ["/before", "/invalid", "/after", "/later"]
+        finally:
+            await tools["http_request"].close()
+            await collector.close()
+            await client.aclose()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("proxy", [False, True])
 def test_http_subscriber_attributes_physical_retry_timeout_and_failure(
     tmp_path, monkeypatch, proxy
 ):

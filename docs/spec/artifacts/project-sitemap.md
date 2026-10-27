@@ -227,7 +227,10 @@ attempts, including each physical retry/redirect and negative outcome, before
 evidence-buffer admission/eviction. It never follows a Location. Submission does
 not await network or storage I/O. Subscriber errors cannot replace a target
 result; caller cancellation is preserved and joined. HTTP tools own no collector
-flush, retry or cleanup.
+flush, retry or cleanup. An invalid target response status is represented as a
+transport-error observation with status zero, while the HTTP tool retains its
+original protocol error. It must not invalidate otherwise valid observations
+in the same batch.
 
 **SMT-R19.** Runtime retains only a bounded private in-memory batch of attempt
 metadata. Observation frames and private collection requests contain no
