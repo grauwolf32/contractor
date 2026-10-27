@@ -1078,6 +1078,9 @@ owner, Run, Stage, last name and retained metric generation. Generation hashes
 the row update time and MVCC tuple generation, so updating the same timestamp
 still invalidates a cursor. A changed generation returns 409 conflict and
 requires a fresh first page; reads create no snapshot rows or retention holds.
+The SQL extracts the containing Runtime map and enumerates its keys once per
+page. Subsequent materialized projections carry only selected participant
+values and bounded documents, rather than a copy of that map per participant.
 
 **OBS-R115.** Public adapter counters are canonical unsigned decimal strings
 bounded by uint64; optional Runtime milliseconds use nonnegative int64 decimal
@@ -1115,6 +1118,8 @@ logical name, retained metric generation and record offset. Each scope member
 is framed unambiguously, including resource IDs containing colons. A changed
 generation requires a fresh first page with 409 conflict. Reads do no per-tool
 query or all-participant report scan and stop when the request is cancelled.
+The SQL selects a Worker directly from an object-valued Worker map and
+serializes the selected report once for both its byte guard and returned text.
 
 **OBS-R118.** Each public row contains an opaque 64-character hexadecimal
 `callReference` derived from the selected report generation and record ordinal,
