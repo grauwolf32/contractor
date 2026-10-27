@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V410-001
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V410-001
 languages:
@@ -73,3 +73,28 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 8f786fa2a82981f33d5602f6b38079f583a8cbeb
+verification:
+  date: '2026-10-28'
+  result: passed
+  tested_commit: ab35b1afbd246ebe62418873a40bc71e98bbaf31
+  commands:
+  - command: make test-project-sitemap-postgres
+    result: 'Passed on the integrated tree: 13 complete packages, 15 mandatory cases, zero mandatory skips. Includes
+      all new real-store regressions and full projectsitemap/controlplane suites. One producer accepted 257 publications
+      totalling 360501946 encoded bytes with ordinary history retention.'
+  - command: make lint
+    result: Passed generated checks, UI gates, go vet/staticcheck/testonlyexports, deployment tests, release graph,
+      tasks/specs/fixtures, Ruff and all four Runtime import contracts.
+  evidence:
+  - Existing receipt policy now represents the actual conflicting structural selectors, so absent or present values
+    replay against the original accepted decision after policy changes or result eviction.
+  - Manual declaration receipt identity includes accepted structural values and parameter names. Changed parameter
+    names conflict; changed ordinary query values replay because they do not affect stored metadata.
+  - The Unicode-heavy maximum fixture has 100 paths, 239840 ingress bytes and 918194 receipt bytes, below the existing
+    1MiB limit. No additional receipt mechanism or limit increase.
+  limitations:
+  - Verification used disposable local PostgreSQL 17, Go 1.26.9, Node 24.20 and the locked Runtime environment.
+    No demo data or primary checkout files were changed.
+  - The working branch codex/v410-011-sitemap-metadata is not merged into main. Original structured-import, reconciliation
+    and remaining delivery tasks retain their status; this does not claim the full V410 release gate.
