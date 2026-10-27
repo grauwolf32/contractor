@@ -87,7 +87,7 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 		h.writeError(w, http.StatusNotFound, "finding_receipt_not_found", "finding receipt was not found", false)
 	case errors.Is(err, artifacts.ErrArtifactNotFound):
 		h.writeError(w, http.StatusNotFound, "artifact_not_found", "artifact was not found", false)
-	case errors.Is(err, errInvalidRequest), errors.Is(err, projectsitemap.ErrInvalid), errors.Is(err, projectsitemap.ErrUnsafe), errors.Is(err, artifacts.ErrInvalidScope),
+	case errors.Is(err, errInvalidRequest), errors.Is(err, projectsitemap.ErrInvalid), errors.Is(err, artifacts.ErrInvalidScope),
 		errors.Is(err, artifacts.ErrInvalidName), errors.Is(err, artifacts.ErrInvalidMediaType),
 		errors.Is(err, artifacts.ErrVersionedWriteTarget), errors.Is(err, contracts.ErrValidation):
 		h.writeError(w, http.StatusBadRequest, "invalid_request", "request does not satisfy the private Artifact API contract", false)

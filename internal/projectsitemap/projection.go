@@ -15,8 +15,6 @@ import (
 )
 
 var (
-	secretName    = regexp.MustCompile(`(?i)(password|passwd|secret|token|session|cookie|authorization|credential|api[-_]?key|access[-_]?key|csrf|xsrf|nonce|signature|jwt|bearer)`)
-	opaqueValue   = regexp.MustCompile(`[A-Za-z0-9_+~=-]{24,}|[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+`)
 	methodPattern = regexp.MustCompile(`^[A-Z]{1,16}$`)
 	hashPattern   = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
@@ -29,34 +27,12 @@ func key(parts ...string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// safeText rejects rather than hashes secret-bearing values. Repeated URL
-// decoding catches percent-encoded credentials before public identity exists.
-func safeText(value string, secrets []contracts.SecretString) bool {
-	if !utf8.ValidString(value) || strings.ContainsRune(value, 0) {
-		return false
-	}
-	for range 4 {
-		if opaqueValue.MatchString(value) {
-			return false
-		}
-		for _, secret := range secrets {
-			if plain := secret.Reveal(); plain != "" && strings.Contains(value, plain) {
-				return false
-			}
-		}
-		decoded, err := url.PathUnescape(value)
-		if err != nil {
-			return false
-		}
-		if decoded == value {
-			return true
-		}
-		value = decoded
-	}
-	return false
+// validText checks representation only, without classifying metadata as secrets.
+func validText(value string) bool {
+	return utf8.ValidString(value) && !strings.ContainsRune(value, 0)
 }
 
-func projectURL(raw string, secrets []contracts.SecretString) (origin, path string, parameters []string, err error) {
+func projectURL(raw string) (origin, path string, parameters []string, err error) {
 	if len(raw) > MaxMemberKeyBytes || !utf8.ValidString(raw) {
 		return "", "", nil, ErrInvalid
 	}
@@ -81,16 +57,8 @@ func projectURL(raw string, secrets []contracts.SecretString) (origin, path stri
 	if path == "" {
 		path = "/"
 	}
-	if !safeOrigin(u, secrets) || !safeText(path, secrets) {
-		return "", "", nil, ErrUnsafe
-	}
-	segments := strings.Split(path, "/")
-	for index, segment := range segments {
-		decoded, _ := url.PathUnescape(segment)
-		// A credential-bearing path cannot supply a truthful concrete member.
-		if secretName.MatchString(decoded) && index+1 < len(segments) && segments[index+1] != "" {
-			return "", "", nil, ErrUnsafe
-		}
+	if !validText(path) {
+		return "", "", nil, ErrInvalid
 	}
 	parameters = []string{}
 	query, parseErr := url.ParseQuery(u.RawQuery)
@@ -101,7 +69,7 @@ func projectURL(raw string, secrets []contracts.SecretString) (origin, path stri
 		return "", "", nil, ErrInvalid
 	}
 	for name := range query {
-		if safeName(name, secrets) {
+		if validLabel(name) {
 			parameters = append(parameters, name)
 		}
 	}
@@ -109,27 +77,9 @@ func projectURL(raw string, secrets []contracts.SecretString) (origin, path stri
 	return origin, path, parameters, nil
 }
 
-// A three-label DNS name (or IPv4 address) is not a JWT. Apply opaque-token
-// heuristics to individual host labels while matching known secrets across
-// the complete original host, before canonicalization or hashing.
-func validSafeOrigin(origin string, secrets []contracts.SecretString) bool {
-	projected, _, _, err := projectURL(origin+"/", secrets)
+func validOrigin(origin string) bool {
+	projected, _, _, err := projectURL(origin + "/")
 	return err == nil && projected == origin
-}
-
-func safeOrigin(u *url.URL, secrets []contracts.SecretString) bool {
-	host := strings.ToLower(u.Host)
-	for _, secret := range secrets {
-		if value := strings.ToLower(secret.Reveal()); value != "" && strings.Contains(host, value) {
-			return false
-		}
-	}
-	for _, label := range strings.Split(u.Hostname(), ".") {
-		if !safeText(label, nil) {
-			return false
-		}
-	}
-	return true
 }
 
 func projectedLocations(raw string) bool {
@@ -137,35 +87,25 @@ func projectedLocations(raw string) bool {
 	return err == nil && (u.User != nil || u.RawQuery != "" || u.Fragment != "")
 }
 
-func safeName(name string, secrets []contracts.SecretString) bool {
-	return len(name) > 0 && len(name) <= MaxTagBytes && safeText(name, secrets) &&
-		!secretName.MatchString(name) && !strings.ContainsFunc(name, unicode.IsControl)
+func validLabel(name string) bool {
+	return len(name) > 0 && len(name) <= MaxTagBytes && validText(name) &&
+		!strings.ContainsFunc(name, unicode.IsControl)
 }
 
-func projectAnnotation(note string, tags []string, a Authority) (Annotation, bool, error) {
-	if len(note) > MaxNoteBytes || len(tags) > MaxTags {
-		return Annotation{}, false, ErrInvalid
+func projectAnnotation(note string, tags []string, a Authority) (Annotation, error) {
+	if len(note) > MaxNoteBytes || len(tags) > MaxTags || !validText(note) {
+		return Annotation{}, ErrInvalid
 	}
-	annotation := Annotation{Provenance: a.provenance(), Tags: []string{}}
-	omitted := false
-	if safeText(note, a.Secrets) && !secretName.MatchString(note) {
-		annotation.Note = note
-	} else {
-		omitted = true
-	}
+	annotation := Annotation{Provenance: a.provenance(), Note: note, Tags: []string{}}
 	for _, tag := range tags {
-		if len(tag) > MaxTagBytes {
-			return Annotation{}, false, ErrInvalid
+		if !validLabel(tag) {
+			return Annotation{}, ErrInvalid
 		}
-		if safeName(tag, a.Secrets) {
-			annotation.Tags = append(annotation.Tags, tag)
-		} else {
-			omitted = true
-		}
+		annotation.Tags = append(annotation.Tags, tag)
 	}
 	slices.Sort(annotation.Tags)
 	annotation.Tags = slices.Compact(annotation.Tags)
-	return annotation, omitted, nil
+	return annotation, nil
 }
 
 func (a Authority) provenance() Provenance {

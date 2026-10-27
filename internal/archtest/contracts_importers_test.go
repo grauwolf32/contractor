@@ -73,7 +73,7 @@ var contractsImporters = map[string][]string{
 	"internal/planner/stageresult":         {"ArtifactRef", "ResultJSONSize", "TerminationError"},
 	"internal/planner/stateview":           {"WorkerCompletion", "WorkerHandle"},
 	"internal/planner/streamline":          {"StageContentRequest", "WorkerResult"},
-	"internal/projectsitemap":              {"ArtifactRef", "ExactArtifact", "SecretString"},
+	"internal/projectsitemap":              {"ArtifactRef", "ExactArtifact"},
 	"internal/projectstore":                {"ValidResourceID"},
 	"internal/runrepeat":                   {"ArtifactRef", "ValidateArtifactName"},
 	"internal/runservice":                  {"AgentSkillNamespace", "ArtifactRef"},

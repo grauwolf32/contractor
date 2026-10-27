@@ -15,9 +15,9 @@ import (
 )
 
 var (
-	ErrInvalid  = apierror.New(apierror.InvalidRequest, "invalid sitemap document or mutation")
-	ErrConflict = apierror.New(apierror.SitemapConflict, "sitemap edit or source precondition conflict")
-	ErrUnsafe   = apierror.New(apierror.InvalidRequest, "sitemap input cannot form a safe concrete identity")
+	ErrInvalid             = apierror.New(apierror.InvalidRequest, "invalid sitemap document or mutation")
+	ErrConflict            = apierror.New(apierror.SitemapConflict, "sitemap edit or source precondition conflict")
+	errStructuralSelection = errors.New("sitemap structural selection is unresolved")
 )
 
 // Decode validates stored bytes strictly. Missing bindings are handled by the
@@ -194,7 +194,7 @@ func validateDocument(d Document) error {
 			}
 			for _, annotation := range m.Annotations {
 				if !admittedProvenance(annotation.Provenance, sources) || len(annotation.Note) > MaxNoteBytes ||
-					!safeText(annotation.Note, nil) || secretName.MatchString(annotation.Note) || len(annotation.Tags) > MaxTags || !validNames(annotation.Tags) {
+					!validText(annotation.Note) || len(annotation.Tags) > MaxTags || !validNames(annotation.Tags) {
 					return ErrInvalid
 				}
 			}
@@ -204,7 +204,7 @@ func validateDocument(d Document) error {
 		}
 		for _, declaration := range g.Declarations {
 			if !admittedProvenance(declaration.Provenance, sources) || !validNames(declaration.Parameters) || len(declaration.Pointer) > MaxExampleBytes ||
-				!safeText(declaration.Pointer, nil) {
+				!validText(declaration.Pointer) {
 				return ErrInvalid
 			}
 		}
@@ -229,7 +229,7 @@ func validateDocument(d Document) error {
 	for _, gap := range d.Gaps {
 		id := gap.SourceID + "/" + gap.Reason
 		if gapIDs[id] || gap.Count > MaxOmissionCount || (gap.SourceID != "" && !contracts.ValidResourceID(gap.SourceID)) ||
-			!slices.Contains([]string{"unsafe", "members", "groups", "summaries", "contexts", "examples", "metadata", "regrouping", "incomplete", "parameters", "source-unavailable", "ambiguous", "projection"}, gap.Reason) {
+			!slices.Contains([]string{"structural", "members", "groups", "summaries", "contexts", "examples", "regrouping", "incomplete", "parameters", "source-unavailable", "ambiguous", "projection"}, gap.Reason) {
 			return ErrInvalid
 		}
 		gapIDs[id] = true
@@ -249,7 +249,7 @@ func validNames(names []string) bool {
 		return false
 	}
 	for _, name := range names {
-		if !safeName(name, nil) {
+		if !validLabel(name) {
 			return false
 		}
 	}
@@ -269,19 +269,19 @@ func validOutcome(outcome string, status int) bool {
 		((outcome == "timeout" || outcome == "transport-error" || outcome == "attempt") && status == 0)
 }
 func validRoute(origin, path string) bool {
-	if !strings.HasPrefix(path, "/") || strings.ContainsAny(path, "?#") || len(origin)+len(path) > MaxMemberKeyBytes || !safeText(path, nil) {
+	if !strings.HasPrefix(path, "/") || strings.ContainsAny(path, "?#") || len(origin)+len(path) > MaxMemberKeyBytes || !validText(path) {
 		return false
 	}
-	o, _, _, err := projectURL(origin+"/", nil)
+	o, _, _, err := projectURL(origin + path)
 	return err == nil && o == origin
 }
 func validateRule(rule Rule) error {
 	if !contracts.ValidResourceID(rule.SourceID) || !methodPattern.MatchString(rule.Method) || !validRoute(rule.Origin, rule.Path) ||
-		!validNames(rule.Parameters) || len(rule.Pointer) > MaxExampleBytes || !safeText(rule.Pointer, nil) {
+		!validNames(rule.Parameters) || len(rule.Pointer) > MaxExampleBytes || !validText(rule.Pointer) {
 		return ErrInvalid
 	}
 	for _, segment := range strings.Split(rule.Path, "/") {
-		if strings.ContainsAny(segment, "{}") && !(strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}") && safeName(segment[1:len(segment)-1], nil)) {
+		if strings.ContainsAny(segment, "{}") && !(strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}") && validLabel(segment[1:len(segment)-1])) {
 			return ErrInvalid
 		}
 	}
@@ -290,12 +290,12 @@ func validateRule(rule Rule) error {
 	}
 	names := map[string]bool{}
 	for _, selector := range rule.Structural {
-		if names[selector.Name] || !safeName(selector.Name, nil) || len(selector.Allowed) == 0 || len(selector.Allowed) > MaxTags {
+		if names[selector.Name] || !validLabel(selector.Name) || len(selector.Allowed) == 0 || len(selector.Allowed) > MaxTags {
 			return ErrInvalid
 		}
 		names[selector.Name] = true
 		for _, value := range selector.Allowed {
-			if len(value) > MaxTagBytes || !safeText(value, nil) || secretName.MatchString(value) {
+			if len(value) > MaxTagBytes || !validText(value) {
 				return ErrInvalid
 			}
 		}
@@ -354,7 +354,7 @@ func Reduce(current Document, mutation Mutation, authority Authority) (Document,
 		if !onlyFields(mutation, "declare") {
 			return Document{}, ErrInvalid
 		}
-		origin, path, _, err := projectURL(mutation.URL, authority.Secrets)
+		origin, path, _, err := projectURL(mutation.URL)
 		if err != nil {
 			return Document{}, err
 		}
@@ -464,11 +464,7 @@ func observe(d *Document, o Observation, a Authority) error {
 	if !methodPattern.MatchString(o.Method) || !validOutcome(o.Outcome, o.Status) || !validTime(o.At) || len(o.Parameters) > MaxBatch {
 		return ErrInvalid
 	}
-	origin, path, parameters, err := projectURL(o.URL, a.Secrets)
-	if errors.Is(err, ErrUnsafe) {
-		addGap(d, a.SourceID, "unsafe", 1)
-		return nil
-	}
+	origin, path, parameters, err := projectURL(o.URL)
 	if err != nil {
 		return err
 	}
@@ -476,7 +472,7 @@ func observe(d *Document, o Observation, a Authority) error {
 		markProjectionGap(d, a.SourceID)
 	}
 	for _, name := range o.Parameters {
-		if safeName(name, a.Secrets) {
+		if validLabel(name) {
 			parameters = append(parameters, name)
 		} else {
 			addGap(d, a.SourceID, "parameters", 1)
@@ -491,9 +487,9 @@ func observe(d *Document, o Observation, a Authority) error {
 	if ambiguous {
 		addGap(d, a.SourceID, "ambiguous", 1)
 	}
-	structural, err := projectStructural(d.Rules, origin, o.Method, route, o.URL, a.Secrets)
-	if errors.Is(err, ErrUnsafe) {
-		addGap(d, a.SourceID, "unsafe", 1)
+	structural, err := projectStructural(d.Rules, origin, o.Method, route, o.URL)
+	if errors.Is(err, errStructuralSelection) {
+		addGap(d, a.SourceID, "structural", 1)
 		return nil
 	}
 	if err != nil {
@@ -577,7 +573,7 @@ func edit(d *Document, m Mutation, a Authority) error {
 		}
 		selection[id] = true
 	}
-	annotation, omitted, err := projectAnnotation(m.Note, m.Tags, a)
+	annotation, err := projectAnnotation(m.Note, m.Tags, a)
 	if err != nil {
 		return err
 	}
@@ -600,11 +596,8 @@ func edit(d *Document, m Mutation, a Authority) error {
 	if len(selection) > 0 {
 		return ErrConflict
 	}
-	if omitted {
-		addGap(d, a.SourceID, "metadata", 1)
-	}
 	if m.Operation == "remove" {
-		if !contracts.ValidResourceID(m.MarkerID) || !safeText(m.MarkerID, a.Secrets) || secretName.MatchString(m.MarkerID) || len(d.Markers) == MaxMarkers || slices.ContainsFunc(d.Markers, func(v Marker) bool { return v.ID == m.MarkerID }) {
+		if !contracts.ValidResourceID(m.MarkerID) || len(d.Markers) == MaxMarkers || slices.ContainsFunc(d.Markers, func(v Marker) bool { return v.ID == m.MarkerID }) {
 			return ErrConflict
 		}
 		ids := slices.Clone(m.MemberIDs)
@@ -677,7 +670,7 @@ func replaceSource(d *Document, u SourceUpdate, a Authority) error {
 	}
 	u.Rules = canonicalRules(u.Rules)
 	for _, rule := range u.Rules {
-		if rule.SourceID != u.SourceID || validateRule(rule) != nil || !safeText(rule.Path, a.Secrets) || !validSafeOrigin(rule.Origin, a.Secrets) || !safeText(rule.Pointer, a.Secrets) {
+		if rule.SourceID != u.SourceID || validateRule(rule) != nil || !validText(rule.Path) || !validOrigin(rule.Origin) || !validText(rule.Pointer) {
 			return ErrInvalid
 		}
 	}
