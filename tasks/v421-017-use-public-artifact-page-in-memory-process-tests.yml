@@ -1,0 +1,70 @@
+schema_version: "1.0"
+id: V421-017
+title: Reuse the public Artifact page model in Memory process checks
+milestone: data-model-consumers-2026-10
+epic: quality
+kind: chore
+introduced_by: V421-009
+priority: P3
+status: in_progress
+depends_on: [V421-009]
+languages: [go, yaml]
+goal: >-
+  Keep both real Memory process scenarios aligned with the required public
+  Artifact metadata contract without duplicating its response model.
+context:
+  finding: >-
+    The complete integrated attempt on 895fe2eb79c594e8acc5c53f8d224012b617f9ce
+    failed TestMemoryMVPProcesses after 32.30 seconds. The strict response
+    decoder reported shared_memory_test.go:189: decode HTTP 200 response:
+    json: unknown field "storageTimestamps". The Server response is correct;
+    the anonymous list DTO in tests/e2e/shared_memory_test.go:784-794 predates
+    V421-009 and lacks its newly required public metadata object.
+  specification:
+    - docs/spec/artifacts/artifact-store.md#ART-R130
+    - docs/spec/artifacts/artifact-store.md#ART-R132
+    - docs/testing/README.md
+  contract: api/openapi/contractor-public-v1.yaml#/components/schemas/ArtifactPage
+  introduction: >-
+    V421-009 commit a7da863e71b33bc9373c2b987ad72c9482aa134c added the public
+    storage timestamp block. The local duplicate DTO predates that change;
+    generated publicapi.ArtifactPage and ArtifactMetadata already contain it.
+  siblings: >-
+    TestMemoryMVPProcesses and TestProductionMemoryTemplatesAcrossProcesses
+    both call runSharedMemoryProcesses and assertOwnerMemoryArtifact. The
+    Agent Skills metadata readers use artifacts.Metadata, which already has
+    the block; the partial HTTP/Caido reader uses loose unmarshalling only
+    for refs/media, and the blob-backend check closes the metadata response.
+    Artifact PUT responses and the private Runtime metadata projection have
+    separate unchanged contracts. No other deficient strict public metadata
+    DTO was found in tests, Runtime tests or scripts.
+  evidence: /private/tmp/v421-final-release-895fe2eb-d1/memory-process-failure.txt
+  execution_isolation: >-
+    The running D1 attempt retains immutable Linux source and environment at
+    895fe2eb. A separate clean full-history host clone at
+    /private/tmp/v421-source-895fe2eb-evidence preserves that exact source for
+    its failed-attempt analysis while this test-only correction is prepared.
+    No D1 source, filter, budget or running process is changed.
+scope:
+  in:
+    - Replace only the copied Artifact page/item DTO with the generated publicapi.ArtifactPage type.
+    - Keep strict unknown-field rejection and every existing Memory content, scope, media, frozen/current and exact-ref assertion; require the generated exact revision string to be nonempty.
+    - Require the actual returned storage block and four nonzero registry dates without inventing an ordering relationship.
+    - Run both real Memory process callers, the complete untagged harness owner suite and lint; record actual outcomes and the failed-attempt provenance.
+  out:
+    - Server, Runtime, private wire, public schemas, generated files, compatibility handling, lenient decoders, altered deadlines or unrelated response DTOs.
+    - Claiming the failed D1 release attempt passed or omitting its remaining process failures from V421-010.
+acceptance_criteria:
+  - id: A1
+    text: The owner Memory Artifact page is decoded into the generated public contract with the strict decoder retained; all existing assertions remain and the four physical timestamps are required and nonzero.
+  - id: A2
+    text: Both MemoryMVP and ProductionMemoryTemplates scenarios complete against the actual Server, Runtime and disposable PostgreSQL with their existing timeouts, domain-output, isolation and redaction assertions, with no skips or missing selectors.
+  - id: A3
+    text: The complete untagged E2E harness suite and lint pass, sibling response shapes remain unchanged, and the corrected task is a completed prerequisite of a fresh integrated V421-010 verification.
+tests:
+  - command: go test -count=1 ./tests/e2e
+    covers: [A1, A3]
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -tags=e2e -count=1 -timeout=15m ./tests/e2e -run "^(TestMemoryMVPProcesses|TestProductionMemoryTemplatesAcrossProcesses)$"'
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A3]
