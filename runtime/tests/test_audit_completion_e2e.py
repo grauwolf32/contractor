@@ -31,7 +31,7 @@ from contractor_runtime.toolsets.security_findings.publisher import FindingPubli
 from contractor_runtime.worker.runtime import AdkWorkerRuntime
 
 
-def test_runtime_zip_for_go_importer(tmp_path):
+def test_runtime_zip_for_go_importer(tmp_path, monkeypatch):
     specification = os.environ.get("CONTRACTOR_AUDIT_COMPLETION_BRIDGE")
     if not specification:
         pytest.skip("launched by make test-audit-completion-e2e with a real Go Artifact API")
@@ -84,6 +84,42 @@ def test_runtime_zip_for_go_importer(tmp_path):
             state=state,
             completion_contract=contract,
         )
+        if mode == "http-observation":
+            import httpx
+            from http_cookie_store import HTTPToolsetFactory
+
+            from contractor_runtime.toolsets.http.capture import CapturedAttempt
+
+            original = CapturedAttempt.from_request
+
+            def capture(cls, request, **kwargs):
+                value = original(request, **kwargs)
+                value.at = "2026-10-27T12:00:00.125Z"
+                return value
+
+            monkeypatch.setattr(CapturedAttempt, "from_request", classmethod(capture))
+            factory = HTTPToolsetFactory(
+                lambda: httpx.AsyncClient(
+                    transport=httpx.MockTransport(
+                        lambda request: httpx.Response(
+                            200, content=b"retained observation proof", request=request
+                        )
+                    ),
+                    trust_env=False,
+                )
+            )
+            selected.update(
+                await factory.create_selected(
+                    selected=["http_request"],
+                    allocation_id=spec["allocationID"],
+                    run_id=spec["runID"],
+                    namespace=context.namespace,
+                    runtime_settings=context.runtime_settings,
+                    workspace=context.workspace,
+                    state=state,
+                    deployment_marker="deployment-test",
+                )
+            )
         if mode.startswith("proposal"):
             # This bridge tests create-only ZIP conflicts. A successful local
             # finding client supplies real tool-returned keys for its links.
@@ -109,7 +145,13 @@ def test_runtime_zip_for_go_importer(tmp_path):
                     "gaps": [],
                     "evidence": []
                     if invalid
-                    else [{"kind": "source-trace", "summary": "Guard at app.py:12."}],
+                    else [
+                        {
+                            "kind": "source-trace",
+                            "summary": "Guard at app.py:12.",
+                            **({"http_request_id": 1} if mode == "http-observation" else {}),
+                        }
+                    ],
                     "proposal_keys": [
                         "call-" + hashlib.sha256(("finding-" + key).encode()).hexdigest()
                     ]
@@ -121,6 +163,13 @@ def test_runtime_zip_for_go_importer(tmp_path):
 
         first, second = spec["itemKeys"]
         responses = [submit(second), text_result("Partial work."), submit(first), text_result("")]
+        if mode == "http-observation":
+            responses.insert(
+                0,
+                tool_call(
+                    "http_request", {"url": "https://target.example/"}, call_id="observe-http"
+                ),
+            )
         if mode.startswith("proposal"):
             responses = [
                 finding(second),
@@ -147,6 +196,8 @@ def test_runtime_zip_for_go_importer(tmp_path):
                     if mode.startswith("proposal")
                     else 3
                     if mode == "correction"
+                    else 3
+                    if mode == "http-observation"
                     else 2,
                     "max_total_tokens": 10 * len(responses),
                 }
@@ -204,6 +255,8 @@ def test_runtime_zip_for_go_importer(tmp_path):
         with pytest.raises(AuditCollectionError):
             runtime._completion.current()
         await runtime.abort(datetime.now(UTC) + timedelta(seconds=2))
+        if mode == "http-observation":
+            await selected["http_request"].close()
         report["modelCalls"] = len(model.requests)
         Path(spec["report"]).write_text(json.dumps(report))
 

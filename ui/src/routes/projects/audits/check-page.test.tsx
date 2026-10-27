@@ -366,6 +366,47 @@ describe("Check page", () => {
     );
   });
 
+  it("shows the original HTTP observation time and declared deployment beside evidence", async () => {
+    const current = auditAt("completed", 3);
+    const row = requirementRow(
+      "item_1",
+      0,
+      "A01:2025",
+      "Observed HTTP control",
+      "satisfied",
+    );
+    row.details!.evidence = [
+      {
+        id: "ev-1",
+        kind: "observation",
+        summary: "Exact selected response.",
+        observedAt: "2026-10-27T12:00:00.125Z",
+        deploymentMarker: "deployment-test",
+        httpRequestId: "7",
+        httpRequestTag: "r-test-h7",
+      },
+    ];
+    const { api } = serveCheck({ audit: () => current, coverage: () => [row] });
+    renderApplication(`${ROOT}/coverage#check-item_1`, { api });
+    const deployment = await screen.findByText(
+      "Declared deployment: deployment-test",
+    );
+    expect(deployment).toBeVisible();
+    const observation = deployment.closest("li")!;
+    expect(observation.querySelector("time")).toHaveAttribute(
+      "datetime",
+      "2026-10-27T12:00:00.125Z",
+    );
+    expect(within(observation).getByText("r-test-h7")).not.toBeVisible();
+    await userEvent
+      .setup()
+      .click(within(observation).getByText("Technical details"));
+    expect(within(observation).getByText("r-test-h7")).toBeVisible();
+    expect(
+      within(observation).getByText("2026-10-27T12:00:00.125Z"),
+    ).toBeVisible();
+  });
+
   it("does not link a non-http standard source", () => {
     // The contract only allows https sources; the link keeps its own guard.
     render(<SourceLink url="javascript:alert(1)">source</SourceLink>);

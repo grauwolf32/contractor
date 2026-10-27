@@ -68,8 +68,19 @@ func DecodeCheckResultPackage(payload []byte) (CheckResultPackage, error) {
 		if _, duplicate := contentMembers[item.ContentMemberID]; duplicate {
 			return CheckResultPackage{}, invalid(CodeReferenceInvalid, "evidence.content_member_id")
 		}
-		if _, exists := pkg.MemberByID(item.ContentMemberID); !exists {
+		member, exists := pkg.MemberByID(item.ContentMemberID)
+		if !exists {
 			return CheckResultPackage{}, invalid(CodeReferenceInvalid, "evidence.content_member_id")
+		}
+		if item.HTTPRequestID != "" {
+			var capture CapturedHTTPExchange
+			if member.metadata.MediaType != JSONMediaType {
+				return CheckResultPackage{}, invalid(CodeInvalid, "evidence.http_capture")
+			}
+			if _, err := decodeStrictJSON(member.data, &capture); err != nil || capture.Source != "http" ||
+				capture.RequestID != item.HTTPRequestID || capture.RequestTag != item.HTTPRequestTag {
+				return CheckResultPackage{}, invalid(CodeInvalid, "evidence.http_capture")
+			}
 		}
 		contentMembers[item.ContentMemberID] = struct{}{}
 	}

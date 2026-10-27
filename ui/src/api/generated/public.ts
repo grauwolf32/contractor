@@ -4397,6 +4397,11 @@ export interface components {
                 kind: string;
                 summary: string;
                 contentMemberId?: string;
+                /** Format: date-time */
+                observedAt?: string;
+                deploymentMarker?: string;
+                httpRequestId?: string;
+                httpRequestTag?: string;
             }[];
         };
         AuditCoverageRow: {

@@ -9,6 +9,7 @@ from contractor_runtime import threads
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.worker_completion import WorkerCompletionError
 from contractor_runtime.toolsets.audit_results.contracts import (
+    MAX_COLLECTED_BYTES,
     MAX_EVIDENCE,
     MAX_ITEMS,
     MAX_PROPOSAL_KEYS,
@@ -171,6 +172,19 @@ class InvocationAuditCollector:
                 )
             self._proposals[client_key] = refs
 
+    def retained_http_evidence(self, item_key: str, request_id: str):
+        """Reuse accepted immutable observation facts even after buffer eviction.
+
+        Event-loop reads are bounded by one item's evidence list. The later
+        locked record operation still enforces revision, seal and lifecycle.
+        """
+        current = self._items.get(item_key)
+        if current is not None:
+            return next(
+                (e for e in current.value.evidence if e.http_request_id == request_id), None
+            )
+        return None
+
     def _validate(self, item: NormalizedAuditItem):
         if not isinstance(item, NormalizedAuditItem):
             raise AuditCollectionError("result", "Provide a normalized result.")
@@ -246,6 +260,29 @@ class InvocationAuditCollector:
                 item_key=key,
             )
         conclusive = item.assessment in {"satisfied", "violated", "supported", "refuted"}
+        required_kinds = task.get("checklist", {}).get("required_evidence", [])
+        live_http = (
+            "http-observation" in required_kinds
+            or task.get("finding", {}).get("method") == "http-probe"
+        )
+        if (
+            conclusive
+            and live_http
+            and not any(
+                e.http_capture is not None
+                and (
+                    e.kind == "http-observation"
+                    or task.get("finding", {}).get("method") == "http-probe"
+                )
+                for e in item.evidence
+            )
+        ):
+            raise AuditCollectionError(
+                "evidence",
+                "A live HTTP check requires selected HTTP evidence; "
+                "otherwise record an explicit gap and inconclusive result.",
+                item_key=key,
+            )
         standard = task.get("standard")
         if standard is not None:
             contract = standard["evidence_contract"]
@@ -307,6 +344,17 @@ class InvocationAuditCollector:
                         item_key=item.value.item_key,
                         details={"invalidValue": proposal_key},
                     )
+        if (
+            sum(
+                len(e.http_capture or b"")
+                for item in prospective.values()
+                for e in item.value.evidence
+            )
+            > MAX_COLLECTED_BYTES
+        ):
+            raise AuditCollectionError(
+                "evidence", "Selected HTTP evidence exceeds collection bytes."
+            )
         if sum(len(item.value.evidence) for item in prospective.values()) > MAX_EVIDENCE:
             raise AuditCollectionError(
                 "evidence", "Collection allows at most 256 evidence records."

@@ -440,6 +440,38 @@ export function CheckItemView({
                 <li key={piece.id}>
                   <strong>{readable(piece.kind)}</strong>
                   <AuditMarkdown source={piece.summary} />
+                  {piece.httpRequestId === undefined ? null : (
+                    <>
+                      <p className="ui-caption">
+                        HTTP request attempt began:{" "}
+                        {piece.observedAt === undefined ? (
+                          "time unavailable"
+                        ) : (
+                          <time dateTime={piece.observedAt}>
+                            {formatShortDateTime(piece.observedAt)}
+                          </time>
+                        )}
+                      </p>
+                      <p className="ui-caption">
+                        Declared deployment:{" "}
+                        {piece.deploymentMarker ?? "not available"}
+                      </p>
+                      <details className="checks-disclosure">
+                        <summary>Technical details</summary>
+                        <p>
+                          HTTP request ID: <code>{piece.httpRequestId}</code>
+                        </p>
+                        <p>
+                          Capture tag:{" "}
+                          <code>{piece.httpRequestTag ?? "not available"}</code>
+                        </p>
+                        <p>
+                          Request dispatch time:{" "}
+                          <code>{piece.observedAt ?? "not available"}</code>
+                        </p>
+                      </details>
+                    </>
+                  )}
                   <code className="ui-mono ui-caption">{piece.id}</code>
                 </li>
               ))}

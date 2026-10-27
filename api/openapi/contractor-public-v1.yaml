@@ -13783,6 +13783,10 @@ components:
               kind: {type: string}
               summary: {type: string}
               contentMemberId: {type: string, minLength: 1, maxLength: 128}
+              observedAt: {type: string, format: date-time}
+              deploymentMarker: {type: string, minLength: 1, maxLength: 256}
+              httpRequestId: {type: string, pattern: '^[1-9][0-9]{0,15}$'}
+              httpRequestTag: {type: string, minLength: 1, maxLength: 160}
     AuditCoverageRow:
       type: object
       additionalProperties: false

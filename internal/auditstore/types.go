@@ -882,10 +882,14 @@ type ScanProvenance struct {
 }
 
 type CoverageEvidence struct {
-	ContentMemberID string `json:"contentMemberId,omitempty"`
-	ID              string `json:"id"`
-	Kind            string `json:"kind"`
-	Summary         string `json:"summary"`
+	ObservedAt       string `json:"observedAt,omitempty"`
+	DeploymentMarker string `json:"deploymentMarker,omitempty"`
+	HTTPRequestID    string `json:"httpRequestId,omitempty"`
+	HTTPRequestTag   string `json:"httpRequestTag,omitempty"`
+	ContentMemberID  string `json:"contentMemberId,omitempty"`
+	ID               string `json:"id"`
+	Kind             string `json:"kind"`
+	Summary          string `json:"summary"`
 }
 
 type ReconcileSnapshot struct {
