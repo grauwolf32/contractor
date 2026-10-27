@@ -6,7 +6,7 @@ epic: evals
 kind: chore
 introduced_by: V38-002
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, json, typescript, yaml]
 goal: >-
