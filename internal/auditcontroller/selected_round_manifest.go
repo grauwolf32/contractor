@@ -32,7 +32,7 @@ func (b *PinnedSubmissionBuilder) readSelectedRoundExecutionManifest(ctx context
 		return auditdomain.ExecutionManifest{}, true, err
 	}
 	root, err := auditdomain.DecodePreparedRoundRoot(payload.Data)
-	if err != nil || root.AuditID != audit.AuditID || root.RoundID != round.RoundID || root.ProfileDigest != audit.Profile.Digest || root.BaselineDigest != auditdomain.DigestBytes(audit.BaselineSnapshot) || root.ItemCount != round.ExpectedItemCount || root.Source.Ref.Namespace != auditdomain.ArtifactNamespace(audit.AuditID) {
+	if err != nil || root.AuditID != audit.AuditID || root.RoundID != round.RoundID || root.ProfileDigest != audit.Profile.Digest || root.BaselineDigest != auditdomain.DigestBytes(audit.BaselineSnapshot) || root.ItemCount != round.ExpectedItemCount || resolved.Ref.Namespace != auditdomain.ArtifactNamespace(audit.AuditID) {
 		return auditdomain.ExecutionManifest{}, true, invalidSubmission("prepared Round root differs from accepted membership")
 	}
 	reader, ok := b.outputs.(PreparedRoundManifestLookup)

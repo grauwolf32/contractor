@@ -102,7 +102,7 @@ func TestPostgresTypedRoutingUsesActualAdmissionAfterPauseRestartAndProducerDele
 			break
 		}
 	}
-	if before.SelectedCount != 1 || before.PreparedRoot != nil {
+	if before.SelectedCount != 1 || before.Root != nil {
 		t.Fatalf("bounded first selection: %+v", before)
 	}
 	current, err := h.audits.Get(ctx, h.started.Audit.OwnerID, h.started.Audit.AuditID)
@@ -192,7 +192,7 @@ func TestPostgresTypedRoutingUsesActualAdmissionAfterPauseRestartAndProducerDele
 		t.Fatalf("recovery changed target budget: submitted=%d reserved=%d outstanding=%d", current.SubmittedRunCount, current.ReservedRunCount, current.OutstandingRunCount)
 	}
 	progress := readTypedAdmissionProgress(t, ctx, h)
-	if !progress.DeadlineAt.Equal(before.DeadlineAt) || progress.SelectedCount != 3 || progress.StagedCount != 3 || progress.PreparedRoot == nil {
+	if !progress.DeadlineAt.Equal(before.DeadlineAt) || progress.SelectedCount != 3 || progress.StagedCount != 3 || progress.Root == nil {
 		t.Fatalf("restart changed accepted generation: %+v", progress)
 	}
 	for range 8 {

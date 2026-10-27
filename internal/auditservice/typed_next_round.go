@@ -25,17 +25,15 @@ func (s *Service) prepareTypedNextRound(ctx context.Context, claim auditstore.Co
 	capacity := roundItemCapacity(snapshot.Audit.Limits.MaxItemsPerRound, snapshot.Audit.Limits.MaxItemsTotal, total)
 	progress, err := hookstore.NewClaimedAdmission(s.pool).WithStep(ctx, auditstore.AdmissionStepParams{Claim: claim, PreviousRoundID: snapshot.Round.RoundID, Now: s.now()}, func(ctx context.Context, session *hookstore.AdmissionSession) (auditstore.AdmissionMutation, error) {
 		state := session.State
-		if state.PreparedRoot != nil {
-			return auditstore.AdmissionMutation{Next: state}, nil
-		}
 		if state.StopCode != "" {
 			return auditstore.AdmissionMutation{Next: state}, nil
 		}
-		if state.SelectionRoot != nil {
-			if state.PreparedPages < state.SelectionPages {
-				return stageTypedPage(ctx, session, snapshot.Audit)
+		if state.Root != nil {
+			if state.StagedPages < state.PublishedPages {
+				ordinal := state.StagedPages
+				return auditstore.AdmissionMutation{Next: state, StagePageOrdinal: &ordinal}, nil
 			}
-			return sealTypedPreparedRoot(ctx, session, snapshot.Audit)
+			return auditstore.AdmissionMutation{Next: state}, nil
 		}
 		if state.Exhausted {
 			if state.SelectedCount == 0 {
@@ -48,7 +46,7 @@ func (s *Service) prepareTypedNextRound(ctx context.Context, claim auditstore.Co
 				}
 				return auditstore.AdmissionMutation{Next: state}, nil
 			}
-			return sealTypedSelectionRoot(ctx, session, snapshot.Audit)
+			return sealTypedRoot(ctx, session, snapshot.Audit)
 		}
 		budget, err := typedRoundBudget(state, capacity, snapshot.Audit, profile, baseline)
 		if err != nil {
@@ -68,8 +66,8 @@ func (s *Service) prepareTypedNextRound(ctx context.Context, claim auditstore.Co
 	if progress.StopCode != "" {
 		return auditstore.AcceptRoundParams{}, typedAdmissionStopReason(progress.StopCode), nil
 	}
-	if progress.PreparedRoot != nil {
-		return auditstore.AcceptRoundParams{Claim: claim, ExpectedAuditRevision: snapshot.Audit.Revision, PreviousRoundID: snapshot.Round.RoundID, RoundID: progress.RoundID, RoundOrdinal: progress.RoundOrdinal, Manifest: progress.PreparedRoot.Clone(), PreparedRoot: progress.PreparedRoot, Generation: progress.Generation}, nil, nil
+	if progress.Root != nil && progress.StagedPages == progress.PublishedPages && progress.StagedCount == progress.SelectedCount {
+		return auditstore.AcceptRoundParams{Claim: claim, ExpectedAuditRevision: snapshot.Audit.Revision, PreviousRoundID: snapshot.Round.RoundID, RoundID: progress.RoundID, RoundOrdinal: progress.RoundOrdinal, Manifest: progress.Root.Clone(), PreparedRoot: progress.Root, Generation: progress.Generation}, nil, nil
 	}
 	if progress.Exhausted && progress.SelectedCount == 0 && !progress.Changed {
 		return auditstore.AcceptRoundParams{}, typedAdmissionStopReason("round_complete"), nil
@@ -88,7 +86,7 @@ func typedRoundBudget(state auditstore.AdmissionProgress, capacity int, audit au
 		return nil, err
 	}
 	shape := auditdomain.FindingRoundShape{Inventory: nextRoundInventoryOptions(state.RoundOrdinal, profile, baseline, auditdomain.ApprovalNone, source), TaskNamespace: namespace, TaskRevision: provisionalRevision, ExecutionInputs: []auditdomain.ExactInput{}, Paged: true, PreparedRootMetadataBytes: int64(reserve)}
-	if string(state.Budget) == "{}" && state.SelectedCount == 0 && state.SelectionPages == 0 {
+	if string(state.Budget) == "{}" && state.SelectedCount == 0 && state.PublishedPages == 0 {
 		return auditdomain.NewFindingRoundBudget(capacity, shape)
 	}
 	checkpoint, err := auditdomain.DecodeFindingRoundBudgetState(state.Budget)
@@ -102,16 +100,9 @@ func typedRoundBudget(state auditstore.AdmissionProgress, capacity int, audit au
 }
 
 func typedRootMetadataReserve(state auditstore.AdmissionProgress) (int, error) {
-	selection := auditdomain.RoundSelectionRoot{Schema: auditdomain.RoundSelectionRootSchema, AuditID: state.AuditID, RoundID: state.RoundID, Generation: state.Generation, ProfileDigest: state.ProfileDigest, BaselineDigest: state.BaselineDigest, PageCount: auditdomain.MaximumItems, ItemCount: auditdomain.MaximumItems, PagesDigest: placeholderAdmissionDigest()}
-	selectionBytes, err := auditdomain.EncodeRoundSelectionRoot(selection)
-	if err != nil {
-		return 0, err
-	}
-	ref := contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(state.AuditID), Name: typedAdmissionArtifactName("round-selection", state, placeholderAdmissionDigest()), Revision: &provisionalRevision}
-	source := contracts.ExactContent(ref, auditdomain.RoundSelectionRootMediaType, selectionBytes)
-	root := auditdomain.PreparedRoundRoot{Schema: auditdomain.PreparedRoundRootSchema, AuditID: state.AuditID, RoundID: state.RoundID, Generation: state.Generation, ProfileDigest: state.ProfileDigest, BaselineDigest: state.BaselineDigest, Source: source, PageCount: auditdomain.MaximumItems, ItemCount: auditdomain.MaximumItems, PagesDigest: placeholderAdmissionDigest()}
-	preparedBytes, err := auditdomain.EncodePreparedRoundRoot(root)
-	return len(selectionBytes) + len(preparedBytes), err
+	root := auditdomain.PreparedRoundRoot{Schema: auditdomain.PreparedRoundRootSchema, AuditID: state.AuditID, RoundID: state.RoundID, Generation: state.Generation, ProfileDigest: state.ProfileDigest, BaselineDigest: state.BaselineDigest, PageCount: auditdomain.MaximumItems, ItemCount: auditdomain.MaximumItems, PagesDigest: placeholderAdmissionDigest()}
+	data, err := auditdomain.EncodePreparedRoundRoot(root)
+	return len(data), err
 }
 
 func placeholderAdmissionDigest() string { return auditdomain.DigestBytes(nil) }
