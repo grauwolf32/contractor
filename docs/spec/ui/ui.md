@@ -1327,6 +1327,11 @@ shortened data remain visibly distinct. Every page is reachable through Load
 more, a generation conflict requires refresh, navigation cancels obsolete
 reads and terminal data is not polled indefinitely. Use shared components and
 tokens at 390 px and in light, dark and black themes.
+Each actual Run page entry marks its previously cached attempt facts stale
+and refreshes active disclosures once; closed disclosures wait until opened.
+Cold initial reads are not duplicated, unrelated Run invalidation and
+same-page live projection remounts do not refetch, and previously loaded facts
+stay visibly identified while a background refresh is pending or has failed.
 
 ### Retained tool-call disclosure
 
@@ -1341,3 +1346,5 @@ distinct. A generation conflict requires refresh; failed refresh keeps prior
 facts visibly stale. Unrelated Run updates and projection remounts do not
 refetch loaded settled pages. Navigation cancels obsolete reads. Use shared
 components and tokens at 390 px and in light, dark and black themes.
+The same actual-page-entry, closed-disclosure and cached-fact refresh rule as
+UI-R208 applies, including after navigation cancelled a terminal-state read.

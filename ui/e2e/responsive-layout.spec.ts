@@ -214,6 +214,154 @@ test("Run list prioritizes compact facts on narrow screens", async ({
     .toBe(320);
 });
 
+test("Reopening a failed Run refreshes both navigation-cancelled diagnostic reads", async ({
+  page,
+}) => {
+  let failed = false;
+  const reads = { runtime: 0, tool: 0 };
+  let release!: () => void;
+  const blocked = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let drained = 0;
+  await mockAPI(page, async (route, _request, url) => {
+    if (url.pathname === `/v1/runs/${RUN_ID}`) {
+      await fulfillJSON(route, {
+        runId: RUN_ID,
+        workflow: "diagnostics-reopen@1",
+        state: failed ? "failed" : "running",
+        deletable: false,
+        runtimeLabels: [],
+        labels: {},
+        runtimeConfiguration: runRuntimeConfiguration(),
+        attempts: [
+          {
+            stageExecutionId: "stage-reopen",
+            stage: "diagnose",
+            attempt: 1,
+            executionConfig: { variant: "base", agents: { validator: {} } },
+            state: failed ? "failed" : "running",
+            ...(failed
+              ? {
+                  result: {
+                    apiVersion: "contractor/v1alpha1",
+                    outcome: "failed",
+                    summary: "The probe failed.",
+                    artifacts: {},
+                    error: {
+                      code: "probe_failed",
+                      message: "The probe failed.",
+                      retryable: false,
+                    },
+                  },
+                  terminalAt: "2026-09-04T08:01:00Z",
+                }
+              : {}),
+          },
+        ],
+        transitions: [],
+        outputs: {},
+        outputPublications: [],
+        ...(failed
+          ? { finishedAt: "2026-09-04T08:01:00Z" }
+          : { activeStageExecutionId: "stage-reopen" }),
+        createdAt: "2026-09-04T08:00:00Z",
+        updatedAt: failed ? "2026-09-04T08:01:00Z" : "2026-09-04T08:00:00Z",
+      });
+      return;
+    }
+    const kind = url.pathname.endsWith("/runtime-diagnostics")
+      ? "runtime"
+      : url.pathname.endsWith("/tool-calls")
+        ? "tool"
+        : undefined;
+    if (kind !== undefined) {
+      const count = ++reads[kind];
+      if (count === 2) {
+        // Keep the terminal read in flight until navigation has aborted it.
+        // Cleanup only settles the deliberately abandoned mocked requests.
+        await blocked;
+        await route.abort("aborted").catch(() => undefined);
+        drained++;
+        return;
+      }
+      const value = count === 1 ? "1" : "2";
+      await fulfillJSON(
+        route,
+        kind === "runtime"
+          ? {
+              status: "available",
+              items: [
+                {
+                  logicalAgent: "validator",
+                  status: count === 1 ? "partial" : "available",
+                  complete: count !== 1,
+                  durationMs: value,
+                  stopReasonTruncated: false,
+                  adapters: [],
+                },
+              ],
+              page: { hasMore: false },
+            }
+          : {
+              status: "available",
+              participant: "planner",
+              complete: count !== 1,
+              detailTruncated: false,
+              items: [
+                {
+                  callReference: "a".repeat(64),
+                  tool: "probe",
+                  toolTruncated: false,
+                  outcome: "succeeded",
+                  argumentsTruncated: false,
+                  durationMs: value,
+                  resultSizeBytes: null,
+                },
+              ],
+              page: { hasMore: false },
+            },
+      );
+      return;
+    }
+    if (url.pathname === "/v1/queue/control") {
+      await fulfillJSON(route, { paused: false, revision: "0" });
+      return;
+    }
+    await fulfillEmptyPageOrNotFound(route);
+  });
+  const panel = (name: string) =>
+    page
+      .locator(".runs-block")
+      .filter({ has: page.getByRole("heading", { name, exact: true }) });
+  try {
+    await page.goto(`/runs/${RUN_ID}`);
+    await expect(
+      panel("Runtime adapter diagnostics").getByText("1", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      panel("Tool calls").getByText("1", { exact: true }),
+    ).toBeVisible();
+    expect(reads).toEqual({ runtime: 1, tool: 1 });
+    failed = true;
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect.poll(() => reads).toEqual({ runtime: 2, tool: 2 });
+    await page.getByRole("link", { name: "Completed", exact: true }).click();
+    await page.waitForURL(/\/runs\?view=completed/);
+    await page.goBack();
+    await expect(
+      panel("Runtime adapter diagnostics").getByText("2", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      panel("Tool calls").getByText("2", { exact: true }),
+    ).toBeVisible();
+    expect(reads).toEqual({ runtime: 3, tool: 3 });
+  } finally {
+    release();
+    await expect.poll(() => drained).toBe(2);
+  }
+});
+
 for (const theme of ["light", "dark", "black"] as const) {
   test(`Tool-call detail remains exact at 390 px in ${theme}`, async ({
     page,
