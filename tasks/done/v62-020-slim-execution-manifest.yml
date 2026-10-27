@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V62-007
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V62-019
 languages:
@@ -127,3 +127,71 @@ cardinality:
     whole-history hydration.
 lifecycle:
   bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
+implementation_commit: 01e1040b9277acfba7e63be94653c8e4cb3a084f
+verification:
+  date: '2026-10-27'
+  source_revision: c7b4d6fdb0a14b78a9ef8a9d5cbc2d133131cdb8
+  results:
+  - Full persistence package passed with migration52 (40.923s); all other declared full Go owners passed
+    on equivalent Go/Runtime implementation in an isolated worktree/database. Integrated full controller
+    passed again after real payload-read counter tests (56.743s).
+  - 'All 12 declared Runtime owner files: 428 passed and one real-Go-API bridge skipped in isolation;
+    the required completion gate subsequently exercised that bridge successfully.'
+  - 'make test-wire-cross-language passed: 286 fixtures, 345 Go and 238 Python shared tests; selected
+    Runtime shared run 1361 passed.'
+  - 'make test-audit-iterative-postgres test-audit-iterative-e2e passed: 53/5 required cases, 100/6 actual
+    passed, zero skips.'
+  - 'make test-audit-composition-e2e passed: 58 required store cases, 11 required process cases and the
+    real browser journey, zero skips.'
+  - 'make test-audit-completion-e2e passed: 250 Go and 491 Runtime cases, no selected skips.'
+  - make lint passed. Independent reviews of actual-task authorization, trusted private projections, transition
+    guards and sparse payload accounting found no outstanding issue.
+  reports:
+    postgres:
+      path: .local/audit-iterative-gate/postgres-cybt6ev0/result.json
+      source:
+        revision: c7b4d6fdb0a14b78a9ef8a9d5cbc2d133131cdb8
+        dirty: false
+      counts:
+        required: 53
+        passed: 100
+        skipped: 0
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+      report_digest: sha256:336b7e982cf0c5515f6bf9ecbdc1109f588d95611eabe2ef67ffadcfa97720e5
+    process:
+      path: .local/audit-iterative-gate/process-27jx0hlg/result.json
+      source:
+        revision: c7b4d6fdb0a14b78a9ef8a9d5cbc2d133131cdb8
+        dirty: false
+      counts:
+        required: 5
+        passed: 6
+        skipped: 0
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+      report_digest: sha256:7e899b2ca828832f4ae61a8cb6ad57b4a3b6a51d4389d18c11a7b392cc03b32c
+    completion:
+      path: .local/audit-completion-gate/run-vbu3qq9g/executed.json
+      source:
+        revision: c7b4d6fdb0a14b78a9ef8a9d5cbc2d133131cdb8
+        dirty: false
+      counts:
+        go: 250
+        runtime: 491
+      reports:
+        go.jsonl: sha256:d7e24b4eafff73019d5a5c28b177895cdb93c59a14a53e6ea078a8beec78d3da
+        runtime.xml: sha256:1d37f525ce0b2bde4a4455b044869326bed2397bd35d507245184290b4bbb020
+    go_owners: /private/tmp/v62-020-go-owners.log
+    controller: /private/tmp/v62-020-controller-reads.log
+    wire: /private/tmp/v62-020-wire.log
+    regressions: /private/tmp/v62-020-regressions.log
+    lint: /private/tmp/v62-020-lint.log
+  history:
+  - Initial process launch failed before test scenarios because sandbox denied the loopback listener.
+    The diagnostic identified bind operation not permitted; the full gate passed after using the required
+    local-process permission, without a code change.
+  limits:
+  - No deployment, live-model quality evaluation or full release-verify run claimed.
