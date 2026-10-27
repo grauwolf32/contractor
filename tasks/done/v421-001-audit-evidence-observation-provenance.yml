@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V39-003
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python, json, typescript, yaml]
 goal: >-
@@ -167,3 +167,24 @@ tests:
     covers: [A5]
   - command: make lint
     covers: [A2, A4, A5]
+implementation_commit: 16b4378e33a5c3cb58a56b6246f8ae05d3fa5f17
+verification:
+  completed_on: '2026-10-27'
+  source_commit: 16b4378e33a5c3cb58a56b6246f8ae05d3fa5f17
+  results:
+    - Runtime focused suites passed 242 tests; allocation and HTTP/Caido siblings passed 86 tests.
+    - All four listed Go owner packages passed with integration tags, race detector and disposable PostgreSQL; no database skip was accepted.
+    - make verify-public-api and shipped configuration validation passed.
+    - make ui-verify passed all 196 files, 2447 tests and one expected negative test, then built successfully.
+    - make lint passed including strict specs, generated clients, layers, exports and release graph.
+    - Clean-source make test-audit-completion-e2e passed 254 Go cases and 497 Runtime cases with no selected skips.
+  evidence:
+    - /private/tmp/v421-001-verification.json
+    - /private/tmp/v421-001-final-completion.log
+  notes: >-
+    Trusted HTTP metadata comes from the allocation-owned live HTTP capture and the pinned
+    optional deployment declaration. The observed time marks the first request-attempt start,
+    not proof that transport reached the target. Summary-only static and non-HTTP active tests
+    retain their existing acceptance; only an explicitly HTTP evidence contract requires capture.
+    Historical Caido captures without trusted observation metadata remain ineligible for this
+    selector. Parent integration still owns branch landing and the final combined release gate.
