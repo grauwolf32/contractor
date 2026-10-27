@@ -6,7 +6,8 @@ epic: quality
 kind: chore
 introduced_by: V421-009
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: b53ec21440af5202b96aa5d8d13888648abd4ea9
 depends_on: [V421-009]
 languages: [go, yaml]
 goal: >-
@@ -68,3 +69,30 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A3]
+verification:
+  evidence: tasks/evidence/v421-017-memory-artifact-page.json
+  source: b53ec21440af5202b96aa5d8d13888648abd4ea9
+  real_process_checks: >-
+    On a fresh clean Linux clone with its own locked Runtime environment and
+    actual editable-import guard, both selected real process roots passed:
+    ProductionMemoryTemplates in 104.10 seconds and MemoryMVP in 102.46
+    seconds, with zero skips or incomplete test lifecycles. The original
+    timeouts, domain output, namespace isolation, telemetry and redaction
+    assertions remained in force. The generated union media type is read
+    through AsMediaType1 and checked against the existing exact Memory type.
+  owner_and_lint: >-
+    The complete untagged tests/e2e owner passed 149 case identities and
+    36 roots. make lint passed on that same clean Linux source in 162.979
+    seconds after locked offline UI dependency installation. Source revision,
+    tree, lockfiles and Runtime import origin remained unchanged; every
+    owned process was joined. No generated file or production code changed.
+  failed_attempts: >-
+    The earlier a6ab8dad compilation failure executed no Memory tests and
+    was corrected before acceptance. Host lint stopped during environment
+    preparation, and a compile probe confirmed missing standard-library
+    sources in the shared temporary SDK; no host pass or SDK repair is
+    claimed. All listed commands succeeded under the complete Linux tools.
+  release_status: >-
+    The completed D1 integrated attempt remains failed with exactly these
+    two shared-DTO failures. This focused task acceptance does not pass the
+    full release gate; V421-010 requires a fresh complete integrated run.
