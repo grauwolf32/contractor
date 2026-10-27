@@ -686,46 +686,64 @@ def test_publication_encodes_off_loop_and_cancellation_joins_before_any_write(mo
 
 def test_shared_audit_http_observation_metadata():
     from pathlib import Path
+    from types import SimpleNamespace
 
-    from contractor_runtime.toolsets.common.http_capture import CapturedHTTPExchange
+    from contractor_runtime.allocation import WorkerState
+    from contractor_runtime.toolsets.audit_results.collector import InvocationAuditCollector
+    from contractor_runtime.toolsets.audit_results.v2 import SubmitCheckResultTool
+    from contractor_runtime.toolsets.common.http_capture import HTTPObservation, RecentHTTPCaptures
 
     fixture = json.loads(
         (
             Path(__file__).parents[2] / "api/testdata/audit-completion/evidence-observations.json"
         ).read_text()
     )
-    snapshot, inputs = assigned()
-    for case in fixture["cases"]:
-        value = case["evidence"]
-        capture = dict(
-            fixture["capture"],
-            request_id=value["http_request_id"],
-            request_tag=value["http_request_tag"],
-        )
-        try:
-            # The selection identity must match the exact retained capture.
-            if capture != fixture["capture"]:
-                raise ValueError("capture identity differs")
-            CapturedHTTPExchange.model_validate(capture)
-            evidence = AuditEvidence(
-                "source-trace",
-                value["summary"],
-                json.dumps(capture).encode(),
-                value["observed_at"],
-                value["deployment_marker"],
-            )
-            item = replace(snapshot.items[0].value, evidence=(evidence,))
-            result = CanonicalAuditPackageEncoder().encode(
-                replace(snapshot, items=(replace(snapshot.items[0], value=item),)), inputs=inputs
-            )
-            with zipfile.ZipFile(io.BytesIO(result.data)) as archive:
-                encoded = json.loads(archive.read("evidence.json"))["evidence"][0]
-                assert encoded["observed_at"] == value["observed_at"]
-                assert json.loads(archive.read("evidence/ev-1.json")) == capture
-            accepted = True
-        except ValueError:
-            accepted = False
-        assert accepted == case["valid"], case["name"]
+    _, inputs = assigned()
+
+    async def scenario():
+        for case in fixture["cases"]:
+            value = case["evidence"]
+            try:
+                captures = RecentHTTPCaptures()
+                observation = HTTPObservation(value["observed_at"], value["deployment_marker"])
+                await captures.put(
+                    fixture["capture"], inputs.owner.invocation_id, observation=observation
+                )
+                request_id = value["http_request_id"]
+                selector = int(request_id) if str(int(request_id)) == request_id else request_id
+                evidence = {
+                    "kind": "source-trace",
+                    "summary": value["summary"],
+                    "http_request_id": selector,
+                }
+                if value["http_request_tag"] != fixture["capture"]["request_tag"]:
+                    # Tags are Runtime-owned facts, never accepted model arguments.
+                    evidence["http_request_tag"] = value["http_request_tag"]
+                collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
+                tool = SubmitCheckResultTool(collector, WorkerState().metrics, captures)
+                reply = await tool(
+                    SimpleNamespace(invocation_id=inputs.owner.invocation_id),
+                    assessment="satisfied",
+                    summary="Selected capture.",
+                    completed=["source-trace"],
+                    gaps=[],
+                    evidence=[evidence],
+                )
+                accepted = reply["status"] == "recorded"
+                if accepted:
+                    result = CanonicalAuditPackageEncoder().encode(
+                        await collector.seal(), inputs=inputs
+                    )
+                    with zipfile.ZipFile(io.BytesIO(result.data)) as archive:
+                        encoded = json.loads(archive.read("evidence.json"))["evidence"][0]
+                        assert encoded["observed_at"] == value["observed_at"]
+                        assert encoded["http_request_tag"] == fixture["capture"]["request_tag"]
+                        assert json.loads(archive.read("evidence/ev-1.json")) == fixture["capture"]
+            except ValueError:
+                accepted = False
+            assert accepted == case["valid"], case["name"]
+
+    asyncio.run(scenario())
 
 
 def test_selected_http_evidence_maximum_batch_and_early_byte_rejection():

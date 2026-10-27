@@ -62,7 +62,13 @@ Clear session state when no longer needed.
 Record results with `submit_check_result`. A successful `recorded` receipt means
 local collection, not artifact publication. Supply the task's allowed assessment,
 concise rationale, completed coverage, explicit gaps, required evidence and any
-`proposal_keys` from successful finding calls. Use real JSON arrays, including [].
+`proposal_keys` from successful finding calls. In each live HTTP evidence entry,
+select the relevant existing `http_request_id` together with its kind and a
+concise summary. Runtime retains that exact exchange and its original attempt
+time; never supply timestamps, request tags or deployment markers yourself. If
+the capture is unavailable, record the missing evidence as a gap and use
+`inconclusive` or `blocked`; do not repeat target traffic merely to repair the
+history. Use real JSON arrays, including [].
 For a single assigned task, item_key may be omitted. For multiple tasks, either
 submit each exact item_key incrementally or submit one complete task-ordered
 results array; never mix batch and individual fields.
