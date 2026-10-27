@@ -208,6 +208,9 @@ verification:
       or ownership allowance was weakened.'
     provenance: The reads originate in V410-001/V410-002 commits 7318b1185 and e9465c6cf, before this
       simplification; internal/projectsitemap/allocation.go:39, allocation_sql.go:7 and service.go:43.
-      The existing ownership test remains their detector; the owning epic is http-tools.
+      The existing ownership test remains their detector; the owning epic is projects-artifacts.
+    resolution: V410-011 declares the three justified reads without changing SQL or weakening the scanner.
+      Its verification reruns the unchanged ownership test and full persistence/... plus projectsitemap
+      with real PostgreSQL successfully; the original failure above remains historical evidence.
   limits:
   - No deployment, live-model quality evaluation or full release-verify run claimed.
