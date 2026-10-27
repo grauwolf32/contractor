@@ -162,7 +162,7 @@ SELECT $1 || '-' || lpad(n::text, 4, '0'), $1 || '-proposal-' || n, $1 || '-allo
        'sha256:' || repeat('b', 64),
        jsonb_build_object('namespace', 'findings', 'name', 'candidate-' || n, 'revision', 'r1'),
        'sha256:' || repeat('c', 64), 'application/json', 128, '[]'::jsonb,
-       '{"description":"Test finding ' || n || '.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
+       '{"description":"Test finding ' || n || '.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
   FROM generate_series(1, $3::integer) AS n`, prefix, projectID, count); err != nil {
 		t.Fatalf("seed finding proposal receipts: %v", err)
 	}

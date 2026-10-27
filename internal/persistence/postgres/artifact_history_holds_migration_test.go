@@ -35,9 +35,8 @@ func TestSharedPostgresArtifactHistoryHoldsMigrationCountsEveryHolder(t *testing
 	previous, _ := embeddedMigration(t, "artifact_history_retention")
 	installMigrationPrefix(t, ctx, pool, previous)
 	seedHistoryHolders(t, ctx, pool, `{"artifacts": {"pin": {"artifact": {"namespace": "out", "name": "o", "revision": "o1"}}}}`)
-	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
-		t.Fatal(err)
-	}
+	// Preserve this historical fixture before the incompatible required-conditions transition.
+	applyMigrationsThrough(t, ctx, pool, "audit_admission_chain_transition")
 	want := map[holdKey]int{
 		{"user", "owner", "notes", "n", "n1"}:          1, // lineage source
 		{"run", "run-h", "inputs", "f", "f1"}:          1, // lineage target

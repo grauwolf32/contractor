@@ -617,7 +617,7 @@ INSERT INTO finding_proposal_receipts (
           'finding-source', '1', 'contractor/v1alpha1',
           '{"name":"finding-source","version":"1"}'::jsonb, $1,
           $4::jsonb, $1, 'application/json', 128, '[]'::jsonb,
-          '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}')`,
+          '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}')`,
 			[]any{digest, audit.OwnerID, audit.ProjectID, proposalRef}},
 		{`
 UPDATE finding_proposal_receipts
@@ -751,7 +751,7 @@ SELECT $1 || '-' || lpad(n::text, 4, '0'), $1 || '-proposal-' || n, $1 || '-allo
        'sha256:' || repeat('b', 64),
        jsonb_build_object('namespace', 'findings', 'name', 'candidate-' || n, 'revision', 'r1'),
        'sha256:' || repeat('c', 64), 'application/json', 128, '[]'::jsonb,
-       '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
+       '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
   FROM generate_series(1, $4::integer) AS n`, prefix, runID, projectID, count); err != nil {
 		t.Fatalf("seed finding proposal receipts: %v", err)
 	}

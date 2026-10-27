@@ -58,7 +58,7 @@ SELECT 'filler-' || n, 'filler-proposal-' || n, 'filler-allocation', 'runtime',
        'sha256:' || repeat('b', 64),
        jsonb_build_object('namespace', 'filler', 'name', 'filler-' || n, 'revision', 'r1'),
        'sha256:' || repeat('c', 64), 'application/json', 1, '[]'::jsonb,
-       '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
+       '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}'
   FROM generate_series(1, $4::integer) AS n`,
 		runID, ownerID, projectID, maxProposalsPerRun-1); err != nil {
 		t.Fatal(err)

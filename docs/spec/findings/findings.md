@@ -529,11 +529,18 @@ artifact writes use.
 
 **FND-R158.** The intake transaction also stores the receipt's report
 projection: the canonical JSON of the proposal's title, description, subject,
-hypothesis, standard references, severity suggestion, limitations, locations
-and HTTP exchange, validated by the same rules as the proposal and bounded by
-the proposal document size. It is immutable with the receipt, and Audit
+hypothesis, `preconditions`, standard references, severity suggestion, limitations,
+locations and HTTP exchange, validated by the same rules as the proposal and
+bounded by the proposal document size. `preconditions` is required, preserves
+the original strings and order, and encodes an empty list as `[]`; absent or
+null conditions are invalid. Conditions count in the existing proposal and
+projection limits. It is immutable with the receipt, and Audit
 reports read it instead of the proposal artifact
-([review and reports](../audits/review-and-reports.md), REV-R195).
+([review and reports](../audits/review-and-reports.md), REV-R195). This bounded
+projection makes the conditions available in the standalone report without
+artifact hydration; the first-proposal reference supplies attribution. The
+forward transition for retained projections follows
+[PER-R43](../platform/persistence.md#PER-R43).
 
 **FND-R185.** One source Run admits at most 4,096 proposal receipts
 (LIM-FND-46). A replay (FND-R60) returns its receipt before the count and

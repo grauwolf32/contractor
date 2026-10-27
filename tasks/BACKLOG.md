@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-122 open tasks: 5 in progress, 106 pending, 11 deferred. 1166 finished: 1156 completed, 10 archived.
+122 open tasks: 6 in progress, 105 pending, 11 deferred. 1166 finished: 1156 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
+| [V421-002](v421-002-finding-report-preconditions.yml) | findings | feature | P2 | Preserve finding preconditions in the final Audit report |
 
 ## Pending
 
@@ -84,7 +85,6 @@ the epics are in [epics.yml](epics.yml).
 | [V397-009](v397-009-sarif-export-api-ui.yml) | feature | P2 | V397-008 | Publish and download generic SARIF through API CLI and UI |
 | [V411-007](v411-007-trusted-http-capture.yml) | feature | P1 | V411-004, V411-005, V411-006 | Expose safe HTTP evidence only through authenticated capture receipts |
 | [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | V411-002 | Expose safe live Project findings to allocated pentesters |
-| [V421-002](v421-002-finding-report-preconditions.yml) | feature | P2 | — | Preserve finding preconditions in the final Audit report |
 
 ### Workflow catalog and document workflows (`workflows`)
 
