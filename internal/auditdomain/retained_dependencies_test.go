@@ -137,16 +137,16 @@ func TestRetainedDependenciesRebuildExactTaskAndExecutionTogether(t *testing.T) 
 	if result.Tasks[0].PackageDigest == inventory.Tasks[0].PackageDigest || result.Worklist.Items[0].TaskPackageID == inventory.Worklist.Items[0].TaskPackageID {
 		t.Fatal("dependency bytes did not change deterministic package identity")
 	}
-	if inventory.Tasks[0].Document.Dependencies != nil || inventory.ExecutionManifest.Items[0].Dependencies != nil {
+	if inventory.Tasks[0].Document.Dependencies != nil {
 		t.Fatal("caller inventory changed")
 	}
 	manifest.Dependencies[0].Name = "mutated"
 	if result.Tasks[0].Document.Dependencies.Dependencies[0].Name != "baseline" {
 		t.Fatal("caller manifest aliases returned task")
 	}
-	result.ExecutionManifest.Items[0].Dependencies.Dependencies[0].Name = "other"
+	result.Tasks[0].Document.Dependencies.Dependencies[0].Name = "other"
 	if err := ValidateInventory(result); err == nil {
-		t.Fatal("task/execution dependency disagreement accepted")
+		t.Fatal("task/package dependency disagreement accepted")
 	}
 	if _, err := WithRetainedDependencies(inventory, map[string]RetainedDependencyManifest{"foreign": manifest}); err == nil {
 		t.Fatal("foreign item manifest accepted")

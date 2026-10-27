@@ -279,6 +279,39 @@ Its UI is at `http://127.0.0.1:6006`, and its SQLite data is bind-mounted in
 required. The profile includes a RuntimeConfig example for the existing
 `otlp-http@1` exporters; enabling it for a Run remains an explicit choice.
 
+## Audit execution-format upgrade
+
+Before applying migration `000052_audit_execution_manifest_transition`, use
+the previous Server to finish or cancel every Audit that already has a Round.
+This includes paused Audits and those waiting for review, finalizing,
+cancelling or deleting; let their existing drain/cleanup finish. Stop the old
+Server before running the migration, and start only the new Server afterwards.
+This is an offline format transition, without mixed-version writers.
+
+The migration refuses the upgrade while such an Audit remains. It reads only
+Audit and Round metadata, applies no partial schema/ledger changes on refusal,
+and does not parse or rewrite artifacts. Drafts and preparation that have no
+Round may remain. Completed, cancelled and failed Audit records and their
+historical frozen worklists remain evidence; no legacy dispatch reader is
+installed. See [the persistence requirement](spec/platform/persistence.md#PER-R40).
+
+## Audit admission-page upgrade
+
+Before applying migration `000053_audit_admission_chain_transition`, finish or
+cancel Audits that have typed admission checkpoints or prepared membership
+using the previous Server, including their review waits, pause, finalization,
+drain and deletion work. Then stop that Server, apply the migration and start
+only the new Server. Do not resume the previous writer after the upgrade.
+
+The migration refuses any live Audit with a Round carrying an admission
+checkpoint, prepared generation or prepared page count. It probes only parent
+metadata and changes no business data on success or refusal. Ordinary live
+Audits without these typed markers and preparation without Rounds may remain.
+Terminal records, literal old checkpoints, frozen selection/prepared pages and
+roots, exact holds and accounting remain evidence without rewriting. Current
+readers require the single-chain format; no legacy recovery reader is installed.
+See [the persistence requirement](spec/platform/persistence.md#PER-R41).
+
 ## Start and verify
 
 Supply the database DSN and, for CLI access, a bearer token through the service

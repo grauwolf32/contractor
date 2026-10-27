@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import copy
 import dataclasses
 import hashlib
 import json
 from pathlib import Path
 
+import jcs
 import pytest
 from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
@@ -31,15 +33,38 @@ from contractor_runtime.toolsets.audit_results.contracts import (
     RecordedAuditItem,
     SealedAuditSnapshot,
 )
+from contractor_runtime.toolsets.audit_results.packages import _decode_execution_manifest
 
 ROOT = Path(__file__).parents[2]
 CASES = json.loads((ROOT / "api/testdata/v1alpha1/audit-completion-cases.json").read_bytes())
+EXECUTION_CASES = json.loads(
+    (ROOT / "api/testdata/audit-completion/execution-manifest-cases.json").read_bytes()
+)
 MODELS = {
     "contract": WorkerCompletionContract,
     "capabilities": RuntimeCompletionCapabilities,
     "allocation": AllocationSpec,
     "registration": AgentRegistration,
 }
+
+
+@pytest.mark.parametrize("case", EXECUTION_CASES["cases"], ids=lambda case: case["name"])
+def test_shared_compact_execution_manifests(case):
+    value = copy.deepcopy(EXECUTION_CASES["base"])
+    for patch in case["patches"]:
+        parent = value
+        for part in patch["path"][:-1]:
+            parent = parent[part]
+        if patch.get("delete"):
+            del parent[patch["path"][-1]]
+        else:
+            parent[patch["path"][-1]] = patch["value"]
+    payload = jcs.canonicalize(value)
+    if case["valid"]:
+        assert _decode_execution_manifest(payload, "application/json") == value
+    else:
+        with pytest.raises(ValueError):
+            _decode_execution_manifest(payload, "application/json")
 
 
 @pytest.mark.parametrize("case", CASES, ids=lambda case: case["name"])

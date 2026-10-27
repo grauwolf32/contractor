@@ -47,9 +47,7 @@ FROM audits AS audit JOIN audit_rounds AS round USING(audit_id) JOIN audit_items
 WHERE audit.audit_id='snapshot-migration-audit'`).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
-		t.Fatal(err)
-	}
+	applyMigrationsThrough(t, ctx, pool, "audit_round_results")
 	var after []byte
 	var generation *int64
 	var sealed bool

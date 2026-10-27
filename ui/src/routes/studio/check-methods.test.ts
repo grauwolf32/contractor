@@ -3,28 +3,24 @@ import fixture from "../../../../api/testdata/audit-check-plans/accepted-plan-ca
 import { at, patchDraft, renameBlock, starter } from "./document";
 import { validateDraft } from "./validation";
 import {
-  CHECK_METHOD_PHASES,
+  CHECK_METHODS,
   MAX_CHECK_METHODS,
   MAX_CHECK_CAPABILITIES,
   FINDING_CHECK_PLAN_SCHEMA,
 } from "./check-methods";
 
 describe("registered check routes", () => {
-  it("shares every method/phase with Go and Runtime", () => {
+  it("shares registered methods with Go and Runtime", () => {
     expect(MAX_CHECK_METHODS).toBe(fixture.maximumMethods);
     expect(MAX_CHECK_CAPABILITIES).toBe(fixture.maximumCapabilities);
-    expect(CHECK_METHOD_PHASES).toEqual(
-      Object.fromEntries(
-        fixture.methods.map((entry) => [entry.method, entry.phase]),
-      ),
-    );
+    expect(CHECK_METHODS).toEqual(fixture.methods.map((entry) => entry.method));
     for (const method of fixture.methods) {
       let draft = patchDraft(
         starter("AuditProfile"),
         ["spec", "methods", "renamed-route"],
         {
           planSchema: FINDING_CHECK_PLAN_SCHEMA,
-          ...method,
+          method: method.method,
           workflowRole: "check",
           requiredCapabilities: [],
         },
@@ -39,17 +35,29 @@ describe("registered check routes", () => {
         at(draft.value, ["spec", "methods", "renamed-route", "workflowRole"]),
       ).toBe("different-name");
       expect(validateDraft(draft)).toEqual([]);
-      expect(
-        validateDraft(
-          patchDraft(
-            draft,
-            ["spec", "methods", "renamed-route", "phase"],
-            "guessed",
-          ),
-        ).length,
-      ).toBeGreaterThan(0);
+      for (const phase of [method.phase, "guessed", null])
+        expect(
+          validateDraft(
+            patchDraft(
+              draft,
+              ["spec", "methods", "renamed-route", "phase"],
+              phase,
+            ),
+          ).length,
+        ).toBeGreaterThan(0);
     }
   });
+  it.each(fixture.authoredMappingCases)(
+    "validates shared authored mapping $name without a phase field",
+    ({ name, valid, mapping }) => {
+      const draft = patchDraft(
+        starter("AuditProfile"),
+        ["spec", "methods", "route"],
+        mapping,
+      );
+      expect(validateDraft(draft).length === 0, name).toBe(valid);
+    },
+  );
   it("enforces the shared capability tool limit through validation", () => {
     for (const count of [
       0,
@@ -62,7 +70,6 @@ describe("registered check routes", () => {
         {
           planSchema: FINDING_CHECK_PLAN_SCHEMA,
           method: "verify",
-          phase: "verify",
           workflowRole: "check",
           requiredCapabilities: [
             {
@@ -86,7 +93,6 @@ describe("registered check routes", () => {
         [test.value]: {
           planSchema: FINDING_CHECK_PLAN_SCHEMA,
           method: "verify",
-          phase: "verify",
           workflowRole: "check",
           requiredCapabilities: [],
         },
@@ -98,7 +104,6 @@ describe("registered check routes", () => {
         {
           planSchema: FINDING_CHECK_PLAN_SCHEMA,
           method: "verify",
-          phase: "verify",
           workflowRole: "check",
           requiredCapabilities: [
             {
@@ -118,7 +123,6 @@ describe("registered check routes", () => {
     const mapping = {
       planSchema: FINDING_CHECK_PLAN_SCHEMA,
       method: "verify",
-      phase: "verify",
       workflowRole: "check",
       requiredCapabilities: [],
     };

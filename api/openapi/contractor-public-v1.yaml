@@ -13128,22 +13128,16 @@ components:
     AuditCheckMethodMapping:
       type: object
       additionalProperties: false
-      required: [planSchema, method, phase, workflowRole, requiredCapabilities]
+      required: [planSchema, method, workflowRole, requiredCapabilities]
       properties:
         planSchema: {const: contractor.audit.finding-check-plan.v1}
         method: {enum: [verify, replay, applicability, alternative, static-trace, http-probe]}
-        phase: {enum: [verify, replay, applicability, alternative]}
         workflowRole: {type: string, minLength: 1, maxLength: 128}
         requiredCapabilities:
           type: array
           maxItems: 32
           uniqueItems: true
           items: {$ref: '#/components/schemas/AuditCheckCapabilityRequirement'}
-      oneOf:
-        - properties: {method: {enum: [verify, static-trace, http-probe]}, phase: {const: verify}}
-        - properties: {method: {const: replay}, phase: {const: replay}}
-        - properties: {method: {const: applicability}, phase: {const: applicability}}
-        - properties: {method: {const: alternative}, phase: {const: alternative}}
     AuditProfileWorkflow:
       type: object
       additionalProperties: false

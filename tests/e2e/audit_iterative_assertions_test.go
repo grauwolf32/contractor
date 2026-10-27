@@ -217,7 +217,7 @@ func assertIterativeDefaultBypass(t *testing.T, h *scanProcessHarness, auditID s
 	if err := h.pool.QueryRow(h.ctx, `SELECT count(*),count(admission_checkpoint),count(results_manifest) FROM audit_rounds WHERE audit_id=$1`, auditID).Scan(&rounds, &checkpoints, &snapshots); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.pool.QueryRow(h.ctx, `SELECT count(*),count(accepted_plan),count(retained_dependencies) FROM audit_items WHERE audit_id=$1 AND item_key='default-seed' AND final_disposition='accepted-result' AND coverage_status='satisfied'`, auditID).Scan(&items, &plans, &dependencies); err != nil {
+	if err := h.pool.QueryRow(h.ctx, `SELECT count(*),count(prepared_execution->'accepted_plan'),count(retained_dependencies) FROM audit_items WHERE audit_id=$1 AND item_key='default-seed' AND final_disposition='accepted-result' AND coverage_status='satisfied'`, auditID).Scan(&items, &plans, &dependencies); err != nil {
 		t.Fatal(err)
 	}
 	if err := h.pool.QueryRow(h.ctx, `SELECT count(*) FILTER(WHERE role='check'),count(*) FILTER(WHERE role<>'check') FROM audit_executions WHERE audit_id=$1`, auditID).Scan(&checks, &others); err != nil {

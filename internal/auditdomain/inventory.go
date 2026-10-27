@@ -84,34 +84,10 @@ func finishInventory(
 			inputs = append(inputs, settings)
 			sort.Slice(inputs, func(i, j int) bool { return inputs[i].Name < inputs[j].Name })
 		}
-		var executionPlan *AcceptedPlan
-		var executionDependencies *RetainedDependencyManifest
-		if subject.dependencies != nil {
-			encoded, err := EncodeRetainedDependencies(*subject.dependencies)
-			if err != nil {
-				return Inventory{}, err
-			}
-			cloned, err := DecodeRetainedDependencies(encoded)
-			if err != nil {
-				return Inventory{}, err
-			}
-			executionDependencies = &cloned
-		}
-		if subject.acceptedPlan != nil {
-			encoded, err := EncodeAcceptedPlan(*subject.acceptedPlan, executionDependencies)
-			if err != nil {
-				return Inventory{}, err
-			}
-			cloned, err := DecodeAcceptedPlan(encoded, executionDependencies)
-			if err != nil {
-				return Inventory{}, err
-			}
-			executionPlan = &cloned
-		}
 		execution.Items = append(execution.Items, ExecutionItem{
 			ItemKey: subject.itemKey, Ordinal: ordinal, SubjectKey: subject.subjectKey,
 			TaskPackageID: packageID, TaskPackageDigest: validatedPackage.Digest,
-			Inputs: inputs, AcceptedPlan: executionPlan, Dependencies: executionDependencies,
+			Inputs: inputs,
 		})
 		coverage.Rows = append(coverage.Rows, newCoverageRow(subject))
 		tasks = append(tasks, GeneratedTask{
@@ -234,9 +210,6 @@ func ValidateInventory(value Inventory) error {
 			generated.Document.SubjectKey != workItem.SubjectKey || generated.Document.WorkflowRole != workItem.WorkflowRole ||
 			generated.Document.SourceContentDigest != value.SourceContentDigest || generated.Document.CanonicalInventoryDigest != value.CanonicalInventoryDigest {
 			return invalid(CodeInventoryInvalid, "inventory.membership")
-		}
-		if !sameCanonicalValue(executionItem.AcceptedPlan, generated.Document.AcceptedPlan) || !sameCanonicalValue(executionItem.Dependencies, generated.Document.Dependencies) {
-			return invalid(CodeInventoryInvalid, "inventory.dependencies")
 		}
 		if generated.Document.AcceptedPlan != nil && workItem.ApprovalRequirement != generated.Document.AcceptedPlan.Authorization.ApprovalRequirement {
 			return invalid(CodeInvalid, "accepted_plan.approval")

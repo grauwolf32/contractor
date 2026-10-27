@@ -1017,9 +1017,12 @@ existing baseline, prepare-output and same-Round retained-output paths.
 **ASC-R171.** The strict `contractor.audit.retained-dependencies.v1` manifest
 pins owner, Project, Audit, item key, baseline and profile digests, and the
 selected consumer Workflow and Skill closure digests. The Server proves these
-pins against the immutable accepted records. The same manifest occurs in the
-item task and execution item; their agreement is part of inventory and Runtime
-trusted-input validation. Changing a dependency changes the deterministic task
+pins against the immutable accepted item record. The task package is the sole
+transported dependency document; the execution item pins that exact package,
+without copying its dependency body. Selected typed or batched task reads must
+agree with the accepted SQL dependency manifest. An ordinary singleton retains
+its accepted-descriptor dispatch path, and Runtime verifies actual task bytes
+before supplying model context. Changing a dependency changes the deterministic task
 package identity, without rewriting the source inventory's semantic identity.
 
 **ASC-R172.** Registered exact source kinds are `baseline`, `prepare-output`,
@@ -1121,21 +1124,26 @@ decision. Source and task copies are frozen Audit artifacts and consume the
 existing distinct retained-evidence accounting. Storage replay cannot debit
 the same exact revision twice.
 
-**ASC-R182.** Selection and preparation use separate strict canonical page
-chains and compact roots. Selected source fragments keep their actual exact
-source descriptors; the selection root seals their ordered membership. The
-prepared root pins that selection root and the complete prepared page chain.
-Pages and proposed items are hidden until one atomic accepted-Round switch.
-Acceptance validates the staged counters, generation, page chain, exact
-source membership and route pins without rereading all prepared pages.
+**ASC-R182.** Selection publishes one strict canonical prepared-page chain
+and one compact root that freezes its ordered membership. Selected source
+fragments keep their actual exact source descriptors. Preparation stages
+those same trusted stored pages by ordinal; it publishes no second page or
+root and cannot replace the frozen bytes. Published and staged counts remain
+independent. The last bounded staging phase installs the database membership
+seal atomically with its rows and checkpoint. Root publication alone grants
+no membership: proposed items stay hidden until one atomic accepted-Round
+switch. Acceptance validates the staged counters, generation, page chain,
+exact source membership and route pins without rereading all prepared pages.
 
 **ASC-R183.** Admission slices read or change at most 128 primary records,
 512 related descriptors, 1 MiB metadata and 64 MiB payload. A selected page
 contains at most 128 items under the same descriptor/metadata bounds; a root
 is at most 256 KiB. The containing accepted Round retains the existing
-4,096-item and tighter pinned limits. The producer includes actual selection
-and prepared page bytes, source and task bytes, and both roots in the 64 MiB
-Round construction budget; its fixed budget checkpoint is at most 4 KiB.
+4,096-item and tighter pinned limits. The producer includes each actual page
+and root once, plus source and task bytes, in the 64 MiB Round construction
+budget; its fixed budget checkpoint is at most 4 KiB. The staging slice still
+counts its page read, source-index metadata, row envelope and checkpoint
+against the combined metadata limit even though it publishes no page copy.
 The durable admission checkpoint is at most 64 KiB. No containing receipt
 or unrelated artifact population may turn a slice into a whole-history scan.
 

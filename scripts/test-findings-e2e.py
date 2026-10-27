@@ -13,6 +13,8 @@ import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+import release_test_reports as reports
+
 PACKAGE = "github.com/grauwolf32/contractor/tests/e2e"
 PROCESS_TESTS = (
     "TestFindingsProducerAndReaderAcrossProcesses",
@@ -77,36 +79,11 @@ PYTHON_CASES = {
 }
 
 
-class GateError(Exception):
-    pass
+GateError = reports.GateError
 
 
 def verify_go_report(path: Path) -> None:
-    started, passed = set(), set()
-    package_pass = False
-    for line in path.read_text().splitlines():
-        try:
-            event = json.loads(line)
-        except (ValueError, TypeError) as error:
-            raise GateError("Go test output is not a JSON event stream") from error
-        if not isinstance(event, dict) or event.get("Package") != PACKAGE:
-            continue
-        action, test = event.get("Action"), event.get("Test")
-        if action in {"skip", "fail"}:
-            raise GateError(f"Go findings test did not pass: {test or PACKAGE} ({action})")
-        if test:
-            if action == "run":
-                started.add(test)
-            elif action == "pass":
-                passed.add(test)
-        elif action == "pass":
-            package_pass = True
-    missing = REQUIRED_TESTS - (started & passed)
-    if missing or not package_pass:
-        raise GateError(
-            "mandatory Go findings cases did not execute and pass: "
-            + ", ".join(sorted(missing or {PACKAGE}))
-        )
+    reports.verify_go_report(path, {PACKAGE: REQUIRED_TESTS}, root_pattern=".*")
 
 
 def verify_python_report(path: Path) -> None:
@@ -153,7 +130,7 @@ def run(root: Path) -> None:
             raise GateError("Runtime findings tests failed")
         verify_python_report(junit)
         report = directory / "process.jsonl"
-        pattern = "^(" + "|".join(PROCESS_TESTS) + ")$"
+        pattern = reports.pattern(PROCESS_TESTS)
         with report.open("w") as output:
             process = subprocess.Popen(
                 [

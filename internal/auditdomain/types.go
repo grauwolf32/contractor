@@ -214,15 +214,13 @@ type ExecutionManifest struct {
 }
 
 type ExecutionItem struct {
-	AcceptedPlan      *AcceptedPlan               `json:"accepted_plan,omitempty"`
-	Dependencies      *RetainedDependencyManifest `json:"dependencies,omitempty"`
-	ItemKey           string                      `json:"item_key"`
-	Ordinal           int                         `json:"ordinal"`
-	SubjectKey        string                      `json:"subject_key"`
-	TaskPackageID     string                      `json:"task_package_id"`
-	TaskPackageDigest string                      `json:"task_package_digest"`
-	TaskRef           *contracts.ArtifactRef      `json:"task_ref,omitempty"`
-	Inputs            []ExactInput                `json:"inputs"`
+	ItemKey           string                 `json:"item_key"`
+	Ordinal           int                    `json:"ordinal"`
+	SubjectKey        string                 `json:"subject_key"`
+	TaskPackageID     string                 `json:"task_package_id"`
+	TaskPackageDigest string                 `json:"task_package_digest"`
+	TaskRef           *contracts.ArtifactRef `json:"task_ref,omitempty"`
+	Inputs            []ExactInput           `json:"inputs"`
 }
 
 // ExactInput pins one named Workflow input of an execution manifest to an

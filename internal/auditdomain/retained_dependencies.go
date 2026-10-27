@@ -285,7 +285,7 @@ func validateItemDependencies(itemKey string, dependencies *RetainedDependencyMa
 
 // WithRetainedDependencies attaches already validated accepted manifests and
 // rebuilds every affected deterministic package identity. It returns independent
-// task and manifest values; failed validation leaves the caller's inventory
+// task values and compact task-package pins; failed validation leaves the caller's inventory
 // unchanged. The owning service proves source authority before calling it.
 func WithRetainedDependencies(inventory Inventory, manifests map[string]RetainedDependencyManifest) (Inventory, error) {
 	if err := ValidateInventory(inventory); err != nil {
@@ -319,13 +319,6 @@ func WithRetainedDependencies(inventory Inventory, manifests map[string]Retained
 				return Inventory{}, err
 			}
 			task.Document.Dependencies = &cloned
-			// Separately decode so modifying either public document cannot change
-			// the other's authority after this function returns.
-			executionCopy, err := DecodeRetainedDependencies(data)
-			if err != nil {
-				return Inventory{}, err
-			}
-			result.ExecutionManifest.Items[index].Dependencies = &executionCopy
 			seen[task.Document.ItemKey] = true
 		}
 		documentBytes, err := EncodeItemTask(task.Document)

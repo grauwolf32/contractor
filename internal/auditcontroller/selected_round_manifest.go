@@ -11,7 +11,7 @@ import (
 // belonging to already selected item IDs. Its fitting prefix observes the
 // caller's remaining metadata and related-descriptor budget.
 type PreparedRoundManifestLookup interface {
-	ReadSelectedPreparedManifest(context.Context, string, string, []string, int, int) ([]auditdomain.ExecutionItem, error)
+	ReadSelectedPreparedManifest(context.Context, string, string, []string, int, int) ([]auditdomain.PreparedExecutionItem, error)
 }
 
 func (b *PinnedSubmissionBuilder) readSelectedRoundExecutionManifest(ctx context.Context, snapshot auditstore.ReconcileSnapshot, selected []CheckExecutionMember) (auditdomain.ExecutionManifest, bool, error) {
@@ -32,7 +32,7 @@ func (b *PinnedSubmissionBuilder) readSelectedRoundExecutionManifest(ctx context
 		return auditdomain.ExecutionManifest{}, true, err
 	}
 	root, err := auditdomain.DecodePreparedRoundRoot(payload.Data)
-	if err != nil || root.AuditID != audit.AuditID || root.RoundID != round.RoundID || root.ProfileDigest != audit.Profile.Digest || root.BaselineDigest != auditdomain.DigestBytes(audit.BaselineSnapshot) || root.ItemCount != round.ExpectedItemCount || root.Source.Ref.Namespace != auditdomain.ArtifactNamespace(audit.AuditID) {
+	if err != nil || root.AuditID != audit.AuditID || root.RoundID != round.RoundID || root.ProfileDigest != audit.Profile.Digest || root.BaselineDigest != auditdomain.DigestBytes(audit.BaselineSnapshot) || root.ItemCount != round.ExpectedItemCount || resolved.Ref.Namespace != auditdomain.ArtifactNamespace(audit.AuditID) {
 		return auditdomain.ExecutionManifest{}, true, invalidSubmission("prepared Round root differs from accepted membership")
 	}
 	reader, ok := b.outputs.(PreparedRoundManifestLookup)
@@ -50,14 +50,15 @@ func (b *PinnedSubmissionBuilder) readSelectedRoundExecutionManifest(ctx context
 	if len(items) == 0 || len(items) > len(selected) {
 		return auditdomain.ExecutionManifest{}, true, invalidSubmission("prepared Round selected membership is empty or invalid")
 	}
-	manifest := auditdomain.ExecutionManifest{Schema: auditdomain.ExecutionManifestSchema, Items: items}
+	manifest := auditdomain.ExecutionManifest{Schema: auditdomain.ExecutionManifestSchema, Items: make([]auditdomain.ExecutionItem, len(items))}
 	local := auditdomain.ExecutionManifest{Schema: auditdomain.ExecutionManifestSchema, Items: make([]auditdomain.ExecutionItem, len(items))}
 	for index, item := range items {
 		selectedItem := selected[index].Item
-		if item.AcceptedPlan == nil || item.ItemKey != selectedItem.ItemKey || item.Ordinal != selectedItem.Ordinal || item.SubjectKey != selectedItem.SubjectKey {
+		if auditdomain.ValidatePreparedExecutionItem(item) != nil || item.ItemKey != selectedItem.ItemKey || item.Ordinal != selectedItem.Ordinal || item.SubjectKey != selectedItem.SubjectKey {
 			return auditdomain.ExecutionManifest{}, true, invalidSubmission("prepared Round projection differs from selected item")
 		}
-		local.Items[index] = item
+		manifest.Items[index] = item.ExecutionItem
+		local.Items[index] = item.ExecutionItem
 		local.Items[index].Ordinal = index
 	}
 	if auditdomain.ValidateDispatchExecutionManifest(local) != nil {

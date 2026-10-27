@@ -24,14 +24,14 @@ type admissionReader struct {
 	payloads       map[string][]byte
 	contexts       map[string]auditdomain.FindingCheckContext
 	readPage       bool
-	selectionCache map[int]admissionCachedPage
+	pageCache      map[int]admissionCachedPage
 	cursors        map[auditstore.AdmissionCursor]bool
 }
 
 func newAdmissionReader(tx pgx.Tx, state auditstore.AdmissionProgress, owner, project string) *admissionReader {
 	return &admissionReader{QueryStore: NewQueryStore(tx), db: tx, state: state, owner: owner, project: project,
 		work: &admissionWork{}, indexes: map[string]auditdomain.FindingChecksProjection{}, sources: map[string]auditstore.AdmissionFindingSource{},
-		payloads: map[string][]byte{}, contexts: map[string]auditdomain.FindingCheckContext{}, selectionCache: map[int]admissionCachedPage{}, cursors: map[auditstore.AdmissionCursor]bool{state.Cursor: true}}
+		payloads: map[string][]byte{}, contexts: map[string]auditdomain.FindingCheckContext{}, pageCache: map[int]admissionCachedPage{}, cursors: map[auditstore.AdmissionCursor]bool{state.Cursor: true}}
 }
 
 func (r *admissionReader) ReadCandidates(ctx context.Context, cursor auditstore.AdmissionCursor, limit int) (auditstore.AdmissionCandidatePage, error) {
@@ -263,19 +263,19 @@ func (r *admissionReader) ReadFindingCheck(ctx context.Context, id string, ordin
 	return result, nil
 }
 
-func (r *admissionReader) ReadSelectionPage(ctx context.Context, ordinal int) (auditstore.ExactArtifact, []byte, error) {
-	if cached, ok := r.selectionCache[ordinal]; ok {
+func (r *admissionReader) ReadPage(ctx context.Context, ordinal int) (auditstore.ExactArtifact, []byte, error) {
+	if cached, ok := r.pageCache[ordinal]; ok {
 		return cached.exact, append([]byte(nil), cached.data...), nil
 	}
 	var exact auditstore.ExactArtifact
 	var data []byte
-	if ordinal < 0 || ordinal >= r.state.SelectionPages {
+	if ordinal < 0 || ordinal >= r.state.PublishedPages {
 		return exact, nil, auditstore.ErrInvalid
 	}
-	if err := r.db.QueryRow(ctx, `SELECT artifact_ref,artifact_digest,media_type,size_bytes FROM audit_artifact_links WHERE audit_id=$1 AND logical_key=$2`, r.state.AuditID, admissionPageKey(r.state.Generation, "selection", ordinal)).Scan(&data, &exact.Digest, &exact.MediaType, &exact.SizeBytes); err != nil {
+	if err := r.db.QueryRow(ctx, `SELECT artifact_ref,artifact_digest,media_type,size_bytes FROM audit_artifact_links WHERE audit_id=$1 AND logical_key=$2`, r.state.AuditID, admissionPageKey(r.state.Generation, "page", ordinal)).Scan(&data, &exact.Digest, &exact.MediaType, &exact.SizeBytes); err != nil {
 		return exact, nil, err
 	}
-	if strictjson.Decode(data, &exact.Ref) != nil || exact.Validate() != nil {
+	if strictjson.Decode(data, &exact.Ref) != nil || exact.Validate() != nil || exact.MediaType != auditdomain.PreparedRoundPageMediaType || !exact.HasMetadata() || exact.Ref.Namespace != auditdomain.ArtifactNamespace(r.state.AuditID) || exact.SizeBytes < 1 || exact.SizeBytes > auditdomain.MaximumPreparedRoundPageBytes {
 		return exact, nil, auditstore.ErrInvalid
 	}
 	if err := r.work.add(0, 1, int(exact.SizeBytes), 0); err != nil {
@@ -286,7 +286,7 @@ func (r *admissionReader) ReadSelectionPage(ctx context.Context, ordinal int) (a
 	if err != nil {
 		return exact, nil, err
 	}
-	r.selectionCache[ordinal] = admissionCachedPage{exact: exact, data: read.Payload.Data}
+	r.pageCache[ordinal] = admissionCachedPage{exact: exact, data: read.Payload.Data}
 	return exact, append([]byte(nil), read.Payload.Data...), nil
 }
 

@@ -3,7 +3,7 @@ import { DraftField, DraftList } from "./advanced-fields";
 import { record, textValue, uniqueName, type Path } from "./document";
 import type { FormEditor } from "./form-editor";
 import {
-  CHECK_METHOD_PHASES,
+  CHECK_METHODS,
   MAX_CHECK_METHODS,
   MAX_CHECK_CAPABILITIES,
   FINDING_CHECK_PLAN_SCHEMA,
@@ -15,7 +15,7 @@ export function CheckMethodsForm({ editor }: { editor: FormEditor }) {
   const roles = Object.entries(record(spec.workflows))
     .filter(([, role]) => record(role).kind === "check")
     .map(([name]) => name);
-  const available = Object.keys(CHECK_METHOD_PHASES).filter(
+  const available = CHECK_METHODS.filter(
     (method) =>
       !Object.values(methods).some((entry) => record(entry).method === method),
   );
@@ -38,14 +38,10 @@ export function CheckMethodsForm({ editor }: { editor: FormEditor }) {
                   {...control}
                   value={textValue(value.method)}
                   onChange={(event) =>
-                    editor.onPatch(path, {
-                      ...value,
-                      method: event.target.value,
-                      phase: CHECK_METHOD_PHASES[event.target.value],
-                    })
+                    editor.onPatch([...path, "method"], event.target.value)
                   }
                 >
-                  {Object.keys(CHECK_METHOD_PHASES).map((method) => (
+                  {CHECK_METHODS.map((method) => (
                     <option key={method} value={method}>
                       {method}
                     </option>
@@ -136,9 +132,7 @@ export function CheckMethodsForm({ editor }: { editor: FormEditor }) {
             </Button>
             <details>
               <summary>Technical details</summary>
-              <p className="studio-identity">
-                {textValue(value.planSchema)} · {textValue(value.phase)}
-              </p>
+              <p className="studio-identity">{textValue(value.planSchema)}</p>
             </details>
             <Button onClick={() => editor.onRemove(path, `method ${name}`)}>
               Remove method
@@ -158,7 +152,6 @@ export function CheckMethodsForm({ editor }: { editor: FormEditor }) {
           editor.onPatch(["spec", "methods", name], {
             planSchema: FINDING_CHECK_PLAN_SCHEMA,
             method,
-            phase: CHECK_METHOD_PHASES[method],
             workflowRole: roles[0],
             requiredCapabilities: [],
           });
