@@ -426,15 +426,6 @@ func validateExecutionManifest(value ExecutionManifest) error {
 	seen := make(map[string]struct{}, len(value.Items))
 	seenPackages := make(map[string]struct{}, len(value.Items))
 	for index, item := range value.Items {
-		if item.AcceptedPlan != nil && (ValidateAcceptedPlan(*item.AcceptedPlan, item.Dependencies) != nil || item.AcceptedPlan.ItemKey != item.ItemKey) {
-			return invalid(CodeInvalid, "accepted_plan.execution")
-		}
-
-		if item.Dependencies != nil {
-			if err := validateItemDependencies(item.ItemKey, item.Dependencies); err != nil {
-				return err
-			}
-		}
 		if item.Ordinal != index || validateIdentifier(item.ItemKey, "items.item_key") != nil ||
 			validateIdentifier(item.SubjectKey, "items.subject_key") != nil || validateIdentifier(item.TaskPackageID, "items.task_package_id") != nil ||
 			!contentdigest.Valid(item.TaskPackageDigest) {

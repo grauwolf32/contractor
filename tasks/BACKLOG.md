@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-132 open tasks: 5 in progress, 116 pending, 11 deferred. 1151 finished: 1141 completed, 10 archived.
+130 open tasks: 5 in progress, 114 pending, 11 deferred. 1158 finished: 1148 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V410-003](v410-003-http-sitemap-collection.yml) | http-tools | feature | P1 | Collect HTTP observations into the live Project sitemap |
+| [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
 
 ## Pending
 
@@ -72,7 +72,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V410-004](v410-004-sitemap-structured-imports.yml) | feature | P1 | — | Import bounded scanner and selected Caido observations |
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020, V410-004 | Gate controlled ffuf execution through the pentest transport |
 
 ### Findings tools and collections (`findings`)
@@ -96,8 +95,8 @@ the epics are in [epics.yml](epics.yml).
 | [V372-013](v372-013-planner-facts-one-source.yml) | chore | P3 | — | Take Planner refs and facts from the descriptor registry in Go, the composition and Studio |
 | [V372-014](v372-014-execution-config-patch-strict-decode.yml) | chore | P3 | — | Decode executionConfig patch members with strictjson |
 | [V372-015](v372-015-config-split-leftovers.yml) | chore | P3 | — | Stop locals from shadowing imported packages and drop config's copy of clone.Map |
-| [V410-006](v410-006-sitemap-workflow-composition.yml) | feature | P1 | V410-003, V410-004, V410-005 | Ship ordinary sitemap discovery and reconciliation Workflows |
-| [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-007, V410-003, V410-006 | Discover URL-only targets and retain bounded source-aware surfaces |
+| [V410-006](v410-006-sitemap-workflow-composition.yml) | feature | P1 | V410-004, V410-005 | Ship ordinary sitemap discovery and reconciliation Workflows |
+| [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-007, V410-006 | Discover URL-only targets and retain bounded source-aware surfaces |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-012, V411-013, V411-014, V411-011, V411-010, V411-016 | Publish exact HTTP API pentest Workflows and source-mode presets |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-002, V411-020, V410-009 | Publish optional browser programs behind their independent release gate |
 
@@ -105,14 +104,13 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | — | Reconcile exact OpenAPI declarations with live sitemap members |
+| [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | V410-004 | Reconcile exact OpenAPI declarations with live sitemap members |
 | [V421-009](v421-009-expose-artifact-storage-timestamps.yml) | feature | P2 | — | Expose retained Artifact storage timestamps through metadata and Technical details |
 
 ### Audits (`audits`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V62-013](v62-013-audit-iterative-composition-release.yml) | chore | P2 | — | Gate generic iterative Audit composition through real processes |
 | [V64-001](v64-001-audit-priority-contracts.yml) | feature | P2 | — | Specify optional Audit research contracts and deterministic bypass |
 | [V64-002](v64-002-audit-priority-store.yml) | feature | P2 | V64-001, V64-012 | Persist research cycles and exact selection decisions |
 | [V64-003](v64-003-planner-only-priority-execution.yml) | feature | P2 | V64-002 | Execute resumable research phases through ordinary Workflow Runs |
@@ -123,7 +121,7 @@ the epics are in [epics.yml](epics.yml).
 | [V64-008](v64-008-audit-priority-api-coverage.yml) | feature | P2 | V64-007 | Expose paginated research state and separate coverage through the public API |
 | [V64-009](v64-009-audit-priority-ui.yml) | feature | P2 | V64-008 | Show hypotheses, selection reasons and bounded lineage in the Audit UI |
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P2 | V64-007, V64-008 | Publish opt-in guide and material research profiles with deterministic selection |
-| [V64-011](v64-011-audit-priority-release.yml) | chore | P2 | V64-009, V64-010, V64-015, V62-013 | Verify deterministic hypothesis search and unchanged direct execution end to end |
+| [V64-011](v64-011-audit-priority-release.yml) | chore | P2 | V64-009, V64-010, V64-015 | Verify deterministic hypothesis search and unchanged direct execution end to end |
 | [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P2 | V64-001 | Store Audit hypotheses and sparse provenance with trusted ingestion |
 | [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P2 | V64-003, V64-004, V64-012 | Generate cold hypotheses and accept bounded concrete experiment plans |
 | [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P2 | V64-003, V64-004, V64-012, V64-006 | Import scoped research assessments and preserve conflicting contributions |
@@ -245,12 +243,12 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
-| HTTP and Caido tools (`http-tools`) | 10 | 19 | 16 | 5 | 17 |
+| HTTP and Caido tools (`http-tools`) | 9 | 19 | 16 | 5 | 17 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 9 | 17 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 33 | 7 | 41 |
-| Audits (`audits`) | 30 | 67 | 82 | 27 | 108 |
+| Audits (`audits`) | 29 | 67 | 82 | 32 | 113 |
 | Evaluations (`evals`) | 9 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 63 | 14 | 57 |

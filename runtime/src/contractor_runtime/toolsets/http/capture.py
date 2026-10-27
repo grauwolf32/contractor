@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 import httpx
@@ -25,6 +26,13 @@ class CapturedAttempt:
     url: str
     headers: list[dict[str, str]] = field(repr=False)
     body: bytes = field(repr=False)
+    at: str = field(
+        default_factory=lambda: (
+            datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f").rstrip("0").rstrip(".") + "Z"
+        )
+    )
+    session_generation: str = ""
+    timed_out: bool = False
     status: int | None = None
     response_headers: list[dict[str, str]] = field(default_factory=list, repr=False)
     error: Literal["transport_error", "cancelled"] | None = None

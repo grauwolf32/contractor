@@ -53,11 +53,11 @@ func (s *AdmissionSession) validatePreparedSource(ctx context.Context, item audi
 
 func (s *AdmissionSession) stageItems(ctx context.Context, page auditdomain.PreparedRoundPage) error {
 	state := s.State
-	if state.SelectionRoot == nil {
+	if state.Root == nil {
 		return auditstore.ErrPrecondition
 	}
-	ref, _ := json.Marshal(state.SelectionRoot.Ref)
-	created, err := s.tx.Exec(ctx, admissionCreateProposedSQL, state.AuditID, state.RoundID, state.RoundOrdinal, ref, state.SelectionRoot.Digest, state.SelectedCount, state.Generation)
+	ref, _ := json.Marshal(state.Root.Ref)
+	created, err := s.tx.Exec(ctx, admissionCreateProposedSQL, state.AuditID, state.RoundID, state.RoundOrdinal, ref, state.Root.Digest, state.SelectedCount, state.Generation)
 	if err != nil {
 		return err
 	}
@@ -101,8 +101,7 @@ func (s *AdmissionSession) stageItems(ctx context.Context, page auditdomain.Prep
 func preparedPageStageRows(page auditdomain.PreparedRoundPage) ([]byte, error) {
 	input := make([]map[string]any, 0, len(page.Items))
 	for _, item := range page.Items {
-		accepted, err := auditdomain.EncodeAcceptedPlan(*item.Execution.AcceptedPlan, item.Execution.Dependencies)
-		if err != nil {
+		if err := auditdomain.ValidateAcceptedPlan(*item.Execution.AcceptedPlan, item.Execution.Dependencies); err != nil {
 			return nil, err
 		}
 		execution, err := strictjson.Canonical(item.Execution)
@@ -128,7 +127,7 @@ func preparedPageStageRows(page auditdomain.PreparedRoundPage) ([]byte, error) {
 			"initial_state": item.InitialState, "approval_kind": item.ApprovalKind, "approval_digest": item.ApprovalDigest, "status": item.Coverage.Status,
 			"requested": item.Coverage.Requested, "completed": item.Coverage.Completed, "gaps": item.Coverage.Gaps, "rationale": item.Coverage.Rationale,
 			"receipt_id": source.ReceiptID, "proposed_check_ordinal": source.ProposedCheckOrdinal, "proposal_ref": source.Proposal.Ref, "proposal_digest": source.Proposal.Digest,
-			"retained_dependencies": dependencies, "accepted_plan": string(accepted), "prepared_execution": string(execution), "prepared_page_ordinal": page.PageOrdinal,
+			"retained_dependencies": dependencies, "prepared_execution": string(execution), "prepared_page_ordinal": page.PageOrdinal,
 			"prepared_related_count": auditdomain.PreparedRoundPageDescriptors(one)})
 	}
 	return json.Marshal(input)

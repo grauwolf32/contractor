@@ -1,0 +1,145 @@
+schema_version: '1.0'
+id: V62-018
+title: Remove the unread accepted plan column
+milestone: audit-iterative-simplification-2026-10
+epic: audits
+kind: chore
+introduced_by: V62-007
+priority: P2
+status: completed
+depends_on:
+- V62-017
+languages:
+- go
+- sql
+- markdown
+goal: Persist the accepted plan only in the existing immutable prepared execution projection while retaining
+  exact dependency holds.
+context:
+  authority: The user explicitly requested creation, sequential implementation, verification, task closure
+    and merge of the five reviewed simplifications on 2026-10-27.
+  finding: internal/auditstore/internal/pgstore/admission_stage.go:101 writes audit_items.accepted_plan
+    separately from prepared_execution.accepted_plan; dispatch reads only the latter.
+  review: Read-only review of main 4d50b1cfc4961adad9dfa1fef160ef338cbd86ba and the accepted five-step
+    simplification plan.
+  specification:
+  - docs/spec/platform/persistence.md
+  - docs/spec/audits/scans.md
+  migration: 000051 reserved on this branch; main currently ends at 000050. Recheck before integration.
+  database_guarantee: Foreign embedded plan rejection refers to audit_id/item_key, matching the removed
+    column constraint. Existing admission owns owner/project/source/route validation; no new lookup is
+    introduced.
+scope:
+  in:
+  - Add a forward migration removing the standalone column and moving its shape/identity and immutability
+    guarantees onto the embedded plan.
+  - Remove the duplicate insert envelope and update persistence inventories/ERD and real migration tests.
+  - Keep prepared_execution, its byte/descriptor headers, indexed selected-item reads and retained_dependencies.
+  out:
+  - No new model authority, arbitrary Workflow routing, receipt/lease store or permissive legacy reader.
+  - No deployment, live model changes or modification of historical frozen evidence.
+acceptance_criteria:
+- id: A1
+  text: The standalone accepted_plan column and writer are gone; populated migration preserves the exact
+    embedded plan, task identity, membership and dependencies.
+- id: A2
+  text: Malformed/foreign embedded plans and mutation of frozen membership are rejected by PostgreSQL;
+    bounded selected dispatch and populated purge still work.
+- id: A3
+  text: No new target action, receipt mechanism, retained-evidence debit or unbounded lookup is introduced.
+tests:
+- command: go test -tags=integration -count=1 ./internal/persistence/postgres ./internal/auditstore/...
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-audit-iterative-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+- command: go test -count=1 ./tests/e2e && make test-audit-iterative-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+failure_outcomes:
+  permanent: Invalid source, route, schema or exact bytes fail before target execution; no fallback.
+  retryable: Reuse existing bounded retries and original deadlines.
+  ambiguous: Reconcile existing receipt, generation, cursor and child intent; never append/recharge blindly.
+  cancelled: Join owned work and preserve immutable accepted evidence; partial staged work stays private.
+cardinality:
+  bound: Preserve existing per-slice rows/bytes, page/closure ceilings and canonical report bounds; no
+    whole-history hydration.
+lifecycle:
+  bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
+verification:
+  date: '2026-10-27'
+  source_revision: 1080898d3385de6e87315be0156eaf23a16d8319
+  results:
+  - go test -tags=integration -count=1 ./internal/persistence/postgres ./internal/auditstore/... passed
+    on equivalent implementation 7b2d5999d77d23bd15c231839c8692d15765c91b (persistence 40.721s; pgstore
+    131.130s).
+  - make test-audit-iterative-postgres passed on bec39a003f10c86736c096fc6ab04ec5d4eda5a9; 53 required
+    cases, no selected skips.
+  - After shared fixture reader correction, full persistence/postgres passed again (39.280s); fixture
+    source guard passed.
+  - make lint passed on final implementation.
+  - make docs-erd and spec/ERD guards passed; schema 51, 74 tables and 103 foreign keys.
+  - The missed process SQL assertion now inspects prepared_execution->accepted_plan with the same zero-plan
+    expectation. Full tests/e2e passed after the fix (5.620s), then passed again with the independent
+    lifecycle fix (5.530s). Complete iterative PostgreSQL/process command and make lint passed on clean
+    07d4962a76d65af60b9a69d727612d0bb2f1d6d5. Persistence and store code are unchanged from the previously
+    passing full suites; the full pgstore suite also passed during integrated V62-019 verification (147.498s).
+  reports:
+    postgres:
+      path: .local/audit-iterative-gate/postgres-7uyliyd6/result.json
+      source:
+        revision: bec39a003f10c86736c096fc6ab04ec5d4eda5a9
+        dirty: false
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+    owner_log: /private/tmp/v62-018-owners.log
+    fixture_fix_log: /private/tmp/v62-018-persistence-fixture-fix.log
+    lint_log: /private/tmp/v62-018-lint-final.log
+    final:
+      postgres:
+        path: .local/audit-iterative-gate/postgres-4_e8zag5/result.json
+        source:
+          revision: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+          dirty: false
+        counts:
+          required: 53
+          passed: 100
+          skipped: 0
+        report_digest: sha256:c21423d952085962cea7920f4b9354e8f049784a4ff57a1a85a554c00a87fc60
+      process:
+        path: .local/audit-iterative-gate/process-pv3qlwss/result.json
+        source:
+          revision: 07d4962a76d65af60b9a69d727612d0bb2f1d6d5
+          dirty: false
+        counts:
+          required: 5
+          passed: 6
+          skipped: 0
+        report_digest: sha256:5b1b93d7f012f856e1585cceb3bb5710db7ac4aee0dd74c5417b2c6ebb9d8145
+      lint_log: /private/tmp/v62-019-final-lint.log
+  history:
+  - Initial lint rejected direct shared-fixture access in the migration test. Switched to contractstest
+    and TestShared naming, reran the complete affected persistence package and lint. No runtime behavior
+    changed.
+  - 'Reopened during V62-019 process verification: default_audit_bypass still selected the removed standalone
+    column at tests/e2e/audit_iterative_assertions_test.go:220. The ordinary Audit completed; its SQL
+    assertion failed. Prior verified implementation: a149e7f9bfbb80be286806d706e49a6c8a9e28d1.'
+  - Sibling SQL search found no other current-schema reader of the removed column; historical migration
+    seeding and explicit column-absence assertions remain intentional. The failed first process run is
+    retained at .local/audit-iterative-gate/process-ah1dvy78/result.json.
+  limits:
+  - No deployment or full release-verify run claimed.
+implementation_commit: 1080898d3385de6e87315be0156eaf23a16d8319

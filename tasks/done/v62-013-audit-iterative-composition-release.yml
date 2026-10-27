@@ -5,7 +5,7 @@ milestone: audit-iterative-composition-2026-10
 epic: audits
 kind: chore
 priority: P2
-status: pending
+status: completed
 reactivation:
   date: '2026-10-24'
   previous_status: deferred
@@ -18,7 +18,7 @@ previous_deferral:
     no implementation or reactivation was requested.
   reactivate_when: Explicit user reactivation of the reviewed V62 iterative slice; all implementation
     prerequisites must then complete before this release gate starts.
-implementation_commit: null
+implementation_commit: 384d7f53697cabc3b34a70d7b7323c25ecb40e94
 depends_on:
 - V62-005
 - V62-006
@@ -182,7 +182,11 @@ deliverables:
 - path: tests/e2e
   description: Two-Round exact-provenance/lifecycle/direct-bypass process matrix and local fixtures.
 - path: internal/auditservice
-  description: Real-store scale/recovery integration fixtures through production boundaries.
+  description: Existing real-store scale/recovery fixtures reused through the exact mandatory matrix.
+- path: internal/auditstore/internal/pgstore/iterative_release_postgres_test.go
+  description: New 100000-source indexed admission and snapshot publication takeover/replay proofs.
+- path: scripts/test-audit-iterative.py
+  description: Bounded fail-closed execution/report verification, source-pinned content-free evidence and negative harness tests.
 - path: tasks/evidence/v62-013.json
   description: Bounded actual verification record created only when implementation and all gates complete.
 tests:
@@ -244,3 +248,96 @@ verification_requirements:
   this composed production journey and direct deterministic bypass checks.
 - Include the V62-005 more-than-128-page scenario with actual ordinary Run-local page reads and one declared
   input mapping; retained manifest existence alone does not prove usable context transport.
+verification:
+  date: '2026-10-27'
+  result: passed
+  evidence: tasks/evidence/v62-013.json
+  actuality: >-
+    All six prerequisites were completed on main. The two iterative targets
+    were absent, and separate snapshot/routing fixtures did not prove a joined
+    two-Round production chain. The new four-Run journey connects ordinary
+    collection, both real settled snapshot consumers, typed receipt admission
+    and exact retained input materialization. No product rule or public/wire
+    contract needed changing.
+  source_revisions: >-
+    Direct PostgreSQL/process gates passed on clean
+    a79adf6dfa96013c6df68e24194a3e7887a98686. The only later source changes
+    before final lint and regression gates were two Python test files: an old
+    isolated selection fixture was taught the new gate, and the deadline unit
+    test now waits for child readiness before injected expiry. Gate scripts,
+    the matrix and Go cases did not change. Final harness, lint, API/wire and
+    regression checks ran on clean 51bc9e21064b006040b124423ad7bee41f6dfc84.
+    The implementation commit adds the required bounded final evidence record;
+    every report retains its actual tested revision.
+  commands:
+  - command: make test-audit-iterative-postgres
+    result: >-
+      Passed 53 mandatory top-level cases, 100 cases/subcases across seven
+      packages with the race detector; zero failures or skips. Includes real
+      4096/100000 item ceilings, 32-dependency closure and surrounding retention
+      populations, typed 100000-source keyset reads and snapshot takeover replay.
+  - command: make test-audit-iterative-e2e
+    result: >-
+      Passed all five mandatory cases: the joined four-Run/two-Round chain,
+      direct model-free Run, default Audit bypass, actual 129-page Run-local
+      reader and typed-routing recovery. Zero mandatory failures or skips.
+  - command: make test-audit-composition-e2e test-audit-completion-e2e
+    result: >-
+      Passed the combined command: 58 mandatory store cases, 11 production
+      process cases, the real browser journey, 250 completion Go cases and
+      469 Runtime cases; no selected skips.
+  - command: make verify-public-api verify-public-api-postgres test-wire-cross-language
+    result: >-
+      Passed with before/after clean revision pins: complete selected public
+      operation coverage, real PostgreSQL pagination contract, 285 shared
+      fixtures, 341 Go and 237 Python shared reader functions, 1339 selected
+      shared Runtime cases and 323 Runtime contract/performance cases.
+  - command: make lint
+    result: >-
+      Passed generation, UI/Go/Runtime lint, layers and production-export
+      checks, all 157 script unit tests, deployment-script tests and the
+      release graph. The graph validates 12 stages, 107 race packages,
+      30 process roots, eight configuration fixtures, 427 nonzero run
+      selections, 56 tagged e2e tests with eight justified opt-ins and
+      275 integration tests. Scanner-free snapshot/typed cases left the
+      opt-in allowlist; no gate was weakened.
+  - command: make test-audit-iterative-harness
+    result: >-
+      Passed all 18 tests after deterministic child-readiness synchronization,
+      including every one of the eight named A6 methods. Empty/missing/skipped
+      and malformed reports, stale evidence, missing infrastructure, independent
+      deadline expiry and cancellation joining child/grandchild processes fail
+      closed. Recorded clean before/after revision pins.
+  - command: go test -json -tags=integration ./internal/auditstore/internal/pgstore -count=1
+    result: >-
+      Complete touched owner package passed: 84 top-level tests and 194
+      cases/subcases, zero skips. New custom and generic plans each read
+      exactly 128 holds, 128 receipts and 128 decision links, zero payloads,
+      amid 100000 sources and 2000 unrelated retained links.
+  - command: go test -count=1 ./tests/e2e
+    result: Passed the complete untagged owner package.
+  - command: make test-release-config-fixtures
+    result: Passed all eight tagged catalog/configuration fixtures on the final revision.
+  - command: python3 scripts/release_test_reports.py verify-iterative-postgres --report .local/audit-iterative-gate/postgres-eap0qr7s/go.jsonl
+    result: Passed reuse of the actual executed PostgreSQL report without rerunning its cases.
+  - command: python3 scripts/release_test_reports.py verify-iterative-process --report .local/audit-iterative-gate/process-eva45y52/go.jsonl
+    result: Passed reuse of the actual executed process report without rerunning its cases.
+  observations: >-
+    Development fixture failures, the initial full-owner stale-claim observation
+    and successful isolated/full repeats are retained in the evidence. The
+    passing repeat objectively records a 566.878-second wall/monotonic clock
+    discontinuity; it is consistent with lease expiry after host wake but
+    cannot conclusively explain the initial un-timestamped failure. No
+    production lease or assertion was weakened. Reopen diagnostics under the
+    test/infrastructure owner if it repeats on a stable awake host, capturing
+    database clock, expiry, holder and epoch before changing lease semantics.
+    A later lint run failed because standard-library files disappeared from
+    the temporary Go tree. The identical Go 1.26.9 archive was recovered with
+    its official SHA-256 in an ignored task cache outside /tmp, and all
+    affected checks passed after recovery. Long final commands used temporary
+    sleep-prevention assertions, released with their child processes.
+  scope_limit: >-
+    This closes the generic iterative milestone, independently of V64 and
+    pentest delivery. Full release-verify and the full Runtime/Podman suite
+    were not run or claimed; the listed mandatory and touched-owner suites
+    are the actual verification boundary.

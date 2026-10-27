@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 import check_release_verify_graph as guard
@@ -388,11 +389,45 @@ class IntegrationParallelismTest(unittest.TestCase):
             self.check(self.command.format(parallelism="2").replace("-count=1 ", ""))
 
 
+class IterativeGateSelectionTest(unittest.TestCase):
+    def gate(self):
+        return SimpleNamespace(
+            matrix=lambda: {
+                "postgres": {guard.MODULE + "internal/fixture": ["TestStorage/subcase"]},
+                "process": {guard.MODULE + "tests/e2e": ["TestJourney/second_round"]},
+            },
+            pattern=lambda cases: "^(" + "|".join(case.split("/")[0] for case in cases) + ")$",
+        )
+
+    def test_direct_target_declares_only_its_real_boundary_and_race_mode(self):
+        for boundary, tag, package, case, race in (
+            ("postgres", "integration", "./internal/fixture", "TestStorage", True),
+            ("process", "e2e", "./tests/e2e", "TestJourney", False),
+        ):
+            with self.subTest(boundary=boundary), mock.patch.object(guard, "load_script", return_value=self.gate()):
+                selected = guard.script_go_tests(
+                    "scripts/test-audit-iterative.py",
+                    f"python3 scripts/test-audit-iterative.py --boundary {boundary}",
+                )
+                self.assertEqual(len(selected), 1)
+                self.assertEqual(selected[0].tags, frozenset({tag}))
+                self.assertEqual(selected[0].packages, (package,))
+                self.assertEqual(selected[0].run, f"^({case})$")
+                self.assertEqual(selected[0].race, race)
+
+    def test_missing_or_invalid_boundary_cannot_declare_phantom_tests(self):
+        for argument in ("", "--boundary", "--boundary unknown"):
+            with self.subTest(argument=argument), mock.patch.object(guard, "load_script", return_value=self.gate()):
+                with self.assertRaisesRegex(SystemExit, "boundary"):
+                    guard.script_go_tests("scripts/test-audit-iterative.py", "python3 gate.py " + argument)
+
+
 class ConsolidatedFamilyTest(unittest.TestCase):
     def test_transitive_unwrapped_test_commands_are_rejected(self) -> None:
         recipes = (
             "go test ./...", "cd runtime && uv run pytest tests/test_allocation.py",
             "python3 scripts/test-findings-e2e.py", "python3 scripts/shared_fixture_gate.py",
+            "cd runtime && uv run python -m unittest discover -s ../scripts",
         )
         for recipe in recipes:
             with self.subTest(recipe=recipe), tempfile.TemporaryDirectory() as directory:
@@ -407,6 +442,8 @@ class ConsolidatedFamilyTest(unittest.TestCase):
             "python3 scripts/" + name for name in (
                 "release_test_reports.py verify-runtime", "release_test_reports.py verify-audit",
                 "release_test_reports.py verify-findings", "shared_fixture_gate.py --go-report report",
+                "release_test_reports.py verify-iterative-postgres",
+                "release_test_reports.py verify-iterative-process",
             )
         ]
         guard.check_runtime_commands(commands)

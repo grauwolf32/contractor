@@ -101,6 +101,9 @@ milestones:
   - id: data-model-consumers-2026-10
     exit_task: V421-010
     outcome: Accepted data-model review changes connect trusted Audit evidence and finding conditions to reports, expose bounded owner-authorized Runtime and tool-call diagnostics, remove unsupported Eval and private-wire fields end to end, and retain Artifact storage timestamps with accurate API/UI semantics, verified on an integrated deterministic release gate.
+  - id: audit-iterative-simplification-2026-10
+    exit_task: V62-021
+    outcome: Five sequential simplifications remove duplicate Audit report machinery, stored and transported plan copies, authored phase and admission page chains while preserving authority, exact evidence, bounded recovery and ordinary consumers.
   - id: go-adk-26-upgrade-2026-10
     exit_task: V419-005
     outcome: The exact Go ADK v2.6.0 dependency closure preserves Planner tools, history, persistence, Gateway, A2A and telemetry through targeted owner-package, real-store, shared-wire and five selected real-process scenarios, under the user no-full-rerun instruction. No full final release run or compaction implementation is claimed.

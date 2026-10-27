@@ -151,9 +151,13 @@ func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDelet
 	if err != nil || len(items) != 1 {
 		t.Fatalf("later item: %+v %v", items, err)
 	}
-	built, err := h.builder(t).WithClaim(claim).PrepareBatch(ctx, snapshot, []CheckExecutionMember{{Item: items[0], Attempt: 1}})
+	builder, payloadProbe := payloadCountingBuilder(t, h, claim)
+	built, err := builder.PrepareBatch(ctx, snapshot, []CheckExecutionMember{{Item: items[0], Attempt: 1}})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if reads := payloadProbe.reads[items[0].Task.Ref.Key()]; reads != 0 {
+		t.Fatalf("ordinary dependency singleton task payload reads=%d, want 0", reads)
 	}
 	built.Intent.Claim = claim
 	execution, _, err := h.audits.CreateExecutionIntent(ctx, built.Intent)

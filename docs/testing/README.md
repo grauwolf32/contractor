@@ -16,6 +16,8 @@ UI dependencies. Choose a check by the boundary you changed:
 | Basic scan/sweep widgets through the real API | `make test-web-scan-ui-stack` | Test database and locked Runtime/UI; no Studio or managed Eval scenarios |
 | API-mocked browser journeys | `make ui-browser-mocked` | Node/Corepack and Chromium with host libraries |
 | Native and external managed Evals | `make test-evals`; [evidence and reproduction](evals-release-gate.md) | Disposable test database, locked Runtime/UI and Chromium |
+| Generic iterative Audit store/scale/recovery matrix | `make test-audit-iterative-postgres` | Dedicated disposable PostgreSQL and locked Runtime |
+| Two-Round iterative Audit journey and direct/default bypass | `make test-audit-iterative-e2e` | Dedicated disposable PostgreSQL and real Server/Runtime; scripted local provider |
 | Aggregate deterministic release gate used by CI | `make release-verify` | Go, Python/uv, Node/Corepack, Chromium with host libraries and a test database; no advisory service, host scanners or Podman |
 
 The aggregate targets and their exact dependencies are defined in the
@@ -85,13 +87,13 @@ available through a tag or a manual full-gate run before a PR is merged.
 | `release-verify-browser-b` | External managed Evals in the production browser stack |
 | `release-verify-race` | The deduplicated Go race pass over the platform packages named in `make/release.mk` |
 | `release-verify-race-discovered` | The Go race pass over every other package with tests, discovered by [`scripts/release_race_packages.py`](../../scripts/release_race_packages.py), so a new package is raced automatically |
-| `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test and the Audit completion selection under the race detector, with its required cases verified from the report, a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline, and every package whose tests take their Artifact blob backend from `CONTRACTOR_TEST_ARTIFACT_BACKEND`, run whole on the filesystem backend (`make test-artifact-filesystem`) |
-| `release-verify-process-a` | The first shard of the 26 process e2e tests |
-| `release-verify-process-b` | The second shard of the 26 process e2e tests |
-| `release-verify-process-c` | The third shard of the 26 process e2e tests, including the four findings process tests and their required-case report check |
+| `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test and the Audit completion/iterative selections under the race detector, with their required cases verified from one canonical report, a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline, and every package whose tests take their Artifact blob backend from `CONTRACTOR_TEST_ARTIFACT_BACKEND`, run whole on the filesystem backend (`make test-artifact-filesystem`) |
+| `release-verify-process-a` | The first shard of the 30 process e2e tests, including all iterative Audit cases and their required-case report check |
+| `release-verify-process-b` | The second shard of the 30 process e2e tests |
+| `release-verify-process-c` | The third shard of the 30 process e2e tests, including the four findings process tests and their required-case report check |
 
 The process and browser shards run on separate CI runners. `make test-e2e`
-still runs all 26 process tests in one local command, and `make test-ui-stack`
+still runs all 30 process tests in one local command, and `make test-ui-stack`
 still runs the full browser stack locally. The release-graph guard checks that
 each selected process and browser test runs exactly once.
 
@@ -117,7 +119,7 @@ direct family Go selection with the canonical stages, using compiled test
 inventories to retain selected names, race coverage and backend modes. It
 rejects Go, pytest and test-script execution anywhere in the consolidated
 family dependency graph, and requires exactly one full Runtime run with
-warnings as errors. The existing Audit, findings and shared-fixture validators
+warnings as errors. The Audit completion, iterative Audit, findings and shared-fixture validators
 consume canonical reports in `reports/`; direct family commands retain their
 focused runs. The shared read journal is initialized once before either language writes,
 including when consolidation is inherited from a target rather than an
@@ -139,6 +141,59 @@ alternative in release-verify and in the opt-in gates must select an existing
 test, and every e2e-tagged test must run in release-verify unless
 [`scripts/check_release_verify_graph.py`](../../scripts/check_release_verify_graph.py)
 allowlists it with its opt-in target and the reason (real scanners or Podman).
+
+## Iterative Audit acceptance
+
+`make test-audit-iterative-postgres` runs the exact store, scale and recovery
+selection in [`audit_iterative_matrix.yml`](../../tests/e2e/audit_iterative_matrix.yml)
+(each case appears once, with its boundary and acceptance links)
+with the race detector. It includes the 4,096-item Round inside a 100,000-item
+Audit, 32-dependency closures, bounded capture/admission/materialization and
+populated deletion. Fixtures use real PostgreSQL and deterministic work/query
+counters; elapsed time does not substitute for a row or byte limit.
+
+`make test-audit-iterative-e2e` runs the same matrix's production-process
+selection. The composed journey has an ordinary check, its settled-Round
+assessment, a receipt-derived typed later check and a second assessment.
+Assertions compare exact source, retained and consumer bytes and attribution
+across producer deletion and Server restart. Separate cases retain the
+more-than-128-page local snapshot reads and the direct model-free/default Audit
+bypass proofs. These cases need no installed scanner, Chromium, hypothesis
+registry, paid provider or live-model quality assumption.
+
+Both direct targets execute their focused harness unit checks once per make
+invocation. Missing prerequisites, a zero/missing/skipped required selection,
+changed source/matrix, command failure or an incomplete report fails the gate.
+The Audit gates use one strict Go-event verifier and one process-group capture
+owner in `scripts/release_test_reports.py`; completion keeps its Runtime JUnit
+policy and composition keeps its browser checks. Family root scopes remain
+explicit, so an unlisted importer case cannot hide a selected skip.
+
+Fresh Audit completion, composition and iterative execution evidence requires a clean checkout and records the
+actual source revision, matrix path/digest, report digest and executed case
+identities, including focused descendants. It does not copy acceptance prose
+from the matrix. Report-only verification checks the supplied stream without
+executing tests or publishing fresh source evidence. Historical task evidence
+retains its original schema and source pins.
+Independent finite command deadlines and signal cleanup stop and join the
+owned process group. The harness does not retry a failing whole suite.
+Use a separate disposable database for each concurrent lane; sharing a schema
+does not isolate database-scoped Server leases.
+
+Each direct gate writes a unique directory under `.local/audit-iterative-gate/`
+with a bounded redacted report and `result.json`. The result records source
+revision/dirty state, matrix and report digests, platform capabilities and the
+actual required identities. It contains no database URL, credentials or target
+bodies. A failed or interrupted attempt cannot reuse earlier passing evidence.
+The final delivery record is [`v62-013.json`](../../tasks/evidence/v62-013.json).
+
+Inside `release-verify`, these family targets skip their own suites. The
+canonical integration report and process shard A report are verified through
+`release_test_reports.py verify-iterative-postgres` and
+`verify-iterative-process`; lint's existing unittest discovery runs the harness
+checks. Snapshot and typed-routing processes belong to the normal release
+shard. The broader scanner/browser composition gate keeps its separate
+infrastructure requirements.
 
 ## Advisory scans
 

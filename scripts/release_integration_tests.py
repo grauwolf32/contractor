@@ -66,7 +66,7 @@ def discover() -> dict[str, set[str]]:
 
 
 def release_selection() -> dict[str, set[str]]:
-    """Tagged tests plus the Audit completion gate's previously separate pass."""
+    """Tagged tests plus the Audit gates' focused, deduplicated selections."""
     selected = discover()
     gate = runpy.run_path(str(ROOT / "scripts/test-audit-completion-e2e.py"))
     matrix = gate["matrix"]()
@@ -80,6 +80,10 @@ def release_selection() -> dict[str, set[str]]:
             for name in TEST.findall(data):
                 if re.search(gate["PATTERN"], name):
                     selected.setdefault(package, set()).add(name)
+    iterative = runpy.run_path(str(ROOT / "scripts/test-audit-iterative.py"))
+    for import_path, cases in iterative["matrix"]()["postgres"].items():
+        package = "./" + import_path.removeprefix("github.com/grauwolf32/contractor/")
+        selected.setdefault(package, set()).update(case.split("/", 1)[0] for case in cases)
     return selected
 
 

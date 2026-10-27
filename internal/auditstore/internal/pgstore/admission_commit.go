@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
@@ -24,7 +23,7 @@ func (s *AdmissionSession) commit(ctx context.Context, mutation auditstore.Admis
 		next = old
 	}
 	if mutation.Restart {
-		if !old.Exhausted || old.SelectedCount != 0 || old.SelectionRoot != nil {
+		if !old.Exhausted || old.SelectedCount != 0 || old.Root != nil {
 			return old, auditstore.ErrPrecondition
 		}
 		next = old
@@ -50,108 +49,53 @@ func (s *AdmissionSession) commit(ctx context.Context, mutation auditstore.Admis
 	if !mutation.Restart && next.Cursor != old.Cursor && !s.reader.cursors[next.Cursor] {
 		return old, auditstore.ErrInvalid
 	}
-	// Counters and roots are writer-derived, never caller supplied totals.
-	next.SelectedCount, next.SelectionPages, next.SelectionPagesDigest = old.SelectedCount, old.SelectionPages, old.SelectionPagesDigest
-	next.StagedCount, next.PreparedPages, next.PagesDigest = old.StagedCount, old.PreparedPages, old.PagesDigest
-	next.SelectionRoot, next.PreparedRoot = old.SelectionRoot, old.PreparedRoot
-	if (mutation.SelectionPage != nil && mutation.PreparedPage != nil) || (mutation.SelectionRoot != nil && mutation.PreparedRoot != nil) {
+	// Published selection and database staging are independently writer-derived.
+	next.SelectedCount, next.PublishedPages, next.PagesDigest = old.SelectedCount, old.PublishedPages, old.PagesDigest
+	next.StagedCount, next.StagedPages, next.Root = old.StagedCount, old.StagedPages, old.Root
+	phases := 0
+	for _, present := range []bool{mutation.Page != nil, mutation.Root != nil, mutation.StagePageOrdinal != nil} {
+		if present {
+			phases++
+		}
+	}
+	if phases > 1 || mutation.Page == nil && len(mutation.PageContent) != 0 || mutation.Restart && phases != 0 {
 		return old, auditstore.ErrInvalid
 	}
-	if mutation.SelectionPage != nil || mutation.PreparedPage != nil {
-		selection := mutation.SelectionPage != nil
-		var page auditdomain.PreparedRoundPage
-		var err error
-		descriptor := mutation.PreparedPage
-		kind := "prepared"
-		if selection {
-			page, err = auditdomain.DecodeRoundSelectionPage(mutation.PageContent)
-			descriptor = mutation.SelectionPage
-			kind = "selection"
-		} else {
-			page, err = auditdomain.DecodePreparedRoundPage(mutation.PageContent)
+	if mutation.Page != nil {
+		if old.Root != nil || old.Exhausted {
+			return old, auditstore.ErrPrecondition
 		}
+		page, err := auditdomain.DecodePreparedRoundPage(mutation.PageContent)
 		if err != nil {
 			return old, err
 		}
 		if page.AuditID != old.AuditID || page.RoundID != old.RoundID || page.Generation != old.Generation {
 			return old, auditstore.ErrInvalid
 		}
-		expectedPage, expectedCount, expectedDigest := old.PreparedPages, old.StagedCount, old.PagesDigest
-		if selection {
-			expectedPage, expectedCount, expectedDigest = old.SelectionPages, old.SelectedCount, old.SelectionPagesDigest
-		}
-		if page.PageOrdinal != expectedPage || page.FirstItemOrdinal != expectedCount || page.PreviousPageDigest != expectedDigest {
+		if page.PageOrdinal != old.PublishedPages || page.FirstItemOrdinal != old.SelectedCount || page.PreviousPageDigest != old.PagesDigest {
 			return old, auditstore.ErrConflict
 		}
-		if selection && old.SelectionRoot != nil || !selection && old.SelectionRoot == nil {
-			return old, auditstore.ErrPrecondition
-		}
-		if len(page.Items) > s.reader.work.primary {
-			s.reader.work.primary = len(page.Items)
-		}
-		if err := s.reader.work.add(0, auditdomain.PreparedRoundPageDescriptors(page), len(mutation.PageContent), 0); err != nil {
-			return old, err
-		}
-		if contracts.ExactContent(descriptor.Ref, descriptor.MediaType, mutation.PageContent).Verify(*descriptor) != nil {
+		if mutation.Page.MediaType != auditdomain.PreparedRoundPageMediaType || contracts.ExactContent(mutation.Page.Ref, mutation.Page.MediaType, mutation.PageContent).Verify(*mutation.Page) != nil {
 			return old, auditstore.ErrInvalid
 		}
-		for _, item := range page.Items {
-			if err := s.validatePreparedSource(ctx, item); err != nil {
-				return old, err
-			}
+		if err := s.validatePageSources(ctx, page, len(mutation.PageContent)); err != nil {
+			return old, err
 		}
-		if !selection {
-			_, sourceBytes, err := s.Reads.ReadSelectionPage(ctx, page.PageOrdinal)
-			if err != nil {
-				return old, err
-			}
-			source, err := auditdomain.DecodeRoundSelectionPage(sourceBytes)
-			if err != nil {
-				return old, err
-			}
-			if !reflect.DeepEqual(source.Items, page.Items) || source.FirstItemOrdinal != page.FirstItemOrdinal {
-				return old, auditstore.ErrInvalid
-			}
-			if err := s.stageItems(ctx, page); err != nil {
-				return old, err
-			}
-			next.StagedCount += len(page.Items)
-			next.PreparedPages++
-			next.PagesDigest = descriptor.Digest
-		} else {
-			next.SelectedCount += len(page.Items)
-			next.SelectionPages++
-			next.SelectionPagesDigest = descriptor.Digest
-		}
-		if err := s.retain(ctx, admissionPageKey(old.Generation, kind, page.PageOrdinal), *descriptor, map[string]any{"schema": auditstore.AdmissionProvenanceSchema, "generation": old.Generation, "kind": kind, "ordinal": fmt.Sprintf("%06d", page.PageOrdinal)}); err != nil {
+		next.SelectedCount += len(page.Items)
+		next.PublishedPages++
+		next.PagesDigest = mutation.Page.Digest
+		if err := s.retain(ctx, admissionPageKey(old.Generation, "page", page.PageOrdinal), *mutation.Page, map[string]any{"schema": auditstore.AdmissionProvenanceSchema, "generation": old.Generation, "kind": "page", "ordinal": fmt.Sprintf("%06d", page.PageOrdinal)}); err != nil {
 			return old, err
 		}
 	}
-	if mutation.SelectionRoot != nil {
-		if old.SelectionRoot != nil || old.SelectedCount < 1 {
+	if mutation.Root != nil {
+		if old.Root != nil || old.SelectedCount < 1 || !old.Exhausted {
 			return old, auditstore.ErrPrecondition
 		}
-		data, err := s.readMetadata(ctx, *mutation.SelectionRoot)
-		if err != nil {
-			return old, err
-		}
-		root, err := auditdomain.DecodeRoundSelectionRoot(data)
-		if err != nil {
-			return old, err
-		}
-		if root.AuditID != old.AuditID || root.RoundID != old.RoundID || root.Generation != old.Generation || root.ProfileDigest != old.ProfileDigest || root.BaselineDigest != old.BaselineDigest || root.ItemCount != old.SelectedCount || root.PageCount != old.SelectionPages || root.PagesDigest != old.SelectionPagesDigest {
+		if mutation.Root.Validate() != nil || !mutation.Root.HasMetadata() || mutation.Root.MediaType != auditdomain.PreparedRoundRootMediaType || mutation.Root.Ref.Namespace != auditdomain.ArtifactNamespace(old.AuditID) || mutation.Root.SizeBytes < 1 || mutation.Root.SizeBytes > auditdomain.MaximumPreparedRoundRootBytes {
 			return old, auditstore.ErrInvalid
 		}
-		if err := s.retain(ctx, admissionPageKey(old.Generation, "selection-root", 0), *mutation.SelectionRoot, map[string]any{"schema": auditstore.AdmissionProvenanceSchema, "generation": old.Generation, "kind": "selection-root", "ordinal": "000000"}); err != nil {
-			return old, err
-		}
-		next.SelectionRoot = mutation.SelectionRoot
-	}
-	if mutation.PreparedRoot != nil {
-		if old.PreparedRoot != nil || old.SelectionRoot == nil || old.StagedCount != old.SelectedCount || old.PreparedPages != old.SelectionPages {
-			return old, auditstore.ErrPrecondition
-		}
-		data, err := s.readMetadata(ctx, *mutation.PreparedRoot)
+		data, err := s.readMetadata(ctx, *mutation.Root)
 		if err != nil {
 			return old, err
 		}
@@ -159,16 +103,53 @@ func (s *AdmissionSession) commit(ctx context.Context, mutation auditstore.Admis
 		if err != nil {
 			return old, err
 		}
-		if root.AuditID != old.AuditID || root.RoundID != old.RoundID || root.Generation != old.Generation || root.ProfileDigest != old.ProfileDigest || root.BaselineDigest != old.BaselineDigest || root.ItemCount != old.StagedCount || root.PageCount != old.PreparedPages || root.PagesDigest != old.PagesDigest || root.Source.Verify(*old.SelectionRoot) != nil {
+		if root.AuditID != old.AuditID || root.RoundID != old.RoundID || root.Generation != old.Generation || root.ProfileDigest != old.ProfileDigest || root.BaselineDigest != old.BaselineDigest || root.ItemCount != old.SelectedCount || root.PageCount != old.PublishedPages || root.PagesDigest != old.PagesDigest {
 			return old, auditstore.ErrInvalid
 		}
-		if err := s.retain(ctx, admissionPageKey(old.Generation, "prepared-root", 0), *mutation.PreparedRoot, map[string]any{"schema": auditstore.AdmissionProvenanceSchema, "generation": old.Generation, "kind": "prepared-root", "ordinal": "000000"}); err != nil {
+		if err := s.retain(ctx, admissionPageKey(old.Generation, "root", 0), *mutation.Root, map[string]any{"schema": auditstore.AdmissionProvenanceSchema, "generation": old.Generation, "kind": "root", "ordinal": "000000"}); err != nil {
 			return old, err
 		}
-		next.PreparedRoot = mutation.PreparedRoot
-		ref, _ := json.Marshal(mutation.PreparedRoot.Ref)
-		if _, err := s.tx.Exec(ctx, `UPDATE audit_rounds SET manifest_ref=$2::jsonb,manifest_digest=$3,acceptance_digest=$3,prepared_page_count=$5,prepared_pages_digest=$6 WHERE audit_id=$1 AND round_id=$4 AND state='proposed'`, old.AuditID, ref, mutation.PreparedRoot.Digest, old.RoundID, old.PreparedPages, old.PagesDigest); err != nil {
+		next.Root = mutation.Root
+	}
+	if mutation.StagePageOrdinal != nil {
+		if old.Root == nil || old.StagedPages >= old.PublishedPages {
+			return old, auditstore.ErrPrecondition
+		}
+		if *mutation.StagePageOrdinal != old.StagedPages {
+			return old, auditstore.ErrConflict
+		}
+		_, data, err := s.Reads.ReadPage(ctx, *mutation.StagePageOrdinal)
+		if err != nil {
 			return old, err
+		}
+		page, err := auditdomain.DecodePreparedRoundPage(data)
+		if err != nil {
+			return old, err
+		}
+		if page.AuditID != old.AuditID || page.RoundID != old.RoundID || page.Generation != old.Generation || page.PageOrdinal != old.StagedPages || page.FirstItemOrdinal != old.StagedCount || len(page.Items) > old.SelectedCount-old.StagedCount {
+			return old, auditstore.ErrInvalid
+		}
+		// ReadPage already charged the exact page bytes once. Stage only the
+		// trusted stored content, preserving the one published digest chain.
+		if err := s.validatePageSources(ctx, page, 0); err != nil {
+			return old, err
+		}
+		if err := s.stageItems(ctx, page); err != nil {
+			return old, err
+		}
+		next.StagedCount += len(page.Items)
+		next.StagedPages++
+		if next.StagedPages == old.PublishedPages {
+			if next.StagedCount != old.SelectedCount {
+				return old, auditstore.ErrInvalid
+			}
+			tag, err := s.tx.Exec(ctx, admissionSealMembershipSQL, old.AuditID, old.RoundID, old.Generation, old.Root.Digest, old.PublishedPages, old.PagesDigest, old.SelectedCount)
+			if err != nil {
+				return old, err
+			}
+			if tag.RowsAffected() != 1 {
+				return old, auditstore.ErrConflict
+			}
 		}
 	}
 	for _, link := range mutation.Retained {
@@ -188,7 +169,7 @@ func (s *AdmissionSession) commit(ctx context.Context, mutation auditstore.Admis
 	next.Revision = old.Revision
 	next.Changed = false
 	nextBytes, _ := json.Marshal(next)
-	if bytes.Equal(oldBytes, nextBytes) && mutation.SelectionPage == nil && mutation.PreparedPage == nil && mutation.SelectionRoot == nil && mutation.PreparedRoot == nil && len(mutation.Decisions) == 0 && len(mutation.Retained) == 0 {
+	if bytes.Equal(oldBytes, nextBytes) && phases == 0 && len(mutation.Decisions) == 0 && len(mutation.Retained) == 0 {
 		return old, nil
 	}
 	next.Revision = old.Revision + 1
@@ -208,6 +189,23 @@ func (s *AdmissionSession) commit(ctx context.Context, mutation auditstore.Admis
 	}
 	next.Changed = true
 	return next, nil
+}
+
+// validatePageSources charges represented descriptors on each changing phase;
+// the source reader accounts its bounded exact metadata and payloads separately.
+func (s *AdmissionSession) validatePageSources(ctx context.Context, page auditdomain.PreparedRoundPage, metadataBytes int) error {
+	if len(page.Items) > s.reader.work.primary {
+		s.reader.work.primary = len(page.Items)
+	}
+	if err := s.reader.work.add(0, auditdomain.PreparedRoundPageDescriptors(page), metadataBytes, 0); err != nil {
+		return err
+	}
+	for _, item := range page.Items {
+		if err := s.validatePreparedSource(ctx, item); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *AdmissionSession) readMetadata(ctx context.Context, exact auditstore.ExactArtifact) ([]byte, error) {

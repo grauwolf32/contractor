@@ -1,0 +1,197 @@
+schema_version: '1.0'
+id: V62-020
+title: Remove duplicated plan payloads from execution manifests
+milestone: audit-iterative-simplification-2026-10
+epic: audits
+kind: chore
+introduced_by: V62-007
+priority: P2
+status: completed
+depends_on:
+- V62-019
+languages:
+- go
+- python
+- json
+- markdown
+goal: Use the exact task package as the single transported plan/dependency document and keep execution
+  manifests compact.
+context:
+  authority: The user explicitly requested creation, sequential implementation, verification, task closure
+    and merge of the five reviewed simplifications on 2026-10-27.
+  finding: internal/auditdomain/types.go ExecutionItem duplicates ItemTask AcceptedPlan/Dependencies;
+    Runtime packages.py verifies both those copies and the exact task package digest.
+  review: Read-only review of main 4d50b1cfc4961adad9dfa1fef160ef338cbd86ba and the accepted five-step
+    simplification plan.
+  specification:
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/scans.md
+  - docs/spec/audits/execution.md
+  - docs/spec/platform/persistence.md
+  format_transition: Forward migration 000052 rejects reconcilable Audits with an existing Round, including
+    ordinary worklists; only parent metadata is read. Stop the old Server before applying. Drafts/preparation
+    without Rounds and terminal historical evidence are preserved. No deployment or permissive legacy
+    reader is included.
+  dispatch_read_boundary: Finalize the selected fitting prefix first. Typed singletons and final multi-item
+    batches read each exact task once before typed authorization and reuse its decoded bytes for assembly.
+    Ordinary singletons retain their accepted SQL dependency/exact-descriptor path with zero task payload
+    reads; Runtime verifies actual task bytes before model context.
+  verification_lanes: The full persistence package and other full Go owners run in separate worktrees/databases.
+    This splits only command scheduling; every declared package remains covered. The integrated controller
+    suite is repeated after the final payload-counter tests; canonical gates run on the combined clean
+    source.
+scope:
+  in:
+  - Remove full plan and dependency values from transported ExecutionItem; retain item identity, exact
+    task package identity/digest and inputs.
+  - Verify selected typed/batched task packages before authorization and reuse that read for input assembly;
+    preserve ordinary singleton zero-read behavior and the bounded immutable private PreparedExecutionItem
+    projection.
+  - Update Go/Runtime strict contracts, package size accounting, shared fixtures and specs atomically.
+    Keep ordinary V62-006 dependency manifests and FindingTask.
+  - Add a minimal forward-migration preflight for the incompatible worklist format and real migration
+    tests, without new tables, endpoints or recovery mechanisms.
+  out:
+  - No new model authority, arbitrary Workflow routing, receipt/lease store or permissive legacy reader.
+  - No deployment, live model changes or modification of historical frozen evidence.
+acceptance_criteria:
+- id: A1
+  text: Server validates exact descriptors and accepted SQL dependencies before child intent. Selected
+    typed/batched task bodies are strictly verified once before typed route authorization; ordinary singleton
+    dispatch retains its accepted-descriptor path. Runtime verifies actual task bytes and strict plan/dependency
+    content before model context.
+- id: A2
+  text: Dispatch performs no additional per-item payload reads and no whole-page/whole-Round scan; internal
+    prepared projections remain bounded and immutable.
+- id: A3
+  text: Typed and ordinary dependency consumers, retained-to-local exact bytes, approval/lifecycle checks,
+    lost replies and initialization recovery remain correct.
+- id: A4
+  text: Old transport fields are rejected; no permissive legacy reader or model-authored execution authority
+    is added.
+tests:
+- command: go test -tags=integration -count=1 ./internal/persistence/postgres
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: go test -tags=integration -count=1 ./internal/auditdomain ./internal/auditbaseline ./internal/auditstore/...
+    ./internal/auditservice ./internal/auditcontroller ./internal/auditimport ./internal/runservice
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: cd runtime && UV_OFFLINE=1 uv run --frozen python -m pytest -q tests/test_audit_accepted_plans.py
+    tests/test_audit_retained_dependencies.py tests/test_audit_results_toolset.py tests/test_audit_result_collector.py
+    tests/test_audit_result_publication.py tests/test_audit_completion_contracts.py tests/test_audit_completion_runtime.py
+    tests/test_audit_completion_continuation.py tests/test_audit_completion_e2e.py tests/test_audit_completion_diagnostics.py
+    tests/test_audit_arguments.py tests/test_worker_completion.py
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-iterative-postgres test-audit-iterative-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make test-audit-composition-e2e test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+failure_outcomes:
+  permanent: Invalid source, route, schema or exact bytes fail before target execution; no fallback.
+  retryable: Reuse existing bounded retries and original deadlines.
+  ambiguous: Reconcile existing receipt, generation, cursor and child intent; never append/recharge blindly.
+  cancelled: Join owned work and preserve immutable accepted evidence; partial staged work stays private.
+cardinality:
+  bound: Preserve existing per-slice rows/bytes, page/closure ceilings and canonical report bounds; no
+    whole-history hydration.
+lifecycle:
+  bound: Existing approval, pause, cancel, producer deletion and Audit purge remain authoritative.
+implementation_commit: 01e1040b9277acfba7e63be94653c8e4cb3a084f
+verification:
+  date: '2026-10-27'
+  source_revision: c7b4d6fdb0a14b78a9ef8a9d5cbc2d133131cdb8
+  results:
+  - Full persistence package passed with migration52 (40.923s); all other declared full Go owners passed
+    on equivalent Go/Runtime implementation in an isolated worktree/database. Integrated full controller
+    passed again after real payload-read counter tests (56.743s).
+  - 'All 12 declared Runtime owner files: 428 passed and one real-Go-API bridge skipped in isolation;
+    the required completion gate subsequently exercised that bridge successfully.'
+  - 'make test-wire-cross-language passed: 286 fixtures, 345 Go and 238 Python shared tests; selected
+    Runtime shared run 1361 passed.'
+  - 'make test-audit-iterative-postgres test-audit-iterative-e2e passed: 53/5 required cases, 100/6 actual
+    passed, zero skips.'
+  - 'make test-audit-composition-e2e passed: 58 required store cases, 11 required process cases and the
+    real browser journey, zero skips.'
+  - 'make test-audit-completion-e2e passed: 250 Go and 491 Runtime cases, no selected skips.'
+  - make lint passed. Independent reviews of actual-task authorization, trusted private projections, transition
+    guards and sparse payload accounting found no outstanding issue.
+  reports:
+    postgres:
+      path: .local/audit-iterative-gate/postgres-cybt6ev0/result.json
+      source:
+        revision: c7b4d6fdb0a14b78a9ef8a9d5cbc2d133131cdb8
+        dirty: false
+      counts:
+        required: 53
+        passed: 100
+        skipped: 0
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+      report_digest: sha256:336b7e982cf0c5515f6bf9ecbdc1109f588d95611eabe2ef67ffadcfa97720e5
+    process:
+      path: .local/audit-iterative-gate/process-27jx0hlg/result.json
+      source:
+        revision: c7b4d6fdb0a14b78a9ef8a9d5cbc2d133131cdb8
+        dirty: false
+      counts:
+        required: 5
+        passed: 6
+        skipped: 0
+      matrix:
+        path: tests/e2e/audit_iterative_matrix.yml
+        digest: sha256:ed8a6c51bc7a69fe36ec854f5c642cc5912491929392cdc91a3df001b23100e3
+      report_digest: sha256:7e899b2ca828832f4ae61a8cb6ad57b4a3b6a51d4389d18c11a7b392cc03b32c
+    completion:
+      path: .local/audit-completion-gate/run-vbu3qq9g/executed.json
+      source:
+        revision: c7b4d6fdb0a14b78a9ef8a9d5cbc2d133131cdb8
+        dirty: false
+      counts:
+        go: 250
+        runtime: 491
+      reports:
+        go.jsonl: sha256:d7e24b4eafff73019d5a5c28b177895cdb93c59a14a53e6ea078a8beec78d3da
+        runtime.xml: sha256:1d37f525ce0b2bde4a4455b044869326bed2397bd35d507245184290b4bbb020
+    go_owners: /private/tmp/v62-020-go-owners.log
+    controller: /private/tmp/v62-020-controller-reads.log
+    wire: /private/tmp/v62-020-wire.log
+    regressions: /private/tmp/v62-020-regressions.log
+    lint: /private/tmp/v62-020-lint.log
+  history:
+  - Initial process launch failed before test scenarios because sandbox denied the loopback listener.
+    The diagnostic identified bind operation not permitted; the full gate passed after using the required
+    local-process permission, without a code change.
+  limits:
+  - No deployment, live-model quality evaluation or full release-verify run claimed.

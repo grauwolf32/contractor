@@ -6,69 +6,31 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import shutil
-import subprocess
+import signal
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
-from urllib.parse import unquote, urlsplit
+
+import release_test_reports as reports
 
 ROOT = Path(__file__).resolve().parents[1]
 PATTERN = "AuditCompletion|^TestImporter|^TestStandard"
+MATRIX = ROOT / "scripts/audit-completion-matrix.json"
 
 
-class GateError(Exception):
-    pass
+GateError = reports.GateError
+redact = reports.redact
 
 
 def matrix() -> dict:
-    return json.loads((ROOT / "scripts/audit-completion-matrix.json").read_text())
-
-
-def parse_go_event(line: str) -> dict:
-    try:
-        event = json.loads(line)
-    except ValueError as error:
-        raise GateError("Go report is not a JSON event stream") from error
-    if not isinstance(event, dict) or not isinstance(event.get("Action"), str):
-        raise GateError("Go report contains an invalid event")
-    for field in ("Package", "Test", "Output"):
-        if field in event and not isinstance(event[field], str):
-            raise GateError("Go report contains an invalid event field")
-    return event
+    return json.loads(MATRIX.read_text())
 
 
 def verify_go_report(path: Path) -> list[str]:
-    required = matrix()["go"]
-    started, passed, packages = set(), set(), set()
-    for line in path.read_text().splitlines():
-        event = parse_go_event(line)
-        package, action, test = event.get("Package"), event.get("Action"), event.get("Test")
-        if action in {"skip", "fail"}:
-            raise GateError(f"Go case did not pass: {package}/{test or ''} ({action})")
-        if test:
-            key = (package, test)
-            if action == "run":
-                started.add(key)
-            elif action == "pass":
-                passed.add(key)
-        elif action == "pass":
-            packages.add(package)
-    missing = {
-        f"{package}/{name}"
-        for package, names in required.items()
-        for name in names
-        if (package, name) not in started & passed
-    }
-    missing.update(set(required) - packages)
-    if missing:
-        raise GateError(
-            "mandatory Go cases did not execute and pass: " + ", ".join(sorted(missing))
-        )
-    return sorted(f"{package}/{name}" for package, name in started & passed)
+    return reports.verify_go_report(path, matrix()["go"], root_pattern=".*")
 
 
 def verify_python_report(path: Path) -> list[str]:
@@ -90,120 +52,74 @@ def verify_python_report(path: Path) -> list[str]:
     return sorted(executed)
 
 
-def redact(text: str) -> str:
-    dsn = os.environ.get("CONTRACTOR_TEST_DATABASE_URL", "")
-    if dsn:
-        text = text.replace(dsn, "[test database]").replace(
-            json.dumps(dsn)[1:-1], "[test database]"
-        )
-        secrets = []
-        try:
-            parsed = urlsplit(dsn)
-            if parsed.password:
-                secrets.extend((parsed.password, unquote(parsed.password)))
-        except ValueError:
-            pass
-        password = re.search(r"(?:^|\s)password\s*=\s*(?:'((?:\\.|[^'])*)'|(\S+))", dsn)
-        if password:
-            secrets.append(password.group(1) or password.group(2))
-        for secret in secrets:
-            if not secret:
-                continue
-            text = text.replace(secret, "[redacted]").replace(
-                json.dumps(secret)[1:-1], "[redacted]"
-            )
-    return text
-
-
-def run_command(command: list[str], *, cwd: Path, report: Path, go: bool = False) -> None:
-    # Capture stderr too: compiler/connection failures must not print a DSN.
-    with report.open("w") as saved:
-        process = subprocess.Popen(
-            command, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
-        )
-        assert process.stdout is not None
-        for line in process.stdout:
-            if go:
-                try:
-                    event = parse_go_event(line)
-                except GateError:
-                    # Keep malformed/unstructured output invalid for verification,
-                    # even if redaction happens to turn its contents into JSON.
-                    line = "Invalid Go event: " + redact(line)
-                    saved.write(line)
-                    print(line, end="", flush=True)
-                else:
-                    # Framework identity is evidence, not diagnostic text: a password
-                    # such as "pass" or "contractor" must not change it. Do not copy
-                    # arbitrary extra fields into the retained report.
-                    saved_event = {
-                        field: event[field]
-                        for field in ("Action", "Package", "Test")
-                        if field in event
-                    }
-                    if "Output" in event:
-                        saved_event["Output"] = redact(event["Output"])
-                    saved.write(json.dumps(saved_event) + "\n")
-                    if event.get("Action") == "output":
-                        print(saved_event.get("Output", ""), end="", flush=True)
-            else:
-                line = redact(line)
-                saved.write(line)
-                print(line, end="", flush=True)
-        status = process.wait()
+def run_command(command: list[str], *, cwd: Path, report: Path) -> None:
+    status = reports.capture(report, command, cwd=cwd, timeout_seconds=900, max_report_bytes=32 << 20, display_events=False)
     if status:
         raise GateError(f"test command failed (exit {status}); see {report.name}")
 
 
 def run(output_dir: Path) -> None:
-    if not os.environ.get("CONTRACTOR_TEST_DATABASE_URL", "").strip():
-        raise GateError("CONTRACTOR_TEST_DATABASE_URL is required; use disposable PostgreSQL")
-    python = ROOT / "runtime/.venv/bin/python"
-    if not python.is_file() or shutil.which("go") is None or shutil.which("uv") is None:
-        raise GateError("Go, uv and the prepared runtime/.venv/bin/python are required")
     output_dir.mkdir(parents=True, exist_ok=True)
     # Unique directories prevent old success reports from surviving a failed retry.
     directory = Path(tempfile.mkdtemp(prefix="run-", dir=output_dir))
     print(f"Audit completion evidence: {directory}", flush=True)
-    junit = directory / "runtime.xml"
-    files = sorted(
-        {name.split("::", 1)[0].replace(".", "/") + ".py" for name in matrix()["python"]}
-    )
-    run_command(
-        ["uv", "run", "--frozen", "python", "-m", "pytest", *files, "--junitxml", str(junit)],
-        cwd=ROOT / "runtime",
-        report=directory / "runtime.log",
-    )
-    python_cases = verify_python_report(junit)
-    report = directory / "go.jsonl"
-    packages = [
-        "./" + name.removeprefix("github.com/grauwolf32/contractor/") for name in matrix()["go"]
-    ]
-    run_command(
-        [
-            "go",
-            "test",
-            "-json",
-            "-race",
-            "-tags=integration",
-            "-count=1",
-            "-timeout=8m",
-            *packages,
-            "-run",
-            PATTERN,
-        ],
-        cwd=ROOT,
-        report=report,
-        go=True,
-    )
-    go_cases = verify_go_report(report)
-    (directory / "executed.json").write_text(
-        json.dumps({"status": "passed", "go": go_cases, "python": python_cases}, indent=2) + "\n"
-    )
-    print(
-        f"Audit completion gate passed: {len(go_cases)} Go cases, "
-        f"{len(python_cases)} Runtime cases; no selected skips."
-    )
+    destination = directory / "executed.json"
+    evidence = {"status": "incomplete"}
+    try:
+        reports.write_evidence(destination, evidence, max_bytes=128 << 10)
+        if not os.environ.get("CONTRACTOR_TEST_DATABASE_URL", "").strip():
+            raise GateError("CONTRACTOR_TEST_DATABASE_URL is required; use disposable PostgreSQL")
+        python = ROOT / "runtime/.venv/bin/python"
+        if not python.is_file() or shutil.which("go") is None or shutil.which("uv") is None:
+            raise GateError("Go, uv and the prepared runtime/.venv/bin/python are required")
+        pin = reports.evidence_pin(MATRIX)
+        evidence.update(pin)
+        reports.write_evidence(destination, evidence, max_bytes=128 << 10)
+        reports.require_fresh(pin, MATRIX)
+        junit = directory / "runtime.xml"
+        files = sorted(
+            {name.split("::", 1)[0].replace(".", "/") + ".py" for name in matrix()["python"]}
+        )
+        run_command(
+            ["uv", "run", "--frozen", "python", "-m", "pytest", *files, "--junitxml", str(junit)],
+            cwd=ROOT / "runtime",
+            report=directory / "runtime.log",
+        )
+        python_cases = verify_python_report(junit)
+        report = directory / "go.jsonl"
+        packages = [
+            "./" + name.removeprefix("github.com/grauwolf32/contractor/") for name in matrix()["go"]
+        ]
+        run_command(
+            [
+                "go",
+                "test",
+                "-json",
+                "-race",
+                "-tags=integration",
+                "-count=1",
+                "-timeout=8m",
+                *packages,
+                "-run",
+                PATTERN,
+            ],
+            cwd=ROOT,
+            report=report,
+        )
+        go_cases = verify_go_report(report)
+        reports.require_fresh(pin, MATRIX)
+        evidence.update(status="passed", go=go_cases, python=python_cases,
+                        reports={"go.jsonl": reports.digest(report), "runtime.xml": reports.digest(junit)})
+        reports.write_evidence(destination, evidence, max_bytes=128 << 10)
+        print(
+            f"Audit completion gate passed: {len(go_cases)} Go cases, "
+            f"{len(python_cases)} Runtime cases; no selected skips."
+        )
+    except BaseException as error:
+        evidence["status"] = "cancelled" if isinstance(error, KeyboardInterrupt) else "timed_out" if isinstance(error, TimeoutError) else "failed"
+        evidence["reason"] = type(error).__name__
+        reports.write_evidence(destination, evidence, max_bytes=128 << 10)
+        raise
 
 
 def main() -> int:
@@ -226,4 +142,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    previous = signal.signal(signal.SIGTERM, reports.interrupt)
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("Audit completion verification cancelled", file=sys.stderr)
+        sys.exit(130)
+    finally:
+        signal.signal(signal.SIGTERM, previous)

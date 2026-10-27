@@ -9,21 +9,25 @@ status: pending
 depends_on:
 - V410-002
 - V55-007
+- V410-004
 languages:
 - go
 - python
 - json
 - yaml
 - markdown
-goal: Provide a callable deterministic reconciliation tool that imports declarations, groups retained observed members
-  and publishes safe guarded source changes with exact input/output provenance.
+goal: Reuse the existing source-import operation and Go OpenAPI normalization to add guarded declarations/grouping
+  and a bounded reconciliation result.
 context:
-  authority: User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
-    this task records planned work, not implementation or verification evidence.
+  authority: 'User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
+    this task records planned work, not implementation or verification evidence. User review on 2026-10-27 supersedes
+    generic collection-completeness/status requirements: automatic sitemap updates are best effort and must remain
+    isolated from HTTP/scanner outcomes and Run contracts.'
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 4 and 6-11: normalized OpenAPI, pure computation, source generations, rebase restrictions,
     safe views and bounded regrouping.'
   specification:
+  - docs/spec/artifacts/project-sitemap.md
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/artifacts/projects.md
   - docs/spec/artifacts/retention-and-deletion.md
@@ -34,8 +38,7 @@ context:
   - docs/spec/execution/worker.md
   - docs/spec/tools/toolsets.md
   boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
-    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64
-    work.
+    proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64 work.
   code:
   - internal/scanplan/prepare.go
   - internal/scanplan/operation.go
@@ -49,10 +52,11 @@ scope:
   in:
   - Reuse/extract the existing Go normalized OpenAPI operation/reference logic with callers retained in both scan
     preparation and sitemap reconciliation; do not implement a second Runtime parser.
-  - Register a model-free-callable reconciliation tool receiving exact map/schema refs, explicit origin binding
-    and versioned grouping/projection policy.
-  - Emit an exact canonical enriched-map output, bounded source-update patch and report naming input refs/digests,
-    policy, omitted members and actual publication revision when selected.
+  - Extend the existing import_sitemap_source dispatcher with exact OpenAPI reconciliation, callable from tool@1;
+    reuse policy/grants instead of inventing another tool or independent import protocol.
+  - Return a bounded result naming exact inputs and actual publication ref. Materialize an exact context artifact
+    only for a declared Workflow/Audit consumer; do not require an enriched-map copy, patch artifact and separate
+    report all at once.
   - Implement declared-only/observed-only comparisons, concrete-path precedence, ambiguous-template gaps, parameter/media/outcome
     differences and source-mode-safe snapshots.
   - Apply optional shared source changes through the same guarded reducer and receipt/quota boundary; pure computation
@@ -62,6 +66,8 @@ scope:
     verdicts.
   - Recovering discarded concrete members or widening suppressed/manual selections during regrouping.
   - Shipped Workflow/Audit catalog composition (V410-006).
+  - Unconsumed output copies, default patch artifacts, another reconciliation/import tool surface or collection-completeness
+    states.
 requirements:
 - id: R1
   text: Same exact authorized bytes/refs, explicit origin and versioned policy produce the same canonical computation
@@ -80,8 +86,8 @@ requirements:
     and manual state. A stale old-schema Workflow cannot refresh its predecessor and retry as a new intended source
     replacement. A predecessor ref is a CAS condition, not a retention hold or a chain pinning map history.
 - id: R6
-  text: Use declared artifact slots for large map/report outputs; keep the tool completion envelope bounded. Apply
-    the same source-mode filtering before materialization as live reads and do not fork raw mixed content into blackbox.
+  text: Keep the tool result bounded. Produce large exact context/output artifacts only for declared consumers, through
+    existing safe snapshot/Artifact paths; never return raw mixed source-mode content to blackbox consumers.
 failure_outcomes:
 - operation: Exact map/schema read and deterministic reconciliation
   permanent: Invalid map/schema, inaccessible refs, unsupported policy or missing explicit origin fails permanently
@@ -90,8 +96,8 @@ failure_outcomes:
   ambiguous: Reconcile exact result publication identities; do not rerun target traffic because this tool performs
     none.
   cancelled: Join bounded computation/output assembly before allocation cleanup.
-  timeout: The reconciliation deadline owns parse/reindex/output work; budgets bound nested reference expansion
-    and source bytes.
+  timeout: The reconciliation deadline owns parse/reindex/output work; budgets bound nested reference expansion and
+    source bytes.
 - operation: Optional guarded live source replacement
   permanent: Stale source/manual preconditions, generic Artifact admission rejection or all-protected history capacity
     are nonautomatic-retry outcomes; retaining the private computation does not authorize shared rollback.
@@ -146,15 +152,16 @@ acceptance_criteria:
 - id: A5
   given: Mixed source-mode inputs, large output, a lost publication reply and a concurrent hold/eviction race
   when: A blackbox tool computes/publishes through production boundaries
-  then: Only safe authorized outputs materialize in explicit slots, receipt replay retains exact result identity
-    without republishing evicted history; acceptance obtains its hold or fails unavailable, and generic Artifact
-    admission/operation limits apply without a sitemap-specific cumulative Run quota.
+  then: Authorized outputs are materialized only in declared needed slots. Source publication receipts and exact selected
+    holds keep their existing semantics without republishing, source substitution, implicit pinning or a cumulative
+    Run quota.
 deliverables:
 - path: internal/scanplan
-  description: Reuse the existing normalization/reference authority; extract common lower-layer types only with
-    both production callers and architecture classification.
+  description: Reuse the existing normalization/reference authority; extract common lower-layer types only with both
+    production callers and architecture classification.
 - path: runtime/src/contractor_runtime/toolsets/sitemap
-  description: Registered reconciliation tool backed by the authorized service, with explicit artifact output contract.
+  description: OpenAPI support in the existing source-import dispatcher, with bounded results and only caller-required
+    exact artifact outputs.
 - path: api/testdata
   description: Cross-language canonical, source-conflict, grouping and safe-output fixtures.
 tests:
@@ -197,13 +204,16 @@ tests:
   - A4
   - A5
 test_prerequisites:
-- Register deterministic reconciliation process cases in the sitemap gate. No target network, installed scanner,
-  browser or external model is needed. PostgreSQL-backed source races and receipt/quota cases are mandatory.
-
+- Register deterministic reconciliation process cases in the sitemap gate. No target network, installed scanner, browser
+  or external model is needed. PostgreSQL-backed source races and receipt/quota cases are mandatory.
 execution:
-  released_on: "2026-10-26"
+  released_on: '2026-10-26'
   previous_branch: codex/v410-sitemap
-  note: >-
-    Returned to pending at the user's request to finish V410-002 and pause.
-    Implementation of this task has not started; the prior batch reservation
-    is released.
+  note: Returned to pending at the user's request to finish V410-002 and pause. Implementation of this task has not
+    started; the prior batch reservation is released.
+implementation_decisions:
+- date: '2026-10-27'
+  decision: 'Reconciliation has a concrete consumer: it supplies declarations/grouping for the current map and exact
+    selected context when a Workflow/Audit requests it. Reuse import_sitemap_source and the Go operation/reference
+    parser. Remove mandatory parallel enriched-map/patch/report outputs that have no separate consumer; preserve guarded
+    source replacement and immutable exact input selection.'

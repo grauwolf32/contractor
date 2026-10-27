@@ -32,7 +32,7 @@ func typedRoutingControllerConfig(t *testing.T, customize ...func(map[string]str
 		profile = strings.Replace(profile, "maxEvidenceBytes: 1048576", "maxEvidenceBytes: 8388608", 1)
 		methods := "  methods:\n"
 		for _, entry := range []struct{ method, role string }{{"verify", "blue"}, {"replay", "red"}, {"applicability", "green"}} {
-			methods += fmt.Sprintf("    %s-route:\n      planSchema: contractor.audit.finding-check-plan.v1\n      method: %s\n      phase: %s\n      workflowRole: %s\n      requiredCapabilities: []\n", entry.role, entry.method, entry.method, entry.role)
+			methods += fmt.Sprintf("    %s-route:\n      planSchema: contractor.audit.finding-check-plan.v1\n      method: %s\n      workflowRole: %s\n      requiredCapabilities: []\n", entry.role, entry.method, entry.role)
 		}
 		profile = strings.Replace(profile, "  workflows:\n", methods+"  workflows:\n", 1)
 		roles := ""
@@ -102,7 +102,7 @@ func TestPostgresTypedRoutingUsesActualAdmissionAfterPauseRestartAndProducerDele
 			break
 		}
 	}
-	if before.SelectedCount != 1 || before.PreparedRoot != nil {
+	if before.SelectedCount != 1 || before.Root != nil {
 		t.Fatalf("bounded first selection: %+v", before)
 	}
 	current, err := h.audits.Get(ctx, h.started.Audit.OwnerID, h.started.Audit.AuditID)
@@ -192,7 +192,7 @@ func TestPostgresTypedRoutingUsesActualAdmissionAfterPauseRestartAndProducerDele
 		t.Fatalf("recovery changed target budget: submitted=%d reserved=%d outstanding=%d", current.SubmittedRunCount, current.ReservedRunCount, current.OutstandingRunCount)
 	}
 	progress := readTypedAdmissionProgress(t, ctx, h)
-	if !progress.DeadlineAt.Equal(before.DeadlineAt) || progress.SelectedCount != 3 || progress.StagedCount != 3 || progress.PreparedRoot == nil {
+	if !progress.DeadlineAt.Equal(before.DeadlineAt) || progress.SelectedCount != 3 || progress.StagedCount != 3 || progress.Root == nil {
 		t.Fatalf("restart changed accepted generation: %+v", progress)
 	}
 	for range 8 {
