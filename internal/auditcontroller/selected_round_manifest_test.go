@@ -76,4 +76,9 @@ func TestPreparedRoundDispatchReadsOnlyCompactRootAndSelectedPrefix(t *testing.T
 	if _, _, err := b.readSelectedRoundExecutionManifest(t.Context(), snapshot, selected); err == nil {
 		t.Fatal("global item ordinal drift accepted")
 	}
+	lookup.items[0].Ordinal = 2048
+	snapshot.Round.Manifest.Ref.Namespace = "foreign-audit"
+	if _, _, err := b.readSelectedRoundExecutionManifest(t.Context(), snapshot, selected); err == nil {
+		t.Fatal("foreign canonical root namespace accepted")
+	}
 }

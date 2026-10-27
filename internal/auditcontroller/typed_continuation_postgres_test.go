@@ -173,4 +173,21 @@ func TestPostgresTypedAdmissionContinuesBeyondOnePrimarySliceBeforeAtomicAccepta
 	if len(lost.lost) != 3 {
 		t.Fatalf("did not replay all committed phase replies: %+v", lost.lost)
 	}
+	for range 8 {
+		preparationStep(t, ctx, c)
+		executions, err = h.audits.ListExecutions(ctx, h.started.Audit.AuditID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(executions) > 1 {
+			break
+		}
+	}
+	if len(executions) != 2 || executions[1].RunID == nil || executions[1].State != auditstore.ExecutionSubmitted {
+		t.Fatalf("lost admission replies duplicated the first child: executions=%+v error=%v", executions, err)
+	}
+	current, err := h.audits.Get(ctx, h.started.Audit.OwnerID, h.started.Audit.AuditID)
+	if err != nil || current.SubmittedRunCount != 2 || current.ReservedRunCount != 2 {
+		t.Fatalf("lost admission replies duplicated submission debit: submitted=%d reserved=%d error=%v", current.SubmittedRunCount, current.ReservedRunCount, err)
+	}
 }
