@@ -213,6 +213,73 @@ def test_failure_is_logged_without_changing_read_or_completion(caplog):
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("operation", ["list_sitemap_entries", "read_sitemap_entry"])
+@pytest.mark.parametrize(
+    "read_error",
+    [None, (403, "sitemap_access_denied", False), (503, "storage_transaction_conflict", True)],
+)
+def test_fresh_read_keeps_its_allowance_after_automatic_flush_exhaustion(operation, read_error):
+    from fakes.clock import advance_clock, run_with_advanceable_clock
+    from fakes.sitemap import identity
+    from test_sitemap_tools import tools_for
+
+    async def scenario():
+        client = Client()
+        client.block = True
+        collector = SitemapCollector(client, clock=asyncio.get_running_loop().time, wait=no_timer)
+        await collector.receive([observation()])
+        transport = SitemapTransport()
+        transport.access_error = read_error
+        tools, _ = await tools_for(transport, [operation])
+        tool = tools[operation]
+        tool._session._before_read = collector.checkpoint
+        arguments = {} if operation == "list_sitemap_entries" else {"entry_id": identity("group-0")}
+        reading = asyncio.create_task(tool(**arguments))
+        await client.entered.wait()
+        advance_clock(16)
+        result = await reading
+        if read_error is None:
+            assert result["status"] == "completed" and result["entries"]
+        else:
+            assert result["status"] == "failed"
+            assert result["error"] == {"code": read_error[1], "retryable": read_error[2]}
+        assert any(path.endswith("/sitemap") for _, path, _, _ in transport.requests)
+        assert collector._disabled and collector._publisher is None
+        await tool(refresh=True, **arguments)
+        assert len(client.calls) == 1
+        await collector.close()
+        await tool.close()
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_cancelled_fresh_read_joins_checkpoint_before_propagating():
+    from test_sitemap_tools import tools_for
+
+    async def scenario():
+        client = Client()
+        client.block = True
+        collector = SitemapCollector(client, wait=no_timer)
+        await collector.receive([observation()])
+        transport = SitemapTransport()
+        tools, _ = await tools_for(transport, ["list_sitemap_entries"])
+        tool = tools["list_sitemap_entries"]
+        tool._session._before_read = collector.checkpoint
+        reading = asyncio.create_task(tool())
+        await client.entered.wait()
+        reading.cancel()
+        await asyncio.sleep(0)
+        assert not reading.done()
+        client.resume.set()
+        with pytest.raises(asyncio.CancelledError):
+            await reading
+        assert transport.requests == [] and collector._publisher is None
+        await collector.close()
+        await tool.close()
+
+    asyncio.run(scenario())
+
+
 def test_unknown_remote_failure_text_is_never_logged(caplog):
     async def scenario():
         client = Client()

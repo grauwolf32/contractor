@@ -110,11 +110,19 @@ class _SitemapTool(SessionArtifactTool[SitemapSession]):
             for item in value:
                 self._validate_nesting(item, depth + 1)
 
-    async def _invoke(self, arguments: dict, operation: Callable[[], Awaitable[dict]]) -> dict:
+    async def _invoke(
+        self,
+        arguments: dict,
+        operation: Callable[[], Awaitable[dict]],
+        *,
+        session_read: bool = False,
+    ) -> dict:
         with self._recorded({}) as call:
             self._validate_nesting(arguments)
             try:
-                async with asyncio.timeout(15):
+                # Session reads bound flush, lock acquisition and reading
+                # independently; mutations retain their existing allowance.
+                async with asyncio.timeout(None if session_read else 15):
                     result = await operation()
             except ArtifactAPIError as error:
                 result = {
@@ -164,7 +172,9 @@ class ListSitemapEntries(_SitemapTool):
     ) -> dict:
         arguments = locals().copy()
         del arguments["self"]
-        return await self._invoke(arguments, lambda: self._session.list(**arguments))
+        return await self._invoke(
+            arguments, lambda: self._session.list(**arguments), session_read=True
+        )
 
 
 class ReadSitemapEntry(_SitemapTool):
@@ -211,6 +221,7 @@ class ReadSitemapEntry(_SitemapTool):
                 limit=limit,
                 include_suppressed=include_suppressed,
             ),
+            session_read=True,
         )
 
 

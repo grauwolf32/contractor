@@ -250,6 +250,10 @@ renew that allowance. `Retry-After` applies only inside the remaining budget.
 A fresh live view attempts the caller's local flush and then reads committed
 data, including when automatic publication failed. Existing paged views remain
 immutable. Explicit read authorization/storage errors retain their own contract.
+Lock acquisition and the explicit read each have their own 15-second allowance;
+the automatic checkpoint retains its separate existing flush budget. Exhausting
+that checkpoint must not consume the explicit read allowance. Caller cancellation
+still joins publication and view construction before propagating.
 
 **SMT-R21.** Composition attempts a bounded infrastructure checkpoint before
 returning the Worker result, while allocation writes are still permitted.

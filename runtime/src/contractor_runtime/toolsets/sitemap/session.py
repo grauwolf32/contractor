@@ -5,7 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import secrets
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from contextlib import asynccontextmanager
 from typing import Any
 from uuid import uuid4
 
@@ -55,6 +56,28 @@ class SitemapSession:
     def expired() -> ArtifactAPIError:
         return ArtifactAPIError(409, "sitemap_cursor_expired", False)
 
+    @asynccontextmanager
+    async def _reading(
+        self, refresh: bool, cursor: str | None, query: str
+    ) -> AsyncIterator[tuple[ViewIndex, int]]:
+        async with asyncio.timeout(15):
+            await self._lock.acquire()
+        try:
+            if self._closed or (refresh and cursor is not None):
+                raise self.expired()
+            if cursor is None and (refresh or self._view is None):
+                # Joined indexing and the allocation lock serialize replacement
+                # with release. Free the old view before building its successor.
+                self._drop()
+                if self._before_read is not None:
+                    # Automatic publication owns its bounded checkpoint. Its
+                    # exhaustion must leave the explicit read its own allowance.
+                    await self._before_read()
+            async with asyncio.timeout(15):
+                yield await self._ready(refresh, cursor, query)
+        finally:
+            self._lock.release()
+
     async def _ready(self, refresh: bool, cursor: str | None, query: str) -> tuple[ViewIndex, int]:
         if self._closed or (refresh and cursor is not None):
             raise self.expired()
@@ -74,11 +97,6 @@ class SitemapSession:
                 raise self.expired()
             offset = value["offset"]
         elif refresh or self._view is None:
-            # Free the old graph before downloading or indexing its replacement.
-            # Joined threads and the allocation lock serialize replacement/release.
-            self._drop()
-            if self._before_read is not None:
-                await self._before_read()
             raw = await self.client.view()
             view = await threads.to_thread_until_done(
                 lambda: ViewIndex(raw.data), name="sitemap-view-index"
@@ -138,8 +156,7 @@ class SitemapSession:
             "limit": limit,
         }
         query = query_digest(filters)
-        async with self._lock:
-            view, offset = await self._ready(refresh, cursor, query)
+        async with self._reading(refresh, cursor, query) as (view, offset):
             # Indexed headers only, and at most 100 inspected candidates per page.
             identities = view.entry_ids
             if offset > len(identities):
@@ -191,8 +208,7 @@ class SitemapSession:
                 "includeSuppressed": include_suppressed,
             }
         )
-        async with self._lock:
-            view, offset = await self._ready(refresh, cursor, query)
+        async with self._reading(refresh, cursor, query) as (view, offset):
             entry = view.entries.get(identity)
             if entry is None:
                 raise ArtifactAPIError(404, "artifact_not_found", False)
