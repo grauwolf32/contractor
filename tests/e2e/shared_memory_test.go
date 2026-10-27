@@ -786,8 +786,12 @@ func assertOwnerMemoryArtifact(
 	decodeResponse(t, response, &page)
 	if len(page.Items) != 1 || page.Items[0].Artifact.Namespace != namespace ||
 		page.Items[0].Artifact.Name != "memory."+name || page.Items[0].Artifact.Revision == "" ||
-		page.Items[0].MediaType != contractormemory.MediaType || !page.Items[0].Current || page.Items[0].Frozen {
+		!page.Items[0].Current || page.Items[0].Frozen {
 		t.Fatalf("owner Run Artifact page = %+v", page)
+	}
+	metadataMediaType, err := page.Items[0].MediaType.AsMediaType1()
+	if err != nil || metadataMediaType != contractormemory.MediaType {
+		t.Fatalf("owner Memory Artifact media type = %q (%v)", metadataMediaType, err)
 	}
 	dates := page.Items[0].StorageTimestamps
 	if dates == nil {
