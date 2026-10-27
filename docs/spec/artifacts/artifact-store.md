@@ -1456,3 +1456,37 @@ with creation; an eviction winner returns the existing exact-not-found outcome.
 The immutable target name is the replay key: source identity and payload digest
 must match before replay confirms it. The operation uses ordinary write admission,
 history, scope fencing and lineage purge, with no new receipt store, pin or lease.
+
+### Storage timestamp diagnostics
+
+**ART-R130.** Every public `ArtifactMetadata`, including current bindings and
+retained version pages in User, Project and Run scopes, contains a read-only
+`storageTimestamps` object with exactly `scopeCreatedAt`, `blobCreatedAt`,
+`versionCreatedAt` and `bindingUpdatedAt`. Values come from existing registry
+rows in the same bounded metadata query, never payload data or filesystem I/O.
+Each is a present, non-null, nonzero RFC 3339 UTC-Z timestamp preserving database
+precision. A missing or corrupt stored date fails the metadata read; readers
+never invent a replacement. The object occupies at most 512 encoded UTF-8 bytes
+per row (102,400 additional bytes for a 200-row page). Existing keyset ordering,
+limit+1 lookahead, owner checks and reserved-binding filters remain authoritative.
+
+**ART-R131.** `scopeCreatedAt` dates creation of the containing registry scope
+row. `blobCreatedAt` dates first registration of the shared blob row, not this
+upload, file mtime or its current physical generation. `versionCreatedAt` dates
+the selected immutable version row. Deduplicated writes may share the blob date;
+exact forks retain both source version and blob dates while creating an
+independent target scope/binding/revision. Version creation may therefore
+precede scope creation. These dates make no authorship claim. Registry creation
+dates are immutable, including the scope date independently of its mutable
+revision counter.
+
+**ART-R132.** `bindingUpdatedAt` dates the owning logical binding's current last
+mutation, including freeze/thaw, and is not a content-modification timestamp.
+This remains current binding state when historical metadata is selected; blob
+and version dates follow the selected exact revision. `createdAt` keeps its
+existing selected-revision meaning. Private binding/revision headers and Memory
+timestamps keep ART-R55/ART-R56 and MEM-R24 unchanged. Diagnostic reads mutate
+nothing and change no retention, exact hold or age-independent collection rule.
+The public UI consumes every diagnostic date behind Technical details; reopen
+this projection only if measured page cost or an explicit privacy requirement
+prevents owner-authorized metadata exposure, not by guessing or deleting facts.

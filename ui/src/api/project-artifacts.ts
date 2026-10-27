@@ -111,6 +111,7 @@ export async function getProjectArtifactMetadata(
     client.GET(
       "/v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata",
       {
+        ...(request.signal === undefined ? {} : { signal: request.signal }),
         params: {
           path: {
             projectId: request.projectId,

@@ -1304,3 +1304,15 @@ coverage kind identity; hosts retain authorized evidence links and receipts.
 Unknown reports keep raw preview; unsupported scanner input views remain
 explicit and preserve evidence access. Generic lifecycle and format-based
 OpenAPI/LikeC4 previews remain shared.
+
+**UI-R207.** The shared User/Project/Run material Technical details disclosure
+shows every ART-R130 storage timestamp with absolute time and timezone. Labels
+identify storage scope creation, shared blob registration, storage version
+creation and current binding change. Explain that shared dates may predate the
+material or target scope, blob registration is not upload/file creation time,
+and locking/unlocking can change the current binding date without changing
+content, including on a historical revision. Keep ordinary Created/revision
+information intact. Metadata loading, failures and selection changes must not
+show another material's dates; no missing date is guessed. Use shared Facts and
+TechnicalDetails, keyboard disclosure, theme tokens and a layout that fits
+390 px in light, dark and black themes.

@@ -897,6 +897,8 @@ describe("Workflow routes", () => {
       <WorkflowRunForm workflow={nucleiWorkflow} projectId="project_example" />,
       {
         "GET /v1/artifacts": () => json(page([ownerPack])),
+        "GET /v1/artifacts/{namespace}/{name}/metadata": () =>
+          json(uploadedPack),
         "PUT /v1/artifacts/{namespace}/{name}": ({ params }) => {
           expect(params).toEqual({ namespace: "inputs", name: "custom" });
           return json(artifactWrite(uploadedPack), 201, {
@@ -939,7 +941,9 @@ describe("Workflow routes", () => {
       within(dialog).getByRole("button", { name: "Upload and select" }),
     );
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
-    expect(rulepack).toHaveValue("inputs/custom@revision-upload-1");
+    await waitFor(() =>
+      expect(rulepack).toHaveValue("inputs/custom@revision-upload-1"),
+    );
     expect(
       requests.map((request) => new URL(request.url).pathname),
     ).not.toContain("/v1/projects/project_example/artifacts/artifacts/custom");
@@ -1134,6 +1138,9 @@ describe("Workflow routes", () => {
           "GET /v1/artifacts": () => json(page([ownerPack])),
           "GET /v1/projects/{projectId}/artifacts": () =>
             json(page([projectSource])),
+          "GET /v1/artifacts/{namespace}/{name}/metadata": () => json(uploaded),
+          "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata":
+            () => json(uploaded),
           "PUT /v1/artifacts/{namespace}/{name}": upload,
           "PUT /v1/projects/{projectId}/artifacts/{namespace}/{name}": upload,
           "POST /v1/projects/{projectId}/runs": async ({ request }) => {
@@ -1182,6 +1189,15 @@ describe("Workflow routes", () => {
         within(dialog).getByRole("button", { name: "Upload and select" }),
       );
       await waitFor(() => expect(dialog).not.toBeInTheDocument());
+      await waitFor(() =>
+        expect(
+          screen.getByRole("combobox", {
+            name: slot === "source" ? "source required" : "rulepack",
+          }),
+        ).toHaveValue(
+          `${uploaded.artifact.namespace}/custom@revision-uploaded`,
+        ),
+      );
       if (slot === "source") {
         expect(
           within(
@@ -1638,6 +1654,55 @@ describe("Workflow routes", () => {
     });
   });
 
+  it("cancels late stored metadata after a newer input selection", async () => {
+    const uploaded = artifactMetadata("inputs", "new-source", {
+      size: 3,
+      artifact: {
+        namespace: "inputs",
+        name: "new-source",
+        revision: "uploaded",
+      },
+    });
+    const response = deferred<Response>();
+    let readRequest: Request | undefined;
+    const { user } = renderRunForm(<WorkflowRunForm workflow={workflow} />, {
+      ...inventoryRoutes,
+      "GET /v1/artifacts/{namespace}/{name}/metadata": ({ request }) => {
+        readRequest = request;
+        return response.promise;
+      },
+      "PUT /v1/artifacts/{namespace}/{name}": () =>
+        json(artifactWrite(uploaded), 201, { ETag: '"uploaded"' }),
+    });
+    await screen.findByRole("option", { name: /projects\/source@revision-7/ });
+    await user.click(
+      screen.getByRole("button", { name: "Upload local file for source" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "Upload local file for source",
+    });
+    await user.upload(
+      within(dialog).getByLabelText("Drop a file here"),
+      new File(["zip"], "new-source.zip", { type: "application/zip" }),
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Upload and select" }),
+    );
+    await waitFor(() => expect(readRequest).toBeDefined());
+    await user.selectOptions(
+      screen.getByLabelText(/^source/i),
+      "projects/source@revision-7",
+    );
+    expect(readRequest?.signal.aborted).toBe(true);
+    await act(async () => {
+      response.resolve(json(uploaded));
+      await response.promise;
+    });
+    expect(screen.getByLabelText(/^source/i)).toHaveValue(
+      "projects/source@revision-7",
+    );
+  });
+
   it("uploads a local UserScope file into its originating exact input slot", async () => {
     let stored = false;
     const uploadedArtifact = artifactMetadata("inputs", "service-source", {
@@ -1652,6 +1717,10 @@ describe("Workflow routes", () => {
     const { sent } = renderApplication(workflowRoute, {
       server: workflowRoutes({
         "GET /v1/artifacts": () => json(page(stored ? [uploadedArtifact] : [])),
+        "GET /v1/artifacts/{namespace}/{name}/metadata": ({ url }) => {
+          expect(url.searchParams.get("revision")).toBe("revision-upload-1");
+          return json(uploadedArtifact);
+        },
         "PUT /v1/artifacts/{namespace}/{name}": async ({ request, params }) => {
           expect(params).toEqual({
             namespace: "inputs",
@@ -1711,8 +1780,10 @@ describe("Workflow routes", () => {
     expect(screen.getByLabelText(/^objective/i)).toHaveValue(
       "Keep this field while uploading",
     );
-    expect(screen.getByLabelText(/^source/i)).toHaveValue(
-      "inputs/service-source@revision-upload-1",
+    await waitFor(() =>
+      expect(screen.getByLabelText(/^source/i)).toHaveValue(
+        "inputs/service-source@revision-upload-1",
+      ),
     );
 
     await user.click(

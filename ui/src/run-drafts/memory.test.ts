@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -178,6 +179,7 @@ describe("RunDraftMemoryStore", () => {
   it("invalidates only a changed automatic suggestion and retains old exact metadata", () => {
     const store = new RunDraftMemoryStore("owner-a");
     const metadata = (name: string, revision: string) => ({
+      storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: { namespace: "sources", name, revision },
       mediaType: "application/zip",
       size: 10,
@@ -251,6 +253,7 @@ describe("RunDraftMemoryStore", () => {
   it("retains exact suggestion metadata as non-user draft state", async () => {
     const store = new RunDraftMemoryStore("owner-a");
     const metadata = {
+      storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: { namespace: "sources", name: "one", revision: "r1" },
       mediaType: "application/zip",
       size: 10,

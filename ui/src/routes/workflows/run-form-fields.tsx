@@ -1,7 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
+import { usePublicAPI } from "../../api/context";
+import { scopedArtifactAPI } from "../../api/scoped-artifacts";
 import type { WorkflowResource } from "../../api/workflows";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes, formatTimestamp } from "../../app/format";
@@ -253,8 +255,44 @@ export function InputFields({
   const uploadProjectId =
     uploadSlot === null ? undefined : inventories.inputs[uploadSlot]?.projectId;
 
-  function selectStored(slot: string, metadata: ArtifactMetadata): void {
-    onSelect(slot, artifactOptionKey(metadata.artifact), metadata);
+  const api = usePublicAPI();
+  const [storedError, setStoredError] = useState<unknown>(undefined);
+  const storedReads = useRef(new Map<string, AbortController>());
+  useEffect(() => {
+    const reads = storedReads.current;
+    return () => {
+      for (const read of reads.values()) read.abort();
+      reads.clear();
+    };
+  }, []);
+  function cancelStoredSelection(slot: string): void {
+    storedReads.current.get(slot)?.abort();
+    storedReads.current.delete(slot);
+  }
+  async function selectStored(
+    slot: string,
+    artifact: ArtifactMetadata["artifact"],
+    scopeProjectId: string | undefined,
+  ): Promise<void> {
+    cancelStoredSelection(slot);
+    const read = new AbortController();
+    storedReads.current.set(slot, read);
+    setStoredError(undefined);
+    try {
+      const metadata = await scopedArtifactAPI(
+        api,
+        scopeProjectId === undefined
+          ? { kind: "user" }
+          : { kind: "project", id: scopeProjectId },
+      ).metadata({ ...artifact, signal: read.signal });
+      if (!read.signal.aborted && isCurrent())
+        onSelect(slot, artifactOptionKey(artifact), metadata);
+    } catch (error) {
+      if (!read.signal.aborted && isCurrent()) setStoredError(error);
+    } finally {
+      if (storedReads.current.get(slot) === read)
+        storedReads.current.delete(slot);
+    }
   }
 
   let slots: ReactNode;
@@ -314,6 +352,7 @@ export function InputFields({
                       value={selected}
                       disabled={artifactInventory.isPending}
                       onChange={(event) => {
+                        cancelStoredSelection(name);
                         const exactRef = event.target.value;
                         onSelect(name, exactRef, artifactMap.get(exactRef));
                       }}
@@ -343,7 +382,10 @@ export function InputFields({
                     suggested={artifactSuggestions[name] === selected}
                     projectId={inputProjectId}
                     inputNoun={inputNoun}
-                    onConfirm={() => onConfirm(name)}
+                    onConfirm={() => {
+                      cancelStoredSelection(name);
+                      onConfirm(name);
+                    }}
                   />
                 )}
                 <div className="run-field-actions">
@@ -402,15 +444,7 @@ export function InputFields({
           onClose={() => setGitSlot(null)}
           onImported={(result) => {
             if (!isCurrent()) return;
-            selectStored(gitSlot, {
-              artifact: result.artifact,
-              mediaType: result.mediaType,
-              size: result.size,
-              gitSource: result.gitSource,
-              current: true,
-              frozen: false,
-              createdAt: result.gitSource.importedAt,
-            });
+            void selectStored(gitSlot, result.artifact, gitProjectId);
             setGitSlot(null);
           }}
         />
@@ -425,18 +459,12 @@ export function InputFields({
           onClose={() => setUploadSlot(null)}
           onUploaded={(result) => {
             if (!isCurrent()) return;
-            selectStored(uploadSlot, {
-              artifact: result.artifact,
-              mediaType: result.mediaType,
-              size: result.size,
-              current: true,
-              frozen: false,
-              createdAt: new Date().toISOString(),
-            });
+            void selectStored(uploadSlot, result.artifact, uploadProjectId);
             setUploadSlot(null);
           }}
         />
       )}
+      {storedError === undefined ? null : <ErrorNotice error={storedError} />}
       {inventories.artifactInventories.map(
         ({ projectId: scopeProjectId, query }) =>
           query.error === null ? null : (

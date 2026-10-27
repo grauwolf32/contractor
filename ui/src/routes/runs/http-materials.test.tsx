@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../test/builders";
 import { screen, waitFor } from "@testing-library/react";
 import { expect, it } from "vitest";
 
@@ -18,6 +19,7 @@ const SOURCE = JSON.stringify({
 /** 130 HTTP exchanges saved with possible issues: three pages of 50. */
 const MATERIALS = Array.from({ length: 130 }, (_, index) =>
   conforming("ArtifactMetadata", {
+    storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: {
       namespace: "finding-proposals",
       name: "http.exchange.proposal-" + String(index).padStart(3, "0"),

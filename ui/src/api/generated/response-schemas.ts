@@ -345,6 +345,8 @@ export type PublicSchemaName =
   | "ArtifactArchiveEntry"
   | "ArtifactArchive"
   | "ArtifactArchiveFile"
+  | "ArtifactStorageTimestamp"
+  | "ArtifactStorageTimestamps"
   | "ArtifactMetadata"
   | "ArtifactPage"
   | "ArtifactLineageEdge"

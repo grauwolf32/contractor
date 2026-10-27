@@ -106,7 +106,7 @@ export function ArtifactTechnicalDetails({
   return (
     <div id={HISTORY_ID} className="materials-tech">
       <TechnicalDetails
-        description="Revision, media type, versions and lineage."
+        description="Revision, storage dates, versions and lineage."
         onToggle={(open) => {
           if (open) setOpened(true);
         }}
@@ -123,6 +123,45 @@ export function ArtifactTechnicalDetails({
             { term: "Media type", value: <code>{metadata.mediaType}</code> },
           ]}
         />
+        <Facts
+          layout="row"
+          className="materials-facts materials-tech-facts"
+          items={(
+            [
+              [
+                "Storage scope created",
+                metadata.storageTimestamps.scopeCreatedAt,
+              ],
+              [
+                "Shared blob registered",
+                metadata.storageTimestamps.blobCreatedAt,
+              ],
+              [
+                "Storage version created",
+                metadata.storageTimestamps.versionCreatedAt,
+              ],
+              [
+                "Current binding changed",
+                metadata.storageTimestamps.bindingUpdatedAt,
+              ],
+            ] as const
+          ).map(([term, value]) => ({
+            term,
+            value: (
+              <time dateTime={value} title={value}>
+                {formatTimestamp(value)} ·{" "}
+                {Intl.DateTimeFormat().resolvedOptions().timeZone}
+              </time>
+            ),
+          }))}
+        />
+        <p className="materials-storage-note">
+          Shared blob and storage version dates can predate this material or its
+          storage scope. Blob registration is not this upload's date or a file's
+          creation time. Current binding changes include locking and unlocking;
+          they do not necessarily change content, even when viewing a historical
+          revision.
+        </p>
         {opened ? (
           <ArtifactHistory
             key={metadata.artifact.revision}
