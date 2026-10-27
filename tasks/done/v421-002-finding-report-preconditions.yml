@@ -5,7 +5,7 @@ milestone: data-model-consumers-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, sql, json, yaml]
 goal: >-
@@ -162,3 +162,31 @@ tests:
     covers: [A2, A5]
   - command: make lint
     covers: [A2, A3, A5]
+implementation_commit: afc93839ad938f268af260e26fceea43d4506ac0
+verification:
+  completed_on: '2026-10-27'
+  functional_code_commit: aa19b64cfecb2dd7141ff8329aaed77c8091a35e
+  generated_dependency_commit: afc93839ad938f268af260e26fceea43d4506ac0
+  results:
+    - All nine listed Go owner and sibling packages passed with integration tags, race detector and a separate disposable PostgreSQL database; no database skip was accepted.
+    - make verify-public-api passed on the final functional code.
+    - make test-findings-e2e passed 14 required real-process cases and Runtime contracts on the final functional code.
+    - make lint passed after regenerating the sole stale documentation dependency input hash.
+    - Clean-source make test-audit-completion-e2e passed 257 Go cases and 497 Runtime cases on the final generated-document commit, with no selected skips.
+    - Focused strict-codec, near-document-limit, 11 migration-scenario and real intake/confirmation/source-deletion/report regressions passed.
+  evidence:
+    - /private/tmp/v421-002-verification.json
+    - /private/tmp/v421-002-final-completion.log
+    - /private/tmp/v421-002-final-findings.log
+    - /private/tmp/v421-002-focused-migration.log
+  notes: >-
+    Preconditions preserve the first receipt's exact strings and order across all five
+    report sections. Valid near-8-MiB projections do not guarantee report capacity:
+    actual entry bytes and the final envelope retain existing permanent size failures
+    before page or artifact writes, without trimming conditions. Migration 000055
+    atomically refuses incompatible retained projections and preserves ledger, receipt,
+    projection and immutable artifact bytes; discarded {} tombstones remain valid.
+    No old-format reader, data backfill, deletion, demo migration or accepted-report
+    rewrite was performed. macOS direct Go tests used a symlink-free temporary root
+    as documented in docs/testing/README.md. The parent integration owns landing and
+    the combined release gate; its frozen functional source has already been merged.
