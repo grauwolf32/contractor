@@ -15,34 +15,12 @@
       "exclusiveMinimum": 1,
       "title": "Confirmedleaseseconds",
       "type": "integer"
-    },
-    "runtimeAgentId": {
-      "pattern": "^[0-9a-f]{64}$",
-      "title": "Runtimeagentid",
-      "type": "string"
-    },
-    "labels": {
-      "items": {
-        "type": "string"
-      },
-      "maxItems": 32,
-      "title": "Labels",
-      "type": "array"
-    },
-    "labelRevision": {
-      "exclusiveMinimum": 0,
-      "maximum": 18446744073709551615,
-      "title": "Labelrevision",
-      "type": "integer"
     }
   },
   "required": [
     "apiVersion",
     "heartbeatIntervalSeconds",
-    "confirmedLeaseSeconds",
-    "runtimeAgentId",
-    "labels",
-    "labelRevision"
+    "confirmedLeaseSeconds"
   ],
   "title": "AgentRegistrationResponse",
   "type": "object",

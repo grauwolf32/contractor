@@ -138,3 +138,15 @@ test_prerequisites:
   - Use locked Runtime dependencies, testdata catalogs and the existing real Go/Python mTLS process harness; no live-config test reads.
   - Set CONTRACTOR_TEST_DATABASE_URL for the shared-wire and real principal/label/placement suites. A configured unreachable database or skipped mandatory case fails; a fake that omits store validation is insufficient.
   - Run complete suites for every touched Go package and zero-test-selection guards. Keep watchdog assertions deterministic with the existing injected clocks rather than wall-clock thresholds.
+
+implementation_notes:
+  changes: >-
+    The response now contains only API version and lease timing. Server principal
+    validation no longer borrows the response DTO: it uses the existing owning
+    label validator plus unchanged ID/revision rules. Dedicated regressions
+    preserve Server authority and reject echoed fields before lease/state mutation.
+  verification: >-
+    Full touched Go packages passed after correcting the test's use of placement
+    eligibility before its first heartbeat. make test-wire-cross-language and
+    real cross-language mTLS integration passed; focused Runtime tests passed.
+    Required lint and exact-source full Linux Runtime acceptance are pending.

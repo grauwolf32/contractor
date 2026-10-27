@@ -45,18 +45,12 @@
       "omit": [
         "/apiVersion",
         "/confirmedLeaseSeconds",
-        "/heartbeatIntervalSeconds",
-        "/labelRevision",
-        "/labels",
-        "/runtimeAgentId"
+        "/heartbeatIntervalSeconds"
       ],
       "null": [
         "/apiVersion",
         "/confirmedLeaseSeconds",
-        "/heartbeatIntervalSeconds",
-        "/labelRevision",
-        "/labels",
-        "/runtimeAgentId"
+        "/heartbeatIntervalSeconds"
       ]
     },
     "agent-registration.json": {

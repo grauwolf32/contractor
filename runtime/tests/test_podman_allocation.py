@@ -178,9 +178,6 @@ def test_rearmed_lease_allows_podman_prepare_after_local_expiry(tmp_path):
                         },
                         {
                             "apiVersion": API_VERSION,
-                            "runtimeAgentId": "a" * 64,
-                            "labels": [],
-                            "labelRevision": 1,
                             "heartbeatIntervalSeconds": 10,
                             "confirmedLeaseSeconds": 60,
                         },

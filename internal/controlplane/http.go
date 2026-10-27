@@ -37,7 +37,7 @@ type HTTPOptions struct {
 // Control Plane API serves; InMemoryRegistry implements it.
 type Registry interface {
 	RegisterAuthenticated(AuthenticatedPrincipal, control.AgentRegistration) (AgentSnapshot, error)
-	RegistrationResponse(AuthenticatedPrincipal) control.AgentRegistrationResponse
+	RegistrationResponse() control.AgentRegistrationResponse
 	HeartbeatAuthenticated(string, control.AgentHeartbeat) (control.HeartbeatResponse, error)
 }
 
@@ -115,12 +115,12 @@ func (h *privateHTTPHandler) register(w http.ResponseWriter, r *http.Request) {
 		RuntimeAgentID: principal.RuntimeAgentID,
 		Labels:         principal.Labels, LabelRevision: principal.LabelRevision,
 	}
-	snapshot, err := h.registry.RegisterAuthenticated(authenticated, registration)
+	_, err = h.registry.RegisterAuthenticated(authenticated, registration)
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	writePrivateJSON(w, http.StatusOK, h.registry.RegistrationResponse(snapshot.Principal))
+	writePrivateJSON(w, http.StatusOK, h.registry.RegistrationResponse())
 }
 
 func (h *privateHTTPHandler) heartbeat(w http.ResponseWriter, r *http.Request) {
