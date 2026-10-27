@@ -108,6 +108,15 @@ scheduling. Before increasing it, measure peak PostgreSQL connections
 the runner. PostgreSQL advisory locks also require checking their database
 scope; separate schemas alone do not isolate every resource.
 
+The serial sitemap publication-volume fixture runs without race instrumentation
+in the complete ordinary Go unit pass. Its 257 publications, more than 256 MiB
+of cumulative encoded content and production 15-second operation deadline stay
+unchanged. Race instrumentation can consume that deadline on the first large
+publication, so this fixture lives in a `!race` test file. The package still runs
+whole under the race detector, including concurrent writers, receipts, retention
+holds and lifecycle fences. The release graph requires its complete non-race
+owner pass as well.
+
 Inside the stages, family targets skip their own Go and Runtime suites and browser stack
 in favor of the race, integration, process and browser passes; running a
 family target directly still runs its focused suites. Every Go package with
