@@ -5,7 +5,7 @@ milestone: data-model-consumers-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on:
   - V421-001
   - V421-002
@@ -24,6 +24,12 @@ goal: >-
   real producer and consumer or has been removed end to end, and that the
   combined landing revision passes the deterministic release gate.
 context:
+  integration_followups: >-
+    Independent combined review found two concrete UI defects before release:
+    V421-011 now guards unresolved replacement inputs and retained recovery;
+    V421-012 refreshes cached diagnostics on genuine page entry with bounded
+    cache passes. Both are completed prerequisites of this exit. Their regressions
+    reproduce the prior failures and preserve the original nine decisions.
   review: >-
     The user requested a detailed data-model consumer review on 2026-10-27 and
     then detailed task intake for every agreed change. The reviewed committed
