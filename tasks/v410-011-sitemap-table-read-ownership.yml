@@ -1,0 +1,68 @@
+schema_version: '1.0'
+id: V410-011
+title: Declare the bounded Project sitemap table reads
+milestone: project-sitemap-2026-10
+epic: projects-artifacts
+kind: chore
+introduced_by: V410-002
+priority: P3
+status: in_progress
+depends_on:
+- V410-001
+- V410-002
+languages:
+- go
+- text
+- yaml
+goal: Make existing transaction-bound sitemap metadata reads explicit under PER-R23 without changing authority,
+  SQL or persistence behavior.
+context:
+  authority: User requested verification, task creation, correction and necessary checks for the three
+    undeclared sitemap reads on 2026-10-27.
+  finding: 'TestSQLAccessFollowsTableOwnership fails on main1716e40db: internal/projectsitemap/allocation.go:39
+    reads workflow_runs, allocation_sql.go:6 reads artifact_lineage, service.go:43 reads projects, without
+    [reads] grants.'
+  specification:
+  - docs/spec/platform/persistence.md#PER-R23
+  - docs/spec/artifacts/project-sitemap.md#SMT-R1
+  - docs/spec/artifacts/project-sitemap.md#SMT-R12
+  - docs/spec/artifacts/project-sitemap.md#SMT-R13
+  provenance: V410-002 commit e9465c6cf571648c16d7a1a753b89188ffaae556 introduced Run ownership and original
+    input-fork reads. The Project lifecycle/shared-lock read originated in V410-001 commit7318b1185. The
+    omission was observed during V62-021 verification.
+  decision: Use the existing [reads] registry with one concrete reason per relation. PER-R23 permits shared
+    row locks. Keep original-fork selection bounded to LIMIT2 per at-most-eight policy names and all lookup/mutation
+    work in the existing transaction. Owner APIs continue to own writes, Artifact retention and receipts;
+    revisit if a new write/exclusive lock or broader lookup is proposed.
+scope:
+  in:
+  - Declare only projectsitemap reads of workflow_runs, artifact_lineage and projects, with their owner/Project,
+    original-input and deletion-fence purposes.
+  - Review all sibling production SQL in projectsitemap and retain the existing ownership scanner unchanged.
+  - Record the resolved V62-021 observation and correct its owning epic attribution.
+  out:
+  - No new tables, migrations, SQL queries, APIs, permissions or test exceptions.
+  - No change to sitemap business behavior, read bounds, authorization, retention or Project/Run deletion.
+acceptance_criteria:
+- id: A1
+  text: The existing architecture test reproduces exactly the three missing reads before the fix and passes
+    after the three justified declarations; no scanner rule or test is weakened.
+- id: A2
+  text: The full persistence suite and Project sitemap package pass with real PostgreSQL, covering owner/Project
+    isolation, deletion fences and original exact input selection; make lint passes.
+- id: A3
+  text: The task records provenance, verification and implementation hash, is moved to done, and generated
+    backlog remains consistent.
+tests:
+- command: go test -count=1 ./internal/persistence -run '^TestSQLAccessFollowsTableOwnership$'
+  covers:
+  - A1
+- command: go test -tags=integration -count=1 ./internal/persistence/... ./internal/projectsitemap
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
