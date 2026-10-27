@@ -6,7 +6,7 @@ epic: http-tools
 kind: chore
 introduced_by: V410-001
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V410-001
 languages:
@@ -75,3 +75,38 @@ tests:
   - A1
   - A2
   - A3
+implementation_commit: 127db309a7be7255076c2d2c31aaafa548fe3c56
+verification:
+  date: '2026-10-28'
+  result: passed
+  tested_commit: ab35b1afbd246ebe62418873a40bc71e98bbaf31
+  commands:
+  - command: make test-project-sitemap-postgres
+    result: 'Passed on the integrated tree: 13 complete packages, 15 mandatory cases, zero mandatory skips. Includes
+      all new real-store regressions and full projectsitemap/controlplane suites. One producer accepted 257 publications
+      totalling 360501946 encoded bytes with ordinary history retention.'
+  - command: make lint
+    result: Passed generated checks, UI gates, go vet/staticcheck/testonlyexports, deployment tests, release graph,
+      tasks/specs/fixtures, Ruff and all four Runtime import contracts.
+  - command: go test ./internal/projectsitemap -run '^TestSitemap' -bench BenchmarkSitemapDocumentMutation -benchtime=1x
+      -count=3
+    result: Passed ownership, strict required-array, canonical publication and benchmark checks. The prior pipeline
+      was measured with the same workload; exact before/after measurements are recorded below.
+  evidence:
+  - Replaced full-document JSON roundtrip copying with owned nested collections; reused reducer canonical publication
+    bytes instead of encoding and validating them again. Stored and typed boundaries still reject required null
+    arrays and invalid documents.
+  - Reflection-based ownership coverage includes every mutable Document field; semantic regressions preserve original
+    input, canonical bytes and output independence.
+  - Original selected input revisions resolve with one bounded lineage query and the existing transaction-scoped
+    ArtifactStore DescribeExact batch. A real PostgreSQL counter proves equal query count for 1 and 8 inputs, at
+    most 6 statements, with no payload reads.
+  - 'BenchmarkSitemapDocumentMutation, 10000 groups and 50000 members, 24253654 encoded bytes, benchtime=1x count=3:
+    before 778467088–845563504 B/op and 758918917–768613125 ns/op; final 510851344–510858776 B/op and 555678542–578931834
+    ns/op. Median allocated bytes drop about 40%; values are allocated bytes, not peak RSS. Timings are diagnostic,
+    not assertions. The 10000-member case drops from about 224MB to 137MB allocated.'
+  limitations:
+  - Verification used disposable local PostgreSQL 17, Go 1.26.9, Node 24.20 and the locked Runtime environment.
+    No demo data or primary checkout files were changed.
+  - The working branch codex/v410-011-sitemap-metadata is not merged into main. Original structured-import, reconciliation
+    and remaining delivery tasks retain their status; this does not claim the full V410 release gate.
