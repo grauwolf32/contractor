@@ -6,14 +6,16 @@ epic: ui
 kind: defect
 introduced_by: V421-009
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V421-009]
 languages: [typescript, yaml, markdown]
 goal: Ensure a newly uploaded or imported input cannot silently submit its previous confirmed revision or disappear from an optional slot while metadata is unresolved.
 context:
+  evidence: tasks/evidence/v421-011-input-replacements.json
   review: Independent combined V421 consumer review on 2026-10-27 before the integrated release gate.
   specification:
     - docs/spec/ui/ui.md#UI-R207
+    - docs/spec/configuration/catalog.md#CAT-R76
   finding: >-
     ui/src/routes/workflows/run-form-fields.tsx:277-289 awaits authoritative
     metadata before replacing the prior selection, while upload/import callbacks
@@ -44,7 +46,7 @@ failure_outcomes:
 cardinality:
   - collection: Declared Workflow input slots
     expected: A few inputs
-    maximum: Existing Workflow input bound
+    maximum: One entry per declared input in the 2 MiB admitted Workflow snapshot (LIM-CAT-4); no independent input-count limit is assumed
     bound: One current metadata request and one unresolved marker per declared slot; no new background polling.
 lifecycle:
   - entity: Local input replacement intent
@@ -69,3 +71,4 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: c86130f3a22766a185360cc77b4b68b89c496fa4
