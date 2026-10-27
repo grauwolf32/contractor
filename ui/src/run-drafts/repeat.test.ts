@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { describe, expect, it } from "vitest";
 
 import type { RunRepeatDraftResponse } from "../api/runs";
@@ -46,6 +47,7 @@ const response: RunRepeatDraftResponse = {
           revision: "source-r1",
         },
         metadata: {
+          storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
           artifact: {
             namespace: "sources",
             name: "service",

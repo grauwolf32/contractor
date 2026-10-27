@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
@@ -166,6 +167,7 @@ describe("Run API", () => {
         }
         if (path.endsWith("/metadata")) {
           return response({
+            storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
             artifact: {
               namespace: "builder",
               name: "openapi",
@@ -342,6 +344,7 @@ describe("Run API", () => {
       }),
     );
     const downloaded = await downloadRunArtifact(api, "run-1", {
+      storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "outputs",
         name: "result",
@@ -455,6 +458,7 @@ describe("Run API", () => {
                 sourceScope: "user",
                 artifact: exact,
                 metadata: {
+                  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
                   artifact: exact,
                   mediaType: "application/zip",
                   size: 3,

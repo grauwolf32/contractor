@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { expect, test, type Page } from "@playwright/test";
 
 import {
@@ -111,6 +112,7 @@ async function installRunResultAPI(
     ) {
       resultRequests.push(url);
       await fulfillJSON(route, {
+        storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
         artifact: report,
         mediaType: "text/plain",
         size: source.length,

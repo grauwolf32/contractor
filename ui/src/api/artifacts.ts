@@ -77,6 +77,7 @@ export interface ArtifactPageRequest {
 }
 
 export interface ArtifactDetailRequest {
+  signal?: AbortSignal;
   namespace: string;
   name: string;
   revision?: string;
@@ -202,6 +203,7 @@ export async function getArtifactMetadata(
 ): Promise<ArtifactMetadata> {
   const result = await api.request((client) =>
     client.GET("/v1/artifacts/{namespace}/{name}/metadata", {
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
       params: {
         path: { namespace: request.namespace, name: request.name },
         query:

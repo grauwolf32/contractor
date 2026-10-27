@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { expect, test, type Page } from "@playwright/test";
 
 import { project } from "../src/test/builders";
@@ -70,6 +71,7 @@ async function installAPI(page: Page): Promise<void> {
           url.searchParams.get("namespace") === "skills"
             ? [
                 {
+                  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
                   artifact: {
                     namespace: "skills",
                     name: "architecture-review",

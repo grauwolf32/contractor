@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../test/builders";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -141,6 +142,7 @@ function artifactMetadata(
   size = 12,
 ) {
   return conforming("ArtifactMetadata", {
+    storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact,
     mediaType,
     size,

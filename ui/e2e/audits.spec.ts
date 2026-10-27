@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { expect, test, type Locator } from "@playwright/test";
 
 import { auditInput, project as projectBuilder } from "../src/test/builders";
@@ -42,6 +43,7 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
     updatedAt: "2026-09-06T10:00:00Z",
   });
   const artifact = {
+    storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: {
       namespace: "sources",
       name: "browser-service",

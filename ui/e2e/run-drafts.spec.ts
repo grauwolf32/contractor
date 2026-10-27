@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { expect, test, type Page } from "@playwright/test";
 
 import { project } from "../src/test/builders";
@@ -33,6 +34,7 @@ const workflow = workflowResource(WORKFLOW_NAME, WORKFLOW_VERSION, {
 });
 
 const existingArtifact = {
+  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "sources",
     name: "existing",
@@ -46,6 +48,7 @@ const existingArtifact = {
 };
 
 const uploadedArtifact = {
+  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "artifacts",
     name: "replacement",
@@ -133,6 +136,15 @@ async function installFixture(page: Page, apiOrigin: string) {
           201,
           { etag: '"revision-uploaded"' },
         );
+        return;
+      }
+      if (
+        path ===
+          `/v1/projects/${PROJECT_ID}/artifacts/artifacts/replacement/metadata` &&
+        uploaded
+      ) {
+        expect(url.searchParams.get("revision")).toBe("revision-uploaded");
+        await fulfillJSON(route, uploadedArtifact);
         return;
       }
       if (path === `/v1/projects/${PROJECT_ID}/runs`) {

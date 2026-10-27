@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../test/builders";
 import { describe, expect, it } from "vitest";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
@@ -11,6 +12,7 @@ function artifact(
   mediaType: string,
 ): ArtifactMetadata {
   return {
+    storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: { namespace, name, revision },
     mediaType,
     size: 10,

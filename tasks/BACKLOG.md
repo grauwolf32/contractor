@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-130 open tasks: 5 in progress, 114 pending, 11 deferred. 1158 finished: 1148 completed, 10 archived.
+130 open tasks: 6 in progress, 113 pending, 11 deferred. 1158 finished: 1148 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
+| [V421-009](v421-009-expose-artifact-storage-timestamps.yml) | projects-artifacts | feature | P2 | Expose retained Artifact storage timestamps through metadata and Technical details |
 
 ## Pending
 
@@ -105,7 +106,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | V410-004 | Reconcile exact OpenAPI declarations with live sitemap members |
-| [V421-009](v421-009-expose-artifact-storage-timestamps.yml) | feature | P2 | — | Expose retained Artifact storage timestamps through metadata and Technical details |
 
 ### Audits (`audits`)
 
