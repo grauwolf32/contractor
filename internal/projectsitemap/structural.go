@@ -82,19 +82,9 @@ func projectStructural(rules []Rule, origin, method, route, raw string) ([]Struc
 	if err != nil {
 		return nil, ErrInvalid
 	}
-	selectors := map[string][]string{}
-	for _, rule := range rules {
-		if rule.Origin != origin || rule.Method != method || rule.Path != route {
-			continue
-		}
-		for _, selector := range rule.Structural {
-			allowed := slices.Clone(selector.Allowed)
-			slices.Sort(allowed)
-			if existing, found := selectors[selector.Name]; found && !slices.Equal(existing, allowed) {
-				return nil, errStructuralSelection
-			}
-			selectors[selector.Name] = allowed
-		}
+	selectors, conflict := structuralSelectors(rules, origin, method, route)
+	if conflict != nil {
+		return nil, errStructuralSelection
 	}
 	names := make([]string, 0, len(selectors))
 	for name := range selectors {
@@ -115,4 +105,28 @@ func projectStructural(rules []Rule, origin, method, route, raw string) ([]Struc
 		result = append(result, StructuralValue{Name: name, Values: append([]string{}, values...)})
 	}
 	return result, nil
+}
+
+// structuralSelectors returns the effective finite selector policy or one pair
+// that proves a conflict. A conflict omits the operation even when the query
+// contains neither selector; receipts must preserve that distinction.
+func structuralSelectors(rules []Rule, origin, method, route string) (map[string][]string, []StructuralParameter) {
+	selectors := map[string][]string{}
+	for _, rule := range rules {
+		if rule.Origin != origin || rule.Method != method || rule.Path != route {
+			continue
+		}
+		for _, selector := range rule.Structural {
+			allowed := slices.Clone(selector.Allowed)
+			slices.Sort(allowed)
+			if existing, found := selectors[selector.Name]; found && !slices.Equal(existing, allowed) {
+				return nil, []StructuralParameter{
+					{Name: selector.Name, Allowed: existing},
+					{Name: selector.Name, Allowed: allowed},
+				}
+			}
+			selectors[selector.Name] = allowed
+		}
+	}
+	return selectors, nil
 }

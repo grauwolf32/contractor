@@ -131,8 +131,11 @@ common classification and original operation deadline.
 even after its unprotected bytes were evicted. It must create no publication,
 charge or hold and must never substitute current. A bounded selector policy
 stored in that same receipt must make replay independent of later grouping
-changes without hashing excluded URL components. The receipt's policy is not
-another map or retained-history mechanism.
+changes without hashing excluded URL components. It must preserve structural
+values for declarations and observations, including selector multiplicity and
+order, and unconditional omission under conflicting policies even when a
+selector is absent. Changed accepted structural intent must conflict on replay.
+The receipt's policy is not another map or retained-history mechanism.
 
 **SMT-R10.** The map must consume ordinary automatic per-binding ArtifactStore
 history policy, admission, maintenance and shared errors. It must not register
