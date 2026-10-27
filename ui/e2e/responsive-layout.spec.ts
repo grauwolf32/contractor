@@ -263,7 +263,9 @@ for (const theme of ["light", "dark", "black"] as const) {
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
       .toBe(390);
-    await panel.getByRole("heading", { name: "Tool calls", exact: true }).click();
+    await panel
+      .getByRole("heading", { name: "Tool calls", exact: true })
+      .click();
     await panel.screenshot({
       path: testInfo.outputPath(`tool-diagnostics-${theme}.png`),
     });
