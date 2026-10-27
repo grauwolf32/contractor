@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-007",
+  "implementation_commit": "28e8d25b42de61a7f7e7edf950fec93103e40b43",
+  "linux_runtime": {
+    "command": "make test-runtime",
+    "result": {
+      "tests": 5329,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 55,
+      "exit_code": 0
+    },
+    "passed": 5274,
+    "verifier": "python3 scripts/release_test_reports.py verify-runtime --report reports/runtime.xml",
+    "uid": 1000,
+    "python": "3.13.5",
+    "source_manifest_sha256": "a5490c4e70ae82c59ab68591acb75fa0d19d1dae77eb76928de0c1e339886ac6",
+    "archive_sha256": "eab87996b2cb5841348c7d040aa9f3004128ca002b3069c752d97535624fa033",
+    "runtime_xml_sha256": "8c03ee318d9fd042dfe60d3f67962ce4f6eed383cefd19f1291b51304c4bb307"
+  },
+  "host_checks": [
+    {
+      "command": "make lint",
+      "exit_code": 0
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "exit_code": 0
+    },
+    {
+      "command": "go test -count=1 ./internal/contracts/... ./internal/controlplane/... ./internal/planner/...",
+      "exit_code": 0
+    },
+    {
+      "command": "make test-worker-observations-e2e",
+      "exit_code": 0,
+      "process_parent": "TestRoutingAndEscalationProductionBoundaries"
+    }
+  ],
+  "failed_attempts": [
+    {
+      "platform": "Darwin",
+      "command": "make test-runtime",
+      "failed": 105,
+      "passed": 5185,
+      "skipped": 39,
+      "disposition": "Linux-specific /proc, pidfd, native parsing/resource tests; not acceptance. Full exact-source Linux gate subsequently passed."
+    },
+    {
+      "platform": "Linux",
+      "phase": "runner setup",
+      "cause": "System Python3.12 incompatible before tests; rerun selected installed Python3.13.5 with fresh own venv."
+    }
+  ]
+}

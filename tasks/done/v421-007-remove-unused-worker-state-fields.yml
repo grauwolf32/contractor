@@ -6,7 +6,8 @@ epic: planner-worker
 kind: chore
 introduced_by: V18-002
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 28e8d25b42de61a7f7e7edf950fec93103e40b43
 depends_on: []
 languages: [go, python, json]
 goal: >-
@@ -152,5 +153,8 @@ implementation_notes:
     include Linux /proc socket and pidfd paths, parser address-space/platform
     behavior and a wall-clock gap assertion. This failed run is not acceptance.
   linux_verification: >-
-    Pending an exact-source snapshot on the dedicated nonroot Linux runner; keep
-    this task in_progress until the required Runtime and process gates pass.
+    Passed make test-runtime plus verify-runtime on exact-source commit
+    28e8d25b42de61a7f7e7edf950fec93103e40b43 in the dedicated nonroot Linux
+    runner: 5274 passed, 55 allowed optional skips, zero failures/errors. The
+    actual Server/Runtime observations process gate also passed on the host.
+    Evidence: tasks/evidence/v421-007-worker-state.json.
