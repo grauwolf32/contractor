@@ -1,0 +1,37 @@
+{
+  "schema_version": "1.0",
+  "tasks": [
+    "V421-013",
+    "V421-014"
+  ],
+  "implementation_commit": "2f99dfb2764c58f07ca9568d103c5ddd0895da72",
+  "atomic_reason": "The repository-wide SQLSTATE guard remains red if either newly introduced literal remains. Both test-only corrections land together.",
+  "checks": [
+    {
+      "command": "go test -tags=integration -count=1 ./internal/artifacts ./internal/httpapi/public ./internal/persistence",
+      "exit_code": 0,
+      "log_sha256": "f376b225265a0ee94cf31eb9b44b9f22b432acf2afcce642586a3394f98bc7a1"
+    },
+    {
+      "command": "make verify-public-api verify-public-api-postgres",
+      "exit_code": 0,
+      "log_sha256": "ce178de7f57e8a9dc8886f1c2cc41bea7292b66e3391f9baf77da292a58a89a0"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log_sha256": "bde9b6677568a0fb87ae3e3dd590b389fad6f361c5a10803f97cf668cf4ca9fa"
+    }
+  ],
+  "database": "Dedicated real disposable PostgreSQL; required owner tests executed.",
+  "behavior": "Artifact guards assert the central rejected class; diagnostic fixture uses the existing central serialization constant. Production behavior, SQL/API/retention and test timeouts are unchanged.",
+  "failure_reproduction": {
+    "revision": "baee4e57a9f6bc7bf8d1c9c28178af13cd987479",
+    "test": "TestSQLStateLiteralsLiveOnlyInTheClassifier",
+    "locations": [
+      "internal/artifacts/storage_timestamps_postgres_test.go:146",
+      "internal/httpapi/public/tool_diagnostic_handlers_test.go:131"
+    ],
+    "release_pass_claimed": false
+  }
+}

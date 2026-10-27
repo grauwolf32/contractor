@@ -207,5 +207,9 @@
   "independent_review": "Combined review found two actionable UI defects, tracked and completed as V421-011/012; sibling domains reviewed without additional concrete findings.",
   "checkpoint": "tasks/evidence/v421-010-checkpoint.json",
   "initial_main_baseline": "1716e40db37cb3221a0892c1d8703a8790598627",
-  "resumption": "Explicit user resume on2026-10-27. Current main only adds already-valid sitemap table-reader declarations and task metadata; independent review confirms existing telemetry foreign-read declarations cover both diagnostic queries. Cancelled checkpoint remains historical."
+  "resumption": "Explicit user resume on2026-10-27. Current main only adds already-valid sitemap table-reader declarations and task metadata; independent review confirms existing telemetry foreign-read declarations cover both diagnostic queries. Cancelled checkpoint remains historical.",
+  "verification_followups": [
+    "V421-013/014 correct both SQLSTATE fixture definitions; complete owner/API/lint checks passed.",
+    "V421-015 tracks the Linux large-Runtime pagination timeout before a new full release source is frozen."
+  ]
 }

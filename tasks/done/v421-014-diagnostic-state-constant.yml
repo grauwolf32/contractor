@@ -6,7 +6,7 @@ epic: persistence
 kind: chore
 introduced_by: V421-004
 priority: P3
-status: in_progress
+status: completed
 depends_on:
 - V421-004
 languages:
@@ -24,6 +24,7 @@ context:
     their distinct introducing tasks; the canonical definitions and production classifier remain unchanged.
   atomic_change: These two task fixes land together to make the repository-wide guard green; leaving either
     raw literal keeps the build failing.
+  evidence: tasks/evidence/v421-013-014-sqlstate-definitions.json
 scope:
   in:
   - Build the fake storage conflict with the existing SQLStateSerializationFailure constant and preserve
@@ -58,3 +59,4 @@ tests:
   covers:
   - A1
   - A3
+implementation_commit: 2f99dfb2764c58f07ca9568d103c5ddd0895da72
