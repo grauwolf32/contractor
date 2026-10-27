@@ -51,7 +51,7 @@ scope:
     source checkpoint state through the existing map/source mutation boundary.
   - Handle provider deletion/expiry/gaps, missing or unstable continuation, restart/lost replies and repeated pages
     without claiming complete history.
-  - Preserve safe projection, correlation, source-mode/context provenance, quota accounting and separate target
+  - Preserve metadata normalization, correlation, source-mode/context provenance, quota accounting and separate target
     versus collection outcomes from the first slice.
   - Add a mandatory optional-feature gate and usage documentation without adding a requirement to HTTP/OpenAPI profiles.
   out:
@@ -68,7 +68,7 @@ requirements:
     connection or model-supplied foreign Project ID is insufficient.
 - id: R3
   text: Process at most one provider page/batch before a checkpoint. Bind checkpoint to selection/provider/source
-    generation and safe projection policy; changed selection requires an explicit new intent, not silent cursor
+    generation and metadata projection policy; changed selection requires an explicit new intent, not silent cursor
     reuse.
 - id: R4
   text: Checkpoint advancement and accepted batch mutation are one idempotent source transition or reconcile via
@@ -131,10 +131,11 @@ acceptance_criteria:
   then: It retains an explicit source gap/unsupported result instead of claiming complete discovery or inventing
     a cursor.
 - id: A4
-  given: Secret canaries, changed source generation, protected-history exhaustion and eligible-history cleanup backlog
-  when: A page reaches safe projection and publication
-  then: Only authorized metadata persists, stale selections conflict, accepted map/checkpoint survive exhaustion
-    and retryable cleanup backpressure is distinguished from protected-capacity conflicts.
+  given: Credential-like metadata, excluded URL/header/body fields, changed source generation and protected/eligible-history pressure
+  when: A page reaches metadata normalization and publication
+  then: Authorized valid paths, names and finite structural values persist without secret matching or matching-secret
+    transport, while fields outside the metadata model remain excluded. Stale selections conflict, accepted map/checkpoint
+    survive exhaustion and retryable cleanup backpressure is distinguished from protected-capacity conflicts.
 - id: A5
   given: An in-flight sync and an HTTP-only Workflow
   when: Sync cancels/releases while the HTTP workflow runs independently

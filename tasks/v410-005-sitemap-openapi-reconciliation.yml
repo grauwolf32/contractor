@@ -22,7 +22,9 @@ context:
   authority: 'User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
     this task records planned work, not implementation or verification evidence. User review on 2026-10-27 supersedes
     generic collection-completeness/status requirements: automatic sitemap updates are best effort and must remain
-    isolated from HTTP/scanner outcomes and Run contracts.'
+    isolated from HTTP/scanner outcomes and Run contracts. The 2026-10-27 metadata-policy decision removes sitemap
+    secret filtering and matching-secret transport; ordinary owner-selected inputs authorize complete selected context,
+    while dedicated sitemap views and snapshots retain source-mode restrictions.'
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 4 and 6-11: normalized OpenAPI, pure computation, source generations, rebase restrictions,
     safe views and bounded regrouping.'
@@ -87,7 +89,8 @@ requirements:
     replacement. A predecessor ref is a CAS condition, not a retention hold or a chain pinning map history.
 - id: R6
   text: Keep the tool result bounded. Produce large exact context/output artifacts only for declared consumers, through
-    existing safe snapshot/Artifact paths; never return raw mixed source-mode content to blackbox consumers.
+    existing snapshot/Artifact paths. Dedicated sitemap tool views and snapshots apply source-mode restrictions;
+    an owner-selected ordinary input authorizes its complete selected content even for a blackbox consumer.
 failure_outcomes:
 - operation: Exact map/schema read and deterministic reconciliation
   permanent: Invalid map/schema, inaccessible refs, unsupported policy or missing explicit origin fails permanently
@@ -154,7 +157,8 @@ acceptance_criteria:
   when: A blackbox tool computes/publishes through production boundaries
   then: Authorized outputs are materialized only in declared needed slots. Source publication receipts and exact selected
     holds keep their existing semantics without republishing, source substitution, implicit pinning or a cumulative
-    Run quota.
+    Run quota. Dedicated blackbox views exclude unauthorized source contributions, while deliberate ordinary owner
+    input selection remains usable in full and is not narrowed by the Worker's sitemap policy.
 deliverables:
 - path: internal/scanplan
   description: Reuse the existing normalization/reference authority; extract common lower-layer types only with both

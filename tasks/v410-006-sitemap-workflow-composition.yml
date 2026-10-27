@@ -23,7 +23,9 @@ context:
   authority: 'User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
     this task records planned work, not implementation or verification evidence. User review on 2026-10-27 supersedes
     generic collection-completeness/status requirements: automatic sitemap updates are best effort and must remain
-    isolated from HTTP/scanner outcomes and Run contracts.'
+    isolated from HTTP/scanner outcomes and Run contracts. The 2026-10-27 metadata-policy decision removes sitemap
+    secret filtering and matching-secret transport; ordinary owner-selected inputs authorize complete selected context,
+    while dedicated sitemap views and snapshots retain source-mode restrictions.'
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 1-2, 5-6 and 12: independent first delivery and ordinary Workflow/Audit composition.'
   specification:
@@ -80,7 +82,9 @@ requirements:
   text: Preparation outputs use existing prepare-output semantics; same-round discovery uses retained-output. Fresh
     live map reads use bounded allocation-owned materialized authorized snapshots, not history pins; replacement or
     release expires their cursors. Exact selected inputs/outputs need real holds before acceptance, atomically against
-    eviction. Neither a cursor nor metadata refs imply previous-round lookup or mutate the Audit baseline.
+    eviction. Neither a cursor nor metadata refs imply previous-round lookup or mutate the Audit baseline. An owner-selected
+    ordinary input authorizes the complete selected context, including a mixed-source map for a blackbox Worker;
+    only dedicated sitemap views and snapshots apply the Worker's source-mode restriction.
 - id: R4
   text: Catalog identity follows the current pre-production rules; validate actual shipped configurations explicitly,
     while ordinary tests use testdata and never read live configs.
@@ -141,7 +145,8 @@ acceptance_criteria:
   when: Fresh map snapshots are reconciled before inventory/checks
   then: Existing exact mappings feed consumers and no baseline mutation or implicit cross-round artifact lookup occurs;
     expired research cursors fail and selected context obtains its real hold before acceptance or fails unavailable,
-    never substituting latest.
+    never substituting latest. A deliberate ordinary owner-selected map input remains available in full to a blackbox
+    Worker, independently of the filtering applied by dedicated sitemap tools.
 - id: A4
   given: Invalid schema, quota/source conflict, cancellation and lost output/collection replies
   when: The production composition hits each boundary

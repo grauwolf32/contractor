@@ -71,9 +71,11 @@ requirements:
   text: Browser identity context includes trusted engagement/baseline plus local identity and session/state provenance;
     ordinary supported contexts remain Run-scoped. Tabs inherit only their owning managed context.
 - id: R3
-  text: Apply the same safe projection before constructing map keys/examples; captured URLs and derived session
-    values are not exempt. Shared correlation preserves attribution, while absent correlation does not imply an
-    exact physical request count.
+  text: Apply shared metadata normalization before constructing map keys/examples. Valid paths, names and finite
+    structural values remain intact regardless of keywords, opaque appearance or known-credential matches; userinfo,
+    fragments, nonstructural query values, raw headers and bodies remain outside the map model. Events carry no
+    matching-secret list. Shared correlation preserves attribution, while absent correlation does not imply an exact
+    physical request count.
 - id: R4
   text: Use common pending/batch/context/member/provenance/publication bounds. A failed navigation/request is not
     a received HTTP response and a response event does not imply complete retained body evidence.
@@ -84,7 +86,7 @@ requirements:
   text: Optional browser absence yields a source-specific gap and never becomes a prerequisite of the first-slice
     HTTP/OpenAPI catalog; busy capacity is handled by the browser execution owner, not labelled absence here.
 failure_outcomes:
-- operation: Managed browser event capture and safe projection
+- operation: Managed browser event capture and metadata normalization
   permanent: Unsupported event/projection, unknown identity context or unavailable browser capability reports a
     stable source gap; no fabricated response/evidence.
   retryable: Browser execution retries remain owned by V412-001; collector code does not repeat actions to obtain
@@ -125,9 +127,11 @@ acceptance_criteria:
   then: Context-level capture retains correct distinct identity/session/outcome provenance and does not confuse
     failure with response.
 - id: A2
-  given: Canaries in URLs, headers, body and derived browser/session values
-  when: Events reach map publication and blackbox snapshots
-  then: Safe projection/source-mode rules prevent secret/forbidden metadata exposure and raw-secret hashes are absent.
+  given: Credential-like and opaque URL metadata, excluded URL/header/body fields and mixed source-mode contributions
+  when: Events reach map publication and dedicated blackbox snapshots
+  then: Valid metadata is retained without secret filtering or matching-secret transport, fields outside the model
+    remain excluded and dedicated snapshots enforce source-mode authority. General browser credential handling and
+    telemetry redaction are unchanged; ordinary owner-selected inputs remain authorized in full.
 - id: A3
   given: HTTP/browser events with and without trusted correlation
   when: They contribute concurrently
