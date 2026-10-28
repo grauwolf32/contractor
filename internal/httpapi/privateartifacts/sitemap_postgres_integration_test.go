@@ -79,6 +79,19 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 		handler.ServeHTTP(response, r)
 		return response
 	}
+	accessPath := "/access?operation=" + contracts.SitemapListTool
+	access := request(http.MethodGet, accessPath, "", nil)
+	var accessFields map[string]json.RawMessage
+	if access.Code != 200 || json.Unmarshal(access.Body.Bytes(), &accessFields) != nil || len(accessFields) != 3 || accessFields["apiVersion"] == nil || accessFields["policy"] == nil || accessFields["manualSourceId"] == nil {
+		t.Fatalf("reader metadata: %d %s", access.Code, access.Body.String())
+	}
+	for _, suffix := range []string{"/access", "/access?operation=", "/access?operation=unknown", accessPath + "&operation=" + contracts.SitemapReadTool, accessPath + "&policy=sha256:" + strings.Repeat("a", 64)} {
+		assertPrivateErrorEnvelope(t, request(http.MethodGet, suffix, "", nil), 400, "invalid_request", false)
+	}
+	// An unrelated read tool cannot validate a cached page for the revoked list tool.
+	registry.grant.SitemapTools = []string{contracts.SitemapReadTool}
+	assertPrivateErrorEnvelope(t, request(http.MethodGet, accessPath, "", nil), 403, "sitemap_access_denied", false)
+	registry.grant.SitemapTools = []string{contracts.SitemapListTool}
 	response := request(http.MethodGet, "", "", nil)
 	if response.Code != 200 || !bytes.Contains(response.Body.Bytes(), []byte("shared-canary")) || bytes.Contains(response.Body.Bytes(), []byte("foreign-project-canary")) {
 		t.Fatalf("shared map: %d %s", response.Code, response.Body.String())
@@ -100,6 +113,12 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 	selection := sitemapSnapshotRequest{APIVersion: contracts.APIVersion, Selection: projectsitemap.SnapshotSelection{Revision: revision, Groups: []string{document.Groups[0].ID, document.Groups[1].ID}}}
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/snapshots", "denied-snapshot", selection), 403, "sitemap_access_denied", false)
 	registry.grant.SitemapTools = []string{contracts.SitemapSnapshotTool}
+	registry.grant.WritePolicy = ""
+	assertPrivateErrorEnvelope(t, request(http.MethodGet, "/access?operation="+contracts.SitemapSnapshotTool, "", nil), 403, "sitemap_access_denied", false)
+	registry.grant.WritePolicy = controlplane.WriteInputsAndIntermediates
+	if response := request(http.MethodGet, "/access?operation="+contracts.SitemapSnapshotTool, "", nil); response.Code != 200 {
+		t.Fatalf("snapshot operation metadata: %d %s", response.Code, response.Body.String())
+	}
 	saved := request(http.MethodPost, "/snapshots", "save", selection)
 	if saved.Code != 200 {
 		t.Fatalf("snapshot: %d %s", saved.Code, saved.Body.String())
@@ -121,17 +140,20 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 		t.Fatal("obsolete sitemap policy header remains")
 	}
 	registry.grant.SitemapTools = []string{contracts.SitemapUpsertTool}
+	assertPrivateErrorEnvelope(t, request(http.MethodGet, accessPath, "", nil), 403, "sitemap_access_denied", false)
+	registry.grant.WritePolicy = ""
+	assertPrivateErrorEnvelope(t, request(http.MethodGet, "/access?operation="+contracts.SitemapUpsertTool, "", nil), 403, "sitemap_access_denied", false)
+	registry.grant.WritePolicy = controlplane.WriteInputsAndIntermediates
+	if response := request(http.MethodGet, "/access?operation="+contracts.SitemapUpsertTool, "", nil); response.Code != 200 {
+		t.Fatalf("editor operation metadata: %d %s", response.Code, response.Body.String())
+	}
 	assertPrivateErrorEnvelope(t, request(http.MethodGet, "", "", nil), 403, "sitemap_access_denied", false)
 	if edited := request(http.MethodPost, "/mutations", "edit", mutation); edited.Code != 200 {
 		t.Fatalf("editor: %d %s", edited.Code, edited.Body.String())
 	}
 	registry.grant.SitemapTools = nil
 	registry.grant.SitemapPolicy.CollectObservations = true
-	access := request(http.MethodGet, "/access", "", nil)
-	var accessFields map[string]json.RawMessage
-	if access.Code != 200 || json.Unmarshal(access.Body.Bytes(), &accessFields) != nil || len(accessFields) != 3 || accessFields["apiVersion"] == nil || accessFields["policy"] == nil || accessFields["manualSourceId"] == nil {
-		t.Fatalf("collector metadata: %d %s", access.Code, access.Body.String())
-	}
+	assertPrivateErrorEnvelope(t, request(http.MethodGet, accessPath, "", nil), 403, "sitemap_access_denied", false)
 	assertPrivateErrorEnvelope(t, request(http.MethodGet, "", "", nil), 403, "sitemap_access_denied", false)
 	ingress := sitemapCollectionRequest{APIVersion: contracts.APIVersion, Input: projectsitemap.CollectionIngress{
 		Observations: []projectsitemap.HTTPObservation{{Observation: projectsitemap.Observation{URL: "https://example.test/session/short-password?token=query-canary&password=query-canary", Method: "POST", Outcome: "response", Status: 201, At: "2026-10-26T00:00:00Z"}, SessionGeneration: "session-one"}},
@@ -156,7 +178,7 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 	registry.grant.WriteFenced = true
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/observations", "late-collect", ingress), 409, "allocation_write_fenced", false)
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/observations", "denied-input", ingress), 409, "allocation_write_fenced", false)
-	assertPrivateErrorEnvelope(t, request(http.MethodGet, "/access", "", nil), 409, "allocation_write_fenced", false)
+	assertPrivateErrorEnvelope(t, request(http.MethodGet, accessPath, "", nil), 409, "allocation_write_fenced", false)
 	assertPrivateErrorEnvelope(t, request(http.MethodGet, "", "", nil), 409, "allocation_write_fenced", false)
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/mutations", "late", mutation), 409, "allocation_write_fenced", false)
 	registry.grant.WriteFenced = false

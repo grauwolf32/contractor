@@ -63,13 +63,21 @@ func sitemapReader(grant controlplane.AllocationGrant) bool {
 }
 
 func (h *handler) getSitemapAccess(w http.ResponseWriter, r *http.Request) {
-	_, err := exactQuery(r.URL.RawQuery)
+	query, err := exactQuery(r.URL.RawQuery, "operation")
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
+	operation := query.Get("operation")
+	if !slices.Contains(contracts.SitemapToolNames(), operation) {
+		h.handleError(w, errInvalidRequest)
+		return
+	}
 	err = h.withSitemapGrant(r, func(grant controlplane.AllocationGrant) bool {
-		return len(grant.SitemapTools) > 0 || grant.SitemapPolicy.CollectObservations
+		if !slices.Contains(grant.SitemapTools, operation) {
+			return false
+		}
+		return operation == contracts.SitemapListTool || operation == contracts.SitemapReadTool || grant.WritePolicy == controlplane.WriteInputsAndIntermediates
 	}, func(_ context.Context, access projectsitemap.AllocationAccess) error {
 		writeJSON(w, http.StatusOK, access)
 		return nil
