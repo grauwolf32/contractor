@@ -24,10 +24,11 @@ context:
     generic collection-completeness/status requirements: automatic sitemap updates are best effort and must remain
     isolated from HTTP/scanner outcomes and Run contracts. The 2026-10-27 metadata-policy decision removes sitemap
     secret filtering and matching-secret transport; ordinary owner-selected inputs authorize complete selected context,
-    while dedicated sitemap views and snapshots retain source-mode restrictions.'
+    and the 2026-10-28 shared-map decision removes source-mode classification and consumer filtering. All permitted
+    readers use the same Project metadata; snapshotInputs controls only needed original-file retention during snapshots.'
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 4 and 6-11: normalized OpenAPI, pure computation, source generations, rebase restrictions,
-    safe views and bounded regrouping.'
+    shared-map views and bounded regrouping.'
   specification:
   - docs/spec/artifacts/project-sitemap.md
   - docs/spec/artifacts/artifact-store.md
@@ -60,7 +61,7 @@ scope:
     only for a declared Workflow/Audit consumer; do not require an enriched-map copy, patch artifact and separate
     report all at once.
   - Implement declared-only/observed-only comparisons, concrete-path precedence, ambiguous-template gaps, parameter/media/outcome
-    differences and source-mode-safe snapshots.
+    differences and exact selected context snapshots.
   - Apply optional shared source changes through the same guarded reducer and receipt/quota boundary; pure computation
     alone does not imply publication.
   out:
@@ -89,8 +90,9 @@ requirements:
     replacement. A predecessor ref is a CAS condition, not a retention hold or a chain pinning map history.
 - id: R6
   text: Keep the tool result bounded. Produce large exact context/output artifacts only for declared consumers, through
-    existing snapshot/Artifact paths. Dedicated sitemap tool views and snapshots apply source-mode restrictions;
-    an owner-selected ordinary input authorizes its complete selected content even for a blackbox consumer.
+    existing snapshot/Artifact paths. Every permitted reader uses the same shared metadata and grouping; absent schema
+    bytes never hide known routes or make declarations into observations. snapshotInputs permits only needed original
+    Run file retention in the snapshot transaction, independently of map visibility and ordinary owner-selected inputs.
 failure_outcomes:
 - operation: Exact map/schema read and deterministic reconciliation
   permanent: Invalid map/schema, inaccessible refs, unsupported policy or missing explicit origin fails permanently
@@ -153,12 +155,13 @@ acceptance_criteria:
   then: Shared source rollback is rejected, appended observations survive and a retry preserves the original expected
     predecessor.
 - id: A5
-  given: Mixed source-mode inputs, large output, a lost publication reply and a concurrent hold/eviction race
-  when: A blackbox tool computes/publishes through production boundaries
+  given: Mixed source kinds, missing source files, large output, a lost publication reply and a concurrent hold/eviction race
+  when: A permitted tool computes/publishes through production boundaries
   then: Authorized outputs are materialized only in declared needed slots. Source publication receipts and exact selected
     holds keep their existing semantics without republishing, source substitution, implicit pinning or a cumulative
-    Run quota. Dedicated blackbox views exclude unauthorized source contributions, while deliberate ordinary owner
-    input selection remains usable in full and is not narrowed by the Worker's sitemap policy.
+    Run quota. Dedicated views expose the same complete shared metadata to every permitted reader. Needed missing
+    snapshot files produce source-unavailable gaps or fail requireReferencedInputs; ordinary owner-selected inputs
+    remain usable in full. No missing file is silently replaced with current content.
 deliverables:
 - path: internal/scanplan
   description: Reuse the existing normalization/reference authority; extract common lower-layer types only with both

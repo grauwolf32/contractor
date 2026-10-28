@@ -19,11 +19,14 @@ goal: Extend the released sitemap with explicit bounded Caido history synchroniz
   provider gaps without rescanning or importing the entire shared instance.
 context:
   authority: User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
-    this task records planned work, not implementation or verification evidence.
+    this task records planned work, not implementation or verification evidence. The 2026-10-28 user decision makes
+    sitemap metadata shared by every permitted reader, without source-mode classification. Original file retention
+    belongs only to explicit snapshots through snapshotInputs; current operation and exact-file authority remain.
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 5 and 9-12: provider continuation, source selection, checkpointed imports and independent
     optional delivery.'
   specification:
+  - docs/spec/artifacts/project-sitemap.md
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/artifacts/projects.md
   - docs/spec/artifacts/retention-and-deletion.md
@@ -51,7 +54,7 @@ scope:
     source checkpoint state through the existing map/source mutation boundary.
   - Handle provider deletion/expiry/gaps, missing or unstable continuation, restart/lost replies and repeated pages
     without claiming complete history.
-  - Preserve metadata normalization, correlation, source-mode/context provenance, quota accounting and separate target
+  - Preserve metadata normalization, correlation, source-kind/context provenance, quota accounting and separate target
     versus collection outcomes from the first slice.
   - Add a mandatory optional-feature gate and usage documentation without adding a requirement to HTTP/OpenAPI profiles.
   out:
