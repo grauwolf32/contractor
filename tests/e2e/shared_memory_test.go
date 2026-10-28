@@ -21,6 +21,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/localpki"
 	contractormemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5"
@@ -781,22 +782,26 @@ func assertOwnerMemoryArtifact(
 	request.Header.Set("Authorization", "Bearer "+publicToken)
 	response := do(t, client, request, http.StatusOK)
 	defer response.Body.Close()
-	var page struct {
-		Items []struct {
-			Artifact  artifactRef `json:"artifact"`
-			MediaType string      `json:"mediaType"`
-			Size      int64       `json:"size"`
-			Current   bool        `json:"current"`
-			Frozen    bool        `json:"frozen"`
-			CreatedAt time.Time   `json:"createdAt"`
-		} `json:"items"`
-		Page json.RawMessage `json:"page"`
-	}
+	var page publicapi.ArtifactPage
 	decodeResponse(t, response, &page)
 	if len(page.Items) != 1 || page.Items[0].Artifact.Namespace != namespace ||
-		page.Items[0].Artifact.Name != "memory."+name || page.Items[0].Artifact.Revision == nil ||
-		page.Items[0].MediaType != contractormemory.MediaType || !page.Items[0].Current || page.Items[0].Frozen {
+		page.Items[0].Artifact.Name != "memory."+name || page.Items[0].Artifact.Revision == "" ||
+		!page.Items[0].Current || page.Items[0].Frozen {
 		t.Fatalf("owner Run Artifact page = %+v", page)
+	}
+	metadataMediaType, err := page.Items[0].MediaType.AsMediaType1()
+	if err != nil || metadataMediaType != contractormemory.MediaType {
+		t.Fatalf("owner Memory Artifact media type = %q (%v)", metadataMediaType, err)
+	}
+	dates := page.Items[0].StorageTimestamps
+	if dates == nil {
+		t.Fatal("owner Memory Artifact metadata omits storage timestamps")
+	}
+	for _, date := range []time.Time{dates.ScopeCreatedAt, dates.BlobCreatedAt,
+		dates.VersionCreatedAt, dates.BindingUpdatedAt} {
+		if date.IsZero() {
+			t.Fatalf("owner Memory Artifact metadata contains a zero storage timestamp: %+v", dates)
+		}
 	}
 	data, mediaType := download(
 		t, client,

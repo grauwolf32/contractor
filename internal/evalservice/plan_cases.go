@@ -35,6 +35,9 @@ func (b *planBuilder) buildChecks() ([]portableCheck, map[string]blobRef, error)
 	}
 	for i := range b.draft.Checks {
 		check := &b.draft.Checks[i]
+		if err := check.ValidateHumanReviewParameters(); err != nil {
+			return nil, nil, err
+		}
 		var groundTruth *string
 		if check.Evaluator == "human-review@1" {
 			rubric, ok := private[check.ID+"@"+check.RubricRevision]

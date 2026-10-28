@@ -1,0 +1,344 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-010",
+  "verification_status": "verified_on_frozen_integrated_revision",
+  "main_baseline": "f18dec3dbf9316b3347859db1da6873f54ffa1b0",
+  "dependencies": [
+    {
+      "task": "V421-001",
+      "implementation_commit": "16b4378e33a5c3cb58a56b6246f8ae05d3fa5f17",
+      "record": "tasks/done/v421-001-audit-evidence-observation-provenance.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-002",
+      "implementation_commit": "afc93839ad938f268af260e26fceea43d4506ac0",
+      "record": "tasks/done/v421-002-finding-report-preconditions.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-003",
+      "implementation_commit": "61f79e8ebcb9d9087109f4bd6ebb1a6e80e00066",
+      "record": "tasks/done/v421-003-runtime-adapter-diagnostics.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-004",
+      "implementation_commit": "a74a097c7dda03e26b5eea5cfa7c74f2328470b7",
+      "record": "tasks/done/v421-004-attempt-tool-call-diagnostics.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-005",
+      "implementation_commit": "63385f67d968112ddf2224fdf57b5b777334cdf3",
+      "record": "tasks/done/v421-005-remove-unused-eval-private-schema.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-006",
+      "implementation_commit": "f8047c0b9217cfb15040191b8cd746e5c18a0740",
+      "record": "tasks/done/v421-006-reject-human-review-parameters.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-007",
+      "implementation_commit": "28e8d25b42de61a7f7e7edf950fec93103e40b43",
+      "record": "tasks/done/v421-007-remove-unused-worker-state-fields.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-008",
+      "implementation_commit": "537139ac98b16ebdac7bfcd38093b602019ecebd",
+      "record": "tasks/done/v421-008-trim-registration-response.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-009",
+      "implementation_commit": "a7da863e71b33bc9373c2b987ad72c9482aa134c",
+      "record": "tasks/done/v421-009-expose-artifact-storage-timestamps.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-011",
+      "implementation_commit": "c86130f3a22766a185360cc77b4b68b89c496fa4",
+      "record": "tasks/done/v421-011-block-unresolved-input-replacements.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-012",
+      "implementation_commit": "26669965907e57cf9684919ac6285e5d846a9757",
+      "record": "tasks/done/v421-012-refresh-reopened-attempt-diagnostics.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-013",
+      "implementation_commit": "2f99dfb2764c58f07ca9568d103c5ddd0895da72",
+      "record": "tasks/done/v421-013-artifact-state-classification.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-014",
+      "implementation_commit": "2f99dfb2764c58f07ca9568d103c5ddd0895da72",
+      "record": "tasks/done/v421-014-diagnostic-state-constant.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-015",
+      "implementation_commit": "e660fd6557926ff23f9e95ca2b589ba763fe849c",
+      "record": "tasks/done/v421-015-bound-diagnostic-jsonb-projections.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-016",
+      "implementation_commit": "b9f7366193adca40c6f2c1266866f7ffac0dc0fb",
+      "record": "tasks/done/v421-016-preserve-sitemap-scale-production-timing.yml",
+      "status": "completed"
+    },
+    {
+      "task": "V421-017",
+      "implementation_commit": "b53ec21440af5202b96aa5d8d13888648abd4ea9",
+      "record": "tasks/done/v421-017-use-public-artifact-page-in-memory-process-tests.yml",
+      "status": "completed"
+    }
+  ],
+  "consumer_traces": [
+    {
+      "task": "V421-001",
+      "fields": "observed_at/deployment_marker/http_request_id/http_request_tag",
+      "flow": "Runtime transport capture and pinned deployment policy \u2192 allocation-local accepted evidence \u2192 retained Audit evidence \u2192 owner API and check Technical details",
+      "paths": [
+        "runtime/src/contractor_runtime/toolsets/http/tools.py",
+        "runtime/src/contractor_runtime/toolsets/common/http_capture.py",
+        "runtime/src/contractor_runtime/toolsets/audit_results/v2.py",
+        "internal/auditservice/coverage.go",
+        "ui/src/routes/projects/audits/check-item.tsx"
+      ]
+    },
+    {
+      "task": "V421-002",
+      "fields": "FindingProposal.preconditions",
+      "flow": "First receipt stores copied ordered conditions \u2192 strict required report projection \u2192 shared constructor for every final finding section \u2192 standalone immutable report download",
+      "paths": [
+        "internal/auditdomain/finding_report.go",
+        "internal/findingintake",
+        "internal/auditimport/report_build.go",
+        "internal/persistence/migrations/000055_finding_report_preconditions_transition.sql"
+      ]
+    },
+    {
+      "task": "V421-003",
+      "fields": "Runtime adapter counters/flush/drop/duration/stop facts",
+      "flow": "Normalized private reports \u2192 retained stage_metrics \u2192 owner/Run/Stage-authorized bounded SQL pages \u2192 on-demand UI with exact decimal strings",
+      "paths": [
+        "internal/telemetry/repository.go",
+        "internal/telemetry/attempt_diagnostics_sql.go",
+        "internal/httpapi/public/run_diagnostic_handlers.go",
+        "ui/src/routes/runs/runtime-diagnostics.tsx"
+      ]
+    },
+    {
+      "task": "V421-004",
+      "fields": "ExecutionReport.toolCalls",
+      "flow": "Retained Planner/Worker report \u2192 selected 8MiB-bounded SQL projection \u2192 generation-bound count/byte pages \u2192 selected participant UI and arguments JSON text",
+      "paths": [
+        "internal/telemetry/tool_diagnostics_sql.go",
+        "internal/telemetry/tool_diagnostics.go",
+        "ui/src/api/tool-diagnostics.ts",
+        "ui/src/routes/runs/tool-diagnostics.tsx"
+      ]
+    },
+    {
+      "task": "V421-005",
+      "fields": "PrivateCheck.Schema removed",
+      "flow": "Removed only from managed private check, schema, public clients and readers; strict shared rejection fixtures remain; portable schemas and structural parameters.schema remain consumed",
+      "paths": [
+        "internal/evaldomain/types.go",
+        "api/evals/v1/managed.schema.json",
+        "api/openapi/contractor-public-v1.yaml",
+        "internal/publicclient/generated/public.gen.go",
+        "ui/src/api/generated/public.ts"
+      ]
+    },
+    {
+      "task": "V421-006",
+      "fields": "human-review parameters",
+      "flow": "Nonempty unsupported parameters rejected at authoring, freeze, native/manual execution and all semantic retained-policy readers; current UI evaluator switching and structural/external parameters preserved",
+      "paths": [
+        "internal/evaldomain",
+        "internal/evalservice",
+        "internal/httpapi/public/eval_human_parameters_postgres_test.go",
+        "ui/src/api/evals.ts"
+      ]
+    },
+    {
+      "task": "V421-007",
+      "fields": "exported latestPromptTokens/workspaceDigest removed",
+      "flow": "Removed from current/last Worker state transport snapshots and both language schemas; internal prompt budgets and workspace integrity still have their existing callers",
+      "paths": [
+        "internal/contracts/reporting/agent_state.go",
+        "api/v1alpha1/agent-state.schema.json",
+        "runtime/src/contractor_runtime/worker/state.py",
+        "runtime/src/contractor_runtime/worker/observations.py"
+      ]
+    },
+    {
+      "task": "V421-008",
+      "fields": "registration response runtimeAgentId/labels/labelRevision removed",
+      "flow": "Echo-only response fields removed strictly across Go/Python/schema; Server principal identity, placement labels and revision validation/storage remain authoritative",
+      "paths": [
+        "internal/contracts/control/registration.go",
+        "internal/controlplane/http.go",
+        "internal/controlplane/registry.go",
+        "runtime/src/contractor_runtime/contracts/registration.py",
+        "api/v1alpha1/agent-registration-response.schema.json"
+      ]
+    },
+    {
+      "task": "V421-009",
+      "fields": "scopeCreatedAt/blobCreatedAt/versionCreatedAt/bindingUpdatedAt",
+      "flow": "Original physical registry timestamps \u2192 five metadata projections \u2192 strict public/CLI/UI reads and shared material Technical details; no invented source-file times or chronology relation",
+      "paths": [
+        "internal/artifacts",
+        "internal/cli",
+        "ui/src/api/artifacts.ts",
+        "ui/src/routes/artifacts",
+        "internal/persistence/migrations/000054_artifact_scope_creation_immutable.sql"
+      ]
+    },
+    {
+      "task": "V421-011",
+      "fields": "unresolved replacement input intent",
+      "flow": "Exact replacement revokes prior confirmation \u2192 per-slot read/error/retry and synchronous submit guard \u2192 successful exact binding or explicit cancellation/reselection; retained missing ref stays clearable",
+      "paths": [
+        "ui/src/routes/workflows/run-form-fields.tsx",
+        "ui/src/routes/workflows/run-form.tsx",
+        "ui/src/routes/workflows/run-form-state.ts"
+      ]
+    },
+    {
+      "task": "V421-012",
+      "fields": "diagnostic page-entry cache intent",
+      "flow": "Capture cached fact identities before child mount \u2192 bounded batch invalidation on genuine page entry/state change \u2192 active disclosures refresh; local participant selection and unrelated remounts remain untouched",
+      "paths": [
+        "ui/src/routes/runs/runtime-diagnostics-refresh.ts",
+        "ui/src/routes/runs/runtime-diagnostics.tsx",
+        "ui/src/routes/runs/tool-diagnostics.tsx"
+      ]
+    }
+  ],
+  "shared_guarantees": [
+    "No compatibility readers, telemetry tables, new receipts or changed retention were introduced.",
+    "Both public clients were regenerated after branch combination; UI release0.10.12 includes the combined changes.",
+    "Unsigned/signed64-bit diagnostic values remain exact strings and argument numbers remain JSON text in the browser.",
+    "Diagnostic reads preserve owner isolation, exact attempt association, bounded projections and cancellation; failures preserve visibly stale facts.",
+    "Migration055 refuses incompatible retained projections atomically with55000; discarded{} tombstones and literal immutable artifacts are preserved.",
+    "Original implementation commits are ancestors of this branch; main has not been modified."
+  ],
+  "independent_review": "Combined review found two actionable UI defects, tracked and completed as V421-011/012; sibling domains reviewed without additional concrete findings.",
+  "checkpoint": "tasks/evidence/v421-010-checkpoint.json",
+  "initial_main_baseline": "1716e40db37cb3221a0892c1d8703a8790598627",
+  "resumption": "Explicit user resume on2026-10-27. Current main only adds already-valid sitemap table-reader declarations and task metadata; independent review confirms existing telemetry foreign-read declarations cover both diagnostic queries. Cancelled checkpoint remains historical.",
+  "verification_followups": [
+    "V421-013/014 correct both SQLSTATE fixture definitions; complete real-store owner/API/lint checks passed.",
+    "V421-015 removes repeated JSONB extraction and serialization; unchanged Linux120s regression passes6.238s, fullLinuxtelemetry owner187pass/1existingoptional-skip, host complete owners/API/lint pass.",
+    "V421-016 preserves the exact serial sitemap volume fixture under production timing; baseline main and integrated source reproduce the race timeout. Full host and clean Linux owner suites pass normally and under race detection, and release graph/lint pass; no production budget or fixture assertion changed.",
+    "V421-017 replaces the stale strict Memory Artifact page DTO with the generated public type. Both real Memory scenarios, the complete 149-case untagged harness and Linux lint pass on clean b53ec214; required timestamps and media/exact-ref assertions are verified, with no production or deadline change."
+  ],
+  "prior_resumed_attempt": {
+    "revision": "baee4e57a9f6bc7bf8d1c9c28178af13cd987479",
+    "go_unit_failures": [
+      "TestSQLStateLiteralsLiveOnlyInTheClassifier",
+      "TestRuntimeDiagnosticsPostgresBoundsOwnershipGenerationAndRetainedAuthority"
+    ],
+    "checkpoint": "/private/tmp/v421-final-release-baee4e57-b1/failed-go-unit-checkpoint.json",
+    "full_release_pass_claimed": false,
+    "corrected_by": [
+      "V421-013",
+      "V421-014",
+      "V421-015"
+    ]
+  },
+  "prior_integrated_attempts": [
+    {
+      "revision": "30329ddb380083ecbb52fd7fdb082a1e614342fd",
+      "checkpoint": "tasks/evidence/v421-010-release-attempt-30329ddb.json",
+      "checkpoint_sha256": "81838ff26841aa6dff732367cc54701f8f17f58b01ff91c11d3e182cb28ebdf6",
+      "status": "failed_gate_cancelled_and_joined",
+      "full_release_pass_claimed": false,
+      "failure": "Pre-existing sitemap volume fixture exceeds the 15-second production operation deadline under race instrumentation; reproduced on main.",
+      "corrected_by": "V421-016",
+      "integration": "started_cancelled_unproven",
+      "process_shards": "not_started"
+    },
+    {
+      "revision": "895fe2eb79c594e8acc5c53f8d224012b617f9ce",
+      "checkpoint": "tasks/evidence/v421-010-release-attempt-895fe2eb.json",
+      "checkpoint_sha256": "0122120dd3309a237cb643ea805c8fa187e901ce10980ff35d4478bbce2f3fc1",
+      "status": "complete_failed_release_attempt",
+      "all_12_stages_attempted": true,
+      "full_release_pass_claimed": false,
+      "process_roots": {
+        "passed": 29,
+        "failed": 2,
+        "skipped": 0,
+        "incomplete": 0
+      },
+      "failures": [
+        "TestMemoryMVPProcesses",
+        "TestProductionMemoryTemplatesAcrossProcesses"
+      ],
+      "cause": "Both strict Memory process consumers shared one copied public Artifact page DTO missing storageTimestamps.",
+      "corrected_by": "V421-017",
+      "exact_four_exit_commands": "not_started_because_whole_gate_failed"
+    }
+  ],
+  "integrated_verification": {
+    "revision": "754f2b7686b1d5706566e6937731dfd0b25bb0b4",
+    "tree": "32a0e1bdda67cf5daaec6cacb67173981c9364d8",
+    "evidence": "tasks/evidence/v421-010-release-verified.json",
+    "evidence_sha256": "d317cbbb8b201eb86ab412e94301821de859393c60b22fc4967e2ffaad7f63d1",
+    "manifest": "tasks/evidence/v421-010-release-manifest.json",
+    "manifest_sha256": "c468916a6a4f1d5c1a1f1e938f04c9936c5b03820a4279022fbe747976d99503",
+    "full_release": {
+      "command": "make -k release-verify RACE_PACKAGE_PARALLELISM=1",
+      "exit_code": 0,
+      "stages_proven": 12,
+      "real_disposable_postgres": true
+    },
+    "required_cases": {
+      "integration_roots": 285,
+      "integration_cases": 709,
+      "process_roots": 31,
+      "browser_stack_roots": 10,
+      "configuration_roots": 8,
+      "missing_failed_or_skipped_selected_roots": 0
+    },
+    "separate_counts_not_summed": {
+      "go_unit_pass": 9806,
+      "go_unit_optional_skips": 7,
+      "runtime_pass": 5287,
+      "runtime_optional_skips": 55,
+      "ui_pass": 2510,
+      "ui_expected_harness_negative_control": 1,
+      "race_test_packages": 102,
+      "race_no_test_packages": 5
+    },
+    "direct_exit_commands": {
+      "tasks": 0,
+      "spec": 0,
+      "verify-public-api": 0,
+      "verify-public-api-postgres": 0,
+      "release_consolidated": false
+    },
+    "provenance": "Clean revision/tree/lockfiles unchanged before and after the whole gate and all four direct exits; Python3.13 and the actual editable Runtime import bind to the frozen checkout; all owned processes joined.",
+    "later_commits": "Only tracker/evidence closure follows this tested functional source; no functional pass is claimed at a different source revision.",
+    "merge_status": {
+      "branch": "codex/data-model-review-tasks",
+      "main": "f18dec3dbf9316b3347859db1da6873f54ffa1b0",
+      "main_is_ancestor": true,
+      "merged_to_main": false,
+      "remaining": "User merges the verified branch with --no-ff."
+    },
+    "independent_proof_review": "CLEAR: linked hashes, all seven actual Go streams, source-owned required selections, direct exits, source provenance and skip identities were rechecked; compact and manifest are byte-identical to the accepted outputs. Integration canonical reports and process-B/configuration gate streams are distinguished."
+  }
+}

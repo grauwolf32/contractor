@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-004",
+  "implementation_commit": "a74a097c7dda03e26b5eea5cfa7c74f2328470b7",
+  "checks": [
+    {
+      "command": "go test -tags=integration -count=1 ./internal/telemetry ./internal/runservice ./internal/httpapi/public",
+      "exit_code": 0,
+      "log_sha256": "0f256eec1c7c92fa679f93c4318c8b355c9e372c8f45a59326b481d1d57f1c9d"
+    },
+    {
+      "command": "make verify-public-api verify-public-api-postgres",
+      "exit_code": 0,
+      "log_sha256": "ec854bce6b3f1ab4312992024abafa77953b171c61adf144a0e745baeefc93c2"
+    },
+    {
+      "command": "make ui-verify ui-browser-mocked",
+      "exit_code": 0,
+      "log_sha256": "3e8f44e7f8956e606871409db54bf31e9ae559cb4346d1e2b3ab6f413a733274"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log_sha256": "0b38b3b172f50ff822ecde09745152867ceb691b26d6abb09f07fa0ad6d3065d"
+    }
+  ],
+  "database": "Dedicated disposable PostgreSQL database; integration and race API tests ran with the database URL set.",
+  "ui": {
+    "unit_files_passed": 200,
+    "unit_tests_passed": 2474,
+    "expected_failures": 1,
+    "server_tests_passed": 17,
+    "browser_tests_passed": 103,
+    "visual_inspection": "390 px light/dark/black screenshots inspected; numeric text and argument literals remain exact; no horizontal overflow.",
+    "synthetic_screenshots": [
+      {
+        "theme": "dark",
+        "sha256": "e808ecb2231fcf744e3547fe0ef53bfd5c1612a472c1628db50fc33cd31b88c9"
+      },
+      {
+        "theme": "black",
+        "sha256": "0a9aacba58a27947b9cb0199d0fdfc02e6e7f24fadbe4a07334953b4f7c61256"
+      },
+      {
+        "theme": "light",
+        "sha256": "8c6ab4c428be9f6b1f5337ffe57f3e398c17892145b083331a690ab688dae7bb"
+      }
+    ]
+  },
+  "regressions": [
+    "All 1000 retained records are reachable in source order with byte-limited pages, no duplicates, exact int64 decimal metrics and large JSON number literals preserved as text.",
+    "Near-1-MiB admitted source CallID and tool-name records remain reachable through bounded opaque references and explicit name markers.",
+    "Planner and logical Worker selection, source-report deletion, actual retention cleanup, incomplete/truncated/empty/missing reports, oversized/corrupt selected records and healthy siblings tested on PostgreSQL.",
+    "Owner/Run/Stage/participant isolation, scope tuples containing colons, stale generation, invalid cursors, retryable storage classification and cancellation tested.",
+    "UI preserves participant choice and loaded facts across unrelated Run invalidation, projection remounts and failed own-Stage state refresh; both diagnostic readers enforce UTF-8 byte bounds.",
+    "Configured secret, URL and private source-identity sentinels are absent from public projections; argument summaries retain common sanitizer semantics and exact numeric literals."
+  ],
+  "intermediate_failures": [
+    "A full public package run initially used the Darwin temporary-directory symlink and failed TestConfiguredGitSnapshotPublishesExactFilesystemBlob. Repeating the whole listed Go command with TMPDIR=/private/tmp passed without production changes.",
+    "UI formatting checks identified new browser-fixture line wrapping; the formatter fix was committed and the complete UI/browser command passed.",
+    "A new retry-policy regression initially expected a Retry-After header absent from the existing storage-conflict registry. The test now checks the existing retryable 503 envelope; the UI honors Retry-After when present and uses bounded backoff otherwise."
+  ]
+}

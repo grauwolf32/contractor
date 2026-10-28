@@ -1,7 +1,9 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
+import { usePublicAPI } from "../../api/context";
+import { scopedArtifactAPI } from "../../api/scoped-artifacts";
 import type { WorkflowResource } from "../../api/workflows";
 import { ErrorNotice } from "../../app/error-notice";
 import { formatBytes, formatTimestamp } from "../../app/format";
@@ -228,6 +230,8 @@ export function InputFields({
   isCurrent,
   onSelect,
   onConfirm,
+  unresolvedStored,
+  onStoredSelectionChanged,
 }: {
   workflow: WorkflowResource;
   presentation: "page" | "drawer";
@@ -240,8 +244,11 @@ export function InputFields({
     slot: string,
     selected: string,
     metadata?: ArtifactMetadata,
+    reviewed?: boolean,
   ) => void;
   onConfirm: (slot: string) => void;
+  unresolvedStored: ReadonlySet<string>;
+  onStoredSelectionChanged: (slot: string, unresolved: boolean) => void;
 }) {
   const [gitSlot, setGitSlot] = useState<string | null>(null);
   const [uploadSlot, setUploadSlot] = useState<string | null>(null);
@@ -253,8 +260,65 @@ export function InputFields({
   const uploadProjectId =
     uploadSlot === null ? undefined : inventories.inputs[uploadSlot]?.projectId;
 
-  function selectStored(slot: string, metadata: ArtifactMetadata): void {
-    onSelect(slot, artifactOptionKey(metadata.artifact), metadata);
+  const api = usePublicAPI();
+  const [storedErrors, setStoredErrors] = useState<Record<string, unknown>>({});
+  const storedReads = useRef(new Map<string, AbortController>());
+  const storedChoices = useRef(
+    new Map<
+      string,
+      { artifact: ArtifactMetadata["artifact"]; projectId: string | undefined }
+    >(),
+  );
+  useEffect(() => {
+    const reads = storedReads.current;
+    return () => {
+      for (const read of reads.values()) read.abort();
+      reads.clear();
+    };
+  }, []);
+  function cancelStoredSelection(slot: string): void {
+    storedReads.current.get(slot)?.abort();
+    storedReads.current.delete(slot);
+    storedChoices.current.delete(slot);
+    onStoredSelectionChanged(slot, false);
+    setStoredErrors((current) => {
+      const next = { ...current };
+      delete next[slot];
+      return next;
+    });
+  }
+  async function selectStored(
+    slot: string,
+    artifact: ArtifactMetadata["artifact"],
+    scopeProjectId: string | undefined,
+  ): Promise<void> {
+    cancelStoredSelection(slot);
+    const read = new AbortController();
+    storedReads.current.set(slot, read);
+    storedChoices.current.set(slot, { artifact, projectId: scopeProjectId });
+    onStoredSelectionChanged(slot, true);
+    // Keep the new exact intent across draft release without confirming it or
+    // allowing the previous revision to remain eligible for submission.
+    onSelect(slot, artifactOptionKey(artifact), undefined, false);
+    try {
+      const metadata = await scopedArtifactAPI(
+        api,
+        scopeProjectId === undefined
+          ? { kind: "user" }
+          : { kind: "project", id: scopeProjectId },
+      ).metadata({ ...artifact, signal: read.signal });
+      if (!read.signal.aborted && isCurrent()) {
+        onSelect(slot, artifactOptionKey(artifact), metadata);
+        storedChoices.current.delete(slot);
+        onStoredSelectionChanged(slot, false);
+      }
+    } catch (error) {
+      if (!read.signal.aborted && isCurrent())
+        setStoredErrors((current) => ({ ...current, [slot]: error }));
+    } finally {
+      if (storedReads.current.get(slot) === read)
+        storedReads.current.delete(slot);
+    }
   }
 
   let slots: ReactNode;
@@ -314,6 +378,7 @@ export function InputFields({
                       value={selected}
                       disabled={artifactInventory.isPending}
                       onChange={(event) => {
+                        cancelStoredSelection(name);
                         const exactRef = event.target.value;
                         onSelect(name, exactRef, artifactMap.get(exactRef));
                       }}
@@ -323,6 +388,14 @@ export function InputFields({
                           ? "Select a revision"
                           : `No ${inputNoun} supplied`}
                       </option>
+                      {selected !== "" && selectedMetadata === undefined ? (
+                        <option value={selected}>
+                          {unresolvedStored.has(name)
+                            ? "Unresolved replacement"
+                            : "Selected revision metadata not loaded"}{" "}
+                          {selected}
+                        </option>
+                      ) : null}
                       {compatible.map((metadata) => (
                         <option
                           key={artifactOptionKey(metadata.artifact)}
@@ -334,6 +407,45 @@ export function InputFields({
                     </select>
                   )}
                 </Field>
+                {unresolvedStored.has(name) ? (
+                  <>
+                    <p className="field-guidance">
+                      {storedReads.current.has(name)
+                        ? "Loading the selected revision's exact metadata…"
+                        : "Resolve this replacement or explicitly select another revision before starting."}
+                    </p>
+                    {storedErrors[name] === undefined ? null : (
+                      <ErrorNotice error={storedErrors[name]} />
+                    )}
+                    <div className="run-field-actions">
+                      {storedReads.current.has(name) ? null : (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const choice = storedChoices.current.get(name);
+                            if (choice !== undefined)
+                              void selectStored(
+                                name,
+                                choice.artifact,
+                                choice.projectId,
+                              );
+                          }}
+                        >
+                          Retry metadata for {name}
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          cancelStoredSelection(name);
+                          onSelect(name, "");
+                        }}
+                      >
+                        Cancel replacement for {name}
+                      </Button>
+                    </div>
+                  </>
+                ) : null}
                 {selectedMetadata === undefined ? null : (
                   <InputReview
                     name={name}
@@ -343,7 +455,10 @@ export function InputFields({
                     suggested={artifactSuggestions[name] === selected}
                     projectId={inputProjectId}
                     inputNoun={inputNoun}
-                    onConfirm={() => onConfirm(name)}
+                    onConfirm={() => {
+                      cancelStoredSelection(name);
+                      onConfirm(name);
+                    }}
                   />
                 )}
                 <div className="run-field-actions">
@@ -402,15 +517,7 @@ export function InputFields({
           onClose={() => setGitSlot(null)}
           onImported={(result) => {
             if (!isCurrent()) return;
-            selectStored(gitSlot, {
-              artifact: result.artifact,
-              mediaType: result.mediaType,
-              size: result.size,
-              gitSource: result.gitSource,
-              current: true,
-              frozen: false,
-              createdAt: result.gitSource.importedAt,
-            });
+            void selectStored(gitSlot, result.artifact, gitProjectId);
             setGitSlot(null);
           }}
         />
@@ -425,14 +532,7 @@ export function InputFields({
           onClose={() => setUploadSlot(null)}
           onUploaded={(result) => {
             if (!isCurrent()) return;
-            selectStored(uploadSlot, {
-              artifact: result.artifact,
-              mediaType: result.mediaType,
-              size: result.size,
-              current: true,
-              frozen: false,
-              createdAt: new Date().toISOString(),
-            });
+            void selectStored(uploadSlot, result.artifact, uploadProjectId);
             setUploadSlot(null);
           }}
         />

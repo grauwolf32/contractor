@@ -137,6 +137,11 @@ func TestPostgresResumeFailedStageIsAtomicAndIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	artifactView, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run(before.RunID)
+	frozenMetadata, err := artifactView.Metadata(ctx, artifacts.ArtifactRef{Namespace: "outputs", Name: "upstream"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	successBefore, err := store.GetStageExecution(ctx, before.RunID+"-success")
 	if err != nil {
 		t.Fatal(err)
@@ -186,6 +191,17 @@ func TestPostgresResumeFailedStageIsAtomicAndIdempotent(t *testing.T) {
 	}
 	if !slices.Equal(after.RequiredPlacementLabels, before.RequiredPlacementLabels) || len(before.RequiredPlacementLabels) == 0 || after.State != RunPending || after.FinishedAt != nil || !after.StartedAt.Equal(*before.StartedAt) || !reflect.DeepEqual(after.RuntimeConfig, before.RuntimeConfig) || !reflect.DeepEqual(after.WorkflowSnapshot, before.WorkflowSnapshot) {
 		t.Fatalf("Run changed incorrectly: %+v", after)
+	}
+	thawedMetadata, err := artifactView.Metadata(ctx, frozenMetadata.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if thawedMetadata.Frozen || !thawedMetadata.Ref.SameExact(frozenMetadata.Ref) || thawedMetadata.StorageTimestamps.BlobCreatedAt != frozenMetadata.StorageTimestamps.BlobCreatedAt || thawedMetadata.StorageTimestamps.VersionCreatedAt != frozenMetadata.StorageTimestamps.VersionCreatedAt {
+		t.Fatal("thaw changed exact storage creation facts")
+	}
+	var storedBindingDate time.Time
+	if err := pool.QueryRow(ctx, `SELECT updated_at FROM artifact_bindings WHERE scope_kind='run' AND scope_id=$1 AND namespace='outputs' AND name='upstream'`, before.RunID).Scan(&storedBindingDate); err != nil || !thawedMetadata.StorageTimestamps.BindingUpdatedAt.Equal(storedBindingDate) {
+		t.Fatal("thaw did not expose stored binding mutation date", err)
 	}
 	old, err := store.GetStageExecution(ctx, *source)
 	if err != nil || !reflect.DeepEqual(old, previous) {

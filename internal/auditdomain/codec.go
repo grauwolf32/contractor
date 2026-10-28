@@ -2,6 +2,7 @@ package auditdomain
 
 import (
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -565,7 +566,7 @@ func validateFindingProposal(proposal FindingProposal) error {
 	if proposal.Schema != FindingProposalSchema {
 		return invalid(CodeSchemaUnsupported, "schema")
 	}
-	if proposal.Preconditions == nil || proposal.EvidenceIDs == nil || proposal.ProposedChecks == nil {
+	if proposal.EvidenceIDs == nil || proposal.ProposedChecks == nil {
 		return invalid(CodeInvalid, "proposal.arrays")
 	}
 	if validateIdentifier(proposal.ClientKey, "client_key") != nil {
@@ -577,8 +578,7 @@ func validateFindingProposal(proposal FindingProposal) error {
 	if err := validateFindingEvidenceReferences(proposal); err != nil {
 		return err
 	}
-	if validateStringList(proposal.Preconditions, MaximumCoverageValues, "preconditions") != nil ||
-		validateUniqueStrings(proposal.EvidenceIDs, MaximumEvidencePerItem, "evidence_ids", true) != nil ||
+	if validateUniqueStrings(proposal.EvidenceIDs, MaximumEvidencePerItem, "evidence_ids", true) != nil ||
 		len(proposal.ProposedChecks) > MaximumCoverageValues {
 		return invalid(CodeLimitExceeded, "proposal")
 	}
@@ -614,6 +614,14 @@ func validateEvidence(value EvidenceEnvelope) error {
 		}
 		if evidence.ContentMemberID != "" && validateIdentifier(evidence.ContentMemberID, "evidence.content_member_id") != nil {
 			return invalid(CodeReferenceInvalid, "evidence.content_member_id")
+		}
+		if evidence.HTTPRequestID != "" || evidence.HTTPRequestTag != "" {
+			id, err := strconv.ParseUint(evidence.HTTPRequestID, 10, 64)
+			if err != nil || id == 0 || id > 9007199254740991 || strconv.FormatUint(id, 10) != evidence.HTTPRequestID ||
+				validateIdentifier(evidence.HTTPRequestTag, "evidence.http_request_tag") != nil || evidence.ObservedAt == "" || !strings.HasSuffix(evidence.ObservedAt, "Z") || evidence.ContentMemberID == "" ||
+				len(evidence.DeploymentMarker) > 256 || strings.IndexFunc(evidence.DeploymentMarker, func(r rune) bool { return r < 32 }) >= 0 {
+				return invalid(CodeInvalid, "evidence.http_observation")
+			}
 		}
 		if evidence.ObservedAt != "" {
 			parsed, err := time.Parse(time.RFC3339Nano, evidence.ObservedAt)

@@ -159,9 +159,6 @@ def test_released_allocation_stays_fenced_until_watchdog_is_rearmed(
                 },
                 {
                     "apiVersion": API_VERSION,
-                    "runtimeAgentId": "a" * 64,
-                    "labels": [],
-                    "labelRevision": 1,
                     "heartbeatIntervalSeconds": 10,
                     "confirmedLeaseSeconds": 60,
                 },

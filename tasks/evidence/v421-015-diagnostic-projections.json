@@ -1,0 +1,433 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-015",
+  "implementation_commit": "e660fd6557926ff23f9e95ca2b589ba763fe849c",
+  "checks": [
+    {
+      "command": "go test -tags=integration -count=1 ./internal/telemetry ./internal/httpapi/public ./internal/runservice ./internal/controlplane",
+      "exit_code": 0,
+      "environment": "Host Go 1.26.9, GOMAXPROCS=2, GOFLAGS=-p=1, TMPDIR=/private/tmp; dedicated real PostgreSQL database contractor_v421_tools where required.",
+      "log_sha256": "b6c1aef4c589cd2f064dca45f4e2ffcf809e9dde0094f223aca2be51d15ea378",
+      "results": {
+        "telemetry_seconds": 53.528,
+        "public_seconds": 99.89,
+        "runservice_seconds": 8.512,
+        "controlplane_seconds": 28.438
+      }
+    },
+    {
+      "command": "go test -count=1 -v ./internal/telemetry -run '^TestRuntimeDiagnosticsPostgresBoundsOwnershipGenerationAndRetainedAuthority$'",
+      "exit_code": 0,
+      "environment": "Host Go 1.26.9, GOMAXPROCS=2, GOFLAGS=-p=1, TMPDIR=/private/tmp; dedicated real PostgreSQL database contractor_v421_tools where required.",
+      "log_sha256": "93438efce5be3618124682b1b5690daf5625779b9937c4ce9cd10248a019625b",
+      "results": {
+        "regression_seconds": 3.57,
+        "original_context_seconds": 120
+      }
+    },
+    {
+      "command": "go test -count=1 -v ./internal/telemetry -run '^TestToolDiagnosticsPostgres(RetainedPagesPrivacyAndBoundaries|RejectsArrayWorkerContainerWithNumericName)$'",
+      "exit_code": 0,
+      "environment": "Host Go 1.26.9, GOMAXPROCS=2, GOFLAGS=-p=1, TMPDIR=/private/tmp; dedicated real PostgreSQL database contractor_v421_tools where required.",
+      "log_sha256": "a005c09670b55f346089deb819a142a21302d206041ef15d4d21c0ebb559505c",
+      "results": {
+        "tests_passed": 2
+      }
+    },
+    {
+      "command": "make verify-public-api verify-public-api-postgres",
+      "exit_code": 0,
+      "environment": "Host Go 1.26.9, GOMAXPROCS=2, GOFLAGS=-p=1, TMPDIR=/private/tmp; dedicated real PostgreSQL database contractor_v421_tools where required.",
+      "log_sha256": "db07a30502484e93b8735c6b3f5b932e2c35b3718011310c77be002720ae0307",
+      "results": {
+        "static_seconds": 10.644,
+        "real_postgres_race_seconds": 28.18
+      }
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "environment": "Host Go 1.26.9, GOMAXPROCS=2, GOFLAGS=-p=1, TMPDIR=/private/tmp; dedicated real PostgreSQL database contractor_v421_tools where required.",
+      "log_sha256": "e4877e9fc96aa20e11d490e7428aa50e1744b24f797b71645148463e4e2322c8",
+      "results": {}
+    }
+  ],
+  "original_failure": {
+    "source_commit": "baee4e57a9f6bc7bf8d1c9c28178af13cd987479",
+    "test": "TestRuntimeDiagnosticsPostgresBoundsOwnershipGenerationAndRetainedAuthority",
+    "elapsed_seconds": 120.09,
+    "failure": "attempt_diagnostics_postgres_test.go:79: iterate Runtime diagnostics: timeout: context deadline exceeded",
+    "canonical_go_unit_jsonl_sha256": "013a750a7c43c4818be8268ae9eef6f2482701ad8e772fec42a17d91ea4cfd36",
+    "release_pass_claimed": false
+  },
+  "linux_explain": {
+    "status": "passed",
+    "fixture": {
+      "participants": 1000,
+      "multibyte_stop_repeat": 2000,
+      "logical_json_text_bytes": 40258916,
+      "stored_bytes": 637282,
+      "tables": "session-local TEMP tables only; automatically dropped at psql exit",
+      "work_mem": "4MB"
+    },
+    "provided_sql_sha256": "f9693e0931ebcb61905eadf9fe4fcd1b4d3d69ca5492fedba934999fe058ff04",
+    "extended_sql_sha256": "c175e71d0ae45ce263ba080c042d13d2e9f63c1b10259dd794facc174da7edb8",
+    "profile_result_sha256": "a4a20eeb80486d81cfd6077b4dc35fbd6e0b72d72e512b3a420a5efa1c7842b3",
+    "profile_log_sha256": "3e0dd42c95af376fe3a1fea4395c4a23133e2d595fce41d87952ba1b48d872ec",
+    "plan_artifacts_sha256": {
+      "runtime_after_force_custom_plan_first.json": "903feb9dabed007bb25bf40417450b704f46d5ad91445313636bcb146a29451a",
+      "result.json": "a4a20eeb80486d81cfd6077b4dc35fbd6e0b72d72e512b3a420a5efa1c7842b3",
+      "tool_before_force_custom_plan_worker.json": "a5f0963e1ef0a308e631de09ecaac22e364cb06f9232ba5dbf7acd85d827c716",
+      "tool_after_force_generic_plan_worker.json": "34ec598a9a2df9e49df04e79dc4225558de8d03b7f6cc24e13e3ffda9d08e68d",
+      "provided.sql": "f9693e0931ebcb61905eadf9fe4fcd1b4d3d69ca5492fedba934999fe058ff04",
+      "runtime_before_force_custom_plan_first.json": "8adf9be71ce9710575cb8f8e633b2cd371d8ccd6cd77c963b938415c4f38e56f",
+      "extended.sql": "c175e71d0ae45ce263ba080c042d13d2e9f63c1b10259dd794facc174da7edb8",
+      "tool_after_force_custom_plan_worker.json": "7919433df75207a98c5031f90ddf7f7d91c529cce0246ee7d1091f5fe3c38096",
+      "profile.log": "3e0dd42c95af376fe3a1fea4395c4a23133e2d595fce41d87952ba1b48d872ec",
+      "runtime_before_force_generic_plan_first.json": "c5fcff3e78e148e4cb7a15d392283ba3f8f4922b0f5b87930e5757edef7c3bd2",
+      "runtime_after_force_generic_plan_first.json": "6fa775c1eebc211b3e5385ed4589d507380b4b0f71ab380106d8aa2e0b9f35b4",
+      "runtime_after_force_generic_plan_deep.json": "a469cd56822672320a974d435884315534fddd7976082f49301a6ce6bde66bed",
+      "runtime_before_force_generic_plan_deep.json": "fae3250ed2411c9876e21b2bd06d0ca58545cb226bd91ea0d9689d4576aeb216",
+      "tool_before_force_generic_plan_worker.json": "008cc1fc83d1c7d94e1d4d921dee3f6af9c1bb752362231366518729322271ff",
+      "runtime_after_force_custom_plan_deep.json": "b85e204ee58ba2e9dc32b0460c5bcf494558c2ecb9c87d7e53f467579569fdc2",
+      "runtime_before_force_custom_plan_deep.json": "526a5d7b61851a65ed67e534c632779eefb53e49e46ccd331c6417f74beecd66"
+    },
+    "plans": {
+      "runtime_before_force_custom_plan_first": {
+        "execution_ms": 2046.278,
+        "root_buffers": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Local Hit Blocks": 9078,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "cte_nodes": []
+      },
+      "runtime_before_force_custom_plan_deep": {
+        "execution_ms": 1779.289,
+        "root_buffers": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Local Hit Blocks": 9078,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "cte_nodes": []
+      },
+      "runtime_after_force_custom_plan_first": {
+        "execution_ms": 58.348,
+        "root_buffers": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Local Hit Blocks": 87,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 4904,
+          "Temp Written Blocks": 4904
+        },
+        "cte_nodes": [
+          {
+            "Subplan Name": "CTE owned",
+            "Actual Rows": 1,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE participant_names",
+            "Actual Rows": 1000,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE selected",
+            "Actual Rows": 11,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE projected",
+            "CTE Name": "selected",
+            "Actual Rows": 11,
+            "Actual Loops": 1
+          }
+        ]
+      },
+      "runtime_after_force_custom_plan_deep": {
+        "execution_ms": 55.074,
+        "root_buffers": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Local Hit Blocks": 87,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 4904,
+          "Temp Written Blocks": 4904
+        },
+        "cte_nodes": [
+          {
+            "Subplan Name": "CTE owned",
+            "Actual Rows": 1,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE participant_names",
+            "Actual Rows": 1000,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE selected",
+            "Actual Rows": 11,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE projected",
+            "CTE Name": "selected",
+            "Actual Rows": 11,
+            "Actual Loops": 1
+          }
+        ]
+      },
+      "tool_before_force_custom_plan_worker": {
+        "execution_ms": 34.261,
+        "root_buffers": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Local Hit Blocks": 330,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "cte_nodes": []
+      },
+      "tool_after_force_custom_plan_worker": {
+        "execution_ms": 17.85,
+        "root_buffers": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Local Hit Blocks": 168,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "cte_nodes": [
+          {
+            "Subplan Name": "CTE owned",
+            "Actual Rows": 1,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE projected",
+            "CTE Name": "owned",
+            "Actual Rows": 1,
+            "Actual Loops": 1
+          }
+        ]
+      },
+      "runtime_before_force_generic_plan_first": {
+        "execution_ms": 1755.211,
+        "root_buffers": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Local Hit Blocks": 9078,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "cte_nodes": []
+      },
+      "runtime_before_force_generic_plan_deep": {
+        "execution_ms": 1734.512,
+        "root_buffers": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Local Hit Blocks": 9078,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "cte_nodes": []
+      },
+      "runtime_after_force_generic_plan_first": {
+        "execution_ms": 57.718,
+        "root_buffers": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Local Hit Blocks": 87,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 4904,
+          "Temp Written Blocks": 4904
+        },
+        "cte_nodes": [
+          {
+            "Subplan Name": "CTE owned",
+            "Actual Rows": 1,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE participant_names",
+            "Actual Rows": 1000,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE selected",
+            "Actual Rows": 11,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE projected",
+            "CTE Name": "selected",
+            "Actual Rows": 11,
+            "Actual Loops": 1
+          }
+        ]
+      },
+      "runtime_after_force_generic_plan_deep": {
+        "execution_ms": 59.109,
+        "root_buffers": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Local Hit Blocks": 87,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 4904,
+          "Temp Written Blocks": 4904
+        },
+        "cte_nodes": [
+          {
+            "Subplan Name": "CTE owned",
+            "Actual Rows": 1,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE participant_names",
+            "Actual Rows": 1000,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE selected",
+            "Actual Rows": 11,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE projected",
+            "CTE Name": "selected",
+            "Actual Rows": 11,
+            "Actual Loops": 1
+          }
+        ]
+      },
+      "tool_before_force_generic_plan_worker": {
+        "execution_ms": 34.268,
+        "root_buffers": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Local Hit Blocks": 330,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "cte_nodes": []
+      },
+      "tool_after_force_generic_plan_worker": {
+        "execution_ms": 17.866,
+        "root_buffers": {
+          "Shared Hit Blocks": 0,
+          "Shared Read Blocks": 0,
+          "Local Hit Blocks": 168,
+          "Local Read Blocks": 0,
+          "Temp Read Blocks": 0,
+          "Temp Written Blocks": 0
+        },
+        "cte_nodes": [
+          {
+            "Subplan Name": "CTE owned",
+            "Actual Rows": 1,
+            "Actual Loops": 1
+          },
+          {
+            "Subplan Name": "CTE projected",
+            "CTE Name": "owned",
+            "Actual Rows": 1,
+            "Actual Loops": 1
+          }
+        ]
+      }
+    },
+    "reproduction": "Session-local TEMP tables with exact owning keys; 1000 Runtime participants each with repeat(наблюдение,2000) stopReason and 1000 simple Worker reports. PREPARE original and candidate SQL and EXPLAIN (ANALYZE, VERBOSE, BUFFERS, FORMAT JSON) under force_custom_plan and force_generic_plan, first and deep Runtime pages (after worker-0900), plus the selected Worker tool report. No production table or source change.",
+    "diagnosis": "The old Runtime invalid-name SubPlan executes 11 times and its fully inlined output repeatedly extracts/detoasts the containing JSONB. The candidate extracts the Runtime map once, enumerates keys once, and materializes only narrow selected values and their serialized documents afterward. One containing-map spill at work_mem=4MB remains (4904 temporary blocks read/written), rather than copying the map into every selected row."
+  },
+  "regressions": [
+    "Existing 1003-participant realistic Runtime fixture, cursor traversal, UTF8 and exact decimal checks and original 2-minute context are unchanged.",
+    "Tool paging with 1000 calls now includes a corrupt unselected Worker sibling larger than the 8MiB selected-report budget; the healthy selected Worker and Planner remain readable with no source-sentinel leakage.",
+    "Valid numeric logical Worker name 0 selects an object key. An array-valued malformed Worker container remains missing, rather than exposing its index-0 report. The test drops the normal container CHECK only inside its isolated schema to model corruption.",
+    "Strict authorization, byte bounds, missing/partial/malformed status, generation conflicts, retained authority after source expiry and cancellation remain covered by the full real-store owner/API suites."
+  ],
+  "independent_reviews": {
+    "runtime_lane": "Caught the numeric array-index semantic difference before the source commit; resolved by a strict JSONPath object-container predicate and real-store regression.",
+    "final_review": "The parent and an independent SQL reviewer found no additional actionable issues in narrow materialization, ownership, null handling, pagination, generation, byte guards or malformed-container semantics."
+  },
+  "intermediate_checks": [
+    "The initial new malformed-array regression was rejected by the existing stage_metrics container CHECK before reaching the reader. The fixture now explicitly removes that CHECK only in its isolated schema; both happy numeric object-key and malformed array reads pass. No production constraint or timeout changed."
+  ],
+  "linux_acceptance": {
+    "schema_version": "1.0",
+    "task": "V421-015",
+    "source_pin": "e660fd6557926ff23f9e95ca2b589ba763fe849c",
+    "mode": "focused_v421_015_acceptance",
+    "setup_exit": 0,
+    "focused_and_full_owner_exit": 0,
+    "focused_command_result": "ok  \tgithub.com/grauwolf32/contractor/internal/telemetry\t6.238s",
+    "runtime_regression_in_full_owner": "pass",
+    "original_runtime_regression_file_identical": true,
+    "source_clean_before_after": true,
+    "source_revision_unchanged": true,
+    "source_tree_unchanged": true,
+    "locks_unchanged": true,
+    "artifacts_sha256": {
+      "result.json": "f9cc2554cfafccb0be1fc519977768b3aa05d9f83d2bb978347adaf3c032b410",
+      "gate.log": "bba4a78cd8159c1afc2ed71a28d1f9806ac5dd7a66e43b096b7170611157b6a1",
+      "telemetry-owner.jsonl": "50cc5d9a2f522942a3fd6045d276222e6bbb16db7a7f137d9589e6b1b2c74bd9",
+      "source-after.json": "fdef7294010754a2664ec9f4b9292c0831add4079a90600728d1ba3ba9437b8d"
+    },
+    "full_release_executed": false,
+    "summary_sha256": "d877e0a2d601c199390d8646b5987802bbc710f8e3b388f4cc1dcbf524293d60",
+    "counts": {
+      "event_count": 843,
+      "test_events": {
+        "run": 188,
+        "pass": 187,
+        "skip": 1
+      },
+      "top_level_events": {
+        "run": 62,
+        "pass": 61,
+        "skip": 1
+      },
+      "package_events": {
+        "start": 1,
+        "pass": 1
+      },
+      "packages": {
+        "github.com/grauwolf32/contractor/internal/telemetry": "pass"
+      },
+      "problems": [],
+      "unique_test_identities": 188,
+      "unique_root_identities": 62,
+      "duplicate_runs": [],
+      "duplicate_terminals": [],
+      "without_terminal": [],
+      "without_run": [],
+      "failed_cases": [],
+      "skipped_cases": [
+        "github.com/grauwolf32/contractor/internal/telemetry/TestPlannerOTLPCollectorProjection"
+      ],
+      "failed_packages": []
+    },
+    "focused_seconds": 6.238,
+    "runtime_regression_full_owner_seconds": 5.69,
+    "full_telemetry_seconds": 41.185,
+    "source_capture": "Clean exact-source Linux checkout /work/v421-integrated-v015-e660fd65-p1; actual Runtime prefix and editable import both belong to that new checkout.",
+    "skip_reason": "TestPlannerOTLPCollectorProjection is the existing optional external-collector test; no database regression was skipped.",
+    "original_runtime_regression_git_blobs": {
+      "baee4e57a9f6bc7bf8d1c9c28178af13cd987479": "b4ce7693a03e21a8c71e9d7d2779753282995329",
+      "e660fd6557926ff23f9e95ca2b589ba763fe849c": "b4ce7693a03e21a8c71e9d7d2779753282995329"
+    }
+  }
+}

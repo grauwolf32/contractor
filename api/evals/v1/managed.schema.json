@@ -266,11 +266,6 @@
             "maxLength": 8192
           },
           "maxProperties": 128
-        },
-        "schema": {
-          "type": "string",
-          "minLength": 0,
-          "maxLength": 65536
         }
       },
       "required": [
@@ -551,6 +546,12 @@
         "id",
         "evaluator",
         "required"
+      ],
+      "allOf": [
+        {
+          "if": {"properties": {"evaluator": {"const": "human-review@1"}}},
+          "then": {"properties": {"parameters": {"maxProperties": 0}}}
+        }
       ],
       "additionalProperties": false
     },

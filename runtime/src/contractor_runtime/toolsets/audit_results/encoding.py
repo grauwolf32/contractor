@@ -168,6 +168,15 @@ class CanonicalAuditPackageEncoder:
         ):
             raise AuditResultError("audit_result_invalid")
         decoded = self.trusted_inputs(inputs)
+        if (
+            sum(
+                len(value.http_capture or b"")
+                for item in snapshot.items
+                for value in item.value.evidence
+            )
+            > MAX_COLLECTED_BYTES
+        ):
+            raise AuditResultError("audit_result_size_exceeded")
         try:
             selected_tasks, results = [], []
             for recorded in snapshot.items:
@@ -183,7 +192,23 @@ class CanonicalAuditPackageEncoder:
                         "completed": list(item.completed),
                         "gaps": list(item.gaps),
                         "evidence": [
-                            {"kind": value.kind, "summary": value.summary}
+                            {
+                                "kind": value.kind,
+                                "summary": value.summary,
+                                **(
+                                    {
+                                        "http_capture": value.http_capture,
+                                        "observed_at": value.observed_at,
+                                        **(
+                                            {"deployment_marker": value.deployment_marker}
+                                            if value.deployment_marker is not None
+                                            else {}
+                                        ),
+                                    }
+                                    if value.http_capture is not None
+                                    else {}
+                                ),
+                            }
                             for value in item.evidence
                         ],
                         "proposals": [

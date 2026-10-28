@@ -267,6 +267,7 @@ export function RunCancellationRecord({
  * the event stream's state to the page header.
  */
 export function LiveAttempts({
+  diagnosticsEnabled,
   run,
   focusStageExecutionId,
   attemptDisclosure,
@@ -274,6 +275,7 @@ export function LiveAttempts({
   onLiveStatus,
 }: {
   run: RunStatus;
+  diagnosticsEnabled: boolean;
   focusStageExecutionId: string | undefined;
   attemptDisclosure: (
     stageExecutionId: string,
@@ -304,6 +306,7 @@ export function LiveAttempts({
       ) : (
         run.attempts.map((attempt) => (
           <StageAttemptView
+            diagnosticsEnabled={diagnosticsEnabled}
             key={attempt.stageExecutionId}
             runId={run.runId}
             attempt={attempt}

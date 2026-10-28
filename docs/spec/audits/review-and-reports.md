@@ -228,7 +228,27 @@ instrument and version, actor role, observation time, output refs, scope,
 limitations and truncation.
 
 **REV-R8.** For live HTTP observations, evidence also records the
-observation time and an available deployment marker.
+observation time and an available deployment marker. For an Audit-selected
+Runtime HTTP capture, `observed_at` is the first captured request attempt's start
+instant, immediately before transport dispatch (UTC RFC 3339); it is not response completion, evidence submission or
+report generation time; a timestamp alone does not prove the request reached
+the target, and transport failures remain in the retained capture. `http_request_id` and `http_request_tag` bind the exact
+copied capture member. `deployment_marker`, when available, comes only from
+the allocation's pinned sitemap deployment policy; it is owner-provided
+attribution, not proof that the target software stayed unchanged. Coverage
+reads preserve these fields; the check evidence view labels the time as the start of the HTTP
+request attempt and the deployment as declared, with request identity under
+Technical details. Exact retained result ZIP members remain independently
+readable after source Run deletion.
+
+A summary without a selected capture is model-authored assertion evidence and
+carries no inferred target observation time or deployment. Exact Run, task,
+Workflow and actor attribution and the collection event remain in the existing
+collection provenance/receipt. A required `http-observation` kind or registered
+`http-probe` finding check needs selected HTTP evidence for a conclusive result;
+`active-test` alone does not identify an instrument. Other active/source checks
+retain their evidence policy. Missing capture yields an explicit gap and an
+inconclusive/blocked result, never a fabricated current-time observation.
 
 Rationale: pinned source does not prove that a live target remained unchanged.
 
@@ -547,7 +567,14 @@ a structurally valid report and fails (FAIL-AUD-9).
 
 **REV-R195.** Each report finding shows the report projection that finding
 intake stored with its first receipt (FND-R158); finalization reads no
-proposal artifact.
+proposal artifact. Every finding in the confirmed, proposed, rejected, duplicate
+and needs-evidence sections of `report.json` includes required `preconditions`,
+with the exact original strings in order and `[]` for no conditions. Human
+verdicts and later contributions do not replace the first receipt's conditions.
+The conditions count in existing projection, page and complete report byte
+budgets. The Markdown report retains its bounded summary/counts contract.
+Previously accepted report bytes remain immutable; the retained-projection
+forward transition is defined by [PER-R43](../platform/persistence.md#PER-R43).
 
 **REV-R196.** Finalization records the report's item and finding entries in
 pages, in report order: the items of each Round, then the findings of each

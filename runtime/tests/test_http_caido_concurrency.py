@@ -24,8 +24,8 @@ class BlockingCaptureBuffer(RecentHTTPCaptures):
         self.committed = asyncio.Event()
         self.block_after_commit = True
 
-    async def put(self, capture, invocation_id):
-        await super().put(capture, invocation_id)
+    async def put(self, capture, invocation_id, *, observation=None):
+        await super().put(capture, invocation_id, observation=observation)
         if self.block_after_commit:
             self.block_after_commit = False
             self.committed.set()

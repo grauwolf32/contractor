@@ -1,0 +1,180 @@
+schema_version: "1.0"
+id: V421-006
+title: Reject unsupported parameters on managed human-review checks
+milestone: data-model-consumers-2026-10
+epic: evals
+kind: defect
+introduced_by: V38-006
+priority: P3
+status: completed
+implementation_commit: f8047c0b9217cfb15040191b8cd746e5c18a0740
+depends_on: []
+languages: [go, json, typescript, yaml]
+goal: >-
+  Reject nonempty Check.Parameters for the implemented managed human-review@1 evaluator
+  before freezing or mutating an experiment, rather than pinning configuration that no
+  evaluator or owner review consumer implements.
+context:
+  specification:
+    - docs/spec/evals/managed-evals.md#EVM-R51
+    - docs/spec/evals/managed-evals.md#EVM-R56
+    - docs/spec/evals/managed-evals.md#EVM-R58
+    - docs/spec/evals/managed-evals.md#EVM-R153
+    - docs/spec/evals/managed-evals.md#EVM-R156
+    - docs/spec/evals/format.md
+    - docs/spec/api/public-api.md#API-R3
+  review: User-requested detailed data-model consumer review on 2026-10-27, finding 6.
+  severity: low
+  finding: >-
+    internal/evalservice/native_checks.go:26-27 returns nil immediately for human-review@1,
+    and plan_cases.go:39-64 bypasses validateNativeCheck for that evaluator before copying
+    arbitrary Check.Parameters into the frozen portable plan at lines 66-75. The execution
+    branch in native_check_execution.go:70-72 returns incomplete without reading parameters;
+    review.go reads only the pinned PrivateCheck, and record_ingestion.go:180-208 validates
+    evaluator/implementation/rubric/evidence without interpreting parameters. Consequently a
+    nonempty map such as {output: report} changes policy bytes and pins but does not scope or
+    change the owner's human review. The accepted configuration has no behavioral consumer.
+  siblings: >-
+    Cover managed native CreateExperiment and DraftUpdate, managed ExternalRegistration,
+    authoring validation, preparation/buildChecks and direct internal service entry points,
+    frozen-plan validation/review and public/UI schemas. The registered human-review@1
+    implementation has one supported empty parameter set; unrelated external evaluator IDs
+    retain their attributed producer-owned parameter semantics. Structural evaluators retain
+    their current allowlisted parameters and pin checks. Inspect the portable representation
+    of this registered evaluator without tightening arbitrary portable external scorers.
+  provenance: >-
+    git blame identifies V38-006, implementation commit
+    9fc021501ce34389ecc7f35ca65bdf7959a25ce9, for the early human-review return in
+    native_checks.go and its separate buildChecks branch. The older generic Check.Parameters
+    field is useful to structural/external evaluators and must not be removed globally.
+  overlap: >-
+    V421-005 removes a different unsupported managed field, PrivateCheck.Schema. Both tasks
+    touch managed Eval contracts and fixtures; keep independent tasks/commits, regenerate
+    shared outputs after reconciliation and add no artificial dependency between them.
+  revalidated_on_main: >-
+    Server rejection remains applicable on main 1716e40db. UI assessment-setup.tsx already constructs a fresh EvalCheck without parameters on evaluator switch; preserve that implementation and add its regression rather than rewriting it or bumping the UI release for an unnecessary UI code change.
+scope:
+  in:
+    - Define the empty supported parameter set for managed human-review@1 in its owning spec and validators.
+    - Reject every nonempty parameter map at managed authoring/registration boundaries and retain an internal preparation guard so direct builders cannot freeze an ignored configuration.
+    - Preserve the already correct UI evaluator switch that clears stale structural-check parameters and add a regression for it; avoid redundant UI implementation changes.
+    - Add shared valid/invalid fixtures and authenticated PostgreSQL write/prepare/review regressions covering each sibling path.
+  out:
+    - Removing Check.Parameters globally, changing rubric or expected fields, adding human-review parameter semantics or silently discarding a supplied map.
+    - Changing registered structural evaluator allowlists, arbitrary external scorer parameters, comparison gates or assessment precedence.
+    - Rewriting immutable plans or historical assessments, adding compatibility fallbacks, running paid models or deploying services.
+requirements:
+  - id: R1
+    text: >-
+      For the implemented managed human-review@1 evaluator, omitted parameters and an empty
+      object are the only accepted parameter states under the existing optional-field rules;
+      every nonempty map is 422 eval_invalid before side effects. Explicit null retains the
+      existing strict contract. Do not accept unknown keys by returning early for this evaluator.
+  - id: R2
+    text: >-
+      Apply the rule at CreateExperiment, DraftUpdate and ExternalRegistration validation and
+      before native plan freeze, including direct internal preparation/build entry points.
+      Existing unsupported or arbitrary external evaluator IDs are not reinterpreted as native
+      human review. Use one owning validation rule and shared fixtures rather than drifted copies.
+  - id: R3
+    text: >-
+      The UI preserves actual structural evaluator parameters when that evaluator is selected,
+      and when the owner changes a check to human-review@1 it produces a valid empty parameter
+      set instead of retaining hidden output/mediaType/schema keys. Server validation remains
+      authoritative for imported/API-authored requests.
+  - id: R4
+    text: >-
+      Preserve explicit rubric revision and implementation pins, authenticated human actor,
+      exact result/evidence association, required-check precedence and review behavior. Preserve
+      all allowlisted parameters for required-artifact@1, media-type@1, json-schema@1 and
+      producer-owned external evaluators. No parameter may acquire new implicit meaning.
+  - id: R5
+    text: >-
+      Update managed/OpenAPI/public-client/UI contract declarations where the evaluator-specific
+      restriction is expressed; regenerate generated files. Record strict rejection and the
+      unchanged external-scorer boundary in the owning spec and shared conformance cases.
+  - id: R6
+    text: >-
+      Semantic reads of frozen check policy reject retained nonempty human-review
+      parameters before review, assessment or selected-view processing. Validate the
+      already-read bounded policy projection without a full document/matrix rescan,
+      extra database reads, immutable-byte rewriting or a compatibility reader.
+failure_outcomes:
+  - operation: Author or register a managed experiment/check policy
+    permanent: Nonempty human-review parameters return 422 eval_invalid before draft/experiment/resource/receipt writes, and invalid bodies are not auto-retried.
+    retryable: Valid requests retain existing storage_transaction_conflict behavior and bounded owner retry semantics.
+    ambiguous: Existing mutation idempotency keys and receipts reconcile valid accepted writes; invalid rejected input creates no replay receipt.
+    cancelled: Owning request/transaction rollback applies and no partial draft or frozen plan remains.
+    timeout: Existing request/transaction/preparation budgets apply; no external calls or additional timeout domain is added.
+cardinality:
+  - collection: Checks and per-check parameter maps of one managed experiment
+    expected: A small evaluation policy with human and/or structural checks.
+    maximum: Existing managed check/map/document and native matrix bounds; human-review@1 permits zero parameter entries.
+    bound: Validate once per bounded policy before writes; use no member-matrix scan or per-member I/O to enforce this local shape rule.
+lifecycle:
+  - entity: Check configuration in existing draft, registration and immutable plan
+    delete: Existing experiment/Project lifecycle, CAS and purge apply.
+    cascade: No new entity, state, table or deletion relation.
+    retention: Supported frozen plans and assessments keep their immutable authority; do not add a legacy nonempty-parameter reader or rewrite retained decisions.
+acceptance_criteria:
+  - id: A1
+    given: Managed CreateExperiment, DraftUpdate and ExternalRegistration bodies with human-review@1 and nonempty parameters, including otherwise legitimate structural-check keys.
+    when: Domain and authenticated public boundaries validate them against PostgreSQL.
+    then: Each fails with 422 eval_invalid before draft revision, experiment, prepared resources or mutation receipts change; the original permissive code fails the regression.
+  - id: A2
+    given: A human-review check with omitted or empty parameters, exact private rubric revision and valid implementation pin.
+    when: It is prepared and its exact selected result is reviewed by the authenticated owner.
+    then: Preparation and review succeed with unchanged assessment authority, required-check precedence and exact evidence/rubric association.
+  - id: A3
+    given: A direct native plan-builder call with unsupported human parameters, plus structural and external checks using their supported parameters.
+    when: Preparation and evaluation run.
+    then: The builder cannot freeze the ignored human configuration, while existing structural/external parameter semantics remain intact.
+  - id: A4
+    given: An editable structural check with output/mediaType/schema parameters and an imported invalid human-review check.
+    when: The owner switches the former to human review or attempts to save the latter.
+    then: The UI sends an empty supported parameter set for the switch and truthfully surfaces authoritative validation for the invalid imported policy.
+  - id: A5
+    given: Shared fixtures, current generated contracts and all touched Eval/UI packages.
+    when: The listed checks run using a disposable database.
+    then: All boundaries agree, the new rejection test can fail, every required suite passes and no skipped database test or zero-test selector is reported as success.
+  - id: A6
+    given: A retained frozen policy with nonempty human-review parameters and an otherwise valid result/rubric.
+    when: Direct owner review, public plan/member/review reads and human or native reassessment consume it.
+    then: Each returns eval_invalid and exact plan, record, selection, authority and receipt bytes remain unchanged; the immutable-plan member-ceiling read budget still passes.
+tests:
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -race -count=1 ./api/evals/v1 ./internal/evaldomain ./internal/evalstore ./internal/evalservice ./internal/evalcoordinator'
+    covers: [A1, A2, A3, A5, A6]
+  - command: go test -count=1 ./internal/httpapi/public ./internal/publicclient/...
+    covers: [A1, A2, A4, A5, A6]
+  - command: make verify-public-api
+    covers: [A1, A5]
+  - command: make verify-public-api-postgres
+    covers: [A5]
+  - command: make ui-verify
+    covers: [A2, A4, A5]
+  - command: make lint
+    covers: [A1, A3, A5]
+
+implementation_notes:
+  authority_boundary: >-
+    One Check.ValidateHumanReviewParameters rule is used by managed authoring,
+    direct plan building, the registered validator, native execution and bounded
+    frozen-policy projections used by review, assessment and selected views.
+    Real PostgreSQL retained-byte regression rejects reads and both assessment
+    modes without changing records, selections, receipts or immutable plans. The
+    JSON Schema/OpenAPI condition and shared fixtures enforce the same empty
+    set. Other producer-owned evaluators and portable schemas are unchanged.
+    Existing UI evaluator-switch implementation is preserved; shared validator
+    and actual component regressions cover its parameter clearing and retain
+    structural parameters during ordinary edits. No UI implementation release
+    or policy-pin change is introduced by this validation correction.
+  gate_coverage: >-
+    Full public/publicclient owner suites and verify-public-api are mandatory
+    alongside the existing PostgreSQL boundary target, whose original selection
+    did not exercise Eval authoring mutations.
+  verification: >-
+    Full Eval owner race suites, full public/publicclient owner suites,
+    verify-public-api, verify-public-api-postgres, ui-verify and make lint
+    passed after the frozen-policy guard with the owned disposable PostgreSQL
+    configured. Focused retained-policy regression and independent review passed.
+  evidence: tasks/evidence/v421-006-human-review-parameters.json

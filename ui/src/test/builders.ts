@@ -9,6 +9,12 @@ type Schemas = components["schemas"];
 
 export const DIGEST = `sha256:${"a".repeat(64)}`;
 export const NOW = "2026-10-05T10:00:00Z";
+export const ARTIFACT_STORAGE_TIMESTAMPS = {
+  scopeCreatedAt: NOW,
+  blobCreatedAt: NOW,
+  versionCreatedAt: NOW,
+  bindingUpdatedAt: NOW,
+};
 
 /** `value`, after checking that it conforms to the public schema `name`. */
 export function conforming<N extends PublicSchemaName & keyof Schemas>(
@@ -470,6 +476,7 @@ export function artifactMetadata(
     "ArtifactMetadata",
     merge<Schemas["ArtifactMetadata"]>(
       {
+        storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
         artifact: { namespace, name, revision: "r1" },
         mediaType: "application/zip",
         size: 64,

@@ -45,18 +45,12 @@
       "omit": [
         "/apiVersion",
         "/confirmedLeaseSeconds",
-        "/heartbeatIntervalSeconds",
-        "/labelRevision",
-        "/labels",
-        "/runtimeAgentId"
+        "/heartbeatIntervalSeconds"
       ],
       "null": [
         "/apiVersion",
         "/confirmedLeaseSeconds",
-        "/heartbeatIntervalSeconds",
-        "/labelRevision",
-        "/labels",
-        "/runtimeAgentId"
+        "/heartbeatIntervalSeconds"
       ]
     },
     "agent-registration.json": {
@@ -103,7 +97,6 @@
         "/state/currentInvocation/metrics",
         "/state/currentInvocation/metrics/cachedInputTokens",
         "/state/currentInvocation/metrics/inputTokens",
-        "/state/currentInvocation/metrics/latestPromptTokens",
         "/state/currentInvocation/metrics/modelCalls",
         "/state/currentInvocation/metrics/modelErrors",
         "/state/currentInvocation/metrics/outputTokens",
@@ -127,13 +120,11 @@
         "/state/currentInvocation/workspace/interactions",
         "/state/currentInvocation/workspace/scopeComplete",
         "/state/currentInvocation/workspace/scopePaths",
-        "/state/currentInvocation/workspace/workspaceDigest",
         "/state/lastCompletedInvocation",
         "/state/lastCompletedInvocation/invocationId",
         "/state/lastCompletedInvocation/metrics",
         "/state/lastCompletedInvocation/metrics/cachedInputTokens",
         "/state/lastCompletedInvocation/metrics/inputTokens",
-        "/state/lastCompletedInvocation/metrics/latestPromptTokens",
         "/state/lastCompletedInvocation/metrics/modelCalls",
         "/state/lastCompletedInvocation/metrics/modelErrors",
         "/state/lastCompletedInvocation/metrics/outputTokens",
@@ -166,7 +157,6 @@
         "/state/lastCompletedInvocation/workspace/interactions/0/readCalls",
         "/state/lastCompletedInvocation/workspace/scopeComplete",
         "/state/lastCompletedInvocation/workspace/scopePaths",
-        "/state/lastCompletedInvocation/workspace/workspaceDigest",
         "/state/metrics",
         "/state/metrics/counters",
         "/state/metrics/errors",
@@ -221,7 +211,6 @@
         "/state/currentInvocation/workspace/interactions",
         "/state/currentInvocation/workspace/scopeComplete",
         "/state/currentInvocation/workspace/scopePaths",
-        "/state/currentInvocation/workspace/workspaceDigest",
         "/state/lastCompletedInvocation/invocationId",
         "/state/lastCompletedInvocation/metrics",
         "/state/lastCompletedInvocation/metrics/cachedInputTokens",
@@ -258,7 +247,6 @@
         "/state/lastCompletedInvocation/workspace/interactions/0/readCalls",
         "/state/lastCompletedInvocation/workspace/scopeComplete",
         "/state/lastCompletedInvocation/workspace/scopePaths",
-        "/state/lastCompletedInvocation/workspace/workspaceDigest",
         "/state/metrics",
         "/state/metrics/counters",
         "/state/metrics/counters/llm_calls",

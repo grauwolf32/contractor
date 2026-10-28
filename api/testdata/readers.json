@@ -1,11 +1,14 @@
 {
   "description": "Who reads each shared fixture under api/testdata: go (a TestShared* Go test), python (a test_shared_* Runtime test, or a test module whose test_shared_* tests ran) and ui (a UI source that imports the fixture). Keys are paths below api/testdata; a key ending in / covers its directory, and the longest matching key wins. make test-wire-cross-language (scripts/shared_fixture_gate.py) fails when a fixture matches no key, when a declared side does not read it, when a side reads it without being declared, and when a fixture has one reader but no reason. README files and this file are not fixtures.",
   "readers": {
+    "public/tool-diagnostic-values.json": {"readers": ["go", "ui"]},
+    "public/runtime-diagnostic-decimals.json": {"readers": ["go", "ui"]},
     "project-sitemap-cases.json": {"readers": ["go", "python"]},
     "audit-web-scan-settings.json": {"readers": ["go", "ui"]},
     "nuclei-package-manifest.json": {"readers": ["go", "python"]},
     "nuclei-input-cases.json": {"readers": ["go", "python", "ui"]},
     "tool-parameter-binding-cases.json": {"readers": ["go", "python", "ui"]},
+    "public/artifact-storage-timestamps.json": {"readers": ["go", "ui"]},
     "public/finding-correlation-cases.json": {"readers": ["go", "ui"]},
     "finding-anchor-cases.json": {"readers": ["go", "python"]},
     "finding-fingerprint-cases.json": {"readers": ["go", "python"]},
@@ -26,6 +29,8 @@
     "audit-composition/public-cases.json": {"readers": ["go", "ui"]},
     "audit-composition/round-results-cases.json": {"readers": ["go", "python"]},
     "evals/": {"readers": ["go"], "reason": "managed Eval conformance examples for the Server's codecs and independent public API clients; no second implementation parses these documents"},
+    "evals/valid/human-review-empty-parameters.json": {"readers": ["go", "ui"]},
+    "evals/invalid/human-review-empty-parameters-human-review-parameters.json": {"readers": ["go", "ui"]},
     "evals/lifecycle-states.json": {"readers": ["go", "ui"]},
     "evals/plan-size-cases.json": {"readers": ["go", "ui"]},
     "evals/valid/dataset-view.json": {"readers": ["go", "ui"]},

@@ -1,0 +1,62 @@
+schema_version: '1.0'
+id: V421-014
+title: Use the canonical transaction-conflict constant in diagnostic tests
+milestone: data-model-consumers-2026-10
+epic: persistence
+kind: chore
+introduced_by: V421-004
+priority: P3
+status: completed
+depends_on:
+- V421-004
+languages:
+- go
+- yaml
+goal: Keep the shared database error definition authoritative in the new V421 regression tests without
+  changing production behavior.
+context:
+  review: Resumed full release gate on frozen baee4e57a9f6bc7bf8d1c9c28178af13cd987479 failed TestSQLStateLiteralsLiveOnlyInTheClassifier.
+  specification:
+  - docs/spec/platform/persistence.md#PER-R13
+  finding: internal/httpapi/public/tool_diagnostic_handlers_test.go:131 constructs a PgError with a raw
+    serialization SQLSTATE literal.
+  siblings: The repository-wide SQLSTATE guard reports both new literals. V421-013 and V421-014 cover
+    their distinct introducing tasks; the canonical definitions and production classifier remain unchanged.
+  atomic_change: These two task fixes land together to make the repository-wide guard green; leaving either
+    raw literal keeps the build failing.
+  evidence: tasks/evidence/v421-013-014-sqlstate-definitions.json
+scope:
+  in:
+  - Build the fake storage conflict with the existing SQLStateSerializationFailure constant and preserve
+    the real HTTP503/retryability regression.
+  - Run the existing repository-wide guard, complete touched owner packages against real PostgreSQL, explicit
+    public API gates and lint.
+  out:
+  - New SQLSTATE definitions, production retries/error mapping, API changes, weaker guard assertions or
+    changes to generated clients.
+acceptance_criteria:
+- id: A1
+  text: The affected fixture uses the existing central error definition; the repository-wide SQLSTATE
+    guard passes after both sibling corrections.
+- id: A2
+  text: Original Artifact immutability and diagnostic503/retryable behavior remain verified on the real
+    owner paths; no production behavior changes.
+- id: A3
+  text: All complete owner-package, API and lint commands succeed; neither an unset database nor a zero-test
+    selector is counted as a pass.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}"
+    go test -tags=integration -count=1 ./internal/artifacts ./internal/httpapi/public ./internal/persistence
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make verify-public-api verify-public-api-postgres
+  covers:
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A3
+implementation_commit: 2f99dfb2764c58f07ca9568d103c5ddd0895da72

@@ -682,3 +682,125 @@ def test_publication_encodes_off_loop_and_cancellation_joins_before_any_write(mo
         assert blocking.exited.is_set() and not transport.requests
 
     asyncio.run(scenario())
+
+
+def test_shared_audit_http_observation_metadata():
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from contractor_runtime.allocation import WorkerState
+    from contractor_runtime.toolsets.audit_results.collector import InvocationAuditCollector
+    from contractor_runtime.toolsets.audit_results.v2 import SubmitCheckResultTool
+    from contractor_runtime.toolsets.common.http_capture import HTTPObservation, RecentHTTPCaptures
+
+    fixture = json.loads(
+        (
+            Path(__file__).parents[2] / "api/testdata/audit-completion/evidence-observations.json"
+        ).read_text()
+    )
+    _, inputs = assigned()
+
+    async def scenario():
+        for case in fixture["cases"]:
+            value = case["evidence"]
+            try:
+                captures = RecentHTTPCaptures()
+                observation = HTTPObservation(value["observed_at"], value["deployment_marker"])
+                await captures.put(
+                    fixture["capture"], inputs.owner.invocation_id, observation=observation
+                )
+                request_id = value["http_request_id"]
+                selector = int(request_id) if str(int(request_id)) == request_id else request_id
+                evidence = {
+                    "kind": "source-trace",
+                    "summary": value["summary"],
+                    "http_request_id": selector,
+                }
+                if value["http_request_tag"] != fixture["capture"]["request_tag"]:
+                    # Tags are Runtime-owned facts, never accepted model arguments.
+                    evidence["http_request_tag"] = value["http_request_tag"]
+                collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
+                tool = SubmitCheckResultTool(collector, WorkerState().metrics, captures)
+                reply = await tool(
+                    SimpleNamespace(invocation_id=inputs.owner.invocation_id),
+                    assessment="satisfied",
+                    summary="Selected capture.",
+                    completed=["source-trace"],
+                    gaps=[],
+                    evidence=[evidence],
+                )
+                accepted = reply["status"] == "recorded"
+                if accepted:
+                    result = CanonicalAuditPackageEncoder().encode(
+                        await collector.seal(), inputs=inputs
+                    )
+                    with zipfile.ZipFile(io.BytesIO(result.data)) as archive:
+                        encoded = json.loads(archive.read("evidence.json"))["evidence"][0]
+                        assert encoded["observed_at"] == value["observed_at"]
+                        assert encoded["http_request_tag"] == fixture["capture"]["request_tag"]
+                        assert json.loads(archive.read("evidence/ev-1.json")) == fixture["capture"]
+            except ValueError:
+                accepted = False
+            assert accepted == case["valid"], case["name"]
+
+    asyncio.run(scenario())
+
+
+def test_selected_http_evidence_maximum_batch_and_early_byte_rejection():
+    from test_audit_results_toolset import fixture_task_set
+
+    async def scenario():
+        from contractor_runtime.toolsets.audit_results.collector import (
+            AuditCollectionError,
+            InvocationAuditCollector,
+        )
+
+        task, manifest = fixture_task_set(64)
+        keys = tuple(item["item_key"] for item in json.loads(manifest)["items"])
+        inputs = AuditTrustedInputs(
+            AuditInvocationOwner("allocation-1", "invocation-1", digest(task), keys), task, manifest
+        )
+        capture = json.dumps(
+            {
+                "source": "http",
+                "request_id": "1",
+                "request_tag": "r-test-h1",
+                "attempts": [
+                    {
+                        "request": {
+                            "method": "GET",
+                            "url": "https://target.example/",
+                            "message": {"kind": "structured", "headers": [], "body_base64": ""},
+                        },
+                        "error": "timeout",
+                    }
+                ],
+            }
+        ).encode()
+        evidence = AuditEvidence(
+            "source-trace", "Selected observation.", capture, "2026-10-27T12:00:00Z"
+        )
+        values = tuple(
+            NormalizedAuditItem(
+                key, "satisfied", "Checked.", ("source-trace",), (), (evidence,) * 4
+            )
+            for key in keys
+        )
+        collector = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
+        receipt = await collector.record_batch(values)
+        assert receipt.complete
+        snapshot = await collector.seal()
+        encoded = CanonicalAuditPackageEncoder().encode(snapshot, inputs=inputs)
+        with zipfile.ZipFile(io.BytesIO(encoded.data)) as archive:
+            rows = json.loads(archive.read("evidence.json"))["evidence"]
+            assert len(rows) == 256 and all(
+                row["observed_at"] == evidence.observed_at for row in rows
+            )
+        # Immutable bytes are shared; reject the sum before parsing/encoding a large package.
+        huge = replace(evidence, http_capture=b"x" * (64 * 1024))
+        fresh = InvocationAuditCollector(inputs, CanonicalAuditPackageEncoder())
+        with pytest.raises(AuditCollectionError, match="collection bytes"):
+            await fresh.record_batch(tuple(replace(item, evidence=(huge,) * 4) for item in values))
+        assert (await fresh.snapshot()).items == ()
+
+    asyncio.run(scenario())

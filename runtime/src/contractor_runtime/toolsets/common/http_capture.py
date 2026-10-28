@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import base64
+import re
 from collections import OrderedDict
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Annotated, Any, Literal
 
 from pydantic import Field, field_validator, model_validator
@@ -159,6 +162,35 @@ class CapturedHTTPExchange(ClosedModel):
         return self
 
 
+@dataclass(frozen=True, slots=True)
+class HTTPObservation:
+    """Private capture metadata; only the transport supplies observation facts."""
+
+    observed_at: str
+    deployment_marker: str | None = None
+
+    def __post_init__(self):
+        if not isinstance(self.observed_at, str) or len(self.observed_at) > 32:
+            raise ValueError("invalid HTTP observation time")
+        parsed = datetime.fromisoformat(self.observed_at.replace("Z", "+00:00"))
+        shape = re.fullmatch(
+            r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{0,8}[1-9])?Z",
+            self.observed_at,
+        )
+        if parsed.tzinfo is None or shape is None:
+            raise ValueError("HTTP observation requires a UTC timestamp")
+        if self.deployment_marker is not None and (
+            not self.deployment_marker
+            or len(self.deployment_marker.encode()) > 256
+            or any(ord(char) < 32 for char in self.deployment_marker)
+        ):
+            raise ValueError("invalid HTTP deployment marker")
+
+    @property
+    def size_bytes(self) -> int:
+        return len(self.observed_at.encode()) + len((self.deployment_marker or "").encode())
+
+
 class RecentHTTPCaptures:
     """Only canonical JSON bytes survive a call; object graphs are not retained.
 
@@ -170,8 +202,15 @@ class RecentHTTPCaptures:
     def __init__(self) -> None:
         self._entries: OrderedDict[tuple[str, str], tuple[str | None, bytes]] = OrderedDict()
         self._bytes = 0
+        self._observations: dict[tuple[str, str], HTTPObservation] = {}
 
-    async def put(self, capture: dict[str, Any], invocation_id: str | None) -> None:
+    async def put(
+        self,
+        capture: dict[str, Any],
+        invocation_id: str | None,
+        *,
+        observation: HTTPObservation | None = None,
+    ) -> None:
         def encode() -> tuple[tuple[str, str], bytes]:
             value = CapturedHTTPExchange.model_validate(capture)
             return (value.source, value.request_id), value.model_dump_json(
@@ -179,16 +218,23 @@ class RecentHTTPCaptures:
             ).encode()
 
         key, encoded = await threads.to_thread_until_done(encode, name="http-capture-encode")
-        if len(encoded) > MAX_CAPTURE_BUFFER_BYTES:
+        metadata_bytes = observation.size_bytes if observation is not None else 0
+        if len(encoded) + metadata_bytes > MAX_CAPTURE_BUFFER_BYTES:
             raise ValueError("HTTP evidence exceeds the allocation capture budget")
         previous = self._entries.pop(key, None)
         if previous is not None:
             self._bytes -= len(previous[1])
         self._entries[key] = (invocation_id, encoded)
-        self._bytes += len(encoded)
+        old_observation = self._observations.pop(key, None)
+        if old_observation is not None:
+            self._bytes -= old_observation.size_bytes
+        if observation is not None:
+            self._observations[key] = observation
+        self._bytes += len(encoded) + metadata_bytes
         while len(self._entries) > MAX_HISTORY or self._bytes > MAX_CAPTURE_BUFFER_BYTES:
-            _, (_, expired) = self._entries.popitem(last=False)
-            self._bytes -= len(expired)
+            expired_key, (_, expired) = self._entries.popitem(last=False)
+            metadata = self._observations.pop(expired_key, None)
+            self._bytes -= len(expired) + (metadata.size_bytes if metadata is not None else 0)
 
     async def get(
         self, source: str, request_id: str, *, invocation_id: str | None = None
@@ -203,6 +249,22 @@ class RecentHTTPCaptures:
             name="http-capture-read",
         )
 
+    def select_observation(
+        self,
+        request_id: str,
+        invocation_id: str,
+    ) -> tuple[bytes, HTTPObservation]:
+        """Select an exact Runtime HTTP record without parsing/copying its body.
+
+        Immutable bytes are shared; the collector charges them against its own
+        prospective package bound. Caido history has no trusted observation time.
+        """
+        key = ("http", request_id)
+        entry, observation = self._entries.get(key), self._observations.get(key)
+        if entry is None or entry[0] != invocation_id or observation is None:
+            raise ValueError("HTTP observation is unavailable in this invocation")
+        return entry[1], observation
+
     def contains(self, source: str, request_id: str) -> bool:
         return (source, request_id) in self._entries
 
@@ -210,7 +272,8 @@ class RecentHTTPCaptures:
         for key in tuple(self._entries):
             if key[0] == source:
                 _, data = self._entries.pop(key)
-                self._bytes -= len(data)
+                metadata = self._observations.pop(key, None)
+                self._bytes -= len(data) + (metadata.size_bytes if metadata is not None else 0)
 
 
 def allocation_http_captures(state: Any) -> RecentHTTPCaptures:

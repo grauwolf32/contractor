@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { expect, test, type Page } from "@playwright/test";
 
 import {
@@ -199,6 +200,7 @@ async function installArtifactAPI(page: Page): Promise<void> {
     }
     const artifact = artifacts[name];
     const metadata = {
+      storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: { namespace: "projects", name, revision: REVISION },
       mediaType: artifact.mediaType,
       size: new TextEncoder().encode(artifact.source).byteLength,
@@ -418,5 +420,49 @@ for (const theme of ["light", "dark", "black"]) {
       .click();
     expect((await saved).suggestedFilename()).toMatch(/revision-1\.json$/);
     expect(external).toEqual([]);
+  });
+}
+
+for (const theme of ["light", "dark", "black"]) {
+  test(`Storage dates retain registry semantics at 390px in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(
+      (value) => localStorage.setItem("contractor.theme", value),
+      theme,
+    );
+    await installArtifactAPI(page);
+    await openPreview(page, "http-evidence");
+    const summary = page.locator("#artifact-history summary").first();
+    await summary.focus();
+    await page.keyboard.press("Enter");
+    for (const label of [
+      "Storage scope created",
+      "Shared blob registered",
+      "Storage version created",
+      "Current binding changed",
+    ]) {
+      await expect(page.getByText(label, { exact: true })).toBeVisible();
+    }
+    await expect(
+      page.getByText(/Shared blob and storage version dates can predate/),
+    ).toBeVisible();
+    await expect(
+      page.locator("#artifact-history time").first(),
+    ).toHaveAttribute("datetime", ARTIFACT_STORAGE_TIMESTAMPS.scopeCreatedAt);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`storage-dates-${theme}-390.png`),
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await expect(
+      page.getByText("Current binding changed", { exact: true }),
+    ).toBeVisible();
   });
 }

@@ -1,0 +1,160 @@
+schema_version: "1.0"
+id: V421-007
+title: Remove unused prompt and workspace fields from exported Worker State
+milestone: data-model-consumers-2026-10
+epic: planner-worker
+kind: chore
+introduced_by: V18-002
+priority: P3
+status: completed
+implementation_commit: 28e8d25b42de61a7f7e7edf950fec93103e40b43
+depends_on: []
+languages: [go, python, json]
+goal: >-
+  Narrow the closed private Worker State contract to facts that have consumers,
+  preserving internal budget decisions, workspace integrity and every existing
+  Planner observation.
+context:
+  authority: >-
+    User-requested detailed data-model consumer review on 2026-10-27 and subsequent
+    authorization to record implementation tasks only; this pending task starts
+    no implementation.
+  specification:
+    - docs/spec/execution/worker.md#WRK-R107
+    - docs/spec/execution/worker.md#WRK-R112
+    - docs/spec/execution/worker.md#WRK-R125
+    - docs/spec/execution/planners.md#PLN-R47
+    - docs/spec/execution/planners.md#PLN-R49
+    - docs/spec/tools/workspace.md
+    - docs/spec/platform/observability.md
+  finding: >-
+    internal/contracts/reporting/agent_state.go:86 and :110 require exported
+    metrics.latestPromptTokens and workspace.workspaceDigest, but their production
+    consumers only validate or copy them. telemetry/invocations.py:37,78 records
+    and exports latestPromptTokens; worker/state.py:331-336 validates/copies it.
+    Summarizer triggering instead uses the separate WorkerInvocationBudget value
+    in worker/budget.py:64,78-84. worker/observations.py:106,158 exports the workspace
+    digest and :179-211 validates/copies it, while lean_workspace_summary at :219
+    reads scope and interactions without using that digest. Server stateview
+    projections and UI do not read either exported member. Declaration,
+    serialization and schema validation are not semantic consumers.
+  origin: >-
+    git log -S LatestPromptTokens identifies commit
+    7f737c9023682e8f534598044490ba0e72726a31, recorded by completed V18-002
+    (and its configuration companion V18-001), as the prompt-count introduction.
+    The exported workspace digest comes from V17-005, implementation commit
+    0625ccecd470bd7adc13b484a34943ffad3779f9. Later move/required-tag commits
+    8c0359d516adced1543a61c43ccb53f236204364 and
+    80c76602fb2a45522a6cf4a5e74e8a02989d417c are not the behavioral origins.
+  sibling_paths:
+    - internal/contracts/reporting/agent_state.go and its validation/fixture tests
+    - internal/planner/stateview and internal/controlplane Runtime State decoding/cache tests
+    - runtime/src/contractor_runtime/contracts/worker.py
+    - runtime/src/contractor_runtime/telemetry/invocations.py
+    - runtime/src/contractor_runtime/worker/state.py and worker/observations.py
+    - runtime/src/contractor_runtime/worker/runtime.py and worker/tool_runtime.py snapshot producers
+    - api/v1alpha1/agent-state.schema.json and api/v1alpha1/README.md
+    - api/testdata/v1alpha1 valid/invalid snapshots, required-member and mutation cases
+    - Runtime endpoint, State, metrics, observation and summarizer tests and e2e fixtures
+  coordination: >-
+    Pending V417-003/V417-004 and especially V417-007 change State for compaction;
+    V420-002/V420-004 may add Planner measurements. These are overlapping planned
+    edits, not prerequisites for removing unused current exports. Reconcile shared
+    shapes/fixtures when either task lands. Compaction measurements must be their
+    own actually consumed, invocation/generation-correlated fields; do not restore
+    these unused exports merely to populate a future shape. Update overlapping
+    pending task wording where necessary without marking that work implemented.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. V417/V420 compaction implementations remain pending and no consumer of the two exports has appeared. The user now explicitly authorizes implementation; preserve internal Worker budget and projectfs integrity values.
+scope:
+  in:
+    - Remove both members from exported Go/Python State DTOs, producers, validation, schemas and fixtures in one change.
+    - Remove reducer storage used only to export these members; adapt tool-worker empty metric producers and State trimming copies.
+    - Update the owning specification and README, required-member/mutation generators and all affected test helpers.
+    - Verify preserved semantic decisions and fixed Planner projections through actual Worker/Server paths.
+  out:
+    - Removing or changing WorkerInvocationBudget.latest_prompt_tokens or its summarization threshold behavior.
+    - Removing projectfs workspace digests, overlay base/result integrity checks, exact Artifact digests or workspace source identities.
+    - Adding new State fields, a diagnostic UI, context compaction, new persistence or compatibility readers.
+requirements:
+  - id: R1
+    text: >-
+      The sole supported private State shape omits metrics.latestPromptTokens and
+      workspace.workspaceDigest for currentInvocation and lastCompletedInvocation.
+      Strict Go/Python/schema readers reject either removed member as unknown;
+      no ignored aliases, dual reader, fallback or historical-record branch.
+  - id: R2
+    text: >-
+      Keep live budget tracking and workspace integrity in their actual owners.
+      Ordinary and tool Workers export the narrowed shape consistently; isolated
+      and shared State handoff, invocation correlation, monotone state revisions,
+      ETag revalidation, byte bounds and release cleanup retain their contracts.
+  - id: R3
+    text: >-
+      Preserve get_workspace_coverage, list_read_files, list_unread_files and
+      get_worker_tool_usage results, including truncation and incomplete coverage.
+      Preserve context/cumulative summarizer triggers with available or missing
+      usage. Do not manufacture a replacement consumer to retain redundant data.
+  - id: R4
+    text: >-
+      Change Go, Python, schema, specification, shared snapshots and generated
+      required-member/mutation cases together. Use existing fixture generators,
+      never edit generated cases by hand. Keep one supported pre-production
+      contract and do not introduce a migration or an old-shape reader.
+failure_outcomes:
+  - operation: Private State decoding and projection
+    permanent: Removed or other unknown members fail existing strict validation and produce the existing bounded unavailable/error outcome.
+    retryable: Existing transport/read failure classification and polling backoff remain unchanged.
+    ambiguous: Existing invocation/state revision and ETag correlation remain authoritative; no new receipts or replay mechanism.
+    cancelled: Existing invocation/allocation owner joins State-producing work and release clears its volatile State.
+    timeout: Existing State read timeout remains distinct from Worker deadline and summarizer admission.
+cardinality:
+  - collection: Current and last-completed invocation State
+    expected: At most one current and one last-completed snapshot per allocation.
+    maximum: Existing 4-MiB snapshot and per-tool/path bounds; two fewer scalar fields per invocation.
+    bound: No new arrays, history, rescans, database reads or larger limits.
+acceptance_criteria:
+  - id: A1
+    given: Ordinary/tool Workers with current and last-completed invocations, with and without workspaces
+    when: Actual private snapshots are emitted and decoded by Go, Python and JSON Schema
+    then: Neither removed member is emitted or required, and each old member injected separately is rejected as unknown on every side.
+  - id: A2
+    given: Summarizer prompt/cumulative boundaries, missing usage, normal completion, cancellation and shared/isolated sessions
+    when: Worker execution and State endpoint/cache paths run
+    then: Trigger decisions, result/correlation, revisions/ETags, deadlines and release behavior match the existing contract without exported duplicate prompt counts.
+  - id: A3
+    given: Complete/incomplete workspace coverage, unread/read paths, tool metrics and a valid or mismatched overlay digest
+    when: Real Planner projections and workspace verification run
+    then: Existing projections and truncation are unchanged; projectfs still rejects mismatched digests despite removal of the unrelated exported workspaceDigest.
+  - id: A4
+    text: Owning specs, all sibling producers/readers and generated shared cases agree; pending compaction tasks do not require reintroducing these unused exports.
+tests:
+  - command: make lint
+    covers: [A1, A4]
+  - command: make test-wire-cross-language
+    covers: [A1, A4]
+  - command: make test-runtime
+    covers: [A1, A2, A3]
+  - command: go test -count=1 ./internal/contracts/... ./internal/controlplane/... ./internal/planner/...
+    covers: [A1, A2, A3]
+  - command: make test-worker-observations-e2e
+    covers: [A1, A2, A3]
+test_prerequisites:
+  - These are future implementation acceptance commands, not checks performed when drafting this task.
+  - Use locked Runtime dependencies and testdata catalogs; tests must not read the live configs tree.
+  - Set CONTRACTOR_TEST_DATABASE_URL to a disposable real PostgreSQL database for required gates; a configured unreachable database or skipped required case is a failure.
+  - Run complete suites for every touched Go package; zero selected tests fail. Use deterministic budgets/injected clocks and existing semantic regressions, not timing thresholds or tests that merely restate field deletion.
+
+implementation_notes:
+  host_verification: >-
+    On Darwin, full touched Go suites, make lint and make test-wire-cross-language
+    passed. Focused Runtime State/Worker/observation suites passed 499 cases.
+    Full make test-runtime failed: 105 failed, 5185 passed, 39 skipped; failures
+    include Linux /proc socket and pidfd paths, parser address-space/platform
+    behavior and a wall-clock gap assertion. This failed run is not acceptance.
+  linux_verification: >-
+    Passed make test-runtime plus verify-runtime on exact-source commit
+    28e8d25b42de61a7f7e7edf950fec93103e40b43 in the dedicated nonroot Linux
+    runner: 5274 passed, 55 allowed optional skips, zero failures/errors. The
+    actual Server/Runtime observations process gate also passed on the host.
+    Evidence: tasks/evidence/v421-007-worker-state.json.

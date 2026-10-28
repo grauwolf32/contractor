@@ -171,8 +171,9 @@ export function ArtifactDetailView({
   const artifacts = scopedArtifactAPI(api, scope);
   const query = useQuery({
     queryKey: artifactScopeKeys(scope).metadata(namespace, name, revision),
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       scopedArtifactAPI(api, scope).metadata({
+        signal,
         namespace,
         name,
         ...(revision === undefined ? {} : { revision }),

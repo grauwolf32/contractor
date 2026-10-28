@@ -183,7 +183,7 @@ sequenceDiagram
     participant R as Runtime Agent
     participant C as Control Plane
     R->>C: registration (instance_id, CapabilitySnapshot, initialLabels)
-    C-->>R: runtimeAgentId, labels, labelRevision, heartbeat interval, lease duration
+    C-->>R: API version, heartbeat interval, lease duration
     R->>C: heartbeat (sequence n, last_ack_sequence m)
     Note over C: last_seen advances on every valid authenticated request
     C-->>R: ack (ack_sequence n, action)
@@ -481,11 +481,11 @@ this string as a placement capability or trust assertion.
 **CTL-R15.** The registration request carries the mandatory
 `supportedRuntimeAdapters`, a sorted unique array that may be empty.
 
-**CTL-R16.** The registration response returns the safe
-`runtimeAgentId`, the authoritative `labels` and `labelRevision` beside the
-heartbeat interval and lease duration (CTL-R39). Runtime may show them
-in local diagnostics but does not use the returned labels to configure the
-process or an active allocation.
+**CTL-R16.** The closed registration response contains only `apiVersion`,
+`heartbeatIntervalSeconds` and `confirmedLeaseSeconds` (CTL-R39). Principal
+identity, authoritative labels and their revision remain Server-owned facts
+used for authentication, placement and allocation provenance; they are not
+echoed to the Runtime. Unknown response fields are rejected.
 
 **CTL-R17.** The accepted registration binds
 `(runtime_agent_id, instance_id)` for the process lifetime. Every later

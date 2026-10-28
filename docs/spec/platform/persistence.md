@@ -949,6 +949,30 @@ exact holds and accounting remain unchanged. The new Server accepts only the
 current checkpoint and page/root format. The previous writer must remain
 stopped after migration commit; the locks are not a mixed-version protocol.
 
+**PER-R43.** The finding report projection transition requires an explicit
+`preconditions` array in every retained receipt (`source-held` or `audit-held`).
+The operator stops the previous Server before applying migration 000055 and
+keeps that writer stopped after commit. Under a transaction-scoped receipt
+metadata lock, the migration refuses with SQLSTATE `55000` if any retained
+projection lacks the array or has a non-array value. Refusal rolls back the
+whole migration and ledger change, preserving literal projection, proposal,
+evidence, frozen report and hold bytes. Intentional discarded `{}` tombstones
+are exempt; the migration neither restores nor interprets their erased content.
+Successful upgrade enforces the required array for retained receipt writes and
+changes no existing projection, report page, accepted report artifact or hold.
+Migration statement, lock and run budgets bound this one-time preflight
+(PER-R31); no new background scan or reader fallback is added.
+
+A refusal requires explicit operator disposition before retry: preserve the
+old database and its immutable reports, then use a separate fresh
+pre-production database, or obtain separate authorization for a concrete data
+migration/disposition that supplies truthful original conditions. This
+transition performs no deletion, backfill or re-encoding, and does not
+authorize deleting receipts or editing accepted evidence to bypass the guard.
+Current readers strictly require the new projection; old accepted report
+artifacts remain downloadable as their exact historical bytes. The metadata
+lock is not a mixed-version writer protocol.
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):

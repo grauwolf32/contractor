@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { expect, test, type Page } from "@playwright/test";
 
 import { project as projectBuilder } from "../src/test/builders";
@@ -46,6 +47,7 @@ async function installProjectAPI(
     updatedAt: "2026-09-01T10:00:00Z",
   });
   const artifact = {
+    storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: {
       namespace: "sources",
       name: "browser-source",

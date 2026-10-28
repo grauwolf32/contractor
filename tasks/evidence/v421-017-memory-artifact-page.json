@@ -1,0 +1,205 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-017",
+  "implementation_commit": "b53ec21440af5202b96aa5d8d13888648abd4ea9",
+  "change": "Only the shared Memory process test helper now uses generated publicapi.ArtifactPage, with strict decode retained, nonempty exact revision, generated MediaType.AsMediaType1() plus exact content-type check, and four required nonzero registry dates. No production, schema, wire, generated file or deadline change.",
+  "regression_before": {
+    "source_revision": "895fe2eb79c594e8acc5c53f8d224012b617f9ce",
+    "cause": "The copied public Artifact page/item DTO rejects the valid new storageTimestamps block.",
+    "memory_mvp": {
+      "path": "/private/tmp/v421-final-release-895fe2eb-d1/memory-process-failure.txt",
+      "sha256": "60d450d84a4ec06bee830e9b27b84ced287552288b7d63c8e46d174d882da92c",
+      "elapsed_seconds": 32.3
+    },
+    "production_memory": {
+      "path": "/private/tmp/v421-final-release-895fe2eb-d1/production-memory-process-failure.txt",
+      "sha256": "4284d9872822bc47347ff7f611ded18b24d9c8abe36065ac4a9190862193606f",
+      "elapsed_seconds": 32.53
+    },
+    "whole_release_pass_claimed": false
+  },
+  "linux_acceptance": {
+    "status": "passed_all_V421_017_listed_checks_on_Linux",
+    "source_revision": "b53ec21440af5202b96aa5d8d13888648abd4ea9",
+    "tree": "93bfff563a6d1e9f908ab06b9289a073acc75bdd",
+    "production_behavior_changed": false,
+    "full_release_executed": false,
+    "focused": {
+      "attempt": "/private/tmp/v421-017-focused-b53ec214-r2",
+      "result_sha256": "a08367fd34aa8b924d25e82757e920417bb2498c41632ddc37fbca92c6d994fe",
+      "setup": {
+        "client_exit_code": 0,
+        "elapsed_seconds": 0.271,
+        "exit_code": 0,
+        "finished_at_utc": "2026-10-27T22:55:30.180384+00:00",
+        "phase": "setup",
+        "redacted_output_bytes": 2078,
+        "started_at_utc": "2026-10-27T22:55:29.909854+00:00",
+        "status": "passed",
+        "timeout_seconds": 3600
+      },
+      "execution": {
+        "client_exit_code": 0,
+        "elapsed_seconds": 223.659,
+        "exit_code": 0,
+        "finished_at_utc": "2026-10-27T22:59:14.839184+00:00",
+        "phase": "gate",
+        "redacted_output_bytes": 177172,
+        "started_at_utc": "2026-10-27T22:55:31.179952+00:00",
+        "status": "passed",
+        "timeout_seconds": 1800
+      },
+      "reports": {
+        "go-e2e-owner.jsonl": {
+          "package_terminals": {
+            "pass": 1,
+            "start": 1
+          },
+          "root_identities": 36,
+          "sha256": "4e15d801df073f82febf98cae451f76626bab6556decfa414334ef8d3f90a009",
+          "test_identities": 149,
+          "test_terminals": {
+            "pass": 149,
+            "run": 149
+          }
+        },
+        "go-memory-focused.jsonl": {
+          "package_terminals": {
+            "pass": 1,
+            "start": 1
+          },
+          "root_identities": 2,
+          "sha256": "885dfb75c8c38a0cbed427723fc36c5d18cfcdd99a5a2c4c6580fa9f0adf2a76",
+          "test_identities": 2,
+          "test_terminals": {
+            "pass": 2,
+            "run": 2
+          }
+        }
+      },
+      "validator_sha256": "290f9ebba9b70cfe3104e3af14b763b90752075e228380ad2237c1ccccd47eb3",
+      "wrapper_sha256": "bfb76602fe7f02b0ae037496ff2ceb62d86e273fee996b58b8530d60374ab9e5"
+    },
+    "lint": {
+      "attempt": "/private/tmp/v421-017-lint-b53ec214-r2",
+      "result_sha256": "693fb8f0143633551184472630642e812fa85a889dfebc1d14dc838ce2bce4cd",
+      "command": [
+        "make",
+        "lint"
+      ],
+      "setup": {
+        "client_exit_code": 0,
+        "elapsed_seconds": 2.161,
+        "exit_code": 0,
+        "finished_at_utc": "2026-10-27T23:01:59.792448+00:00",
+        "phase": "setup",
+        "redacted_output_bytes": 1584,
+        "started_at_utc": "2026-10-27T23:01:57.631870+00:00",
+        "status": "passed",
+        "timeout_seconds": 3600
+      },
+      "execution": {
+        "client_exit_code": 0,
+        "elapsed_seconds": 162.979,
+        "exit_code": 0,
+        "finished_at_utc": "2026-10-27T23:04:43.927816+00:00",
+        "phase": "gate",
+        "redacted_output_bytes": 100459,
+        "started_at_utc": "2026-10-27T23:02:00.948425+00:00",
+        "status": "passed",
+        "timeout_seconds": 3600
+      },
+      "log_sha256": "6c71f2511fed43aef21cff66d812e9f56431140abe3bde3689eaa356375fb2de",
+      "wrapper_sha256": "44b1c2afde4ae7f132ef804ab8756431cc4dc852cadbdcd20a7144d2faf6beb1",
+      "focused_proof": {
+        "attempt": "/private/tmp/v421-017-focused-b53ec214-r2",
+        "result_sha256": "a08367fd34aa8b924d25e82757e920417bb2498c41632ddc37fbca92c6d994fe",
+        "revision": "b53ec21440af5202b96aa5d8d13888648abd4ea9",
+        "source_after": {
+          "revision": "b53ec21440af5202b96aa5d8d13888648abd4ea9",
+          "tree": "93bfff563a6d1e9f908ab06b9289a073acc75bdd",
+          "clean": true,
+          "full_history": true,
+          "lock_sha256": {
+            "go.mod": "39814d7a347628f48a62289abba63beba81db20dd51d1acf233d308e654bb937",
+            "go.sum": "33d3b901321b8f39d44e379736d2c9a42b8a0fcb7455ad6c20594ef5417cc195",
+            "runtime/uv.lock": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027",
+            "ui/pnpm-lock.yaml": "0e4c20b6ad30b3ba279b51deddfa6f9855423edfd96952a1493e8e1a137774e1"
+          }
+        }
+      }
+    },
+    "source_proof": {
+      "fresh_runtime_before_focus": true,
+      "fresh_ui_before_lint": true,
+      "clean_before_after": true,
+      "revision_tree_locks_unchanged": true,
+      "lock_sha256": {
+        "go.mod": "39814d7a347628f48a62289abba63beba81db20dd51d1acf233d308e654bb937",
+        "go.sum": "33d3b901321b8f39d44e379736d2c9a42b8a0fcb7455ad6c20594ef5417cc195",
+        "runtime/uv.lock": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027",
+        "ui/pnpm-lock.yaml": "0e4c20b6ad30b3ba279b51deddfa6f9855423edfd96952a1493e8e1a137774e1"
+      },
+      "runtime": {
+        "python": "3.13.5 (main, May  5 2026, 21:05:52) [GCC 14.2.0]",
+        "executable": "/work/v421-integrated-v017-b53ec214-r2/runtime/.venv/bin/python",
+        "prefix": "/work/v421-integrated-v017-b53ec214-r2/runtime/.venv",
+        "resolved_prefix": "/work/v421-integrated-v017-b53ec214-r2/runtime/.venv",
+        "contractor_runtime_file": "/work/v421-integrated-v017-b53ec214-r2/runtime/src/contractor_runtime/__init__.py",
+        "major_minor": [
+          3,
+          13
+        ]
+      },
+      "tools": {
+        "corepack": "0.36.0",
+        "git": "git version 2.47.3",
+        "go": "go version go1.26.9 linux/arm64",
+        "node": "v24.20.0",
+        "pg_dump": "pg_dump (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)",
+        "pg_restore": "pg_restore (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)",
+        "pnpm": "11.24.0",
+        "psql": "psql (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)",
+        "python313": "Python 3.13.5",
+        "uv": "uv 0.13.1 (aarch64-unknown-linux-gnu)"
+      }
+    },
+    "joined": {
+      "remaining_owned_processes": [],
+      "count": 0
+    },
+    "failed_a6_compile_attempt": "/private/tmp/v421-017-focused-a6ab8dad-r1/result.json",
+    "historical_failed_full_895": "/private/tmp/v421-final-release-895fe2eb-d1/failed-release-checkpoint.json",
+    "created_at_utc": "2026-10-27T23:05:45.210729+00:00"
+  },
+  "linux_acceptance_original": {
+    "path": "/private/tmp/v421-017-lint-b53ec214-r2/acceptance-summary.json",
+    "sha256": "799857c4578a28b9f4eb454351acd4b8a15609f1b1c31dbf14855d529aab3f49"
+  },
+  "development_attempts": [
+    {
+      "source_revision": "a6ab8dadc9e7f8bbae726e60dad4a706dc13220a",
+      "result": {
+        "path": "/private/tmp/v421-017-focused-a6ab8dad-r1/result.json",
+        "sha256": "2b18835081d58f28afb8e38f5ee99db0a029e08c02fdf3fa20685d404796182c"
+      },
+      "status": "compilation_failed_before_any_test",
+      "reason": "The generated MediaType is a union wrapper; comparison corrected through AsMediaType1 in b53ec214.",
+      "memory_cases_executed": 0
+    },
+    {
+      "result": {
+        "path": "/private/tmp/v421-017-lint-result.json",
+        "sha256": "2cbf25b30e5c914a8ef6d2e531afd151f7fda7351edfd83af562b90f57ebbd42"
+      },
+      "log": {
+        "path": "/private/tmp/v421-017-lint.log",
+        "sha256": "da385cfecd653a90615993545dfb9b745121feb67935e4146e50a13076c5e4d4"
+      },
+      "status": "host_environment_bootstrap_failed_before_checks",
+      "reason": "Configured host Go proxy has no entries; a subsequent compile-only probe also showed missing archive/zip and fmt standard-library sources in the shared temporary Go SDK. The SDK was not modified. Complete validation moved to the pinned Linux toolchain."
+    }
+  ],
+  "independent_review": "The copied DTO is the sole deficient strict public metadata shape; both real callers are covered. Existing identity, media, current/frozen, exact-ref and content assertions remain; all four dates are required without a chronology assumption. Artifact PUT and private Runtime projections remain unchanged.",
+  "full_release_pass_claimed": false
+}

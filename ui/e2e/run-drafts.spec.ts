@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { expect, test, type Page } from "@playwright/test";
 
 import { project } from "../src/test/builders";
@@ -33,6 +34,7 @@ const workflow = workflowResource(WORKFLOW_NAME, WORKFLOW_VERSION, {
 });
 
 const existingArtifact = {
+  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "sources",
     name: "existing",
@@ -46,6 +48,7 @@ const existingArtifact = {
 };
 
 const uploadedArtifact = {
+  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "artifacts",
     name: "replacement",
@@ -58,7 +61,14 @@ const uploadedArtifact = {
   createdAt: timestamp,
 };
 
-async function installFixture(page: Page, apiOrigin: string) {
+async function installFixture(
+  page: Page,
+  apiOrigin: string,
+  options: {
+    metadataGate?: Promise<void>;
+    optionalInput?: boolean;
+  } = {},
+) {
   const uploads: Array<{
     path: string;
     headers: Record<string, string>;
@@ -79,7 +89,17 @@ async function installFixture(page: Page, apiOrigin: string) {
       if (
         path === `/v1/workflows/${WORKFLOW_NAME}/versions/${WORKFLOW_VERSION}`
       ) {
-        await fulfillJSON(route, workflow);
+        await fulfillJSON(
+          route,
+          options.optionalInput
+            ? {
+                ...workflow,
+                inputs: {
+                  source: { ...workflow.inputs.source, required: false },
+                },
+              }
+            : workflow,
+        );
         return;
       }
       if (path === "/v1/artifacts" && request.method() === "GET") {
@@ -135,6 +155,16 @@ async function installFixture(page: Page, apiOrigin: string) {
         );
         return;
       }
+      if (
+        path ===
+          `/v1/projects/${PROJECT_ID}/artifacts/artifacts/replacement/metadata` &&
+        uploaded
+      ) {
+        expect(url.searchParams.get("revision")).toBe("revision-uploaded");
+        await options.metadataGate;
+        await fulfillJSON(route, uploadedArtifact);
+        return;
+      }
       if (path === `/v1/projects/${PROJECT_ID}/runs`) {
         await fulfillJSON(route, { items: [], page: { hasMore: false } });
         return;
@@ -158,6 +188,75 @@ async function leaveForFiles(page: Page): Promise<void> {
     .getByRole("link", { name: "Files", exact: true })
     .click();
   await expect(page).toHaveURL(/\/artifacts$/);
+}
+
+for (const optionalInput of [false, true]) {
+  test(`replacement metadata blocks Project Run submission for ${optionalInput ? "optional" : "required"} input`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    let releaseMetadata!: () => void;
+    const metadataGate = new Promise<void>((resolve) => {
+      releaseMetadata = resolve;
+    });
+    const apiOrigin = mockedAPIOrigin();
+    await installFixture(page, apiOrigin, { metadataGate, optionalInput });
+    const submissions: Array<{ artifacts: unknown }> = [];
+    await page.route(
+      `${apiOrigin}/v1/projects/${PROJECT_ID}/runs`,
+      async (route) => {
+        if (route.request().method() !== "POST") return route.fallback();
+        submissions.push(route.request().postDataJSON());
+        await route.abort("failed");
+      },
+    );
+    await page.goto(`/projects/${PROJECT_ID}/workflows`);
+    await page
+      .getByRole("button", { name: `Configure ${WORKFLOW_SELECTOR}` })
+      .click();
+    await page
+      .locator('[name="parameter-objective"]')
+      .fill("Use the newly uploaded revision");
+    await page
+      .locator('[name="artifact-source"]')
+      .selectOption("sources/existing@revision-existing");
+    const start = page.getByRole("button", {
+      name: "Start Project Workflow Run",
+      exact: true,
+    });
+    await expect(start).toBeEnabled();
+    await page
+      .getByRole("button", { name: "Upload local file for source" })
+      .click();
+    const upload = page.getByRole("dialog", {
+      name: "Upload local file for source",
+    });
+    await upload.getByLabel("Drop a file here").setInputFiles({
+      name: "replacement.zip",
+      mimeType: "application/zip",
+      buffer: Buffer.from("zip"),
+    });
+    const metadataRequest = page.waitForRequest((request) =>
+      new URL(request.url()).pathname.endsWith(
+        "/artifacts/replacement/metadata",
+      ),
+    );
+    await upload.getByRole("button", { name: "Upload and select" }).click();
+    await metadataRequest;
+    await expect(upload).not.toBeVisible();
+    await expect(start).toBeDisabled();
+    await start.evaluate((button) =>
+      (button as HTMLButtonElement).form?.requestSubmit(),
+    );
+    expect(submissions).toHaveLength(0);
+    releaseMetadata();
+    await expect(start).toBeEnabled();
+    await start.click();
+    await expect.poll(() => submissions.length).toBe(1);
+    expect(submissions[0]?.artifacts).toEqual({
+      source: uploadedArtifact.artifact,
+    });
+  });
 }
 
 for (const viewport of [

@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { gitKeyQueryKey } from "../../api/git-artifacts";
-import { conforming } from "../../test/builders";
+import { ARTIFACT_STORAGE_TIMESTAMPS, conforming } from "../../test/builders";
 import { fakeServer, type Routes } from "../../test/fake-server";
 import { failure, json, noContent } from "../../test/responses";
 import { renderWithAPI } from "../../test/render";
@@ -310,6 +310,7 @@ describe("Git artifacts", () => {
           () =>
             json({
               ...imported,
+              storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
               artifact: { ...imported.artifact, revision: "rev-before" },
               current: true,
               frozen: false,

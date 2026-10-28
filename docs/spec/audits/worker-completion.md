@@ -337,7 +337,11 @@ submit_check_result(
 ```
 
 **AWC-R33.** The model supplies assessments, summaries, completed coverage,
-explicit gaps, bounded evidence summaries and proposal receipt keys. Runtime
+explicit gaps, bounded evidence summaries and proposal receipt keys. An evidence
+entry may select `http_request_id` (integer 1..9007199254740991) from an
+`http_request` executed in this same invocation. The model cannot supply
+observation timestamps, deployment markers, request tags or artifact refs.
+Runtime
 derives item identities and the execution-manifest digest from the pinned
 inputs.
 
@@ -422,7 +426,10 @@ kind; `completed` alone is not evidence.
 **AWC-R54.** Task-local validation includes the pinned standard evidence
 contract's allowed assessments, evidence kinds and minimum and maximum counts,
 the minimum applying to conclusive results, and the operation-task rule that
-`not-tested` cannot carry completed coverage.
+`not-tested` cannot carry completed coverage. A conclusive registered
+`http-probe` finding check or checklist requiring `http-observation` must
+include selected Runtime HTTP capture evidence. Generic `active-test` and
+summary-only evidence kinds do not imply this HTTP requirement.
 
 **AWC-R55.** Local validation of `supported` applies the item task's pinned
 `profile_mode` as specified in [AUD-R117](audits.md) and [AUD-R118](audits.md).
@@ -896,6 +903,22 @@ Completion facts (AWC-R108 to AWC-R120) extend the
 the live allocation metrics owned by [worker](../execution/worker.md). Missing
 item IDs stay in bounded diagnostics and never become metric labels
 (AWC-R110).
+
+**AWC-R126.** Selected HTTP evidence resolves only from the allocation's bounded
+recent-capture buffer and the same invocation. Runtime copies the exact request,
+attempts and available response bytes into one `application/json` evidence
+member, and emits `http_request_id`, `http_request_tag`, `observed_at` and an
+available `deployment_marker` in `evidence.json` (REV-R8). The importer validates
+the member's closed capture shape and matching request identity before retention.
+Caido history without a transport observation time is not an eligible Runtime
+HTTP selection. Unknown, evicted or foreign captures fail the tool call before
+any scalar/batch mutation; the caller can submit an explicit gap and an
+inconclusive result instead. The selected immutable bytes and metadata count
+in the existing collection/member/package bounds, including before prospective
+encoding. Replay, correction, publication retries and retention reuse these
+exact values; pure encoding never reads a clock. Summary-only evidence keeps
+its existing assertion semantics and deterministic bytes. No execution-manifest
+or admission-page authority is added.
 
 ## Invariants
 

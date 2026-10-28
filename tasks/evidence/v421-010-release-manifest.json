@@ -1,0 +1,171 @@
+{
+  "status": "all_required_E1_proof_verified",
+  "tested_source_revision": "754f2b7686b1d5706566e6937731dfd0b25bb0b4",
+  "tree": "32a0e1bdda67cf5daaec6cacb67173981c9364d8",
+  "source_files": 6418,
+  "whole_gate": {
+    "exit_code": 0,
+    "setup_exit_code": 0,
+    "elapsed_seconds": 8844.73,
+    "started_at_utc": "2026-10-27T23:10:24.482869+00:00",
+    "finished_at_utc": "2026-10-28T01:37:49.213186+00:00"
+  },
+  "stage_count": 12,
+  "stage_names": [
+    "release-verify-browser-a",
+    "release-verify-browser-b",
+    "release-verify-families",
+    "release-verify-integration",
+    "release-verify-lint",
+    "release-verify-process-a",
+    "release-verify-process-b",
+    "release-verify-process-c",
+    "release-verify-race",
+    "release-verify-race-discovered",
+    "release-verify-ui",
+    "release-verify-unit"
+  ],
+  "counts": {
+    "go_unit_pass": 9806,
+    "go_unit_optional_skip": 7,
+    "runtime_pass": 5287,
+    "runtime_optional_skip": 55,
+    "integration_pass": 709,
+    "integration_roots": 285,
+    "process_roots": {
+      "expected": 31,
+      "observed": 31,
+      "passed": 31,
+      "missing": []
+    },
+    "process_cases": {
+      "a": 14,
+      "b": 13,
+      "c": 49
+    },
+    "browser_stack_roots": {
+      "expected": 10,
+      "observed": 10,
+      "passed": 10,
+      "missing": []
+    },
+    "production_browser_executions": 96,
+    "mocked_browser_executions": 109,
+    "ui_pass": 2510,
+    "ui_expected_negative_control": 1,
+    "race_test_packages": 102,
+    "race_no_test_packages": 5
+  },
+  "exact_4_exit_commands": {
+    "public-api": {
+      "command": "make verify-public-api",
+      "exit_code": 0,
+      "elapsed_seconds": 10.419,
+      "log_sha256": "a3162c758bd199e7922faf66f2d09ac0e386c135c713e69a0aa6533ae65e5f19",
+      "result_sha256": "e928669c6def65754b6a33982319eea21e43064e83bcd9b8f26d32a04a7b76af"
+    },
+    "public-api-postgres": {
+      "command": "make verify-public-api-postgres",
+      "exit_code": 0,
+      "elapsed_seconds": 25.392,
+      "log_sha256": "7d3fd7ecfb83a84f06fe7fc4f73db3ef8ba5de30e73b2cac9d868bf3436a8846",
+      "result_sha256": "8e595202936ca2302a95de2847482964b72c092ddc7086752ea1a04e1a41a9c2"
+    },
+    "spec": {
+      "command": "python3 scripts/check_spec.py",
+      "exit_code": 0,
+      "elapsed_seconds": 0.132,
+      "log_sha256": "c33201a0e9ed95651952aa685532f99fd182010d6de0fa416b1b4efb64f6b3cc",
+      "result_sha256": "4b433e60fad7b8f93eaa9f8295df615f76752e6fb1175bdaff3ef16fc9cd6b87"
+    },
+    "tasks": {
+      "command": "cd runtime && uv run python ../scripts/check_tasks.py",
+      "exit_code": 0,
+      "elapsed_seconds": 2.17,
+      "log_sha256": "ece43c8ddf55dba6226603ba039df422e3b5367f50c399f56f758017d8212290",
+      "result_sha256": "04aa90848d852d4394bfe06d13a5550d18fa740af0da91611767f3604c3d9487"
+    }
+  },
+  "source_before_after": {
+    "clean_before": true,
+    "clean_after_full": true,
+    "clean_after_all_exits": true,
+    "revision_tree_locks_same": true,
+    "lock_sha256": {
+      "go.mod": "39814d7a347628f48a62289abba63beba81db20dd51d1acf233d308e654bb937",
+      "go.sum": "33d3b901321b8f39d44e379736d2c9a42b8a0fcb7455ad6c20594ef5417cc195",
+      "runtime/uv.lock": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027",
+      "ui/pnpm-lock.yaml": "0e4c20b6ad30b3ba279b51deddfa6f9855423edfd96952a1493e8e1a137774e1"
+    },
+    "python_major_minor": [
+      3,
+      13
+    ],
+    "runtime_actual_import_before_after": [
+      "/work/v421-integrated-final-754f2b76-e1/runtime/src/contractor_runtime/__init__.py",
+      "/work/v421-integrated-final-754f2b76-e1/runtime/src/contractor_runtime/__init__.py",
+      "/work/v421-integrated-final-754f2b76-e1/runtime/src/contractor_runtime/__init__.py"
+    ],
+    "venv_prefix_before_after": [
+      "/work/v421-integrated-final-754f2b76-e1/runtime/.venv",
+      "/work/v421-integrated-final-754f2b76-e1/runtime/.venv",
+      "/work/v421-integrated-final-754f2b76-e1/runtime/.venv"
+    ]
+  },
+  "owned_remaining_processes": 0,
+  "evidence": {
+    "compact": {
+      "path": "/private/tmp/v421-final-compact-754f2b76-e1.json",
+      "sha256": "d317cbbb8b201eb86ab412e94301821de859393c60b22fc4967e2ffaad7f63d1",
+      "bytes": 32994
+    },
+    "detailed": {
+      "path": "/private/tmp/v421-final-analysis-754f2b76-e1.json",
+      "sha256": "d2b6ba4d8a9d2107ab5041e9d7123c48202de41aac81888accf862dd858c4abf",
+      "bytes": 3220351
+    },
+    "observed_suite_timings": {
+      "path": "/private/tmp/v421-final-suite-timings-754f2b76-e1.json",
+      "sha256": "37677afa83097d4e8a1fb7c5e23f2cf85d42b2e5320afe9a9e37cd853a61bba3",
+      "bytes": 53209
+    },
+    "owned_joined": {
+      "path": "/private/tmp/v421-final-owned-joined-754f2b76-e1.json",
+      "sha256": "e20f9a4e7bf1ec94bc82b8269aebea5649defd022bab66f6a4fefb712b9cdff6",
+      "bytes": 117
+    }
+  },
+  "proof_helpers": {
+    "freeze": {
+      "path": "/private/tmp/v421-freeze-linux-release.py",
+      "sha256": "d75b251a15d446a43daa15f79d2ee957c2efbad1f578f9a29fc5ba71f6d49d4a"
+    },
+    "release": {
+      "path": "/private/tmp/v421-linux-release-run.py",
+      "sha256": "1aea5a614567912d26fbe05abaff34a608fab8eecedfb3af468e47e47053c8ab"
+    },
+    "strict_analysis": {
+      "path": "/private/tmp/v421-release-evidence-summary.py",
+      "sha256": "b1a3a6aa43e1127527996089e5980539ae6a055916c80a429af86ee352e0ce98"
+    },
+    "exit_validators": {
+      "path": "/private/tmp/v421-linux-exit-validators.py",
+      "sha256": "1103c686df2bd6fbe057c7ae81fe80d53dd00d00b884a93eb8f56d29f4693668"
+    },
+    "compact": {
+      "path": "/private/tmp/v421-compact-final-evidence.py",
+      "sha256": "7e6b7383d8ea2227330a546d9d15253afd17e49e768a38c1df33d4c551fda9f7"
+    }
+  },
+  "infrastructure_retained": {
+    "runner": "contractor-v421-runtime",
+    "postgres": "contractor-v421-release-db",
+    "data_volume": "contractor-v421-release-data"
+  },
+  "limits": [
+    "No canonical+echo or overlapping UI/family counts are summed as unique tests.",
+    "Race output measures package outcomes, not individual case counts.",
+    "Stage durations/exits are not separately invented; exact wrapper/suite durations are supplied."
+  ],
+  "created_at_utc": "2026-10-28T01:42:45.533644+00:00"
+}

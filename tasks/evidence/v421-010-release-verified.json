@@ -1,0 +1,694 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-010",
+  "status": "verified",
+  "created_at_utc": "2026-10-28T01:41:03.948153+00:00",
+  "tested_source": {
+    "revision": "754f2b7686b1d5706566e6937731dfd0b25bb0b4",
+    "tree": "32a0e1bdda67cf5daaec6cacb67173981c9364d8",
+    "files": 6418,
+    "full_reachable_history": true,
+    "clean_before_after": true,
+    "locks_unchanged": true,
+    "lock_sha256": {
+      "runtime/uv.lock": "feb5a55a9097fc6224384a99b7c506467196ab87435ba3a83ac0a230023bb027",
+      "ui/pnpm-lock.yaml": "0e4c20b6ad30b3ba279b51deddfa6f9855423edfd96952a1493e8e1a137774e1",
+      "go.mod": "39814d7a347628f48a62289abba63beba81db20dd51d1acf233d308e654bb937",
+      "go.sum": "33d3b901321b8f39d44e379736d2c9a42b8a0fcb7455ad6c20594ef5417cc195"
+    },
+    "capture_sha256": {
+      "repo.bundle": "bcb46e0483394b6c147e585f3e2822dff363bc1e300958bef33ad0c88150daed",
+      "source.tar": "e24c58333c9f36d1b1227edcac5745dfcfbcaaa309d1055c7d617826bf361b00",
+      "source-manifest.json": "dbeee28182e32ac8c268317b44d7385622e890327996cf0b85a8e4ecc8231f8f"
+    },
+    "fresh_venv_and_node_modules": true,
+    "runtime_import": "/work/v421-integrated-final-754f2b76-e1/runtime/src/contractor_runtime/__init__.py",
+    "runtime_sys_prefix": "/work/v421-integrated-final-754f2b76-e1/runtime/.venv",
+    "runtime_distributions": 76,
+    "runtime_core_dependencies": {
+      "google-adk": "2.13.0",
+      "google-genai": "2.33.0",
+      "a2a-sdk": "1.1.2",
+      "pydantic": "2.13.5",
+      "pytest": "9.1.1"
+    },
+    "tools": {
+      "corepack": "0.36.0",
+      "git": "git version 2.47.3",
+      "go": "go version go1.26.9 linux/arm64",
+      "node": "v24.20.0",
+      "pg_dump": "pg_dump (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)",
+      "pg_restore": "pg_restore (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)",
+      "pnpm": "11.24.0",
+      "psql": "psql (PostgreSQL) 17.11 (Debian 17.11-0+deb13u1)",
+      "python313": "Python 3.13.5",
+      "uv": "uv 0.13.1 (aarch64-unknown-linux-gnu)"
+    },
+    "note": "This tested code pin is separate from later tracker/evidence closure commits."
+  },
+  "full_release": {
+    "command": [
+      "make",
+      "-k",
+      "release-verify",
+      "RACE_PACKAGE_PARALLELISM=1"
+    ],
+    "exit_code": 0,
+    "result_sha256": "d60fb925e6ec8e9313462d0599ec797c14aa5eb16842ef2741b38db81ab78002",
+    "log_sha256": "46f1b088ca96724c5916e67e381fcd27651f280d1739b10979b7fc7df03d2dc1",
+    "setup_exit_code": 0,
+    "setup_elapsed_seconds": 3.466,
+    "gate_elapsed_seconds": 8844.73,
+    "started_at_utc": "2026-10-27T23:10:24.482869+00:00",
+    "finished_at_utc": "2026-10-28T01:37:49.213186+00:00",
+    "stages": {
+      "release-verify-browser-a": {
+        "boundary_evidence_observed": true,
+        "standalone_exit_code": null,
+        "status": "proven_with_whole_gate_exit",
+        "whole_gate_passed": true
+      },
+      "release-verify-browser-b": {
+        "boundary_evidence_observed": true,
+        "standalone_exit_code": null,
+        "status": "proven_with_whole_gate_exit",
+        "whole_gate_passed": true
+      },
+      "release-verify-families": {
+        "boundary_evidence_observed": true,
+        "standalone_exit_code": null,
+        "status": "proven_with_whole_gate_exit",
+        "whole_gate_passed": true
+      },
+      "release-verify-integration": {
+        "boundary_evidence_observed": true,
+        "standalone_exit_code": null,
+        "status": "proven_with_whole_gate_exit",
+        "whole_gate_passed": true
+      },
+      "release-verify-lint": {
+        "boundary_evidence_observed": true,
+        "standalone_exit_code": null,
+        "status": "proven_with_whole_gate_exit",
+        "whole_gate_passed": true
+      },
+      "release-verify-process-a": {
+        "boundary_evidence_observed": true,
+        "standalone_exit_code": null,
+        "status": "proven_with_whole_gate_exit",
+        "whole_gate_passed": true
+      },
+      "release-verify-process-b": {
+        "boundary_evidence_observed": true,
+        "standalone_exit_code": null,
+        "status": "proven_with_whole_gate_exit",
+        "whole_gate_passed": true
+      },
+      "release-verify-process-c": {
+        "boundary_evidence_observed": true,
+        "standalone_exit_code": null,
+        "status": "proven_with_whole_gate_exit",
+        "whole_gate_passed": true
+      },
+      "release-verify-race": {
+        "boundary_evidence_observed": true,
+        "standalone_exit_code": null,
+        "status": "proven_with_whole_gate_exit",
+        "whole_gate_passed": true
+      },
+      "release-verify-race-discovered": {
+        "boundary_evidence_observed": true,
+        "standalone_exit_code": null,
+        "status": "proven_with_whole_gate_exit",
+        "whole_gate_passed": true
+      },
+      "release-verify-ui": {
+        "boundary_evidence_observed": true,
+        "standalone_exit_code": null,
+        "status": "proven_with_whole_gate_exit",
+        "whole_gate_passed": true
+      },
+      "release-verify-unit": {
+        "boundary_evidence_observed": true,
+        "standalone_exit_code": null,
+        "status": "proven_with_whole_gate_exit",
+        "whole_gate_passed": true
+      }
+    }
+  },
+  "canonical_go_reports": {
+    "go-integration.jsonl": {
+      "sha256": "5757b4a11cfc082fe7cd929c3fbbcf02308f576a0e59a9605b4c76a688b5d0cd",
+      "bytes": 1170462,
+      "test_events": {
+        "pass": 709,
+        "run": 709
+      },
+      "top_level_events": {
+        "pass": 285,
+        "run": 285
+      },
+      "package_events": {
+        "pass": 20,
+        "start": 20
+      },
+      "unique_test_identities": 709,
+      "unique_root_identities": 285,
+      "failed_cases": 0,
+      "failed_packages": 0,
+      "lifecycle_problems": 0
+    },
+    "go-process-a.jsonl": {
+      "sha256": "ca3b4afdd22f6a78c12c028c8829b0ec037e5fd1f90c332208c74b737faef87a",
+      "bytes": 118164,
+      "test_events": {
+        "pass": 14,
+        "run": 14
+      },
+      "top_level_events": {
+        "pass": 11,
+        "run": 11
+      },
+      "package_events": {
+        "pass": 1,
+        "start": 1
+      },
+      "unique_test_identities": 14,
+      "unique_root_identities": 11,
+      "failed_cases": 0,
+      "failed_packages": 0,
+      "lifecycle_problems": 0
+    },
+    "go-process-c.jsonl": {
+      "sha256": "5d26bd3394e387623e8cdeb2f0f86d572e5b43c13ef4082cd49534cd370cdfd7",
+      "bytes": 232279,
+      "test_events": {
+        "pass": 49,
+        "run": 49
+      },
+      "top_level_events": {
+        "pass": 13,
+        "run": 13
+      },
+      "package_events": {
+        "pass": 1,
+        "start": 1
+      },
+      "unique_test_identities": 49,
+      "unique_root_identities": 13,
+      "failed_cases": 0,
+      "failed_packages": 0,
+      "lifecycle_problems": 0
+    },
+    "go-unit.jsonl": {
+      "sha256": "5f4570ecc23f0c1aca517dd94774c6b928dc12773ae3007ffe395e63f0ce59cc",
+      "bytes": 11030334,
+      "test_events": {
+        "pass": 9806,
+        "run": 9813,
+        "skip": 7
+      },
+      "top_level_events": {
+        "pass": 3045,
+        "run": 3052,
+        "skip": 7
+      },
+      "package_events": {
+        "pass": 102,
+        "skip": 25,
+        "start": 127
+      },
+      "unique_test_identities": 9813,
+      "unique_root_identities": 3052,
+      "failed_cases": 0,
+      "failed_packages": 0,
+      "lifecycle_problems": 0
+    }
+  },
+  "runtime": {
+    "execution_binding": {
+      "command": "cd runtime && CONTRACTOR_SHARED_FIXTURE_LOG=\"/work/v421-integrated-final-754f2b76-e1/reports/shared-fixture-reads.log\" uv run pytest -W error tests --junitxml=\"/work/v421-integrated-final-754f2b76-e1/reports/runtime.xml\"",
+      "command_line": 45724,
+      "completion_command": "go test -tags=e2e -v -count=1 ./tests/e2e -run '^(TestAuditProgramsE2EConfigurationLoads|TestAuditIterativeFixtureConfigurationLoads|TestCodeAnalysisE2EConfigurationLoads|TestProductionMemoryConfigurationStaging|TestProjectWorkerBudgetMatchesPinnedPolicy|TestDomainGatewayFindsNamedInputAfterParameterBlock|TestDomainGatewayScriptedModelFailureAdvancesWithoutFixtureFailure|TestRuntimeWorkRootEmptyAllowsPersistentOwnerLock)$'",
+      "completion_command_line": 45802,
+      "gate_finished_at_utc": "2026-10-28T01:37:49.213186+00:00",
+      "gate_started_at_utc": "2026-10-27T23:10:24.482869+00:00",
+      "problems": [],
+      "pytest_summary": {
+        "command": "cd runtime && CONTRACTOR_SHARED_FIXTURE_LOG=\"/work/v421-integrated-final-754f2b76-e1/reports/shared-fixture-reads.log\" uv run pytest -W error tests --junitxml=\"/work/v421-integrated-final-754f2b76-e1/reports/runtime.xml\"",
+        "command_line": 45724,
+        "display_seconds": 408,
+        "duration_consistent": true,
+        "elapsed_seconds": 408.48,
+        "line": 45800,
+        "passed": 5287,
+        "skipped": 55,
+        "summary": "5287 passed, 55 skipped in 408.48s (0:06:48)"
+      },
+      "suite_timestamp": "2026-10-27T23:29:27.371764+00:00",
+      "suite_timestamp_utc": "2026-10-27T23:29:27.371764+00:00",
+      "verified": true,
+      "verify_command": "python3 scripts/release_test_reports.py verify-runtime --report \"/work/v421-integrated-final-754f2b76-e1/reports/runtime.xml\"",
+      "verify_command_line": 45801,
+      "xml_counts": {
+        "actual": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 55,
+          "tests": 5342
+        },
+        "headers": {
+          "errors": 0,
+          "failures": 0,
+          "skipped": 55,
+          "tests": 5342
+        },
+        "passed": 5287
+      },
+      "xml_path": "/private/tmp/v421-final-release-754f2b76-e1/evidence/reports/runtime.xml",
+      "xml_sha256": "391f00c17598ca7eb2d45addc3b2ff04f831bed07019bf2a2c7cd6e2b6bc83e5"
+    },
+    "sha256": "391f00c17598ca7eb2d45addc3b2ff04f831bed07019bf2a2c7cd6e2b6bc83e5",
+    "total_cases": 5342,
+    "passed": 5287,
+    "skipped": 55,
+    "failed": 0,
+    "errors": 0,
+    "duplicate_identities": 0
+  },
+  "required_case_roots": {
+    "browser_stack": {
+      "expected": 10,
+      "observed": 10,
+      "passed": 10,
+      "missing": []
+    },
+    "configuration": {
+      "expected": 8,
+      "observed": 8,
+      "passed": 8,
+      "missing": []
+    },
+    "process": {
+      "expected": 31,
+      "observed": 31,
+      "passed": 31,
+      "missing": []
+    }
+  },
+  "required_report_validations": {
+    "all_release_integration_roots": {
+      "case_count": 709,
+      "passed": true
+    },
+    "audit_completion_integration": {
+      "case_count": 257,
+      "passed": true
+    },
+    "audit_iterative_postgres": {
+      "case_count": 100,
+      "passed": true
+    },
+    "audit_iterative_process": {
+      "case_count": 6,
+      "passed": true
+    },
+    "findings_process": {
+      "case_count": 14,
+      "passed": true
+    },
+    "runtime_mandatory_audit_findings": {
+      "case_count": null,
+      "passed": true
+    },
+    "selected_roots_invocation_2": {
+      "case_count": 28,
+      "passed": true
+    },
+    "selected_roots_invocation_3": {
+      "case_count": 1,
+      "passed": true
+    },
+    "selected_roots_invocation_5": {
+      "case_count": 14,
+      "passed": true
+    },
+    "selected_roots_invocation_6": {
+      "case_count": 13,
+      "passed": true
+    },
+    "selected_roots_invocation_7": {
+      "case_count": 49,
+      "passed": true
+    }
+  },
+  "race_package_evidence": {
+    "race_discovered": {
+      "package_outcomes": {
+        "ok": 57
+      },
+      "package_names_sha256": "b2efaa6e5f76ec136fc1e6e098a8130d0de2a1071cc331e2a27962579841f5ad",
+      "individual_test_counts": "not captured by the plain Go race output"
+    },
+    "race_explicit": {
+      "package_outcomes": {
+        "ok": 45,
+        "?": 5
+      },
+      "package_names_sha256": "ee8ffce265dce81b86c0b8833c16e990bfb94c6f744eee5dfd187cc381d1d136",
+      "individual_test_counts": "not captured by the plain Go race output"
+    }
+  },
+  "ui_verification": {
+    "cases": {
+      "command": "cd ui && corepack pnpm test --run",
+      "command_line": 45908,
+      "counts": {
+        "expected_fail": 1,
+        "passed": 2510
+      },
+      "line": 46263,
+      "summary": "Tests  2510 passed | 1 expected fail (2511)",
+      "total": 2511
+    },
+    "command": "cd ui && corepack pnpm test --run",
+    "command_occurrences": 1,
+    "expected_failures": 1,
+    "expected_negative_controls": [
+      {
+        "declaration": "it.fails",
+        "purpose": "intentional harness negative control: a routed response that breaks the public contract must fail its test",
+        "source": "ui/src/test/test-support.test.ts:62",
+        "source_sha256": "aeffa53c005cd8511d99ee93b85ab396d072894453e9d16e68f01212e201391f",
+        "title": "fails the test that serves a body breaking the contract"
+      }
+    ],
+    "files": {
+      "command": "cd ui && corepack pnpm test --run",
+      "command_line": 45908,
+      "counts": {
+        "passed": 204
+      },
+      "line": 46262,
+      "summary": "Test Files  204 passed (204)",
+      "total": 204
+    },
+    "problems": [],
+    "verified": true
+  },
+  "family_ui_note": "Overlapping family subsets are not summed as unique tests.",
+  "mocked_browser": [
+    {
+      "command": "node ui/server/mocked-browser-gate.mjs",
+      "line": 47174,
+      "passed": 109,
+      "source": "in-repository Playwright JSON validator; success removes its temporary raw report",
+      "spec_files": 23
+    }
+  ],
+  "production_browser_execution": {
+    "counts_note": "Receipt total counts actual executions once; retained raw JSON and Go root/subtest counts must not be added.",
+    "passed": 96,
+    "problems": [],
+    "receipts": [
+      {
+        "case": "TestBrowserOperationsStack",
+        "gate_line": 47276,
+        "invocation_number": 2,
+        "invocation_path": "/private/tmp/v421-evidence-streams-vkeangyw/go-invocation-02.jsonl",
+        "invocation_sha256": "6bb5099829159e9cf1b618e80be4f023643d9c959f887b63d115f6d3fbe9a9a7",
+        "passed": 93,
+        "report_sha256": "5146139ec8b26993b84f598e7dd2c5bf9051a165b838736c606e7282c5987f5b",
+        "required_files": [
+          "e2e/stack.spec.ts",
+          "e2e/audits.spec.ts",
+          "e2e/lifecycle-controls.spec.ts",
+          "e2e/project-workspace.spec.ts",
+          "e2e/run-repeat.spec.ts",
+          "e2e/performance.spec.ts",
+          "e2e/studio-catalog.spec.ts"
+        ],
+        "retained_path": "/private/tmp/v421-final-release-754f2b76-e1/evidence/reports/ui-stack/run-918773793/browser-report.json",
+        "retained_raw_report": true,
+        "retention_note": "Exact validated raw report retained; receipt and raw counts overlap.",
+        "root": "TestBrowserOperationsStack"
+      },
+      {
+        "case": "TestBrowserScanWidgetsStack",
+        "gate_line": 47282,
+        "invocation_number": 2,
+        "invocation_path": "/private/tmp/v421-evidence-streams-vkeangyw/go-invocation-02.jsonl",
+        "invocation_sha256": "6bb5099829159e9cf1b618e80be4f023643d9c959f887b63d115f6d3fbe9a9a7",
+        "passed": 1,
+        "report_sha256": "3a9b080f08ba9cacae261ec0beb3ffe5c0fe125743b3dcbb85a760c01f90fccd",
+        "required_files": [
+          "e2e/stack.spec.ts"
+        ],
+        "retained_path": "/private/tmp/v421-final-release-754f2b76-e1/evidence/reports/ui-stack/run-4034895466/browser-report.json",
+        "retained_raw_report": true,
+        "retention_note": "Exact validated raw report retained; receipt and raw counts overlap.",
+        "root": "TestBrowserScanWidgetsStack"
+      },
+      {
+        "case": "TestManagedEvalsNativeStack",
+        "gate_line": 47288,
+        "invocation_number": 2,
+        "invocation_path": "/private/tmp/v421-evidence-streams-vkeangyw/go-invocation-02.jsonl",
+        "invocation_sha256": "6bb5099829159e9cf1b618e80be4f023643d9c959f887b63d115f6d3fbe9a9a7",
+        "passed": 1,
+        "report_sha256": "09d2763c101996d9ecfbe70a38ac9345470637ef367efe12311cc4e3ff2b1257",
+        "required_files": [
+          "e2e/evals-stack.spec.ts"
+        ],
+        "retained_path": null,
+        "retained_raw_report": false,
+        "retention_note": "Validated temporary Eval JSON was not retained; only the real Go root execution receipt with its report SHA is available.",
+        "root": "TestManagedEvalsNativeStack"
+      },
+      {
+        "case": "TestManagedEvalsExternalStack",
+        "gate_line": 47307,
+        "invocation_number": 3,
+        "invocation_path": "/private/tmp/v421-evidence-streams-vkeangyw/go-invocation-03.jsonl",
+        "invocation_sha256": "c2db74bacd9d96defcc54eb726f0352348417437d2ff4af97003aa0d6bc87aaf",
+        "passed": 1,
+        "report_sha256": "dc0452eb0e36cfd4358b95ee1cb014244c8196c6e8569c3d4d3cb4f67dffc976",
+        "required_files": [
+          "e2e/evals-stack.spec.ts"
+        ],
+        "retained_path": null,
+        "retained_raw_report": false,
+        "retention_note": "Validated temporary Eval JSON was not retained; only the real Go root execution receipt with its report SHA is available.",
+        "root": "TestManagedEvalsExternalStack"
+      }
+    ],
+    "required_roots": [
+      "TestBrowserOperationsStack",
+      "TestBrowserScanWidgetsStack",
+      "TestManagedEvalsExternalStack",
+      "TestManagedEvalsNativeStack"
+    ],
+    "verified": true
+  },
+  "production_browser_reports": [
+    {
+      "sha256": "3a9b080f08ba9cacae261ec0beb3ffe5c0fe125743b3dcbb85a760c01f90fccd",
+      "tests": 1,
+      "passed": 1,
+      "runner_errors": 0,
+      "nonpassing": 0
+    },
+    {
+      "sha256": "5146139ec8b26993b84f598e7dd2c5bf9051a165b838736c606e7282c5987f5b",
+      "tests": 93,
+      "passed": 93,
+      "runner_errors": 0,
+      "nonpassing": 0
+    }
+  ],
+  "shared_fixtures": [
+    {
+      "command": "python3 scripts/shared_fixture_gate.py --go-report \"/work/v421-integrated-final-754f2b76-e1/reports/go-unit.jsonl\" --runtime-log \"/work/v421-integrated-final-754f2b76-e1/reports/shared-fixture-reads.log\"",
+      "fixtures": 307,
+      "go_tests": 354,
+      "line": 45894,
+      "python_tests": 240
+    }
+  ],
+  "skip_policy": {
+    "sha256": "8fd517095338fbe59296e57fbf8dd7944ee40b1c14ad56932106e52d2536c3d1",
+    "go_optional": 7,
+    "go_categories": {
+      "external contract service": 1,
+      "optional local hardware": 1,
+      "requires privileged chown; canonical runner is non-root": 1,
+      "external deployment collector smoke": 1,
+      "live-model quality evaluation": 1,
+      "live-model dialect check": 1,
+      "live-model Router evaluation": 1
+    },
+    "runtime_optional": 55,
+    "runtime_categories": {
+      "bridge executed by mandatory Go importer rather than generic pytest": 1,
+      "explicit upstream protocol gate": 1,
+      "live-model contract check": 3,
+      "optional installed validator": 2,
+      "explicit real Podman/rootless gate": 34,
+      "optional installed scanner": 14
+    },
+    "unknown_go": [],
+    "unknown_runtime": [],
+    "note": "Optional external/rootless/live gates are excluded by explicit source guards; required selected cases are verified separately."
+  },
+  "exit_validators": {
+    "result_sha256": "00de416f9e0ad7ec9fd62839aadfd94f013dc1503e599971b53ad22aa71d9d9c",
+    "release_consolidated": false,
+    "source_unchanged_after_all_commands": true,
+    "commands": {
+      "public-api": {
+        "command": "make verify-public-api",
+        "exit_code": 0,
+        "elapsed_seconds": 10.419,
+        "log_sha256": "a3162c758bd199e7922faf66f2d09ac0e386c135c713e69a0aa6533ae65e5f19",
+        "result_sha256": "e928669c6def65754b6a33982319eea21e43064e83bcd9b8f26d32a04a7b76af"
+      },
+      "public-api-postgres": {
+        "command": "make verify-public-api-postgres",
+        "exit_code": 0,
+        "elapsed_seconds": 25.392,
+        "log_sha256": "7d3fd7ecfb83a84f06fe7fc4f73db3ef8ba5de30e73b2cac9d868bf3436a8846",
+        "result_sha256": "8e595202936ca2302a95de2847482964b72c092ddc7086752ea1a04e1a41a9c2"
+      },
+      "spec": {
+        "command": "python3 scripts/check_spec.py",
+        "exit_code": 0,
+        "elapsed_seconds": 0.132,
+        "log_sha256": "c33201a0e9ed95651952aa685532f99fd182010d6de0fa416b1b4efb64f6b3cc",
+        "result_sha256": "4b433e60fad7b8f93eaa9f8295df615f76752e6fb1175bdaff3ef16fc9cd6b87"
+      },
+      "tasks": {
+        "command": "cd runtime && uv run python ../scripts/check_tasks.py",
+        "exit_code": 0,
+        "elapsed_seconds": 2.17,
+        "log_sha256": "ece43c8ddf55dba6226603ba039df422e3b5367f50c399f56f758017d8212290",
+        "result_sha256": "04aa90848d852d4394bfe06d13a5550d18fa740af0da91611767f3604c3d9487"
+      }
+    }
+  },
+  "verification_helpers": {
+    "freeze": {
+      "path": "/private/tmp/v421-freeze-linux-release.py",
+      "sha256": "d75b251a15d446a43daa15f79d2ee957c2efbad1f578f9a29fc5ba71f6d49d4a"
+    },
+    "release": {
+      "path": "/private/tmp/v421-linux-release-run.py",
+      "sha256": "1aea5a614567912d26fbe05abaff34a608fab8eecedfb3af468e47e47053c8ab"
+    },
+    "strict_analysis": {
+      "path": "/private/tmp/v421-release-evidence-summary.py",
+      "sha256": "b1a3a6aa43e1127527996089e5980539ae6a055916c80a429af86ee352e0ce98"
+    },
+    "exit_validators": {
+      "path": "/private/tmp/v421-linux-exit-validators.py",
+      "sha256": "1103c686df2bd6fbe057c7ae81fe80d53dd00d00b884a93eb8f56d29f4693668"
+    },
+    "compact": {
+      "path": "/private/tmp/v421-compact-final-evidence.py",
+      "sha256": "7e6b7383d8ea2227330a546d9d15253afd17e49e768a38c1df33d4c551fda9f7"
+    }
+  },
+  "artifact_provenance": {
+    "capture": "/private/tmp/v421-final-capture-754f2b76-e1",
+    "release": "/private/tmp/v421-final-release-754f2b76-e1",
+    "exit": "/private/tmp/v421-final-exits-754f2b76-e1",
+    "detailed_analysis": "/private/tmp/v421-final-analysis-754f2b76-e1.json",
+    "analysis_sha256": "d2b6ba4d8a9d2107ab5041e9d7123c48202de41aac81888accf862dd858c4abf",
+    "source_before_sha256": "f84a233e0d6b63ac181945bfea1280ab1ecd31856d0cd71c2aaaa7c49d882013",
+    "source_after_sha256": "3e31358f21968576641279b1c8e4e9b0bf3021cbf798299ed2ac1ed1ade50d97",
+    "exit_source_after_sha256": "17dc9fafcb353ddc4d6d4d37121efaa3bcc2acc754855ae491f0146be933c1ab",
+    "skip_policy": "/private/tmp/v421-release-skip-policy-754f2b76.json",
+    "verified_file_sha256": {
+      "/private/tmp/v421-final-analysis-754f2b76-e1.json": "d2b6ba4d8a9d2107ab5041e9d7123c48202de41aac81888accf862dd858c4abf",
+      "/private/tmp/v421-final-capture-754f2b76-e1/capture.json": "fcec999556fe2f28a1467102fc84aa66a09f7173bb56fef7132ffc636d5d8af9",
+      "/private/tmp/v421-final-release-754f2b76-e1/result.json": "d60fb925e6ec8e9313462d0599ec797c14aa5eb16842ef2741b38db81ab78002",
+      "/private/tmp/v421-final-exits-754f2b76-e1/result.json": "00de416f9e0ad7ec9fd62839aadfd94f013dc1503e599971b53ad22aa71d9d9c",
+      "/private/tmp/v421-release-evidence-summary.py": "b1a3a6aa43e1127527996089e5980539ae6a055916c80a429af86ee352e0ce98",
+      "/private/tmp/v421-final-release-754f2b76-e1/setup-result.json": "fa8b9a20a243374cd01b0e474171328ff99279531f8dbc128e8cdeb141416d98",
+      "/private/tmp/v421-final-release-754f2b76-e1/setup.log": "6b5affbdfc7aa04eb069958d25ea138794e8f7a90c2b4ef380f349a7935cf295",
+      "/private/tmp/v421-final-release-754f2b76-e1/gate-result.json": "8278b2a4d503f4d89b2813d03ebc3b1be7c6b7bbb432f07bad87f99472af672f",
+      "/private/tmp/v421-final-release-754f2b76-e1/gate.log": "46f1b088ca96724c5916e67e381fcd27651f280d1739b10979b7fc7df03d2dc1",
+      "/private/tmp/v421-final-release-754f2b76-e1/setup.sh": "d68fbb37199948f334813a9406ad7e2e90f2a9ec0f1729e1734baad1875a2dea",
+      "/private/tmp/v421-final-release-754f2b76-e1/gate.sh": "2a416ffd795b9cae0ac55743f81870eb8cc79e552c1ae5ae3ab461e9f6f5b8ba",
+      "/private/tmp/v421-final-release-754f2b76-e1/container_runner.py": "eea70bfb7977d3d58f2cc14a1e49dccf2b7ce4c78977dd30abb32f995b709de8",
+      "/private/tmp/v421-final-capture-754f2b76-e1/repo.bundle": "bcb46e0483394b6c147e585f3e2822dff363bc1e300958bef33ad0c88150daed",
+      "/private/tmp/v421-final-capture-754f2b76-e1/source.tar": "e24c58333c9f36d1b1227edcac5745dfcfbcaaa309d1055c7d617826bf361b00",
+      "/private/tmp/v421-final-capture-754f2b76-e1/source-manifest.json": "dbeee28182e32ac8c268317b44d7385622e890327996cf0b85a8e4ecc8231f8f",
+      "/private/tmp/v421-final-release-754f2b76-e1/source-before.json": "f84a233e0d6b63ac181945bfea1280ab1ecd31856d0cd71c2aaaa7c49d882013",
+      "/private/tmp/v421-final-release-754f2b76-e1/source-after-setup.json": "1a9e132b3e156ba64504e2c63279465cfbad1208b23323d959d7f8f2ed3817c4",
+      "/private/tmp/v421-final-release-754f2b76-e1/source-after.json": "3e31358f21968576641279b1c8e4e9b0bf3021cbf798299ed2ac1ed1ade50d97",
+      "/private/tmp/v421-final-exits-754f2b76-e1/source-before.json": "ff3e9bc76e9980aeeebdf512fe26131ab640d5cce0c5f417f5858042ef547347",
+      "/private/tmp/v421-final-exits-754f2b76-e1/source-after-tasks.json": "7f7aeba55ae271b8c91eb70275603451f2a0bb89245362663d3ff821c4053151",
+      "/private/tmp/v421-final-exits-754f2b76-e1/source-after-spec.json": "e03aa6f10c0947a6e72b12b2bc8bfa71f8ac94213e98fcf5402108dee4aa76f3",
+      "/private/tmp/v421-final-exits-754f2b76-e1/source-after-public-api.json": "d5cbae4f23078b52cba8ffc0e9c74e631ef887abf5c685580e7ee0beea020ec9",
+      "/private/tmp/v421-final-exits-754f2b76-e1/source-after-public-api-postgres.json": "3075a7783daa2c3dcf2f8bb59d3edbece773d1b1067ebc78bfac125865eafe1b",
+      "/private/tmp/v421-final-exits-754f2b76-e1/source-after.json": "17dc9fafcb353ddc4d6d4d37121efaa3bcc2acc754855ae491f0146be933c1ab",
+      "/private/tmp/v421-final-exits-754f2b76-e1/public-api-result.json": "e928669c6def65754b6a33982319eea21e43064e83bcd9b8f26d32a04a7b76af",
+      "/private/tmp/v421-final-exits-754f2b76-e1/public-api.log": "a3162c758bd199e7922faf66f2d09ac0e386c135c713e69a0aa6533ae65e5f19",
+      "/private/tmp/v421-final-exits-754f2b76-e1/public-api-postgres-result.json": "8e595202936ca2302a95de2847482964b72c092ddc7086752ea1a04e1a41a9c2",
+      "/private/tmp/v421-final-exits-754f2b76-e1/public-api-postgres.log": "7d3fd7ecfb83a84f06fe7fc4f73db3ef8ba5de30e73b2cac9d868bf3436a8846",
+      "/private/tmp/v421-final-exits-754f2b76-e1/spec-result.json": "4b433e60fad7b8f93eaa9f8295df615f76752e6fb1175bdaff3ef16fc9cd6b87",
+      "/private/tmp/v421-final-exits-754f2b76-e1/spec.log": "c33201a0e9ed95651952aa685532f99fd182010d6de0fa416b1b4efb64f6b3cc",
+      "/private/tmp/v421-final-exits-754f2b76-e1/tasks-result.json": "04aa90848d852d4394bfe06d13a5550d18fa740af0da91611767f3604c3d9487",
+      "/private/tmp/v421-final-exits-754f2b76-e1/tasks.log": "ece43c8ddf55dba6226603ba039df422e3b5367f50c399f56f758017d8212290",
+      "/private/tmp/v421-final-exits-754f2b76-e1/container_runner.py": "bc931c8112ad4b840d1928602ee674d5896ce9148838ccfe69952c5dd65fcef6",
+      "/private/tmp/v421-final-exits-754f2b76-e1/public-api-postgres.sh": "fc6f6545c6884bd831d84490a90ed6b856b14fd58c7ee424c2829e39af33f79f",
+      "/private/tmp/v421-final-exits-754f2b76-e1/public-api.sh": "f837bb3667dca09f042b607fda7017549fe1b689da0a1e831be2ce84d6e45738",
+      "/private/tmp/v421-final-exits-754f2b76-e1/spec.sh": "c6c954c7e2827c47c93d2127efe360a03a797d72f44cde346b29ca8c4e3ce7f9",
+      "/private/tmp/v421-final-exits-754f2b76-e1/tasks.sh": "b10750ca66195857531763378130351791d1cb12f4266665d9b17ffb42070da5",
+      "/private/tmp/v421-final-release-754f2b76-e1/evidence/reports/go-integration.jsonl": "5757b4a11cfc082fe7cd929c3fbbcf02308f576a0e59a9605b4c76a688b5d0cd",
+      "/private/tmp/v421-final-release-754f2b76-e1/evidence/reports/go-process-a.jsonl": "ca3b4afdd22f6a78c12c028c8829b0ec037e5fd1f90c332208c74b737faef87a",
+      "/private/tmp/v421-final-release-754f2b76-e1/evidence/reports/go-process-c.jsonl": "5d26bd3394e387623e8cdeb2f0f86d572e5b43c13ef4082cd49534cd370cdfd7",
+      "/private/tmp/v421-final-release-754f2b76-e1/evidence/reports/go-unit.jsonl": "5f4570ecc23f0c1aca517dd94774c6b928dc12773ae3007ffe395e63f0ce59cc",
+      "/private/tmp/v421-final-release-754f2b76-e1/evidence/reports/runtime.xml": "391f00c17598ca7eb2d45addc3b2ff04f831bed07019bf2a2c7cd6e2b6bc83e5",
+      "/private/tmp/v421-evidence-streams-vkeangyw/go-invocation-01.jsonl": "5f4570ecc23f0c1aca517dd94774c6b928dc12773ae3007ffe395e63f0ce59cc",
+      "/private/tmp/v421-evidence-streams-vkeangyw/go-invocation-02.jsonl": "6bb5099829159e9cf1b618e80be4f023643d9c959f887b63d115f6d3fbe9a9a7",
+      "/private/tmp/v421-evidence-streams-vkeangyw/go-invocation-03.jsonl": "c2db74bacd9d96defcc54eb726f0352348417437d2ff4af97003aa0d6bc87aaf",
+      "/private/tmp/v421-evidence-streams-vkeangyw/go-invocation-04.jsonl": "5757b4a11cfc082fe7cd929c3fbbcf02308f576a0e59a9605b4c76a688b5d0cd",
+      "/private/tmp/v421-evidence-streams-vkeangyw/go-invocation-05.jsonl": "ca3b4afdd22f6a78c12c028c8829b0ec037e5fd1f90c332208c74b737faef87a",
+      "/private/tmp/v421-evidence-streams-vkeangyw/go-invocation-06.jsonl": "7f93441c3b1744040af69d929ca20a0c6aa6bb83649ebc5f726bee42ac140535",
+      "/private/tmp/v421-evidence-streams-vkeangyw/go-invocation-07.jsonl": "5d26bd3394e387623e8cdeb2f0f86d572e5b43c13ef4082cd49534cd370cdfd7",
+      "/private/tmp/v421-final-release-754f2b76-e1/evidence/reports/ui-stack/run-4034895466/browser-report.json": "3a9b080f08ba9cacae261ec0beb3ffe5c0fe125743b3dcbb85a760c01f90fccd",
+      "/private/tmp/v421-final-release-754f2b76-e1/evidence/reports/ui-stack/run-918773793/browser-report.json": "5146139ec8b26993b84f598e7dd2c5bf9051a165b838736c606e7282c5987f5b",
+      "/private/tmp/v421-release-skip-policy-754f2b76.json": "8fd517095338fbe59296e57fbf8dd7944ee40b1c14ad56932106e52d2536c3d1",
+      "captured-source:internal/credentials/litellm/contract_test.go": "c44a07881f53c7a61aea1bc5075736b1f62371f6d52d3ffe64feb4d864972a4e",
+      "captured-source:internal/performance/gpu_test.go": "c3a9c098b83cb172e1dc0ce19a7d6c12f286f6b7e9784c39ec2540f154d98770",
+      "captured-source:internal/securefile/securefile_test.go": "01bb5dab8c3a2788bf2a0d368fd47fe160d24bb6315b3451ec836a645ee78fca",
+      "captured-source:internal/telemetry/collector_integration_test.go": "eef2e2c073946c0cb9ef14cbccda07e8033efe2d65612fba99c08f8c5cd3b221",
+      "captured-source:tests/eval/project_workflows/live_test.go": "85edbdcd8ddea485294b42db2a463dfc347cb68040dd0c251adc7903847e95fe",
+      "captured-source:tests/integration/streamline/live_gateway_test.go": "68323a80fe024dd40c02ff102b0d44c8ffe1aaf6229371861032a0d09150fff7",
+      "captured-source:tests/integration/streamline/live_routing_test.go": "3dacbec7ce81916325777a992d7d7a8f94db12de5ce3b3f2e573573174285a2d",
+      "captured-source:runtime/tests/test_podman_supervisor_integration.py": "8b8724a087dd21044d925e58d308a13d509f8d634742c7ec4eda49530f39a53b",
+      "captured-source:runtime/tests/test_podman_owner_integration.py": "58fc2e26eff14168e578473f4c0639b93e13f6b8de3d06c1e7a4966bb66a27aa",
+      "captured-source:runtime/tests/test_podman_deployment_integration.py": "3346e86f1b3a7bdcdab5fba37f0f96c58b2630607f5fa9b665a9b8396c93e6de",
+      "captured-source:runtime/tests/test_podman_execution_integration.py": "34cbded2a15c10e7a9dfcc49537aeefd19bdf9193368003d4b2e47ecd8ee6326",
+      "captured-source:runtime/tests/test_podman_release_integration.py": "07916c7bb771694aea7fb4567fc3965e6c190a5b8d0020aa467a48b4316f92e6",
+      "captured-source:runtime/tests/test_podman_capabilities.py": "a2bd64ff7ea2f4ae2bc997c2a708eb8b54366b6ff75cbd6f91b7940c725adb3e",
+      "captured-source:runtime/tests/test_scan_ffuf_live.py": "c53413e6c2ac4ce657d1e40a68f9f9dda4b66fa5ce14a4bbcd49ed69dcc8eac9",
+      "captured-source:runtime/tests/test_scan_sqlmap_live.py": "690a24f8aa6cce20daa7a5922cc860528ce4e6c9341895c1640c1e9d3fe58570",
+      "captured-source:runtime/tests/test_scan_katana_live.py": "645832c9f43ea20d49f7bc5e68cba95d2770baeb89911e328ef59568b43781db",
+      "captured-source:runtime/tests/test_scan_toolset.py": "4ee34f42a4ef6aebf4369d03399c5e3dd5d3ae1eabe6e9c2d3777fa145ec8585",
+      "captured-source:runtime/tests/test_openapi_toolset.py": "5f3f8e70a160bc501af3a382934cc4af4b1fe05f069cf2a26096cf40bfc0da4e",
+      "captured-source:runtime/tests/test_live_gateway.py": "460ef0077775ba37ddd3936b0c222ead15df002d360642269f56afdfcf1c1fea",
+      "captured-source:runtime/tests/test_interactsh_protocol.py": "ae30a9b89cb8723eadce0ad4628574af2e00db7ca8f848675d12adf757917e50",
+      "captured-source:runtime/tests/test_audit_completion_e2e.py": "a8601af428af7933e3f630b32b379b3f11da6a61255b8af2a20f6279a41e69b6",
+      "captured-source:internal/auditimport/completion_integration_test.go": "4bcda69942da99d80f2b6f0d3d9a80f8e58f7bb56785b68d71132612f8c5dd20",
+      "captured-source:ui/src/test/test-support.test.ts": "aeffa53c005cd8511d99ee93b85ab396d072894453e9d16e68f01212e201391f"
+    }
+  },
+  "limits": [
+    "No individual test-case count is invented for plain race output.",
+    "No standalone stage exit code is invented; stage evidence is bound to the whole make target exit.",
+    "Canonical files and their echoed log streams are not counted twice.",
+    "Skipped optional cases are classified; they are not described as passed."
+  ]
+}

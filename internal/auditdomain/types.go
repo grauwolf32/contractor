@@ -330,6 +330,24 @@ type Evidence struct {
 	ContentMemberID  string                 `json:"content_member_id,omitempty"`
 	ObservedAt       string                 `json:"observed_at,omitempty"`
 	DeploymentMarker string                 `json:"deployment_marker,omitempty"`
+	HTTPRequestID    string                 `json:"http_request_id,omitempty"`
+	HTTPRequestTag   string                 `json:"http_request_tag,omitempty"`
+}
+
+// RequiresHTTPObservation identifies an explicitly pinned HTTP check. An active
+// test alone does not identify its instrument and may use non-HTTP evidence.
+func (task ItemTask) RequiresHTTPObservation() bool {
+	if task.Finding != nil && task.Finding.Method == "http-probe" {
+		return true
+	}
+	if task.Checklist != nil {
+		for _, kind := range task.Checklist.RequiredEvidence {
+			if kind == "http-observation" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type CoverageEnvelope struct {

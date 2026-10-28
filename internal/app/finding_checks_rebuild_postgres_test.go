@@ -71,7 +71,7 @@ func TestPostgresFindingChecksDataMigrationCLIUsesExactInlineAndFilesystemSource
 		ref, _ := json.Marshal(exact.Ref)
 		descriptor, _ := json.Marshal(exact)
 		_, e = pool.Exec(ctx, `INSERT INTO finding_proposal_receipts(receipt_id,proposal_id,allocation_id,runtime_agent_id,runtime_instance_id,stage_execution_id,logical_agent_name,invocation_id,submission_id,client_key,request_digest,run_id,owner_id,project_id,workflow_name,workflow_version,workflow_schema_version,workflow_configuration_ref,workflow_closure_digest,proposal_ref,proposal_digest,proposal_media_type,proposal_size_bytes,evidence,report_projection)
-VALUES($1,$1,$1,$1,$1,$1,'worker',$1,$1,$1,$2,'gone-source',$3,$4,'fixture','1','contractor/v1alpha1','{"name":"fixture","version":"1"}',$2,$5::jsonb,$6,'application/json',$7,'[]','{"description":"Original bytes survive explicit migration.","limitations":[],"severity_suggestion":"medium","standard_refs":[],"subject":null,"title":"CLI preservation"}')`, "receipt-cli-"+kind, digest, project.OwnerID, project.ProjectID, ref, exact.Digest, exact.SizeBytes)
+VALUES($1,$1,$1,$1,$1,$1,'worker',$1,$1,$1,$2,'gone-source',$3,$4,'fixture','1','contractor/v1alpha1','{"name":"fixture","version":"1"}',$2,$5::jsonb,$6,'application/json',$7,'[]','{"description":"Original bytes survive explicit migration.","limitations":[],"preconditions":[],"severity_suggestion":"medium","standard_refs":[],"subject":null,"title":"CLI preservation"}')`, "receipt-cli-"+kind, digest, project.OwnerID, project.ProjectID, ref, exact.Digest, exact.SizeBytes)
 		if e != nil {
 			t.Fatal(e)
 		}

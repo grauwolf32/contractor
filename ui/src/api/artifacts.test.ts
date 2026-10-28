@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import ts from "typescript";
@@ -26,6 +27,7 @@ const runtimeConfig: RuntimeConfig = {
 };
 
 const metadata: ArtifactMetadata = {
+  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "projects",
     name: "architecture",

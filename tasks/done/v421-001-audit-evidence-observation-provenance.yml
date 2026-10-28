@@ -1,0 +1,190 @@
+schema_version: "1.0"
+id: V421-001
+title: Preserve trusted observation provenance in Audit evidence
+milestone: data-model-consumers-2026-10
+epic: audits
+kind: defect
+introduced_by: V39-003
+priority: P2
+status: completed
+depends_on: []
+languages: [go, python, json, typescript, yaml]
+goal: >-
+  Connect the existing Audit evidence observation-time and deployment-marker fields to real
+  Runtime observations, preserve them through result collection and retention, and let report
+  consumers distinguish the observed target from the later collection of its evidence.
+context:
+  specification:
+    - docs/spec/audits/review-and-reports.md#REV-R7
+    - docs/spec/audits/review-and-reports.md#REV-R8
+    - docs/spec/audits/worker-completion.md#AWC-R33
+    - docs/spec/audits/worker-completion.md#AWC-R54
+    - docs/spec/tools/http-caido.md
+    - docs/spec/platform/limits.md
+    - docs/spec/platform/failure-model.md
+  review: User-requested detailed data-model consumer review on 2026-10-27, finding 1.
+  severity: medium
+  finding: >-
+    internal/auditdomain/types.go:327-334 defines Evidence.ObservedAt and DeploymentMarker,
+    and codec.go:627-634 validates supplied values. The normal audit-results@2 producer
+    cannot supply either: runtime/src/contractor_runtime/toolsets/audit_results/v2.py:79
+    accepts exactly kind and summary, contracts.py represents only those values, and
+    packages.py:253-259 writes only id, kind, summary and content_member_id. The live HTTP
+    Worker in configs/agent-templates/audit_wstg_http_verifier.yaml:23 uses this toolset.
+    Thus these fields have no normal producer even though REV-R7/R8 require observation time
+    and an available deployment marker. Evidence collection/publication time does not prove
+    when the live target was observed.
+  siblings: >-
+    Inspect incremental and whole-batch submissions, prospective encoder admission, sealed
+    publication, Runtime HTTP request/capture records and selected exact evidence, direct
+    authored check-result packages, Go evidence decoding/import/retention, coverage evidence
+    reads and final report provenance. Preserve existing scanner/tool and finding HTTP
+    evidence boundaries; do not confuse a model summary with a trusted HTTP observation.
+  provenance: >-
+    git blame traces the exact kind/summary-only tool restriction to V39-003, commit
+    4344c034a64d85a3876e2d3db50e12085293891a. The encoder omission originated in V39-004,
+    02bbd8bb97ac9912c26157b155e038e9b138c0e3; the Evidence fields were introduced by V25-002,
+    658a88dd68d023e02e78cad8cda93615e3da414e. V39-003 is the primary cause of the ordinary
+    model-facing producer gap; this task fixes the collector and encoder together.
+  overlap: >-
+    V411-014 and V411-016 add richer pentest discovery/proof/report context; V410-003 and
+    V410-008 add sitemap/HTTP/Caido observations. Reuse their shared capture provenance when
+    present, but do not depend on unfinished pentest or sitemap features to repair the
+    existing generic Audit evidence path. Coordinate edits to shared HTTP capture code.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. Preserve V62 compact execution manifests and sealed single-chain admission: observation provenance belongs to selected evidence/task authority, never duplicated accepted_plan/dependencies in the compact manifest. Current HTTP sitemap collection is merged and may supply shared capture plumbing without becoming a new dependency.
+implementation_decision: >-
+  Summary-only evidence remains an attributed model assertion without an invented target
+  timestamp. Selected http_request_id evidence retains exact invocation-owned capture bytes,
+  the actual first request-attempt start time and optional pinned deployment attribution. A live HTTP
+  requirement is explicit (http-probe or required http-observation kind); active-test alone
+  cannot identify an instrument. Already accepted capture facts remain available for matching
+  item replays after recent-buffer eviction. No compact manifest or admission-chain duplication.
+scope:
+  in:
+    - Define the trusted source and precise meaning of each evidence observation timestamp and optional deployment marker in the owning specs.
+    - Carry selected allocation-local HTTP capture or exact evidence provenance through the ordinary audit-results@2 collector, deterministic encoder and Go importer/retained evidence readers.
+    - Preserve observation metadata through incremental updates, whole-batch validation, receipt replay, exact publication reconciliation and source Run deletion.
+    - Add shared valid/invalid metadata fixtures and a regression through the real Runtime producer and PostgreSQL-backed importer.
+  out:
+    - Automatic deployment discovery, clock synchronization claims, storing all HTTP traffic, new evidence tables, new receipts or a new pentest action/proof framework.
+    - Treating model-authored timestamps, deployment text, summaries or evidence kinds as verified target facts.
+    - Changing configured live models, starting live-target scans, migrating a demo database or rewriting immutable retained reports.
+requirements:
+  - id: R1
+    text: >-
+      An accepted observation records the time of the actual observation or explicitly identifies
+      the Runtime assertion/collection event it times. A generic collection timestamp must never
+      be labeled as the time of an earlier HTTP exchange. Reuse allocation-local capture records
+      and exact selected evidence; the model may select an existing record but cannot author its
+      trusted timestamp or deployment identity. Document unavailable deployment identity honestly.
+  - id: R2
+    text: >-
+      Define one closed metadata shape and source-binding rule for every producer and reader.
+      Selected HTTP evidence keeps its exact capture identity and available deployment marker;
+      static summary evidence retains truthful assertion provenance without claiming an HTTP
+      capture. A missing live observation source cannot be silently replaced by the current time.
+  - id: R3
+    text: >-
+      Invalid or cross-allocation evidence selection is a permanent existing classified tool
+      validation error before collector mutation. If an observation source is unavailable, keep
+      an explicit evidence gap and disallow a conclusive result whose pinned evidence contract
+      requires that observation. Never fabricate metadata to satisfy the contract.
+  - id: R4
+    text: >-
+      Freeze observation metadata with accepted item content. Exact replay and publication
+      retries reuse the original metadata and identical canonical bytes; encoding must not read
+      the wall clock. Updates use existing expected_revision semantics. Preserve existing
+      bounded retention, cancellation and classified infrastructure failures.
+  - id: R5
+    text: >-
+      Charge metadata in existing evidence/item/collection/package byte accounting. Update the
+      owning specs, shared fixtures and each Go/Python/JSON/public projection affected by the
+      chosen shape in the same change, regenerating public clients when applicable. Add no
+      compatibility fallback for an undocumented shape.
+failure_outcomes:
+  - operation: Select and admit evidence provenance into one invocation-owned collector
+    permanent: Invalid, foreign or missing required source returns the existing safe Audit field/contract error; collector contents and revision remain unchanged.
+    retryable: Only existing classified capture/artifact infrastructure failures are retryable under the owning invocation deadline; bad metadata is never retried automatically.
+    ambiguous: Admission replay uses existing item revision/content identity; no additional observation is created or timestamp regenerated.
+    cancelled: Join any off-loop source read/encoding before allocation cleanup and discard unsealed invocation state.
+    timeout: The existing source-read and invocation deadlines own I/O and admission; timeout cannot become conclusive evidence.
+  - operation: Publish and import the sealed check-results package
+    permanent: Invalid provenance or exact-content mismatch uses existing result/collection validation outcomes without partial accepted evidence.
+    retryable: Existing bounded publication and transaction-conflict policies apply without introducing another retry loop.
+    ambiguous: Reconcile using existing exact binding/read-back and collection receipt; retries publish identical metadata and bytes.
+    cancelled: Existing finalizer and importer owners join in-flight work before release or rollback.
+    timeout: Preserve separate existing publication and collection transaction deadlines.
+cardinality:
+  - collection: Evidence attached to one invocation's assigned Audit batch
+    expected: A small number per check, within at most 64 assigned items.
+    maximum: 256 evidence records across the batch; existing 8-MiB collected-data and 16-MiB package bounds apply.
+    bound: Resolve only selected exact records in bounded batches; no HTTP-history or Run-artifact enumeration, and metadata bytes count before admission.
+  - collection: Retained imported evidence for an Audit
+    expected: Only evidence selected by successful existing collection receipts.
+    maximum: Existing Audit retained-evidence budget and importer work limits; this task increases no parent cardinality.
+    bound: Reuse collection work/transaction limits and paginated readers; add a realistic multi-item maximum-record test.
+lifecycle:
+  - entity: Observation metadata in existing collector snapshots and retained evidence
+    delete: Allocation cancellation/process loss discards unsealed state; existing Run/Project/Audit deletion owns retained artifacts.
+    cascade: No new entity or ownership graph; metadata follows the evidence revision and its existing holds.
+    retention: Accepted metadata stays immutable with its evidence; publication retries and source Run deletion do not invent a new observation time.
+acceptance_criteria:
+  - id: A1
+    given: A scripted local HTTP observation selected by a normal audit-results@2 Worker and an injected observation clock distinct from collection time.
+    when: The result is collected, published and imported through the real Runtime and PostgreSQL path.
+    then: Retained evidence contains the original observation time and available trusted deployment marker; collection time is not substituted.
+  - id: A2
+    given: Static evidence, unavailable deployment identity, foreign capture selection and missing metadata required by a pinned live evidence contract.
+    when: Scalar and whole-batch submissions are attempted.
+    then: Static/unavailable facts are represented honestly; invalid selections and missing required evidence cannot produce an accepted conclusive check or partially mutate a batch.
+  - id: A3
+    given: An accepted result, a matching replay, a stale update, a lost publication response and later source Run deletion.
+    when: Existing replay/reconciliation/retention paths execute.
+    then: Accepted observation metadata remains exact; replay does not regenerate time, stale changes fail atomically, and retained Audit evidence remains attributable.
+  - id: A4
+    given: A realistic 64-item batch with the maximum 256 evidence records, metadata near byte limits and cancellation during source read or encoding.
+    when: Admission and publication run.
+    then: Existing count/byte/work bounds hold, oversize rejection precedes mutation, and all in-flight work is joined before cleanup.
+  - id: A5
+    given: The shared fixtures and every changed owner package.
+    when: The required checks run with a disposable PostgreSQL URL and no live model.
+    then: The regression fails on the original producer path; all listed suites pass without skipped database tests or zero-test selections.
+tests:
+  - command: 'cd runtime && uv run --frozen pytest -W error tests/test_audit_result_collector.py tests/test_audit_result_publication.py tests/test_audit_results_toolset.py tests/test_audit_completion_contracts.py tests/test_http_capture.py tests/test_http_toolset.py'
+    covers: [A1, A2, A3, A4]
+  - command: 'cd runtime && uv run --frozen pytest -W error tests/test_allocation.py tests/test_allocation_contracts.py tests/test_http_toolset_lifecycle.py tests/test_http_caido_security.py tests/test_http_caido_concurrency.py'
+    covers: [A3, A4, A5]
+  - command: 'test -n "$CONTRACTOR_TEST_DATABASE_URL" && go test -tags=integration -race -count=1 ./internal/auditdomain ./internal/auditimport ./internal/auditstore/internal/pgstore ./internal/auditservice'
+    covers: [A1, A2, A3, A4, A5]
+  - command: make test-audit-completion-e2e
+    covers: [A1, A2, A3, A5]
+  - command: make verify-public-api
+    covers: [A1, A2, A5]
+  - command: go run ./cmd/contractor-server config validate --root ./configs
+    covers: [A1, A5]
+  - command: make ui-verify
+    covers: [A5]
+  - command: make lint
+    covers: [A2, A4, A5]
+implementation_commit: 16b4378e33a5c3cb58a56b6246f8ae05d3fa5f17
+verification:
+  completed_on: '2026-10-27'
+  source_commit: 16b4378e33a5c3cb58a56b6246f8ae05d3fa5f17
+  results:
+    - Runtime focused suites passed 242 tests; allocation and HTTP/Caido siblings passed 86 tests.
+    - All four listed Go owner packages passed with integration tags, race detector and disposable PostgreSQL; no database skip was accepted.
+    - make verify-public-api and shipped configuration validation passed.
+    - make ui-verify passed all 196 files, 2447 tests and one expected negative test, then built successfully.
+    - make lint passed including strict specs, generated clients, layers, exports and release graph.
+    - Clean-source make test-audit-completion-e2e passed 254 Go cases and 497 Runtime cases with no selected skips.
+  evidence:
+    - /private/tmp/v421-001-verification.json
+    - /private/tmp/v421-001-final-completion.log
+  notes: >-
+    Trusted HTTP metadata comes from the allocation-owned live HTTP capture and the pinned
+    optional deployment declaration. The observed time marks the first request-attempt start,
+    not proof that transport reached the target. Summary-only static and non-HTTP active tests
+    retain their existing acceptance; only an explicitly HTTP evidence contract requires capture.
+    Historical Caido captures without trusted observation metadata remain ineligible for this
+    selector. Parent integration still owns branch landing and the final combined release gate.

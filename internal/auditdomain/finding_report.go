@@ -12,6 +12,7 @@ type FindingReportProjection struct {
 	Description        string               `json:"description"`
 	Subject            *FindingSubject      `json:"subject"`
 	Hypothesis         string               `json:"hypothesis,omitempty"`
+	Preconditions      []string             `json:"preconditions"`
 	StandardRefs       []StandardReference  `json:"standard_refs"`
 	SeveritySuggestion string               `json:"severity_suggestion"`
 	Limitations        []string             `json:"limitations"`
@@ -23,7 +24,8 @@ type FindingReportProjection struct {
 func ProjectFindingReport(proposal FindingProposal) FindingReportProjection {
 	return FindingReportProjection{
 		Title: proposal.Title, Description: proposal.Description, Subject: proposal.Subject,
-		Hypothesis: proposal.Hypothesis, StandardRefs: proposal.StandardRefs,
+		Hypothesis: proposal.Hypothesis, Preconditions: slices.Clone(proposal.Preconditions),
+		StandardRefs:       proposal.StandardRefs,
 		SeveritySuggestion: proposal.SeveritySuggestion, Limitations: proposal.Limitations,
 		Locations: proposal.Locations, HTTPExchange: proposal.HTTPExchange,
 	}
@@ -49,7 +51,7 @@ func (projection *FindingReportProjection) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	err = validateFindingJSONFields(raw,
-		"title description subject standard_refs severity_suggestion limitations",
+		"title description subject preconditions standard_refs severity_suggestion limitations",
 		"hypothesis locations http_exchange", "subject")
 	if err != nil {
 		return err
@@ -85,7 +87,7 @@ func validateFindingReportJSON(fields map[string]any, decodedSubject bool) error
 // validateFindingReportProjection is the one definition of the report fields
 // of a finding proposal; validateFindingProposal applies it too.
 func validateFindingReportProjection(value FindingReportProjection) error {
-	if value.StandardRefs == nil || value.Limitations == nil {
+	if value.Preconditions == nil || value.StandardRefs == nil || value.Limitations == nil {
 		return invalid(CodeInvalid, "proposal.arrays")
 	}
 	if validateText(value.Title, "title", true) != nil || validateText(value.Description, "description", true) != nil ||
@@ -109,7 +111,8 @@ func validateFindingReportProjection(value FindingReportProjection) error {
 			return err
 		}
 	}
-	if validateStringList(value.Limitations, MaximumCoverageValues, "limitations") != nil ||
+	if validateStringList(value.Preconditions, MaximumCoverageValues, "preconditions") != nil ||
+		validateStringList(value.Limitations, MaximumCoverageValues, "limitations") != nil ||
 		len(value.StandardRefs) > MaximumCoverageValues {
 		return invalid(CodeLimitExceeded, "proposal")
 	}

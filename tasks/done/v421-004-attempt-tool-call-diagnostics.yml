@@ -1,0 +1,196 @@
+schema_version: "1.0"
+id: V421-004
+title: Add a bounded diagnostic interface for retained tool-call detail
+milestone: data-model-consumers-2026-10
+epic: operations
+kind: feature
+priority: P2
+status: completed
+implementation_commit: a74a097c7dda03e26b5eea5cfa7c74f2328470b7
+depends_on: [V421-003]
+languages: [go, typescript, yaml, markdown]
+goal: >-
+  Give the Run owner a paginated Tool calls view inside one Stage attempt's
+  Technical details, using the sanitized detail already retained in execution
+  reports rather than deleting useful diagnostics or collecting new content.
+context:
+  review: >-
+    User-requested data-model consumer review on 2026-10-27, finding 4. The user
+    explicitly selected a concrete diagnostic interface instead of removing
+    the retained detail. V421-003 establishes the owning attempt diagnostic
+    authorization, effective-report selection and availability conventions.
+  specification:
+    - docs/spec/platform/observability.md
+    - docs/spec/execution/runs.md
+    - docs/spec/api/public-api.md
+    - docs/spec/platform/security.md
+    - docs/spec/platform/limits.md
+    - docs/spec/platform/errors.md
+    - docs/spec/platform/failure-model.md
+    - docs/spec/platform/lifecycle.md
+    - docs/spec/ui/ui.md
+    - docs/design/ui/README.md
+  finding: >-
+    internal/contracts/reporting/telemetry.go:189-207 defines detailed ToolCalls;
+    internal/telemetry/policy.go:128-151 redacts, truncates and copies them;
+    internal/telemetry/repository.go:280-295 copies reports into StageMetrics.
+    Public Run detail currently consumes only aggregate counters and
+    ProjectAttemptDiagnostics, never the retained call records. Consequently
+    call IDs, safe arguments, outcomes, durations, result byte counts and call
+    errors have storage and policy cost without a diagnostic consumer.
+  siblings: >-
+    Cover Planner and every logical Worker's execution reports, ordinary and
+    Audit/model-free Runs, retained/evicted detail, absent participants and
+    late reports. Preserve live Worker State tools, OTLP content-capture policy,
+    aggregate counters and Eval usage. RUN-R94 currently excludes tool calls
+    and arguments from public Run status; amend the owning contract explicitly
+    for the separate owner-only sanitized diagnostic surface, not by silently
+    exposing raw reports in GET Run.
+  decision: >-
+    Reuse retained sanitized ToolCallRecord data and V421-003's diagnostic
+    authorization/selection rules. The owner sees retained records with a
+    documented scope and truncation status. No raw response bodies, prompts,
+    results, physical identities, new telemetry table or per-call wall-clock
+    timestamps are introduced. Reopen collection requirements only if a real
+    diagnostic question cannot be answered by these existing facts.
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. Read retained stage_metrics participant detail, including Eval-held records whose source report rows have expired. Reuse V421-003 owner/stage authorization and generation semantics; do not silently shorten diagnostic retention to the original report tables.
+  shared_boundary_review: >-
+    Quote each owner/Run/Stage/participant scope member before hashing the
+    diagnostic cursor context, because ResourceId permits colons; apply to
+    both diagnostic endpoints. Refresh correlation uses an encoded tuple too.
+    Preserve OBS-R32's existing Runtime vocabulary error-code grammar and
+    fallback rather than inventing a closed list that drops toolset codes.
+    Both diagnostic UI readers enforce UTF-8 byte bounds as well as generated
+    character limits. Storage conflicts use the existing retryable envelope;
+    UI honors Retry-After when present, otherwise bounded exponential backoff.
+scope:
+  in:
+    - Add an owner-only paginated GET /v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls and consume it from the attempt Technical details Tool calls panel.
+    - Select Planner or a logical Worker through a closed validated participant selector; pin opaque pagination to one selected retained StageMetrics generation and its participant record order.
+    - Return tool, bounded opaque per-report callReference, outcome, nullable lossless decimal-string durationMs/resultSizeBytes, bounded argumentsJson text, argumentsTruncated and sanitized call error, plus report availability and detail truncation.
+    - Define this narrow public projection in specs/OpenAPI, generate both clients, reuse UI primitives and bump the UI package version.
+    - Add real-store, API, privacy, byte-budget, cursor and browser regressions across every participant kind.
+  out:
+    - Deleting retained ToolCalls, disabling collection, changing model prompts, or adding model calls to explain diagnostics.
+    - Raw provider/model output, tool result bodies, captured HTTP traffic, environment values or credentials.
+    - A global tool-call search, a new persistent call ledger, increased report retention or an all-report download endpoint.
+requirements:
+  - id: R1
+    text: >-
+      Authorize owned Run and Stage association before report access. Reuse the
+      effective participant report selection from V421-003. Public selectors
+      cannot supply report IDs, session IDs, allocation IDs or Runtime URLs.
+  - id: R2
+    text: >-
+      Return only already sanitized and validated retained call fields; add
+      the public URL/secret-safe presentation boundary to nested arguments and
+      errors where necessary. Never bypass the common redaction policy. Preserve
+      json.Number literals and shared UTF-8 byte accounting. Expose sanitized
+      arguments as canonical bounded JSON TEXT in argumentsJson, rendered as
+      text/code without JSON.parse-to-number; use canonical decimal strings
+      for optional durationMs/resultSizeBytes. Account for outer JSON string
+      escaping in response bytes. Do not round large numbers through
+      JavaScript or accept unknown outcome/error variants. Privacy-filter every
+      returned string. Do not expose source CallID directly: derive a stable
+      opaque callReference of at most 128 ASCII bytes from the selected report
+      and record ordinal. Bound the displayed tool name to 128 UTF-8 bytes,
+      public error message to 4096 bytes and argumentsJson to the existing
+      sanitized 4096-byte content bound. Oversized source strings use explicit
+      field truncation/unavailable markers and a bounded row rather than
+      skipping a call or causing an empty nonadvancing page. Specify these
+      per-field/per-record limits in the shared public contract and test the
+      admitted near-1-MiB source-record case as well as normal Python producers.
+  - id: R3
+    text: >-
+      Default to 25 records, maximum 100 records and 128 KiB compact UTF-8 JSON
+      per response, using deterministic retained source order. A byte-limited
+      page ends before the first nonfitting record and yields a continuation;
+      each bounded record must fit an otherwise empty page. Decode at most
+      one selected participant report from StageMetrics per request; cap its JSON projection to
+      8 MiB to accommodate documented jsonb textual expansion, treating an
+      oversized stored document as unavailable without loading it into Go.
+      No scan of every report in the selected Stage is permitted. Cursor binds owner,
+      Run, Stage, participant, selected report generation and offset. Its opaque
+      contents do not expose excluded physical identities.
+  - id: R4
+    text: >-
+      An empty complete retained list, report-level truncation, argument-level
+      truncation, missing report, expired report and read failure are distinct.
+      Label the view as retained call detail, not a full event history. Existing
+      records have duration, not an exact wall-clock start time; never invent
+      a call timestamp from report collection or Stage dates.
+  - id: R5
+    text: >-
+      Read one selected bounded report per page without a full all-Stage scan,
+      per-row SQL or extra queries for each tool. Expand argument detail on
+      demand, load further pages explicitly, back off failures and stop polling
+      settled attempts. Check 390 px and light/dark/black themes.
+failure_outcomes:
+  - operation: Read a selected participant's retained tool-call page
+    permanent: >-
+      Existing 401/404 authorization/not-found rules apply. Invalid participant,
+      limit or wrong-scope cursor is 400 invalid_request. A changed report
+      generation is 409 conflict with a fresh-page action; do not silently mix
+      records. Corrupt optional report data is unavailable, not a fabricated
+      empty successful call history.
+    retryable: >-
+      Storage serialization/deadlock failures are 503
+      storage_transaction_conflict with the existing Retry-After policy;
+      UI retry uses bounded backoff and preserves prior displayed pages.
+    ambiguous: GET is read-only; repeat the same cursor and retain the local next cursor only after a successful page.
+    cancelled: Request cancellation ends the database read and any projection work; no background page builder remains.
+    timeout: Existing public request/database budget owns the read, independent of Worker execution deadlines.
+  - operation: Continue after retention or parent deletion invalidates the selected report
+    permanent: >-
+      Return the documented unavailable/expired report status or parent 404;
+      never resurrect telemetry, substitute another report silently or claim
+      zero tool calls. Explicit refresh may select a new effective report.
+    retryable: Expired/deleted telemetry is permanent; pending telemetry follows the bounded refresh policy from V421-003.
+    ambiguous: No mutation or re-collection is issued by a read retry.
+    cancelled: Same request-owned cancellation as the first page.
+    timeout: Same public read budget; failure never changes Run/Stage results.
+cardinality:
+  - collection: Reports of the selected attempt inside a Run
+    expected: One Planner and a few Workers
+    maximum: Existing Stage participant/allocation bound
+    bound: Exactly one selected participant report is decoded per page; no Run-wide history rescan.
+  - collection: Retained tool calls and nested argument/error content
+    expected: Tens to hundreds of calls
+    maximum: Existing 1000 retained calls per report, existing 4096-byte arguments and error bounds
+    bound: 100 records and 128 KiB per page; test both record-count and compact UTF-8 byte boundaries.
+lifecycle:
+  - entity: Tool-call diagnostic view and opaque page cursor
+    delete: Follow parent Run/Stage/report deletion; no independently deletable resource is introduced.
+    cascade: Report cleanup or parent deletion invalidates the cursor without recreating data.
+    retention: Existing report retention, Eval holds and oldest-detail eviction remain authoritative; the UI discloses truncation.
+acceptance_criteria:
+  - id: A1
+    given: Real stored Planner and Worker reports with successful and failed calls, sanitized arguments and nullable metrics
+    when: The owner selects each participant in an ordinary, Audit or model-free attempt
+    then: Every retained call can be inspected through API and UI with correct attribution, source order and exact available values.
+  - id: A2
+    given: 1000 calls with large multibyte arguments/errors, an admitted near-1-MiB identity/tool string, numbers beyond 2^53 and synthetic secret/URL sentinels
+    when: All pages are consumed and argument details expanded
+    then: Input and escaped output byte/row budgets hold, no records are lost or duplicated, browser-rendered argument numeric literals and decimal-string metrics remain exact, and excluded content and sentinels never appear.
+  - id: A3
+    given: Missing/expired reports, partial detail, evicted oldest records, malformed cursors and a replacement effective report
+    when: The owner reads or continues the view
+    then: Completeness and availability are explicit, cursor conflicts require refresh, no call timestamps are invented and settled objects do not poll forever.
+  - id: A4
+    given: Another owner's Run, a Stage from another Run, a storage failure, cancellation or timeout
+    when: A page is requested
+    then: Authorization and error classification remain correct, work ends with the request and execution results/counters are unchanged.
+  - id: A5
+    given: Updated owning specs, generated clients and responsive Tool calls panel
+    when: Owner-package, API and UI gates run
+    then: All contracts agree, themes and 390 px work, and a real-store/API regression fails on the implementation without this reader.
+tests:
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -tags=integration -count=1 ./internal/telemetry ./internal/runservice ./internal/httpapi/public'
+    covers: [A1, A2, A3, A4, A5]
+  - command: make verify-public-api verify-public-api-postgres
+    covers: [A1, A2, A3, A4, A5]
+  - command: make ui-verify ui-browser-mocked
+    covers: [A1, A2, A3, A5]
+  - command: make lint
+    covers: [A2, A5]

@@ -1639,7 +1639,6 @@ def _empty_invocation_metrics() -> dict[str, Any]:
         "totalTokens": 0,
         "cachedInputTokens": 0,
         "tokenUsageUnavailable": 0,
-        "latestPromptTokens": None,
         "toolCalls": 0,
         "toolErrors": 0,
         "tools": {},

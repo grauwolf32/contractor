@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../../test/builders";
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -33,6 +34,7 @@ function preview(value = document(), trusted = true) {
       context={{
         scope: { kind: "run", id: "run-test" },
         metadata: {
+          storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
           artifact: {
             namespace: trusted ? "finding-proposals" : "worker",
             name: "http.exchange.proposal-test",
@@ -215,6 +217,7 @@ describe("HTTP exchange preview", () => {
     renderWithAPI(
       <ArtifactPreviewPanel
         metadata={{
+          storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
           artifact: {
             namespace: "finding-proposals",
             name: "http.exchange.proposal-test",

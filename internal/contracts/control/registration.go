@@ -88,25 +88,13 @@ func (r AgentRegistration) Validate() error {
 type AgentRegistrationResponse struct {
 	APIVersion string `json:"apiVersion" strictjson:"required"`
 
-	RuntimeAgentID           string   `json:"runtimeAgentId" strictjson:"required"`
-	Labels                   []string `json:"labels" strictjson:"required"`
-	LabelRevision            uint64   `json:"labelRevision" strictjson:"required"`
-	HeartbeatIntervalSeconds int      `json:"heartbeatIntervalSeconds" strictjson:"required"`
-	ConfirmedLeaseSeconds    int      `json:"confirmedLeaseSeconds" strictjson:"required"`
+	HeartbeatIntervalSeconds int `json:"heartbeatIntervalSeconds" strictjson:"required"`
+	ConfirmedLeaseSeconds    int `json:"confirmedLeaseSeconds" strictjson:"required"`
 }
 
 func (r AgentRegistrationResponse) Validate() error {
 	if err := contracts.ValidateAPIVersion(r.APIVersion); err != nil {
 		return err
-	}
-	if !contracts.ValidRuntimeAgentID(r.RuntimeAgentID) {
-		return contracts.Invalidf("runtimeAgentId must be a lowercase SHA-256 SPKI fingerprint")
-	}
-	if err := validateSortedLabels("labels", r.Labels, 32, false); err != nil {
-		return err
-	}
-	if r.LabelRevision == 0 {
-		return contracts.Invalidf("labelRevision must be positive")
 	}
 	if r.HeartbeatIntervalSeconds <= 0 || r.ConfirmedLeaseSeconds <= r.HeartbeatIntervalSeconds {
 		return contracts.Invalidf("confirmed lease must exceed a positive heartbeat interval")

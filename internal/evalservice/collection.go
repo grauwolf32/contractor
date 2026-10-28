@@ -21,6 +21,21 @@ type preparedSetup struct {
 	Comparison evaldomain.Comparison `json:"comparison"`
 }
 
+// decodePreparedSetup reads only the bounded policy projection needed by a
+// member or review. Keep immutable plan/matrix validation at freeze time while
+// rejecting unsupported human-review parameters before any semantic consumer.
+func decodePreparedSetup(raw json.RawMessage, setup *preparedSetup) error {
+	if err := json.Unmarshal(raw, setup); err != nil {
+		return err
+	}
+	for _, check := range setup.Checks {
+		if err := check.ValidateHumanReviewParameters(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // CollectView observes a bounded dirty-member batch; it never admits an
 // execution or calls a producer. Terminal experiments remain claimable while
 // this private projection queue is dirty.
@@ -53,7 +68,7 @@ func (s *Service) CollectView(ctx context.Context, e evalstore.Experiment, claim
 			return err
 		}
 		var setup preparedSetup
-		if err = json.Unmarshal(plan.Setup, &setup); err != nil {
+		if err = decodePreparedSetup(plan.Setup, &setup); err != nil {
 			return err
 		}
 		verified, err := verifiedComparisonPins(ctx, st, e, plan, setup.Comparison)
@@ -94,7 +109,7 @@ func (s *Service) collectMember(ctx context.Context, e evalstore.Experiment, mem
 			return err
 		}
 		var setup preparedSetup
-		if err = json.Unmarshal(plan.Setup, &setup); err != nil {
+		if err = decodePreparedSetup(plan.Setup, &setup); err != nil {
 			return err
 		}
 		var observation *evaldomain.ResultInput

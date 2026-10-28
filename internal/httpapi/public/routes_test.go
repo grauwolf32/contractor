@@ -28,7 +28,7 @@ var routePathValues = map[string]string{
 	"namespace": "inputs", "pairId": strings.Repeat("b", 64), "projectId": "project-1",
 	"requestId": "review-1", "revision": "revision-1", "runId": "run-1",
 	"runtimeAgentId": strings.Repeat("c", 64), "scheme": "example", "slot": "result",
-	"sweepId": "sweep-1", "version": "1",
+	"sweepId": "sweep-1", "version": "1", "stageExecutionId": "stage-1",
 }
 
 var routePathParameter = regexp.MustCompile(`\{[^/{}]+\}`)

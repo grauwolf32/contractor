@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../test/builders";
 import { deferred } from "../../test/deferred";
 import { ownerListResponse } from "../../test/owner-lists";
 import { act, screen, waitFor, within } from "@testing-library/react";
@@ -49,6 +50,7 @@ function material(
   mediaType: string,
 ): ArtifactMetadata {
   return {
+    storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: { namespace, name, revision: `${name}-r1` },
     mediaType,
     size: 2048,

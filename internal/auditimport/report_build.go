@@ -237,6 +237,7 @@ func newReportFinding(row auditstore.ReportFinding) reportFinding {
 		FirstProposal: row.FirstProposal, Title: projection.Title, Description: projection.Description,
 		Subject: projection.Subject, Hypothesis: projection.Hypothesis,
 		Locations: projection.Locations, HTTPExchange: projection.HTTPExchange,
+		Preconditions:      append([]string{}, projection.Preconditions...),
 		SeveritySuggestion: projection.SeveritySuggestion,
 		StandardRefs:       append([]auditdomain.StandardReference{}, projection.StandardRefs...),
 		Limitations:        append([]string{}, projection.Limitations...),

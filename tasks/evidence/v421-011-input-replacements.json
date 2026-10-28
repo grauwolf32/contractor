@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-011",
+  "implementation_commit": "c86130f3a22766a185360cc77b4b68b89c496fa4",
+  "first_fix_commit": "97e40258a3955bbab60d5b708e49b0469ba33c8c",
+  "checks": [
+    {
+      "command": "make ui-verify ui-browser-mocked",
+      "exit_code": 0,
+      "log_sha256": "19dda9028dba8f19dd5f70c48a28cef61428101de94007fbd51cf9b0801ccbe5"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log_sha256": "35a21626b1abf45134da559078a39339966ceb5e71f439f180c9d6f269853635"
+    }
+  ],
+  "ui": {
+    "files_passed": 202,
+    "tests_passed": 2500,
+    "expected_failures": 1,
+    "server_tests_passed": 17,
+    "browser_tests_passed": 108
+  },
+  "negative_proofs": [
+    {
+      "baseline": "71f9654e873d21d02c311dec813ee1c033a10da8",
+      "expected_exit_code": 1,
+      "actual_exit_code": 1,
+      "failed_cases": 8,
+      "source_restored": true,
+      "log_sha256": "45f6832e0678072a48a92f750dfad766fbe850e2c159d41c82d187db29138a54"
+    },
+    {
+      "baseline": "97e40258a3955bbab60d5b708e49b0469ba33c8c",
+      "expected_exit_code": 1,
+      "actual_exit_code": 1,
+      "failed_cases": 1,
+      "source_restored": true,
+      "log_sha256": "325f312baa2b2067e811febcd0915e9cbcf4183d167e0a72d6647fcf82f14a66"
+    }
+  ],
+  "regressions": [
+    "Eight actual form scenarios cover upload/Git, User/Project, required/optional inputs, disabled button and direct form submission, failed metadata, retry or explicit optional omission.",
+    "Two real Chromium scenarios at390px prove delayed metadata cannot submit the old Project input and successful resolution sends the new exact revision.",
+    "A closed/reopened retained optional draft preserves its unconfirmed missing reference as an explicit clearable choice.",
+    "Existing late-response supersession and form-release cancellation remain covered."
+  ],
+  "intermediate_failures": [
+    "Git fixture originally delayed the preliminary existence lookup; changed it to return404 before delaying the exact-revision read.",
+    "Initial UI gate caught browser fixture formatting and computed-handler TypeScript context; both corrected before final complete gates.",
+    "Independent review found the missing-option recovery issue after remount; fixed within the still-open task and verified by a separate negative proof."
+  ],
+  "independent_review": "Original submission, per-slot isolation, supersession, cancellation and retained draft behavior reviewed; no further actionable finding after the recovery fix."
+}

@@ -41,6 +41,10 @@ const (
 // public ConfigId schema does.
 const MaxNameLength = 128
 
+// NamePattern is the shared ASCII name grammar, also bound into retained
+// diagnostic SQL so malformed keys cannot consume a pagination window.
+const NamePattern = `^[A-Za-z0-9][A-Za-z0-9_.-]*$`
+
 // MaxResourceIDLength bounds a resource identifier (ValidResourceID), as the
 // public ResourceId schema does.
 const MaxResourceIDLength = 256
@@ -78,7 +82,7 @@ var (
 	// the contracts tests rejects a copy in another package. The shared cases
 	// in api/testdata/v1alpha1/runtime-capability-cases.json hold Go, the
 	// private schemas, the public OpenAPI and the Runtime to both.
-	namePattern       = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]*$`)
+	namePattern       = regexp.MustCompile(NamePattern)
 	resourceIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.:-]*$`)
 	// idempotencyKeyPattern is the only Go definition of the Idempotency-Key
 	// grammar of the public IdempotencyKey parameter (API-R69). It has the

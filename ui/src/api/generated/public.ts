@@ -1420,6 +1420,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+                stageExecutionId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Inspect retained Runtime adapter diagnostics for an owned Stage attempt
+         * @description Reads only bounded Runtime projections from retained StageMetrics, including Eval-held metrics. Counters and durations are lossless decimal strings. Missing reports are not zero usage. No-store; read-only; selected Stage must belong to the owned Run. Cursor binds the retained metric generation; 409 requires refreshing the first page. Report availability is diagnostic and never changes a Run outcome. No prompts or tool content are returned.
+         */
+        get: operations["getRunRuntimeDiagnostics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+                stageExecutionId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Inspect retained sanitized tool calls for one owned attempt participant
+         * @description Reads only one selected participant from retained StageMetrics, including Eval-held metrics. This is retained call detail, not a complete event history. Arguments are bounded canonical JSON TEXT; clients must render them without JSON.parse-to-number. Metrics are exact decimal strings; absent measurements are null. No wall-clock call timestamps, source call/report identities, results, provider content or URLs are exposed. Cursor binds the selected participant and retained metric generation; 409 requires a fresh first page.
+         */
+        get: operations["getRunToolCalls"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/runs/{runId}/repeat-draft": {
         parameters: {
             query?: never;
@@ -2862,7 +2908,6 @@ export interface components {
             expected: {
                 [key: string]: string;
             };
-            schema?: string;
         };
         EvalDatasetInput: {
             datasetId: components["schemas"]["EvalId"];
@@ -2930,7 +2975,7 @@ export interface components {
                 [key: string]: string;
             };
             allowNotApplicable?: boolean;
-        };
+        } & unknown;
         EvalBudgets: {
             maxMembers: number;
             maxInFlight: number;
@@ -4375,6 +4420,11 @@ export interface components {
                 kind: string;
                 summary: string;
                 contentMemberId?: string;
+                /** Format: date-time */
+                observedAt?: string;
+                deploymentMarker?: string;
+                httpRequestId?: string;
+                httpRequestTag?: string;
             }[];
         };
         AuditCoverageRow: {
@@ -5041,7 +5091,21 @@ export interface components {
             size: number;
             text: string;
         };
+        /** Format: date-time */
+        ArtifactStorageTimestamp: string;
+        /** @description Registry dates; shared blob/version dates may predate this material. At most 512 encoded UTF-8 bytes. */
+        ArtifactStorageTimestamps: {
+            /** @description Creation of the containing ArtifactRegistry scope row. */
+            scopeCreatedAt: components["schemas"]["ArtifactStorageTimestamp"];
+            /** @description First registration of the shared blob row, not upload time, file mtime or the current file generation creation time. */
+            blobCreatedAt: components["schemas"]["ArtifactStorageTimestamp"];
+            /** @description Creation of the selected immutable storage-version row, preserved by exact forks. */
+            versionCreatedAt: components["schemas"]["ArtifactStorageTimestamp"];
+            /** @description Last change of the current logical binding, including freeze/thaw; not a content-modification claim. */
+            bindingUpdatedAt: components["schemas"]["ArtifactStorageTimestamp"];
+        };
         ArtifactMetadata: {
+            storageTimestamps: components["schemas"]["ArtifactStorageTimestamps"];
             gitSource?: components["schemas"]["GitSource"];
             artifact: components["schemas"]["ExactArtifactRef"];
             mediaType: components["schemas"]["MediaType"];
@@ -5175,6 +5239,86 @@ export interface components {
             message: string;
             retryable?: boolean;
         } & (unknown & unknown);
+        /** @description Canonical decimal uint64, at most 18446744073709551615. Never parse through a JavaScript number. */
+        DiagnosticUnsignedDecimal: string;
+        /** @description Canonical nonnegative int64 decimal, at most 9223372036854775807. Field names define milliseconds or byte units. */
+        DiagnosticInt64Decimal: string;
+        DroppedSpanDiagnosticCounts: {
+            queueOverflow: components["schemas"]["DiagnosticUnsignedDecimal"];
+            encodingFailed: components["schemas"]["DiagnosticUnsignedDecimal"];
+            nonRetryable: components["schemas"]["DiagnosticUnsignedDecimal"];
+            retryExhausted: components["schemas"]["DiagnosticUnsignedDecimal"];
+            collectorRejected: components["schemas"]["DiagnosticUnsignedDecimal"];
+            deadlineExceeded: components["schemas"]["DiagnosticUnsignedDecimal"];
+            cancelled: components["schemas"]["DiagnosticUnsignedDecimal"];
+            shutdown: components["schemas"]["DiagnosticUnsignedDecimal"];
+        };
+        RuntimeAdapterDiagnostic: {
+            /** @enum {string} */
+            ref: "otlp-http@1" | "http-proxy@1" | "caido-graphql@1" | "interactsh-http@1";
+            operations: components["schemas"]["DiagnosticUnsignedDecimal"];
+            failedOperations: components["schemas"]["DiagnosticUnsignedDecimal"];
+            flushAttempted?: boolean;
+            flushSucceeded?: boolean;
+            /** @enum {string} */
+            lastErrorCode?: "close_failed" | "delivery_failed" | "flush_failed" | "flush_timeout" | "queue_overflow" | "request_failed";
+            droppedSpans?: components["schemas"]["DroppedSpanDiagnosticCounts"];
+        };
+        RuntimeDiagnostic: {
+            logicalAgent: components["schemas"]["ConfigId"];
+            /** @enum {string} */
+            status: "available" | "partial" | "unavailable";
+            /** @enum {string} */
+            reason?: "invalid_report";
+            complete?: boolean;
+            durationMs?: components["schemas"]["DiagnosticInt64Decimal"];
+            stopReason?: string;
+            stopReasonTruncated: boolean;
+            adapters: components["schemas"]["RuntimeAdapterDiagnostic"][];
+        };
+        ToolCallDiagnosticError: {
+            code: components["schemas"]["ConfigId"];
+            /** @description At most 4096 UTF-8 bytes; URL-shaped text removed. */
+            message: string;
+            messageTruncated: boolean;
+            retryable?: boolean;
+        };
+        ToolCallDiagnostic: {
+            /** @description Opaque reference derived from the selected report generation and retained record ordinal; never a source call ID. */
+            callReference: string;
+            /** @description At most 128 UTF-8 bytes; unavailable marker replaces an oversized or malformed vocabulary name. */
+            tool: string;
+            toolTruncated: boolean;
+            /** @enum {string} */
+            outcome: "succeeded" | "failed";
+            /** @description At most 4096 UTF-8 bytes of canonical sanitized JSON TEXT. Render as text without parsing numeric literals through JavaScript numbers. */
+            argumentsJson?: string;
+            argumentsTruncated: boolean;
+            durationMs: components["schemas"]["DiagnosticInt64Decimal"] | null;
+            resultSizeBytes: components["schemas"]["DiagnosticInt64Decimal"] | null;
+            error?: components["schemas"]["ToolCallDiagnosticError"];
+        } & (unknown & unknown);
+        ToolDiagnosticPage: {
+            /** @enum {string} */
+            status: "available" | "pending" | "unavailable";
+            /** @enum {string} */
+            reason?: "report_missing" | "invalid_report" | "report_oversized";
+            /** @enum {string} */
+            participant: "planner" | "worker";
+            logicalAgent?: components["schemas"]["ConfigId"];
+            complete?: boolean;
+            detailTruncated: boolean;
+            items: components["schemas"]["ToolCallDiagnostic"][];
+            page: components["schemas"]["PageInfo"];
+        } & (unknown & unknown);
+        RuntimeDiagnosticPage: {
+            /** @enum {string} */
+            status: "available" | "pending" | "unavailable";
+            /** @enum {string} */
+            reason?: "report_missing" | "invalid_report";
+            items: components["schemas"]["RuntimeDiagnostic"][];
+            page: components["schemas"]["PageInfo"];
+        };
         AttemptDiagnostics: {
             items: components["schemas"]["AttemptDiagnostic"][];
             truncated: boolean;
@@ -11044,6 +11188,77 @@ export interface operations {
             400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getRunRuntimeDiagnostics: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+                stageExecutionId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A bounded page; pending/unavailable telemetry is explicit */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RuntimeDiagnosticPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    getRunToolCalls: {
+        parameters: {
+            query: {
+                participant: "planner" | "worker";
+                /** @description Required for worker; forbidden for planner. */
+                logicalAgent?: components["schemas"]["ConfigId"];
+                limit?: number;
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                runId: components["parameters"]["RunId"];
+                stageExecutionId: components["schemas"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A bounded page; pending/unavailable telemetry is explicit */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolDiagnosticPage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];

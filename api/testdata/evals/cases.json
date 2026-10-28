@@ -682,5 +682,73 @@
     "file": "invalid/experiment-page-private.json",
     "valid": false,
     "errorCode": "eval_invalid"
+  },
+  {
+    "name": "private-check",
+    "kind": "PrivateCheck",
+    "file": "valid/private-check.json",
+    "valid": true
+  },
+  {
+    "name": "private-check-unused-schema",
+    "kind": "PrivateCheck",
+    "file": "invalid/private-check-unused-schema.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "dataset-unused-private-schema",
+    "kind": "DatasetInput",
+    "file": "invalid/dataset-unused-private-schema.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "human-review-empty-parameters",
+    "kind": "Check",
+    "file": "valid/human-review-empty-parameters.json",
+    "valid": true
+  },
+  {
+    "name": "human-review-empty-parameters-human-review-parameters",
+    "kind": "Check",
+    "file": "invalid/human-review-empty-parameters-human-review-parameters.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "draft-human-review-parameters",
+    "kind": "Draft",
+    "file": "invalid/draft-human-review-parameters.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "draft-update-human-review-parameters",
+    "kind": "DraftUpdate",
+    "file": "invalid/draft-update-human-review-parameters.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "create-workflow-human-review-parameters",
+    "kind": "CreateExperiment",
+    "file": "invalid/create-workflow-human-review-parameters.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "external-workflow-human-review-parameters",
+    "kind": "CreateExperiment",
+    "file": "invalid/external-workflow-human-review-parameters.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
+  },
+  {
+    "name": "registration-human-review-parameters",
+    "kind": "ExternalRegistration",
+    "file": "invalid/registration-human-review-parameters.json",
+    "valid": false,
+    "errorCode": "eval_invalid"
   }
 ]
