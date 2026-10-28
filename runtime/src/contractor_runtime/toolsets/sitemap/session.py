@@ -57,7 +57,7 @@ class SitemapSession:
 
     @asynccontextmanager
     async def _reading(
-        self, refresh: bool, cursor: str | None, query: str
+        self, operation: str, refresh: bool, cursor: str | None, query: str
     ) -> AsyncIterator[tuple[ViewIndex, int]]:
         async with asyncio.timeout(15):
             await self._lock.acquire()
@@ -73,11 +73,13 @@ class SitemapSession:
                     # exhaustion must leave the explicit read its own allowance.
                     await self._before_read()
             async with asyncio.timeout(15):
-                yield await self._ready(refresh, cursor, query)
+                yield await self._ready(operation, refresh, cursor, query)
         finally:
             self._lock.release()
 
-    async def _ready(self, refresh: bool, cursor: str | None, query: str) -> tuple[ViewIndex, int]:
+    async def _ready(
+        self, operation: str, refresh: bool, cursor: str | None, query: str
+    ) -> tuple[ViewIndex, int]:
         if self._closed or (refresh and cursor is not None):
             raise self.expired()
         offset = 0
@@ -102,7 +104,7 @@ class SitemapSession:
             )
             self._view = view
             self._identity, self._revision = str(uuid4()), raw.revision
-        await self.client.access()
+        await self.client.access(operation)
         if self._view is None:
             raise self.expired()
         return self._view, offset
@@ -182,7 +184,7 @@ class SitemapSession:
             "limit": limit,
         }
         query = query_digest(filters)
-        async with self._reading(refresh, cursor, query) as (view, offset):
+        async with self._reading("list_sitemap_entries", refresh, cursor, query) as (view, offset):
             if scope == "metadata":
                 return self._parts_page(
                     query,
@@ -245,7 +247,7 @@ class SitemapSession:
                 "includeSuppressed": include_suppressed,
             }
         )
-        async with self._reading(refresh, cursor, query) as (view, offset):
+        async with self._reading("read_sitemap_entry", refresh, cursor, query) as (view, offset):
             entry = view.entries.get(identity)
             if entry is None:
                 raise ArtifactAPIError(404, "artifact_not_found", False)
@@ -299,7 +301,6 @@ class SitemapSession:
         async with self._lock:
             if self._closed or self._view is None or self._revision == "absent":
                 raise self.expired()
-            await self.client.access()
             result = await self.client.snapshot(
                 {
                     "revision": self._revision,

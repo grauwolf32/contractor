@@ -68,7 +68,10 @@ def test_cached_pages_survive_publication_and_eviction_but_not_refresh_or_revoca
         assert sum(path.endswith("/sitemap") for _, path, _, _ in transport.requests) == 1
         assert second["revision"] == "revision-original"
         access_paths = [path for _, path, _, _ in transport.requests if "/access" in path]
-        assert access_paths == ["/allocations/allocation/sitemap/access"] * 3
+        assert (
+            access_paths
+            == ["/allocations/allocation/sitemap/access?operation=list_sitemap_entries"] * 3
+        )
         for tampered in [first["nextCursor"] + "x", "garbage"]:
             with pytest.raises(ArtifactAPIError, match="sitemap_cursor_expired"):
                 await session.list(**{**options, "cursor": tampered})
@@ -119,7 +122,9 @@ def test_read_pages_concrete_parts_suppression_and_exact_snapshot_request() -> N
         assert all(row.get("memberId") != marker["members"][0] for row in rows)
         assert any(row["kind"] == "marker" for row in rows)
         assert not {"source", "rule", "gap"} & {row["kind"] for row in rows}
+        requests_before_snapshot = len(transport.requests)
         await session.snapshot([entry["id"]], [], False, "stable-key")
+        assert len(transport.requests) == requests_before_snapshot + 1
         _, path, headers, body = transport.requests[-1]
         request = json.loads(body)
         assert path.endswith("/snapshots") and headers["Idempotency-Key"] == "stable-key"

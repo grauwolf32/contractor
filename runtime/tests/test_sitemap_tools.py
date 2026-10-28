@@ -222,6 +222,7 @@ def test_empty_map_metadata_supplies_complete_source_precondition_to_editor():
             first["revision"], rules, expected_source=first["entries"][0]["value"]
         )
         assert result["status"] == "completed"
+        assert transport.requests[-2][1].endswith("/access?operation=configure_sitemap_grouping")
         command = json.loads(transport.requests[-1][3])["mutation"]
         assert command["source"]["expected"] == source
         assert command["source"]["rules"] == [{**rules[0], "sourceId": identity("manual")}]
@@ -258,7 +259,7 @@ def test_import_dispatch_seam_is_explicit_and_uses_same_allocation_client():
         calls = []
 
         async def dispatcher(client, selection, key):
-            access = await client.access()
+            access = await client.access("import_sitemap_source")
             calls.append((selection, key, access.manual_source_id))
             return {"ok": True, "gaps": []}
 
@@ -275,6 +276,7 @@ def test_import_dispatch_seam_is_explicit_and_uses_same_allocation_client():
             result == {"ok": True, "gaps": [], "status": "completed"}
             and calls[0][1] == "import-key"
         )
+        assert transport.requests[-1][1].endswith("/access?operation=import_sitemap_source")
         assert all("foreign" not in path for _, path, _, _ in transport.requests)
         await tools["import_sitemap_source"].close()
 
@@ -310,5 +312,38 @@ def test_close_joins_inflight_mutation_and_denies_later_calls():
         denied = await tool("absent", url="https://example.test/late", method="GET")
         assert denied["status"] == "failed" and denied["error"]["code"] == "sitemap_cursor_expired"
         assert len(transport.requests) == calls
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("operation", ["list_sitemap_entries", "read_sitemap_entry"])
+def test_cached_page_rechecks_its_exact_operation_when_only_editor_and_collection_remain(operation):
+    async def scenario():
+        transport = SitemapTransport(document(3, 3))
+        transport.collect_observations = True
+        transport.access_operations = {
+            "list_sitemap_entries",
+            "read_sitemap_entry",
+            "configure_sitemap_grouping",
+        }
+        tools, _ = await tools_for(transport, [operation, "configure_sitemap_grouping"])
+        arguments = {"limit": 1}
+        if operation == "read_sitemap_entry":
+            arguments["entry_id"] = identity("group-0")
+        first = await tools[operation](**arguments)
+        assert first["status"] == "completed" and first["nextCursor"]
+        transport.access_operations = {"configure_sitemap_grouping"}
+        access = await tools[operation]._session.client.access("configure_sitemap_grouping")
+        assert access.policy.collect_observations is True
+        rejected = await tools[operation](**arguments, cursor=first["nextCursor"])
+        assert rejected == {
+            "status": "failed",
+            "ok": False,
+            "error": {"code": "sitemap_access_denied", "retryable": False},
+        }
+        assert transport.requests[-1][1].endswith("/access?operation=" + operation)
+        assert sum(path.endswith("/sitemap") for _, path, _, _ in transport.requests) == 1
+        for tool in tools.values():
+            await tool.close()
 
     asyncio.run(scenario())

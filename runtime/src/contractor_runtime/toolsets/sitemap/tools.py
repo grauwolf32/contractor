@@ -379,7 +379,7 @@ class ConfigureSitemapGrouping(_SitemapTool):
         del arguments["self"]
 
         async def operation() -> dict:
-            access = await self._session.client.access()
+            access = await self._session.client.access("configure_sitemap_grouping")
             source = {
                 "sourceId": access.manual_source_id,
                 "rules": [{**rule, "sourceId": access.manual_source_id} for rule in rules],

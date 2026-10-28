@@ -11,16 +11,19 @@ from contractor_runtime.contracts import PrivateProtocolDecodeError
 from contractor_runtime.sitemap import SitemapClient
 
 
-def test_view_needs_only_exact_revision_metadata_and_access_needs_no_query():
+def test_view_needs_only_exact_revision_metadata_and_access_checks_exact_operation():
     async def scenario():
         transport = SitemapTransport()
         client = SitemapClient(ArtifactClient("allocation", transport))
         view = await client.view("revision-original")
         assert view.revision == "revision-original"
         assert json.loads(view.data) == transport.document
-        access = await client.access()
+        access = await client.access("list_sitemap_entries")
         assert access.policy.collect_observations is False
-        assert transport.requests[-1][1] == "/allocations/allocation/sitemap/access"
+        assert (
+            transport.requests[-1][1]
+            == "/allocations/allocation/sitemap/access?operation=list_sitemap_entries"
+        )
         transport.revision = "another-revision"
         with pytest.raises(ArtifactTransportError, match="invalid view metadata"):
             await client.view("revision-original")
@@ -38,6 +41,6 @@ def test_access_rejects_obsolete_projection_metadata(obsolete):
     async def scenario():
         client = SitemapClient(ArtifactClient("allocation", ObsoleteAccess()))
         with pytest.raises(PrivateProtocolDecodeError):
-            await client.access()
+            await client.access("list_sitemap_entries")
 
     asyncio.run(scenario())

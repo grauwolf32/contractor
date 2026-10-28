@@ -50,8 +50,8 @@ class SitemapClient:
         self._root = allocation_path(client.allocation_id, "sitemap")
         self._transport = client.transport
 
-    async def access(self) -> SitemapAccess:
-        path = self._root + "/access"
+    async def access(self, operation: str) -> SitemapAccess:
+        path = self._root + "/access?" + urlencode({"operation": operation})
         response = await self._transport.request(
             "GET",
             path,

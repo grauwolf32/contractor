@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from contractor_runtime.artifacts import ArtifactHTTPResponse, ArtifactTransportError
 
@@ -63,6 +63,8 @@ class SitemapTransport:
         self.document = value or document()
         self.revision = "revision-original"
         self.requests: list[tuple[str, str, dict, bytes]] = []
+        self.access_operations: set[str] | None = None
+        self.collect_observations = False
         self.access_error: tuple[int, str, bool] | None = None
         self.post_error: tuple[int, str, bool] | None = None
         self.ambiguous_once = False
@@ -71,6 +73,9 @@ class SitemapTransport:
         self.requests.append((method, path, dict(headers), body))
         route = urlsplit(path).path
         if route.endswith("/access"):
+            operation = parse_qs(urlsplit(path).query).get("operation", [None])[0]
+            if self.access_operations is not None and operation not in self.access_operations:
+                return self.error((403, "sitemap_access_denied", False))
             if self.access_error:
                 return self.error(self.access_error)
             return self.json(
@@ -78,7 +83,7 @@ class SitemapTransport:
                     "apiVersion": "contractor/v1alpha1",
                     "policy": {
                         "version": "sitemap-access@1",
-                        "collectObservations": False,
+                        "collectObservations": self.collect_observations,
                     },
                     "manualSourceId": identity("manual"),
                 }
