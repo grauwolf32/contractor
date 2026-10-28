@@ -214,10 +214,10 @@ flowchart TD
 
 ### Scope and authority
 
-**HTP-R1.** The separate target adapter with enforced scope, identities and
-trusted capture specified in
-[Autonomous pentest Audits](../../proposals/0033-autonomous-pentest-audits.md)
-does not upgrade the guarantees of `http-tools@1` or `caido@1` described here.
+**HTP-R1.** The controlled `pentest-target-http@1` adapter implements only the
+anonymous preflight contract in HTP-R137–139 and AUX-R104–106. It does not
+upgrade the guarantees of `http-tools@1` or `caido@1` described here. Ordinary
+HTTP/Caido tool behavior remains independently governed by this document.
 
 **HTP-R2.** `http-tools@1` and `caido@1` use the same exact allowlist rule as
 every other Toolset ([AgentTemplates](../configuration/agent-templates.md)).
@@ -1216,3 +1216,44 @@ A complete `worker.caido` RuntimeConfig example is in
 - Automatic Skill-to-Toolset dependency installation.
 - UI-specific Caido panels or an HTTP history browser.
 - Reconciling Caido findings into a separate Contractor domain model.
+
+### Controlled anonymous preflight transport
+
+**HTP-R137.** A preflight request uses the same canonical URL for scope matching
+and transmission: exact origin, segment prefixes and exclusions winning,
+GET/read and an explicitly allowed anonymous identity. Every resolved address
+must pass the route CIDRs and protected destination checks; one denied answer
+rejects the whole set. Loopback, link-local, unspecified, multicast and metadata
+addresses remain forbidden even where ordinary HTTP allows them. The Server
+supplies its resolved Artifact, Control, LLM, telemetry, Caido, proxy and
+callback infrastructure hostname/address-port denyset; Runtime resolves those
+aliases again in its own network and denies the union. Unknown protected
+resolution fails closed. A fresh connection pins the selected numeric address,
+preserves canonical Host and SNI, verifies TLS certificates and verifies the
+connected peer. It never silently uses a proxy or ordinary HTTP fallback.
+
+**HTP-R138.** After DNS/connect/verified TLS and a durable start grant, the
+adapter commits `sending`, checks its original remaining allowance, writes
+exactly the first application byte, and commits `started` before writing the
+remainder. The TLS handshake itself is not a target request. Missing write or
+started acknowledgement leaves an unknown charged attempt; it never repeats
+the write. Pool ownership is per allocation/engagement/identity/origin/policy
+and physical attempt; initial anonymous preflight uses a fresh HTTP/1 client
+without cookies or keepalive. The Runtime rereads its existing monotonic control-lease authority at each
+connect/TLS/read/write boundary, including after the sending acknowledgement
+and immediately before the first application byte. Expiry denies that byte
+even before the watchdog callback runs. A separate 120-second whole-preflight
+ceiling is anchored at allocation preparation; it cannot renew through replay.
+All tasks, streams and clients are joined and closed on cancellation or release.
+
+**HTP-R139.** Every redirect and retry obtains fresh policy admission and a
+physical-request permit. At most five redirects and one additional retry are
+allowed for one seed. The retry is only for an explicit GET/read failure proven
+before any application byte (connect or TLS); received HTTP 500 is not a retry
+condition. Request lifetime defaults to 30 seconds, never exceeds 120 seconds,
+and is clipped to remaining active time and all enclosing deadlines. Response
+headers are bounded before buffering at 64 fields/32 KiB and the body at the
+lower of 1 MiB and the engagement cap. Body data is streamed/discarded without
+decompression or persistence; only bounded counts, status, truncation, safe
+reason and optional canonical redirect digest reach the journal. There is no
+model-visible HTTP result or trusted capture in this adapter.

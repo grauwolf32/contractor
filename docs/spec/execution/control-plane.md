@@ -301,8 +301,10 @@ original model names, with one schema and fixture catalog
 resolved by the composition-owned Audit reader from the trusted Run/Stage
 reservation, outside Registry locks. It follows [AUD-R248](../audits/audits.md):
 exact immutable attribution, no secret material, and only task-assigned routes,
-identities and inputs. Metadata-only preparation has empty assignment arrays
-and does not advertise an executable target adapter. Both wire validators and
+identities and inputs. Metadata-only preparation omits the typed `preflight`
+assignment. Controlled preflight requires the explicit `pentest-target-http@1`
+capability in the immutable policy and the selected Runtime advertisement; it
+is independent of RuntimeConfig adapter provenance. Both wire validators and
 Runtime prepare reject an execution assignment whose enforcement is absent.
 
 **CTL-R7.** There is no parallel legacy model, `V2` alias,
@@ -1713,3 +1715,22 @@ CTL-R75).
   optimization.
 - Concurrent Tasks inside one Worker allocation (CTL-R113).
 - Dynamic Planner expansion of the Worker pool: see [planners](planners.md).
+
+**CTL-R169.** Ordinary prepare constructs the allocation-owned controlled
+preflight resource without target I/O. Before target preparation, the Server persists the lower of its admitted
+Stage deadline and batch prepare deadline on the exact allocation. The first
+recorded deadline is immutable: equal or later proposals keep it; an earlier
+proposal conflicts and requires joined cleanup before a new allocation. This
+avoids silently narrowing authority after a sending acknowledgement; action
+admission and every grant enforce the fixed bound. Before returning its Worker handle to
+the Scheduler, the Server calls `pentest-preflight` with mode `run`, allocation
+ID and expected Runtime instance. Concurrent or repeated calls join the same
+cached task; they cannot launch another target pass. The allocation lock only
+registers/joins ownership, never surrounds target I/O. Abort, finalize, lease
+expiry and release cancel and join the resource before cleaning its clients.
+Mode `stop` proves termination only for that exact instance and known
+allocation (or its existing bounded released tombstone). Server persists the
+proof before generic release. An absent allocation may bypass that proof only
+when the Registry write fence has joined admission and a durable indexed read
+proves that no prepared/held attempt exists; no stop marker is fabricated.
+A restarted process or uncertain stop cannot release an outstanding hold.

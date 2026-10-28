@@ -1861,15 +1861,17 @@ LIM-AUD-34 records the hard maxima for active time, target requests, request
 rate/concurrency, discovery, surface, hypotheses, rounds, submitted Runs,
 recipes, replay, login, byte retention, model calls/tokens and action intents.
 Existing profile/operator limits also apply, and the tighter bound wins.
-Pinning a budget does not implement a target-request ledger or permit target
-traffic. The existing Run, Round and evidence budgets are restricted at start.
-Start and Resume cap the ordinary deadline allowance at the pinned
-`activeSeconds`: a shorter requested allowance or positive paused remainder
-is retained; unlimited, longer and renewed default allowances are capped.
-This limits each continuation under AUD-R207, not cumulative active time
-across resumptions. Cumulative accounting and controlled target execution
-remain unavailable until their concrete ledger and transport implementations
-are present.
+Pinning a budget alone does not authorize traffic. Start and Resume still cap
+ordinary per-continuation deadlines under AUD-R207. A policy that requires
+`pentest-target-http@1` additionally enforces cumulative active time at action
+admission and every start grant: queue wait and active continuations count;
+owner pause and frozen report review freeze the clock; resume never resets
+consumption. The durable
+clock is initialized by start and maintained at Audit state transitions.
+Unknown, corrupt, negative or exhausted remaining allowance denies new target
+work. Grant allowance is clipped to that remainder and to existing Run, Stage,
+allocation and request deadlines. Interrupted requests retain their charges;
+expiry cannot clear their holds ([AUX-R105](execution.md)).
 
 **AUD-R243.** Engagement URLs accept absolute HTTP(S) with ASCII DNS A-labels
 or canonical IPv4/IPv6, an optional query and no userinfo or fragment. Origins
@@ -1941,14 +1943,16 @@ It reads outside the Runtime Registry lock and rechecks allocation authority
 before dispatch. The immutable baseline lookup does not require an active
 Audit: pause blocks new child admission while existing Runs drain; Run
 cancellation, Project deletion and the allocation grant retain their existing
-dispatch fences. The projection contains only assigned routes, identities and
-inputs, with immutable engagement/policy attribution and finite budgets.
-Ordinary tasks currently have no pentest execution assignment, so those arrays
-are empty; Runtime rejects a nonempty execution assignment until concrete
-adapters implement its enforcement. This metadata path grants no target
-transport or secret material. It cannot be widened by mutable Project
-configuration, physical labels or Worker arguments. The existing private wire
-and prepare lifecycle own validation, cancellation and release.
+dispatch fences. The projection contains immutable engagement/policy attribution and finite
+budgets. Metadata-only allocations omit `preflight`. Explicitly requiring
+`pentest-target-http@1` supplies the typed anonymous GET/read seed assignment,
+its routes/exclusions and the trusted infrastructure denyset. The Server
+selects an advertising Runtime before placement and completes its separate
+preflight call before the Planner starts. Neither mutable Project settings,
+physical labels nor Worker arguments can widen this assignment. Credentials,
+login inputs, model-visible target tools and response bodies are absent.
+The existing private protocol and allocation lifecycle own validation,
+cancellation and release ([CTL-R169](../execution/control-plane.md)).
 
 ## Non-goals
 
@@ -1962,8 +1966,8 @@ and prepare lifecycle own validation, cancellation and release.
   external broker without demonstrated need are deferred.
 - Partial durable completion of items inside a still-running batch is deferred
   until its own receipt/pin protocol exists.
-- Pentest execution adapters, proof/replay-specific recipes and optional finding-review
-  extensions remain capability-gated designs in
+- Authenticated pentest execution, trusted captures, proof/replay-specific recipes
+  and optional finding-review extensions remain capability-gated designs in
   [proposal 0033: autonomous pentest Audits](../../proposals/0033-autonomous-pentest-audits.md).
   Generic registered proposed-check routing is specified above; those future
   integrations retain its profile authority and lifecycle fences.

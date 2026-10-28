@@ -27,6 +27,12 @@ context:
   - docs/proposals/0033-autonomous-pentest-audits.md#7-preflight-reconnaissance-and-surface-identity
   specification:
   - docs/spec/audits/execution.md#AUX-R82
+  - docs/spec/audits/execution.md#AUX-R104
+  - docs/spec/audits/execution.md#AUX-R105
+  - docs/spec/execution/control-plane.md#CTL-R169
+  - docs/spec/tools/http-caido.md#HTP-R137
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R139
   - docs/spec/platform/persistence.md#PER-R24
   - docs/spec/platform/persistence.md#PER-R25
   - docs/spec/execution/control-plane.md#CTL-R149
@@ -283,3 +289,30 @@ assignment:
   branch: codex/v411-003-action-preflight
   claimed: 2026-10-28
   base: 4ce2bdd460ee5484174c3b4fd70421921fbfa15f
+
+implementation_notes:
+- The same-change caller is fixed anonymous seed GET/read preflight, executed after ordinary allocation
+  prepare and before exposing a Worker to its Planner. Metadata-only engagements omit the assignment;
+  an explicit required pentest-target-http@1 capability gates placement and execution.
+- Semantic identity is Audit plus seed index, with up to five redirects and one total safe before-send
+  retry. This production caller can reach 128 actions and 896 physical-attempt records per Audit;
+  the larger pinned action/request budget maxima remain ceilings, not a promise of additional callers.
+  Real PostgreSQL scale coverage fills that reachable journal, verifies the pending index and rotates
+  bounded recovery pages so old unproven allocations cannot starve later joined transports.
+- The journal consists of two domain-owned tables using existing KeyedMutation receipts and Audit
+  Controller claims. No generic receipt or lease service was introduced. Raw target material is never
+  persisted; canonical digests bind exact requests and redirect continuation.
+- Durable action attribution outlives allocation rows. Child Run deletion waits for pending action
+  reconciliation, and Audit purge deletes at most 100 journal rows per batch before the parent cascade.
+- Generic release, lease expiry and an absent Registry are not termination evidence. Only an exact
+  Runtime instance's joined transport response creates the immutable stop marker. If that proof is lost,
+  the Controller retains the charge and hold and prevents final settlement/deletion; this is explicit
+  quarantine, detected through the pending journal and owned by Audit reconciliation. Controlled cleanup
+  and operator resolution may reopen this boundary in V411-008; no timeout silently resets it.
+- Cumulative active time counts Queue wait, freezes on owner pause and frozen report review, and survives
+  resume/restart. The first persisted allocation deadline is immutable, preserving the Server's Stage and prepare
+  bounds; an earlier retry conflicts and requires joined cleanup before a new allocation. Runtime additionally reads its existing monotonic lease authority immediately before each
+  transport boundary; private request timeouts do not replace target or lifecycle clocks.
+- Reversal condition for fixed anonymous preflight is a later production caller with its own explicit
+  identity/capture contract. It must retain the same receipt, scope, actual-start and stop-proof guarantees;
+  no model-produced package, compatibility reader or ordinary HTTP fallback is authorized here.
