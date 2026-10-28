@@ -1,0 +1,77 @@
+schema_version: '1.0'
+id: V410-019
+title: Share all Project sitemap knowledge without source-mode filtering
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-002
+priority: P1
+status: in_progress
+depends_on: [V410-001, V410-002, V410-003, V410-018]
+languages: [go, python, json, yaml, markdown]
+goal: Give every permitted sitemap reader the same Project knowledge while removing source classification, projection work and repeated input resolution.
+context:
+  authority: On 2026-10-28 the user clarified that absent or incomplete source code does not justify hiding accumulated routes, approved removal of sourceMode and related simplification, and requested updated specification and diagrams.
+  finding: internal/projectsitemap/view.go:17 filters shared knowledge by source mode and rebuilds grouping; allocation.go:53 resolves exact inputs on every access, including every cached page; allocation.go:133 repeats projection for editor authorization. These restrictions contradict the accepted shared Project map model.
+  siblings: Go domain and allocation adapters, private/public contracts, Python policy/client/session, generated document validators and clients, shared fixtures, real-process fixtures, owning specs and unfinished V410 tasks.
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  - docs/spec/configuration/agent-templates.md
+  - docs/spec/platform/limits.md
+scope:
+  in:
+  - Remove sourceMode from allocation policy and mode from sitemap provenance, including identities and validation. Preserve kind, source, producer, deployment and observation provenance.
+  - Delete source-mode projection and editor filtering. Read the shared validated map directly and select snapshot entries without regrouping by consumer.
+  - Remove redundant view policy digests, policy headers and expected-policy snapshot preconditions; immutable exact revisions, allocation-local cursors and current operation grants remain authoritative.
+  - Rename openapiInputs to snapshotInputs with its existing eight-name bound, resolve original immutable inputs only inside the snapshot transaction, and omit unneeded access response descriptors and stored snapshot policy copies.
+  - Preserve exact file authority and frozen lineage for selected snapshot attachments, without treating metadata provenance as permission to read arbitrary artifact bytes.
+  - Add real-store and process regressions, strict obsolete-field fixtures, bounded-work evidence, update normative specs and unfinished tasks, and regenerate diagrams from the final implementation.
+  out:
+  - Unfinished import adapters, OpenAPI reconciliation, browser capture and other agents' active tasks.
+  - Changes to general artifact permissions, HTTP evidence redaction, target execution, collection retry budgets or retention policy.
+failure_outcomes:
+- operation: Sitemap read, edit and snapshot
+  permanent: Reject malformed or obsolete contract members, wrong Project or operation grants, stale revision/source intent and unavailable exact snapshot revisions through existing classified errors. Missing optional referenced files produce existing source-unavailable gaps; requireReferencedInputs makes missing needed files fail.
+  retryable: Existing bounded transaction conflict retries and operation deadlines remain unchanged.
+  ambiguous: Reuse existing mutation receipts and frozen snapshot lineage replay.
+  cancelled: Join existing allocation-owned collectors and view indexing before cleanup.
+  timeout: Preserve separate lock, checkpoint, read and mutation budgets.
+cardinality:
+- collection: Shared map, page and snapshot attachments
+  maximum: Existing map/page bounds; at most eight explicitly configured snapshot input names; no full Run artifact enumeration.
+  bound: Reading or validating a cached page never resolves input lineage or payloads. Snapshot original-input lookup is batched and bounded independently of Run artifact count.
+lifecycle:
+- entity: Existing Project sitemap and Run context snapshot
+  delete: Existing Project and Run deletion remain authoritative.
+  retention: Live reads hold no revision; exact snapshot source and attached input forks retain ordinary lineage protection.
+  cascade: No new entities, tables or retention mechanisms.
+acceptance_criteria:
+- id: A1
+  given: A shared map containing observed, declared, manual and imported knowledge
+  when: Any permitted allocation reads, edits or snapshots selected entries
+  then: All source kinds remain available with unchanged grouping and provenance; absent source files do not hide metadata or claim live observation.
+- id: A2
+  given: JSON, YAML, public and private wire, generated clients and Runtime tools
+  when: New contracts and obsolete source classification or policy fields are submitted
+  then: All implementations agree on the simplified contract; obsolete members fail strict decoding without compatibility paths.
+- id: A3
+  given: Bounded snapshot input selections and a Run with unrelated artifacts or advanced input bindings
+  when: Reading pages and creating a snapshot
+  then: Reads perform no input lineage resolution; snapshots retain only needed original exact inputs atomically and preserve foreign-scope, eviction, replay and purge behavior.
+- id: A4
+  given: Current specs, unfinished task acceptance and diagrams
+  when: Implementation is complete
+  then: They state unified Project knowledge and ordinary operation/file authority without source-mode restrictions; obsolete projection code and policy transport have no production callers.
+tests:
+- command: make test-project-sitemap-postgres
+  covers: [A1, A3]
+- command: make test-project-sitemap-tools-e2e
+  covers: [A1, A2, A3]
+- command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_http_*.py runtime/tests/test_capabilities*.py
+  covers: [A1, A2, A3]
+- command: make test-wire-cross-language
+  covers: [A2]
+- command: make verify-public-api
+  covers: [A2]
+- command: make lint
+  covers: [A2, A4]
