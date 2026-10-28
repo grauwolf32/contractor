@@ -57,6 +57,25 @@ func TestPurposeReservedNamespaceIsClosed(t *testing.T) {
 	}
 }
 
+func TestPurposeReservedProjectNamespace(t *testing.T) {
+	for _, test := range []struct {
+		namespace string
+		want      bool
+	}{
+		{ProjectSitemapNamespace, true},
+		{"audit-evidence", true},
+		{"audit-reports", true},
+		{"sitemap-copy", false},
+		{"Sitemap", false},
+		{"research", false},
+		{"audit", false},
+	} {
+		if got := IsPurposeReservedProjectNamespace(test.namespace); got != test.want {
+			t.Errorf("IsPurposeReservedProjectNamespace(%q) = %t, want %t", test.namespace, got, test.want)
+		}
+	}
+}
+
 func TestSharedModelHiddenBindingMatchesSharedCases(t *testing.T) {
 	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "artifact-list-cases.json")
 	var cases struct {
