@@ -383,6 +383,9 @@ func RequiredRuntimeAdaptersForTemplate(
 // externally addressed work. A local offline sandbox remains scratch-only; a
 // subprocess launcher is not assumed to enforce target scope.
 func TemplateRequiresNetwork(template contracts.ResolvedAgentTemplate) bool {
+	if template.SandboxProfile.SandboxProfileID == "podman-network" {
+		return true
+	}
 	for _, selection := range template.Toolsets {
 		descriptor, ok := registeredDescriptors().Toolsets[selection.Ref.ToolsetID+"@"+selection.Ref.Version]
 		if !ok {

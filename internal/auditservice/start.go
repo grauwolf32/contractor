@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -198,6 +199,14 @@ func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams)
 	if err != nil {
 		return startPlan{}, err
 	}
+	engagement, err := readEngagement(ctx, artifactService, audit.ProjectID, profile, selection)
+	if err != nil {
+		return startPlan{}, err
+	}
+	_, _, engagementReasons := engagementCompatibility(profile, policy, engagement)
+	if len(engagementReasons) > 0 {
+		return startPlan{}, unsupported(engagementReasons)
+	}
 	plan := startPlan{
 		revision: audit.Revision, profile: profile, selection: selection, standards: pinnedStandards,
 		projectPolicy: project.ActiveChecks, activeChecks: policy,
@@ -293,7 +302,22 @@ func (s *Service) startInTransaction(
 	if err := contentdigest.CheckPinnedSelection(params.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
 		return StartedAudit{}, err
 	}
+	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	engagement, err := readEngagement(ctx, artifactService, audit.ProjectID, profile, selection)
+	if err != nil {
+		return StartedAudit{}, err
+	}
+	if err := validateEngagementCredentials(ctx, tx, credentials.RuntimeCredentialUser{UserID: params.OwnerID, Operations: params.OperationsPrincipal}, engagement); err != nil {
+		return StartedAudit{}, err
+	}
+	_, _, engagementReasons := engagementCompatibility(profile, plan.activeChecks, engagement)
+	if len(engagementReasons) > 0 {
+		return StartedAudit{}, unsupported(engagementReasons)
+	}
 	projectTarget := project.HTTPTarget.Clone()
+	if engagement != nil {
+		projectTarget = nil
+	}
 	projectRuntimeCredentialIDs := []string{}
 	if projectTarget != nil && projectTarget.Credential != nil {
 		if err := runtimeCredentials.ValidateRuntimeCredentialUse(
@@ -305,7 +329,6 @@ func (s *Service) startInTransaction(
 		projectRuntimeCredentialIDs = append(projectRuntimeCredentialIDs, projectTarget.Credential.CredentialID)
 	}
 
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
 	standardLinks, err := auditStandardLinks(plan.standards)
 	if err != nil {
 		return StartedAudit{}, err
@@ -344,9 +367,21 @@ func (s *Service) startInTransaction(
 		ProjectHTTPTarget:    projectTarget,
 		Standards:            append([]auditstandards.PinnedPackage{}, plan.standards...),
 	}
+	if engagement != nil {
+		policyDigest, err := engagement.document.Policy.Digest()
+		if err != nil {
+			return StartedAudit{}, err
+		}
+		baseline.Engagement = &auditbaseline.EngagementSnapshot{Schema: auditbaseline.EngagementSchema, Artifact: engagement.artifact, Document: engagement.document, PolicyDigest: policyDigest, AuthorizedBy: params.OwnerID, AuthorizedAt: s.now().UTC()}
+		baseline.RuntimeCredentialIDs = mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, engagement.credentialIDs)
+		standardLinks = append(standardLinks, engagement.inputs...)
+	}
 	deadlineSeconds := profile.Execution.DeadlineSeconds
 	if params.DeadlineSeconds != nil {
 		deadlineSeconds = *params.DeadlineSeconds
+	}
+	if engagement != nil && (deadlineSeconds == 0 || deadlineSeconds > int(engagement.document.Budgets.ActiveSeconds)) {
+		deadlineSeconds = int(engagement.document.Budgets.ActiveSeconds)
 	}
 	var deadline time.Time
 	if deadlineSeconds > 0 {
