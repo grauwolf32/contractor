@@ -121,6 +121,10 @@ func configureControlPlane(
 			return controlplane.ResolvePentestProtectedDestinations(ctx, reservation, settings.RuntimeSettings)
 		})
 	}, registry)
+	runtimeClient.WithPentestDeadlineRecorder(func(ctx context.Context, reservation controlplane.Reservation, deadline time.Time) error {
+		grant := reservation.Grant
+		return runstore.NewPostgresStore(pool).RecordPentestTransportDeadline(ctx, runstore.PentestTransportStop{AllocationID: grant.AllocationID, RunID: grant.RunID, StageExecutionID: grant.StageExecutionID, RuntimeAgentID: grant.RuntimeAgentID, RuntimeInstanceID: grant.RuntimeInstanceID}, deadline)
+	})
 	runtimeClient.WithPentestTransportStop(func(ctx context.Context, reservation controlplane.Reservation) (bool, error) {
 		required, err := auditservice.AllocationPentestAdapterRequirements(ctx, pool, reservation.Grant.RunID, reservation.Grant.StageExecutionID)
 		return len(required) > 0, err

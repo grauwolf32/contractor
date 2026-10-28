@@ -51,11 +51,12 @@ func (e *RuntimeAPIError) Error() string {
 // (CTL-R164): Release closes the released principal's connections and Close
 // ends them all when the Server stops.
 type RuntimeControlClient struct {
-	pentestPending     func(context.Context, Reservation) (bool, error)
-	pentestRequired    func(context.Context, Reservation) (bool, error)
-	pentestStopped     func(context.Context, Reservation) error
-	engagementResolver func(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (*pentestcontract.AllocationProjection, error)
-	grantReader        interface {
+	pentestDeadlineRecorder func(context.Context, Reservation, time.Time) error
+	pentestPending          func(context.Context, Reservation) (bool, error)
+	pentestRequired         func(context.Context, Reservation) (bool, error)
+	pentestStopped          func(context.Context, Reservation) error
+	engagementResolver      func(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (*pentestcontract.AllocationProjection, error)
+	grantReader             interface {
 		GetGrant(string) (AllocationGrant, error)
 	}
 	client       *http.Client
@@ -156,6 +157,24 @@ func (c *RuntimeControlClient) Prepare(
 	request := control.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: spec}
 	if err := request.Validate(); err != nil {
 		return contracts.WorkerHandle{}, fmt.Errorf("build prepare request: %w", err)
+	}
+	if spec.PentestEngagement != nil && spec.PentestEngagement.Preflight != nil {
+		deadline, err := pentestPreparationDeadline(ctx, reservation)
+		if err != nil {
+			return contracts.WorkerHandle{}, err
+		}
+		if c.pentestDeadlineRecorder == nil {
+			return contracts.WorkerHandle{}, fmt.Errorf("%w: pentest deadline recorder is unavailable", ErrInvalidRequest)
+		}
+		bounded, cancel := context.WithDeadline(ctx, deadline)
+		defer cancel()
+		if err := bounded.Err(); err != nil {
+			return contracts.WorkerHandle{}, err
+		}
+		if err := c.pentestDeadlineRecorder(bounded, reservation, deadline); err != nil {
+			return contracts.WorkerHandle{}, err
+		}
+		ctx = bounded
 	}
 	var response control.PrepareAllocationResponse
 	if err := c.postJSON(

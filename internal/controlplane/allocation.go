@@ -118,6 +118,9 @@ type AllocationLoss struct {
 }
 
 type Reservation struct {
+	// PentestDeadline is the Server-owned Stage bound for controlled target work.
+	// It is not sent in the allocation wire and never extends the Stage on replay.
+	PentestDeadline             time.Time
 	PlacementLabels             []string
 	CompletionContract          *contracts.WorkerCompletionContract
 	CompletionCapabilities      *contracts.RuntimeCompletionCapabilities
