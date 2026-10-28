@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import Any, Protocol
 
 import httpcore
@@ -24,10 +24,16 @@ class PolicyNetworkBackend(httpcore.AsyncNetworkBackend):
     """Connect to a validated address without repeating the host DNS lookup."""
 
     def __init__(
-        self, policy: ConnectionPolicy, backend: httpcore.AsyncNetworkBackend | None = None
+        self,
+        policy: ConnectionPolicy,
+        backend: httpcore.AsyncNetworkBackend | None = None,
+        *,
+        wrap_stream: Callable[[httpcore.AsyncNetworkStream], httpcore.AsyncNetworkStream]
+        | None = None,
     ) -> None:
         self._policy = policy
         self._backend = backend or httpcore.AnyIOBackend()
+        self._wrap_stream = wrap_stream
 
     async def connect_tcp(
         self,
@@ -54,6 +60,8 @@ class PolicyNetworkBackend(httpcore.AsyncNetworkBackend):
             except (httpcore.ConnectError, httpcore.ConnectTimeout) as error:
                 failure = error
                 continue
+            if self._wrap_stream is not None:
+                stream = self._wrap_stream(stream)
             try:
                 verify_peer(stream, address, port)
             except BaseException:
