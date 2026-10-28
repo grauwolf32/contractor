@@ -300,7 +300,7 @@ make release-verify
 | Podman execution | [Podman provisioning and verification](../../deploy/podman/README.md) |
 | Runtime host provisioning (Ansible role) | `make test-ansible` (also in `make lint`; needs `uv`); [Ansible guide](../../deploy/ansible/README.md) |
 | PostgreSQL/filesystem artifact payloads | [Blob backend verification](../operations/artifact-blob-storage.md#release-verification) |
-| Project sitemap allocation authority, safe views and exact context | `make test-project-sitemap-postgres` and `make test-project-sitemap-tools-e2e`; Runtime view/cleanup/size cases in `runtime/tests/test_sitemap_*.py`; [sitemap contract](../spec/artifacts/project-sitemap.md) |
+| Project sitemap operation authority, shared-map views and exact context | `make test-project-sitemap-postgres` and `make test-project-sitemap-tools-e2e`; Runtime view/cleanup/size cases in `runtime/tests/test_sitemap_*.py`; [sitemap contract](../spec/artifacts/project-sitemap.md) |
 | Retained Artifact history, exact-reference holds and history errors | `make test-artifact-history-postgres` and `make test-artifact-history-e2e` (test database; the second also the locked Runtime environment); [retention contract](../spec/artifacts/retention-and-deletion.md) |
 | Git import | [Git artifacts](../guides/git-artifacts.md) |
 | Backup/restore with exact artifact bytes and CAS | `make test-backup-restore`; needs a PostgreSQL role with CREATE/DROP DATABASE, `psql`, and `pg_dump` and `pg_restore` of the server's major version or newer, which the target checks before it creates a database; [offline backup and restore](../operations/artifact-blob-storage.md#offline-backup-and-restore) |

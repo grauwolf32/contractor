@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -35,7 +36,7 @@ func (c *allocationReadCounter) reset() []string {
 	return queries
 }
 
-func TestPostgresSitemapAllocationInputReadsHaveConstantQueryBudget(t *testing.T) {
+func TestPostgresSitemapReadsDoNotResolveSnapshotInputs(t *testing.T) {
 	counter := &allocationReadCounter{}
 	pool := sitemapPool(t, counter)
 	ctx := t.Context()
@@ -43,8 +44,8 @@ func TestPostgresSitemapAllocationInputReadsHaveConstantQueryBudget(t *testing.T
 	stores := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	scope, _ := artifacts.ProjectScope("project")
 	want := make(map[string]contracts.ArtifactRef)
-	policy := readerPolicy("blackbox")
-	for i := range contracts.MaxSitemapOpenAPIInputs {
+	policy := readerPolicy()
+	for i := range contracts.MaxSitemapSnapshotInputs {
 		name := fmt.Sprintf("schema-%d", i)
 		source, err := stores.Create(ctx, scope, contracts.ArtifactRef{Namespace: "schemas", Name: name}, artifacts.Payload{MediaType: "application/json", Data: []byte(fmt.Sprintf(`{"schema":%d}`, i))})
 		if err != nil {
@@ -55,12 +56,16 @@ func TestPostgresSitemapAllocationInputReadsHaveConstantQueryBudget(t *testing.T
 			t.Fatal(err)
 		}
 		want[name] = fork.TargetRef
-		policy.OpenAPIInputs = append(policy.OpenAPIInputs, name)
+		policy.SnapshotInputs = append(policy.SnapshotInputs, name)
 	}
 	service := NewService(pool)
 	counter.reset()
+	if _, err := service.AllocationAccess(ctx, "consumer", "research", readerPolicy()); err != nil {
+		t.Fatal(err)
+	}
+	emptyQueries := counter.reset()
 	one := *policy.Clone()
-	one.OpenAPIInputs = one.OpenAPIInputs[:1]
+	one.SnapshotInputs = one.SnapshotInputs[:1]
 	if _, err := service.AllocationAccess(ctx, "consumer", "research", one); err != nil {
 		t.Fatal(err)
 	}
@@ -70,20 +75,47 @@ func TestPostgresSitemapAllocationInputReadsHaveConstantQueryBudget(t *testing.T
 		t.Fatal(err)
 	}
 	allQueries := counter.reset()
-	if len(oneQueries) != len(allQueries) || len(allQueries) > 6 {
-		t.Fatalf("authority reads grew with input count: one=%d all=%d", len(oneQueries), len(allQueries))
+	if len(emptyQueries) != len(allQueries) || len(oneQueries) != len(allQueries) || len(allQueries) > 4 {
+		t.Fatalf("access reads grew with input count: zero=%d one=%d all=%d", len(emptyQueries), len(oneQueries), len(allQueries))
 	}
-	if len(access.Inputs) != len(want) {
-		t.Fatalf("selected inputs: %d", len(access.Inputs))
+	for _, query := range allQueries {
+		if strings.Contains(query, "artifact_") || strings.Contains(query, "payload") {
+			t.Fatal("map access resolved snapshot inputs or read artifact content")
+		}
 	}
-	for i, input := range access.Inputs {
-		if input.Ref.Name != policy.OpenAPIInputs[i] || !input.Ref.SameExact(want[input.Ref.Name]) {
+	resolve := func(access AllocationAccess) ([]contracts.ExactArtifact, []string) {
+		t.Helper()
+		counter.reset()
+		var inputs []contracts.ExactArtifact
+		err := postgres.InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+			var err error
+			inputs, err = resolveSnapshotInputs(ctx, tx, access)
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return inputs, counter.reset()
+	}
+	access.Policy = one
+	_, oneInputQueries := resolve(access)
+	access.Policy = policy
+	inputs, allInputQueries := resolve(access)
+	if len(oneInputQueries) != len(allInputQueries) || len(allInputQueries) > 4 {
+		t.Fatalf("snapshot metadata reads grew with input count: one=%d all=%d", len(oneInputQueries), len(allInputQueries))
+	}
+	if len(inputs) != len(want) {
+		t.Fatalf("selected inputs: %d", len(inputs))
+	}
+	for i, input := range inputs {
+		if input.Ref.Name != policy.SnapshotInputs[i] || !input.Ref.SameExact(want[input.Ref.Name]) {
 			t.Fatalf("original input/order changed: %+v", input)
 		}
 	}
-	for _, query := range allQueries {
+	for _, query := range allInputQueries {
 		if strings.Contains(query, "payload") {
-			t.Fatal("authority read fetched content")
+			t.Fatal("snapshot metadata lookup fetched content")
 		}
 	}
+	t.Logf("access statements=%d with zero artifact reads; snapshot metadata statements=%d for 1 or 8 inputs", len(allQueries), len(allInputQueries))
 }

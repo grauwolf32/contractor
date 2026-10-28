@@ -161,7 +161,7 @@ class ListSitemapEntries(_SitemapTool):
         scope: entries for surface previews, or metadata for sources, rules and gaps.
 
     Returns:
-        Authorized rows, original revision, policyDigest and nextCursor.
+        Authorized rows, original revision and nextCursor.
     """
 
     async def __call__(
@@ -200,7 +200,7 @@ class ReadSitemapEntry(_SitemapTool):
         include_suppressed: Include explicitly removed concrete members.
 
     Returns:
-        Authorized parts, original revision, policyDigest and nextCursor.
+        Authorized parts, original revision and nextCursor.
     """
 
     async def __call__(
@@ -351,7 +351,7 @@ class ConfigureSitemapGrouping(_SitemapTool):
     name = "configure_sitemap_grouping"
     description = """Replace this editor's grouping source using reviewed exact preconditions.
 
-    The Server supplies source identity and classification. Supply the complete
+    The Server supplies source identity and attribution. Supply the complete
     prior Source returned by list_sitemap_entries(scope="metadata"); omit it only
     to create a source.
     A stale source/map precondition is a permanent conflict, never refreshed for you.
@@ -379,7 +379,7 @@ class ConfigureSitemapGrouping(_SitemapTool):
         del arguments["self"]
 
         async def operation() -> dict:
-            access = await self._session.client.access()
+            access = await self._session.client.access("configure_sitemap_grouping")
             source = {
                 "sourceId": access.manual_source_id,
                 "rules": [{**rule, "sourceId": access.manual_source_id} for rule in rules],
@@ -400,7 +400,7 @@ class ConfigureSitemapGrouping(_SitemapTool):
 
 class SnapshotSitemapContext(_SitemapTool):
     name = "snapshot_sitemap_context"
-    description = """Retain a selected safe context from the exact cached view in this Run.
+    description = """Retain selected Project context from the exact cached view in this Run.
 
     List/read first. The Server materializes permitted bytes and atomically
     protects the original exact map revision. An evicted source requires explicit

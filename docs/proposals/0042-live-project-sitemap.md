@@ -23,9 +23,16 @@ the boundary. Valid paths, names, finite structural values, notes and tags remai
 intact regardless of keywords, opaque appearance or known credential matches.
 The existing `sitemap-safe-projection@1` identifier remains. The user also
 confirmed that ordinary owner-selected Run inputs authorize their complete
-selected content, including a mixed-source map for a blackbox Worker. Source-mode
-restrictions continue to govern dedicated sitemap views and snapshots. General
-credential handling, HTTP evidence redaction and telemetry redaction are unchanged.
+selected content. General credential handling, HTTP evidence redaction and
+telemetry redaction are unchanged.
+
+Shared-map decision, 2026-10-28: the user removed the earlier sitemap
+blackbox/source-assisted split. All permitted readers see the same accumulated
+Project metadata; source availability and observed-versus-declared provenance
+remain factual distinctions, not visibility classes. Current Project/operation
+grants and exact-file permissions remain. Optional `snapshotInputs` only select
+original Run files eligible for retention during snapshot creation; reads and
+pages do not resolve those files or carry a view policy digest.
 
 This complements the frozen surface and evidence contracts in
 [proposal 0033](0033-autonomous-pentest-audits.md). A live sitemap is shared
@@ -399,24 +406,29 @@ selection and Server/Runtime wire changes must be specified together before
 implementation. A Skill or the presence of an input file grants no live Project
 tool authority.
 
-Every contribution, including notes and grouping rules, carries trusted
-content-kind and source-mode provenance. Imports validate the caller's source
-authority before reading content and preserve that classification. Dedicated
-blackbox sitemap list/read, reconciliation and snapshot/export operations exclude unselected
-source-derived content before exposure, including previews, paths, parameter
-names, descriptions and grouping effects. An explicitly authorized OpenAPI
-input remains usable; another Run's source-assisted import does not become an
-authorized blackbox input automatically. Source-assisted manual notes are
-restricted conservatively unless a trusted classification permits disclosure;
-the model cannot relabel them. Form the view using allowed contributions and
-rules, or report an unavailable projection if safe reconstruction is impossible.
-These restrictions apply to the dedicated sitemap tool surface. An owner's
-explicit ordinary Run input selection authorizes the complete selected context,
-including a raw mixed-source Project map for a blackbox Worker. The Worker's
-sitemap policy does not narrow or reject that deliberate selection. Dedicated
-retained views name the original map revision plus the projection policy and
-selected inputs, and expose only authorized consumer refs; they do not claim
-byte identity with the full map.
+Every contribution, including notes and grouping rules, carries trusted source
+kind, producer and deployment provenance. Imports validate ordinary exact-file
+authority before reading content. All permitted sitemap list/read, reconciliation
+and snapshot operations use the same shared map, without classifying content as
+blackbox or source-assisted or rebuilding groups for a consumer. Missing source
+files do not hide known routes, and declared routes do not become observed
+responses. An owner's explicit ordinary Run input selection supplies the complete
+selected context through the existing fork lifecycle.
+
+Current allocation grants and the requested operation still control tool access.
+Immutable views and signed cursors name the exact map revision and query, with no
+view policy digest or stored policy copy. A context snapshot selects group/member
+IDs from that exact revision. Only its transaction resolves the at-most-eight
+`snapshotInputs` names to original Run input revisions and freezes needed
+permitted bytes. A referenced file without a matching permitted original input
+produces a `source-unavailable` gap, or fails when `requireReferencedInputs` is
+true. Once a needed exact input is resolved, missing or corrupt content and
+storage I/O failures retain ordinary ArtifactStore errors and roll back the
+snapshot regardless of that flag. Existing frozen-context replay remains
+unchanged; storage failure must not create a different accepted result for the
+same selection and key. A metadata descriptor alone never authorizes foreign-Run
+bytes. Derived context and its exact lineage holds commit together and do not
+claim byte identity with the complete map.
 
 Removing an entry means removing it from the working map, not rewriting prior
 artifact revisions or deleting finding evidence. Suppression applies to its
@@ -469,7 +481,8 @@ Paging uses one fully materialized, authorized immutable view per allocation,
 with at most 32 MiB encoded content and 128 MiB total retained bytes including
 parsed/index state. Cursors bind its view identity, revision and filters. Later
 server-side history eviction does not invalidate pages already materialized;
-each page still checks current allocation access/fencing and Project lifecycle.
+each page still checks current allocation access/fencing, the requested operation
+and Project lifecycle, without resolving source files.
 Replacement, release or loss of the view returns `409 sitemap_cursor_expired`; never
 reload an evicted revision as latest or mix snapshots. This transient view
 creates no server-side pin. Selecting proof from it still requires the atomic
@@ -688,7 +701,7 @@ disabled workspace modes. It adds no placement affinity or cache toggles. The
 first production callers are source/workspace ZIP hydration and selected Skill
 packages; extracted workspaces and Skill state remain fresh and allocation-owned.
 Cookies, Interactsh events, private evidence and arbitrary Artifact reads are
-outside this eligibility boundary. A safe sitemap projection may opt in later
+outside this eligibility boundary. An immutable sitemap view may opt in later
 through its own explicit eligibility contract; the first cache value does not
 depend on the pending sitemap tool.
 
@@ -761,9 +774,10 @@ For every source, test retention of credential-named and opaque paths, parameter
 names, structural values, notes and tags, including known-credential matches.
 Verify that userinfo, fragments, nonstructural query values, headers and bodies
 remain outside the metadata model and that general telemetry redaction remains
-unchanged. Exercise source-assisted to blackbox tool reads/snapshots separately
-from complete owner-selected ordinary inputs, repeated identity labels across
-baselines, reversed concurrent schema replacements, regrouping after
+unchanged. Exercise the same shared map through every permitted reader, current
+operation denial on cached pages, and snapshots with available, missing or
+advanced original input bindings. Check complete owner-selected ordinary inputs,
+repeated identity labels across baselines, reversed concurrent schema replacements, regrouping after
 inventory overflow/discarded incoming members, suppression across split/merge,
 and every metadata bound.
 Shared artifact/retention tests cover concurrent last-slot admission, mixed and

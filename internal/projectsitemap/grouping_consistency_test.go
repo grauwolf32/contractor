@@ -58,10 +58,9 @@ func TestPostgresSitemapDeclarationObservationSharePlacement(t *testing.T) {
 // contribution is annotated and suppressed before the second arrives.
 func exerciseSitemapMemberPlacement(t *testing.T, structural, declarationFirst bool, apply func(Authority, Mutation) Document) {
 	t.Helper()
-	owner := Authority{SourceID: "manual", Kind: "manual", Mode: "blackbox"}
-	rules := Authority{SourceID: "rules", Kind: "manual", Mode: "blackbox"}
+	owner := Authority{SourceID: "manual", Kind: "manual"}
+	rules := Authority{SourceID: "rules", Kind: "manual"}
 	traffic := httpAuthority("grouping-run")
-	traffic.Mode = "source-assisted"
 	rule := Rule{SourceID: rules.SourceID, Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{}, Structural: []StructuralParameter{}}
 	url := "https://example.test/users/me"
 	selection := []StructuralValue{}
@@ -100,17 +99,8 @@ func exerciseSitemapMemberPlacement(t *testing.T, structural, declarationFirst b
 	if len(member.Annotations) != 1 || len(document.Markers) != 1 || document.Markers[0].Members[0] != id {
 		t.Fatal("regrouping lost metadata or suppression")
 	}
-	view, err := SafeProjection(document, readerPolicy("blackbox"), "reader", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	requireSingleSitemapMember(t, view, id, rule.Path)
-	member = findSitemapMember(t, view, id)
-	if len(member.Summaries) != 0 || len(member.Annotations) != 1 || len(view.Markers) != 1 {
-		t.Fatal("manual declaration was lost when source-assisted observations were excluded")
-	}
 	declarationFound := false
-	for _, group := range view.Groups {
+	for _, group := range document.Groups {
 		for _, declaration := range group.Declarations {
 			if !declaration.Rule && declaration.Provenance.SourceID == owner.SourceID {
 				declarationFound = group.Route == "/users/me" && slices.EqualFunc(group.Structural, selection, func(a, b StructuralValue) bool { return a.Name == b.Name && slices.Equal(a.Values, b.Values) })
@@ -155,7 +145,7 @@ func TestSitemapRegroupReportsAmbiguousTemplates(t *testing.T) {
 	for _, rulesFirst := range []bool{false, true} {
 		t.Run(fmt.Sprintf("rules-first=%t", rulesFirst), func(t *testing.T) {
 			document := Empty()
-			authority := Authority{SourceID: "rules", Kind: "manual", Mode: "blackbox"}
+			authority := Authority{SourceID: "rules", Kind: "manual"}
 			rules := Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: authority.SourceID, Rules: []Rule{
 				{SourceID: authority.SourceID, Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{}},
 				{SourceID: authority.SourceID, Origin: "https://example.test", Method: "GET", Path: "/{kind}/me", Parameters: []string{}},
@@ -182,9 +172,9 @@ func TestSitemapRegroupReportsAmbiguousTemplates(t *testing.T) {
 	}
 }
 
-func TestSitemapManualDeclarationsRecoverConcreteRoutesInBlackboxView(t *testing.T) {
-	rules := Authority{SourceID: "restricted-rules", Kind: "manual", Mode: "source-assisted"}
-	owner := Authority{SourceID: "manual", Kind: "manual", Mode: "blackbox"}
+func TestSitemapManualDeclarationsPreserveConcretePathsAlongsideTemplates(t *testing.T) {
+	rules := Authority{SourceID: "rules", Kind: "manual"}
+	owner := Authority{SourceID: "manual", Kind: "manual"}
 	document, _, err := Reduce(Empty(), Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: rules.SourceID, Rules: []Rule{{SourceID: rules.SourceID, Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{}}}}}, rules)
 	if err != nil {
 		t.Fatal(err)
@@ -200,16 +190,18 @@ func TestSitemapManualDeclarationsRecoverConcreteRoutesInBlackboxView(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err := SafeProjection(document, readerPolicy("blackbox"), "reader", nil)
-	if err != nil {
-		t.Fatal(err)
+	if len(document.Groups) != 3 || len(document.Markers) != 1 || !slices.Equal(document.Markers[0].Members, []string{alice}) {
+		t.Fatalf("concrete declarations or suppression changed: %+v", document)
 	}
-	if len(view.Groups) != 2 || len(view.Markers) != 1 || !slices.Equal(view.Markers[0].Members, []string{alice}) {
-		t.Fatalf("concrete declarations or suppression changed: %+v", view)
-	}
-	for _, group := range view.Groups {
-		if len(group.Members) != 1 || group.Route != group.Members[0].Path || len(group.Declarations) != 1 || group.Declarations[0].Rule || group.Declarations[0].Provenance.SourceID != owner.SourceID {
-			t.Fatalf("manual concrete declaration did not survive template removal: %+v", group)
+	for _, group := range document.Groups {
+		if group.Route == "/users/{id}" {
+			if len(group.Members) != 2 {
+				t.Fatalf("template lost concrete members: %+v", group)
+			}
+			continue
+		}
+		if len(group.Members) != 0 || len(group.Declarations) != 1 || group.Declarations[0].Rule || group.Declarations[0].Provenance.SourceID != owner.SourceID {
+			t.Fatalf("manual concrete declaration did not survive grouping: %+v", group)
 		}
 	}
 }

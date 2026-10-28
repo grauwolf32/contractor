@@ -14,7 +14,7 @@ import (
 )
 
 func httpAuthority(run string) Authority {
-	return Authority{OwnerID: "owner", ProjectID: "project", RunID: run, SourceID: run, Kind: "http", Mode: "blackbox", CanObserve: true}
+	return Authority{OwnerID: "owner", ProjectID: "project", RunID: run, SourceID: run, Kind: "http", CanObserve: true}
 }
 func observation(path string) Observation {
 	return Observation{URL: "https://example.test" + path, Method: "GET", Outcome: "response", Status: 200, At: "2026-10-26T00:00:00Z"}
@@ -164,13 +164,13 @@ func TestReducerRegroupsRetainedMembersAndKeepsSuppression(t *testing.T) {
 	a := httpAuthority("traffic")
 	d := applyObservations(t, Empty(), a, observation("/users/123"), observation("/users/me"))
 	selected := memberID("https://example.test", "GET", "/users/123")
-	owner := Authority{SourceID: "owner", Kind: "manual", Mode: "source-assisted"}
+	owner := Authority{SourceID: "owner", Kind: "manual"}
 	var err error
 	d, _, err = Reduce(d, Mutation{Operation: "remove", MemberIDs: []string{selected}, MarkerID: "hidden"}, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
-	schema := Authority{SourceID: "schema", Kind: "openapi", Mode: "blackbox", Deployment: "prod"}
+	schema := Authority{SourceID: "schema", Kind: "openapi", Deployment: "prod"}
 	update := SourceUpdate{SourceID: "schema", Rules: []Rule{
 		{SourceID: "schema", Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{}},
 		{SourceID: "schema", Origin: "https://example.test", Method: "GET", Path: "/users/me", Parameters: []string{}},
@@ -214,7 +214,7 @@ func TestReducerOverflowNeverInventsMembership(t *testing.T) {
 	}
 	// A template retains only the concrete inventory, independent of examples.
 	rules := []Rule{{SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/items/{id}", Parameters: []string{}}}
-	owner := Authority{SourceID: "owner", Kind: "manual", Mode: "blackbox"}
+	owner := Authority{SourceID: "owner", Kind: "manual"}
 	var err error
 	d, _, err = Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: rules}}, owner)
 	if err != nil {
@@ -235,7 +235,7 @@ func TestReducerOverflowNeverInventsMembership(t *testing.T) {
 }
 
 func TestReducerStructuralSelectionAndSuppressionConflict(t *testing.T) {
-	owner := Authority{SourceID: "owner", Kind: "manual", Mode: "blackbox"}
+	owner := Authority{SourceID: "owner", Kind: "manual"}
 	rule := Rule{SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/dispatch", Parameters: []string{}, Structural: []StructuralParameter{{Name: "action", Allowed: []string{"read", "short-password"}}}}
 	d, _, err := Reduce(Empty(), Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: []Rule{rule}}}, owner)
 	if err != nil {
@@ -276,7 +276,7 @@ func TestReducerSequentialRunsUseStableSourceAndDistinctContexts(t *testing.T) {
 }
 
 func TestReducerSourceCanonicalizationDoesNotMutateIntent(t *testing.T) {
-	a := Authority{SourceID: "owner", Kind: "manual", Mode: "source-assisted"}
+	a := Authority{SourceID: "owner", Kind: "manual"}
 	m := Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: []Rule{{SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{"beta", "alpha"}}}}}
 	before := jsonBytes(m)
 	d, _, err := Reduce(Empty(), m, a)

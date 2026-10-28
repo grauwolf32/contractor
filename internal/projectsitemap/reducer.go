@@ -248,11 +248,11 @@ func validateDocument(d Document) error {
 }
 
 func validProvenance(p Provenance) bool {
-	return (Authority{SourceID: p.SourceID, Kind: p.Kind, Mode: p.Mode, RunID: p.RunID, Deployment: p.Deployment, CredentialRevision: p.CredentialRevision, SessionGeneration: p.SessionGeneration}).validate() == nil
+	return (Authority{SourceID: p.SourceID, Kind: p.Kind, RunID: p.RunID, Deployment: p.Deployment, CredentialRevision: p.CredentialRevision, SessionGeneration: p.SessionGeneration}).validate() == nil
 }
 func admittedProvenance(p Provenance, sources map[string]Source) bool {
 	source, found := sources[p.SourceID]
-	return found && validProvenance(p) && source.Provenance.Kind == p.Kind && source.Provenance.Mode == p.Mode && source.Provenance.Deployment == p.Deployment
+	return found && validProvenance(p) && source.Provenance.Kind == p.Kind && source.Provenance.Deployment == p.Deployment
 }
 func validNames(names []string) bool {
 	if len(names) > MaxBatch {
@@ -714,7 +714,7 @@ func replaceSource(d *Document, u SourceUpdate, a Authority) error {
 			return ErrConflict
 		}
 		previous := d.Sources[index].Provenance
-		if previous.Kind != a.Kind || previous.Mode != a.Mode || previous.Deployment != a.Deployment {
+		if previous.Kind != a.Kind || previous.Deployment != a.Deployment {
 			return ErrConflict
 		}
 		generation = d.Sources[index].Generation + 1

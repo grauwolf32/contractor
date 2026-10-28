@@ -73,7 +73,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		data = bytes.Replace(data, []byte("  toolsets:"), []byte("  sitemap: {version: sitemap-access@1, sourceMode: blackbox, collectObservations: true}\n  toolsets:\n    - ref: sitemap@1\n      tools: [list_sitemap_entries]"), 1)
+		data = bytes.Replace(data, []byte("  toolsets:"), []byte("  sitemap: {version: sitemap-access@1, collectObservations: true}\n  toolsets:\n    - ref: sitemap@1\n      tools: [list_sitemap_entries, read_sitemap_entry, upsert_sitemap_entry, snapshot_sitemap_context]"), 1)
 		if err := os.WriteFile(path, data, 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -268,6 +268,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	projectID := ""
 	if collection {
 		projectID = createProjectResource(t, publicClient, publicBaseURL).ProjectID
+		seedUnifiedSitemap(t, ctx, pool, operations, userID, projectID, forwardProxy.TargetURL())
 	}
 	httpInitial := createHTTPCaidoRun(
 		operations, "http-analysis-e2e@1", "http-caido-http-initial", forwardProxy.TargetURL(),
@@ -283,7 +284,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	assertHTTPCaidoReport(
 		t, operations, publicClient, publicBaseURL, httpInitialStatus, "report", httpCaidoHTTPReport,
 	)
-	assertHTTPInspectionRetainsOnlyReportAndCookies(t, operations, httpInitial.RunID)
+	assertHTTPInspectionRetainsOnlyReportAndCookies(t, operations, httpInitial.RunID, collection)
 
 	oldRun := createHTTPCaidoRun(
 		operations, "security-analysis@4", "http-caido-old-run", "target.example",
@@ -332,7 +333,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	assertHTTPCaidoReport(
 		t, operations, publicClient, publicBaseURL, httpUnrelatedStatus, "report", httpCaidoHTTPReport,
 	)
-	assertHTTPInspectionRetainsOnlyReportAndCookies(t, operations, httpUnrelated.RunID)
+	assertHTTPInspectionRetainsOnlyReportAndCookies(t, operations, httpUnrelated.RunID, collection)
 	if collection {
 		for _, runID := range []string{httpInitial.RunID, httpUnrelated.RunID} {
 			status := operations.request(http.MethodGet, "/v1/runs/"+runID, nil, 200, nil)
@@ -351,9 +352,20 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 		if err := json.Unmarshal(data, &view); err != nil {
 			t.Fatal(err)
 		}
-		if len(view.Document.Groups) != 1 || view.Document.Groups[0].Route != "/failure" || len(view.Document.Groups[0].Members[0].Summaries) != 1 || view.Document.Groups[0].Members[0].Summaries[0].Status != 500 {
-			t.Fatalf("automatic HTTP map missing actual target outcome: %s", data)
+		assertUnifiedSitemapGroups(t, view.Document)
+		editedManual := false
+		for _, group := range view.Document.Groups {
+			for _, member := range group.Members {
+				if member.Path == "/manual-canary" && slices.ContainsFunc(member.Annotations, func(annotation projectsitemap.Annotation) bool { return annotation.Note == "unified-editor" }) {
+					editedManual = true
+				}
+			}
 		}
+		if !editedManual {
+			t.Fatal("allocation editor could not annotate shared owner metadata")
+		}
+		assertUnifiedSitemapSnapshot(t, operations, httpInitial.RunID)
+		assertUnifiedSitemapSnapshot(t, operations, httpUnrelated.RunID)
 		for _, canary := range []string{httpCaidoSessionCanary, httpCaidoRawCanary, httpCaidoProxyCanary} {
 			if bytes.Contains(data, []byte(canary)) {
 				t.Fatal("HTTP collection persisted private traffic")
@@ -607,6 +619,7 @@ func assertHTTPInspectionRetainsOnlyReportAndCookies(
 	t *testing.T,
 	operations *runtimeOperations,
 	runID string,
+	sitemap bool,
 ) {
 	t.Helper()
 	data := operations.request(
@@ -623,14 +636,21 @@ func assertHTTPInspectionRetainsOnlyReportAndCookies(
 	if err := json.Unmarshal(data, &page); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 2 {
-		t.Fatalf("Run retained %d bindings, want report and cleared cookie jar", len(page.Items))
+	want := 2
+	if sitemap {
+		want++
+	}
+	if len(page.Items) != want {
+		t.Fatalf("Run retained %d bindings, want %d", len(page.Items), want)
 	}
 	expected := map[string]string{
 		"report":              "text/markdown",
 		"http-cookie-session": "application/vnd.contractor.http-cookie-session+json",
 	}
 	for _, item := range page.Items {
+		if sitemap && item.MediaType == projectsitemap.SnapshotMediaType {
+			continue
+		}
 		if item.Ref.Namespace != "http" || item.Ref.Revision == nil || expected[item.Ref.Name] != item.MediaType {
 			t.Fatalf("Run retained unexpected HTTP binding: %+v", item)
 		}

@@ -126,8 +126,7 @@
       "additionalProperties": false,
       "required": [
         "sourceId",
-        "kind",
-        "mode"
+        "kind"
       ],
       "properties": {
         "sourceId": {
@@ -143,13 +142,6 @@
             "katana",
             "dirsearch",
             "openapi"
-          ]
-        },
-        "mode": {
-          "type": "string",
-          "enum": [
-            "blackbox",
-            "source-assisted"
           ]
         },
         "runId": {
@@ -346,9 +338,7 @@
       "required": [
         "apiVersion",
         "policy",
-        "policyDigest",
-        "manualSourceId",
-        "inputs"
+        "manualSourceId"
       ],
       "properties": {
         "apiVersion": {
@@ -357,18 +347,8 @@
         "policy": {
           "$ref": "common.schema.json#/$defs/projectSitemapPolicy"
         },
-        "policyDigest": {
-          "$ref": "common.schema.json#/$defs/digest"
-        },
         "manualSourceId": {
           "$ref": "common.schema.json#/$defs/resourceId"
-        },
-        "inputs": {
-          "type": "array",
-          "maxItems": 8,
-          "items": {
-            "$ref": "#/$defs/SitemapInputDescriptor"
-          }
         }
       }
     },
@@ -403,15 +383,11 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "revision",
-            "expectedPolicyDigest"
+            "revision"
           ],
           "properties": {
             "revision": {
               "$ref": "common.schema.json#/$defs/resourceId"
-            },
-            "expectedPolicyDigest": {
-              "$ref": "common.schema.json#/$defs/digest"
             },
             "requireReferencedInputs": {
               "type": "boolean"

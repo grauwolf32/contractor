@@ -18,8 +18,10 @@ PACKAGES = (
 REQUIRED = {
     "TestPostgresSitemapReceiptsOwnershipAndHistory",
     "TestPostgresSitemapHTTPCollectionProjectionSessionsAndReceipt",
-    "TestPostgresSitemapAllocationProjectionSnapshotAndReplay",
-    "TestPostgresSitemapAllocationUsesOnlySelectedExactInputsAndVisibleSelections",
+    "TestPostgresSitemapSharedMapSnapshotAndReplay",
+    "TestPostgresSitemapEditorsShareMembersAndDeriveProjectAuthority",
+    "TestPostgresSitemapReadsDoNotResolveSnapshotInputs",
+    "TestPostgresSitemapSnapshotMissingContentReportsStorageFailure",
     "TestPostgresSitemapContextProjectionSerializesWithHistoryEviction",
     "TestPostgresSitemapSnapshotMaterializesOnlyNeededAuthorizedExactInputs",
     "TestPostgresSitemapTenWritersAndPermanentSourceConflict",

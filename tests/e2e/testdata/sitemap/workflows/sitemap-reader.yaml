@@ -1,10 +1,8 @@
 apiVersion: contractor/v1alpha1
 kind: Workflow
-metadata: {name: sitemap-blackbox-edit, version: "1"}
+metadata: {name: sitemap-reader, version: "1"}
 spec:
-  parameters:
-    revision: {required: true}
-    url: {required: true}
+  parameters: {}
   inputs: {}
   outputs:
     report: {required: true, primary: true, mediaTypes: [application/json]}
@@ -15,7 +13,7 @@ spec:
       instructions: {ref: instructions/probe.md}
       planner: passthrough@1
       agents:
-        researcher: {template: sitemap-blackbox-edit@1}
+        researcher: {template: sitemap-reader@1}
       context: {artifacts: {}}
       result:
         artifacts:

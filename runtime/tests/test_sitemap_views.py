@@ -6,7 +6,7 @@ import threading
 from pathlib import Path
 
 import pytest
-from fakes.sitemap import POLICY_DIGEST, SitemapTransport, document, identity
+from fakes.sitemap import SitemapTransport, document, identity
 
 import contractor_runtime.toolsets.sitemap.index as index_module
 import contractor_runtime.toolsets.sitemap.session as session_module
@@ -55,6 +55,7 @@ def test_cached_pages_survive_publication_and_eviction_but_not_refresh_or_revoca
         first = await session.list(**options)
         assert len(first["entries"]) == 100 and first["revision"] == "revision-original"
         assert first["nextCursor"]
+        assert set(first) == {"revision", "entries", "nextCursor"}
         original = set(row["id"] for row in first["entries"])
         # The scripted server no longer has the old bytes. A continuation must
         # not fetch them or turn to the latest publication.
@@ -66,6 +67,11 @@ def test_cached_pages_survive_publication_and_eviction_but_not_refresh_or_revoca
         assert len(original) == 205 and third["nextCursor"] is None
         assert sum(path.endswith("/sitemap") for _, path, _, _ in transport.requests) == 1
         assert second["revision"] == "revision-original"
+        access_paths = [path for _, path, _, _ in transport.requests if "/access" in path]
+        assert (
+            access_paths
+            == ["/allocations/allocation/sitemap/access?operation=list_sitemap_entries"] * 3
+        )
         for tampered in [first["nextCursor"] + "x", "garbage"]:
             with pytest.raises(ArtifactAPIError, match="sitemap_cursor_expired"):
                 await session.list(**{**options, "cursor": tampered})
@@ -94,7 +100,7 @@ def test_read_pages_concrete_parts_suppression_and_exact_snapshot_request() -> N
         marker = {
             "id": "removal",
             "members": [entry["members"][0]["id"]],
-            "provenance": {"sourceId": "public", "kind": "manual", "mode": "blackbox"},
+            "provenance": {"sourceId": "public", "kind": "manual"},
         }
         value["markers"] = [marker]
         transport = SitemapTransport(value)
@@ -116,12 +122,19 @@ def test_read_pages_concrete_parts_suppression_and_exact_snapshot_request() -> N
         assert all(row.get("memberId") != marker["members"][0] for row in rows)
         assert any(row["kind"] == "marker" for row in rows)
         assert not {"source", "rule", "gap"} & {row["kind"] for row in rows}
+        requests_before_snapshot = len(transport.requests)
         await session.snapshot([entry["id"]], [], False, "stable-key")
+        assert len(transport.requests) == requests_before_snapshot + 1
         _, path, headers, body = transport.requests[-1]
         request = json.loads(body)
         assert path.endswith("/snapshots") and headers["Idempotency-Key"] == "stable-key"
         assert request["selection"]["revision"] == "revision-original"
-        assert request["selection"]["expectedPolicyDigest"] == POLICY_DIGEST
+        assert set(request["selection"]) == {
+            "revision",
+            "groups",
+            "members",
+            "requireReferencedInputs",
+        }
         assert "document" not in request
         await session.close()
 
@@ -132,7 +145,7 @@ def test_metadata_pages_bound_work_bytes_and_cursor_authority_without_entry_repe
     value = document(1)
     value["sources"] = [
         {
-            "provenance": {"sourceId": f"source-{i}", "kind": "manual", "mode": "blackbox"},
+            "provenance": {"sourceId": f"source-{i}", "kind": "manual"},
             "generation": 1,
             "policyDigest": "a" * 64,
         }
@@ -257,7 +270,6 @@ def test_maximum_encoded_view_realistic_index_memory_and_bounded_page_work(monke
         session._view = view
         session._identity = "maximum-view"
         session._revision = "exact-revision"
-        session._policy = POLICY_DIGEST
         loads = 0
         original_load = view.load
 

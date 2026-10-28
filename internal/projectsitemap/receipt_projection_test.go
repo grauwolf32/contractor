@@ -65,7 +65,7 @@ func TestPostgresSitemapReceiptPreservesStructuralOmissions(t *testing.T) {
 			}
 			ctx := artifacts.WithHistoryPolicy(t.Context(), history)
 			service := NewService(pool)
-			owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual", Mode: "blackbox"}
+			owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual"}
 			rules := append(slices.Clone(tc.rules), stable)
 			if _, err := service.Mutate(ctx, owner, "configure", Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: owner.SourceID, Rules: rules}}); err != nil {
 				t.Fatal(err)
@@ -128,7 +128,7 @@ func TestPostgresSitemapDeclarationReceiptPreservesStructuralValues(t *testing.T
 	pool := sitemapPool(t)
 	service := NewService(pool)
 	ctx := t.Context()
-	owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual", Mode: "blackbox"}
+	owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual"}
 	rule := receiptProjectionRule("/dispatch", StructuralParameter{Name: "action", Allowed: []string{"read", "write"}})
 	configured, err := service.Mutate(ctx, owner, "configure", Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: owner.SourceID, Rules: []Rule{rule}}})
 	if err != nil {
@@ -199,7 +199,7 @@ func TestPostgresSitemapDeclarationReceiptPreservesParameterNames(t *testing.T) 
 	pool := sitemapPool(t)
 	service := NewService(pool)
 	ctx := t.Context()
-	owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual", Mode: "blackbox"}
+	owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual"}
 	command := Mutation{Operation: "declare", ExpectedRevision: "absent", URL: "https://example.test/search?q=one", Method: "GET"}
 	first, err := service.Mutate(ctx, owner, "declare", command)
 	if err != nil {

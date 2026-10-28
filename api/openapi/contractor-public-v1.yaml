@@ -7510,7 +7510,6 @@ components:
       required:
       - sourceId
       - kind
-      - mode
       properties:
         sourceId:
           $ref: '#/components/schemas/ResourceId'
@@ -7524,11 +7523,6 @@ components:
           - katana
           - dirsearch
           - openapi
-        mode:
-          type: string
-          enum:
-          - blackbox
-          - source-assisted
         runId:
           $ref: '#/components/schemas/ResourceId'
         deployment:

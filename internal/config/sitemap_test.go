@@ -35,10 +35,10 @@ func TestSitemapPolicyAuthoringPinsAndClonesAuthority(t *testing.T) {
 		t.Fatalf("pinned sitemap policy: %+v %v", first.Sitemap, err)
 	}
 	digest := first.Ref.Digest
-	first.Sitemap.SourceMode = "source-assisted"
-	first.Sitemap.OpenAPIInputs = []string{"changed"}
+	*first.Sitemap.Deployment = "changed"
+	first.Sitemap.SnapshotInputs[0] = "changed"
 	again, err := snapshot.AgentTemplate("artifact_builder@1")
-	if err != nil || again.Sitemap.SourceMode != "blackbox" || len(again.Sitemap.OpenAPIInputs) != 0 {
+	if err != nil || *again.Sitemap.Deployment != "prod" || len(again.Sitemap.SnapshotInputs) != 1 || again.Sitemap.SnapshotInputs[0] != "api" {
 		t.Fatal("sitemap policy shares mutable template state")
 	}
 	replaceFile(t, templatePath(root), "collectObservations: true", "collectObservations: false")
@@ -53,8 +53,10 @@ func TestSitemapPolicyRejectsInvalidAuthoring(t *testing.T) {
 		"null":               "  sitemap: null\n",
 		"missing collection": strings.Replace(sitemapPolicyYAML, "    collectObservations: true\n", "", 1),
 		"wrong version":      strings.Replace(sitemapPolicyYAML, "sitemap-access@1", "sitemap-access@2", 1),
+		"obsolete mode":      sitemapPolicyYAML + "    sourceMode: blackbox\n",
+		"obsolete inputs":    sitemapPolicyYAML + "    openapiInputs: [api]\n",
 		"unknown field":      sitemapPolicyYAML + "    ownerId: forged\n",
-		"duplicate field":    sitemapPolicyYAML + "    sourceMode: source-assisted\n",
+		"duplicate field":    sitemapPolicyYAML + "    collectObservations: false\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			root := copyCoreFixture(t)
@@ -68,6 +70,7 @@ func TestSitemapPolicyRejectsInvalidAuthoring(t *testing.T) {
 
 const sitemapPolicyYAML = `  sitemap:
     version: sitemap-access@1
-    sourceMode: blackbox
+    deployment: prod
+    snapshotInputs: [api]
     collectObservations: true
 `

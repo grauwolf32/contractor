@@ -36,7 +36,7 @@ func TestProjectSitemapToolsAcrossProductionProcesses(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if directory == "workflows" && entry.Name() == "sitemap-blackbox-list.yaml" {
+				if directory == "workflows" && entry.Name() == "sitemap-reader.yaml" {
 					text := strings.Replace(string(data), "inputs: {}", "inputs:\n    raw_map: {required: false, mediaTypes: [application/vnd.contractor.project-sitemap+json]}", 1)
 					text = strings.Replace(text, "context: {artifacts: {}}", "context: {artifacts: {raw_map: {namespace: inputs, name: raw_map, required: false}}}", 1)
 					data = []byte(text)
@@ -66,7 +66,7 @@ func TestProjectSitemapToolsAcrossProductionProcesses(t *testing.T) {
 		}
 		return *result.Artifact.Revision
 	}
-	original := mutate(project.ProjectID, "absent", "/source-assisted-canary", "seed")
+	original := mutate(project.ProjectID, "absent", "/manual-canary", "seed")
 	mutate(foreign.ProjectID, "absent", "/foreign-project-canary", "foreign-seed")
 	create := func(workflow string, parameters map[string]string, selected ...map[string]any) string {
 		t.Helper()
@@ -80,35 +80,29 @@ func TestProjectSitemapToolsAcrossProductionProcesses(t *testing.T) {
 		}
 		return postProjectRun(t, h.operations.client, h.operations.baseURL, project.ProjectID, "sitemap-"+randomHex(t, 8), body, false)
 	}
-	edited := create("sitemap-blackbox-edit", map[string]string{"revision": original, "url": "https://example.test/session/short-password"})
+	edited := create("sitemap-editor", map[string]string{"revision": original, "url": "https://example.test/session/short-password"})
 	status := h.terminal(t, edited, "succeeded")
 	assertSitemapToolReport(t, h, status, "upsert_sitemap_entry", "")
-	listed := create("sitemap-blackbox-list", map[string]string{})
+	listed := create("sitemap-reader", map[string]string{})
 	status = h.terminal(t, listed, "succeeded")
 	report := assertSitemapToolReport(t, h, status, "list_sitemap_entries", "")
-	if bytes.Contains(report, []byte("source-assisted-canary")) || bytes.Contains(report, []byte("foreign-project-canary")) || !bytes.Contains(report, []byte("/session/short-password")) {
-		t.Fatalf("blackbox process projection leaked or lost content: %s", report)
+	if !bytes.Contains(report, []byte("manual-canary")) || bytes.Contains(report, []byte("foreign-project-canary")) || !bytes.Contains(report, []byte("/session/short-password")) {
+		t.Fatalf("unified process reader leaked or lost content: %s", report)
 	}
 	// Owner-selected ordinary inputs are explicit context authority. They
-	// retain the selected complete map even when dedicated tools are blackbox.
-	selected := create("sitemap-blackbox-list", map[string]string{}, map[string]any{"raw_map": artifactRef{Namespace: "sitemap", Name: "map", Revision: &original}})
+	// retain the complete selected map, independently of later publications.
+	selected := create("sitemap-reader", map[string]string{}, map[string]any{"raw_map": artifactRef{Namespace: "sitemap", Name: "map", Revision: &original}})
 	status = h.terminal(t, selected, "succeeded")
 	report = assertSitemapToolReport(t, h, status, "list_sitemap_entries", "")
-	if bytes.Contains(report, []byte("source-assisted-canary")) {
-		t.Fatal("ordinary input selection changed dedicated sitemap tool authority")
+	if !bytes.Contains(report, []byte("manual-canary")) {
+		t.Fatal("ordinary input selection hid shared sitemap metadata")
 	}
 	selectedBytes := h.operations.request(http.MethodGet, "/v1/runs/"+selected+"/artifacts/inputs/raw_map", nil, 200, nil)
-	if !bytes.Contains(selectedBytes, []byte("source-assisted-canary")) || bytes.Contains(selectedBytes, []byte("foreign-project-canary")) {
+	if !bytes.Contains(selectedBytes, []byte("manual-canary")) || bytes.Contains(selectedBytes, []byte("foreign-project-canary")) {
 		t.Fatal("explicit owner sitemap input lost its selected complete Project context")
 	}
-	full := create("sitemap-source-assisted-list", map[string]string{})
-	status = h.terminal(t, full, "succeeded")
-	report = assertSitemapToolReport(t, h, status, "list_sitemap_entries", "")
-	if !bytes.Contains(report, []byte("source-assisted-canary")) || bytes.Contains(report, []byte("foreign-project-canary")) {
-		t.Fatal("trusted source mode or Project scope was not preserved")
-	}
 	assertEmptySitemapMetadataAcrossProcesses(t, h)
-	stale := create("sitemap-blackbox-edit", map[string]string{"revision": original, "url": "https://example.test/must-not-appear"})
+	stale := create("sitemap-editor", map[string]string{"revision": original, "url": "https://example.test/must-not-appear"})
 	status = h.terminal(t, stale, "failed")
 	assertSitemapToolReport(t, h, status, "upsert_sitemap_entry", "sitemap_conflict")
 	current := h.operations.request(http.MethodGet, "/v1/projects/"+project.ProjectID+"/sitemap", nil, 200, nil)
@@ -166,7 +160,7 @@ func assertEmptySitemapMetadataAcrossProcesses(t *testing.T, h *placementProcess
 	if len(view.Document.Groups) != 0 || len(view.Document.Rules) != 0 || len(view.Document.Sources) != 1 || view.Document.Sources[0].Generation != 2 {
 		t.Fatalf("cleared source did not retain its generation in an empty map: %+v", view)
 	}
-	input := []byte(`{"workflow":"sitemap-source-assisted-metadata@1","parameters":{},"artifacts":{}}`)
+	input := []byte(`{"workflow":"sitemap-metadata@1","parameters":{},"artifacts":{}}`)
 	runID := postProjectRun(t, h.operations.client, h.operations.baseURL, project.ProjectID, "sitemap-metadata-"+randomHex(t, 8), input, false)
 	status := h.terminal(t, runID, "succeeded")
 	report := assertSitemapToolReport(t, h, status, "list_sitemap_entries", "")

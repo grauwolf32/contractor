@@ -72,7 +72,7 @@ func (h *projectHandlers) mutateSitemap(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	authority := projectsitemap.Authority{OwnerID: principalUserID(r.Context()), ProjectID: r.PathValue("projectId"),
-		SourceID: sourceID, Kind: "manual", Mode: "source-assisted"}
+		SourceID: sourceID, Kind: "manual"}
 	result, err := h.Sitemap.Mutate(r.Context(), authority, key, mutation)
 	if err != nil {
 		handleError(w, err)

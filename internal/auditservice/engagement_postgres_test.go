@@ -219,6 +219,23 @@ func TestEngagementPreflightStartPinsAndReplay(t *testing.T) {
 	}
 }
 
+func TestEngagementPreflightAcceptsSharedSitemapKnowledge(t *testing.T) {
+	f := newEngagementFixtureWithEdits(t, func(worker string) string {
+		return strings.Replace(worker, "  toolsets:\n", "  sitemap:\n    version: sitemap-access@1\n    collectObservations: false\n  toolsets:\n    - ref: sitemap@1\n      tools: [list_sitemap_entries]\n", 1)
+	}, nil)
+	draft, err := f.create(t, "shared-sitemap", f.document("http://127.0.0.1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	preflight, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision})
+	if err != nil || !preflight.ServerCompatible {
+		t.Fatalf("shared sitemap preflight=%+v err=%v", preflight, err)
+	}
+	if _, err := f.service.Start(f.ctx, f.start(draft)); err != nil {
+		t.Fatalf("shared sitemap prevents blackbox Audit start: %v", err)
+	}
+}
+
 func TestEngagementPreflightStaleOwnershipAndStartRevalidation(t *testing.T) {
 	f := newEngagementFixture(t)
 	document := f.document("http://127.0.0.1")

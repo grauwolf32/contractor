@@ -495,13 +495,17 @@ changes its digest ([CAT-R74](catalog.md)).
 ### Toolset selection
 
 **TPL-R115.** Optional `spec.sitemap` pins an allocation policy with required
-`version: sitemap-access@1`, `sourceMode` and `collectObservations`, optional
-`deployment` (ResourceId), and optional `openapiInputs` (a sorted unique set of
-Workflow input names). The policy is valid for both Worker runtime variants,
+`version: sitemap-access@1` and `collectObservations`, optional `deployment`
+(ResourceId), and optional `snapshotInputs` (a sorted unique set of at most eight
+Workflow input names). These names permit retaining needed original input files
+when creating a sitemap context snapshot; they do not restrict map visibility.
+Source-mode classification is not part of this policy. The policy is valid for
+both Worker runtime variants,
 participates in the template digest and is deep-copied with it. It grants no
 model-visible function by itself. Sitemap tool selection requires this policy;
 automatic collection additionally requires its explicit collection permission.
-The authority, modes and bounds are owned by [SMT-R13](../artifacts/project-sitemap.md).
+The operation authority and snapshot-file bounds are owned by
+[SMT-R13](../artifacts/project-sitemap.md) and [SMT-R16](../artifacts/project-sitemap.md).
 
 **TPL-R37.** An AgentTemplate chooses both the exact Toolset
 ([Toolsets](../tools/toolsets.md)) and an explicit allowlist of tools within

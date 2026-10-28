@@ -2397,24 +2397,6 @@ func (e SitemapProvenanceKind) Valid() bool {
 	}
 }
 
-// Defines values for SitemapProvenanceMode.
-const (
-	Blackbox       SitemapProvenanceMode = "blackbox"
-	SourceAssisted SitemapProvenanceMode = "source-assisted"
-)
-
-// Valid indicates whether the value is a known member of the SitemapProvenanceMode enum.
-func (e SitemapProvenanceMode) Valid() bool {
-	switch e {
-	case Blackbox:
-		return true
-	case SourceAssisted:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for SitemapSourceUpdateSourceId.
 const (
 	Owner SitemapSourceUpdateSourceId = "owner"
@@ -8040,7 +8022,6 @@ type SitemapProvenance struct {
 	CredentialRevision *ResourceId           `json:"credentialRevision,omitempty"`
 	Deployment         *ResourceId           `json:"deployment,omitempty"`
 	Kind               SitemapProvenanceKind `json:"kind"`
-	Mode               SitemapProvenanceMode `json:"mode"`
 	RunId              *ResourceId           `json:"runId,omitempty"`
 	SessionGeneration  *ResourceId           `json:"sessionGeneration,omitempty"`
 	SourceId           ResourceId            `json:"sourceId"`
@@ -8048,9 +8029,6 @@ type SitemapProvenance struct {
 
 // SitemapProvenanceKind defines model for SitemapProvenance.Kind.
 type SitemapProvenanceKind string
-
-// SitemapProvenanceMode defines model for SitemapProvenance.Mode.
-type SitemapProvenanceMode string
 
 // SitemapResult defines model for SitemapResult.
 type SitemapResult struct {
