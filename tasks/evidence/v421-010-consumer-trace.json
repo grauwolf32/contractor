@@ -1,7 +1,7 @@
 {
   "schema_version": "1.0",
   "task": "V421-010",
-  "verification_status": "resumed_awaiting_integrated_release_gate",
+  "verification_status": "verified_on_frozen_integrated_revision",
   "main_baseline": "f18dec3dbf9316b3347859db1da6873f54ffa1b0",
   "dependencies": [
     {
@@ -291,5 +291,54 @@
       "corrected_by": "V421-017",
       "exact_four_exit_commands": "not_started_because_whole_gate_failed"
     }
-  ]
+  ],
+  "integrated_verification": {
+    "revision": "754f2b7686b1d5706566e6937731dfd0b25bb0b4",
+    "tree": "32a0e1bdda67cf5daaec6cacb67173981c9364d8",
+    "evidence": "tasks/evidence/v421-010-release-verified.json",
+    "evidence_sha256": "d317cbbb8b201eb86ab412e94301821de859393c60b22fc4967e2ffaad7f63d1",
+    "manifest": "tasks/evidence/v421-010-release-manifest.json",
+    "manifest_sha256": "c468916a6a4f1d5c1a1f1e938f04c9936c5b03820a4279022fbe747976d99503",
+    "full_release": {
+      "command": "make -k release-verify RACE_PACKAGE_PARALLELISM=1",
+      "exit_code": 0,
+      "stages_proven": 12,
+      "real_disposable_postgres": true
+    },
+    "required_cases": {
+      "integration_roots": 285,
+      "integration_cases": 709,
+      "process_roots": 31,
+      "browser_stack_roots": 10,
+      "configuration_roots": 8,
+      "missing_failed_or_skipped_selected_roots": 0
+    },
+    "separate_counts_not_summed": {
+      "go_unit_pass": 9806,
+      "go_unit_optional_skips": 7,
+      "runtime_pass": 5287,
+      "runtime_optional_skips": 55,
+      "ui_pass": 2510,
+      "ui_expected_harness_negative_control": 1,
+      "race_test_packages": 102,
+      "race_no_test_packages": 5
+    },
+    "direct_exit_commands": {
+      "tasks": 0,
+      "spec": 0,
+      "verify-public-api": 0,
+      "verify-public-api-postgres": 0,
+      "release_consolidated": false
+    },
+    "provenance": "Clean revision/tree/lockfiles unchanged before and after the whole gate and all four direct exits; Python3.13 and the actual editable Runtime import bind to the frozen checkout; all owned processes joined.",
+    "later_commits": "Only tracker/evidence closure follows this tested functional source; no functional pass is claimed at a different source revision.",
+    "merge_status": {
+      "branch": "codex/data-model-review-tasks",
+      "main": "f18dec3dbf9316b3347859db1da6873f54ffa1b0",
+      "main_is_ancestor": true,
+      "merged_to_main": false,
+      "remaining": "User merges the verified branch with --no-ff."
+    },
+    "independent_proof_review": "CLEAR: linked hashes, all seven actual Go streams, source-owned required selections, direct exits, source provenance and skip identities were rechecked; compact and manifest are byte-identical to the accepted outputs. Integration canonical reports and process-B/configuration gate streams are distinguished."
+  }
 }

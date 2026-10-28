@@ -49,7 +49,8 @@ context:
     an outdated strict public Artifact page DTO. V421-017 now uses the
     generated model; both complete real scenarios, the untagged harness and
     Linux lint pass on b53ec214. All unsuccessful attempts remain historical;
-    a fresh complete release attempt is still required.
+    the fresh E1 attempt on 754f2b76 now passes the complete gate and all four
+    direct exit validators without reusing failed-attempt outcomes.
   integration_followups: >-
     Independent combined review found two concrete UI defects before release:
     V421-011 now guards unresolved replacement inputs and retained recovery;
@@ -145,3 +146,45 @@ tests:
     covers: [A1, A4]
   - command: python3 scripts/check_spec.py
     covers: [A2, A4]
+  - command: make verify-public-api
+    covers: [A2, A3, A4]
+  - command: make verify-public-api-postgres
+    covers: [A2, A3, A4]
+verification:
+  tested_source: 754f2b7686b1d5706566e6937731dfd0b25bb0b4
+  tested_tree: 32a0e1bdda67cf5daaec6cacb67173981c9364d8
+  consumer_trace: tasks/evidence/v421-010-consumer-trace.json
+  evidence: tasks/evidence/v421-010-release-verified.json
+  manifest: tasks/evidence/v421-010-release-manifest.json
+  integrated_release: >-
+    Fresh clean Linux E1 ran make -k release-verify RACE_PACKAGE_PARALLELISM=1
+    with real disposable PostgreSQL and locked dependencies. The whole gate
+    exited 0 after 8844.730 seconds; all twelve stage boundaries are proven.
+    The canonical integration report verifies 285 roots / 709 case identities;
+    actual gate streams and receipts verify all 31 selected process roots,
+    all 10 browser roots and all 8 configuration roots with no missing,
+    failed, skipped or incomplete selected test.
+  other_counts: >-
+    Go unit reports 9806 passing cases and 7 reviewed optional skips; Runtime
+    reports 5287 passes and 55 reviewed optional skips. UI reports 2510 passes
+    and one intentional contract-harness negative control. Race output proves
+    102 test-package passes plus 5 source-owned packages without tests, not
+    individual test counts. Overlapping family/browser/report counts are not
+    summed as unique tests. Optional external/rootless/live checks remain
+    explicitly classified rather than reported as passed.
+  direct_exits: >-
+    On the same frozen source, check_tasks.py, check_spec.py,
+    make verify-public-api and make verify-public-api-postgres all exited 0.
+    Both Make API validators ran directly with RELEASE_CONSOLIDATED unset.
+    No zero-test selection or skipped database requirement is accepted.
+  source_and_processes: >-
+    Source revision, tree, four lockfiles and actual Runtime editable import
+    stayed unchanged through gate and direct exits. Python 3.13, Go 1.26.9,
+    Node 24.20 and PostgreSQL 17.11 are recorded; all owned processes were
+    joined. Evidence and tracker closure commits follow the tested source
+    and do not change functional code or replace its exact revision claim.
+  delivery: >-
+    All sixteen prerequisites are completed with full implementation hashes.
+    The latest main baseline f18dec3dbf9316b3347859db1da6873f54ffa1b0 is an
+    ancestor; work is on codex/data-model-review-tasks and is not merged to
+    main. The user performs the final --no-ff merge. No deployment is claimed.
