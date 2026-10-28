@@ -91,7 +91,15 @@ func (s *Service) Preflight(ctx context.Context, params PreflightParams) (Prefli
 		if err != nil {
 			return err
 		}
-		selected, err := readEngagement(ctx, artifacts.NewService(artifacts.NewPostgresRepository(tx)), audit.ProjectID, profile, selection)
+		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+		store, err := artifactService.Project(audit.ProjectID)
+		if err != nil {
+			return err
+		}
+		if _, err := verifyInputMetadata(ctx, store, profile, selection); err != nil {
+			return err
+		}
+		selected, err := readEngagement(ctx, artifactService, audit.ProjectID, profile, selection)
 		if err != nil {
 			return err
 		}

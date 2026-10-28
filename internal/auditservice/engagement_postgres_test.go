@@ -555,3 +555,55 @@ func TestEngagementNestedInputBound(t *testing.T) {
 		}
 	}
 }
+
+func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
+	f := newEngagementFixture(t)
+	profile, err := f.service.profiles.AuditProfile("test-checklist@1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	oversized, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "oversized-engagement"}, artifacts.Payload{MediaType: pentest.MediaType, Data: []byte(strings.Repeat(" ", pentest.MaxDocumentBytes+1))}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta, err := f.store.Metadata(f.ctx, oversized.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	selection := DraftSelection{Inputs: map[string]contracts.ExactArtifact{"engagement": meta.Exact(), "checklist": f.checklist}}
+	probe := &rulepackReadProbe{Repository: artifacts.NewPostgresRepository(f.pool), readErr: errors.New("unexpected engagement payload read")}
+	if _, err = readAndVerifyInputs(f.ctx, artifacts.NewService(probe), f.project.ProjectID, profile, selection); !errors.Is(err, ErrInvalid) || probe.reads != 0 {
+		t.Fatalf("oversized engagement materialized: reads=%d err=%v", probe.reads, err)
+	}
+	draft := storedRulepackDraft(t, f.ctx, f.service, profile, f.project.ProjectID, f.project.OwnerID, "stored-oversized-engagement", selection.Inputs)
+	if _, err = f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("oversized preflight=%v", err)
+	}
+	if _, err = f.service.Start(f.ctx, f.start(draft)); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("oversized start=%v", err)
+	}
+
+	// A source-assisted document may classify a separate exact source while the
+	// ordinary checklist selection still needs independent metadata validation.
+	document := f.document("http://127.0.0.1")
+	document.AccessMode = "source-assisted"
+	document.Inputs[0].Role = "source"
+	data, err := json.Marshal(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	written, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "metadata-engagement"}, artifacts.Payload{MediaType: pentest.MediaType, Data: data}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadata, err := f.store.Metadata(f.ctx, written.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	badChecklist := f.checklist.Clone()
+	badChecklist.Digest = serviceTestDigest("different-checklist")
+	draft = storedRulepackDraft(t, f.ctx, f.service, profile, f.project.ProjectID, f.project.OwnerID, "stored-bad-checklist", map[string]contracts.ExactArtifact{"engagement": metadata.Exact(), "checklist": badChecklist})
+	if _, err = f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("preflight skipped ordinary exact input metadata: %v", err)
+	}
+}

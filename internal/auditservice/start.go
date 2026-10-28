@@ -22,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/pentest"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -604,6 +605,28 @@ func readAndVerifyInputs(
 	if err != nil {
 		return nil, err
 	}
+	names, err := verifyInputMetadata(ctx, store, profile, selection)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]artifacts.ReadResult, len(names))
+	for _, name := range names {
+		selected := selection.Inputs[name]
+		read, err := store.ReadExact(ctx, selected)
+		if errors.Is(err, contracts.ErrExactArtifactMismatch) {
+			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation: %v", ErrInvalid, err)
+		}
+		if err != nil {
+			return nil, err
+		}
+		result[name] = read
+	}
+	return result, nil
+}
+
+// verifyInputMetadata shares bounded, payload-free admission between preflight
+// and start. Exact immutable revisions are checked before any payload read.
+func verifyInputMetadata(ctx context.Context, store artifacts.ScopedStore, profile auditprofile.ResolvedAuditProfile, selection DraftSelection) ([]string, error) {
 	names := make([]string, 0, len(selection.Inputs))
 	for name, selected := range selection.Inputs {
 		contract, exists := profile.Inputs[name]
@@ -635,6 +658,9 @@ func readAndVerifyInputs(
 	rulepacks := auditRulepackInputs(profile)
 	for index, name := range names {
 		metadata := described[index]
+		if metadata.MediaType == pentest.MediaType && metadata.SizeBytes > pentest.MaxDocumentBytes {
+			return nil, fmt.Errorf("%w: engagement exceeds its byte limit", ErrInvalid)
+		}
 		if err := selection.Inputs[name].Verify(metadata); err != nil {
 			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation: %v", ErrInvalid, err)
 		}
@@ -644,19 +670,7 @@ func readAndVerifyInputs(
 			}
 		}
 	}
-	result := make(map[string]artifacts.ReadResult, len(names))
-	for _, name := range names {
-		selected := selection.Inputs[name]
-		read, err := store.ReadExact(ctx, selected)
-		if errors.Is(err, contracts.ErrExactArtifactMismatch) {
-			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation: %v", ErrInvalid, err)
-		}
-		if err != nil {
-			return nil, err
-		}
-		result[name] = read
-	}
-	return result, nil
+	return names, nil
 }
 
 func buildInventory(
