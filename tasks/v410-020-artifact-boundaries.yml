@@ -1,0 +1,76 @@
+schema_version: '1.0'
+id: V410-020
+title: Isolate sitemap behind shared artifact and Project receipt mechanisms
+milestone: project-sitemap-2026-10
+epic: projects-artifacts
+kind: chore
+introduced_by: V410-002
+priority: P2
+status: in_progress
+depends_on: [V410-010, V410-002, V410-019]
+languages: [go, sql, markdown, yaml]
+goal: Keep sitemap as domain logic over ordinary artifacts without sitemap-specific storage, input-lineage or Project cleanup branches.
+context:
+  authority: On 2026-10-28 the user requested a modularity and isolation audit and authorized shared mechanisms wherever sitemap otherwise needs special artifact handling.
+  finding: internal/artifacts/service.go:98 names sitemap directly in generic write admission; internal/projectsitemap/snapshot_sql.go reads artifact_lineage directly; internal/persistence/postgres/receipts.go and internal/projectlifecycle/controller.go contain sitemap-specific receipt keys and cleanup. Ordinary bytes, metadata, history, CAS, input forks and derived context already use generic ArtifactStore primitives.
+  siblings: Audit-managed Project namespaces share write reservation; original immutable Run inputs are a general artifact concern; Audit/Eval/Runtime receipts retain their existing scope and lifecycle. Sitemap public/private domain adapters, route grouping, collection and JSON validation remain domain-owned.
+  specification:
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/project-sitemap.md
+  - docs/spec/platform/persistence.md
+scope:
+  in:
+  - Express Project write reservation through the existing common namespace policy and remove sitemap comparisons from ArtifactStore implementation.
+  - Add a bounded generic original Run input descriptor lookup to ArtifactStore, move its SQL out of sitemap and remove the domain's artifact_lineage ownership exception.
+  - Replace sitemap-specific receipt scope and purge code with generic Project-scoped keyed mutation receipts in the existing table; migrate current keys without losing accepted responses or adding runtime compatibility readers.
+  - Preserve normal artifact listing, content reads, metadata, versions, lineage and owner-selected input forks; add real-store regressions and architecture guards for the boundary.
+  - Update owning specs and unfinished sitemap release criteria with the shared mechanisms and their failure/cardinality/lifecycle guarantees.
+  out:
+  - Changes to route normalization, structural selectors, suppression, source import adapters or observation semantics.
+  - New storage tables, dynamic plugin registries, receipt stores, arbitrary foreign-scope access or general artifact API wire changes.
+failure_outcomes:
+- operation: Original input descriptor read
+  permanent: Invalid scope or names and ambiguous stored original lineage fail through ordinary ArtifactStore errors; absent optional names are omitted in requested order. Current editable bindings never replace original inputs.
+  retryable: Preserve existing transaction-conflict and I/O classification without a nested transaction or new retry budget.
+  cancelled: Use the caller context and transaction; no background work.
+- operation: Project keyed mutation and purge
+  success: Lock, effect and receipt use one transaction; cleanup commits one bounded receipt pass before artifact purge.
+  permanent: Changed intent conflicts; immutable receipts reject ordinary update/delete; active Projects cannot purge receipts.
+  ambiguous: Reuse the same key and common receipt replay, including after result eviction.
+  cancelled: Roll back in-flight transaction under existing controller ownership.
+cardinality:
+- collection: Selected original Run inputs
+  maximum: Shared exact-read batch bound; sitemap continues selecting at most eight names.
+  bound: Indexed bounded metadata queries independent of total Run artifact count, no payload reads and no nested pool acquisition.
+- collection: Project receipts
+  maximum: Existing cleanup row and byte limits per transaction.
+  bound: Cleanup is scoped and indexed, with no receipt or artifact full-collection scan.
+lifecycle:
+- entity: Existing Project mutation receipts
+  retention: Survive artifact history eviction and resource changes until Project purge.
+  delete: Only the existing drained deleting Project lifecycle may purge them.
+  cascade: No new entity or independent cleanup controller; migration preserves accepted receipt content and timestamps.
+acceptance_criteria:
+- id: A1
+  given: A sitemap artifact and another managed Project namespace
+  when: Generic artifact operations execute
+  then: Reads, metadata, versions, lineage and input forks use common paths; generic write admission consults common namespace policy without sitemap branching in ArtifactStore.
+- id: A2
+  given: Original inputs, advanced editable bindings, missing names and inconsistent original lineage
+  when: The shared bounded descriptor lookup and sitemap snapshot invoke it
+  then: Only original exact descriptors are returned in requested order without payload reads; missing names are omitted, ambiguity is rejected and work is independent of containing artifact count.
+- id: A3
+  given: Existing sitemap receipts and generic Project mutations
+  when: Migration, replay, immutable mutation attempts and Project purge execute
+  then: Accepted responses survive migration and eviction; scope and intent remain strict; only bounded deletion under the Project lifecycle fence succeeds.
+- id: A4
+  given: Final code and specification
+  when: Architecture and complete affected-package checks run
+  then: Sitemap has no direct artifact-table SQL, the store has no sitemap dispatch and lifecycle uses a generic Project receipt purge; no new compatibility path or mechanism duplicates an existing owner.
+tests:
+- command: make test-project-sitemap-postgres
+  covers: [A1, A2, A3, A4]
+- command: make test-project-sitemap-tools-e2e
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A4]
