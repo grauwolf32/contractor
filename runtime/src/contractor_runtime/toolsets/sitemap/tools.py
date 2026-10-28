@@ -5,8 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from types import MappingProxyType
-from typing import Any
-from urllib.parse import unquote
+from typing import Any, Literal
 from uuid import uuid4
 
 from contractor_runtime.adapters import AdapterHandles
@@ -100,33 +99,30 @@ class _SitemapTool(SessionArtifactTool[SitemapSession]):
         super().__init__(session, artifact, metrics, secrets)
         self._dispatcher = dispatcher
 
-    def _safe(self, value: Any, depth: int = 0) -> None:
+    def _validate_nesting(self, value: Any, depth: int = 0) -> None:
         if depth > 32:
             raise ToolInputError("sitemap arguments exceed the nesting bound")
-        if isinstance(value, str):
-            # Stronger ingress rejection than telemetry redaction: even a short
-            # credential must not become persisted context or a selector hash.
-            text = value
-            for _ in range(5):
-                if any(secret and secret in text for secret in self._secrets):
-                    raise ToolInputError("sitemap arguments contain a private credential")
-                decoded = unquote(text)
-                if decoded == text:
-                    break
-                text = decoded
-        elif isinstance(value, Mapping):
+        if isinstance(value, Mapping):
             for key, item in value.items():
-                self._safe(key, depth + 1)
-                self._safe(item, depth + 1)
+                self._validate_nesting(key, depth + 1)
+                self._validate_nesting(item, depth + 1)
         elif isinstance(value, (list, tuple)):
             for item in value:
-                self._safe(item, depth + 1)
+                self._validate_nesting(item, depth + 1)
 
-    async def _invoke(self, arguments: dict, operation: Callable[[], Awaitable[dict]]) -> dict:
+    async def _invoke(
+        self,
+        arguments: dict,
+        operation: Callable[[], Awaitable[dict]],
+        *,
+        session_read: bool = False,
+    ) -> dict:
         with self._recorded({}) as call:
-            self._safe(arguments)
+            self._validate_nesting(arguments)
             try:
-                async with asyncio.timeout(15):
+                # Session reads bound flush, lock acquisition and reading
+                # independently; mutations retain their existing allowance.
+                async with asyncio.timeout(None if session_read else 15):
                     result = await operation()
             except ArtifactAPIError as error:
                 result = {
@@ -144,12 +140,15 @@ class _SitemapTool(SessionArtifactTool[SitemapSession]):
 
 class ListSitemapEntries(_SitemapTool):
     name = "list_sitemap_entries"
-    description = """List authorized Project surface entries from one immutable safe view.
+    description = """List authorized Project entries or map metadata from one immutable view.
 
     Follow nextCursor with identical filters until it is null; filtered pages
     may be empty and still have a continuation. Refresh replaces the view and
     invalidates all older cursors. Later Project updates do not alter an existing
     sequence. This research map does not establish current coverage or proof.
+    Use scope="metadata" to read complete Source preconditions, grouping rules
+    and omission gaps, including when no surface entries remain. Metadata rows
+    have kind and value; entry filters apply only to scope="entries".
 
     Args:
         cursor: Continuation from this operation, with identical filters.
@@ -159,9 +158,10 @@ class ListSitemapEntries(_SitemapTool):
         origin: Exact origin filter.
         path_prefix: Literal route prefix filter.
         include_suppressed: Include entries whose concrete members were removed.
+        scope: entries for surface previews, or metadata for sources, rules and gaps.
 
     Returns:
-        Authorized previews, original revision, policyDigest and nextCursor.
+        Authorized rows, original revision, policyDigest and nextCursor.
     """
 
     async def __call__(
@@ -173,18 +173,22 @@ class ListSitemapEntries(_SitemapTool):
         origin: str | None = None,
         path_prefix: str | None = None,
         include_suppressed: bool = False,
+        scope: Literal["entries", "metadata"] = "entries",
     ) -> dict:
         arguments = locals().copy()
         del arguments["self"]
-        return await self._invoke(arguments, lambda: self._session.list(**arguments))
+        return await self._invoke(
+            arguments, lambda: self._session.list(**arguments), session_read=True
+        )
 
 
 class ReadSitemapEntry(_SitemapTool):
     name = "read_sitemap_entry"
     description = """Read one authorized sitemap entry in bounded parts.
 
-    Summary, annotation, example, evidence, declaration and source records are
+    Summary, annotation, example, evidence, declaration and removal records are
     separate parts. Follow nextCursor with identical arguments until null.
+    Read map-wide sources, rules and gaps with list_sitemap_entries(scope="metadata").
     Member IDs remain the concrete selection for edits after regrouping.
     Provenance mentions do not grant access to foreign evidence bytes.
 
@@ -223,6 +227,7 @@ class ReadSitemapEntry(_SitemapTool):
                 limit=limit,
                 include_suppressed=include_suppressed,
             ),
+            session_read=True,
         )
 
 
@@ -347,7 +352,8 @@ class ConfigureSitemapGrouping(_SitemapTool):
     description = """Replace this editor's grouping source using reviewed exact preconditions.
 
     The Server supplies source identity and classification. Supply the complete
-    prior Source returned by read_sitemap_entry; omit it only to create a source.
+    prior Source returned by list_sitemap_entries(scope="metadata"); omit it only
+    to create a source.
     A stale source/map precondition is a permanent conflict, never refreshed for you.
     Structural query parameters require an explicit finite allowed set in rules.
 

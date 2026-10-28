@@ -519,38 +519,19 @@ class _HTTPSession:
             finally:
                 if self._observation_sink is not None and captured.attempts:
                     observations = []
-                    secrets_for_observation = set(self.metric_secrets)
-                    secrets_for_observation.update(c.value for c in self._cookies.jar if c.value)
-                    for attempt in captured.attempts:
-                        for row in attempt.headers + attempt.response_headers:
-                            name, value = row["name"].lower(), row["value"]
-                            if name == "authorization":
-                                secrets_for_observation.add(value)
-                                _, _, credential = value.partition(" ")
-                                if credential:
-                                    secrets_for_observation.add(credential)
-                            elif name not in {"cookie", "set-cookie"} and _is_sensitive_header(
-                                name
-                            ):
-                                secrets_for_observation.add(value)
-                            elif name in {"cookie", "set-cookie"}:
-                                for part in (
-                                    value.split(";")
-                                    if name == "cookie"
-                                    else [value.split(";", 1)[0]]
-                                ):
-                                    _, separator, cookie_value = part.partition("=")
-                                    if separator and cookie_value:
-                                        secrets_for_observation.add(cookie_value.strip())
                     for index, attempt in enumerate(captured.attempts):
                         error = (
                             captured.error if index == len(captured.attempts) - 1 else attempt.error
                         )
-                        outcome = "response" if attempt.status is not None else "transport-error"
-                        status = attempt.status or 0
-                        if attempt.timed_out or (error == "timeout" and attempt.status is None):
+                        status = (
+                            attempt.status
+                            if attempt.status is not None and 100 <= attempt.status <= 599
+                            else 0
+                        )
+                        outcome = "response" if status else "transport-error"
+                        if attempt.timed_out or (error == "timeout" and not status):
                             outcome, status = "timeout", 0
-                        elif error == "cancelled" and attempt.status is None:
+                        elif error == "cancelled" and not status:
                             outcome = "attempt"
                         observations.append(
                             {
@@ -562,9 +543,7 @@ class _HTTPSession:
                                 "sessionGeneration": attempt.session_generation,
                             }
                         )
-                    await notify_http_observations(
-                        self._observation_sink, observations, tuple(secrets_for_observation)
-                    )
+                    await notify_http_observations(self._observation_sink, observations)
                 if captured.attempts and not published:
                     if not captured.complete:
                         last = captured.attempts[-1]

@@ -8,6 +8,13 @@ priority: P1
 status: pending
 depends_on:
 - V410-006
+- V410-018
+- V410-012
+- V410-013
+- V410-014
+- V410-015
+- V410-016
+- V410-017
 languages:
 - go
 - python
@@ -19,7 +26,9 @@ context:
   authority: 'User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
     this task records planned work, not implementation or verification evidence. User review on 2026-10-27 supersedes
     generic collection-completeness/status requirements: automatic sitemap updates are best effort and must remain
-    isolated from HTTP/scanner outcomes and Run contracts.'
+    isolated from HTTP/scanner outcomes and Run contracts. The 2026-10-27 metadata-policy decision removes sitemap
+    secret filtering and matching-secret transport; ordinary owner-selected inputs authorize complete selected context,
+    while dedicated sitemap views and snapshots retain source-mode restrictions.'
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 10-12: measured publication amplification, limits, required cases and first useful
     delivery.'
@@ -52,8 +61,9 @@ scope:
     work at representative and ceiling sizes; record actual measurements and conclusions during implementation verification.
   - Test sitemap-specific ten-writer, import, source-CAS, safe-view, publication and lifecycle paths. Consume the
     V410-010 generic admission/history/hold/GC gate evidence instead of rebuilding all-scope matrices here.
-  - Verify safe-source projections and every adapter canary against artifacts, tool views, logs and events, including
-    blackbox snapshot materialization.
+  - Verify source-mode projections and metadata retention across every adapter, including credential-like names,
+    opaque paths and known-credential matches. Dedicated blackbox snapshots filter unauthorized source contributions;
+    deliberate ordinary owner-selected inputs remain complete. Check the unchanged general telemetry redaction policy.
   - Document best-effort automatic updates, isolated failure handling and explicit snapshot/import semantics. Prove
     that blocked/refused storage never delays HTTP submission or changes target/Run results and that no publisher
     survives cleanup.
@@ -82,7 +92,7 @@ requirements:
     is one option. Numeric policy changes require explicit user approval, not a silent increase.
 - id: R4
   text: 'All reviewed sitemap failure classes specified by proposal 0042 for this slice have explicit executable coverage:
-    safe ingress, source-mode metadata, context namespaces, stale source replacement, bounded members/suppression,
+    bounded metadata normalization, source-mode metadata, context namespaces, stale source replacement, bounded members/suppression,
     and shared retained-history policy bypass paths.'
 - id: R5
   text: Run full touched-package suites and existing affected HTTP/Caido, OpenAPI/scan preparation and Audit composition
@@ -148,10 +158,12 @@ acceptance_criteria:
     cases prove scan/delete limits and generic backpressure without payload/all-JSON scans. Mixed pins, all pins and
     former-current replacement preserve every legitimate retention obligation.
 - id: A3
-  given: Secret/source-mode/identity/source-CAS/member-overflow fixtures
+  given: Credential-like metadata, excluded fields, source-mode/identity/source-CAS/member-overflow fixtures and owner-selected inputs
   when: Every ingress and consumer surface is exercised
-  then: No forbidden bytes or metadata leak, no old-source rollback or principal conflation occurs, and split/merge/suppression
-    uncertainty remains truthful.
+  then: Valid metadata survives without secret matching or matching-secret transport. Fields outside the map model
+    stay excluded, dedicated tool views enforce source-mode authority and ordinary owner-selected inputs remain
+    complete. General telemetry redaction is unchanged; no old-source rollback or principal conflation occurs, and
+    split/merge/suppression uncertainty remains truthful.
 - id: A4
   given: Lost replies, evicted receipt results, pin/delete/publication races, shared blobs, direct bypass attempts
     and purge

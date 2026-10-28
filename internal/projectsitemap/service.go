@@ -142,18 +142,20 @@ func (s *Service) Mutate(ctx context.Context, a Authority, idempotencyKey string
 	return Result{}, err
 }
 
-// receiptRecord keeps only the bounded safe selector choices needed to check a
-// replay. It neither keeps map history alive nor hashes discarded secret values.
+// receiptRecord keeps only the bounded selector choices and policy conflicts
+// needed to check a replay. It does not keep map history alive.
 // Current grouping changes cannot reinterpret an already accepted request.
 type receiptRecord struct {
 	Result Result `json:"result" strictjson:"required"`
 	Policy []Rule `json:"policy" strictjson:"required"`
 }
 type projectedRequest struct {
-	Observations           []projectedObservation `json:"observations"`
-	MetadataOmitted        bool                   `json:"metadataOmitted"`
-	SessionGenerations     []string               `json:"sessionGenerations,omitempty"`
-	ManualLocationsOmitted bool                   `json:"manualLocationsOmitted"`
+	Observations            []projectedObservation `json:"observations"`
+	SessionGenerations      []string               `json:"sessionGenerations,omitempty"`
+	ManualLocationsOmitted  bool                   `json:"manualLocationsOmitted"`
+	ManualStructural        []StructuralValue      `json:"manualStructural"`
+	ManualParameters        []string               `json:"manualParameters"`
+	ManualStructuralOmitted bool                   `json:"manualStructuralOmitted"`
 }
 
 type projectedObservation struct {
@@ -242,11 +244,7 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 				return postgres.Receipt{}, err
 			}
 		}
-		next, err := Reduce(current, m, a)
-		if err != nil {
-			return postgres.Receipt{}, err
-		}
-		data, err := encode(next)
+		_, data, err := Reduce(current, m, a)
 		if err != nil {
 			return postgres.Receipt{}, err
 		}
@@ -283,8 +281,8 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 }
 
 // projectIntent strips removed values before receipt hashing. The saved replay
-// policy permits only the concrete safe selector choices originally accepted;
-// it does not store a raw-secret digest or depend on an evictable source ref.
+// policy preserves accepted concrete selector choices and unconditional policy
+// conflicts without depending on an evictable source ref.
 func projectIntent(m Mutation, a Authority, rules []Rule) (Mutation, projectedRequest, []Rule, error) {
 	if len(jsonBytes(m)) > MaxBatchBytes {
 		return Mutation{}, projectedRequest{}, nil, ErrInvalid
@@ -299,29 +297,25 @@ func projectIntent(m Mutation, a Authority, rules []Rule) (Mutation, projectedRe
 	statuses := make([]projectedObservation, len(m.Observations))
 	replay := []Rule{}
 	for i, o := range m.Observations {
-		origin, path, parameters, err := projectURL(o.URL, a.Secrets)
+		origin, path, parameters, err := projectURL(o.URL)
 		status := projectedObservation{Structural: []StructuralValue{}}
-		if errors.Is(err, ErrUnsafe) {
-			o.URL = "omitted"
-			status.Omitted = true
-		} else if err != nil {
+		if err != nil {
 			return Mutation{}, projectedRequest{}, nil, err
-		} else {
-			route, _ := routeFor(rules, origin, o.Method, path)
-			values, err := projectStructural(rules, origin, o.Method, route, o.URL, a.Secrets)
-			if err != nil && !errors.Is(err, ErrUnsafe) {
-				return Mutation{}, projectedRequest{}, nil, err
-			}
-			status.Omitted = err != nil
-			status.LocationsOmitted = projectedLocations(o.URL)
-			if err == nil {
-				status.Structural = values
-			}
-			replay = addReplayPolicy(replay, rules, origin, o.Method, route, path, values, status.Omitted)
-			o.URL = origin + path
 		}
+		route, _ := routeFor(rules, origin, o.Method, path)
+		values, err := projectStructural(rules, origin, o.Method, route, o.URL)
+		if err != nil && !errors.Is(err, errStructuralSelection) {
+			return Mutation{}, projectedRequest{}, nil, err
+		}
+		status.Omitted = err != nil
+		status.LocationsOmitted = projectedLocations(o.URL)
+		if err == nil {
+			status.Structural = values
+		}
+		replay = addReplayPolicy(replay, rules, origin, o.Method, route, path, values, status.Omitted)
+		o.URL = origin + path
 		for _, name := range o.Parameters {
-			if safeName(name, a.Secrets) {
+			if validLabel(name) {
 				parameters = append(parameters, name)
 			}
 		}
@@ -330,14 +324,28 @@ func projectIntent(m Mutation, a Authority, rules []Rule) (Mutation, projectedRe
 		copy.Observations[i] = o
 		statuses[i] = status
 	}
+	manualStructural := []StructuralValue{}
+	manualParameters := []string{}
+	manualStructuralOmitted := false
 	if m.URL != "" {
-		origin, path, _, err := projectURL(m.URL, a.Secrets)
+		origin, path, parameters, err := projectURL(m.URL)
 		if err != nil {
 			return Mutation{}, projectedRequest{}, nil, err
 		}
+		route, _ := routeFor(rules, origin, m.Method, path)
+		values, err := projectStructural(rules, origin, m.Method, route, m.URL)
+		if err != nil && !errors.Is(err, errStructuralSelection) {
+			return Mutation{}, projectedRequest{}, nil, err
+		}
+		manualStructuralOmitted = err != nil
+		if err == nil {
+			manualStructural = values
+		}
+		replay = addReplayPolicy(replay, rules, origin, m.Method, route, path, manualStructural, manualStructuralOmitted)
+		manualParameters = parameters
 		copy.URL = origin + path
 	}
-	annotation, metadataOmitted, err := projectAnnotation(m.Note, m.Tags, a)
+	annotation, err := projectAnnotation(m.Note, m.Tags, a)
 	if err != nil {
 		return Mutation{}, projectedRequest{}, nil, err
 	}
@@ -352,52 +360,58 @@ func projectIntent(m Mutation, a Authority, rules []Rule) (Mutation, projectedRe
 			}
 		}
 		if m.Source.Artifact != nil {
-			if m.Source.Artifact.Validate() != nil || !safeText(m.Source.Artifact.Ref.Namespace, a.Secrets) || !safeText(m.Source.Artifact.Ref.Name, a.Secrets) {
+			if m.Source.Artifact.Validate() != nil || !validText(m.Source.Artifact.Ref.Namespace) || !validText(m.Source.Artifact.Ref.Name) {
 				return Mutation{}, projectedRequest{}, nil, ErrInvalid
 			}
 		}
 		for _, rule := range m.Source.Rules {
-			if validateRule(rule) != nil || !safeText(rule.Path, a.Secrets) || !validSafeOrigin(rule.Origin, a.Secrets) || !safeText(rule.Pointer, a.Secrets) {
+			if validateRule(rule) != nil || !validText(rule.Path) || !validOrigin(rule.Origin) || !validText(rule.Pointer) {
 				return Mutation{}, projectedRequest{}, nil, ErrInvalid
 			}
 			for _, name := range rule.Parameters {
-				if !safeName(name, a.Secrets) {
+				if !validLabel(name) {
 					return Mutation{}, projectedRequest{}, nil, ErrInvalid
 				}
 			}
 			for _, selector := range rule.Structural {
-				if !safeName(selector.Name, a.Secrets) {
+				if !validLabel(selector.Name) {
 					return Mutation{}, projectedRequest{}, nil, ErrInvalid
 				}
 				for _, value := range selector.Allowed {
-					if !safeText(value, a.Secrets) {
+					if !validText(value) {
 						return Mutation{}, projectedRequest{}, nil, ErrInvalid
 					}
 				}
 			}
 		}
 	}
-	return copy, projectedRequest{Observations: statuses, MetadataOmitted: metadataOmitted, ManualLocationsOmitted: projectedLocations(m.URL)}, replay, nil
+	return copy, projectedRequest{Observations: statuses, ManualLocationsOmitted: projectedLocations(m.URL), ManualStructural: manualStructural, ManualParameters: manualParameters, ManualStructuralOmitted: manualStructuralOmitted}, replay, nil
 }
 
 func addReplayPolicy(saved, rules []Rule, origin, method, route, path string, values []StructuralValue, omitted bool) []Rule {
-	selectors := map[string][]string{}
-	for _, rule := range rules {
-		if rule.Origin == origin && rule.Method == method && rule.Path == route {
-			for _, selector := range rule.Structural {
-				selectors[selector.Name] = []string{}
-			}
+	selectors, conflict := structuralSelectors(rules, origin, method, route)
+	index := slices.IndexFunc(saved, func(r Rule) bool { return r.Origin == origin && r.Method == method && r.Path == path })
+	if conflict != nil {
+		// One actual conflicting pair is enough to preserve unconditional
+		// omission. Keep it in one replay rule so long escaped paths are not
+		// duplicated. Receipt policies may contain this duplicate selector name
+		// or empty allowlists; they are projection rules, not publishable rules.
+		if index < 0 {
+			saved = append(saved, Rule{SourceID: "projection", Origin: origin, Method: method, Path: path, Parameters: []string{}, Structural: conflict})
 		}
+		return saved
 	}
 	if len(selectors) == 0 {
 		return saved
+	}
+	for name := range selectors {
+		selectors[name] = []string{}
 	}
 	if !omitted {
 		for _, value := range values {
 			selectors[value.Name] = append([]string{}, value.Values...)
 		}
 	}
-	index := slices.IndexFunc(saved, func(r Rule) bool { return r.Origin == origin && r.Method == method && r.Path == path })
 	if index < 0 {
 		saved = append(saved, Rule{SourceID: "projection", Origin: origin, Method: method, Path: path, Parameters: []string{}, Structural: []StructuralParameter{}})
 		index = len(saved) - 1

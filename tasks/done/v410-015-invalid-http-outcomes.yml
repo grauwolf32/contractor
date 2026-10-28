@@ -1,0 +1,97 @@
+schema_version: '1.0'
+id: V410-015
+title: Normalize malformed target responses before sitemap collection
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-003
+priority: P1
+status: completed
+depends_on:
+- V410-003
+languages:
+- python
+goal: Normalize malformed target responses before sitemap collection.
+context:
+  authority: User requested a second assessment, task creation and fixes on 2026-10-27. The raw owner-selected blackbox
+    input finding is withdrawn; secret filtering is removed by V410-018.
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  severity: medium
+  finding: 'runtime/src/contractor_runtime/toolsets/http/tools.py:538: a target status outside 100..599 is sent
+    as a response observation, permanently rejecting its batch and disabling the collector.'
+  siblings: Build protocol-valid observation outcomes for every physical attempt including malformed statuses; preserve
+    the original HTTP tool result and valid sibling observations. Keep target retries independent of collection.
+scope:
+  in:
+  - Build protocol-valid observation outcomes for every physical attempt including malformed statuses; preserve
+    the original HTTP tool result and valid sibling observations. Keep target retries independent of collection.
+  - Regression coverage on the existing production path and owning contract updates.
+  out:
+  - Unrelated pending sitemap imports, reconciliation and workflow delivery; new persistence or retention mechanisms.
+failure_outcomes:
+- operation: Existing sitemap operation
+  permanent: Preserve classified syntax, authority, exact selection and stale-intent errors.
+  retryable: Use existing attempt and deadline bounds; no new blanket retries.
+  ambiguous: Keep original operation identity and existing receipt or immutable view.
+  cancelled: Join work through existing allocation/transaction lifecycle.
+  timeout: Keep independent operations within their documented bounded allowance.
+cardinality:
+- collection: Existing map, view, source and observation collections
+  expected: Existing proposal workload and realistic regression fixtures
+  maximum: Existing LIM-SMT ceilings; no silently increased limit
+  bound: Every page, batch and transaction remains bounded by existing count and byte constraints.
+lifecycle:
+- entity: Existing sitemap resources
+  delete: Existing Project and allocation lifecycle
+  cascade: No new lifetime or independent persistence owner
+  retention: Existing ArtifactStore exact-reference protection and bounded history
+acceptance_criteria:
+- id: A1
+  text: A malformed target status remains an HTTP error but cannot poison the sitemap observation batch.
+- id: A2
+  text: Valid observations before and after the malformed response remain publishable; retries, redirects, timeout
+    and cancellation outcomes retain valid status rules.
+- id: A3
+  text: Production HTTP tool and collector regression covers the malformed response followed by a valid response.
+tests:
+- command: uv run --project runtime pytest runtime/tests/test_http_*.py runtime/tests/test_sitemap_*.py
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-project-sitemap-tools-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: ae179ddcc14b9d0cd14f3b44d3e24405f8ff3601
+verification:
+  date: '2026-10-28'
+  result: passed
+  tested_commit: ab35b1afbd246ebe62418873a40bc71e98bbaf31
+  commands:
+  - command: make test-project-sitemap-tools-e2e
+    result: 'Passed on the integrated tree: both actual Server/Runtime/PostgreSQL mandatory scenarios, zero skips,
+      including retained credential-like metadata, owner-selected full input, empty-map metadata and exact source
+      reconfiguration.'
+  - command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_http_*.py runtime/tests/test_capabilities*.py
+    result: 218 passed. This includes every listed narrower Runtime selection.
+  - command: make lint
+    result: Passed generated checks, UI gates, go vet/staticcheck/testonlyexports, deployment tests, release graph,
+      tasks/specs/fixtures, Ruff and all four Runtime import contracts.
+  evidence:
+  - Invalid target response statuses become transport-error observations with status zero while the HTTP tool retains
+    http_response_invalid.
+  - Six direct/proxy regressions at statuses 99, 600 and 700 exercise actual HTTP tools, collector and schema-validated
+    client payloads; valid siblings and later observations still publish.
+  limitations:
+  - Verification used disposable local PostgreSQL 17, Go 1.26.9, Node 24.20 and the locked Runtime environment.
+    No demo data or primary checkout files were changed.
+  - Initial verification completed on codex/v410-011-sitemap-metadata before main integration. Original structured-import, reconciliation
+    and remaining delivery tasks retain their status; this does not claim the full V410 release gate.

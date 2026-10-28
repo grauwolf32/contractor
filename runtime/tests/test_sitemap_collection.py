@@ -7,11 +7,13 @@ from pathlib import Path
 
 import httpx
 import pytest
+from fakes.sitemap import SitemapTransport
 from http_cookie_store import HTTPToolsetFactory
 
 from contractor_runtime.allocation import WorkerState
-from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
+from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.sitemap import SitemapClient
 from contractor_runtime.sitemap_collection import MAX_BYTES, MAX_ITEMS, SitemapCollector
 from contractor_runtime.toolsets.common.http_observations import notify_http_observations
 from contractor_runtime.workspace import AllocationWorkspace
@@ -57,11 +59,11 @@ def test_receive_never_waits_for_storage_and_bounds_both_batches(caplog):
         client = Client()
         client.block = True
         collector = SitemapCollector(client, wait=no_timer)
-        await collector.receive([observation(n) for n in range(MAX_ITEMS)], ())
+        await collector.receive([observation(n) for n in range(MAX_ITEMS)])
         await client.entered.wait()
         # Publication is blocked; another complete pending batch is admitted.
-        await collector.receive([observation(n + MAX_ITEMS) for n in range(MAX_ITEMS)], ())
-        await collector.receive([observation(999)], ())
+        await collector.receive([observation(n + MAX_ITEMS) for n in range(MAX_ITEMS)])
+        await collector.receive([observation(999)])
         assert len(collector._pending) == MAX_ITEMS and collector._bytes <= MAX_BYTES
         assert "buffer full" in caplog.text
         client.resume.set()
@@ -71,7 +73,7 @@ def test_receive_never_waits_for_storage_and_bounds_both_batches(caplog):
         for payload, _ in client.calls:
             assert len(payload["observations"]) == MAX_ITEMS
             assert "lost" not in payload
-        await collector.receive([observation()], ())
+        await collector.receive([observation()])
         assert len(client.calls) == 2
 
     asyncio.run(scenario())
@@ -88,7 +90,7 @@ def test_ambiguous_publication_reuses_exact_input_and_key():
             delays.append(delay)
 
         collector = SitemapCollector(client, sleep=advance, wait=no_timer)
-        await collector.receive([observation()], ("private-match-only",))
+        await collector.receive([observation()])
         assert not client.calls
         await collector.checkpoint()
         await collector.close()
@@ -98,12 +100,109 @@ def test_ambiguous_publication_reuses_exact_input_and_key():
     asyncio.run(scenario())
 
 
+def test_observation_bytes_still_bound_batches_without_matching_secrets():
+    async def scenario():
+        client = Client()
+        collector = SitemapCollector(client, wait=no_timer)
+        row = {**observation(), "url": "https://target.example/" + "a" * 7000}
+        await collector.receive([row] * 35)
+        assert collector._bytes <= MAX_BYTES and not client.calls
+        await collector.receive([row] * 5)
+        await collector.close()
+        assert len(client.calls) == 2
+        assert sum(len(payload["observations"]) for payload, _ in client.calls) == 40
+        for payload, _ in client.calls:
+            assert set(payload) == {"observations"}
+            encoded = json.dumps(
+                {"apiVersion": "contractor/v1alpha1", "input": payload},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode()
+            assert len(encoded) <= MAX_BYTES
+
+    asyncio.run(scenario())
+
+
+def test_http_collection_sends_only_attempt_metadata_and_preserves_credential_like_url(tmp_path):
+    async def scenario():
+        transport = SitemapTransport()
+        collector = SitemapCollector(
+            SitemapClient(ArtifactClient("allocation", transport)), wait=no_timer
+        )
+        url = "https://target.example/token/tiny/" + "a" * 64 + "?password=tiny"
+
+        async def handler(request):
+            assert str(request.url) == url
+            assert request.headers["x-api-key"] == "header-only-token"
+            assert request.content == b"request-body-only"
+            return httpx.Response(
+                200,
+                headers={"set-cookie": "session=response-cookie-only; Path=/"},
+                content=b"response-body-only",
+                request=request,
+            )
+
+        state = WorkerState()
+        state.http_observation_sink = collector
+        factory = HTTPToolsetFactory(
+            lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        )
+        tools = await factory.create_selected(
+            selected=["http_request"],
+            allocation_id="allocation",
+            run_id="run",
+            namespace="research",
+            runtime_settings=RuntimeSettings(
+                artifactApiUrl="https://control.example",
+                requestTimeoutSeconds=10,
+                httpOriginTarget={
+                    "url": "https://target.example",
+                    "basicAuth": {"username": "alice", "password": "tiny"},
+                },
+            ),
+            workspace=AllocationWorkspace(tmp_path, tmp_path / "allocation"),
+            state=state,
+        )
+        try:
+            result = await tools["http_request"](
+                url,
+                method="POST",
+                headers={"X-API-Key": "header-only-token"},
+                body_type="text",
+                body="request-body-only",
+            )
+            assert result["status"] == 200
+            await collector.checkpoint()
+            assert len(transport.requests) == 1
+            method, path, _, body = transport.requests[0]
+            assert method == "POST" and path.endswith("/sitemap/observations")
+            request = json.loads(body)
+            assert set(request) == {"apiVersion", "input"}
+            assert set(request["input"]) == {"observations"}
+            rows = request["input"]["observations"]
+            assert len(rows) == 1 and rows[0]["url"] == url
+            assert set(rows[0]) == {"url", "method", "outcome", "status", "at", "sessionGeneration"}
+            for excluded in (
+                "header-only-token",
+                "request-body-only",
+                "response-body-only",
+                "response-cookie-only",
+            ):
+                assert excluded.encode() not in body
+            assert url not in repr(state.metrics.tool_calls)
+        finally:
+            await tools["http_request"].close()
+            await collector.close()
+
+    asyncio.run(scenario())
+
+
 def test_failure_is_logged_without_changing_read_or_completion(caplog):
     async def scenario():
         client = Client()
         client.failure = ArtifactAPIError(409, "artifact_history_protected", False)
         collector = SitemapCollector(client, wait=no_timer)
-        await collector.receive([observation()], ())
+        await collector.receive([observation()])
         await collector.checkpoint()
         await collector.checkpoint()
         await collector.close()
@@ -114,12 +213,79 @@ def test_failure_is_logged_without_changing_read_or_completion(caplog):
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("operation", ["list_sitemap_entries", "read_sitemap_entry"])
+@pytest.mark.parametrize(
+    "read_error",
+    [None, (403, "sitemap_access_denied", False), (503, "storage_transaction_conflict", True)],
+)
+def test_fresh_read_keeps_its_allowance_after_automatic_flush_exhaustion(operation, read_error):
+    from fakes.clock import advance_clock, run_with_advanceable_clock
+    from fakes.sitemap import identity
+    from test_sitemap_tools import tools_for
+
+    async def scenario():
+        client = Client()
+        client.block = True
+        collector = SitemapCollector(client, clock=asyncio.get_running_loop().time, wait=no_timer)
+        await collector.receive([observation()])
+        transport = SitemapTransport()
+        transport.access_error = read_error
+        tools, _ = await tools_for(transport, [operation])
+        tool = tools[operation]
+        tool._session._before_read = collector.checkpoint
+        arguments = {} if operation == "list_sitemap_entries" else {"entry_id": identity("group-0")}
+        reading = asyncio.create_task(tool(**arguments))
+        await client.entered.wait()
+        advance_clock(16)
+        result = await reading
+        if read_error is None:
+            assert result["status"] == "completed" and result["entries"]
+        else:
+            assert result["status"] == "failed"
+            assert result["error"] == {"code": read_error[1], "retryable": read_error[2]}
+        assert any(path.endswith("/sitemap") for _, path, _, _ in transport.requests)
+        assert collector._disabled and collector._publisher is None
+        await tool(refresh=True, **arguments)
+        assert len(client.calls) == 1
+        await collector.close()
+        await tool.close()
+
+    run_with_advanceable_clock(scenario())
+
+
+def test_cancelled_fresh_read_joins_checkpoint_before_propagating():
+    from test_sitemap_tools import tools_for
+
+    async def scenario():
+        client = Client()
+        client.block = True
+        collector = SitemapCollector(client, wait=no_timer)
+        await collector.receive([observation()])
+        transport = SitemapTransport()
+        tools, _ = await tools_for(transport, ["list_sitemap_entries"])
+        tool = tools["list_sitemap_entries"]
+        tool._session._before_read = collector.checkpoint
+        reading = asyncio.create_task(tool())
+        await client.entered.wait()
+        reading.cancel()
+        await asyncio.sleep(0)
+        assert not reading.done()
+        client.resume.set()
+        with pytest.raises(asyncio.CancelledError):
+            await reading
+        assert transport.requests == [] and collector._publisher is None
+        await collector.close()
+        await tool.close()
+
+    asyncio.run(scenario())
+
+
 def test_unknown_remote_failure_text_is_never_logged(caplog):
     async def scenario():
         client = Client()
         client.failure = ArtifactAPIError(503, "private-canary/remote-text", False)
         collector = SitemapCollector(client, wait=no_timer)
-        await collector.receive([observation()], ())
+        await collector.receive([observation()])
         await collector.close()
         assert "private-canary" not in caplog.text
         assert "sitemap_unavailable" in caplog.text
@@ -143,7 +309,7 @@ def test_retry_budget_is_not_renewed_and_retry_after_is_honoured():
             client = Client()
             client.failure = ArtifactAPIError(503, code, True)
             collector = SitemapCollector(client, clock=lambda: now[0], sleep=advance, wait=no_timer)
-            await collector.receive([observation()], ())
+            await collector.receive([observation()])
             await collector.checkpoint()
             await collector.checkpoint()
             await collector.close()
@@ -153,7 +319,7 @@ def test_retry_budget_is_not_renewed_and_retry_after_is_honoured():
         client.failure.retry_after_seconds = 2
         client.failure_once = True
         collector = SitemapCollector(client, clock=lambda: now[0], sleep=advance, wait=no_timer)
-        await collector.receive([observation()], ())
+        await collector.receive([observation()])
         await collector.close()
         assert len(client.calls) == 2 and delays[-1] == 2
 
@@ -170,7 +336,7 @@ def test_checkpoint_does_not_give_the_second_batch_a_fresh_budget():
                 await super().collect(value, key)
                 if len(self.calls) == 1:
                     now[0] += 14
-                    await collector.receive([observation(999)], ())
+                    await collector.receive([observation(999)])
                 else:
                     error = ArtifactAPIError(503, "artifact_history_maintenance_pending", True)
                     error.retry_after_seconds = 2
@@ -182,7 +348,7 @@ def test_checkpoint_does_not_give_the_second_batch_a_fresh_budget():
 
         client = AdvancingClient()
         collector = SitemapCollector(client, clock=lambda: now[0], sleep=advance, wait=no_timer)
-        await collector.receive([observation()], ())
+        await collector.receive([observation()])
         await collector.checkpoint()
         await collector.close()
         assert len(client.calls) == 2 and not delays and collector._disabled
@@ -200,7 +366,7 @@ def test_timer_and_close_join_the_actual_publisher():
         client = Client()
         client.block = True
         collector = SitemapCollector(client, wait=timer)
-        await collector.receive([observation()], ())
+        await collector.receive([observation()])
         tick.set()
         await client.entered.wait()
         closing = asyncio.create_task(collector.close())
@@ -266,7 +432,7 @@ def test_http_capture_subscriber_failure_preserves_target_result_and_physical_ho
         received, target = [], []
 
         class Sink:
-            async def receive(self, observations, secrets):
+            async def receive(self, observations):
                 received.extend(observations)
                 raise RuntimeError("storage down")
 
@@ -320,11 +486,11 @@ def test_subscriber_join_preserves_caller_cancellation():
         entered, finish = asyncio.Event(), asyncio.Event()
 
         class Sink:
-            async def receive(self, observations, secrets):
+            async def receive(self, observations):
                 entered.set()
                 await finish.wait()
 
-        task = asyncio.create_task(notify_http_observations(Sink(), [{}], ()))
+        task = asyncio.create_task(notify_http_observations(Sink(), [{}]))
         await entered.wait()
         task.cancel()
         await asyncio.sleep(0)
@@ -332,6 +498,77 @@ def test_subscriber_join_preserves_caller_cancellation():
         finish.set()
         with pytest.raises(asyncio.CancelledError):
             await task
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("proxy", [False, True])
+@pytest.mark.parametrize("invalid_status", [99, 600, 700])
+def test_malformed_target_status_does_not_poison_observation_batch(tmp_path, proxy, invalid_status):
+    from private_schemas import private_validator
+
+    from contractor_runtime.adapters import AdapterHandles
+    from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
+    from contractor_runtime.toolsets.http.tools import HTTPToolError
+
+    async def scenario():
+        accepted, target_calls = [], []
+        validator = private_validator("project-sitemap.schema.json#/$defs/SitemapCollectionRequest")
+
+        class StrictTransport(SitemapTransport):
+            async def request(self, method, path, *, headers, body, max_response_bytes):
+                payload = json.loads(body)
+                validator.validate(payload)
+                accepted.extend(payload["input"]["observations"])
+                return await super().request(
+                    method, path, headers=headers, body=body, max_response_bytes=max_response_bytes
+                )
+
+        async def handler(request):
+            target_calls.append(request.url.path)
+            status = invalid_status if request.url.path == "/invalid" else 200
+            return httpx.Response(status, request=request)
+
+        collector = SitemapCollector(
+            SitemapClient(ArtifactClient("allocation", StrictTransport())), wait=no_timer
+        )
+        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        state = WorkerState()
+        state.http_observation_sink = collector
+        tools = await HTTPToolsetFactory(lambda: client).create_selected(
+            selected=["http_request"],
+            allocation_id="allocation",
+            run_id="run",
+            namespace="research",
+            runtime_settings=RuntimeSettings(
+                artifactApiUrl="https://control.example", requestTimeoutSeconds=10
+            ),
+            workspace=AllocationWorkspace(tmp_path, tmp_path / "allocation"),
+            state=state,
+            adapter_handles=AdapterHandles(tool_http=ProxyHTTPClient(client))
+            if proxy
+            else AdapterHandles(),
+        )
+        try:
+            await tools["http_request"]("https://target.example/before", method="POST")
+            with pytest.raises(HTTPToolError, match="http_response_invalid"):
+                await tools["http_request"]("https://target.example/invalid", method="POST")
+            await tools["http_request"]("https://target.example/after", method="POST")
+            await collector.checkpoint()
+            assert [(row["outcome"], row["status"]) for row in accepted] == [
+                ("response", 200),
+                ("transport-error", 0),
+                ("response", 200),
+            ]
+            assert not collector._disabled
+            await tools["http_request"]("https://target.example/later", method="POST")
+            await collector.checkpoint()
+            assert len(accepted) == 4 and accepted[-1]["status"] == 200
+            assert target_calls == ["/before", "/invalid", "/after", "/later"]
+        finally:
+            await tools["http_request"].close()
+            await collector.close()
+            await client.aclose()
 
     asyncio.run(scenario())
 
@@ -349,7 +586,7 @@ def test_http_subscriber_attributes_physical_retry_timeout_and_failure(
         observations, calls = [], []
 
         class Sink:
-            async def receive(self, rows, secrets):
+            async def receive(self, rows):
                 observations.extend(rows)
 
         async def no_delay(_):

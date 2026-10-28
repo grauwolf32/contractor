@@ -21,9 +21,11 @@ context:
   authority: 'User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
     this task records planned work, not implementation or verification evidence. User review on 2026-10-27 supersedes
     generic collection-completeness/status requirements: automatic sitemap updates are best effort and must remain
-    isolated from HTTP/scanner outcomes and Run contracts.'
+    isolated from HTTP/scanner outcomes and Run contracts. The 2026-10-27 metadata-policy decision removes sitemap
+    secret filtering and matching-secret transport; ordinary owner-selected inputs authorize complete selected context,
+    while dedicated sitemap views and snapshots retain source-mode restrictions.'
   proposal: docs/proposals/0042-live-project-sitemap.md
-  proposal_sections: 'Sections 3-5 and 7-11: source adapters, safe projection, exact provenance, idempotent imports
+  proposal_sections: 'Sections 3-5 and 7-11: source adapters, metadata normalization, exact provenance, idempotent imports
     and factual limitations declared by the source.'
   specification:
   - docs/spec/artifacts/project-sitemap.md
@@ -47,7 +49,7 @@ context:
   - runtime/tests/test_caido_read_tools.py
   - internal/projectsitemap
   reuse: Existing ffuf accepted matches, Katana bounded same-origin observed GET output and V375-002 Caido selection/paging
-    are shipped; this task adds safe map adapters, not replacement scanner execution.
+    are shipped; this task adds bounded map adapters, not replacement scanner execution.
 scope:
   in:
   - Implement imports for the existing versioned normalized ffuf/Katana reports. Exact authorized refs are mandatory;
@@ -59,8 +61,8 @@ scope:
     gaps; validate every accepted record.
   - Bound each import step with the existing exact input/cursor and shared keyed mutation receipts. Add no autonomous
     import job, checkpoint journal or generic sync framework without a real caller.
-  - Use the safe projection/content-kind boundary for imported URLs, examples and metadata before map identity or
-    publication.
+  - Normalize imported URLs, examples and metadata under the shared syntax/byte and content-kind contract before
+    map identity or publication; do not add sitemap secret matching or matching-secret transport.
   out:
   - Executing scanners merely to import data, free-form stdout parsing, new crawler modes or a generic plugin framework.
   - Implicit full shared Caido history import (V410-008), browser capture and new scanner capability promises.
@@ -84,8 +86,10 @@ requirements:
   text: Use shared correlation only when trusted/available; otherwise merge operation groups without claiming physical
     request identity or exact traffic counts.
 - id: R6
-  text: Imported secret-bearing path/query/header/body/structural values pass the same safe projection as HTTP. Source-mode
-    provenance cannot be self-declassified by an import payload.
+  text: Imports use the same metadata normalization as HTTP. Valid paths, parameter names, finite structural values,
+    notes and tags retain credential-like words, opaque values and known-credential matches. Userinfo, fragments,
+    nonstructural query values, raw headers and bodies remain outside the map model. Source-mode provenance cannot
+    be self-declassified by an import payload; general evidence and telemetry redaction retain their existing owners.
 failure_outcomes:
 - operation: Read and parse exact structured report
   permanent: Unknown format/version, inaccessible ref, malformed envelope or incompatible records return permanent
@@ -95,9 +99,9 @@ failure_outcomes:
   cancelled: Join off-thread parser work and preserve accepted keyed batches before allocation release.
   timeout: A bounded import-step deadline limits parsing and publication; incomplete continuation remains explicit.
 - operation: Selected Caido projection and map publication
-  permanent: Provider invalidity, absent raw exchange or collection denial never fabricate HTTP success; no raw private
-    data is retained. Generic Artifact admission rejection or history filled by protected revisions remains an explicit
-    nonautomatic-retry outcome; there is no custom cumulative Run publication quota.
+  permanent: Provider invalidity, absent raw exchange or collection denial never fabricate HTTP success; no raw HTTP
+    exchange is retained as sitemap metadata. Generic Artifact admission rejection or history filled by protected revisions
+    remains an explicit nonautomatic-retry outcome; there is no custom cumulative Run publication quota.
   retryable: Existing Caido read retries and sitemap write retries keep separate budgets; bounded ArtifactStore eviction
     backpressure retries publication only and never a target mutation for collection.
   ambiguous: Replay the same source/correlation identity and accepted receipt; no exact request-count claim when correlation
@@ -137,10 +141,11 @@ acceptance_criteria:
   when: A selected tool inspects/generates requests
   then: Only selected data contributes and provider IDs never become invented durable evidence refs.
 - id: A4
-  given: HTTP and Caido observations with and without correlation and canaries in every location
+  given: HTTP and Caido observations with and without correlation, credential-like metadata and excluded URL/header/body fields
   when: They enter the shared map
-  then: Safe values only are retained, available trusted correlations preserve attribution and missing correlation
-    produces no false traffic count.
+  then: Valid paths, parameter names and configured structural values remain intact without secret filtering; only
+    fields in the metadata model persist. Available trusted correlations preserve attribution and missing correlation
+    produces no false traffic count. Observation frames and private collection requests carry no matching-secret list.
 - id: A5
   given: Source-mode restrictions, source deletion and cancellation during parsing/publication
   when: Imports run through actual Server/Runtime/PostgreSQL

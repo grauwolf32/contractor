@@ -8,13 +8,12 @@ from typing import Protocol
 
 
 class HTTPObservationSink(Protocol):
-    async def receive(self, observations: Sequence[dict], secrets: tuple[str, ...]) -> None: ...
+    async def receive(self, observations: Sequence[dict]) -> None: ...
 
 
 async def notify_http_observations(
     sink: HTTPObservationSink | None,
     observations: Sequence[dict],
-    secrets: tuple[str, ...],
 ) -> None:
     """Isolate subscriber failure and join it before propagating caller cancellation.
 
@@ -23,7 +22,7 @@ async def notify_http_observations(
     """
     if sink is None or not observations:
         return
-    task = asyncio.create_task(sink.receive(observations, secrets), name="http-observation")
+    task = asyncio.create_task(sink.receive(observations), name="http-observation")
     cancelled = False
     while not task.done():
         try:

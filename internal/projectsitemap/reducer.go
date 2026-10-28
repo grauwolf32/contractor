@@ -15,9 +15,9 @@ import (
 )
 
 var (
-	ErrInvalid  = apierror.New(apierror.InvalidRequest, "invalid sitemap document or mutation")
-	ErrConflict = apierror.New(apierror.SitemapConflict, "sitemap edit or source precondition conflict")
-	ErrUnsafe   = apierror.New(apierror.InvalidRequest, "sitemap input cannot form a safe concrete identity")
+	ErrInvalid             = apierror.New(apierror.InvalidRequest, "invalid sitemap document or mutation")
+	ErrConflict            = apierror.New(apierror.SitemapConflict, "sitemap edit or source precondition conflict")
+	errStructuralSelection = errors.New("sitemap structural selection is unresolved")
 )
 
 // Decode validates stored bytes strictly. Missing bindings are handled by the
@@ -150,6 +150,9 @@ func validateDocument(d Document) error {
 		sources[source.Provenance.SourceID] = source
 	}
 	for _, rule := range d.Rules {
+		if rule.Parameters == nil || rule.Structural == nil {
+			return ErrInvalid
+		}
 		if _, found := sources[rule.SourceID]; !found {
 			return ErrInvalid
 		}
@@ -159,14 +162,21 @@ func validateDocument(d Document) error {
 	}
 	groups, members := map[string]bool{}, map[string]bool{}
 	for _, g := range d.Groups {
-		if g.ID != groupID(g.Origin, g.Method, g.Route, g.Structural...) || groups[g.ID] || !methodPattern.MatchString(g.Method) || !validStructural(g.Structural) ||
+		if g.Structural == nil || g.Members == nil || g.Declarations == nil ||
+			g.ID != groupID(g.Origin, g.Method, g.Route, g.Structural...) || groups[g.ID] || !methodPattern.MatchString(g.Method) || !validStructural(g.Structural) ||
 			len(g.Members) > MaxGroupMembers || len(g.Declarations) > MaxRules || g.Omitted > MaxOmissionCount || !validRoute(g.Origin, g.Route) {
 			return ErrInvalid
 		}
 		groups[g.ID] = true
+		for _, value := range g.Structural {
+			if value.Values == nil {
+				return ErrInvalid
+			}
+		}
 		contexts, examples := map[string]bool{}, 0
 		for _, m := range g.Members {
-			if m.ID != memberID(g.Origin, g.Method, m.Path, g.Structural...) || members[m.ID] ||
+			if m.Summaries == nil || m.Examples == nil || m.Evidence == nil || m.Annotations == nil ||
+				m.ID != memberID(g.Origin, g.Method, m.Path, g.Structural...) || members[m.ID] ||
 				len(m.Summaries) > MaxSummaries || len(m.Evidence) > MaxProvenance || len(m.Annotations) > MaxSources ||
 				len(m.Path) > MaxMemberKeyBytes || m.Omitted > MaxOmissionCount || !validRoute(g.Origin, m.Path) {
 				return ErrInvalid
@@ -174,7 +184,7 @@ func validateDocument(d Document) error {
 			members[m.ID] = true
 			seenSummaries := map[string]bool{}
 			for _, s := range m.Summaries {
-				if !observedKind(s.Provenance.Kind) || !admittedProvenance(s.Provenance, sources) || !hashPattern.MatchString(s.Context) || seenSummaries[summaryKey(s)] || !validOutcome(s.Outcome, s.Status) ||
+				if s.Parameters == nil || !observedKind(s.Provenance.Kind) || !admittedProvenance(s.Provenance, sources) || !hashPattern.MatchString(s.Context) || seenSummaries[summaryKey(s)] || !validOutcome(s.Outcome, s.Status) ||
 					!validTime(s.First) || !validTime(s.Last) || timeBefore(s.Last, s.First) || !validNames(s.Parameters) {
 					return ErrInvalid
 				}
@@ -193,8 +203,8 @@ func validateDocument(d Document) error {
 				}
 			}
 			for _, annotation := range m.Annotations {
-				if !admittedProvenance(annotation.Provenance, sources) || len(annotation.Note) > MaxNoteBytes ||
-					!safeText(annotation.Note, nil) || secretName.MatchString(annotation.Note) || len(annotation.Tags) > MaxTags || !validNames(annotation.Tags) {
+				if annotation.Tags == nil || !admittedProvenance(annotation.Provenance, sources) || len(annotation.Note) > MaxNoteBytes ||
+					!validText(annotation.Note) || len(annotation.Tags) > MaxTags || !validNames(annotation.Tags) {
 					return ErrInvalid
 				}
 			}
@@ -203,8 +213,8 @@ func validateDocument(d Document) error {
 			return ErrInvalid
 		}
 		for _, declaration := range g.Declarations {
-			if !admittedProvenance(declaration.Provenance, sources) || !validNames(declaration.Parameters) || len(declaration.Pointer) > MaxExampleBytes ||
-				!safeText(declaration.Pointer, nil) {
+			if declaration.Parameters == nil || !admittedProvenance(declaration.Provenance, sources) || !validNames(declaration.Parameters) || len(declaration.Pointer) > MaxExampleBytes ||
+				!validText(declaration.Pointer) {
 				return ErrInvalid
 			}
 		}
@@ -229,7 +239,7 @@ func validateDocument(d Document) error {
 	for _, gap := range d.Gaps {
 		id := gap.SourceID + "/" + gap.Reason
 		if gapIDs[id] || gap.Count > MaxOmissionCount || (gap.SourceID != "" && !contracts.ValidResourceID(gap.SourceID)) ||
-			!slices.Contains([]string{"unsafe", "members", "groups", "summaries", "contexts", "examples", "metadata", "regrouping", "incomplete", "parameters", "source-unavailable", "ambiguous", "projection"}, gap.Reason) {
+			!slices.Contains([]string{"structural", "members", "groups", "summaries", "contexts", "examples", "regrouping", "incomplete", "parameters", "source-unavailable", "ambiguous", "projection"}, gap.Reason) {
 			return ErrInvalid
 		}
 		gapIDs[id] = true
@@ -249,7 +259,7 @@ func validNames(names []string) bool {
 		return false
 	}
 	for _, name := range names {
-		if !safeName(name, nil) {
+		if !validLabel(name) {
 			return false
 		}
 	}
@@ -269,19 +279,19 @@ func validOutcome(outcome string, status int) bool {
 		((outcome == "timeout" || outcome == "transport-error" || outcome == "attempt") && status == 0)
 }
 func validRoute(origin, path string) bool {
-	if !strings.HasPrefix(path, "/") || strings.ContainsAny(path, "?#") || len(origin)+len(path) > MaxMemberKeyBytes || !safeText(path, nil) {
+	if !strings.HasPrefix(path, "/") || strings.ContainsAny(path, "?#") || len(origin)+len(path) > MaxMemberKeyBytes || !validText(path) {
 		return false
 	}
-	o, _, _, err := projectURL(origin+"/", nil)
+	o, _, _, err := projectURL(origin + path)
 	return err == nil && o == origin
 }
 func validateRule(rule Rule) error {
 	if !contracts.ValidResourceID(rule.SourceID) || !methodPattern.MatchString(rule.Method) || !validRoute(rule.Origin, rule.Path) ||
-		!validNames(rule.Parameters) || len(rule.Pointer) > MaxExampleBytes || !safeText(rule.Pointer, nil) {
+		!validNames(rule.Parameters) || len(rule.Pointer) > MaxExampleBytes || !validText(rule.Pointer) {
 		return ErrInvalid
 	}
 	for _, segment := range strings.Split(rule.Path, "/") {
-		if strings.ContainsAny(segment, "{}") && !(strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}") && safeName(segment[1:len(segment)-1], nil)) {
+		if strings.ContainsAny(segment, "{}") && !(strings.HasPrefix(segment, "{") && strings.HasSuffix(segment, "}") && validLabel(segment[1:len(segment)-1])) {
 			return ErrInvalid
 		}
 	}
@@ -290,12 +300,12 @@ func validateRule(rule Rule) error {
 	}
 	names := map[string]bool{}
 	for _, selector := range rule.Structural {
-		if names[selector.Name] || !safeName(selector.Name, nil) || len(selector.Allowed) == 0 || len(selector.Allowed) > MaxTags {
+		if names[selector.Name] || !validLabel(selector.Name) || len(selector.Allowed) == 0 || len(selector.Allowed) > MaxTags {
 			return ErrInvalid
 		}
 		names[selector.Name] = true
 		for _, value := range selector.Allowed {
-			if len(value) > MaxTagBytes || !safeText(value, nil) || secretName.MatchString(value) {
+			if len(value) > MaxTagBytes || !validText(value) {
 				return ErrInvalid
 			}
 		}
@@ -305,102 +315,78 @@ func validateRule(rule Rule) error {
 
 // Reduce applies the command to a private copy; callers retain the original
 // document on every invalid or conflicting operation, including regrouping.
-func Reduce(current Document, mutation Mutation, authority Authority) (Document, error) {
+// Successful results include the validated canonical bytes for publication.
+func Reduce(current Document, mutation Mutation, authority Authority) (Document, []byte, error) {
 	if authority.validate() != nil || validateDocument(current) != nil || len(jsonBytes(mutation)) > MaxBatchBytes {
-		return Document{}, ErrInvalid
+		return Document{}, nil, ErrInvalid
 	}
-	var next Document
-	if err := strictjson.Decode(jsonBytes(current), &next); err != nil {
-		return Document{}, ErrInvalid
-	}
+	next := cloneDocument(current)
 	if mutation.Operation != "replace-source" {
 		provenance := authority.provenance()
 		provenance.RunID, provenance.CredentialRevision, provenance.SessionGeneration = "", "", ""
 		index := slices.IndexFunc(next.Sources, func(s Source) bool { return s.Provenance.SourceID == authority.SourceID })
 		if index < 0 {
 			if len(next.Sources) == MaxSources {
-				return Document{}, ErrConflict
+				return Document{}, nil, ErrConflict
 			}
 			next.Sources = append(next.Sources, Source{Provenance: provenance, Generation: 1, PolicyDigest: key(Projection)})
 		} else {
 			stable := next.Sources[index].Provenance
 			stable.RunID, stable.CredentialRevision, stable.SessionGeneration = "", "", ""
 			if stable != provenance {
-				return Document{}, ErrConflict
+				return Document{}, nil, ErrConflict
 			}
 		}
 	}
 	switch mutation.Operation {
 	case "observe":
 		if !authority.CanObserve || len(mutation.Observations) == 0 || len(mutation.Observations) > MaxBatch || !onlyFields(mutation, "observe") {
-			return Document{}, ErrInvalid
+			return Document{}, nil, ErrInvalid
 		}
 		if mutation.sessionGenerations != nil && len(mutation.sessionGenerations) != len(mutation.Observations) {
-			return Document{}, ErrInvalid
+			return Document{}, nil, ErrInvalid
 		}
 		for index, observation := range mutation.Observations {
 			context := authority
 			if mutation.sessionGenerations != nil {
 				context.SessionGeneration = mutation.sessionGenerations[index]
 				if !contracts.ValidResourceID(context.SessionGeneration) {
-					return Document{}, ErrInvalid
+					return Document{}, nil, ErrInvalid
 				}
 			}
 			if err := observe(&next, observation, context); err != nil {
-				return Document{}, err
+				return Document{}, nil, err
 			}
 		}
 	case "declare":
 		if !onlyFields(mutation, "declare") {
-			return Document{}, ErrInvalid
+			return Document{}, nil, ErrInvalid
 		}
-		origin, path, _, err := projectURL(mutation.URL, authority.Secrets)
-		if err != nil {
-			return Document{}, err
-		}
-		if projectedLocations(mutation.URL) {
-			markProjectionGap(&next, authority.SourceID)
-		}
-		if !methodPattern.MatchString(mutation.Method) {
-			return Document{}, ErrInvalid
-		}
-		g, err := ensureGroup(&next, origin, mutation.Method, path)
-		if err != nil {
-			return Document{}, err
-		}
-		declaration := Declaration{Provenance: authority.provenance(), Pointer: "manual", Parameters: []string{}}
-		if !slices.ContainsFunc(g.Declarations, func(v Declaration) bool { return reflect.DeepEqual(v, declaration) }) {
-			g.Declarations = append(g.Declarations, declaration)
-		}
-		id := memberID(origin, mutation.Method, path)
-		if !slices.ContainsFunc(g.Members, func(v Member) bool { return v.ID == id }) {
-			if len(g.Members) == MaxGroupMembers {
-				return Document{}, ErrConflict
-			}
-			g.Members = append(g.Members, Member{ID: id, Path: path, Summaries: []Summary{}, Examples: []string{}, Evidence: []Evidence{}, Annotations: []Annotation{}})
+		if err := declare(&next, mutation, authority); err != nil {
+			return Document{}, nil, err
 		}
 	case "annotate", "remove", "restore":
 		if !onlyFields(mutation, mutation.Operation) {
-			return Document{}, ErrInvalid
+			return Document{}, nil, ErrInvalid
 		}
 		if err := edit(&next, mutation, authority); err != nil {
-			return Document{}, err
+			return Document{}, nil, err
 		}
 	case "replace-source":
 		if !onlyFields(mutation, "replace-source") || mutation.Source == nil {
-			return Document{}, ErrInvalid
+			return Document{}, nil, ErrInvalid
 		}
 		if err := replaceSource(&next, *mutation.Source, authority); err != nil {
-			return Document{}, err
+			return Document{}, nil, err
 		}
 	default:
-		return Document{}, ErrInvalid
+		return Document{}, nil, ErrInvalid
 	}
-	canonicalize(&next)
-	if _, err := encode(next); err != nil {
-		return Document{}, err
+	data, err := encode(next)
+	if err != nil {
+		return Document{}, nil, err
 	}
-	return next, nil
+	return next, data, nil
 }
 
 // onlyFields closes each command variant as well as the enclosing JSON type.
@@ -460,15 +446,94 @@ func ensureGroup(d *Document, origin, method, route string, structural ...Struct
 	return &d.Groups[len(d.Groups)-1], nil
 }
 
+// resolveMemberSelection applies the same route and finite-selector policy to
+// observations and manual declarations. Neither arrival order creates a second
+// identity for the same concrete request.
+func resolveMemberSelection(d *Document, origin, method, path, raw, source string) (string, []StructuralValue, bool, error) {
+	route, ambiguous := routeFor(d.Rules, origin, method, path)
+	if ambiguous {
+		addGap(d, source, "ambiguous", 1)
+	}
+	structural, err := projectStructural(d.Rules, origin, method, route, raw)
+	if errors.Is(err, errStructuralSelection) {
+		addGap(d, source, "structural", 1)
+		return route, nil, true, nil
+	}
+	return route, structural, false, err
+}
+
+// ensureMember preserves the globally unique concrete identity, including its
+// existing annotations, evidence and suppression selection if placement changes.
+// The containing group is already admitted; no group append invalidates target.
+func ensureMember(d *Document, target *Group, path string) (*Member, error) {
+	id := memberID(target.Origin, target.Method, path, target.Structural...)
+	if index := slices.IndexFunc(target.Members, func(m Member) bool { return m.ID == id }); index >= 0 {
+		return &target.Members[index], nil
+	}
+	if len(target.Members) == MaxGroupMembers {
+		return nil, ErrConflict
+	}
+	count := 0
+	for i := range d.Groups {
+		group := &d.Groups[i]
+		count += len(group.Members)
+		if index := slices.IndexFunc(group.Members, func(m Member) bool { return m.ID == id }); index >= 0 {
+			target.Members = append(target.Members, group.Members[index])
+			group.Members = slices.Delete(group.Members, index, index+1)
+			return &target.Members[len(target.Members)-1], nil
+		}
+	}
+	if count == MaxMembers {
+		return nil, ErrConflict
+	}
+	target.Members = append(target.Members, Member{ID: id, Path: path, Summaries: []Summary{}, Examples: []string{}, Evidence: []Evidence{}, Annotations: []Annotation{}})
+	return &target.Members[len(target.Members)-1], nil
+}
+
+func declare(d *Document, mutation Mutation, authority Authority) error {
+	if !methodPattern.MatchString(mutation.Method) {
+		return ErrInvalid
+	}
+	origin, path, parameters, err := projectURL(mutation.URL)
+	if err != nil {
+		return err
+	}
+	if projectedLocations(mutation.URL) {
+		markProjectionGap(d, authority.SourceID)
+	}
+	route, structural, omitted, err := resolveMemberSelection(d, origin, mutation.Method, path, mutation.URL, authority.SourceID)
+	if err != nil || omitted {
+		return err
+	}
+	target, err := ensureGroup(d, origin, mutation.Method, route, structural...)
+	if err != nil {
+		return err
+	}
+	if _, err := ensureMember(d, target, path); err != nil {
+		return err
+	}
+	// A declaration records the concrete path, independently of a template that
+	// groups its member. Projection and regrouping can recover its exact member
+	// even after observations or the template source are excluded.
+	concrete, err := ensureGroup(d, origin, mutation.Method, path, structural...)
+	if err != nil {
+		return err
+	}
+	declaration := Declaration{Provenance: authority.provenance(), Pointer: "manual", Parameters: parameters}
+	if !slices.ContainsFunc(concrete.Declarations, func(v Declaration) bool { return reflect.DeepEqual(v, declaration) }) {
+		if len(concrete.Declarations) == MaxRules {
+			return ErrConflict
+		}
+		concrete.Declarations = append(concrete.Declarations, declaration)
+	}
+	return nil
+}
+
 func observe(d *Document, o Observation, a Authority) error {
 	if !methodPattern.MatchString(o.Method) || !validOutcome(o.Outcome, o.Status) || !validTime(o.At) || len(o.Parameters) > MaxBatch {
 		return ErrInvalid
 	}
-	origin, path, parameters, err := projectURL(o.URL, a.Secrets)
-	if errors.Is(err, ErrUnsafe) {
-		addGap(d, a.SourceID, "unsafe", 1)
-		return nil
-	}
+	origin, path, parameters, err := projectURL(o.URL)
 	if err != nil {
 		return err
 	}
@@ -476,7 +541,7 @@ func observe(d *Document, o Observation, a Authority) error {
 		markProjectionGap(d, a.SourceID)
 	}
 	for _, name := range o.Parameters {
-		if safeName(name, a.Secrets) {
+		if validLabel(name) {
 			parameters = append(parameters, name)
 		} else {
 			addGap(d, a.SourceID, "parameters", 1)
@@ -487,16 +552,8 @@ func observe(d *Document, o Observation, a Authority) error {
 	if len(parameters) > MaxBatch {
 		return ErrInvalid
 	}
-	route, ambiguous := routeFor(d.Rules, origin, o.Method, path)
-	if ambiguous {
-		addGap(d, a.SourceID, "ambiguous", 1)
-	}
-	structural, err := projectStructural(d.Rules, origin, o.Method, route, o.URL, a.Secrets)
-	if errors.Is(err, ErrUnsafe) {
-		addGap(d, a.SourceID, "unsafe", 1)
-		return nil
-	}
-	if err != nil {
+	route, structural, omitted, err := resolveMemberSelection(d, origin, o.Method, path, o.URL, a.SourceID)
+	if err != nil || omitted {
 		return err
 	}
 	g, err := ensureGroup(d, origin, o.Method, route, structural...)
@@ -504,22 +561,12 @@ func observe(d *Document, o Observation, a Authority) error {
 		addGap(d, a.SourceID, "groups", 1)
 		return nil
 	}
-	id := memberID(origin, o.Method, path, structural...)
-	memberIndex := slices.IndexFunc(g.Members, func(m Member) bool { return m.ID == id })
-	if memberIndex < 0 {
-		count := 0
-		for _, group := range d.Groups {
-			count += len(group.Members)
-		}
-		if len(g.Members) == MaxGroupMembers || count == MaxMembers {
-			g.Omitted = saturated(g.Omitted, 1)
-			addGap(d, a.SourceID, "members", 1)
-			return nil
-		}
-		g.Members = append(g.Members, Member{ID: id, Path: path, Summaries: []Summary{}, Examples: []string{}, Evidence: []Evidence{}, Annotations: []Annotation{}})
-		memberIndex = len(g.Members) - 1
+	m, err := ensureMember(d, g, path)
+	if err != nil {
+		g.Omitted = saturated(g.Omitted, 1)
+		addGap(d, a.SourceID, "members", 1)
+		return nil
 	}
-	m := &g.Members[memberIndex]
 	summary := Summary{Provenance: a.provenance(), Context: a.contextKey(), Outcome: o.Outcome, Status: o.Status, Parameters: parameters, First: o.At, Last: o.At}
 	for i := range m.Summaries {
 		if summaryKey(m.Summaries[i]) == summaryKey(summary) {
@@ -577,7 +624,7 @@ func edit(d *Document, m Mutation, a Authority) error {
 		}
 		selection[id] = true
 	}
-	annotation, omitted, err := projectAnnotation(m.Note, m.Tags, a)
+	annotation, err := projectAnnotation(m.Note, m.Tags, a)
 	if err != nil {
 		return err
 	}
@@ -600,11 +647,8 @@ func edit(d *Document, m Mutation, a Authority) error {
 	if len(selection) > 0 {
 		return ErrConflict
 	}
-	if omitted {
-		addGap(d, a.SourceID, "metadata", 1)
-	}
 	if m.Operation == "remove" {
-		if !contracts.ValidResourceID(m.MarkerID) || !safeText(m.MarkerID, a.Secrets) || secretName.MatchString(m.MarkerID) || len(d.Markers) == MaxMarkers || slices.ContainsFunc(d.Markers, func(v Marker) bool { return v.ID == m.MarkerID }) {
+		if !contracts.ValidResourceID(m.MarkerID) || len(d.Markers) == MaxMarkers || slices.ContainsFunc(d.Markers, func(v Marker) bool { return v.ID == m.MarkerID }) {
 			return ErrConflict
 		}
 		ids := slices.Clone(m.MemberIDs)
@@ -677,7 +721,7 @@ func replaceSource(d *Document, u SourceUpdate, a Authority) error {
 	}
 	u.Rules = canonicalRules(u.Rules)
 	for _, rule := range u.Rules {
-		if rule.SourceID != u.SourceID || validateRule(rule) != nil || !safeText(rule.Path, a.Secrets) || !validSafeOrigin(rule.Origin, a.Secrets) || !safeText(rule.Pointer, a.Secrets) {
+		if rule.SourceID != u.SourceID || validateRule(rule) != nil || !validText(rule.Path) || !validOrigin(rule.Origin) || !validText(rule.Pointer) {
 			return ErrInvalid
 		}
 	}
@@ -708,7 +752,10 @@ func regroup(d *Document) error {
 			addGap(d, "", "regrouping", g.Omitted)
 		}
 		for _, m := range g.Members {
-			route, _ := routeFor(d.Rules, g.Origin, g.Method, m.Path)
+			route, ambiguous := routeFor(d.Rules, g.Origin, g.Method, m.Path)
+			if ambiguous {
+				addGap(d, "", "ambiguous", 1)
+			}
 			if suppressed[m.ID] && !sameStructuralNames(d.Rules, g.Origin, g.Method, route, g.Structural) {
 				return ErrConflict
 			}

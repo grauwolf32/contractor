@@ -20,27 +20,52 @@
     {
       "url": "https://user:short-password@Example.test:443/Users/%2F/?page=query-canary#fragment",
       "path": "/Users/%2F/",
-      "omitted": false
+      "omitted": false,
+      "parameters": [
+        "page"
+      ]
     },
     {
       "url": "https://example.test/session/short-password",
-      "path": "",
-      "omitted": true
+      "path": "/session/short-password",
+      "omitted": false,
+      "parameters": []
     },
     {
       "url": "https://example.test/users/short%2Dpassword",
-      "path": "",
-      "omitted": true
+      "path": "/users/short%2Dpassword",
+      "omitted": false,
+      "parameters": []
     },
     {
       "url": "https://example.test/opaque/ABCDEFGHIJKLMNOPQRSTUVWXYZ123456",
-      "path": "",
-      "omitted": true
+      "path": "/opaque/ABCDEFGHIJKLMNOPQRSTUVWXYZ123456",
+      "omitted": false,
+      "parameters": []
     },
     {
-      "url": "https://example.test/a/?token=header-canary&q=query-canary",
+      "url": "https://example.test/a/?token=header-canary&q=query-canary&password=query-canary",
       "path": "/a/",
-      "omitted": false
+      "omitted": false,
+      "parameters": [
+        "password",
+        "q",
+        "token"
+      ]
+    },
+    {
+      "url": "https://example.test/users/short%252Dpassword",
+      "path": "/users/short%252Dpassword",
+      "omitted": false,
+      "parameters": []
+    },
+    {
+      "url": "https://abcdefghijklmnopqrstuvwxyz123456.example.test/session/short-password?authorization=query-canary",
+      "path": "/session/short-password",
+      "omitted": false,
+      "parameters": [
+        "authorization"
+      ]
     }
   ]
 }

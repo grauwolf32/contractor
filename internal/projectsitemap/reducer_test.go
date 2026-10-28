@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
@@ -22,7 +21,7 @@ func observation(path string) Observation {
 }
 func applyObservations(t *testing.T, d Document, a Authority, observations ...Observation) Document {
 	t.Helper()
-	result, err := Reduce(d, Mutation{Operation: "observe", Observations: observations}, a)
+	result, _, err := Reduce(d, Mutation{Operation: "observe", Observations: observations}, a)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,9 +35,10 @@ func TestSharedProjectSitemapCases(t *testing.T) {
 		Empty      json.RawMessage `json:"empty"`
 		Invalid    []string        `json:"invalid"`
 		Projection []struct {
-			URL     string `json:"url"`
-			Path    string `json:"path"`
-			Omitted bool   `json:"omitted"`
+			URL        string   `json:"url"`
+			Path       string   `json:"path"`
+			Omitted    bool     `json:"omitted"`
+			Parameters []string `json:"parameters"`
 		} `json:"projection"`
 	}
 	if err := json.Unmarshal(data, &fixture); err != nil {
@@ -58,7 +58,6 @@ func TestSharedProjectSitemapCases(t *testing.T) {
 	}
 	for _, tc := range fixture.Projection {
 		a := httpAuthority("run-1")
-		a.Secrets = []contracts.SecretString{contracts.NewSecretString("short-password")}
 		o := observation("/")
 		o.URL = tc.URL
 		d := applyObservations(t, Empty(), a, o)
@@ -69,13 +68,16 @@ func TestSharedProjectSitemapCases(t *testing.T) {
 		} else if len(d.Groups) != 1 || d.Groups[0].Members[0].Path != tc.Path {
 			t.Fatalf("projection: %+v", d)
 		}
+		if len(d.Groups) > 0 && !reflect.DeepEqual(d.Groups[0].Members[0].Summaries[0].Parameters, tc.Parameters) {
+			t.Fatalf("parameter names were changed: %+v", d.Groups[0].Members[0].Summaries[0].Parameters)
+		}
 		encoded, err := encode(d)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, forbidden := range []string{"short-password", "query-canary", "header-canary"} {
+		for _, forbidden := range []string{"query-canary", "header-canary"} {
 			if bytes.Contains(encoded, []byte(forbidden)) || bytes.Contains(encoded, []byte(key(forbidden))) {
-				t.Fatalf("retained secret or hash: %s", forbidden)
+				t.Fatalf("retained excluded query value or hash: %s", forbidden)
 			}
 		}
 	}
@@ -99,12 +101,12 @@ func TestSharedSitemapTextBoundsCountUTF8Bytes(t *testing.T) {
 		for _, value := range field.Values(characters) {
 			var err error
 			if field.Rule == "LIM-SMT-6" {
-				_, _, err = projectAnnotation(value.Value, nil, Authority{})
+				_, err = projectAnnotation(value.Value, nil, Authority{})
 			} else {
-				_, _, err = projectAnnotation("", []string{value.Value}, Authority{})
+				_, err = projectAnnotation("", []string{value.Value}, Authority{})
 			}
-			// In-bound content can be omitted by projection; it must not become
-			// a size rejection. Over-bound metadata is always a permanent error.
+			// Metadata is retained within its UTF-8 byte limit; over-bound
+			// metadata remains a permanent error.
 			if (err == nil) != value.Within {
 				t.Fatalf("%s %s of %d bytes: %v", field.Schema, field.Rule, len(value.Value), err)
 			}
@@ -164,7 +166,7 @@ func TestReducerRegroupsRetainedMembersAndKeepsSuppression(t *testing.T) {
 	selected := memberID("https://example.test", "GET", "/users/123")
 	owner := Authority{SourceID: "owner", Kind: "manual", Mode: "source-assisted"}
 	var err error
-	d, err = Reduce(d, Mutation{Operation: "remove", MemberIDs: []string{selected}, MarkerID: "hidden"}, owner)
+	d, _, err = Reduce(d, Mutation{Operation: "remove", MemberIDs: []string{selected}, MarkerID: "hidden"}, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +175,7 @@ func TestReducerRegroupsRetainedMembersAndKeepsSuppression(t *testing.T) {
 		{SourceID: "schema", Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{}},
 		{SourceID: "schema", Origin: "https://example.test", Method: "GET", Path: "/users/me", Parameters: []string{}},
 	}}
-	d, err = Reduce(d, Mutation{Operation: "replace-source", Source: &update}, schema)
+	d, _, err = Reduce(d, Mutation{Operation: "replace-source", Source: &update}, schema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +193,7 @@ func TestReducerRegroupsRetainedMembersAndKeepsSuppression(t *testing.T) {
 		}
 	}
 	before, _ := encode(d)
-	if _, err := Reduce(d, Mutation{Operation: "replace-source", Source: &update}, schema); !errors.Is(err, ErrConflict) {
+	if _, _, err := Reduce(d, Mutation{Operation: "replace-source", Source: &update}, schema); !errors.Is(err, ErrConflict) {
 		t.Fatalf("stale source: %v", err)
 	}
 	after, _ := encode(d)
@@ -214,7 +216,7 @@ func TestReducerOverflowNeverInventsMembership(t *testing.T) {
 	rules := []Rule{{SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/items/{id}", Parameters: []string{}}}
 	owner := Authority{SourceID: "owner", Kind: "manual", Mode: "blackbox"}
 	var err error
-	d, err = Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: rules}}, owner)
+	d, _, err = Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: rules}}, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,19 +236,13 @@ func TestReducerOverflowNeverInventsMembership(t *testing.T) {
 
 func TestReducerStructuralSelectionAndSuppressionConflict(t *testing.T) {
 	owner := Authority{SourceID: "owner", Kind: "manual", Mode: "blackbox"}
-	rule := Rule{SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/dispatch", Parameters: []string{}, Structural: []StructuralParameter{{Name: "action", Allowed: []string{"read", "delete"}}}}
-	d, err := Reduce(Empty(), Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: []Rule{rule}}}, owner)
+	rule := Rule{SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/dispatch", Parameters: []string{}, Structural: []StructuralParameter{{Name: "action", Allowed: []string{"read", "short-password"}}}}
+	d, _, err := Reduce(Empty(), Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: []Rule{rule}}}, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
 	a := httpAuthority("traffic")
-	a.Secrets = []contracts.SecretString{contracts.NewSecretString("delete")}
-	d = applyObservations(t, d, a, observation("/dispatch?action=delete"))
-	if len(d.Groups) != 1 || len(d.Groups[0].Members) != 0 || len(d.Gaps) == 0 {
-		t.Fatal("allowed structural value bypassed secret projection")
-	}
-	a.Secrets = nil
-	d = applyObservations(t, d, a, observation("/dispatch?action=read"), observation("/dispatch?action=delete"))
+	d = applyObservations(t, d, a, observation("/dispatch?action=read"), observation("/dispatch?action=short-password"))
 	if len(d.Groups) != 3 {
 		t.Fatalf("structural functions conflated: %+v", d.Groups)
 	}
@@ -256,13 +252,13 @@ func TestReducerStructuralSelectionAndSuppressionConflict(t *testing.T) {
 			member = g.Members[0].ID
 		}
 	}
-	d, err = Reduce(d, Mutation{Operation: "remove", MarkerID: "hidden", MemberIDs: []string{member}}, owner)
+	d, _, err = Reduce(d, Mutation{Operation: "remove", MarkerID: "hidden", MemberIDs: []string{member}}, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
 	index := slices.IndexFunc(d.Sources, func(s Source) bool { return s.Provenance.SourceID == "owner" })
 	expected := d.Sources[index]
-	if _, err := Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Expected: &expected, Rules: []Rule{}}}, owner); !errors.Is(err, ErrConflict) {
+	if _, _, err := Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Expected: &expected, Rules: []Rule{}}}, owner); !errors.Is(err, ErrConflict) {
 		t.Fatalf("structural suppression widened or resurrected: %v", err)
 	}
 }
@@ -283,7 +279,7 @@ func TestReducerSourceCanonicalizationDoesNotMutateIntent(t *testing.T) {
 	a := Authority{SourceID: "owner", Kind: "manual", Mode: "source-assisted"}
 	m := Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: []Rule{{SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{"beta", "alpha"}}}}}
 	before := jsonBytes(m)
-	d, err := Reduce(Empty(), m, a)
+	d, _, err := Reduce(Empty(), m, a)
 	if err != nil {
 		t.Fatal(err)
 	}

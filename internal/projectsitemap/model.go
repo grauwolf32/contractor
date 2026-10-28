@@ -201,7 +201,6 @@ type Observation struct {
 }
 
 // Authority comes from the authenticated owner/allocation, never mutation JSON.
-// Secrets are transient matching inputs and must not be serialized or logged.
 type Authority struct {
 	OwnerID            string
 	ProjectID          string
@@ -215,7 +214,6 @@ type Authority struct {
 	CredentialRevision string
 	SessionGeneration  string
 	CanObserve         bool
-	Secrets            []contracts.SecretString `json:"-"`
 	// Authorize checks a fresh command against the transaction's accepted map.
 	// Receipt replay has already passed current scope authorization and does not
 	// revalidate an old selection against later grouping or evicted bytes.

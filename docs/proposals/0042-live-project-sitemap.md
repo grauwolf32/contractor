@@ -17,6 +17,16 @@ caller. Reconciliation extends the existing import operation and produces only
 artifacts required by its declared consumer. No new collection job framework,
 duplicate gate registry or mandatory duplicate map/patch/report package is needed.
 
+Metadata-policy decision, 2026-10-27: the user removed sitemap-specific secret
+filtering and matching-secret transport to preserve useful metadata and simplify
+the boundary. Valid paths, names, finite structural values, notes and tags remain
+intact regardless of keywords, opaque appearance or known credential matches.
+The existing `sitemap-safe-projection@1` identifier remains. The user also
+confirmed that ordinary owner-selected Run inputs authorize their complete
+selected content, including a mixed-source map for a blackbox Worker. Source-mode
+restrictions continue to govern dedicated sitemap views and snapshots. General
+credential handling, HTTP evidence redaction and telemetry redaction are unchanged.
+
 This complements the frozen surface and evidence contracts in
 [proposal 0033](0033-autonomous-pentest-audits.md). A live sitemap is shared
 research context; it does not replace that proposal's exact proof inputs.
@@ -105,23 +115,23 @@ model tool call to record each request.
 
 The initial artifact is a strict versioned JSON document, with entries,
 grouping rules, suppression markers, source summaries and collection gaps.
-It has no executable instructions or stored session credentials. Published
+It has no executable instructions or session-credential fields. Published
 exact revisions remain immutable; the Project binding advances through CAS.
 
-Every adapter applies `sitemap-safe-projection@1` before constructing public
-keys, examples or artifact bytes. It follows proposal 0033's safe-projection
-principles but also covers ordinary HTTP tools and imported traffic whose
-existing capture does not provide pentest redaction. Remove credentials,
-session/login values and their derived values from headers, query, body and
-path segments; imported URLs and configured structural values have no exemption.
-Retain parameter names, safe shape information and explicitly permitted
-non-secret values, with binding placeholders or omission reasons. Do not retain
-raw-secret hashes, including in IDs, fingerprints or correlation tags. If a
-safe operation/member key cannot be formed, record an omitted observation and
-a gap instead of merging distinct secret-bearing paths under a fabricated key.
-Manual descriptions and structured imports pass the same boundary. Unknown
-sensitive fields are omitted; a model cannot declare them safe. Record the
-projection version and omitted locations/reasons without removed values.
+Every adapter uses `sitemap-safe-projection@1` before constructing public
+keys, examples or artifact bytes. This projection normalizes the metadata model;
+it does not detect or redact secrets. Apply shared URL/host syntax and byte bounds,
+normalize origins and preserve concrete paths and parameter names. Exclude URL
+userinfo, fragments and nonstructural query values because they are outside the
+map model; raw headers and body values are never inputs. Retain finite configured
+structural values, valid notes and tags without keyword, opaque-token or
+known-secret matching. HTTP observation frames and private collection requests
+carry attempt metadata only, with no matching-secret list or secret-count bound.
+Unknown or conflicting structural selections produce an explicit omission rather
+than a fabricated member. Manual descriptions and structured imports use the same
+normalization. Record the projection version and structural omission reasons.
+The sitemap boundary does not inherit proposal 0033's HTTP evidence-redaction
+contract; that contract remains with its owning evidence and telemetry paths.
 
 A missing binding means an empty map that can be created conditionally.
 An existing malformed or unsupported document is an explicit error, not an
@@ -147,7 +157,7 @@ every input value.
 | Parameter shapes | Observed names, locations, multiplicity and body content types; declarations stay distinguishable. |
 | Declarations | Exact OpenAPI revision and operation pointer, or an explicit manual declaration. |
 | Observations | Trusted source/context keys, producer Run/invocation, observation time, HTTP outcome and deployment/session attribution when known. |
-| Concrete members | A separately bounded inventory of safe concrete operation keys and their observation summaries; representative examples are not this inventory. |
+| Concrete members | A separately bounded inventory of concrete operation keys and their observation summaries; representative examples are not this inventory. |
 | Examples | A bounded selection of concrete request descriptors and exact retained evidence refs when available. |
 | Manual metadata | Notes, tags, grouping overrides and exclusion state. |
 | Completeness | Source limits, discarded variants, unavailable response/evidence, parser failures and pending collection. |
@@ -169,12 +179,12 @@ one. When context limits are reached, record overflow and retain an unknown
 aggregate containing only omitted counts/gaps, never outcomes attributed to a
 synthetic shared principal; do not combine principals to fit the limit.
 
-Normalize origins using the project's shared URL rules. Within the safe
-projection, preserve concrete path case, trailing slashes and encoded reserved
-characters. Grouping never rewrites a retained concrete request. Query order,
-duplicate values and bodies may matter to security testing even when they do
-not create a new sitemap node; this does not authorize retaining removed secret
-values or claiming that a redacted descriptor is the original request.
+Normalize origins using the project's shared URL rules and preserve concrete
+path case, trailing slashes and encoded reserved characters. Grouping never
+rewrites a retained concrete request. Query order, duplicate values and bodies
+may matter to security testing even when they do not create a new sitemap node.
+Only explicitly configured finite structural query values belong to map identity;
+a metadata descriptor must not claim to be the complete original request.
 
 ## 5. Source adapters
 
@@ -386,12 +396,13 @@ Proposed tool roles (names are illustrative, not registered capabilities):
 An observation-writing template explicitly opts into automatic collection;
 reader-only selection grants no collection or edit authority. Precise tool
 selection and Server/Runtime wire changes must be specified together before
-implementation. A Skill or the presence of an input file grants no authority.
+implementation. A Skill or the presence of an input file grants no live Project
+tool authority.
 
 Every contribution, including notes and grouping rules, carries trusted
 content-kind and source-mode provenance. Imports validate the caller's source
-authority before reading content and preserve that classification. Blackbox
-list/read, reconciliation and snapshot/export operations exclude unselected
+authority before reading content and preserve that classification. Dedicated
+blackbox sitemap list/read, reconciliation and snapshot/export operations exclude unselected
 source-derived content before exposure, including previews, paths, parameter
 names, descriptions and grouping effects. An explicitly authorized OpenAPI
 input remains usable; another Run's source-assisted import does not become an
@@ -399,10 +410,13 @@ authorized blackbox input automatically. Source-assisted manual notes are
 restricted conservatively unless a trusted classification permits disclosure;
 the model cannot relabel them. Form the view using allowed contributions and
 rules, or report an unavailable projection if safe reconstruction is impossible.
-Never fork the raw mixed-source Project map into a blackbox Run. Retained views
-name the original map revision plus the projection policy and selected inputs,
-and expose only authorized consumer refs; they do not claim byte identity with
-the full map.
+These restrictions apply to the dedicated sitemap tool surface. An owner's
+explicit ordinary Run input selection authorizes the complete selected context,
+including a raw mixed-source Project map for a blackbox Worker. The Worker's
+sitemap policy does not narrow or reject that deliberate selection. Dedicated
+retained views name the original map revision plus the projection policy and
+selected inputs, and expose only authorized consumer refs; they do not claim
+byte identity with the full map.
 
 Removing an entry means removing it from the working map, not rewriting prior
 artifact revisions or deleting finding evidence. Suppression applies to its
@@ -476,7 +490,7 @@ only with the implementation. They are not current platform limits:
 | --- | --- |
 | Typical Project | 100–1,000 operation groups; 1–10 contributing Workers |
 | Current map | 10,000 groups or 32 MiB encoded JSON, whichever comes first |
-| Concrete members | 64 per group and 50,000 per map; each safe member key at most 8 KiB |
+| Concrete members | 64 per group and 50,000 per map; each member key at most 8 KiB |
 | Examples | 8 bounded request descriptors per group; at most 2 KiB each |
 | Context summaries | 16 named/unknown observation contexts per group |
 | Member summaries/provenance | 16 source/context/outcome summaries and 8 exact provenance refs per retained member |
@@ -743,9 +757,13 @@ Include GET versus POST, repeated query parameters, structural values, fixed
 `/users/me` versus `/users/{id}`, multiple identities, wildcard responses,
 suppression followed by reimport, late schema import, invalid document edits,
 partial scanner output and cancellation while publishing.
-Include secret canaries in path/query/body/headers and structural keys for every
-source, source-assisted to blackbox reads/snapshots, repeated identity labels
-across baselines, reversed concurrent schema replacements, regrouping after
+For every source, test retention of credential-named and opaque paths, parameter
+names, structural values, notes and tags, including known-credential matches.
+Verify that userinfo, fragments, nonstructural query values, headers and bodies
+remain outside the metadata model and that general telemetry redaction remains
+unchanged. Exercise source-assisted to blackbox tool reads/snapshots separately
+from complete owner-selected ordinary inputs, repeated identity labels across
+baselines, reversed concurrent schema replacements, regrouping after
 inventory overflow/discarded incoming members, suppression across split/merge,
 and every metadata bound.
 Shared artifact/retention tests cover concurrent last-slot admission, mixed and

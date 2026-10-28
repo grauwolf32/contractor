@@ -50,30 +50,43 @@ func (s *Service) AllocationAccess(ctx context.Context, runID, namespace string,
 		if err != nil {
 			return err
 		}
+		if len(policy.OpenAPIInputs) == 0 {
+			return nil
+		}
+		rows, err := tx.Query(ctx, allocationInputRevisionsSQL, runID, policy.OpenAPIInputs)
+		if err != nil {
+			return err
+		}
+		type originalInput struct{ Name, Revision string }
+		originals, err := pgx.CollectRows(rows, pgx.RowToStructByPos[originalInput])
+		if err != nil {
+			return err
+		}
+		byName := make(map[string]string, len(originals))
+		for _, original := range originals {
+			if _, duplicate := byName[original.Name]; duplicate {
+				return ErrInvalid
+			}
+			byName[original.Name] = original.Revision
+		}
+		refs := make([]contracts.ArtifactRef, 0, len(policy.OpenAPIInputs))
 		for _, name := range policy.OpenAPIInputs {
-			rows, err := tx.Query(ctx, allocationInputRevisionSQL, runID, name)
-			if err != nil {
-				return err
-			}
-			revisions, err := pgx.CollectRows(rows, pgx.RowTo[string])
-			if err != nil {
-				return err
-			}
-			if len(revisions) == 0 {
+			revision, found := byName[name]
+			if !found {
 				return artifacts.ErrArtifactNotFound
 			}
-			if len(revisions) != 1 {
+			refs = append(refs, contracts.ArtifactRef{Namespace: "inputs", Name: name, Revision: &revision})
+		}
+		// Reuse ArtifactStore's bounded metadata reader instead of repeating its
+		// storage joins here or issuing a query for each selected input.
+		access.Inputs, err = store.DescribeExact(ctx, refs)
+		if err != nil {
+			return err
+		}
+		for _, exact := range access.Inputs {
+			if exact.Validate() != nil {
 				return ErrInvalid
 			}
-			metadata, err := store.Metadata(ctx, contracts.ArtifactRef{Namespace: "inputs", Name: name, Revision: &revisions[0]})
-			if err != nil {
-				return err
-			}
-			exact := metadata.Exact()
-			if err := exact.Validate(); err != nil {
-				return ErrInvalid
-			}
-			access.Inputs = append(access.Inputs, exact)
 		}
 		return nil
 	})

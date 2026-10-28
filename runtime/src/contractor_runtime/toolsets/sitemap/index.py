@@ -38,7 +38,6 @@ class Entry:
     fields: dict[str, Span] = field(default_factory=dict)
     members: list[str] = field(default_factory=list)
     parts: array = field(default_factory=lambda: array("I"))
-    sources: int = 0
     markers: array = field(default_factory=lambda: array("I"))
     member_omitted: array = field(default_factory=lambda: array("Q"))
 
@@ -52,7 +51,6 @@ class ViewIndex:
         self.member_ids: dict[str, Entry] = {}
         self.suppressed: set[str] = set()
         self.sources: dict[str, Span] = {}
-        self.source_bits: dict[str, int] = {}
         self.rules: list[Span] = []
         self.markers: list[Span] = []
         self.gaps: list[Span] = []
@@ -73,6 +71,11 @@ class ViewIndex:
                     entry.markers.extend(span)
                     touched.add(id(entry))
         self.entry_ids = tuple(self.entries)
+        self.metadata = tuple(
+            [("source", span) for span in self.sources.values()]
+            + [("rule", span) for span in self.rules]
+            + [("gap", span) for span in self.gaps]
+        )
         self.retained_bytes = retained_size(self)
         if self.retained_bytes + MAX_PAGE_BYTES > MAX_VIEW_BYTES:
             raise ArtifactTransportError("sitemap view exceeds its total memory bound")
@@ -226,12 +229,6 @@ class ViewIndex:
         return False
 
     def _object(self, name: str, fields: dict[str, Span], span: Span) -> None:
-        if name == "SitemapProvenance" and self._entry is not None:
-            source = self.load(fields["sourceId"])
-            bit = self.source_bits.setdefault(source, len(self.source_bits))
-            if bit >= 128:
-                self._invalid()
-            self._entry.sources |= 1 << bit
         if name in _PART_SCHEMAS:
             self._part(_PART_SCHEMAS[name], span)
         elif name == "SitemapMember":

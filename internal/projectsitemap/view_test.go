@@ -21,12 +21,12 @@ func TestSafeViewRemovesRestrictedPathsNotesAndGroupingBeforeEncoding(t *testing
 	d = applyObservations(t, d, sa, observation("/source-canary"))
 	owner := Authority{SourceID: "sa-note", Kind: "manual", Mode: "source-assisted"}
 	var err error
-	d, err = Reduce(d, Mutation{Operation: "annotate", MemberIDs: []string{memberID("https://example.test", "GET", "/users/123")}, Note: "note-canary"}, owner)
+	d, _, err = Reduce(d, Mutation{Operation: "annotate", MemberIDs: []string{memberID("https://example.test", "GET", "/users/123")}, Note: "note-canary"}, owner)
 	if err != nil {
 		t.Fatal(err)
 	}
 	schema := Authority{SourceID: "sa-schema", Kind: "openapi", Mode: "source-assisted"}
-	d, err = Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: schema.SourceID, Rules: []Rule{{
+	d, _, err = Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: schema.SourceID, Rules: []Rule{{
 		SourceID: schema.SourceID, Origin: "https://example.test", Method: "GET", Path: "/users/{route_canary}", Pointer: "pointer-canary", Parameters: []string{"parameter_canary"},
 	}}}}, schema)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestSafeViewPermitsOnlyExplicitExactOpenAPIAndRebindsItsAlias(t *testing.T)
 	}
 	schema := Authority{SourceID: "openapi", Kind: "openapi", Mode: "source-assisted"}
 	var err error
-	d, err = Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: schema.SourceID, Artifact: &source, Rules: []Rule{{SourceID: schema.SourceID, Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{"declared"}}}}}, schema)
+	d, _, err = Reduce(d, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: schema.SourceID, Artifact: &source, Rules: []Rule{{SourceID: schema.SourceID, Origin: "https://example.test", Method: "GET", Path: "/users/{id}", Parameters: []string{"declared"}}}}}, schema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +103,7 @@ func TestSafeViewPermitsOnlyExplicitExactOpenAPIAndRebindsItsAlias(t *testing.T)
 
 func TestSafeViewOmitsUnreconstructableStructuralMembers(t *testing.T) {
 	schema := Authority{SourceID: "schema", Kind: "openapi", Mode: "source-assisted"}
-	d, err := Reduce(Empty(), Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: schema.SourceID, Rules: []Rule{{SourceID: schema.SourceID, Origin: "https://example.test", Method: "GET", Path: "/dispatch", Structural: []StructuralParameter{{Name: "action", Allowed: []string{"private"}}}}}}}, schema)
+	d, _, err := Reduce(Empty(), Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: schema.SourceID, Rules: []Rule{{SourceID: schema.SourceID, Origin: "https://example.test", Method: "GET", Path: "/dispatch", Structural: []StructuralParameter{{Name: "action", Allowed: []string{"private"}}}}}}}, schema)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,12 +119,12 @@ func TestSafeViewOmitsUnreconstructableStructuralMembers(t *testing.T) {
 
 func TestReducerWorkerManualSourcesDoNotMultiplyAcrossRuns(t *testing.T) {
 	a := Authority{SourceID: "manual-editor", Kind: "manual", Mode: "blackbox", RunID: "first-run"}
-	d, err := Reduce(Empty(), Mutation{Operation: "declare", URL: "https://example.test/one", Method: "GET"}, a)
+	d, _, err := Reduce(Empty(), Mutation{Operation: "declare", URL: "https://example.test/one", Method: "GET"}, a)
 	if err != nil {
 		t.Fatal(err)
 	}
 	a.RunID = "second-run"
-	d, err = Reduce(d, Mutation{Operation: "declare", URL: "https://example.test/two", Method: "GET"}, a)
+	d, _, err = Reduce(d, Mutation{Operation: "declare", URL: "https://example.test/two", Method: "GET"}, a)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,12 +144,12 @@ func TestReducerWorkerManualSourcesDoNotMultiplyAcrossRuns(t *testing.T) {
 
 func TestSafeViewRetainsConcreteManualMembersAfterRestrictedRegrouping(t *testing.T) {
 	manual := Authority{SourceID: "manual-bb", Kind: "manual", Mode: "blackbox", RunID: "declaring-run"}
-	document, err := Reduce(Empty(), Mutation{Operation: "declare", URL: "https://example.test/users/123", Method: "GET"}, manual)
+	document, _, err := Reduce(Empty(), Mutation{Operation: "declare", URL: "https://example.test/users/123", Method: "GET"}, manual)
 	if err != nil {
 		t.Fatal(err)
 	}
 	schema := Authority{SourceID: "schema-sa", Kind: "openapi", Mode: "source-assisted"}
-	document, err = Reduce(document, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: schema.SourceID, Rules: []Rule{{SourceID: schema.SourceID, Origin: "https://example.test", Method: "GET", Path: "/users/{restricted_parameter}"}}}}, schema)
+	document, _, err = Reduce(document, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: schema.SourceID, Rules: []Rule{{SourceID: schema.SourceID, Origin: "https://example.test", Method: "GET", Path: "/users/{restricted_parameter}"}}}}, schema)
 	if err != nil {
 		t.Fatal(err)
 	}

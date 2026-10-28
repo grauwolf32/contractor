@@ -60,12 +60,11 @@ def test_shared_sitemap_private_wire() -> None:
         MAX_ATTEMPTS,
         MAX_BYTES,
         MAX_ITEMS,
-        MAX_SECRETS,
     )
 
     assert cases["collectorLimits"]["items"] == MAX_ITEMS
     assert cases["collectorLimits"]["batchBytes"] == MAX_BYTES == MAX_SITEMAP_COMMAND_BYTES
-    assert cases["collectorLimits"]["secrets"] == MAX_SECRETS
+    assert "secrets" not in cases["collectorLimits"]
     assert cases["collectorLimits"]["attempts"] == MAX_ATTEMPTS
     assert cases["collectorLimits"]["flushBudgetSeconds"] == FLUSH_BUDGET_SECONDS
     assert cases["collectorLimits"]["flushIntervalSeconds"] == FLUSH_INTERVAL_SECONDS
@@ -80,3 +79,10 @@ def test_shared_sitemap_private_wire() -> None:
                 else:
                     with pytest.raises(PrivateProtocolDecodeError):
                         decode_private(models[case["type"]], json.dumps(case["value"]))
+
+    collection = next(
+        case for case in cases["valid"] if "observations" in case["value"].get("input", {})
+    )
+    validator = private_validator("project-sitemap.schema.json#/$defs/" + collection["type"])
+    obsolete = {**collection["value"], "input": {**collection["value"]["input"], "secrets": []}}
+    assert not validator.is_valid(obsolete)

@@ -2,7 +2,6 @@ package projectsitemap
 
 import (
 	"bytes"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"net/url"
 	"slices"
 	"strings"
@@ -58,12 +57,12 @@ func validStructural(values []StructuralValue) bool {
 	}
 	names := map[string]bool{}
 	for _, value := range values {
-		if names[value.Name] || !safeName(value.Name, nil) || len(value.Values) > MaxTags {
+		if names[value.Name] || !validLabel(value.Name) || len(value.Values) > MaxTags {
 			return false
 		}
 		names[value.Name] = true
 		for _, item := range value.Values {
-			if len(item) > MaxTagBytes || !safeText(item, nil) || secretName.MatchString(item) {
+			if len(item) > MaxTagBytes || !validText(item) {
 				return false
 			}
 		}
@@ -71,10 +70,10 @@ func validStructural(values []StructuralValue) bool {
 	return true
 }
 
-// projectStructural retains only explicitly configured finite values after
-// secret projection. Conflicting policies and unknown values omit the whole
-// concrete identity instead of merging under a made-up placeholder.
-func projectStructural(rules []Rule, origin, method, route, raw string, secrets []contracts.SecretString) ([]StructuralValue, error) {
+// projectStructural retains explicitly configured finite values from the query.
+// Conflicting policies and unknown values omit the whole concrete identity
+// instead of merging under a made-up placeholder.
+func projectStructural(rules []Rule, origin, method, route, raw string) ([]StructuralValue, error) {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return nil, ErrInvalid
@@ -83,19 +82,9 @@ func projectStructural(rules []Rule, origin, method, route, raw string, secrets 
 	if err != nil {
 		return nil, ErrInvalid
 	}
-	selectors := map[string][]string{}
-	for _, rule := range rules {
-		if rule.Origin != origin || rule.Method != method || rule.Path != route {
-			continue
-		}
-		for _, selector := range rule.Structural {
-			allowed := slices.Clone(selector.Allowed)
-			slices.Sort(allowed)
-			if existing, found := selectors[selector.Name]; found && !slices.Equal(existing, allowed) {
-				return nil, ErrUnsafe
-			}
-			selectors[selector.Name] = allowed
-		}
+	selectors, conflict := structuralSelectors(rules, origin, method, route)
+	if conflict != nil {
+		return nil, errStructuralSelection
 	}
 	names := make([]string, 0, len(selectors))
 	for name := range selectors {
@@ -106,14 +95,38 @@ func projectStructural(rules []Rule, origin, method, route, raw string, secrets 
 	for _, name := range names {
 		values := query[name]
 		if len(values) > MaxTags {
-			return nil, ErrUnsafe
+			return nil, errStructuralSelection
 		}
 		for _, value := range values {
-			if !slices.Contains(selectors[name], value) || !safeText(value, secrets) {
-				return nil, ErrUnsafe
+			if !slices.Contains(selectors[name], value) {
+				return nil, errStructuralSelection
 			}
 		}
 		result = append(result, StructuralValue{Name: name, Values: append([]string{}, values...)})
 	}
 	return result, nil
+}
+
+// structuralSelectors returns the effective finite selector policy or one pair
+// that proves a conflict. A conflict omits the operation even when the query
+// contains neither selector; receipts must preserve that distinction.
+func structuralSelectors(rules []Rule, origin, method, route string) (map[string][]string, []StructuralParameter) {
+	selectors := map[string][]string{}
+	for _, rule := range rules {
+		if rule.Origin != origin || rule.Method != method || rule.Path != route {
+			continue
+		}
+		for _, selector := range rule.Structural {
+			allowed := slices.Clone(selector.Allowed)
+			slices.Sort(allowed)
+			if existing, found := selectors[selector.Name]; found && !slices.Equal(existing, allowed) {
+				return nil, []StructuralParameter{
+					{Name: selector.Name, Allowed: existing},
+					{Name: selector.Name, Allowed: allowed},
+				}
+			}
+			selectors[selector.Name] = allowed
+		}
+	}
+	return selectors, nil
 }

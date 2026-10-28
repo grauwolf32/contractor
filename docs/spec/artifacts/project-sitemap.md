@@ -4,7 +4,7 @@ Requirement prefix: `SMT` · [Specification index](../README.md)
 
 ## Purpose and scope
 
-The sitemap owns shared, safe HTTP surface metadata in a Project: concrete
+The sitemap owns shared HTTP surface metadata in a Project: concrete
 members, observed contexts, declarations, grouping, member annotations and
 reversible suppression. It is research context. It does not establish Audit
 coverage, physical request counts, retained HTTP exchanges or verified findings.
@@ -24,11 +24,12 @@ bounded concrete members, summaries, examples and declarations. The document
 also contains sources, source-owned grouping rules, fixed member suppression
 selections and bounded omission aggregates.
 
-A group key is the safe normalized origin, HTTP method, concrete or justified
+A group key is the normalized origin, HTTP method, concrete or justified
 template route and explicitly configured structural query values. A member key
 uses the concrete path and structural selection instead of the group route.
 Keys use SHA-256 over length-prefixed UTF-8 components, so component boundaries
-are unambiguous. Removed credential values never participate in these hashes.
+are unambiguous. URL userinfo, fragments and nonstructural query values do not
+participate in these hashes because they are outside the metadata model.
 
 Every contribution records trusted source kind, source mode, deployment and,
 when known, producer Run, credential revision and session generation. Context
@@ -57,22 +58,34 @@ case-aliased, unknown-member, omitted-required or null-required documents must
 fail permanently and must never be replaced implicitly. The owning typed
 contract and public schemas define the document and mutation fields.
 
-**SMT-R3.** Safe ingress projection must run before persisted identities,
-examples and request digests. It must remove URL userinfo, query values,
-fragments and sensitive parameter names; headers and body values are not map
-input. Known credential values, repeated percent encoding and opaque or
-credential-bearing paths must not produce concrete members. Unrepresentable
-observations create bounded reason aggregates without removed values or their
-hashes. Safe paths preserve case, trailing slash and encoded reserved characters.
-The HTTP URL and host grammar is the shared prepared-request grammar.
+**SMT-R3.** Ingress normalization must run before persisted identities,
+examples and request digests. The HTTP URL and host grammar is the shared
+prepared-request grammar. Normalize origins and preserve concrete path case,
+trailing slash and encoded reserved characters. URL userinfo, fragments and
+nonstructural query values are outside the map metadata model; headers and body
+values are not map input. Valid host labels, paths and parameter names must not
+be rejected or omitted because they contain credential-like words, look opaque,
+use percent encoding or match known credential strings. The sitemap must not
+receive matching-secret lists or implement secret detection. Syntax and byte
+bounds remain mandatory; unrepresentable structural selections use bounded
+reason aggregates without fabricated concrete identities.
 
 **SMT-R4.** Structural query selectors must have explicitly configured finite
 allowed values. A name alone does not authorize retaining its incoming values.
-Projection must still reject a known secret in an allowed value. Unknown or
-conflicting selections must create an omission rather than a fabricated member.
-Selector multiplicity and value order remain distinct. Free-form notes and tags
-pass the same known-secret and sensitive-content checks; omitted metadata has
-an explicit gap.
+Unknown or conflicting selections must create an omission rather than a
+fabricated member. Selector multiplicity and value order remain distinct.
+Allowed structural values, free-form notes and tags must retain valid content
+within their syntax and byte bounds, without keyword, opaque-token or
+known-secret filtering.
+
+Rationale (user decision, 2026-10-27): sitemap metadata normalization owns
+structure and bounded representation. Secret matching at this boundary discarded
+useful paths, names and descriptions and required duplicate matching logic and
+transient secret transport. Preserve the existing `sitemap-safe-projection@1`
+identifier; it names this metadata projection, not a content-redaction guarantee.
+General credential handling and telemetry redaction remain with their existing
+owners. The sitemap area owns this separation; reconsider it only for a concrete,
+explicitly requested metadata-disclosure policy.
 
 **SMT-R5.** Observations must be bounded sets of source, context, shape and
 outcome summaries with minimum and maximum timestamps. A timeout or transport
@@ -88,14 +101,23 @@ metadata and selection, and must conflict when a structural change would make
 an existing suppression ambiguous. Unknown discarded membership must remain a
 regrouping gap. Example selection may shrink deterministically within its bound;
 retained concrete members and evidence must not be dropped to make room.
+Manual declarations and observations use the same concrete member identity and
+route/structural-selector placement, regardless of arrival order. A manual
+declaration retains its concrete path and structural selection separately from
+the group's template route, so its provenance can recover the member after
+other contributions are excluded. Annotation and suppression selections continue
+to name that same member.
 
 **SMT-R7.** A source replacement must compare its expected generation,
 predecessor exact descriptor and policy digest, together with stable source and
 deployment attribution. Creation requires absence. Code assigns the next
 generation and computes the new policy digest. It must preserve independent
 observations and reject stale source intent; retry must never refresh that
-intent automatically. Exact concrete declarations precede templates; ambiguous
-template matches remain concrete and explicitly ambiguous.
+intent automatically. Exact concrete source rules precede templates; ambiguous template matches
+remain concrete and explicitly ambiguous both on ingress and when a source
+replacement regroups already retained members. Manual declaration metadata does
+not override a source's grouping rule: it identifies a concrete member while
+observations and declarations share the same placement policy.
 
 **SMT-R8.** The service must publish through the ordinary caller-owned
 ArtifactStore transaction and CAS. Its keyed mutation must use the shared
@@ -107,10 +129,13 @@ common classification and original operation deadline.
 
 **SMT-R9.** Receipt replay must confirm the originally accepted exact ref,
 even after its unprotected bytes were evicted. It must create no publication,
-charge or hold and must never substitute current. A bounded safe selector policy
+charge or hold and must never substitute current. A bounded selector policy
 stored in that same receipt must make replay independent of later grouping
-changes without hashing discarded secret values. The receipt's policy is not
-another map or retained-history mechanism.
+changes without hashing excluded URL components. It must preserve structural
+values for declarations and observations, including selector multiplicity and
+order, and unconditional omission under conflicting policies even when a
+selector is absent. Changed accepted structural intent must conflict on replay.
+The receipt's policy is not another map or retained-history mechanism.
 
 **SMT-R10.** The map must consume ordinary automatic per-binding ArtifactStore
 history policy, admission, maintenance and shared errors. It must not register
@@ -136,38 +161,61 @@ policy in the AgentTemplate and exact selected `sitemap@1` operations. The
 policy fixes `sourceMode` (`blackbox` or `source-assisted`), an optional deployment
 identity and explicitly authorized OpenAPI input names. Authority resolves each
 name to its immutable original Run-creation input fork, never the Worker-editable
-current binding. Advancing a working copy cannot declassify another source. Reader, editor and
+current binding. Resolving the at-most-eight selected inputs uses a bounded
+batch of original references and exact metadata, with query count independent
+of the selected count; every request still checks current authority. Advancing a working copy cannot declassify another source. Reader, editor and
 importer authority derives from the selected operations. Only the policy's
 explicit `collectObservations` setting grants the separate observation writer;
 reader selection alone grants no collection. Project and owner come from the
 allocation's durable Run. A request may not select another Project or relabel
 its source mode. Manual editor mutations cannot select a Project artifact; exact source selection belongs to authorized import adapters. Unknown policy versions and operations fail validation.
 
-**SMT-R14.** A blackbox view must be assembled from allowed contributions before
-returning any document bytes. Source-assisted annotations, declarations, paths,
-parameter names and grouping effects must be excluded. An OpenAPI contribution
-requires an explicitly authorized original exact Run input revision; another Run's import is not a
-grant. Allowed observations may recover their concrete route after excluded
-templates are removed. If a structural selection cannot be reconstructed safely,
-omit it with a gap. A mixed raw map must never be materialized into a blackbox Run.
+**SMT-R14.** Dedicated sitemap tool views and snapshots for a blackbox
+allocation must be assembled from allowed contributions before returning any
+document bytes. Source-assisted annotations, declarations, paths, parameter
+names and grouping effects must be excluded from those views. An OpenAPI
+contribution requires an explicitly authorized original exact Run input revision;
+another Run's import is not a grant. Allowed observations may recover their
+concrete route after excluded templates are removed. If a structural selection
+cannot be reconstructed from authorized contributions, omit it with a gap.
+This source-mode restriction governs the dedicated sitemap surface. An owner's
+explicit ordinary Run input selection authorizes the complete selected context,
+including a mixed-source sitemap for a blackbox consumer; it must not be narrowed
+or rejected by the Worker's sitemap policy.
 
-**SMT-R15.** Runtime keeps one immutable encoded safe view per allocation,
+Rationale (user decision, 2026-10-27): the owner chooses ordinary Run inputs.
+A tool's blackbox policy controls what that tool can fetch on the Worker's behalf;
+it does not override context the owner deliberately supplied. No additional
+input-selection guard or source-mode filtering is required on that path.
+
+**SMT-R15.** Runtime keeps one immutable encoded authorized view per allocation,
 bounded by LIM-SMT-12. Parsing and indexing run in joined threads. A cursor binds
 the view identity, original exact revision and filters. Every page checks current
 Server allocation, Project and source-mode authority; local bytes confer no
 authority. Publication or source eviction does not change an existing view.
 Refresh, absence, replacement and release invalidate old cursors with
 `sitemap_cursor_expired`. There is no view TTL or implicit Artifact hold.
+The existing `list_sitemap_entries` operation accepts `scope="entries"` by
+default and `scope="metadata"` for independently paged sources, rules and gaps,
+including maps with no entries. Metadata uses the same view and page bounds,
+checks current authority and binds its scope into cursors; entry filters are
+invalid in metadata scope. Entry reads contain only their own parts and removal
+markers, without repeating global sources, rules or gaps. Complete Source
+metadata remains discoverable after its rules are cleared so a later editor can
+supply the exact source precondition.
 
-**SMT-R16.** A context snapshot must contain only the selected authorized safe
+**SMT-R16.** A context snapshot must contain only the selected authorized
 projection, original map revision, projection policy and authorized exact inputs.
 The Server must atomically acquire ordinary exact-reference protection before
 accepting it. Needed permitted original Run input bytes are frozen with ordinary
 exact forks in the same transaction; foreign provenance alone grants no byte
 read. Derived context has its own bytes and must not claim byte identity
 with the full map. A lost eviction race returns exact-source unavailability;
-Runtime memory and disk caches cannot revive the source. A snapshot does not
-change an existing Audit baseline or grant arbitrary foreign-Run reads.
+Runtime memory and disk caches cannot revive the source. A snapshot preserves
+the selected members' authorized concrete manual declarations even when their members belong to template groups; companion
+declaration groups add no unselected members or unrelated declarations. A
+snapshot does not change an existing Audit baseline or grant arbitrary foreign-Run
+reads.
 
 **SMT-R17.** Allocation fencing and release must join mutations, view construction
 and materialization through the existing allocation gate. Clearing/replacing a
@@ -180,10 +228,10 @@ without changing target transport, Worker results, Run state or Runtime reports.
 Explicit allocation tools return `status: completed` on success and `status: failed`
 with a classified error on a definite API rejection, matching ordinary `tool@1`
 completion. Transport/protocol bugs remain Python exceptions. Telemetry for these
-tools records outcome metadata only. Known credentials, including short and
-percent-encoded forms, are rejected before hashing or sending explicit tool
-arguments. Import capability is advertised only when its format dispatcher is
-installed. The private command wrappers carry the private API version; the
+tools records outcome metadata only under the existing general telemetry
+redaction policy. Explicit tool arguments use the syntax and bounds of SMT-R3
+and SMT-R4, without sitemap-specific secret matching. Import capability is
+advertised only when its format dispatcher is installed. The private command wrappers carry the private API version; the
 domain command schemas are generated from the public owning schema.
 
 **SMT-R18.** Allocation composition connects selected HTTP capture to an optional
@@ -192,14 +240,18 @@ attempts, including each physical retry/redirect and negative outcome, before
 evidence-buffer admission/eviction. It never follows a Location. Submission does
 not await network or storage I/O. Subscriber errors cannot replace a target
 result; caller cancellation is preserved and joined. HTTP tools own no collector
-flush, retry or cleanup.
+flush, retry or cleanup. An invalid target response status is represented as a
+transport-error observation with status zero, while the HTTP tool retains its
+original protocol error. It must not invalidate otherwise valid observations
+in the same batch.
 
 **SMT-R19.** Runtime retains only a bounded private in-memory batch of attempt
-metadata and transient matching secrets. No headers, bodies, persistent queue,
-URL identity or receipt digest are constructed there. One background private
-batch request invokes the existing Go projector before sitemap identities,
-receipt hashing and Artifact publication; the existing reducer owns coalescing.
-Matching secrets are never persisted or logged. Server code assigns Project,
+metadata. Observation frames and private collection requests contain no
+matching-secret list; no separate secret-count limit applies. No headers, bodies,
+persistent queue, URL identity or receipt digest are constructed there. One
+background private batch request invokes the existing Go normalizer before
+sitemap identities, receipt hashing and Artifact publication; the existing
+reducer owns coalescing. Server code assigns Project,
 source, Run and mode from the allocation; Runtime's session generation
 distinguishes unknown sessions without claiming an authenticated principal.
 
@@ -214,6 +266,10 @@ renew that allowance. `Retry-After` applies only inside the remaining budget.
 A fresh live view attempts the caller's local flush and then reads committed
 data, including when automatic publication failed. Existing paged views remain
 immutable. Explicit read authorization/storage errors retain their own contract.
+Lock acquisition and the explicit read each have their own 15-second allowance;
+the automatic checkpoint retains its separate existing flush budget. Exhausting
+that checkpoint must not consume the explicit read allowance. Caller cancellation
+still joins publication and view construction before propagating.
 
 **SMT-R21.** Composition attempts a bounded infrastructure checkpoint before
 returning the Worker result, while allocation writes are still permitted.
@@ -241,7 +297,7 @@ producer context. No command accepts a replacement map document.
 The allocation collector uses
 `POST /private/v1/allocations/{allocationId}/sitemap/observations` with
 `{apiVersion, input}` and `Idempotency-Key`. Transient input contains only bounded
-attempt metadata and matching secrets. The existing mTLS allocation gate and
+attempt metadata. The existing mTLS allocation gate and
 [private wire schema](../../../api/v1alpha1/project-sitemap.schema.json) apply.
 No Project/source-mode selector or raw headers/body are accepted. Explicit
 allocation tools retain their separate read/mutation/snapshot operations.
@@ -254,10 +310,11 @@ contractor project sitemap mutate PROJECT --file command.json --idempotency-key 
 ```
 
 An owner can select the exact sitemap binding as an ordinary declared input
-when creating a Project Run whose consumer policy permits the complete map.
-A narrower source-mode consumer requires an authorized projection. The existing
-input fork retains the selected source;
-a live read alone creates no such dependency.
+when creating a Project Run, including for a blackbox consumer. This deliberate
+selection authorizes the complete selected map. Dedicated sitemap tools still
+apply their pinned source-mode policy when reading live views or creating
+snapshots. The existing input fork retains the selected source; a live read
+alone creates no such dependency.
 
 ## Limits, failures and errors
 
@@ -278,15 +335,12 @@ the existing public/private not-found mapping and distinct content-missing error
 
 ## Security
 
-The owner may read the complete safe map. Source-mode metadata remains trusted
-provenance, including for manual notes and rules, for narrower consumer views.
-Public commands cannot self-classify imported facts as observed traffic.
-The projection is conservative: an opaque concrete path can be omitted even
-when it was an ordinary application identifier. The explicit gap, and any
-independent selected declaration, remain available; omission is not absence.
-The HTTP tools area owns collection completeness and reopens this choice if
-retaining such identifiers becomes necessary under a stronger classification
-policy.
+The owner may read the complete map and explicitly select it as ordinary Run
+context. Source-mode metadata remains trusted provenance, including for manual
+notes and rules, for dedicated tool views and snapshots. Public commands cannot
+self-classify imported facts as observed traffic. Sitemap normalization does not
+classify or redact metadata content. General credential storage, HTTP evidence
+redaction and telemetry policies retain their existing owners and guarantees.
 
 ## Invariants
 

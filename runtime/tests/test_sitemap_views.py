@@ -114,6 +114,8 @@ def test_read_pages_concrete_parts_suppression_and_exact_snapshot_request() -> N
             rows += page["entries"]
         assert len([row for row in rows if row["kind"] == "member"]) == 2
         assert all(row.get("memberId") != marker["members"][0] for row in rows)
+        assert any(row["kind"] == "marker" for row in rows)
+        assert not {"source", "rule", "gap"} & {row["kind"] for row in rows}
         await session.snapshot([entry["id"]], [], False, "stable-key")
         _, path, headers, body = transport.requests[-1]
         request = json.loads(body)
@@ -122,6 +124,114 @@ def test_read_pages_concrete_parts_suppression_and_exact_snapshot_request() -> N
         assert request["selection"]["expectedPolicyDigest"] == POLICY_DIGEST
         assert "document" not in request
         await session.close()
+
+    asyncio.run(scenario())
+
+
+def test_metadata_pages_bound_work_bytes_and_cursor_authority_without_entry_repetition():
+    value = document(1)
+    value["sources"] = [
+        {
+            "provenance": {"sourceId": f"source-{i}", "kind": "manual", "mode": "blackbox"},
+            "generation": 1,
+            "policyDigest": "a" * 64,
+        }
+        for i in range(128)
+    ]
+    value["rules"] = [
+        {
+            "sourceId": f"source-{i % 128}",
+            "origin": "https://example.test",
+            "method": "GET",
+            "path": f"/metadata/{i}",
+            "pointer": "/" + "x" * 8000,
+            "parameters": [],
+            "structural": [],
+        }
+        for i in range(256)
+    ]
+    reasons = [
+        "structural",
+        "members",
+        "groups",
+        "summaries",
+        "contexts",
+        "examples",
+        "regrouping",
+        "incomplete",
+        "parameters",
+        "source-unavailable",
+        "ambiguous",
+        "projection",
+    ]
+    value["gaps"] = [
+        {"sourceId": source["provenance"]["sourceId"], "reason": reason, "count": 1}
+        for source in value["sources"]
+        for reason in reasons
+    ]
+
+    async def scenario():
+        transport = SitemapTransport(value)
+        session = SitemapSession(SitemapClient(ArtifactClient("allocation", transport)))
+        options = dict(
+            cursor=None,
+            refresh=False,
+            limit=100,
+            method=None,
+            origin=None,
+            path_prefix=None,
+            include_suppressed=False,
+            scope="metadata",
+        )
+        first = await session.list(**options)
+        cursor = first["nextCursor"]
+        with pytest.raises(ArtifactAPIError, match="sitemap_cursor_expired"):
+            await session.list(**{**options, "cursor": cursor, "scope": "entries"})
+        transport.access_error = (403, "sitemap_access_denied", False)
+        with pytest.raises(ArtifactAPIError, match="sitemap_access_denied"):
+            await session.list(**{**options, "cursor": cursor})
+        transport.access_error = None
+        # Publication does not change the already materialized sequence.
+        transport.document = document(0)
+        transport.revision = "new-revision"
+        view = session._view
+        original_load, loads = view.load, 0
+
+        def counted_load(span):
+            nonlocal loads
+            loads += 1
+            return original_load(span)
+
+        view.load = counted_load
+        rows = list(first["entries"])
+        byte_limited_page = False
+        while cursor:
+            loads = 0
+            page = await session.list(**{**options, "cursor": cursor})
+            assert 0 < len(page["entries"]) <= 100 and loads <= 101
+            assert len(json.dumps(page).encode()) <= MAX_PAGE_BYTES
+            assert page["revision"] == first["revision"]
+            byte_limited_page |= len(page["entries"]) < 100 and page["nextCursor"] is not None
+            rows.extend(page["entries"])
+            cursor = page["nextCursor"]
+        assert byte_limited_page
+        assert rows == (
+            [{"kind": "source", "value": item} for item in value["sources"]]
+            + [{"kind": "rule", "value": item} for item in value["rules"]]
+            + [{"kind": "gap", "value": item} for item in value["gaps"]]
+        )
+        loads = 0
+        entry = await session.read(
+            identity("group-0"), cursor=None, refresh=False, limit=100, include_suppressed=False
+        )
+        assert len(entry["entries"]) == 1 and loads == 1
+        assert entry["entries"][0]["kind"] == "member"
+        await session.list(**{**options, "refresh": True})
+        with pytest.raises(ArtifactAPIError, match="sitemap_cursor_expired"):
+            await session.list(**{**options, "cursor": first["nextCursor"]})
+        await session.close()
+        with pytest.raises(ArtifactAPIError, match="sitemap_cursor_expired"):
+            await session.list(**options)
 
     asyncio.run(scenario())
 

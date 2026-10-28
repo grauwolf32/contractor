@@ -1,0 +1,112 @@
+schema_version: '1.0'
+id: V410-017
+title: Reduce repeated sitemap document processing and authority reads
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: chore
+introduced_by: V410-001
+priority: P1
+status: completed
+depends_on:
+- V410-001
+languages:
+- go
+goal: Reduce repeated sitemap document processing and authority reads.
+context:
+  authority: User requested a second assessment, task creation and fixes on 2026-10-27. The raw owner-selected blackbox
+    input finding is withdrawn; secret filtering is removed by V410-018.
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  severity: medium
+  finding: 'internal/projectsitemap/service.go:203 and reducer.go:307: a 24.3-MB synthetic valid map requires about
+    808 MiB allocated per annotation for Decode/Reduce/encode; allocation.go:53 performs two queries per selected
+    input on every page authority check.'
+  siblings: Reduce redundant serialization and validation while preserving strict ingress/stored-document checks,
+    private-copy failure semantics, canonical bytes and publication limits; use bounded ephemeral lookup indexes
+    where useful and batch original-input metadata reads without caching authority.
+scope:
+  in:
+  - Reduce redundant serialization and validation while preserving strict ingress/stored-document checks, private-copy
+    failure semantics, canonical bytes and publication limits; use bounded ephemeral lookup indexes where useful
+    and batch original-input metadata reads without caching authority.
+  - Regression coverage on the existing production path and owning contract updates.
+  out:
+  - Unrelated pending sitemap imports, reconciliation and workflow delivery; new persistence or retention mechanisms.
+failure_outcomes:
+- operation: Existing sitemap operation
+  permanent: Preserve classified syntax, authority, exact selection and stale-intent errors.
+  retryable: Use existing attempt and deadline bounds; no new blanket retries.
+  ambiguous: Keep original operation identity and existing receipt or immutable view.
+  cancelled: Join work through existing allocation/transaction lifecycle.
+  timeout: Keep independent operations within their documented bounded allowance.
+cardinality:
+- collection: Existing map, view, source and observation collections
+  expected: Existing proposal workload and realistic regression fixtures
+  maximum: Existing LIM-SMT ceilings; no silently increased limit
+  bound: Every page, batch and transaction remains bounded by existing count and byte constraints.
+lifecycle:
+- entity: Existing sitemap resources
+  delete: Existing Project and allocation lifecycle
+  cascade: No new lifetime or independent persistence owner
+  retention: Existing ArtifactStore exact-reference protection and bounded history
+acceptance_criteria:
+- id: A1
+  text: Equivalent mutations and projections preserve canonical results, original-document immutability and all
+    existing error/size contracts.
+- id: A2
+  text: An instrumented or benchmarked representative map demonstrates reduced allocation/processing work; correctness
+    tests contain no elapsed-time thresholds.
+- id: A3
+  text: Original input authority resolves the bounded selected set without per-input metadata queries and retains
+    exact revision and deletion/fencing semantics on real PostgreSQL.
+tests:
+- command: go test ./internal/projectsitemap
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-project-sitemap-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 127db309a7be7255076c2d2c31aaafa548fe3c56
+verification:
+  date: '2026-10-28'
+  result: passed
+  tested_commit: ab35b1afbd246ebe62418873a40bc71e98bbaf31
+  commands:
+  - command: make test-project-sitemap-postgres
+    result: 'Passed on the integrated tree: 13 complete packages, 15 mandatory cases, zero mandatory skips. Includes
+      all new real-store regressions and full projectsitemap/controlplane suites. One producer accepted 257 publications
+      totalling 360501946 encoded bytes with ordinary history retention.'
+  - command: make lint
+    result: Passed generated checks, UI gates, go vet/staticcheck/testonlyexports, deployment tests, release graph,
+      tasks/specs/fixtures, Ruff and all four Runtime import contracts.
+  - command: go test ./internal/projectsitemap -run '^TestSitemap' -bench BenchmarkSitemapDocumentMutation -benchtime=1x
+      -count=3
+    result: Passed ownership, strict required-array, canonical publication and benchmark checks. The prior pipeline
+      was measured with the same workload; exact before/after measurements are recorded below.
+  evidence:
+  - Replaced full-document JSON roundtrip copying with owned nested collections; reused reducer canonical publication
+    bytes instead of encoding and validating them again. Stored and typed boundaries still reject required null
+    arrays and invalid documents.
+  - Reflection-based ownership coverage includes every mutable Document field; semantic regressions preserve original
+    input, canonical bytes and output independence.
+  - Original selected input revisions resolve with one bounded lineage query and the existing transaction-scoped
+    ArtifactStore DescribeExact batch. A real PostgreSQL counter proves equal query count for 1 and 8 inputs, at
+    most 6 statements, with no payload reads.
+  - 'BenchmarkSitemapDocumentMutation, 10000 groups and 50000 members, 24253654 encoded bytes, benchtime=1x count=3:
+    before 778467088–845563504 B/op and 758918917–768613125 ns/op; final 510851344–510858776 B/op and 555678542–578931834
+    ns/op. Median allocated bytes drop about 40%; values are allocated bytes, not peak RSS. Timings are diagnostic,
+    not assertions. The 10000-member case drops from about 224MB to 137MB allocated.'
+  limitations:
+  - Verification used disposable local PostgreSQL 17, Go 1.26.9, Node 24.20 and the locked Runtime environment.
+    No demo data or primary checkout files were changed.
+  - Initial verification completed on codex/v410-011-sitemap-metadata before main integration. Original structured-import, reconciliation
+    and remaining delivery tasks retain their status; this does not claim the full V410 release gate.

@@ -128,8 +128,7 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 	}
 	assertPrivateErrorEnvelope(t, request(http.MethodGet, "", "", nil), 403, "sitemap_access_denied", false)
 	ingress := sitemapCollectionRequest{APIVersion: contracts.APIVersion, Input: projectsitemap.CollectionIngress{
-		Secrets:      []contracts.SecretString{contracts.NewSecretString("private-canary")},
-		Observations: []projectsitemap.HTTPObservation{{Observation: projectsitemap.Observation{URL: "https://example.test/http?q=private-canary", Method: "POST", Outcome: "response", Status: 201, At: "2026-10-26T00:00:00Z"}, SessionGeneration: "session-one"}},
+		Observations: []projectsitemap.HTTPObservation{{Observation: projectsitemap.Observation{URL: "https://example.test/session/short-password?token=query-canary&password=query-canary", Method: "POST", Outcome: "response", Status: 201, At: "2026-10-26T00:00:00Z"}, SessionGeneration: "session-one"}},
 	}}
 	for range 2 {
 		published := request(http.MethodPost, "/observations", "http-publish", ingress)
@@ -137,6 +136,12 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 			t.Fatalf("collector publication: %d %s", published.Code, published.Body.String())
 		}
 	}
+	registry.grant.SitemapTools = []string{contracts.SitemapListTool}
+	retained := request(http.MethodGet, "", "", nil)
+	if retained.Code != 200 || !bytes.Contains(retained.Body.Bytes(), []byte("/session/short-password")) || !bytes.Contains(retained.Body.Bytes(), []byte(`"token"`)) || !bytes.Contains(retained.Body.Bytes(), []byte(`"password"`)) || bytes.Contains(retained.Body.Bytes(), []byte("query-canary")) {
+		t.Fatalf("private collection metadata: %d %s", retained.Code, retained.Body.String())
+	}
+	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/observations", "obsolete-secrets", map[string]any{"apiVersion": contracts.APIVersion, "input": map[string]any{"observations": ingress.Input.Observations, "secrets": []string{}}}), 400, "invalid_request", false)
 	registry.grant.SitemapPolicy.CollectObservations = false
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/observations", "denied-input", ingress), 403, "sitemap_access_denied", false)
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/observations", "denied-collect", ingress), 403, "sitemap_access_denied", false)

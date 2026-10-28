@@ -101,7 +101,7 @@ def test_keyed_transport_reconciliation_does_not_retry_definite_errors_or_target
     asyncio.run(scenario())
 
 
-def test_known_short_encoded_credentials_never_enter_persistence_or_metrics():
+def test_known_short_encoded_credentials_remain_metadata_but_not_tool_metrics():
     async def scenario():
         transport = SitemapTransport()
         settings = RuntimeSettings.model_validate(
@@ -115,16 +115,42 @@ def test_known_short_encoded_credentials_never_enter_persistence_or_metrics():
             }
         )
         tools, state = await tools_for(transport, ["upsert_sitemap_entry"], settings=settings)
-        for path in ["/tiny", "/t%69ny", "/t%2569ny", "/alice"]:
-            with pytest.raises(ToolInputError, match="private credential"):
-                await tools["upsert_sitemap_entry"](
-                    "absent", url="https://example.test" + path, method="GET"
-                )
-        assert transport.requests == []
+        paths = ["/tiny", "/t%69ny", "/t%2569ny", "/alice", "/token/" + "a" * 64]
+        for path in paths:
+            result = await tools["upsert_sitemap_entry"](
+                "absent", url="https://example.test" + path, method="GET"
+            )
+            assert result["status"] == "completed"
+            request = json.loads(transport.requests[-1][3])
+            assert request["mutation"]["url"] == "https://example.test" + path
+        note = "token=tiny; password=alice"
+        tags = ["tiny", "alice", "authorization"]
+        result = await tools["upsert_sitemap_entry"](
+            "revision-original", member_ids=[identity("member")], note=note, tags=tags
+        )
+        assert result["status"] == "completed"
+        request = json.loads(transport.requests[-1][3])
+        assert request["mutation"]["note"] == note and request["mutation"]["tags"] == tags
+        assert len(transport.requests) == len(paths) + 1
         recorded = repr(state.metrics.tool_calls)
-        for secret in ["tiny", "t%69ny", "t%2569ny", "alice"]:
+        for secret in [*paths, note, *tags]:
             assert secret not in recorded
         await tools["upsert_sitemap_entry"].close()
+
+    asyncio.run(scenario())
+
+
+def test_explicit_sitemap_arguments_keep_the_nesting_bound():
+    async def scenario():
+        transport = SitemapTransport()
+        tools, _ = await tools_for(transport, ["configure_sitemap_grouping"])
+        rules = []
+        for _ in range(33):
+            rules = [rules]
+        with pytest.raises(ToolInputError, match="nesting bound"):
+            await tools["configure_sitemap_grouping"]("revision-original", rules)
+        assert transport.requests == []
+        await tools["configure_sitemap_grouping"].close()
 
     asyncio.run(scenario())
 
@@ -146,6 +172,84 @@ def test_cached_page_authority_error_is_a_tool_result_but_bad_wire_is_exception(
         assert tools["list_sitemap_entries"]._session._view is None
         for tool in tools.values():
             await tool.close()
+
+    asyncio.run(scenario())
+
+
+def test_empty_map_metadata_supplies_complete_source_precondition_to_editor():
+    from google.adk.tools import FunctionTool
+
+    async def scenario():
+        source = {
+            "provenance": {
+                "sourceId": identity("manual"),
+                "kind": "manual",
+                "mode": "blackbox",
+                "runId": "previous-producer",
+            },
+            "generation": 2,
+            "policyDigest": "b" * 64,
+        }
+        value = document(0)
+        value["sources"] = [source]
+        transport = SitemapTransport(value)
+        tools, _ = await tools_for(
+            transport, ["list_sitemap_entries", "configure_sitemap_grouping"]
+        )
+        listing = tools["list_sitemap_entries"]
+        declaration = FunctionTool(listing)._get_declaration()
+        assert declaration.parameters_json_schema["properties"]["scope"]["enum"] == [
+            "entries",
+            "metadata",
+        ]
+        assert "scope" not in declaration.parameters_json_schema.get("required", [])
+        assert (await listing())["entries"] == []
+        first = await listing(scope="metadata", limit=1)
+        assert first["entries"] == [{"kind": "source", "value": source}]
+        second = await listing(scope="metadata", limit=1, cursor=first["nextCursor"])
+        assert second["entries"] == [{"kind": "gap", "value": value["gaps"][0]}]
+        assert second["nextCursor"] is None
+        rules = [
+            {
+                "origin": "https://example.test",
+                "method": "GET",
+                "path": "/new",
+                "pointer": "",
+                "parameters": [],
+                "structural": [],
+            }
+        ]
+        result = await tools["configure_sitemap_grouping"](
+            first["revision"], rules, expected_source=first["entries"][0]["value"]
+        )
+        assert result["status"] == "completed"
+        command = json.loads(transport.requests[-1][3])["mutation"]
+        assert command["source"]["expected"] == source
+        assert command["source"]["rules"] == [{**rules[0], "sourceId": identity("manual")}]
+        for tool in tools.values():
+            await tool.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"scope": "unknown"},
+        {"scope": "metadata", "method": "GET"},
+        {"scope": "metadata", "origin": "https://example.test"},
+        {"scope": "metadata", "path_prefix": "/"},
+        {"scope": "metadata", "include_suppressed": True},
+    ],
+)
+def test_metadata_scope_rejects_entry_filters_before_fetching(arguments):
+    async def scenario():
+        transport = SitemapTransport()
+        tools, _ = await tools_for(transport, ["list_sitemap_entries"])
+        with pytest.raises(ToolInputError):
+            await tools["list_sitemap_entries"](**arguments)
+        assert transport.requests == []
+        await tools["list_sitemap_entries"].close()
 
     asyncio.run(scenario())
 

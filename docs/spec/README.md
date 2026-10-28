@@ -75,7 +75,7 @@ Durable data: the ArtifactStore, Projects, retention and deletion, blob storage 
 | --- | --- | --- |
 | [Artifact store](artifacts/artifact-store.md) | `ART` | ArtifactStore scopes, namespaces, refs, revisions, CAS, tool authority, Workflow input forks and output publication |
 | [Projects](artifacts/projects.md) | `PRJ` | Project resource, ProjectScope, recommendations, output publication, the global queue view, Project target configuration |
-| [Project sitemap](artifacts/project-sitemap.md) | `SMT` | Safe shared surface metadata, source generations, deterministic grouping and reversible member edits |
+| [Project sitemap](artifacts/project-sitemap.md) | `SMT` | Shared surface metadata, source generations, deterministic grouping and reversible member edits |
 | [Retention and deletion](artifacts/retention-and-deletion.md) | `DEL` | Run hard deletion, Project deletion, purge and garbage collection |
 | [Artifact blob storage](artifacts/blob-storage.md) | `BLB` | Payload backends (PostgreSQL, filesystem), transfer slots, orphan cleanup |
 | [Git import](artifacts/git-import.md) | `GIT` | Git repositories as artifact inputs, source bundles, SSH trust |

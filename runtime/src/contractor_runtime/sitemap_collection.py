@@ -16,7 +16,6 @@ from contractor_runtime.sitemap import SitemapClient
 _LOGGER = logging.getLogger(__name__)
 MAX_ITEMS = 100
 MAX_BYTES = 256 << 10
-MAX_SECRETS = 2048
 FLUSH_INTERVAL_SECONDS = 5.0
 FLUSH_BUDGET_SECONDS = 15.0
 MAX_ATTEMPTS = 3
@@ -56,7 +55,6 @@ class SitemapCollector:
     ) -> None:
         self._client, self._clock, self._sleep, self._wait = client, clock, sleep, wait
         self._pending: list[dict] = []
-        self._secrets: set[str] = set()
         self._bytes = 0
         self._since = clock()
         self._timer: asyncio.Task | None = None
@@ -68,31 +66,30 @@ class SitemapCollector:
         self._failure: ArtifactAPIError | None = None
         self._buffer_warning = False
 
-    async def receive(self, observations: Sequence[dict], secrets: tuple[str, ...]) -> None:
+    async def receive(self, observations: Sequence[dict]) -> None:
         """Admit one small private frame without awaiting any storage/network I/O.
 
         No headers/bodies, durable queue, URL keys or sitemap hashes are built.
-        The private RAM bound includes matching secrets. The existing Go
-        projector runs before receipt hashing and Artifact publication.
+        The existing Go projector runs before receipt hashing and Artifact
+        publication.
         """
         if self._closed or self._closing or self._disabled or not observations:
             return
         try:
             rows = [*self._pending, *observations]
-            matching = self._secrets.union(secrets)
-            size = _wire_bytes({"observations": rows, "secrets": sorted(matching)})
-            if len(rows) > MAX_ITEMS or len(matching) > MAX_SECRETS or size > MAX_BYTES:
+            size = _wire_bytes({"observations": rows})
+            if len(rows) > MAX_ITEMS or size > MAX_BYTES:
                 self._kick()
-                rows, matching = [*self._pending, *observations], self._secrets.union(secrets)
-                size = _wire_bytes({"observations": rows, "secrets": sorted(matching)})
-            if len(rows) > MAX_ITEMS or len(matching) > MAX_SECRETS or size > MAX_BYTES:
+                rows = [*self._pending, *observations]
+                size = _wire_bytes({"observations": rows})
+            if len(rows) > MAX_ITEMS or size > MAX_BYTES:
                 if not self._buffer_warning:
                     _LOGGER.warning("sitemap collection buffer full")
                     self._buffer_warning = True
                 return
             if not self._pending:
                 self._since = self._clock()
-            self._pending, self._secrets, self._bytes = rows, matching, size
+            self._pending, self._bytes = rows, size
             if len(rows) >= MAX_ITEMS or self._clock() - self._since >= FLUSH_INTERVAL_SECONDS:
                 self._kick()
             self._arm()
@@ -136,14 +133,14 @@ class SitemapCollector:
     def _kick(self) -> None:
         if self._publisher is not None or self._disabled or not self._pending:
             return
-        payload = {"observations": self._pending, "secrets": sorted(self._secrets)}
+        payload = {"observations": self._pending}
         deadline = min(
             [
                 self._clock() + FLUSH_BUDGET_SECONDS,
                 *self._checkpoint_deadlines,
             ]
         )
-        self._pending, self._secrets, self._bytes = [], set(), 0
+        self._pending, self._bytes = [], 0
         self._publisher = asyncio.create_task(
             self._publish(payload, deadline), name="sitemap-publisher"
         )
@@ -240,4 +237,4 @@ class SitemapCollector:
             # before dropping its private input, even on caller cancellation.
             await self._join_publisher()
             self._closed = True
-            self._pending, self._secrets, self._bytes = [], set(), 0
+            self._pending, self._bytes = [], 0

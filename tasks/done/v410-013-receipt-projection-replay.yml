@@ -1,0 +1,100 @@
+schema_version: '1.0'
+id: V410-013
+title: Preserve structural omission intent during sitemap receipt replay
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-001
+priority: P1
+status: completed
+depends_on:
+- V410-001
+languages:
+- go
+goal: Preserve structural omission intent during sitemap receipt replay.
+context:
+  authority: User requested a second assessment, task creation and fixes on 2026-10-27. The raw owner-selected blackbox
+    input finding is withdrawn; secret filtering is removed by V410-018.
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  severity: medium
+  finding: 'internal/projectsitemap/service.go:383: conflicting structural policies are flattened to empty allowlists;
+    an accepted observation without that selector changes its projected digest on identical replay.'
+  siblings: Preserve the original bounded projection semantics in the existing shared receipt, covering conflicting,
+    absent, rejected and repeated structural selectors; never refresh source intent or read the current map for
+    a receipt replay.
+scope:
+  in:
+  - Preserve the original bounded projection semantics in the existing shared receipt, covering conflicting, absent,
+    rejected and repeated structural selectors; never refresh source intent or read the current map for a receipt
+    replay.
+  - Regression coverage on the existing production path and owning contract updates.
+  out:
+  - Unrelated pending sitemap imports, reconciliation and workflow delivery; new persistence or retention mechanisms.
+failure_outcomes:
+- operation: Existing sitemap operation
+  permanent: Preserve classified syntax, authority, exact selection and stale-intent errors.
+  retryable: Use existing attempt and deadline bounds; no new blanket retries.
+  ambiguous: Keep original operation identity and existing receipt or immutable view.
+  cancelled: Join work through existing allocation/transaction lifecycle.
+  timeout: Keep independent operations within their documented bounded allowance.
+cardinality:
+- collection: Existing map, view, source and observation collections
+  expected: Existing proposal workload and realistic regression fixtures
+  maximum: Existing LIM-SMT ceilings; no silently increased limit
+  bound: Every page, batch and transaction remains bounded by existing count and byte constraints.
+lifecycle:
+- entity: Existing sitemap resources
+  delete: Existing Project and allocation lifecycle
+  cascade: No new lifetime or independent persistence owner
+  retention: Existing ArtifactStore exact-reference protection and bounded history
+acceptance_criteria:
+- id: A1
+  text: Identical key and batch replay the originally accepted exact ref under conflicting structural policies,
+    including absent selectors.
+- id: A2
+  text: Changed accepted intent still conflicts; later rules and eviction cannot reinterpret replay; no additional
+    receipt table or retention hold exists.
+- id: A3
+  text: Real PostgreSQL tests exercise lost-response retry, changed intent and source-policy replacement.
+tests:
+- command: go test ./internal/projectsitemap
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make test-project-sitemap-postgres
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: 8f786fa2a82981f33d5602f6b38079f583a8cbeb
+verification:
+  date: '2026-10-28'
+  result: passed
+  tested_commit: ab35b1afbd246ebe62418873a40bc71e98bbaf31
+  commands:
+  - command: make test-project-sitemap-postgres
+    result: 'Passed on the integrated tree: 13 complete packages, 15 mandatory cases, zero mandatory skips. Includes
+      all new real-store regressions and full projectsitemap/controlplane suites. One producer accepted 257 publications
+      totalling 360501946 encoded bytes with ordinary history retention.'
+  - command: make lint
+    result: Passed generated checks, UI gates, go vet/staticcheck/testonlyexports, deployment tests, release graph,
+      tasks/specs/fixtures, Ruff and all four Runtime import contracts.
+  evidence:
+  - Existing receipt policy now represents the actual conflicting structural selectors, so absent or present values
+    replay against the original accepted decision after policy changes or result eviction.
+  - Manual declaration receipt identity includes accepted structural values and parameter names. Changed parameter
+    names conflict; changed ordinary query values replay because they do not affect stored metadata.
+  - The Unicode-heavy maximum fixture has 100 paths, 239840 ingress bytes and 918194 receipt bytes, below the existing
+    1MiB limit. No additional receipt mechanism or limit increase.
+  limitations:
+  - Verification used disposable local PostgreSQL 17, Go 1.26.9, Node 24.20 and the locked Runtime environment.
+    No demo data or primary checkout files were changed.
+  - Initial verification completed on codex/v410-011-sitemap-metadata before main integration. Original structured-import, reconciliation
+    and remaining delivery tasks retain their status; this does not claim the full V410 release gate.

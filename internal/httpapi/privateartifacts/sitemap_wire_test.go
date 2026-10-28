@@ -27,7 +27,7 @@ func TestSharedSitemapPrivateWire(t *testing.T) {
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "sitemap-wire-cases.json"), &cases); err != nil {
 		t.Fatal(err)
 	}
-	for name, want := range map[string]int{"items": projectsitemap.MaxBatch, "batchBytes": projectsitemap.MaxBatchBytes, "secrets": projectsitemap.MaxCollectionSecrets, "attempts": projectsitemap.MaxAttempts, "flushBudgetSeconds": int(projectsitemap.OperationTimeout.Seconds())} {
+	for name, want := range map[string]int{"items": projectsitemap.MaxBatch, "batchBytes": projectsitemap.MaxBatchBytes, "attempts": projectsitemap.MaxAttempts, "flushBudgetSeconds": int(projectsitemap.OperationTimeout.Seconds())} {
 		if cases.CollectorLimits[name] != want {
 			t.Fatalf("collector limit %s differs: %d want %d", name, cases.CollectorLimits[name], want)
 		}
