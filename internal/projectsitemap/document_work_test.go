@@ -4,12 +4,61 @@ import (
 	"bytes"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
 
+func TestSitemapSnapshotKeepsSelectedSourceCaveats(t *testing.T) {
+	selected := httpAuthority("selected-run")
+	selected.SourceID = "selected-source"
+	other := httpAuthority("other-run")
+	other.SourceID = "other-source"
+	document := applyObservations(t, Empty(), selected, observation("/selected"))
+	document = applyObservations(t, document, other, observation("/other"))
+	want := []Gap{{SourceID: selected.SourceID, Reason: "members", Count: 20}, {Reason: "groups", Count: 3}}
+	document.Gaps = append(slices.Clone(want), Gap{SourceID: other.SourceID, Reason: "incomplete", Count: 2})
+	view, _, err := selectSnapshot(document, SnapshotSelection{Members: []string{memberID("https://example.test", "GET", "/selected")}}, "reader", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(view.Gaps) != len(want) {
+		t.Fatalf("snapshot caveats: %+v", view.Gaps)
+	}
+	for _, gap := range want {
+		if !slices.Contains(view.Gaps, gap) {
+			t.Fatalf("snapshot discarded a selected source or whole-map caveat: %+v", gap)
+		}
+	}
+}
+
+func TestReducerWorkerManualSourcesDoNotMultiplyAcrossRuns(t *testing.T) {
+	a := Authority{SourceID: "manual-editor", Kind: "manual", RunID: "first-run"}
+	d, _, err := Reduce(Empty(), Mutation{Operation: "declare", URL: "https://example.test/one", Method: "GET"}, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.RunID = "second-run"
+	d, _, err = Reduce(d, Mutation{Operation: "declare", URL: "https://example.test/two", Method: "GET"}, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Sources) != 1 || d.Sources[0].Provenance.RunID != "" {
+		t.Fatal("manual Worker Run consumed another logical source")
+	}
+	seen := map[string]bool{}
+	for _, group := range d.Groups {
+		for _, declaration := range group.Declarations {
+			seen[declaration.Provenance.RunID] = true
+		}
+	}
+	if !seen["first-run"] || !seen["second-run"] {
+		t.Fatal("declaration lost real producer identity")
+	}
+}
+
 func TestSitemapTypedBoundariesRejectRequiredNullCollections(t *testing.T) {
-	owner := Authority{SourceID: "owner", Kind: "manual", Mode: "source-assisted"}
+	owner := Authority{SourceID: "owner", Kind: "manual"}
 	document, _, err := Reduce(Empty(), Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "owner", Rules: []Rule{{
 		SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/dispatch",
 		Structural: []StructuralParameter{{Name: "action", Allowed: []string{"read"}}},
@@ -64,9 +113,6 @@ func TestSitemapTypedBoundariesRejectRequiredNullCollections(t *testing.T) {
 		if _, _, err := Reduce(malformed, command, owner); err == nil {
 			t.Fatalf("typed reduction accepted null at %v", path)
 		}
-		if _, err := SafeProjection(malformed, readerPolicy("source-assisted"), "reader", nil); err == nil {
-			t.Fatalf("typed projection accepted null at %v", path)
-		}
 	}
 }
 
@@ -93,7 +139,7 @@ func TestSitemapReductionPublishesCanonicalBytesWithoutChangingInput(t *testing.
 		t.Fatalf("publication bytes are not canonical: %v", err)
 	}
 	before = jsonBytes(next)
-	owner := Authority{SourceID: "owner", Kind: "manual", Mode: "source-assisted"}
+	owner := Authority{SourceID: "owner", Kind: "manual"}
 	changed, _, err := Reduce(next, Mutation{Operation: "annotate", MemberIDs: []string{next.Groups[0].Members[0].ID}, Note: "Reviewed", Tags: []string{"token"}}, owner)
 	if err != nil {
 		t.Fatal(err)
@@ -183,7 +229,7 @@ func BenchmarkSitemapDocumentMutation(b *testing.B) {
 				b.Fatal(err)
 			}
 			command := Mutation{Operation: "annotate", MemberIDs: []string{document.Groups[0].Members[0].ID}, Note: "Reviewed"}
-			owner := Authority{SourceID: "owner", Kind: "manual", Mode: "source-assisted"}
+			owner := Authority{SourceID: "owner", Kind: "manual"}
 			b.ReportAllocs()
 			b.ResetTimer()
 			for range b.N {

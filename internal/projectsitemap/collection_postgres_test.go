@@ -14,7 +14,7 @@ func TestPostgresSitemapHTTPCollectionProjectionSessionsAndReceipt(t *testing.T)
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "http-consumer")
 	s := NewService(pool)
-	policy := readerPolicy("blackbox")
+	policy := readerPolicy()
 	policy.CollectObservations = true
 	access, err := s.AllocationAccess(ctx, "http-consumer", "research", policy)
 	if err != nil {
@@ -103,7 +103,7 @@ func TestPostgresSitemapRetainsCredentialNamedMetadata(t *testing.T) {
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "metadata-consumer")
 	service := NewService(pool)
-	policy := readerPolicy("blackbox")
+	policy := readerPolicy()
 	policy.CollectObservations = true
 	access, err := service.AllocationAccess(ctx, "metadata-consumer", "research", policy)
 	if err != nil {

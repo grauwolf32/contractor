@@ -325,7 +325,7 @@ func TestPostgresSitemapTenWritersAndPermanentSourceConflict(t *testing.T) {
 	if err != nil || len(view.Document.Groups) != 10 {
 		t.Fatalf("concurrent appends: %d %v", len(view.Document.Groups), err)
 	}
-	a := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "schema", Kind: "openapi", Mode: "blackbox", Deployment: "prod"}
+	a := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "schema", Kind: "openapi", Deployment: "prod"}
 	u := SourceUpdate{SourceID: "schema", Rules: []Rule{{SourceID: "schema", Origin: "https://example.test", Method: "GET", Path: "/writer/{id}", Parameters: []string{}}}}
 	_, err = service.Mutate(ctx, a, "source-one", Mutation{Operation: "replace-source", Source: &u})
 	if err != nil {
@@ -372,7 +372,7 @@ func TestPostgresSitemapReplayKeepsOriginalStructuralPolicy(t *testing.T) {
 	pool := sitemapPool(t)
 	ctx := t.Context()
 	service := NewService(pool)
-	owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual", Mode: "blackbox"}
+	owner := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual"}
 	rule := Rule{SourceID: "rules", Origin: "https://example.test", Method: "GET", Path: "/dispatch", Parameters: []string{}, Structural: []StructuralParameter{{Name: "action", Allowed: []string{"read", "delete"}}}}
 	if _, err := service.Mutate(ctx, owner, "configure", Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: "rules", Rules: []Rule{rule}}}); err != nil {
 		t.Fatal(err)

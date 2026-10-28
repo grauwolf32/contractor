@@ -75,7 +75,6 @@ type Member struct {
 type Provenance struct {
 	SourceID           string `json:"sourceId" strictjson:"required"`
 	Kind               string `json:"kind" strictjson:"required"`
-	Mode               string `json:"mode" strictjson:"required"`
 	RunID              string `json:"runId,omitempty"`
 	Deployment         string `json:"deployment,omitempty"`
 	CredentialRevision string `json:"credentialRevision,omitempty"`
@@ -207,17 +206,12 @@ type Authority struct {
 	RunID              string
 	SourceID           string
 	Kind               string
-	Mode               string
 	Deployment         string
 	Engagement         string
 	IdentityID         string
 	CredentialRevision string
 	SessionGeneration  string
 	CanObserve         bool
-	// Authorize checks a fresh command against the transaction's accepted map.
-	// Receipt replay has already passed current scope authorization and does not
-	// revalidate an old selection against later grouping or evicted bytes.
-	Authorize func(Document, Mutation) error `json:"-"`
 }
 
 func Empty() Document {

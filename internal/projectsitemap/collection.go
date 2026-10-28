@@ -29,7 +29,7 @@ func (s *Service) CollectHTTPAllocation(ctx context.Context, access AllocationAc
 		deployment = *access.Policy.Deployment
 	}
 	authority := Authority{OwnerID: access.OwnerID, ProjectID: access.ProjectID, RunID: access.RunID,
-		SourceID: key("http", access.Policy.SourceMode, deployment), Kind: "http", Mode: access.Policy.SourceMode,
+		SourceID: key("http", deployment), Kind: "http",
 		Deployment: deployment, CanObserve: true}
 	command := Mutation{Operation: "observe", Observations: make([]Observation, len(input.Observations)), sessionGenerations: make([]string, len(input.Observations))}
 	for index, observation := range input.Observations {

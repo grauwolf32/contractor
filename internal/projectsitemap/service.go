@@ -234,11 +234,6 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 		if m.ExpectedRevision != "" && m.ExpectedRevision != actual {
 			return postgres.Receipt{}, ErrConflict
 		}
-		if a.Authorize != nil {
-			if err := a.Authorize(current, m); err != nil {
-				return postgres.Receipt{}, err
-			}
-		}
 		if m.Source != nil && m.Source.Artifact != nil {
 			if _, err := store.ReadExact(ctx, *m.Source.Artifact); err != nil {
 				return postgres.Receipt{}, err

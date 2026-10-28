@@ -17,11 +17,11 @@ func TestPostgresSitemapSnapshotPreservesSelectedConcreteDeclarations(t *testing
 				ctx := t.Context()
 				createSitemapRun(t, ctx, pool, "snapshot-consumer")
 				service := NewService(pool)
-				rules := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual", Mode: "blackbox"}
+				rules := Authority{OwnerID: "owner", ProjectID: "project", SourceID: "rules", Kind: "manual"}
 				manual := rules
 				manual.SourceID = "manual"
-				restricted := manual
-				restricted.SourceID, restricted.Mode = "restricted", "source-assisted"
+				otherSource := manual
+				otherSource.SourceID = "other-source"
 				revision := "absent"
 				sequence := 0
 				mutate := func(authority Authority, mutation Mutation) {
@@ -49,13 +49,13 @@ func TestPostgresSitemapSnapshotPreservesSelectedConcreteDeclarations(t *testing
 				mutate(rules, Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: rules.SourceID, Rules: policyRules}})
 				mutate(manual, Mutation{Operation: "declare", URL: selectedURL, Method: "GET"})
 				mutate(manual, Mutation{Operation: "declare", URL: otherURL, Method: "GET"})
-				mutate(restricted, Mutation{Operation: "declare", URL: selectedURL, Method: "GET"})
-				access, err := service.AllocationAccess(ctx, "snapshot-consumer", "research", readerPolicy("blackbox"))
+				mutate(otherSource, Mutation{Operation: "declare", URL: selectedURL, Method: "GET"})
+				access, err := service.AllocationAccess(ctx, "snapshot-consumer", "research", readerPolicy())
 				if err != nil {
 					t.Fatal(err)
 				}
 				member := memberID("https://example.test", "GET", "/users/alice", values...)
-				selection := SnapshotSelection{Revision: revision, ExpectedPolicyDigest: access.PolicyDigest, Members: []string{member}}
+				selection := SnapshotSelection{Revision: revision, Members: []string{member}}
 				if selectGroup {
 					selection.Members = nil
 					selection.Groups = []string{groupID("https://example.test", "GET", "/users/{id}", values...)}
@@ -89,16 +89,16 @@ func TestPostgresSitemapSnapshotPreservesSelectedConcreteDeclarations(t *testing
 							continue
 						}
 						declarations++
-						if declaration.Provenance.SourceID != manual.SourceID || group.ID != groupID("https://example.test", "GET", "/users/alice", values...) {
-							t.Fatal("snapshot added an unselected or restricted concrete declaration")
+						if !slices.Contains([]string{manual.SourceID, otherSource.SourceID}, declaration.Provenance.SourceID) || group.ID != groupID("https://example.test", "GET", "/users/alice", values...) {
+							t.Fatal("snapshot added an unselected concrete declaration")
 						}
 					}
 				}
-				if members != 1 || declarations != 1 || !slices.ContainsFunc(snapshot.Document.Sources, func(source Source) bool { return source.Provenance.SourceID == manual.SourceID }) {
+				if members != 1 || declarations != 2 || !slices.ContainsFunc(snapshot.Document.Sources, func(source Source) bool { return source.Provenance.SourceID == manual.SourceID }) {
 					t.Fatalf("snapshot lost selected declaration provenance: members=%d declarations=%d", members, declarations)
 				}
-				if slices.ContainsFunc(snapshot.Document.Sources, func(source Source) bool { return source.Provenance.SourceID == restricted.SourceID }) {
-					t.Fatal("snapshot widened the blackbox source policy")
+				if !slices.ContainsFunc(snapshot.Document.Sources, func(source Source) bool { return source.Provenance.SourceID == otherSource.SourceID }) {
+					t.Fatal("snapshot lost an independent source for the selected member")
 				}
 			})
 		}

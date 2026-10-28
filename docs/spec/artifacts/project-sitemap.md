@@ -220,9 +220,16 @@ Only in that transaction, the at-most-eight configured `snapshotInputs` names
 resolve through a bounded batch to immutable original Run-creation input forks,
 never Worker-editable current bindings. Query work is independent of the
 containing Run's artifact count. Only needed permitted original input bytes are
-frozen with ordinary exact forks. A missing optional referenced file preserves
-selected metadata and records the existing `source-unavailable` gap; with
-`requireReferencedInputs: true`, a missing needed file fails the snapshot.
+frozen with ordinary exact forks. If a referenced file has no matching permitted
+original input, preserve selected metadata and record the existing
+`source-unavailable` gap; `requireReferencedInputs: true` makes this fail the
+snapshot. Once a needed exact input is resolved, missing or corrupt stored
+content and storage I/O errors remain ordinary ArtifactStore errors and roll
+back the snapshot, regardless of that flag. Optional selection must not turn
+storage failure into a different accepted result on replay. This distinction is
+owned by the sitemap snapshot contract; reconsider it only together with an
+explicit change to frozen-context replay semantics. Preserve omission details
+for selected sources and whole-map gaps in the selected context.
 Unneeded missing input names do not invalidate metadata reads or snapshots.
 Foreign provenance alone grants no byte read.
 

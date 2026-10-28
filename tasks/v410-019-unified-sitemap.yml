@@ -31,7 +31,7 @@ scope:
   - Changes to general artifact permissions, HTTP evidence redaction, target execution, collection retry budgets or retention policy.
 failure_outcomes:
 - operation: Sitemap read, edit and snapshot
-  permanent: Reject malformed or obsolete contract members, wrong Project or operation grants, stale revision/source intent and unavailable exact snapshot revisions through existing classified errors. Missing optional referenced files produce existing source-unavailable gaps; requireReferencedInputs makes missing needed files fail.
+  permanent: Reject malformed or obsolete contract members, wrong Project or operation grants, stale revision/source intent and unavailable exact snapshot revisions through existing classified errors. References without a matching permitted original input produce source-unavailable gaps; requireReferencedInputs makes missing needed inputs fail. Missing or corrupt stored bytes of a resolved input remain ordinary ArtifactStore failures and roll back the snapshot regardless of that flag.
   retryable: Existing bounded transaction conflict retries and operation deadlines remain unchanged.
   ambiguous: Reuse existing mutation receipts and frozen snapshot lineage replay.
   cancelled: Join existing allocation-owned collectors and view indexing before cleanup.

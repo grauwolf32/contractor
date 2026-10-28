@@ -1,10 +1,10 @@
 package projectsitemap
 
-// allocationInputRevisionsSQL resolves the selected original Run input forks,
-// not their Worker-editable current bindings. The caller admits at most eight
+// snapshotInputRevisionsSQL resolves the selected original Run input forks,
+// not their Worker-editable current bindings. The snapshot admits at most eight
 // names; each indexed lateral lookup returns at most two rows so inconsistent
 // authority is detected without scanning the containing artifact collection.
-var allocationInputRevisionsSQL = `
+var snapshotInputRevisionsSQL = `
 SELECT selected.name, original.target_revision
 FROM unnest($2::text[]) WITH ORDINALITY AS selected(name, ordinal)
 CROSS JOIN LATERAL (
