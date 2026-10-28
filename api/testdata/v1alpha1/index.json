@@ -1,124 +1,1072 @@
 {
   "description": "Every private wire fixture: the message type both languages decode it as, the JSON Schema that must accept or reject it, and for invalid fixtures whether the strict decoder rejects it and the private codec error class.",
   "valid": {
-    "allocation-spec-pentest-metadata.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},
-    "allocation-spec-summary-model-selection.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},
-    "abort-allocation.json": {"type": "AbortAllocationRequest", "schema": "allocation.schema.json"},
-    "agent-heartbeat.json": {"type": "AgentHeartbeat", "schema": "agent-heartbeat.schema.json"},
-    "agent-registration-response.json": {"type": "AgentRegistrationResponse", "schema": "agent-registration-response.schema.json"},
-    "agent-registration.json": {"type": "AgentRegistration", "schema": "agent-registration.schema.json"},
-    "agent-state-snapshot.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json"},
-    "allocation-final-response.json": {"type": "AllocationFinalResponse", "schema": "allocation.schema.json"},
-    "allocation-final-response-argument-number-edges.json": {"type": "AllocationFinalResponse", "schema": "allocation.schema.json"},
-    "allocation-final-response-metric-integer-bound.json": {"type": "AllocationFinalResponse", "schema": "allocation.schema.json"},
-    "allocation-spec-skills.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},
-    "allocation-spec-summarizer-instructions.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},
-    "allocation-spec-summarizer.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},
-    "allocation-spec-tool.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},
-    "allocation-spec.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},
-    "allocation-workspace-overlay.json": {"type": "AllocationWorkspaceSpec", "schema": "allocation.schema.json#/$defs/AllocationWorkspaceSpec"},
-    "artifact-list-page.json": {"type": "ArtifactListResult", "schema": "artifact.schema.json"},
-    "artifact-list-result.json": {"type": "ArtifactListResult", "schema": "artifact.schema.json"},
-    "artifact-metadata-result-boundary.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json"},
-    "artifact-metadata-result.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json"},
-    "artifact-read-result.json": {"type": "ArtifactReadResult", "schema": "artifact.schema.json"},
-    "finalize-allocation.json": {"type": "FinalizeAllocationRequest", "schema": "allocation.schema.json"},
-    "heartbeat-response.json": {"type": "HeartbeatResponse", "schema": "agent-heartbeat.schema.json"},
-    "llm-gateway-config-signatures.json": {"type": "ResolvedLLMGatewayConfig", "schema": "llm-gateway-config.schema.json"},
-    "llm-gateway-config.json": {"type": "ResolvedLLMGatewayConfig", "schema": "llm-gateway-config.schema.json"},
-    "release-allocation.json": {"type": "ReleaseAllocationRequest", "schema": "allocation.schema.json"},
-    "runtime-provenance-empty.json": {"type": "ResolvedRuntimeConfigProvenance", "schema": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance"},
-    "runtime-provenance.json": {"type": "ResolvedRuntimeConfigProvenance", "schema": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance"},
-    "runtime-report.json": {"type": "RuntimeReport", "schema": "runtime-report.schema.json"},
-    "runtime-settings-ca-bundle-crlf.json": {"type": "RuntimeSettings", "schema": "allocation.schema.json#/$defs/RuntimeSettings"},
-    "runtime-settings-ca-bundle.json": {"type": "RuntimeSettings", "schema": "allocation.schema.json#/$defs/RuntimeSettings"},
-    "runtime-settings-combined.json": {"type": "RuntimeSettings", "schema": "allocation.schema.json#/$defs/RuntimeSettings"},
-    "runtime-settings-empty.json": {"type": "RuntimeSettings", "schema": "allocation.schema.json#/$defs/RuntimeSettings"},
-    "runtime-settings-proxy.json": {"type": "RuntimeSettings", "schema": "allocation.schema.json#/$defs/RuntimeSettings"},
-    "runtime-settings-telemetry-export.json": {"type": "RuntimeSettings", "schema": "allocation.schema.json#/$defs/RuntimeSettings"},
-    "runtime-settings-telemetry.json": {"type": "RuntimeSettings", "schema": "allocation.schema.json#/$defs/RuntimeSettings"},
-    "stage-content-request.json": {"type": "StageContentRequest", "schema": "stage-content.schema.json"},
-    "worker-completion-empty-observations.json": {"type": "WorkerCompletion", "schema": "worker-completion.schema.json"},
-    "worker-completion-failure.json": {"type": "WorkerCompletion", "schema": "worker-completion.schema.json"},
-    "worker-completion-success.json": {"type": "WorkerCompletion", "schema": "worker-completion.schema.json"},
-    "workspace-capabilities.json": {"type": "WorkspaceCapabilities", "schema": "agent-registration.schema.json#/$defs/WorkspaceCapabilities"}
+    "allocation-spec-pentest-metadata.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-summary-model-selection.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "abort-allocation.json": {
+      "type": "AbortAllocationRequest",
+      "schema": "allocation.schema.json"
+    },
+    "agent-heartbeat.json": {
+      "type": "AgentHeartbeat",
+      "schema": "agent-heartbeat.schema.json"
+    },
+    "agent-registration-response.json": {
+      "type": "AgentRegistrationResponse",
+      "schema": "agent-registration-response.schema.json"
+    },
+    "agent-registration.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json"
+    },
+    "agent-state-snapshot.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json"
+    },
+    "allocation-final-response.json": {
+      "type": "AllocationFinalResponse",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-final-response-argument-number-edges.json": {
+      "type": "AllocationFinalResponse",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-final-response-metric-integer-bound.json": {
+      "type": "AllocationFinalResponse",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-skills.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-summarizer-instructions.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-summarizer.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec-tool.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-spec.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "allocation-workspace-overlay.json": {
+      "type": "AllocationWorkspaceSpec",
+      "schema": "allocation.schema.json#/$defs/AllocationWorkspaceSpec"
+    },
+    "artifact-list-page.json": {
+      "type": "ArtifactListResult",
+      "schema": "artifact.schema.json"
+    },
+    "artifact-list-result.json": {
+      "type": "ArtifactListResult",
+      "schema": "artifact.schema.json"
+    },
+    "artifact-metadata-result-boundary.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json"
+    },
+    "artifact-metadata-result.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json"
+    },
+    "artifact-read-result.json": {
+      "type": "ArtifactReadResult",
+      "schema": "artifact.schema.json"
+    },
+    "finalize-allocation.json": {
+      "type": "FinalizeAllocationRequest",
+      "schema": "allocation.schema.json"
+    },
+    "heartbeat-response.json": {
+      "type": "HeartbeatResponse",
+      "schema": "agent-heartbeat.schema.json"
+    },
+    "llm-gateway-config-signatures.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "schema": "llm-gateway-config.schema.json"
+    },
+    "llm-gateway-config.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "schema": "llm-gateway-config.schema.json"
+    },
+    "release-allocation.json": {
+      "type": "ReleaseAllocationRequest",
+      "schema": "allocation.schema.json"
+    },
+    "runtime-provenance-empty.json": {
+      "type": "ResolvedRuntimeConfigProvenance",
+      "schema": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance"
+    },
+    "runtime-provenance.json": {
+      "type": "ResolvedRuntimeConfigProvenance",
+      "schema": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance"
+    },
+    "runtime-report.json": {
+      "type": "RuntimeReport",
+      "schema": "runtime-report.schema.json"
+    },
+    "runtime-settings-ca-bundle-crlf.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "runtime-settings-ca-bundle.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "runtime-settings-combined.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "runtime-settings-empty.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "runtime-settings-proxy.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "runtime-settings-telemetry-export.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "runtime-settings-telemetry.json": {
+      "type": "RuntimeSettings",
+      "schema": "allocation.schema.json#/$defs/RuntimeSettings"
+    },
+    "stage-content-request.json": {
+      "type": "StageContentRequest",
+      "schema": "stage-content.schema.json"
+    },
+    "worker-completion-empty-observations.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json"
+    },
+    "worker-completion-failure.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json"
+    },
+    "worker-completion-success.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json"
+    },
+    "workspace-capabilities.json": {
+      "type": "WorkspaceCapabilities",
+      "schema": "agent-registration.schema.json#/$defs/WorkspaceCapabilities"
+    },
+    "pentest-action-prepare.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-action-grant.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-action-sending.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-action-started.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-action-settle.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-reply-prepared.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-reply-waiting.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-reply-authorized.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-reply-sending.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-reply-started.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-reply-completed.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-reply-failed.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-reply-unknown_outcome.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-reply-cancelled_before_send.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-reply-denied.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-preflight-run.json": {
+      "type": "PentestPreflightRequest",
+      "schema": "pentest-preflight-request.schema.json"
+    },
+    "pentest-preflight-stop.json": {
+      "type": "PentestPreflightRequest",
+      "schema": "pentest-preflight-request.schema.json"
+    },
+    "pentest-preflight-response.json": {
+      "type": "PentestPreflightResponse",
+      "schema": "pentest-preflight-response.schema.json"
+    },
+    "pentest-allocation-preflight.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "agent-registration-pentest.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json"
+    }
   },
   "invalid": {
-    "allocation-spec-pentest-alias.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "allocation-spec-pentest-unknown-field.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "allocation-spec-pentest-execution-capability.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "allocation-spec-pentest-assigned-route.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "allocation-spec-pentest-null.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "registration-response-removed-runtimeAgentId.json": {"type": "AgentRegistrationResponse", "schema": "agent-registration-response.schema.json", "strict": true},
-    "registration-response-removed-labels.json": {"type": "AgentRegistrationResponse", "schema": "agent-registration-response.schema.json", "strict": true},
-    "registration-response-removed-labelRevision.json": {"type": "AgentRegistrationResponse", "schema": "agent-registration-response.schema.json", "strict": true},
-    "agent-state-removed-currentInvocation-latestPromptTokens.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json", "strict": true},
-    "agent-state-removed-currentInvocation-workspaceDigest.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json", "strict": true},
-    "agent-state-removed-lastCompletedInvocation-latestPromptTokens.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json", "strict": true},
-    "agent-state-removed-lastCompletedInvocation-workspaceDigest.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json", "strict": true},
-    "artifact-metadata-snake-key.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json", "strict": true},
-    "artifact-read-result-content-key.json": {"type": "ArtifactReadResult", "schema": "artifact.schema.json", "strict": true},
-    "artifact-metadata-key-newline.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json", "strict": true},
-    "artifact-metadata-key-non-ascii.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json", "strict": true},
-    "artifact-metadata-key-path.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json", "strict": true},
-    "artifact-metadata-key-empty.json": {"type": "ArtifactMetadataResult", "schema": "artifact-metadata.schema.json", "strict": true},
-    "allocation-final-response-argument-float-overflow.json": {"type": "AllocationFinalResponse", "reason": "invariant", "strict": true},
-    "allocation-final-response-argument-integer-above-range.json": {"type": "AllocationFinalResponse", "reason": "invariant", "strict": true},
-    "allocation-final-response-argument-number-above-range.json": {"type": "AllocationFinalResponse", "reason": "invariant", "strict": true},
-    "allocation-final-response-argument-number-below-range.json": {"type": "AllocationFinalResponse", "reason": "invariant", "strict": true},
-    "allocation-spec-summary-selection-no-summary.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "allocation-spec-summary-selection-two-calls.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "allocation-spec-summary-selection-null.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "agent-heartbeat-missing-allocation.json": {"type": "AgentHeartbeat", "schema": "agent-heartbeat.schema.json", "strict": true},
-    "agent-registration-idle-with-allocation.json": {"type": "AgentRegistration", "schema": "agent-registration.schema.json", "strict": true},
-    "agent-registration-oversized-software-version.json": {"type": "AgentRegistration", "schema": "agent-registration.schema.json", "strict": true},
-    "agent-state-echoed-allocation.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json", "strict": true},
-    "agent-state-zero-revision.json": {"type": "AgentStateSnapshot", "schema": "agent-state.schema.json", "strict": true},
-    "allocation-spec-adk-no-model.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "allocation-spec-bad-api-version.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "allocation-spec-invalid-logical-agent-name.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "allocation-spec-missing-provenance.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "allocation-spec-resolved-skill-versionless.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "allocation-spec-tool-model.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
-    "allocation-workspace-versionless-source.json": {"type": "AllocationWorkspaceSpec", "reason": "invariant"},
-    "artifact-list-result-empty-cursor.json": {"type": "ArtifactListResult", "schema": "artifact.schema.json", "strict": true},
-    "artifact-list-result-empty-page-cursor.json": {"type": "ArtifactListResult", "schema": "artifact.schema.json", "strict": true},
-    "artifact-list-result-oversized-cursor.json": {"type": "ArtifactListResult", "schema": "artifact.schema.json", "strict": true},
-    "artifact-list-result-padded-cursor.json": {"type": "ArtifactListResult", "schema": "artifact.schema.json", "strict": true},
-    "artifact-read-result-unversioned.json": {"type": "ArtifactReadResult", "schema": "artifact.schema.json", "strict": true},
-    "heartbeat-response-unknown-action.json": {"type": "HeartbeatResponse", "schema": "agent-heartbeat.schema.json", "strict": true},
-    "llm-gateway-config-permanent-code-newline.json": {"type": "ResolvedLLMGatewayConfig", "schema": "llm-gateway-config.schema.json", "strict": true},
-    "llm-gateway-config-secret-field.json": {"type": "ResolvedLLMGatewayConfig", "schema": "llm-gateway-config.schema.json", "strict": true},
-    "llm-gateway-config-signature-format-char.json": {"type": "ResolvedLLMGatewayConfig", "reason": "invariant", "strict": true},
-    "llm-gateway-config-signature-private-use.json": {"type": "ResolvedLLMGatewayConfig", "reason": "invariant", "strict": true},
-    "llm-gateway-config-signature-retryable-status.json": {"type": "ResolvedLLMGatewayConfig", "schema": "llm-gateway-config.schema.json", "strict": true},
-    "llm-gateway-config-signature-two-matchers.json": {"type": "ResolvedLLMGatewayConfig", "schema": "llm-gateway-config.schema.json", "strict": true},
-    "registration-bad-api-version.json": {"type": "AgentRegistration", "schema": "agent-registration.schema.json", "reason": "version"},
-    "registration-missing-adapters.json": {"type": "AgentRegistration", "schema": "agent-registration.schema.json", "strict": true},
-    "registration-missing-api-version.json": {"type": "AgentRegistration", "schema": "agent-registration.schema.json", "reason": "version"},
-    "registration-missing-labels.json": {"type": "AgentRegistration", "schema": "agent-registration.schema.json", "strict": true},
-    "registration-unsorted-adapters.json": {"type": "AgentRegistration", "reason": "invariant"},
-    "registration-unsorted-labels.json": {"type": "AgentRegistration", "reason": "invariant"},
-    "runtime-provenance-secret-field.json": {"type": "ResolvedRuntimeConfigProvenance", "schema": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance", "reason": "schema"},
-    "runtime-settings-ca-between.json": {"type": "RuntimeSettings", "strict": true, "reason": "invariant"},
-    "runtime-settings-ca-end-comment.json": {"type": "RuntimeSettings", "strict": true, "reason": "invariant"},
-    "runtime-settings-ca-end-unterminated.json": {"type": "RuntimeSettings", "strict": true, "reason": "invariant"},
-    "runtime-settings-ca-header.json": {"type": "RuntimeSettings", "strict": true, "reason": "invariant"},
-    "runtime-settings-ca-joined.json": {"type": "RuntimeSettings", "strict": true, "reason": "invariant"},
-    "runtime-settings-ca-key-comment.json": {"type": "RuntimeSettings", "strict": true, "reason": "invariant"},
-    "runtime-settings-ca-preamble.json": {"type": "RuntimeSettings", "strict": true, "reason": "invariant"},
-    "runtime-settings-ca-truncated-block.json": {"type": "RuntimeSettings", "strict": true, "reason": "invariant"},
-    "runtime-settings-ca-unicode-space.json": {"type": "RuntimeSettings", "strict": true, "reason": "invariant"},
-    "runtime-settings-caido-secret-error.json": {"type": "RuntimeSettings", "reason": "invariant"},
-    "runtime-settings-duplicate-key.json": {"type": "RuntimeSettings", "reason": "duplicate_key"},
-    "runtime-settings-secret-error.json": {"type": "RuntimeSettings", "reason": "invariant"},
-    "runtime-settings-two-proxy-auth.json": {"type": "RuntimeSettings", "reason": "invariant"},
-    "runtime-settings-unknown-adapter.json": {"type": "RuntimeSettings", "reason": "invariant"},
-    "stage-content-request-naive-deadline.json": {"type": "StageContentRequest", "schema": "stage-content.schema.json", "strict": true},
-    "stage-content-request-unknown-field.json": {"type": "StageContentRequest", "schema": "stage-content.schema.json", "strict": true},
-    "stage-content-request-versioned-result-binding.json": {"type": "StageContentRequest", "schema": "stage-content.schema.json", "strict": true},
-    "worker-completion-both-variants.json": {"type": "WorkerCompletion", "schema": "worker-completion.schema.json", "strict": true},
-    "worker-completion-no-variant.json": {"type": "WorkerCompletion", "schema": "worker-completion.schema.json", "strict": true},
-    "workspace-capabilities-unsorted-modes.json": {"type": "WorkspaceCapabilities", "reason": "invariant"}
+    "allocation-spec-pentest-alias.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-pentest-unknown-field.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-pentest-execution-capability.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-pentest-assigned-route.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-pentest-null.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "registration-response-removed-runtimeAgentId.json": {
+      "type": "AgentRegistrationResponse",
+      "schema": "agent-registration-response.schema.json",
+      "strict": true
+    },
+    "registration-response-removed-labels.json": {
+      "type": "AgentRegistrationResponse",
+      "schema": "agent-registration-response.schema.json",
+      "strict": true
+    },
+    "registration-response-removed-labelRevision.json": {
+      "type": "AgentRegistrationResponse",
+      "schema": "agent-registration-response.schema.json",
+      "strict": true
+    },
+    "agent-state-removed-currentInvocation-latestPromptTokens.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-removed-currentInvocation-workspaceDigest.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-removed-lastCompletedInvocation-latestPromptTokens.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-removed-lastCompletedInvocation-workspaceDigest.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "artifact-metadata-snake-key.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json",
+      "strict": true
+    },
+    "artifact-read-result-content-key.json": {
+      "type": "ArtifactReadResult",
+      "schema": "artifact.schema.json",
+      "strict": true
+    },
+    "artifact-metadata-key-newline.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json",
+      "strict": true
+    },
+    "artifact-metadata-key-non-ascii.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json",
+      "strict": true
+    },
+    "artifact-metadata-key-path.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json",
+      "strict": true
+    },
+    "artifact-metadata-key-empty.json": {
+      "type": "ArtifactMetadataResult",
+      "schema": "artifact-metadata.schema.json",
+      "strict": true
+    },
+    "allocation-final-response-argument-float-overflow.json": {
+      "type": "AllocationFinalResponse",
+      "reason": "invariant",
+      "strict": true
+    },
+    "allocation-final-response-argument-integer-above-range.json": {
+      "type": "AllocationFinalResponse",
+      "reason": "invariant",
+      "strict": true
+    },
+    "allocation-final-response-argument-number-above-range.json": {
+      "type": "AllocationFinalResponse",
+      "reason": "invariant",
+      "strict": true
+    },
+    "allocation-final-response-argument-number-below-range.json": {
+      "type": "AllocationFinalResponse",
+      "reason": "invariant",
+      "strict": true
+    },
+    "allocation-spec-summary-selection-no-summary.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-summary-selection-two-calls.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-summary-selection-null.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "agent-heartbeat-missing-allocation.json": {
+      "type": "AgentHeartbeat",
+      "schema": "agent-heartbeat.schema.json",
+      "strict": true
+    },
+    "agent-registration-idle-with-allocation.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json",
+      "strict": true
+    },
+    "agent-registration-oversized-software-version.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json",
+      "strict": true
+    },
+    "agent-state-echoed-allocation.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "agent-state-zero-revision.json": {
+      "type": "AgentStateSnapshot",
+      "schema": "agent-state.schema.json",
+      "strict": true
+    },
+    "allocation-spec-adk-no-model.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-bad-api-version.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-invalid-logical-agent-name.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-missing-provenance.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-resolved-skill-versionless.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-tool-model.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-workspace-versionless-source.json": {
+      "type": "AllocationWorkspaceSpec",
+      "reason": "invariant"
+    },
+    "artifact-list-result-empty-cursor.json": {
+      "type": "ArtifactListResult",
+      "schema": "artifact.schema.json",
+      "strict": true
+    },
+    "artifact-list-result-empty-page-cursor.json": {
+      "type": "ArtifactListResult",
+      "schema": "artifact.schema.json",
+      "strict": true
+    },
+    "artifact-list-result-oversized-cursor.json": {
+      "type": "ArtifactListResult",
+      "schema": "artifact.schema.json",
+      "strict": true
+    },
+    "artifact-list-result-padded-cursor.json": {
+      "type": "ArtifactListResult",
+      "schema": "artifact.schema.json",
+      "strict": true
+    },
+    "artifact-read-result-unversioned.json": {
+      "type": "ArtifactReadResult",
+      "schema": "artifact.schema.json",
+      "strict": true
+    },
+    "heartbeat-response-unknown-action.json": {
+      "type": "HeartbeatResponse",
+      "schema": "agent-heartbeat.schema.json",
+      "strict": true
+    },
+    "llm-gateway-config-permanent-code-newline.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "schema": "llm-gateway-config.schema.json",
+      "strict": true
+    },
+    "llm-gateway-config-secret-field.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "schema": "llm-gateway-config.schema.json",
+      "strict": true
+    },
+    "llm-gateway-config-signature-format-char.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "reason": "invariant",
+      "strict": true
+    },
+    "llm-gateway-config-signature-private-use.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "reason": "invariant",
+      "strict": true
+    },
+    "llm-gateway-config-signature-retryable-status.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "schema": "llm-gateway-config.schema.json",
+      "strict": true
+    },
+    "llm-gateway-config-signature-two-matchers.json": {
+      "type": "ResolvedLLMGatewayConfig",
+      "schema": "llm-gateway-config.schema.json",
+      "strict": true
+    },
+    "registration-bad-api-version.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json",
+      "reason": "version"
+    },
+    "registration-missing-adapters.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json",
+      "strict": true
+    },
+    "registration-missing-api-version.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json",
+      "reason": "version"
+    },
+    "registration-missing-labels.json": {
+      "type": "AgentRegistration",
+      "schema": "agent-registration.schema.json",
+      "strict": true
+    },
+    "registration-unsorted-adapters.json": {
+      "type": "AgentRegistration",
+      "reason": "invariant"
+    },
+    "registration-unsorted-labels.json": {
+      "type": "AgentRegistration",
+      "reason": "invariant"
+    },
+    "runtime-provenance-secret-field.json": {
+      "type": "ResolvedRuntimeConfigProvenance",
+      "schema": "allocation.schema.json#/$defs/ResolvedRuntimeConfigProvenance",
+      "reason": "schema"
+    },
+    "runtime-settings-ca-between.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-end-comment.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-end-unterminated.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-header.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-joined.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-key-comment.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-preamble.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-truncated-block.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-ca-unicode-space.json": {
+      "type": "RuntimeSettings",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "runtime-settings-caido-secret-error.json": {
+      "type": "RuntimeSettings",
+      "reason": "invariant"
+    },
+    "runtime-settings-duplicate-key.json": {
+      "type": "RuntimeSettings",
+      "reason": "duplicate_key"
+    },
+    "runtime-settings-secret-error.json": {
+      "type": "RuntimeSettings",
+      "reason": "invariant"
+    },
+    "runtime-settings-two-proxy-auth.json": {
+      "type": "RuntimeSettings",
+      "reason": "invariant"
+    },
+    "runtime-settings-unknown-adapter.json": {
+      "type": "RuntimeSettings",
+      "reason": "invariant"
+    },
+    "stage-content-request-naive-deadline.json": {
+      "type": "StageContentRequest",
+      "schema": "stage-content.schema.json",
+      "strict": true
+    },
+    "stage-content-request-unknown-field.json": {
+      "type": "StageContentRequest",
+      "schema": "stage-content.schema.json",
+      "strict": true
+    },
+    "stage-content-request-versioned-result-binding.json": {
+      "type": "StageContentRequest",
+      "schema": "stage-content.schema.json",
+      "strict": true
+    },
+    "worker-completion-both-variants.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json",
+      "strict": true
+    },
+    "worker-completion-no-variant.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json",
+      "strict": true
+    },
+    "workspace-capabilities-unsorted-modes.json": {
+      "type": "WorkspaceCapabilities",
+      "reason": "invariant"
+    },
+    "pentest-action-prepare-runtimeAgentId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-prepare-ActionId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-prepare-grant_id.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-prepare-null-prepare.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-prepare-null-grantId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-prepare-null-outcome.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-grant-runtimeAgentId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-grant-ActionId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-grant-grant_id.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-grant-null-prepare.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-grant-null-grantId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-grant-null-outcome.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-sending-runtimeAgentId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-sending-ActionId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-sending-grant_id.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-sending-null-prepare.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-sending-null-grantId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-sending-null-outcome.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-started-runtimeAgentId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-started-ActionId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-started-grant_id.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-started-null-prepare.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-started-null-grantId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-started-null-outcome.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-settle-runtimeAgentId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-settle-ActionId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-settle-grant_id.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-settle-null-prepare.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-settle-null-grantId.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-settle-null-outcome.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-action-prepare-unrelated-empty.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json",
+      "strict": true
+    },
+    "pentest-reply-prepared-bad-allowanceMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-prepared-bad-retryAfterMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-prepared-bad-grant_id.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-waiting-bad-allowanceMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-waiting-bad-retryAfterMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-waiting-bad-grant_id.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-authorized-bad-allowanceMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-authorized-bad-retryAfterMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-authorized-bad-grant_id.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-sending-bad-allowanceMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-sending-bad-retryAfterMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-sending-bad-grant_id.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-started-bad-allowanceMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-started-bad-retryAfterMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-started-bad-grant_id.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-completed-bad-allowanceMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-completed-bad-retryAfterMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-completed-bad-grant_id.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-failed-bad-allowanceMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-failed-bad-retryAfterMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-failed-bad-grant_id.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-unknown_outcome-bad-allowanceMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-unknown_outcome-bad-retryAfterMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-unknown_outcome-bad-grant_id.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-cancelled_before_send-bad-allowanceMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-cancelled_before_send-bad-retryAfterMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-cancelled_before_send-bad-grant_id.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-denied-bad-allowanceMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-denied-bad-retryAfterMs.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-reply-denied-bad-grant_id.json": {
+      "type": "PentestActionReply",
+      "schema": "pentest-action-reply.schema.json",
+      "strict": true
+    },
+    "pentest-prepare-invalid-seedIndex.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-prepare-invalid-redirectHop.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-prepare-invalid-retryOrdinal.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-prepare-invalid-previousAttemptId.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-prepare-type-seedIndex.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-prepare-type-redirectHop.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-prepare-type-retryOrdinal.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-outcome-invalid-statusCode.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-outcome-invalid-responseBytes.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-outcome-invalid-reason.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-outcome-invalid-redirectTargetDigest.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-identity-invalid-grantId.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-identity-invalid-actionId.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-identity-invalid-attemptId.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-identity-invalid-apiVersion.json": {
+      "type": "PentestActionCommand",
+      "strict": true,
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-authorized-zero.json": {
+      "type": "PentestActionReply",
+      "strict": true,
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-authorized-too-long.json": {
+      "type": "PentestActionReply",
+      "strict": true,
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-waiting-too-long.json": {
+      "type": "PentestActionReply",
+      "strict": true,
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-failed-response-body.json": {
+      "type": "PentestActionReply",
+      "strict": true,
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-failed-status.json": {
+      "type": "PentestActionReply",
+      "strict": true,
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-unknown-overflow.json": {
+      "type": "PentestActionReply",
+      "strict": true,
+      "schema": "pentest-action-reply.schema.json"
+    },
+    "pentest-stop-wrong-mode.json": {
+      "type": "PentestPreflightRequest",
+      "strict": true,
+      "schema": "pentest-preflight-request.schema.json"
+    },
+    "pentest-stopped-false-type.json": {
+      "type": "PentestPreflightResponse",
+      "strict": true,
+      "schema": "pentest-preflight-response.schema.json"
+    },
+    "pentest-seed-summary-overflow.json": {
+      "type": "PentestPreflightResponse",
+      "strict": true,
+      "reason": "invariant"
+    },
+    "pentest-assignment-invalid-adapter.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
+    },
+    "pentest-assignment-invalid-protectedDestinations.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
+    },
+    "pentest-assignment-invalid-seedUrls.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
+    },
+    "pentest-assignment-invalid-identity.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
+    },
+    "pentest-assignment-unknown-optional.json": {
+      "type": "AllocationSpec",
+      "strict": true,
+      "schema": "allocation.schema.json"
+    }
   }
 }
