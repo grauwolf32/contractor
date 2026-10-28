@@ -20,7 +20,7 @@ var auditColumnList = []string{
 	"reserved_run_count", "submitted_run_count", "outstanding_run_count", "outstanding_tool_run_count",
 	"retained_evidence_bytes",
 	"next_event_sequence - 1", "stop_reason_code", "stop_reason_message",
-	"created_at", "updated_at", "started_at", "finished_at", "deletion_requested_at", "paused_at", "phase",
+	"created_at", "updated_at", "started_at", "finished_at", "deletion_requested_at", "paused_at", "phase", "pentest_active_us IS NOT NULL",
 }
 
 // executionColumnList is the ScanExecution order.

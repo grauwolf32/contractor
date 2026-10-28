@@ -10,11 +10,14 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/auditservice"
+	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -99,6 +102,9 @@ func configureControlPlane(
 	}
 	placementAllocator, err := controlplane.NewPlacementAllocator(controlplane.PlacementAllocatorOptions{
 		Pool: pool, Registry: registry, Gateways: configurationManager,
+		AuditAdapterRequirements: func(ctx context.Context, runID, stageID string) ([]runtimesettings.RuntimeAdapterRef, error) {
+			return auditservice.AllocationPentestAdapterRequirements(ctx, pool, runID, stageID)
+		},
 		LLMCredentials: credentialSet.provider, RuntimeCredentials: credentialSet.runtime,
 		TransactionLLMCredentials: credentialSet.transactionLookup,
 		CredentialGuard:           credentialSet.lifecycle, PerformanceMetrics: cfg.PerformanceMetrics,
@@ -110,9 +116,24 @@ func configureControlPlane(
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure Runtime Agent client: %w", err)
 	}
-	runtimeClient.WithEngagementResolver(func(ctx context.Context, runID, stageID string) (*pentestcontract.AllocationProjection, error) {
-		return auditservice.ResolveAllocationEngagement(ctx, pool, runID, stageID)
+	runtimeClient.WithEngagementResolver(func(ctx context.Context, reservation controlplane.Reservation, settings runtimesettings.WorkerExecutionSettings) (*pentestcontract.AllocationProjection, error) {
+		return auditservice.ResolveAllocationEngagement(ctx, pool, reservation.Grant.RunID, reservation.Grant.StageExecutionID, func(ctx context.Context) ([]pentestcontract.ProtectedDestination, error) {
+			return controlplane.ResolvePentestProtectedDestinations(ctx, reservation, settings.RuntimeSettings)
+		})
 	}, registry)
+	runtimeClient.WithPentestDeadlineRecorder(func(ctx context.Context, reservation controlplane.Reservation, deadline time.Time) error {
+		grant := reservation.Grant
+		return runstore.NewPostgresStore(pool).RecordPentestTransportDeadline(ctx, runstore.PentestTransportStop{AllocationID: grant.AllocationID, RunID: grant.RunID, StageExecutionID: grant.StageExecutionID, RuntimeAgentID: grant.RuntimeAgentID, RuntimeInstanceID: grant.RuntimeInstanceID}, deadline)
+	})
+	runtimeClient.WithPentestTransportStop(func(ctx context.Context, reservation controlplane.Reservation) (bool, error) {
+		required, err := auditservice.AllocationPentestAdapterRequirements(ctx, pool, reservation.Grant.RunID, reservation.Grant.StageExecutionID)
+		return len(required) > 0, err
+	}, func(ctx context.Context, reservation controlplane.Reservation) error {
+		grant := reservation.Grant
+		return runstore.NewPostgresStore(pool).RecordPentestTransportStopped(ctx, runstore.PentestTransportStop{AllocationID: grant.AllocationID, RunID: grant.RunID, StageExecutionID: grant.StageExecutionID, RuntimeAgentID: grant.RuntimeAgentID, RuntimeInstanceID: grant.RuntimeInstanceID})
+	}, func(ctx context.Context, reservation controlplane.Reservation) (bool, error) {
+		return querystore.New(pool).AllocationHasPendingPentestActions(ctx, reservation.Grant.AllocationID)
+	})
 	workers, err := controlplane.NewRuntimeBatchController(
 		runtimeClient,
 		registry,

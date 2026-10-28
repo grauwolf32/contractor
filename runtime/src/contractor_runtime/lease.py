@@ -41,7 +41,7 @@ class LeaseWatchdog:
 
     @property
     def confirmed_deadline(self) -> float | None:
-        """Read-only authority for sandbox renewal; never re-arms a lease."""
+        """Read-only execution authority; never re-arms a lease."""
         if self._expired or self._deadline is None or self._monotonic() >= self._deadline:
             return None
         return self._deadline

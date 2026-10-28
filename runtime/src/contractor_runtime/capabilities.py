@@ -244,6 +244,18 @@ async def discover_capabilities(
         if result is True:
             runtime_adapters.append(ref)
 
+    target_factory = factories.pentest_target_factory
+    if target_factory is not None:
+        result = await _probe_one(
+            "runtime_adapter",
+            target_factory.ref,
+            target_factory.probe,
+            deadline,
+            per_factory_timeout_seconds,
+        )
+        if result is True:
+            runtime_adapters.append(target_factory.ref)
+
     if PODMAN_PROFILE in sandboxes and (
         EXECUTION_TOOLSET not in toolsets or not factories.execution_lifecycle.probe_available
     ):

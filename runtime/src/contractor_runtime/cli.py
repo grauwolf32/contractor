@@ -164,6 +164,7 @@ async def _serve(
         runtime_state,
         factories,
         a2a_base_url=settings.advertised_a2a_url,
+        confirmed_control_deadline=lambda: watchdog.confirmed_deadline,
         private_bypass_urls=(
             settings.control_plane_url,
             settings.advertised_control_url,

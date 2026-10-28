@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/strictjson"
@@ -79,6 +80,10 @@ func revealingCodecFor[T contracts.Validatable](reveal func(T) ([]byte, error)) 
 }
 
 var fixtureCodecs = map[string]fixtureCodec{
+	"PentestActionCommand":            codecFor[pentestcontract.ActionCommand](),
+	"PentestActionReply":              codecFor[pentestcontract.ActionReply](),
+	"PentestPreflightRequest":         codecFor[control.PentestPreflightRequest](),
+	"PentestPreflightResponse":        codecFor[control.PentestPreflightResponse](),
 	"AbortAllocationRequest":          codecFor[control.AbortAllocationRequest](),
 	"AgentHeartbeat":                  codecFor[control.AgentHeartbeat](),
 	"AgentRegistration":               codecFor[control.AgentRegistration](),

@@ -35,6 +35,8 @@ type BindingRequirement struct {
 }
 
 type ReservationRequest struct {
+	// auditAdapters comes only from the immutable Audit binding at composition.
+	auditAdapters           []runtimesettings.RuntimeAdapterRef
 	RequiredPlacementLabels []string
 	RunID                   string
 	StageExecutionID        string
@@ -116,6 +118,9 @@ type AllocationLoss struct {
 }
 
 type Reservation struct {
+	// PentestDeadline is the Server-owned Stage bound for controlled target work.
+	// It is not sent in the allocation wire and never extends the Stage on replay.
+	PentestDeadline             time.Time
 	PlacementLabels             []string
 	CompletionContract          *contracts.WorkerCompletionContract
 	CompletionCapabilities      *contracts.RuntimeCompletionCapabilities

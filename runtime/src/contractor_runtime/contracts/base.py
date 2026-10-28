@@ -284,7 +284,7 @@ def _require_state_workspace_path(value: str) -> str:
 
 
 RUNTIME_ADAPTER_REFS = frozenset(
-    {"caido-graphql@1", "interactsh-http@1", "http-proxy@1", "otlp-http@1"}
+    {"caido-graphql@1", "interactsh-http@1", "http-proxy@1", "otlp-http@1", "pentest-target-http@1"}
 )
 _HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
 _RUNTIME_ADAPTER_ERROR_CODES = frozenset(
@@ -488,6 +488,21 @@ def _require_runtime_adapter_ref(value: str) -> str:
     if value not in RUNTIME_ADAPTER_REFS:
         raise ValueError("unknown RuntimeAdapter ref")
     return value
+
+
+class StrictWireModel(WireModel):
+    """Wire-only names, including aliases shadowed by a correctly named member."""
+
+    model_config = ConfigDict(populate_by_name=False, validate_by_name=False)
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_non_wire_members(cls, value: object) -> object:
+        if isinstance(value, dict):
+            names = {field.alias or name for name, field in cls.model_fields.items()}
+            if value.keys() - names:
+                raise ValueError("private protocol contains an unknown member")
+        return value
 
 
 class VersionedWireModel(WireModel):

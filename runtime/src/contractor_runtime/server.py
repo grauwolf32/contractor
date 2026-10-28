@@ -34,6 +34,7 @@ from contractor_runtime.contracts import (
     WireModel,
     decode_private,
 )
+from contractor_runtime.contracts.pentest_action import PentestPreflightRequest
 from contractor_runtime.mtls import verify_control_plane_peer
 from contractor_runtime.settings import Settings
 from contractor_runtime.state import ProcessState, RuntimeState
@@ -193,6 +194,9 @@ def create_app(
     async def release(request: Request) -> Response:
         return await lifecycle_call(request, ReleaseAllocationRequest, "release")
 
+    async def pentest_preflight(request: Request) -> Response:
+        return await lifecycle_call(request, PentestPreflightRequest, "pentest_preflight")
+
     async def agent_state(request: Request) -> Response:
         await runtime_state.record_route_dispatch()
         if request.method != "GET":
@@ -281,6 +285,8 @@ def create_app(
                 result = await allocation_service.finalize(value)
             elif operation == "abort":
                 result = await allocation_service.abort(value)
+            elif operation == "pentest_preflight":
+                result = await allocation_service.pentest_preflight(value)
             else:
                 await allocation_service.release(value)
                 return Response(status_code=204)
@@ -345,6 +351,11 @@ def create_app(
             Route(
                 "/private/v1/allocations/{allocation_id}/release",
                 release,
+                methods=["POST"],
+            ),
+            Route(
+                "/private/v1/allocations/{allocation_id}/pentest-preflight",
+                pentest_preflight,
                 methods=["POST"],
             ),
             Route(

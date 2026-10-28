@@ -15068,7 +15068,7 @@ components:
       additionalProperties: false
       required: [ref, operations, failedOperations]
       properties:
-        ref: {type: string, enum: [otlp-http@1, http-proxy@1, caido-graphql@1, interactsh-http@1]}
+        ref: {type: string, enum: [otlp-http@1, http-proxy@1, caido-graphql@1, interactsh-http@1, pentest-target-http@1]}
         operations: {$ref: '#/components/schemas/DiagnosticUnsignedDecimal'}
         failedOperations: {$ref: '#/components/schemas/DiagnosticUnsignedDecimal'}
         flushAttempted: {type: boolean}

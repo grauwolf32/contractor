@@ -198,4 +198,6 @@ SELECT audit.project_id
    )
    AND NOT ` + uncollectedExecutionSQL + `
    AND NOT EXISTS (SELECT 1 FROM ` + firstLiveChildRunSQL + ` AS live)
+   AND NOT EXISTS (SELECT 1 FROM audit_action_attempts action
+    WHERE action.audit_id=audit.audit_id AND (action.held OR action.state='prepared'))
  FOR UPDATE OF audit, claim`

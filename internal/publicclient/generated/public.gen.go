@@ -1979,10 +1979,11 @@ func (e RuntimeAdapterDiagnosticLastErrorCode) Valid() bool {
 
 // Defines values for RuntimeAdapterDiagnosticRef.
 const (
-	RuntimeAdapterDiagnosticRefCaidoGraphql1   RuntimeAdapterDiagnosticRef = "caido-graphql@1"
-	RuntimeAdapterDiagnosticRefHttpProxy1      RuntimeAdapterDiagnosticRef = "http-proxy@1"
-	RuntimeAdapterDiagnosticRefInteractshHttp1 RuntimeAdapterDiagnosticRef = "interactsh-http@1"
-	RuntimeAdapterDiagnosticRefOtlpHttp1       RuntimeAdapterDiagnosticRef = "otlp-http@1"
+	RuntimeAdapterDiagnosticRefCaidoGraphql1      RuntimeAdapterDiagnosticRef = "caido-graphql@1"
+	RuntimeAdapterDiagnosticRefHttpProxy1         RuntimeAdapterDiagnosticRef = "http-proxy@1"
+	RuntimeAdapterDiagnosticRefInteractshHttp1    RuntimeAdapterDiagnosticRef = "interactsh-http@1"
+	RuntimeAdapterDiagnosticRefOtlpHttp1          RuntimeAdapterDiagnosticRef = "otlp-http@1"
+	RuntimeAdapterDiagnosticRefPentestTargetHttp1 RuntimeAdapterDiagnosticRef = "pentest-target-http@1"
 )
 
 // Valid indicates whether the value is a known member of the RuntimeAdapterDiagnosticRef enum.
@@ -1995,6 +1996,8 @@ func (e RuntimeAdapterDiagnosticRef) Valid() bool {
 	case RuntimeAdapterDiagnosticRefInteractshHttp1:
 		return true
 	case RuntimeAdapterDiagnosticRefOtlpHttp1:
+		return true
+	case RuntimeAdapterDiagnosticRefPentestTargetHttp1:
 		return true
 	default:
 		return false

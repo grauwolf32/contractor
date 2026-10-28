@@ -5286,7 +5286,7 @@ export interface components {
         };
         RuntimeAdapterDiagnostic: {
             /** @enum {string} */
-            ref: "otlp-http@1" | "http-proxy@1" | "caido-graphql@1" | "interactsh-http@1";
+            ref: "otlp-http@1" | "http-proxy@1" | "caido-graphql@1" | "interactsh-http@1" | "pentest-target-http@1";
             operations: components["schemas"]["DiagnosticUnsignedDecimal"];
             failedOperations: components["schemas"]["DiagnosticUnsignedDecimal"];
             flushAttempted?: boolean;

@@ -155,6 +155,7 @@ func purgeClaimedAudit(
 		return persistencepostgres.WrapError("enable Audit lifecycle purge", err)
 	}
 	remaining := persistencepostgres.CleanupBatchRows
+	journalRemaining := 100
 	for _, statement := range purgeAuditDomainSQL {
 		if statement == purgeAuditItemsSQL {
 			var work int
@@ -170,11 +171,22 @@ func purgeClaimedAudit(
 			}
 			continue
 		}
-		tag, err := tx.Exec(ctx, statement, claim.AuditID, remaining)
+		limit := remaining
+		journal := statement == purgeAuditActionAttemptsSQL || statement == purgeAuditActionsSQL
+		if journal {
+			limit = min(limit, journalRemaining)
+		}
+		tag, err := tx.Exec(ctx, statement, claim.AuditID, limit)
 		if err != nil {
 			return persistencepostgres.WrapError("purge Audit domain batch", err)
 		}
 		remaining -= int(tag.RowsAffected())
+		if journal {
+			journalRemaining -= int(tag.RowsAffected())
+			if journalRemaining == 0 {
+				return nil
+			}
+		}
 		if remaining == 0 {
 			return nil
 		}

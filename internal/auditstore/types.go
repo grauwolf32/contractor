@@ -241,6 +241,9 @@ type StopReason struct {
 }
 
 type Audit struct {
+	// PentestControlled marks a baseline with a newly initialized cumulative
+	// clock. It lets the controller skip action recovery for ordinary Audits.
+	PentestControlled bool
 	AuditID           string
 	OwnerID           string
 	ProjectID         string

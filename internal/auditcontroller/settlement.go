@@ -37,6 +37,12 @@ func (c *Controller) settleClosedAudit(ctx context.Context, claim auditstore.Con
 	if !auditSettlementBarrier(snapshot) {
 		return false, nil
 	}
+	if audit.PentestControlled {
+		pending, err := c.store.ListPentestPendingAllocations(ctx, claim)
+		if err != nil || len(pending) != 0 {
+			return false, err
+		}
+	}
 	switch audit.State {
 	case auditstore.AuditFinalizing:
 		if audit.CurrentRoundID == nil {

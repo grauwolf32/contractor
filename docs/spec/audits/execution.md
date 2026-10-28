@@ -894,7 +894,8 @@ intent; replay never consumes twice (FAIL-AUX-1).
 
 **AUX-R83.** Reserved and committed consumption are recorded separately,
 together with the current outstanding intent/Run count used by the
-Server-owned dispatch look-ahead.
+Server-owned dispatch look-ahead. Controlled target requests use the action
+journal, grant and recovery rules in AUX-R104–106.
 
 **AUX-R84.** Model, token, Tool, HTTP and context limits remain enforced by
 each pinned child execution policy.
@@ -1153,3 +1154,69 @@ Shared rules are in
   and must reserve unknown consumption rather than treating it as zero.
 - The other deferred Audit capabilities are listed in
   [audits](audits.md#non-goals).
+
+### Controlled anonymous target preflight
+
+**AUX-R104.** `POST /private/v1/allocations/{allocationId}/pentest-actions`
+accepts the closed `prepare`, `grant`, `sending`, `started` and `settle`
+commands. The Server derives Audit, owner, Project, Run, Stage and Runtime
+process from the authenticated allocation; request data cannot select them.
+Preparation binds one seed index and a physical attempt ordinal (redirect hop
+plus retry ordinal) to a canonical URL digest. Every mutation uses the existing
+Audit-owned `KeyedMutation` receipt with a Server-derived semantic key and
+separate command digest. Exact replay cannot charge twice; changed bytes are
+`pentest_action_conflict`. A later authorized allocation may read a settled
+seed outcome without acquiring the original allocation's write authority.
+An unresolved prior allocation prevents replacement work.
+
+Preparation atomically reserves the action intent. Grant atomically charges a
+physical request and concurrency against the pinned Audit caps. A waiting
+response is a bounded retry hint, not an accepted grant receipt. Only one
+unacknowledged grant exists across the Audit. `sending` must commit before
+application bytes; `started` is acknowledged only after the first accepted
+application byte. A process-local monotonic cooldown then enforces at least
+1/RPS before the next grant. Its durable generation fences duplicate late
+acknowledgements; restart or cache loss pays a full interval, never a catch-up
+burst. A replay returns only the remaining original allowance and cannot renew
+its expiry. Runtime deducts elapsed time from its original grant-request
+dispatch, including every retry, before any first-byte write.
+
+Admission, grant and sending require active Project/Audit/Run/Stage and an
+unfenced allocation. Authenticated started/settle observations may finish
+existing attempts during drain. Invalid documents yield
+`pentest_action_invalid` (400); conflicting commands, exhausted budgets and
+stale fences yield `pentest_action_conflict`, `pentest_budget_exhausted` and
+`pentest_action_fenced` (409); denied scope is `pentest_scope_denied` (403),
+unsupported controlled transport is `pentest_transport_unsupported` (400).
+Foreign or missing allocation authority uses the existing safe 404. Only
+classified `storage_transaction_conflict` (503, `Retry-After`) permits bounded
+storage retry. Target HTTP status is outcome data, never a private API error.
+
+**AUX-R105.** `audit_actions` and `audit_action_attempts` retain only bounded
+identity, digests, grants and safe outcomes. Reserved/charged usage and unknown
+holds survive pause and Server restart. Lost acknowledgements reconcile the
+same command and attempt; expiry alone never refunds a request or releases
+concurrency. The Controller reads at most LIM-AUD-36 rows/bytes per pass and
+mutates under its existing live claim. It may settle a prepared/authorized
+attempt as cancelled-before-send, or sending/started as unknown, only after
+an exact instance-bound joined-transport proof. A generic release timestamp,
+absent Registry entry or restarted Runtime's empty release response is not
+proof. Missing proof leaves the hold unresolved and blocks final settlement
+and deletion while ordinary child cancellation and collection continue.
+
+The allocation's persisted stop marker carries the exact Run, Stage, Runtime
+principal and process identity. Journal attribution is immutable temporal
+identity, retained after child Run deletion; it is not a nullable second
+foreign key. Audit ownership governs bounded journal purge. Child deletion
+is blocked until pending actions reconcile, so it cannot erase necessary
+stop evidence. Individual actions cannot be deleted by callers.
+
+**AUX-R106.** Preflight operates once per semantic seed/attempt. Safe completed
+outcomes can be reused by later child allocations; an unknown outcome is an
+explicit gap and never causes a replacement send. The run RPC returns only
+bounded counts backed by the action journal. If no seed completes, preparation
+fails rather than reporting empty successful discovery. Raw response buffers,
+headers, credentials and redirect query values are not stored in the journal.
+A canonical redirect-target digest authorizes only the matching next prepare.
+The containing allocation owns and joins all preflight work before release;
+no network call occurs while an Audit transaction or Registry mutex is held.

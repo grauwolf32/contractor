@@ -158,7 +158,7 @@ func scanAudit(row scanner) (auditstore.Audit, error) {
 		&result.OutstandingToolRunCount, &result.RetainedEvidenceBytes,
 		&eventSequence, &stopCode, &stopMessage,
 		&result.CreatedAt, &result.UpdatedAt, &result.StartedAt, &result.FinishedAt,
-		&result.DeletionRequestedAt, &result.PausedAt, &result.Phase,
+		&result.DeletionRequestedAt, &result.PausedAt, &result.Phase, &result.PentestControlled,
 	)
 	if err != nil {
 		return auditstore.Audit{}, err

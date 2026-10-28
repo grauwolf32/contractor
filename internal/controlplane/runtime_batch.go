@@ -117,6 +117,8 @@ func (c *RuntimeBatchController) PrepareAll(
 			cleanupErr := c.cleanupFailedPrepare(reservations)
 			return nil, errors.Join(prepareErr, cleanupErr)
 		}
+		// Lease refresh must not discard the Scheduler's target execution bound.
+		refreshed.PentestDeadline = reservation.PentestDeadline
 		reservation = refreshed
 		reservations[index] = refreshed
 		handle, err := c.runtime.Prepare(ctx, reservation, settings[logicalName])
