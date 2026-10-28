@@ -1442,10 +1442,14 @@ and its lineage edges while preserving versions/blobs still referenced by
 child Runs or the owner's source. [SCN-R245](../tools/scanners.md) and
 [SCN-R251](../tools/scanners.md) own admission and retention.
 
-**ART-R128.** The Project `sitemap` namespace is owned by the
-[Project sitemap reducer](project-sitemap.md). Generic writes reject it; trusted
-domain publications use ordinary immutable revisions, CAS and automatic retained
-history, without a kind-specific retention policy or predecessor hold chain.
+**ART-R128.** Generic Project writes apply the shared purpose-reserved namespace
+policy. Domain publishers own managed namespaces, including Audit outputs and
+the [Project sitemap](project-sitemap.md); ArtifactStore must not dispatch on
+their namespace names, media types or payload schemas. Their trusted publications
+use ordinary immutable revisions, CAS and automatic retained history, without a
+kind-specific retention policy or predecessor hold chain. Read, metadata, history,
+lineage and exact input-fork mechanics remain ordinary artifact operations;
+scope authorization and the existing library visibility policy still apply.
 
 **ART-R129.** A trusted caller-owned transaction may materialize different,
 validated context bytes into a new frozen Run binding with `context_projection`
@@ -1490,3 +1494,16 @@ nothing and change no retention, exact hold or age-independent collection rule.
 The public UI consumes every diagnostic date behind Technical details; reopen
 this projection only if measured page cost or an explicit privacy requirement
 prevents owner-authorized metadata exposure, not by guessing or deleting facts.
+
+**ART-R133.** Trusted callers may describe the original target revisions created
+by forks of a selected lineage kind, namespace and at most LIM-ART-8 distinct
+binding names in one scope. Return exact descriptors in requested name order,
+omitting names with no matching fork; current editable bindings must not replace
+the original target revisions. Invalid selectors fail before I/O and more than
+one matching revision for a binding is the existing `ErrArtifactIntegrity`. The lookup reads
+metadata only, bounds each indexed lineage selection to detect ambiguity and is
+independent of the containing scope's artifact count. It uses the supplied
+transaction without acquiring another pool connection or starting a nested
+transaction. RunStore owns the interpretation of Run `inputs` with `input_fork`
+lineage as original Run inputs; domain consumers use that operation without
+reading artifact tables. This metadata lookup creates no hold or file authority.

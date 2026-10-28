@@ -21,7 +21,7 @@ context:
 scope:
   in:
   - Express Project write reservation through the existing common namespace policy and remove sitemap comparisons from ArtifactStore implementation.
-  - Add a bounded generic original Run input descriptor lookup to ArtifactStore, move its SQL out of sitemap and remove the domain's artifact_lineage ownership exception.
+  - Put original-input semantics in RunStore over a bounded generic fork-revision descriptor lookup in ArtifactStore, move SQL out of sitemap and remove the domain's artifact_lineage ownership exception.
   - Replace sitemap-specific receipt scope and purge code with generic Project-scoped keyed mutation receipts in the existing table; migrate current keys without losing accepted responses or adding runtime compatibility readers.
   - Preserve normal artifact listing, content reads, metadata, versions, lineage and owner-selected input forks; add real-store regressions and architecture guards for the boundary.
   - Update owning specs and unfinished sitemap release criteria with the shared mechanisms and their failure/cardinality/lifecycle guarantees.
@@ -68,6 +68,8 @@ acceptance_criteria:
   when: Architecture and complete affected-package checks run
   then: Sitemap has no direct artifact-table SQL, the store has no sitemap dispatch and lifecycle uses a generic Project receipt purge; no new compatibility path or mechanism duplicates an existing owner.
 tests:
+- command: go test -tags=integration -count=1 ./internal/runstore
+  covers: [A2, A4]
 - command: make test-project-sitemap-postgres
   covers: [A1, A2, A3, A4]
 - command: make test-project-sitemap-tools-e2e

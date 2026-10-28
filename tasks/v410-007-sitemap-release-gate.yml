@@ -16,6 +16,8 @@ depends_on:
 - V410-016
 - V410-017
 - V410-019
+- V410-020
+- V410-021
 languages:
 - go
 - python
@@ -87,7 +89,8 @@ requirements:
 - id: R2
   text: Run existing V410-010 generic ArtifactStore gates as prerequisites. Add only sitemap-specific full-map/nested-bound,
     ten-writer, source replacement and exact snapshot/view races. Use deterministic work counters; do not recreate
-    the all-scope retention/holder/writer matrix.
+    the all-scope retention/holder/writer matrix. Require RunStore original-input resolution through generic artifact
+    fork descriptors, common Project mutation receipts and ordinary artifact UI metadata without sitemap-specific storage branches.
 - id: R3
   text: Prove more than 256 MiB of cumulative Project map writes and more than 256 accepted map updates within one
     Run succeed while current-map/nested bounds and generic per-binding history policy holds. Use a controlled source
