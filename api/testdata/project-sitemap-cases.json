@@ -14,7 +14,8 @@
     "null",
     "{\"Version\": \"project-sitemap@1\", \"projection\": \"sitemap-safe-projection@1\", \"groups\": [], \"sources\": [], \"rules\": [], \"markers\": [], \"gaps\": []}",
     "{\"version\": \"project-sitemap@1\", \"projection\": \"sitemap-safe-projection@1\", \"groups\": null, \"sources\": [], \"rules\": [], \"markers\": [], \"gaps\": []}",
-    "{\"version\": \"project-sitemap@1\", \"projection\": \"sitemap-safe-projection@1\", \"groups\": [], \"groups\": [], \"sources\": [], \"rules\": [], \"markers\": [], \"gaps\": []}"
+    "{\"version\": \"project-sitemap@1\", \"projection\": \"sitemap-safe-projection@1\", \"groups\": [], \"groups\": [], \"sources\": [], \"rules\": [], \"markers\": [], \"gaps\": []}",
+    "{\"version\":\"project-sitemap@1\",\"projection\":\"sitemap-safe-projection@1\",\"groups\":[],\"sources\":[{\"provenance\":{\"sourceId\":\"owner\",\"kind\":\"manual\",\"mode\":\"blackbox\"},\"generation\":1,\"policyDigest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}],\"rules\":[],\"markers\":[],\"gaps\":[]}"
   ],
   "projection": [
     {

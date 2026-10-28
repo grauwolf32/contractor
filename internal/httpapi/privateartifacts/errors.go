@@ -34,10 +34,6 @@ func (h *handler) handleError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, errSitemapAccessDenied):
 		h.writeError(w, http.StatusForbidden, "sitemap_access_denied", "allocation does not permit this sitemap operation", false)
-	case errors.Is(err, errSitemapCursorExpired):
-		h.writeError(w, http.StatusConflict, "sitemap_cursor_expired", "the sitemap view is no longer available; refresh explicitly", false)
-	case errors.Is(err, projectsitemap.ErrProjectionUnavailable):
-		h.writeError(w, http.StatusConflict, "sitemap_projection_unavailable", "the authorized sitemap view cannot be reconstructed safely", false)
 	case errors.Is(err, errSitemapUnavailable):
 		h.writeError(w, http.StatusServiceUnavailable, "sitemap_unavailable", "sitemap service is unavailable", true)
 	case errors.Is(err, projectsitemap.ErrConflict):

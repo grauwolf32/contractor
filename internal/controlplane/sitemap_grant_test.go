@@ -16,7 +16,7 @@ func TestSitemapGrantPinsSelectedOperationsAndNeverAliasesPolicy(t *testing.T) {
 	template := testTemplate(t)
 	template.Toolsets = append(template.Toolsets, contracts.ToolsetSelection{Ref: contracts.ToolsetRef{ToolsetID: "sitemap", Version: "1"}, Tools: []string{contracts.SitemapListTool}})
 	deployment := "deployment"
-	template.Sitemap = &contracts.ProjectSitemapPolicy{Version: contracts.SitemapAccessVersion, SourceMode: "blackbox", Deployment: &deployment, OpenAPIInputs: []string{"api"}}
+	template.Sitemap = &contracts.ProjectSitemapPolicy{Version: contracts.SitemapAccessVersion, Deployment: &deployment, SnapshotInputs: []string{"api"}}
 	reservations, err := registry.ReserveAll(ReservationRequest{RunID: "run-sitemap", StageExecutionID: "stage-sitemap", Bindings: []BindingRequirement{testBinding(t, "reader", "research", template)}})
 	if err != nil || len(reservations) != 1 {
 		t.Fatalf("sitemap reservation: %+v %v", reservations, err)
@@ -26,24 +26,24 @@ func TestSitemapGrantPinsSelectedOperationsAndNeverAliasesPolicy(t *testing.T) {
 	reservations[0].Grant.SitemapTools[0] = contracts.SitemapRemoveTool
 	reservations[0].Grant.SitemapPolicy.CollectObservations = true
 	*reservations[0].Grant.SitemapPolicy.Deployment = "other"
-	reservations[0].Grant.SitemapPolicy.OpenAPIInputs[0] = "other"
+	reservations[0].Grant.SitemapPolicy.SnapshotInputs[0] = "other"
 	grant, err := registry.GetGrant(id)
-	if err != nil || len(grant.SitemapTools) != 1 || grant.SitemapTools[0] != contracts.SitemapListTool || grant.SitemapPolicy.CollectObservations || *grant.SitemapPolicy.Deployment != "deployment" || grant.SitemapPolicy.OpenAPIInputs[0] != "api" {
+	if err != nil || len(grant.SitemapTools) != 1 || grant.SitemapTools[0] != contracts.SitemapListTool || grant.SitemapPolicy.CollectObservations || *grant.SitemapPolicy.Deployment != "deployment" || grant.SitemapPolicy.SnapshotInputs[0] != "api" {
 		t.Fatalf("grant authority aliased reservation: %+v %v", grant, err)
 	}
 	grant.SitemapTools[0] = contracts.SitemapUpsertTool
-	grant.SitemapPolicy.SourceMode = "source-assisted"
+	*grant.SitemapPolicy.Deployment = "other"
 	if err := registry.WithWriteGrant(id, func(copy AllocationGrant) error {
-		if copy.SitemapPolicy.SourceMode != "blackbox" || copy.SitemapTools[0] != contracts.SitemapListTool {
+		if *copy.SitemapPolicy.Deployment != "deployment" || copy.SitemapTools[0] != contracts.SitemapListTool {
 			t.Fatal("grant getter mutated stored policy")
 		}
-		copy.SitemapPolicy.SourceMode = "source-assisted"
+		*copy.SitemapPolicy.Deployment = "other"
 		copy.SitemapTools[0] = contracts.SitemapRestoreTool
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if grant, err := registry.GetGrant(id); err != nil || grant.SitemapPolicy.SourceMode != "blackbox" || grant.SitemapTools[0] != contracts.SitemapListTool {
+	if grant, err := registry.GetGrant(id); err != nil || *grant.SitemapPolicy.Deployment != "deployment" || grant.SitemapTools[0] != contracts.SitemapListTool {
 		t.Fatalf("callback mutated stored grant: %+v %v", grant, err)
 	}
 	if err := registry.SetWriteFence(id); err != nil {

@@ -20,17 +20,16 @@ from contractor_runtime.contracts.base import (
     _require_sorted_unique,
 )
 
-MAX_SITEMAP_OPENAPI_INPUTS = 8
+MAX_SITEMAP_SNAPSHOT_INPUTS = 8
 
 
 class ProjectSitemapPolicy(WireModel):
     version: Literal["sitemap-access@1"]
-    source_mode: Literal["blackbox", "source-assisted"]
     collect_observations: bool
     deployment: str | None = Field(default=None, exclude_if=lambda value: value is None)
-    openapi_inputs: list[str] = Field(
+    snapshot_inputs: list[str] = Field(
         default_factory=list,
-        max_length=MAX_SITEMAP_OPENAPI_INPUTS,
+        max_length=MAX_SITEMAP_SNAPSHOT_INPUTS,
         exclude_if=lambda value: not value,
     )
 
@@ -39,10 +38,10 @@ class ProjectSitemapPolicy(WireModel):
         if self.deployment is not None:
             _require_resource_id("sitemap deployment", self.deployment)
         _require_sorted_unique(
-            "sitemap OpenAPI inputs", self.openapi_inputs, maximum=MAX_SITEMAP_OPENAPI_INPUTS
+            "sitemap snapshot inputs", self.snapshot_inputs, maximum=MAX_SITEMAP_SNAPSHOT_INPUTS
         )
-        if any(NAME_PATTERN.fullmatch(name) is None for name in self.openapi_inputs):
-            raise ValueError("invalid sitemap OpenAPI input name")
+        if any(NAME_PATTERN.fullmatch(name) is None for name in self.snapshot_inputs):
+            raise ValueError("invalid sitemap snapshot input name")
         return self
 
 
@@ -61,9 +60,7 @@ class SitemapInputDescriptor(WireModel):
 
 class SitemapAccess(VersionedWireModel):
     policy: ProjectSitemapPolicy
-    policy_digest: str = Field(pattern=DIGEST_PATTERN.pattern)
     manual_source_id: str
-    inputs: list[SitemapInputDescriptor] = Field(max_length=MAX_SITEMAP_OPENAPI_INPUTS)
 
     @model_validator(mode="after")
     def validate_access(self) -> Self:

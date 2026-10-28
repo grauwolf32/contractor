@@ -2552,8 +2552,6 @@ export interface components {
             sourceId: components["schemas"]["ResourceId"];
             /** @enum {string} */
             kind: "manual" | "http" | "caido" | "ffuf" | "katana" | "dirsearch" | "openapi";
-            /** @enum {string} */
-            mode: "blackbox" | "source-assisted";
             runId?: components["schemas"]["ResourceId"];
             deployment?: components["schemas"]["ResourceId"];
             credentialRevision?: components["schemas"]["ResourceId"];

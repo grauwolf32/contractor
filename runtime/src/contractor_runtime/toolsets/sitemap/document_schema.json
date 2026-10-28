@@ -409,13 +409,6 @@
           ],
           "type": "string"
         },
-        "mode": {
-          "enum": [
-            "blackbox",
-            "source-assisted"
-          ],
-          "type": "string"
-        },
         "runId": {
           "$ref": "#/components/schemas/ResourceId"
         },
@@ -428,8 +421,7 @@
       },
       "required": [
         "sourceId",
-        "kind",
-        "mode"
+        "kind"
       ],
       "type": "object"
     },

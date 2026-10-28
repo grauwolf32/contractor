@@ -41,19 +41,19 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-a", "run-a")
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-b", "run-b")
 	service := projectsitemap.NewService(pool)
-	declare := func(project, source, mode, path, expected, key string) projectsitemap.Result {
+	declare := func(project, source, path, expected, key string) projectsitemap.Result {
 		t.Helper()
-		result, err := service.Mutate(ctx, projectsitemap.Authority{OwnerID: "user-1", ProjectID: project, SourceID: source, Kind: "manual", Mode: mode}, key, projectsitemap.Mutation{Operation: "declare", ExpectedRevision: expected, URL: "https://example.test" + path, Method: "GET"})
+		result, err := service.Mutate(ctx, projectsitemap.Authority{OwnerID: "user-1", ProjectID: project, SourceID: source, Kind: "manual"}, key, projectsitemap.Mutation{Operation: "declare", ExpectedRevision: expected, URL: "https://example.test" + path, Method: "GET"})
 		if err != nil {
 			t.Fatal(err)
 		}
 		return result
 	}
-	first := declare("project-a", "visible", "blackbox", "/visible", "absent", "first")
-	mixed := declare("project-a", "restricted", "source-assisted", "/restricted-canary", *first.Ref.Revision, "mixed")
-	foreign := declare("project-b", "foreign", "blackbox", "/foreign-project-canary", "absent", "foreign")
+	first := declare("project-a", "visible", "/visible", "absent", "first")
+	mixed := declare("project-a", "other-source", "/shared-canary", *first.Ref.Revision, "mixed")
+	foreign := declare("project-b", "foreign", "/foreign-project-canary", "absent", "foreign")
 	registry := &fakeRegistry{grant: testGrant("run-a")}
-	registry.grant.SitemapPolicy = &contracts.ProjectSitemapPolicy{Version: contracts.SitemapAccessVersion, SourceMode: "blackbox"}
+	registry.grant.SitemapPolicy = &contracts.ProjectSitemapPolicy{Version: contracts.SitemapAccessVersion}
 	registry.grant.SitemapTools = []string{contracts.SitemapListTool}
 	handler, err := NewHandler(Dependencies{Registry: registry, Artifacts: artifacts.NewService(artifacts.NewPostgresRepository(pool)), Sitemap: service, NewRequestID: func() (string, error) { return "sitemap-test", nil }})
 	if err != nil {
@@ -80,12 +80,12 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 		return response
 	}
 	response := request(http.MethodGet, "", "", nil)
-	if response.Code != 200 || bytes.Contains(response.Body.Bytes(), []byte("restricted-canary")) || bytes.Contains(response.Body.Bytes(), []byte("foreign-project-canary")) {
-		t.Fatalf("safe map: %d %s", response.Code, response.Body.String())
+	if response.Code != 200 || !bytes.Contains(response.Body.Bytes(), []byte("shared-canary")) || bytes.Contains(response.Body.Bytes(), []byte("foreign-project-canary")) {
+		t.Fatalf("shared map: %d %s", response.Code, response.Body.String())
 	}
 	var document projectsitemap.Document
-	if err := json.Unmarshal(response.Body.Bytes(), &document); err != nil || len(document.Groups) != 1 {
-		t.Fatalf("safe document: %v", err)
+	if err := json.Unmarshal(response.Body.Bytes(), &document); err != nil || len(document.Groups) != 2 {
+		t.Fatalf("shared document: %v", err)
 	}
 	revision := response.Header().Get(sitemapRevisionHeader)
 	if revision != *mixed.Ref.Revision {
@@ -97,7 +97,7 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 	assertPrivateErrorEnvelope(t, request(http.MethodGet, "?revision="+*foreign.Ref.Revision, "", nil), 404, "artifact_not_found", false)
 	mutation := sitemapMutationRequest{APIVersion: contracts.APIVersion, Mutation: projectsitemap.Mutation{Operation: "declare", ExpectedRevision: revision, URL: "https://example.test/manual", Method: "GET"}}
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/mutations", "denied", mutation), 403, "sitemap_access_denied", false)
-	selection := sitemapSnapshotRequest{APIVersion: contracts.APIVersion, Selection: projectsitemap.SnapshotSelection{Revision: revision, ExpectedPolicyDigest: response.Header().Get(sitemapPolicyHeader), Groups: []string{document.Groups[0].ID}}}
+	selection := sitemapSnapshotRequest{APIVersion: contracts.APIVersion, Selection: projectsitemap.SnapshotSelection{Revision: revision, Groups: []string{document.Groups[0].ID, document.Groups[1].ID}}}
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/snapshots", "denied-snapshot", selection), 403, "sitemap_access_denied", false)
 	registry.grant.SitemapTools = []string{contracts.SitemapSnapshotTool}
 	saved := request(http.MethodPost, "/snapshots", "save", selection)
@@ -112,10 +112,14 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 	}
 	run, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run("run-a")
 	stored, err := run.Read(ctx, snapshot.Result.Artifact.Ref)
-	if err != nil || bytes.Contains(stored.Payload.Data, []byte("restricted-canary")) {
-		t.Fatalf("unsafe Run context: %v", err)
+	if err != nil || !bytes.Contains(stored.Payload.Data, []byte("shared-canary")) || bytes.Contains(stored.Payload.Data, []byte("foreign-project-canary")) {
+		t.Fatalf("shared Run context: %v", err)
 	}
-	assertPrivateErrorEnvelope(t, request(http.MethodGet, "/access?policy=sha256:"+strings.Repeat("b", 64), "", nil), 409, "sitemap_cursor_expired", false)
+	assertPrivateErrorEnvelope(t, request(http.MethodGet, "/access?policy=sha256:"+strings.Repeat("b", 64), "", nil), 400, "invalid_request", false)
+	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/snapshots", "obsolete-policy", map[string]any{"apiVersion": contracts.APIVersion, "selection": map[string]any{"revision": revision, "groups": selection.Selection.Groups, "expectedPolicyDigest": "sha256:" + strings.Repeat("a", 64)}}), 400, "invalid_request", false)
+	if response.Header().Get("X-Contractor-Sitemap-Policy") != "" {
+		t.Fatal("obsolete sitemap policy header remains")
+	}
 	registry.grant.SitemapTools = []string{contracts.SitemapUpsertTool}
 	assertPrivateErrorEnvelope(t, request(http.MethodGet, "", "", nil), 403, "sitemap_access_denied", false)
 	if edited := request(http.MethodPost, "/mutations", "edit", mutation); edited.Code != 200 {
@@ -123,8 +127,10 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 	}
 	registry.grant.SitemapTools = nil
 	registry.grant.SitemapPolicy.CollectObservations = true
-	if access := request(http.MethodGet, "/access", "", nil); access.Code != 200 {
-		t.Fatalf("collector metadata: %d", access.Code)
+	access := request(http.MethodGet, "/access", "", nil)
+	var accessFields map[string]json.RawMessage
+	if access.Code != 200 || json.Unmarshal(access.Body.Bytes(), &accessFields) != nil || len(accessFields) != 3 || accessFields["apiVersion"] == nil || accessFields["policy"] == nil || accessFields["manualSourceId"] == nil {
+		t.Fatalf("collector metadata: %d %s", access.Code, access.Body.String())
 	}
 	assertPrivateErrorEnvelope(t, request(http.MethodGet, "", "", nil), 403, "sitemap_access_denied", false)
 	ingress := sitemapCollectionRequest{APIVersion: contracts.APIVersion, Input: projectsitemap.CollectionIngress{

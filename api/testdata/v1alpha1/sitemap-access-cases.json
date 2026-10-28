@@ -3,14 +3,12 @@
   "valid": [
     {
       "version": "sitemap-access@1",
-      "sourceMode": "blackbox",
       "collectObservations": false
     },
     {
       "version": "sitemap-access@1",
-      "sourceMode": "blackbox",
       "collectObservations": false,
-      "openapiInputs": [
+      "snapshotInputs": [
         "0",
         "1",
         "2",
@@ -23,10 +21,9 @@
     },
     {
       "version": "sitemap-access@1",
-      "sourceMode": "source-assisted",
       "collectObservations": true,
       "deployment": "prod:one",
-      "openapiInputs": [
+      "snapshotInputs": [
         "OpenAPI.v1",
         "schema"
       ]
@@ -35,64 +32,50 @@
   "invalid": [
     {
       "version": "sitemap-access@2",
-      "sourceMode": "blackbox",
       "collectObservations": false
     },
     {
       "version": "sitemap-access@1",
-      "sourceMode": "whitebox",
-      "collectObservations": false
-    },
-    {
-      "version": "sitemap-access@1",
-      "sourceMode": "blackbox",
       "collectObservations": null
     },
     {
       "version": "sitemap-access@1",
-      "sourceMode": "blackbox",
       "collectObservations": "true"
     },
     {
       "version": "sitemap-access@1",
-      "sourceMode": "blackbox",
       "collectObservations": false,
       "deployment": "bad/identity"
     },
     {
       "version": "sitemap-access@1",
-      "sourceMode": "blackbox",
       "collectObservations": false,
       "deployment": ""
     },
     {
       "version": "sitemap-access@1",
-      "sourceMode": "blackbox",
       "collectObservations": false,
       "deployment": null
     },
     {
       "version": "sitemap-access@1",
-      "sourceMode": "blackbox",
       "collectObservations": false,
-      "openapiInputs": [
+      "snapshotInputs": [
         "bad/input"
       ]
     },
     {
       "version": "sitemap-access@1",
-      "sourceMode": "blackbox",
       "collectObservations": false,
-      "openapiInputs": [
+      "snapshotInputs": [
         "same",
         "same"
       ]
     },
     {
       "version": "sitemap-access@1",
-      "sourceMode": "blackbox",
       "collectObservations": false,
-      "openapiInputs": [
+      "snapshotInputs": [
         "0",
         "1",
         "2",
@@ -105,39 +88,53 @@
       ]
     },
     {
-      "sourceMode": "blackbox",
       "collectObservations": false
     },
     {
-      "version": "sitemap-access@1",
-      "collectObservations": false
+      "version": "sitemap-access@1"
     },
     {
       "version": "sitemap-access@1",
+      "collectObservations": false,
+      "extra": true
+    },
+    null,
+    {
+      "version": "sitemap-access@1",
+      "collectObservations": false,
       "sourceMode": "blackbox"
     },
     {
       "version": "sitemap-access@1",
-      "sourceMode": "blackbox",
       "collectObservations": false,
-      "extra": true
+      "sourceMode": "source-assisted"
     },
-    null
+    {
+      "version": "sitemap-access@1",
+      "collectObservations": false,
+      "openapiInputs": [
+        "api"
+      ]
+    },
+    {
+      "version": "sitemap-access@1",
+      "collectObservations": false,
+      "snapshotInputs": null
+    }
   ],
   "invariantInvalid": [
     {
       "version": "sitemap-access@1",
-      "sourceMode": "blackbox",
       "collectObservations": false,
-      "openapiInputs": [
+      "snapshotInputs": [
         "z",
         "a"
       ]
     }
   ],
   "strictInvalid": [
-    "{\"version\":\"sitemap-access@1\",\"sourceMode\":\"blackbox\",\"sourceMode\":\"source-assisted\",\"collectObservations\":false}",
-    "{\"version\":\"sitemap-access@1\",\"SourceMode\":\"blackbox\",\"collectObservations\":false}"
+    "{\"version\":\"sitemap-access@1\",\"collectObservations\":false,\"collectObservations\":true}",
+    "{\"version\":\"sitemap-access@1\",\"CollectObservations\":false}"
   ],
   "template": {
     "description": "Builds the requested artifact",
@@ -160,7 +157,7 @@
       "temperature": 0.1
     },
     "ref": {
-      "digest": "sha256:5d3fb04e7a6ac34786382c6700c478ef1c2fa4af4b1ab0f7b3923bab832ff4fb",
+      "digest": "sha256:09ceb7cd6d83e725afafd802c995106e631bd5977339c87f9ee0f89e37c656d3",
       "templateId": "artifact_builder",
       "version": "1"
     },
@@ -186,10 +183,9 @@
     ],
     "sitemap": {
       "version": "sitemap-access@1",
-      "sourceMode": "source-assisted",
       "collectObservations": true,
       "deployment": "prod:one",
-      "openapiInputs": [
+      "snapshotInputs": [
         "OpenAPI.v1",
         "schema"
       ]

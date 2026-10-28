@@ -46,7 +46,7 @@ func TestProducerRunDeletionPreservesProjectSitemapAndReceipt(t *testing.T) {
 	service := projectsitemap.NewService(pool)
 	authority := projectsitemap.Authority{
 		OwnerID: project.OwnerID, ProjectID: project.ProjectID, RunID: producer.RunID,
-		SourceID: "http-transport", Kind: "http", Mode: "blackbox", CanObserve: true,
+		SourceID: "http-transport", Kind: "http", CanObserve: true,
 	}
 	command := projectsitemap.Mutation{Operation: "observe", Observations: []projectsitemap.Observation{{
 		URL: "https://example.test/surface", Method: "GET", Outcome: "response", Status: 200, At: "2026-10-26T00:00:00Z",
@@ -188,7 +188,7 @@ INSERT INTO stage_allocations (
 
 	completed := createProjectRun(t, ctx, runs, "run-completed", projectID)
 	if _, err := projectsitemap.NewService(pool).Mutate(ctx, projectsitemap.Authority{
-		OwnerID: project.OwnerID, ProjectID: projectID, RunID: active.RunID, SourceID: "http-transport", Kind: "http", Mode: "blackbox", CanObserve: true,
+		OwnerID: project.OwnerID, ProjectID: projectID, RunID: active.RunID, SourceID: "http-transport", Kind: "http", CanObserve: true,
 	}, "collect-surface", projectsitemap.Mutation{Operation: "observe", Observations: []projectsitemap.Observation{{URL: "https://example.test/surface", Method: "GET", Outcome: "response", Status: 200, At: "2026-10-26T00:00:00Z"}}}); err != nil {
 		t.Fatal(err)
 	}
