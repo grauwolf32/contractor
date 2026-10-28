@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-120 open tasks: 6 in progress, 103 pending, 11 deferred. 1185 finished: 1175 completed, 10 archived.
+121 open tasks: 7 in progress, 103 pending, 11 deferred. 1185 finished: 1175 completed, 10 archived.
 
 ## In progress
 
@@ -17,6 +17,7 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
 | [V410-020](v410-020-artifact-boundaries.yml) | projects-artifacts | chore | P2 | Isolate sitemap behind shared artifact and Project receipt mechanisms |
+| [V410-021](v410-021-generic-artifact-ui.yml) | ui | defect | P2 | Expose generic JSON previews and truthful artifact update actions |
 
 ## Pending
 
@@ -236,7 +237,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 27 | 67 | 82 | 32 | 113 |
 | Evaluations (`evals`) | 7 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
-| Web UI (`ui`) | 2 | 25 | 65 | 14 | 57 |
+| Web UI (`ui`) | 3 | 25 | 66 | 14 | 58 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 43 | 7 | 18 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 44 | 13 |
