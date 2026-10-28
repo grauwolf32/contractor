@@ -9,6 +9,7 @@ from datetime import datetime
 from contractor_runtime.adapters import (
     AllocationAdapterHost,
 )
+from contractor_runtime.adapters.pentest_target import PentestPreflight
 from contractor_runtime.contracts import (
     AllocationFinalResponse,
     PrepareAllocationResponse,
@@ -61,6 +62,7 @@ class _AllocationContext:
     runtime_settings: RuntimeSettings | None = field(repr=False)
     worker: WorkerRuntime | None = field(repr=False)
     execution: PreparedExecution | None = field(default=None, repr=False)
+    pentest: PentestPreflight | None = field(default=None, repr=False)
     collector: SitemapCollector | None = field(default=None, repr=False)
     resource_metrics: ResourceCollector | None = field(default=None, repr=False)
     prepare_response: PrepareAllocationResponse | None = None

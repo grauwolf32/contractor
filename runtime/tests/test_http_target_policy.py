@@ -18,6 +18,7 @@ from test_http_toolset import close_tools, make_tools, proxy_runtime_settings
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.http_proxy import ProxyHTTPClient, ProxyTargetDenied
 from contractor_runtime.contracts import HTTPOriginTargetSettings, RuntimeSettings
+from contractor_runtime.core.http_transport import PolicyNetworkBackend
 from contractor_runtime.core.target_policy import (
     IPAddress,
     TargetPolicy,
@@ -26,7 +27,6 @@ from contractor_runtime.core.target_policy import (
     parse_allowed_networks,
 )
 from contractor_runtime.toolsets.http.tools import HTTPToolError
-from contractor_runtime.toolsets.http.transport import PolicyNetworkBackend
 
 
 @dataclass

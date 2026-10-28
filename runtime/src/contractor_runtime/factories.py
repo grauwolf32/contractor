@@ -17,6 +17,7 @@ from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.adapters.http_proxy import HTTPProxyAdapterFactory
 from contractor_runtime.adapters.interactsh import InteractshHTTPAdapterFactory
 from contractor_runtime.adapters.otlp_http import OTLPHTTPAdapterFactory
+from contractor_runtime.adapters.pentest_target import PentestTargetFactory
 from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import (
     AgentStateSnapshot,
@@ -213,6 +214,7 @@ class FactoryRegistry:
         default=None, repr=False
     )
     execution_lifecycle: ExecutionLifecycle | None = field(default=None, repr=False)
+    pentest_target_factory: PentestTargetFactory | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         _validate_registry("WorkerRuntime", self.worker_runtimes)
@@ -359,6 +361,11 @@ def built_in_factories(
         ),
         artifact_client_factory=artifact_client_factory,
         execution_lifecycle=execution_lifecycle,
+        pentest_target_factory=(
+            PentestTargetFactory(artifact_client_factory, target_policy)
+            if artifact_client_factory is not None
+            else None
+        ),
     )
 
 

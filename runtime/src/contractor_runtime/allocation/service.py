@@ -17,6 +17,8 @@ from contractor_runtime.adapters import (
     AdapterPreparationError,
     AllocationAdapterHost,
 )
+from contractor_runtime.adapters.pentest_actions import PentestProtocolError
+from contractor_runtime.adapters.pentest_target import PreflightSummary
 from contractor_runtime.agent_skills.runtime import AgentSkillPreparationError
 from contractor_runtime.allocation.cleanup import (
     _await_before_deadline,
@@ -40,6 +42,10 @@ from contractor_runtime.contracts import (
     ReleaseAllocationRequest,
     TerminationError,
     WorkerHandle,
+)
+from contractor_runtime.contracts.pentest_action import (
+    PentestPreflightRequest,
+    PentestPreflightResponse,
 )
 from contractor_runtime.factories import (
     FactoryRegistry,
@@ -103,6 +109,7 @@ class AllocationService:
         self._lock = asyncio.Lock()
         self._context: _AllocationContext | None = None
         self._released_allocation_id: str | None = None
+        self._released_pentest_joined = False
         self._fingerprint_key = os.urandom(32)
 
     def _force_exit(self, code: int) -> Any:
@@ -396,10 +403,18 @@ class AllocationService:
                     resource_metrics=resource_metrics,
                     collector=collector,
                     prepare_response=response,
+                    pentest=(
+                        self._factories.pentest_target_factory.create(spec)
+                        if spec.pentestEngagement is not None
+                        and spec.pentestEngagement.preflight is not None
+                        and self._factories.pentest_target_factory is not None
+                        else None
+                    ),
                 )
                 await self._state.commit_allocation(spec.allocation_id)
                 self._context = context
                 self._released_allocation_id = None
+                self._released_pentest_joined = False
                 return response
             except AdapterPreparationError as error:
                 await self._rollback_prepare(
@@ -535,6 +550,75 @@ class AllocationService:
                     # its existing rollback semantics, discard observations.
                     resource_metrics.close()
 
+    async def pentest_preflight(self, request: PentestPreflightRequest) -> PentestPreflightResponse:
+        # Only attach/join under the slot lock. Target I/O and shutdown joins
+        # run outside it, so abort and lease loss can always fence the task.
+        async with self._lock:
+            if request.expected_runtime_instance_id != self._state.instance_id:
+                raise _conflict("pentest preflight identifies another Runtime instance")
+            context = self._context
+            if context is None:
+                if (
+                    request.mode == "stop"
+                    and self._released_allocation_id == request.allocation_id
+                    and self._released_pentest_joined
+                ):
+                    return self._preflight_response(request, PreflightSummary(), stopped=True)
+                raise _not_found()
+            context = self._require_context(request.allocation_id)
+            resource = context.pentest
+            if resource is None:
+                raise _conflict("allocation has no pentest preflight assignment")
+            if request.mode == "run":
+                state = await self._state.snapshot()
+                if state.process_state is not ProcessState.ALLOCATED:
+                    raise _conflict("allocation is not active")
+                try:
+                    task = resource.start()
+                except PentestProtocolError:
+                    raise _conflict("pentest preflight is stopped") from None
+            else:
+                task = None
+        if request.mode == "stop":
+            await self._stop_pentest_or_exit(context, self._now() + timedelta(seconds=10))
+            return self._preflight_response(request, resource.summary, stopped=True)
+        try:
+            summary = await asyncio.shield(task)
+        except Exception as error:
+            code = "internal_error"
+            if isinstance(error, PentestProtocolError):
+                code = error.code
+            elif isinstance(error, TimeoutError):
+                code = "pentest_budget_exhausted"
+            status = {
+                "pentest_action_invalid": 422,
+                "pentest_action_conflict": 409,
+                "pentest_budget_exhausted": 409,
+                "pentest_action_fenced": 409,
+                "pentest_scope_denied": 422,
+                "pentest_transport_unsupported": 422,
+            }.get(code, 500)
+            if status == 500:
+                code = "internal_error"
+            raise AllocationError(
+                code,
+                "pentest preflight control protocol failed",
+                retryable=False,
+                status_code=status,
+            ) from None
+        return self._preflight_response(request, summary, stopped=False)
+
+    def _preflight_response(self, request, summary, *, stopped):
+        return PentestPreflightResponse(
+            apiVersion=API_VERSION,
+            allocationId=request.allocation_id,
+            runtimeInstanceId=self._state.instance_id,
+            stopped=stopped,
+            completedSeeds=summary.completed,
+            failedSeeds=summary.failed,
+            unknownSeeds=summary.unknown,
+        )
+
     async def finalize(self, request: FinalizeAllocationRequest) -> AllocationFinalResponse:
         return await self._terminate(
             allocation_id=request.allocation_id,
@@ -599,6 +683,7 @@ class AllocationService:
                 await self._prepare_release_cleanup(context)
             await self._state.confirm_release(context.allocation_id, keep_fenced=keep_fenced)
             self._released_allocation_id = context.allocation_id
+            self._released_pentest_joined = context.pentest is not None
             context.terminal_response = None
             self._context = None
 
@@ -662,6 +747,7 @@ class AllocationService:
         context: _AllocationContext,
         deadline: datetime,
     ) -> None:
+        await self._stop_pentest_or_exit(context, deadline)
         await _close_tools(context.tools)
         if context.collector is not None:
             await context.collector.close()
@@ -920,6 +1006,7 @@ class AllocationService:
             if context.execution is not None:
                 context.execution.reject()
             await self._state.begin_draining(allocation_id)
+            await self._stop_pentest_or_exit(context, deadline)
             worker = context.worker
             if worker is None:
                 raise _conflict("allocation Worker is already absent")
@@ -980,6 +1067,7 @@ class AllocationService:
             raise ValueError("Worker shutdown grace must be positive")
         if context.execution is not None:
             context.execution.reject()
+        await self._stop_pentest_or_exit(context, self._now() + timedelta(seconds=timeout_seconds))
         if context.worker is None:
             if context.release_cleanup_task is not None:
                 await self._state.fence_allocation(context.allocation_id)
@@ -1034,6 +1122,16 @@ class AllocationService:
             report=_build_report(context, self._now(), reason),
         )
         await self._state.fence_allocation(context.allocation_id)
+
+    async def _stop_pentest_or_exit(self, context: _AllocationContext, deadline: datetime) -> None:
+        if context.pentest is None:
+            return
+        try:
+            await _await_before_deadline(context.pentest.close, deadline=deadline, now=self._now)
+        except BaseException:
+            await self._state.fence_allocation(context.allocation_id)
+            self._force_exit(70)
+            raise
 
     async def _stop_tools_or_exit(
         self,

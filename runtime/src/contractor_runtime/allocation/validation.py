@@ -195,6 +195,21 @@ def validate_spec(
             status_code=422,
         )
 
+    if spec.pentestEngagement is not None and spec.pentestEngagement.preflight is not None:
+        factory = factories.pentest_target_factory
+        adapter = spec.pentestEngagement.preflight.adapter
+        if (
+            factory is None
+            or factory.ref != adapter
+            or not capabilities.supports_runtime_adapters([adapter])
+        ):
+            raise AllocationError(
+                "unsupported_runtime_adapter",
+                "pentest target transport is unavailable",
+                retryable=False,
+                status_code=422,
+            )
+
     if (
         "caido-graphql-client" in required_infrastructure_channels
         and spec.runtime_settings.caido is None
