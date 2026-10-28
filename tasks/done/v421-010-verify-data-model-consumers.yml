@@ -5,7 +5,8 @@ milestone: data-model-consumers-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: in_progress
+status: completed
+implementation_commit: 64a8522ded78e598bc14f84899ffa312e39869e7
 depends_on:
   - V421-001
   - V421-002
