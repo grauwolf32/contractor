@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-119 open tasks: 5 in progress, 103 pending, 11 deferred. 1184 finished: 1174 completed, 10 archived.
+119 open tasks: 6 in progress, 102 pending, 11 deferred. 1184 finished: 1174 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
+| [V411-003](v411-003-action-journal-request-permits.yml) | audits | feature | P1 | Fence and execute scoped HTTP preflight through the durable Audit action ledger |
 
 ## Pending
 
@@ -125,7 +126,6 @@ the epics are in [epics.yml](epics.yml).
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Measure optional research ranking against deterministic baselines |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-014, V64-008, V64-009 | Project optional attack trees over exact research evidence |
 | [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-012, V411-015, V411-016, V411-020 | Connect optional hypothesis research to pentest proof and reports |
-| [V411-003](v411-003-action-journal-request-permits.yml) | feature | P1 | — | Fence and execute scoped HTTP preflight through the durable Audit action ledger |
 | [V411-006](v411-006-cumulative-budget-finalization.yml) | feature | P1 | V411-003 | Enforce cumulative pentest budgets and finalize at the hard active-time cap |
 | [V411-008](v411-008-stateful-actions-cleanup.yml) | feature | P1 | V411-003, V411-004, V411-006, V411-007 | Serialize stateful target checks and retain unresolved cleanup effects |
 | [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | — | Pin optional pentest programs and nonblocking finding review |

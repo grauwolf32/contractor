@@ -5,7 +5,7 @@ milestone: autonomous-http-pentest-2026-10
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V411-002
 languages:
@@ -17,8 +17,8 @@ goal: Execute real placed Runtime target preflight through one controlled HTTP a
   ledger, so scope, actual-start rate/concurrency limits, cancellation and ambiguous outcomes are enforced
   together from their first production caller.
 context:
-  authority: User request on 2026-10-24 to decompose the updated proposals into implementation tasks.
-    This record authorizes no implementation during planning and does not reactivate deferred work.
+  authority: Planned on 2026-10-24; the user continued the pentest implementation queue on
+    2026-10-28 after V411-002 was merged, including verification, closure and local main delivery.
   proposal:
   - docs/proposals/0033-autonomous-pentest-audits.md#5-budgets-and-durable-accounting
   - docs/proposals/0033-autonomous-pentest-audits.md#11-action-journal-cancellation-and-recovery
@@ -278,3 +278,8 @@ verification_requirements:
   processes and deterministic HTTP/HTTPS targets to exercise the complete preflight caller, with injected
   clocks for rate assertions. V411-004 adds independent adversarial coverage; it supplies no missing production
   caller.
+
+assignment:
+  branch: codex/v411-003-action-preflight
+  claimed: 2026-10-28
+  base: 4ce2bdd460ee5484174c3b4fd70421921fbfa15f
