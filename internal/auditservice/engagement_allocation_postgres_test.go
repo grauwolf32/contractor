@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/pentest"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -23,12 +24,32 @@ import (
 // actual execution/Run/Stage ownership chain. Mutable inputs and Project
 // policy cannot broaden the private task's still-empty target assignment.
 func TestEngagementStartToPrivateAllocationPins(t *testing.T) {
+	for _, accessMode := range []string{"blackbox", "source-assisted"} {
+		t.Run(accessMode, func(t *testing.T) { testEngagementStartToPrivateAllocationPins(t, accessMode) })
+	}
+}
+
+func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string) {
 	f := newEngagementFixture(t, 1)
 	// Dispatch admission compares its deadline to the database clock. No test
 	// assertion depends on elapsed time; the authorized timestamp is compared
 	// only to the exact baseline returned by start.
 	f.service.now = time.Now
 	document := f.document("http://127.0.0.1")
+	if accessMode == "source-assisted" {
+		document.AccessMode = accessMode
+		source, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("print('fixture source')")}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		metadata, err := f.store.Metadata(f.ctx, source.Ref)
+		if err != nil {
+			t.Fatal(err)
+		}
+		document.Inputs = append(document.Inputs, pentest.Input{ID: "source", Role: "source", Artifact: source.Ref, ContentDigest: metadata.Digest})
+		f.credential(t, "allocated-account", f.project.OwnerID)
+		document.Identities = append(document.Identities, pentest.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "allocated-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+	}
 	draft, err := f.create(t, "allocation-engagement", document)
 	if err != nil {
 		t.Fatal(err)
