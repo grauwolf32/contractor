@@ -489,6 +489,188 @@
         "/report/worker/toolCalls/0/error"
       ]
     },
+    "allocation-spec-pentest-metadata.json": {
+      "enum": [
+        "/apiVersion",
+        "/pentestEngagement/accessMode",
+        "/pentestEngagement/policy/activeChecks",
+        "/pentestEngagement/policy/replayPolicy",
+        "/pentestEngagement/policy/requiredCapabilities/0",
+        "/pentestEngagement/policy/retryPolicy",
+        "/pentestEngagement/policy/version",
+        "/pentestEngagement/schema",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/engagement/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/engagement/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/engagement/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/engagement/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/pentestEngagement",
+        "/pentestEngagement/budgets",
+        "/pentestEngagement/engagement",
+        "/pentestEngagement/policy",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/pentestEngagement",
+        "/pentestEngagement/budgets",
+        "/pentestEngagement/engagement",
+        "/pentestEngagement/policy",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runMetadataLabels",
+        "/runtimeSettings"
+      ]
+    },
     "allocation-spec-skills.json": {
       "enum": [
         "/agentTemplate/skills/0/namespace",

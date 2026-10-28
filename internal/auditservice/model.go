@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -43,6 +44,17 @@ func EncodeBaseline(value BaselineSnapshot) (json.RawMessage, error) {
 }
 
 func DecodeBaseline(data []byte) (BaselineSnapshot, error) {
+	var fields map[string]json.RawMessage
+	if err := strictjson.Decode(data, &fields); err != nil {
+		return BaselineSnapshot{}, fmt.Errorf("%w: stored Audit baseline is invalid", ErrInvalid)
+	}
+	if raw, exists := fields["engagement"]; exists {
+		var engagement auditbaseline.EngagementSnapshot
+		if string(raw) == "null" || strictjson.DecodeNonNull(raw, &engagement) != nil {
+			return BaselineSnapshot{}, fmt.Errorf("%w: stored Audit engagement is invalid", ErrInvalid)
+		}
+	}
+
 	var result BaselineSnapshot
 	if err := strictjson.Decode(data, &result); err != nil || ValidateBaseline(result) != nil {
 		return BaselineSnapshot{}, fmt.Errorf("%w: stored Audit baseline is invalid", ErrInvalid)
@@ -72,6 +84,9 @@ func validateDraftSelection(value DraftSelection) error {
 }
 
 func ValidateBaseline(value BaselineSnapshot) error {
+	if err := validateEngagementBaseline(value); err != nil {
+		return err
+	}
 	if err := validateAuditLabels(value.Labels, value.RequiredPlacementLabels); err != nil {
 		return err
 	}
@@ -210,6 +225,7 @@ func mergeIDs(sets ...[]string) []string {
 
 func cloneBaseline(source BaselineSnapshot) BaselineSnapshot {
 	result := source
+	result.Engagement = cloneEngagement(source.Engagement)
 	result.Labels = source.Labels.Clone()
 	result.RequiredPlacementLabels = slices.Clone(source.RequiredPlacementLabels)
 	result.Inputs = contracts.CloneExactArtifacts(source.Inputs)

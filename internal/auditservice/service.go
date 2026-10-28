@@ -18,9 +18,13 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
+	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/jackc/pgx/v5"
 )
 
 func New(options Options) (*Service, error) {
@@ -139,6 +143,43 @@ func (s *Service) CreateDraft(
 	if err != nil {
 		return auditstore.Audit{}, false, err
 	}
+
+	// Engagement validation reads exact owner-scoped artifacts and credential
+	// metadata only. A draft never retains credentials or starts target work.
+	var engagement *engagementSelection
+	hasEngagement := false
+	for _, exact := range inputs {
+		hasEngagement = hasEngagement || exact.MediaType == pentestcontract.MediaType
+	}
+	if hasEngagement {
+		err = s.credentialGuard.WithRunCreation(ctx, func() error {
+			return persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
+				var readErr error
+				engagement, readErr = readEngagement(ctx, artifacts.NewService(artifacts.NewPostgresRepository(tx)), params.ProjectID, profile, DraftSelection{Inputs: inputs})
+				if readErr != nil {
+					return readErr
+				}
+				return validateEngagementCredentials(ctx, tx, credentials.RuntimeCredentialUser{UserID: params.OwnerID, Operations: params.OperationsPrincipal}, engagement)
+			})
+		})
+		if err != nil {
+			return auditstore.Audit{}, false, err
+		}
+	}
+	limits := auditstore.Limits{
+		MaxRounds: profile.Execution.MaxRounds, BatchSize: profile.Execution.BatchSize,
+		MaxItemsPerRound: profile.Execution.MaxItemsPerRound, MaxItemsTotal: profile.Execution.MaxItemsTotal,
+		MaxSubmittedRuns: profile.Execution.MaxSubmittedRuns, MaxItemRunAttempts: profile.Execution.MaxItemRunAttempts,
+		MaxEvidenceBytes: profile.Execution.MaxEvidenceBytes,
+	}
+	if engagement != nil {
+		limits.MaxRounds = min(limits.MaxRounds, int(engagement.document.Budgets.Rounds))
+		limits.MaxSubmittedRuns = min(limits.MaxSubmittedRuns, int(engagement.document.Budgets.SubmittedRuns))
+		limits.MaxItemsTotal = min(limits.MaxItemsTotal, limits.MaxSubmittedRuns*limits.BatchSize)
+		limits.MaxItemsPerRound = min(limits.MaxItemsPerRound, limits.MaxItemsTotal)
+		limits.BatchSize = min(limits.BatchSize, limits.MaxItemsPerRound)
+		limits.MaxEvidenceBytes = min(limits.MaxEvidenceBytes, int64(engagement.document.Budgets.EvidenceBytes))
+	}
 	profileSnapshot, err := json.Marshal(profile)
 	if err != nil {
 		return auditstore.Audit{}, false, fmt.Errorf("encode AuditProfile snapshot: %w", err)
@@ -158,14 +199,7 @@ func (s *Service) CreateDraft(
 			Name: profile.Ref.Name, Version: profile.Ref.Version, Digest: profile.Ref.Digest,
 		},
 		ProfileSnapshot: profileSnapshot, InputSelection: selection,
-		Limits: auditstore.Limits{
-			MaxRounds: profile.Execution.MaxRounds, BatchSize: profile.Execution.BatchSize,
-			MaxItemsPerRound:   profile.Execution.MaxItemsPerRound,
-			MaxItemsTotal:      profile.Execution.MaxItemsTotal,
-			MaxSubmittedRuns:   profile.Execution.MaxSubmittedRuns,
-			MaxItemRunAttempts: profile.Execution.MaxItemRunAttempts,
-			MaxEvidenceBytes:   profile.Execution.MaxEvidenceBytes,
-		},
+		Limits:         limits,
 		IdempotencyKey: params.IdempotencyKey, RequestDigest: params.RequestDigest,
 	})
 }

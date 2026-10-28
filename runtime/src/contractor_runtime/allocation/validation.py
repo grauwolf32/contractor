@@ -184,6 +184,17 @@ def validate_spec(
                 status_code=422,
             )
 
+    if spec.pentestEngagement is not None and (
+        required_infrastructure_channels - {"sandbox-execution"}
+        or sandbox_ref == "podman-network@1"
+    ):
+        raise AllocationError(
+            "unsupported_toolset",
+            "pentest metadata does not authorize target transport",
+            retryable=False,
+            status_code=422,
+        )
+
     if (
         "caido-graphql-client" in required_infrastructure_channels
         and spec.runtime_settings.caido is None

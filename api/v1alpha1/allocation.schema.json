@@ -540,6 +540,9 @@
         },
         "summarizerModelPolicy": {
           "$ref": "common.schema.json#/$defs/workerSummarizerConfig/properties/modelPolicy"
+        },
+        "pentestEngagement": {
+          "$ref": "pentest-allocation.schema.json"
         }
       },
       "required": [

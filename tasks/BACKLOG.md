@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-120 open tasks: 5 in progress, 104 pending, 11 deferred. 1183 finished: 1173 completed, 10 archived.
+119 open tasks: 5 in progress, 103 pending, 11 deferred. 1184 finished: 1174 completed, 10 archived.
 
 ## In progress
 
@@ -83,7 +83,7 @@ the epics are in [epics.yml](epics.yml).
 | [V397-008](v397-008-generic-sarif-renderer.yml) | feature | P2 | V397-007 | Render deterministic validated generic SARIF from frozen snapshots |
 | [V397-009](v397-009-sarif-export-api-ui.yml) | feature | P2 | V397-008 | Publish and download generic SARIF through API CLI and UI |
 | [V411-007](v411-007-trusted-http-capture.yml) | feature | P1 | V411-004, V411-005, V411-006 | Expose safe HTTP evidence only through authenticated capture receipts |
-| [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | V411-002 | Expose safe live Project findings to allocated pentesters |
+| [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | — | Expose safe live Project findings to allocated pentesters |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -125,11 +125,10 @@ the epics are in [epics.yml](epics.yml).
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Measure optional research ranking against deterministic baselines |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-014, V64-008, V64-009 | Project optional attack trees over exact research evidence |
 | [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-012, V411-015, V411-016, V411-020 | Connect optional hypothesis research to pentest proof and reports |
-| [V411-002](v411-002-engagement-baseline-preflight.yml) | feature | P1 | — | Validate and pin a typed pentest engagement at Audit start |
-| [V411-003](v411-003-action-journal-request-permits.yml) | feature | P1 | V411-002 | Fence and execute scoped HTTP preflight through the durable Audit action ledger |
-| [V411-006](v411-006-cumulative-budget-finalization.yml) | feature | P1 | V411-002, V411-003 | Enforce cumulative pentest budgets and finalize at the hard active-time cap |
+| [V411-003](v411-003-action-journal-request-permits.yml) | feature | P1 | — | Fence and execute scoped HTTP preflight through the durable Audit action ledger |
+| [V411-006](v411-006-cumulative-budget-finalization.yml) | feature | P1 | V411-003 | Enforce cumulative pentest budgets and finalize at the hard active-time cap |
 | [V411-008](v411-008-stateful-actions-cleanup.yml) | feature | P1 | V411-003, V411-004, V411-006, V411-007 | Serialize stateful target checks and retain unresolved cleanup effects |
-| [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V411-002 | Pin optional pentest programs and nonblocking finding review |
+| [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | — | Pin optional pentest programs and nonblocking finding review |
 | [V411-012](v411-012-pentest-admission-rounds.yml) | feature | P1 | V411-009, V411-010 | Admit typed pentest plans and derive exact later-round replay |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
 | [V414-020](v414-020-preparation-phase-one-rule.yml) | chore | P3 | — | Give the pre-Round preparation phase set one definition in Go and one in the UI |
@@ -140,7 +139,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
-| [V411-019](v411-019-pentest-target-fixtures-and-proof-scorers.yml) | chore | P1 | V411-002 | Build paired pentest fixtures and independent proof scorers |
+| [V411-019](v411-019-pentest-target-fixtures-and-proof-scorers.yml) | chore | P1 | — | Build paired pentest fixtures and independent proof scorers |
 | [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate pentest quality against a frozen repeated-sample baseline |
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | chore | P3 | — | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
 | [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | V417-001, V417-003 | Build frozen context-compaction evaluation fixtures and an opt-in harness |
@@ -150,7 +149,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V411-013](v411-013-pentest-sandbox-integration.yml) | feature | P1 | V411-002, V411-006 | Integrate bounded sandbox investigations and tool installation |
+| [V411-013](v411-013-pentest-sandbox-integration.yml) | feature | P1 | V411-006 | Integrate bounded sandbox investigations and tool installation |
 
 ### Web UI (`ui`)
 
@@ -193,7 +192,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | chore | P3 | — | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | chore | P3 | — | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
-| [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-002, V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
+| [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-003, V411-004, V411-005, V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
@@ -233,7 +232,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 8 | 17 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 36 | 33 | 8 | 50 |
-| Audits (`audits`) | 28 | 67 | 82 | 32 | 113 |
+| Audits (`audits`) | 27 | 67 | 82 | 32 | 113 |
 | Evaluations (`evals`) | 7 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 65 | 14 | 57 |

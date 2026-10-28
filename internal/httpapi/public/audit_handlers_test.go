@@ -561,6 +561,11 @@ func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 }
 
 type fakeAuditManagement struct {
+	preflight           auditservice.PreflightResult
+	preflightOwner      string
+	preflightAudit      string
+	preflightRevision   uint64
+	preflightCalls      int
 	events              auditservice.EventPage
 	eventParams         auditstore.EventListParams
 	ownerFindings       auditstore.OwnerFindingListParams
@@ -723,6 +728,25 @@ func (f *fakeAuditManagement) Start(
 ) (auditservice.StartedAudit, error) {
 	f.start = params
 	return f.started, f.err
+}
+
+func (f *fakeAuditManagement) Preflight(_ context.Context, params auditservice.PreflightParams) (auditservice.PreflightResult, error) {
+	ownerID, auditID, revision := params.OwnerID, params.AuditID, params.ExpectedRevision
+	f.preflightCalls++
+	f.preflightOwner, f.preflightAudit, f.preflightRevision = ownerID, auditID, revision
+	if f.err != nil {
+		return auditservice.PreflightResult{}, f.err
+	}
+	if f.audit.OwnerID != ownerID || f.audit.AuditID != auditID {
+		return auditservice.PreflightResult{}, auditstore.ErrNotFound
+	}
+	if f.audit.Revision != revision {
+		return auditservice.PreflightResult{}, auditstore.ErrPrecondition
+	}
+	if f.audit.State != auditstore.AuditDraft {
+		return auditservice.PreflightResult{}, auditstore.ErrConflict
+	}
+	return f.preflight, nil
 }
 
 func (f *fakeAuditManagement) Pause(

@@ -59,6 +59,7 @@ func TestTransactionConflictResponsesConformToOpenAPI(t *testing.T) {
 			},
 		)
 		requests := []*http.Request{
+			jsonContractRequest(http.MethodPost, "/v1/audits/audit-one/preflight", "", "If-Match", `"1"`),
 			newPublicContractRequest(http.MethodGet, "/v1/operations/settings/scheduler", nil),
 			newPublicContractRequest(http.MethodGet, "/v1/audit-standards", nil),
 			jsonContractRequest(http.MethodPost, "/v1/audits/audit-one/finding-proposal-imports",

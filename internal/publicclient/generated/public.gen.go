@@ -3910,6 +3910,17 @@ type AuditPinnedStandard struct {
 	Title     string                    `json:"title"`
 }
 
+// AuditPreflightResponse defines model for AuditPreflightResponse.
+type AuditPreflightResponse struct {
+	AuditId                ResourceId                 `json:"auditId"`
+	BaselineInputDigest    Digest                     `json:"baselineInputDigest"`
+	CompatibleCapabilities []string                   `json:"compatibleCapabilities"`
+	MissingCapabilities    []string                   `json:"missingCapabilities"`
+	Reasons                []AuditCompatibilityReason `json:"reasons"`
+	Revision               int                        `json:"revision"`
+	ServerCompatible       bool                       `json:"serverCompatible"`
+}
+
 // AuditPreparation defines model for AuditPreparation.
 type AuditPreparation struct {
 	Roles map[string]AuditPreparationRole `json:"roles"`
@@ -9099,6 +9110,17 @@ type PauseAuditParams struct {
 	// IdempotencyKey Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request.
 	IdempotencyKey IdempotencyKey  `json:"Idempotency-Key"`
 	IfMatch        RequiredIfMatch `json:"If-Match"`
+
+	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
+	Origin *OptionalOrigin `json:"Origin,omitempty"`
+
+	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
+	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
+// PreflightAuditParams defines parameters for PreflightAudit.
+type PreflightAuditParams struct {
+	IfMatch RequiredIfMatch `json:"If-Match"`
 
 	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
 	Origin *OptionalOrigin `json:"Origin,omitempty"`
@@ -15332,6 +15354,13 @@ type ClientInterface interface {
 	// Corresponds with POST /v1/audits/{auditId}/pause (the `PauseAudit` operationId).
 	PauseAudit(ctx context.Context, auditId AuditId, params *PauseAuditParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PreflightAudit Validate one exact Audit draft without contacting the target
+	//
+	// A bounded read of the authenticated owner's selected draft revision. Resolves exact input and credential metadata without target requests, DNS, login, secret material, authorization or durable holds. Start repeats validation; a successful preflight is not permission to execute.
+	//
+	// Corresponds with POST /v1/audits/{auditId}/preflight (the `PreflightAudit` operationId).
+	PreflightAudit(ctx context.Context, auditId AuditId, params *PreflightAuditParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAuditReport Read the exact proposed or accepted Audit report or its generation state
 	//
 	// Corresponds with GET /v1/audits/{auditId}/report (the `GetAuditReport` operationId).
@@ -16909,6 +16938,23 @@ func (c *Client) ListAuditItems(ctx context.Context, auditId AuditId, params *Li
 // Corresponds with POST /v1/audits/{auditId}/pause (the `PauseAudit` operationId).
 func (c *Client) PauseAudit(ctx context.Context, auditId AuditId, params *PauseAuditParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPauseAuditRequest(c.Server, auditId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PreflightAudit Validate one exact Audit draft without contacting the target
+//
+// A bounded read of the authenticated owner's selected draft revision. Resolves exact input and credential metadata without target requests, DNS, login, secret material, authorization or durable holds. Start repeats validation; a successful preflight is not permission to execute.
+//
+// Corresponds with POST /v1/audits/{auditId}/preflight (the `PreflightAudit` operationId).
+func (c *Client) PreflightAudit(ctx context.Context, auditId AuditId, params *PreflightAuditParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreflightAuditRequest(c.Server, auditId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -21803,6 +21849,75 @@ func NewPauseAuditRequest(server string, auditId AuditId, params *PauseAuditPara
 			}
 
 			req.Header.Set("X-CSRF-Token", headerParam3)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPreflightAuditRequest constructs an http.Request for the PreflightAudit method
+func NewPreflightAuditRequest(server string, auditId AuditId, params *PreflightAuditParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/preflight", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "If-Match", params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, err
+		}
+
+		req.Header.Set("If-Match", headerParam0)
+
+		if params.Origin != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "Origin", *params.Origin, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uri"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Origin", headerParam1)
+		}
+
+		if params.XCSRFToken != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam2)
 		}
 
 	}
@@ -30862,6 +30977,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /v1/audits/{auditId}/pause (the `PauseAudit` operationId).
 	PauseAuditWithResponse(ctx context.Context, auditId AuditId, params *PauseAuditParams, reqEditors ...RequestEditorFn) (*PauseAuditResponse, error)
 
+	// PreflightAuditWithResponse Validate one exact Audit draft without contacting the target
+	//
+	// A bounded read of the authenticated owner's selected draft revision. Resolves exact input and credential metadata without target requests, DNS, login, secret material, authorization or durable holds. Start repeats validation; a successful preflight is not permission to execute.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/audits/{auditId}/preflight (the `PreflightAudit` operationId).
+	PreflightAuditWithResponse(ctx context.Context, auditId AuditId, params *PreflightAuditParams, reqEditors ...RequestEditorFn) (*PreflightAuditResponse, error)
+
 	// GetAuditReportWithResponse Read the exact proposed or accepted Audit report or its generation state
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -36049,6 +36173,198 @@ func (r PauseAuditResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r PauseAuditResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// PreflightAuditResponse200Headers the declared response headers of an HTTP 200 response for PreflightAudit
+type PreflightAuditResponse200Headers struct {
+	CacheControl string
+	ETag         string
+	XRequestID   RequestId
+}
+
+// PreflightAuditResponse400Headers the declared response headers of an HTTP 400 response for PreflightAudit
+type PreflightAuditResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// PreflightAuditResponse401Headers the declared response headers of an HTTP 401 response for PreflightAudit
+type PreflightAuditResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// PreflightAuditResponse403Headers the declared response headers of an HTTP 403 response for PreflightAudit
+type PreflightAuditResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// PreflightAuditResponse404Headers the declared response headers of an HTTP 404 response for PreflightAudit
+type PreflightAuditResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// PreflightAuditResponse409Headers the declared response headers of an HTTP 409 response for PreflightAudit
+type PreflightAuditResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// PreflightAuditResponse412Headers the declared response headers of an HTTP 412 response for PreflightAudit
+type PreflightAuditResponse412Headers struct {
+	XRequestID RequestId
+}
+
+// PreflightAuditResponse413Headers the declared response headers of an HTTP 413 response for PreflightAudit
+type PreflightAuditResponse413Headers struct {
+	XRequestID RequestId
+}
+
+// PreflightAuditResponse422Headers the declared response headers of an HTTP 422 response for PreflightAudit
+type PreflightAuditResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// PreflightAuditResponse500Headers the declared response headers of an HTTP 500 response for PreflightAudit
+type PreflightAuditResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// PreflightAuditResponse503Headers the declared response headers of an HTTP 503 response for PreflightAudit
+type PreflightAuditResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type PreflightAuditResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AuditPreflightResponse
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON412 the response for an HTTP 412 `application/json` response
+	JSON412 *PreconditionFailed
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *PayloadTooLarge
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *AuditStartUnprocessable
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *StorageTransactionConflict
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *PreflightAuditResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *PreflightAuditResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *PreflightAuditResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *PreflightAuditResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *PreflightAuditResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *PreflightAuditResponse409Headers
+	// Headers412 the parsed response headers for an HTTP 412 response
+	Headers412 *PreflightAuditResponse412Headers
+	// Headers413 the parsed response headers for an HTTP 413 response
+	Headers413 *PreflightAuditResponse413Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *PreflightAuditResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *PreflightAuditResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *PreflightAuditResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PreflightAuditResponse) GetJSON200() *AuditPreflightResponse {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PreflightAuditResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PreflightAuditResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PreflightAuditResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PreflightAuditResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PreflightAuditResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON412 returns the response for an HTTP 412 `application/json` response
+func (r PreflightAuditResponse) GetJSON412() *PreconditionFailed {
+	return r.JSON412
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r PreflightAuditResponse) GetJSON413() *PayloadTooLarge {
+	return r.JSON413
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PreflightAuditResponse) GetJSON422() *AuditStartUnprocessable {
+	return r.JSON422
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r PreflightAuditResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PreflightAuditResponse) GetJSON503() *StorageTransactionConflict {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r PreflightAuditResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PreflightAuditResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PreflightAuditResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PreflightAuditResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -54632,6 +54948,21 @@ func (c *ClientWithResponses) PauseAuditWithResponse(ctx context.Context, auditI
 	return ParsePauseAuditResponse(rsp)
 }
 
+// PreflightAuditWithResponse Validate one exact Audit draft without contacting the target
+//
+// A bounded read of the authenticated owner's selected draft revision. Resolves exact input and credential metadata without target requests, DNS, login, secret material, authorization or durable holds. Start repeats validation; a successful preflight is not permission to execute.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/audits/{auditId}/preflight (the `PreflightAudit` operationId).
+func (c *ClientWithResponses) PreflightAuditWithResponse(ctx context.Context, auditId AuditId, params *PreflightAuditParams, reqEditors ...RequestEditorFn) (*PreflightAuditResponse, error) {
+	rsp, err := c.PreflightAudit(ctx, auditId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePreflightAuditResponse(rsp)
+}
+
 // GetAuditReportWithResponse Read the exact proposed or accepted Audit report or its generation state
 //
 // Returns a wrapper object for the known response body format(s).
@@ -61644,6 +61975,243 @@ func ParsePauseAuditResponse(rsp *http.Response) (*PauseAuditResponse, error) {
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers PauseAuditResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParsePreflightAuditResponse parses an HTTP response from a PreflightAuditWithResponse call
+func ParsePreflightAuditResponse(rsp *http.Response) (*PreflightAuditResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PreflightAuditResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AuditPreflightResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest PreconditionFailed
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest AuditStartUnprocessable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest StorageTransactionConflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers PreflightAuditResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers PreflightAuditResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers PreflightAuditResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers PreflightAuditResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers PreflightAuditResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers PreflightAuditResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 412:
+		var headers PreflightAuditResponse412Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers412 = &headers
+	case rsp.StatusCode == 413:
+		var headers PreflightAuditResponse413Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers413 = &headers
+	case rsp.StatusCode == 422:
+		var headers PreflightAuditResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers PreflightAuditResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers PreflightAuditResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
