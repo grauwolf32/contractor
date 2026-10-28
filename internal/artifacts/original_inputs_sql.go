@@ -1,10 +1,10 @@
-package projectsitemap
+package artifacts
 
-// snapshotInputRevisionsSQL resolves the selected original Run input forks,
-// not their Worker-editable current bindings. The snapshot admits at most eight
-// names; each indexed lateral lookup returns at most two rows so inconsistent
-// authority is detected without scanning the containing artifact collection.
-var snapshotInputRevisionsSQL = `
+// originalInputRevisionsSQL resolves at most MaxExactReadBatchSize selected
+// original Run input forks, independently of the containing artifact count.
+// Each indexed lateral lookup returns at most two rows so ambiguous original
+// lineage is rejected. Used by PostgresRepository.DescribeOriginalInputs.
+var originalInputRevisionsSQL = `
 SELECT selected.name, original.target_revision
 FROM unnest($2::text[]) WITH ORDINALITY AS selected(name, ordinal)
 CROSS JOIN LATERAL (
