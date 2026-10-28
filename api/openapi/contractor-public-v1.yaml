@@ -4024,6 +4024,43 @@ paths:
         '500': {$ref: '#/components/responses/InternalError'}
         '503': {$ref: '#/components/responses/StorageTransactionConflict'}
 
+  /v1/audits/{auditId}/preflight:
+    parameters:
+      - $ref: '#/components/parameters/AuditId'
+    post:
+      operationId: preflightAudit
+      tags: [Audits]
+      summary: Validate one exact Audit draft without contacting the target
+      description: >-
+        A bounded read of the authenticated owner's selected draft revision.
+        Resolves exact input and credential metadata without target requests,
+        DNS, login, secret material, authorization or durable holds. Start repeats
+        validation; a successful preflight is not permission to execute.
+      parameters:
+        - $ref: '#/components/parameters/RequiredIfMatch'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      responses:
+        '200':
+          description: Exact draft input digest and non-executing compatibility result
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            ETag: {$ref: '#/components/headers/ETag'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AuditPreflightResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '412': {$ref: '#/components/responses/PreconditionFailed'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '422': {$ref: '#/components/responses/AuditStartUnprocessable'}
+        '503': {$ref: '#/components/responses/StorageTransactionConflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/audits/{auditId}/start:
     parameters:
       - $ref: '#/components/parameters/AuditId'
@@ -13284,6 +13321,9 @@ components:
         - manual_applicability_unsupported
         - report_acceptance_unsupported
         - manual_item_unsupported
+        - pentest_capability_unsupported
+        - pentest_source_closure_unsupported
+        - pentest_active_checks_unsupported
     AuditProfile:
       type: object
       additionalProperties: false
@@ -13316,7 +13356,7 @@ components:
         requiresInputValidation: {type: boolean}
         compatibilityReasons:
           type: array
-          maxItems: 11
+          maxItems: 15
           uniqueItems: true
           items: {$ref: '#/components/schemas/AuditCompatibilityReason'}
     AuditProfilePage:
@@ -13897,6 +13937,30 @@ components:
           maximum: 31536000
           description: Time allowed from start or resume, in seconds. Zero disables the Audit deadline. Omit at start to use the profile; omit at resume to retain paused time remaining, or renew the profile allowance after expiry. Pauses do not consume this allowance.
 
+    AuditPreflightResponse:
+      type: object
+      additionalProperties: false
+      required: [auditId, revision, baselineInputDigest, compatibleCapabilities, missingCapabilities, reasons, serverCompatible]
+      properties:
+        auditId: {$ref: '#/components/schemas/ResourceId'}
+        revision: {type: integer, minimum: 1, maximum: 18446744073709551615}
+        baselineInputDigest: {$ref: '#/components/schemas/Digest'}
+        serverCompatible: {type: boolean}
+        compatibleCapabilities:
+          type: array
+          maxItems: 256
+          uniqueItems: true
+          items: {type: string, minLength: 1, maxLength: 256}
+        missingCapabilities:
+          type: array
+          maxItems: 256
+          uniqueItems: true
+          items: {type: string, minLength: 1, maxLength: 256}
+        reasons:
+          type: array
+          maxItems: 15
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/AuditCompatibilityReason'}
     AuditStartResponse:
       type: object
       additionalProperties: false
@@ -14691,7 +14755,7 @@ components:
         reasons:
           type: array
           minItems: 1
-          maxItems: 11
+          maxItems: 15
           uniqueItems: true
           items: {$ref: '#/components/schemas/AuditCompatibilityReason'}
     RuntimeLabelInUseDetails:

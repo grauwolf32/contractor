@@ -379,6 +379,29 @@ func RequiredRuntimeAdaptersForTemplate(
 	return result, nil
 }
 
+// TemplateRequiresNetwork conservatively identifies selections that can execute
+// externally addressed work. A local offline sandbox remains scratch-only; a
+// subprocess launcher is not assumed to enforce target scope.
+func TemplateRequiresNetwork(template contracts.ResolvedAgentTemplate) bool {
+	if template.SandboxProfile.SandboxProfileID == "podman-network" {
+		return true
+	}
+	for _, selection := range template.Toolsets {
+		descriptor, ok := registeredDescriptors().Toolsets[selection.Ref.ToolsetID+"@"+selection.Ref.Version]
+		if !ok {
+			return true
+		}
+		for _, tool := range selection.Tools {
+			for _, channel := range descriptor.InfrastructureChannels[tool] {
+				if channel != channelSandboxExecution || template.SandboxProfile.SandboxProfileID == "podman-network" {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func normalizeDescriptors(input descriptorTable) (descriptorTable, error) {
 	result := descriptorTable{
 		PlannerFactories: make(map[string]plannerDescriptor, len(input.PlannerFactories)),

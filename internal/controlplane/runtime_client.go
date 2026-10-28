@@ -18,6 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
+	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -50,6 +51,10 @@ func (e *RuntimeAPIError) Error() string {
 // (CTL-R164): Release closes the released principal's connections and Close
 // ends them all when the Server stops.
 type RuntimeControlClient struct {
+	engagementResolver func(context.Context, string, string) (*pentestcontract.AllocationProjection, error)
+	grantReader        interface {
+		GetGrant(string) (AllocationGrant, error)
+	}
 	client       *http.Client
 	transports   *mtls.RuntimeAgentTransports
 	timeout      time.Duration
@@ -71,6 +76,16 @@ func NewMTLSRuntimeControlClient(files mtls.Files, timeout time.Duration) (*Runt
 	return &RuntimeControlClient{
 		transports: transports, timeout: timeout, requireHTTPS: true,
 	}, nil
+}
+
+// WithEngagementResolver binds the Audit-owned projection port at composition.
+// The resolver performs I/O without holding the Registry mutex; the grant is
+// checked again afterwards, immediately before the private prepare request.
+func (c *RuntimeControlClient) WithEngagementResolver(resolve func(context.Context, string, string) (*pentestcontract.AllocationProjection, error), grants interface {
+	GetGrant(string) (AllocationGrant, error)
+}) *RuntimeControlClient {
+	c.engagementResolver, c.grantReader = resolve, grants
+	return c
 }
 
 // Close ends every Runtime Agent connection the client owns. The Server calls
@@ -110,6 +125,30 @@ func (c *RuntimeControlClient) Prepare(
 		ResolvedRuntimeConfigProvenance: settings.ResolvedRuntimeConfigProvenance,
 		Workspace:                       contracts.CloneAllocationWorkspaceSpec(reservation.Workspace),
 		PerformanceMetrics:              clonePerformanceMetricsRequest(reservation.PerformanceMetrics),
+	}
+	if c.engagementResolver != nil {
+		projection, err := c.engagementResolver(ctx, reservation.Grant.RunID, reservation.Grant.StageExecutionID)
+		if err != nil {
+			return contracts.WorkerHandle{}, err
+		}
+		spec.PentestEngagement = projection
+		if projection != nil && resolved.TemplateRequiresNetwork(spec.AgentTemplate) {
+			return contracts.WorkerHandle{}, fmt.Errorf("%w: pentest metadata does not authorize target transport", ErrInvalidRequest)
+		}
+		if c.grantReader == nil {
+			return contracts.WorkerHandle{}, fmt.Errorf("%w: allocation grant reader is unavailable", ErrInvalidRequest)
+		}
+		current, err := c.grantReader.GetGrant(reservation.Grant.AllocationID)
+		if err != nil {
+			return contracts.WorkerHandle{}, err
+		}
+		expected := reservation.Grant
+		if current.WriteFenced || current.Lost || current.AllocationID != expected.AllocationID || current.RunID != expected.RunID || current.StageExecutionID != expected.StageExecutionID || current.RuntimeAgentID != expected.RuntimeAgentID || current.RuntimeInstanceID != expected.RuntimeInstanceID || current.Namespace != expected.Namespace || current.LogicalAgentName != expected.LogicalAgentName {
+			return contracts.WorkerHandle{}, fmt.Errorf("%w: allocation authority changed during projection", ErrInvalidRequest)
+		}
+		if err := ctx.Err(); err != nil {
+			return contracts.WorkerHandle{}, err
+		}
 	}
 	request := control.PrepareAllocationRequest{APIVersion: contracts.APIVersion, Spec: spec}
 	if err := request.Validate(); err != nil {

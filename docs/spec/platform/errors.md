@@ -460,6 +460,9 @@ Assembled from every document.
 | `audit_scan_task_unavailable` | — | cause-based for Audit; no for ordinary scans | The exact assigned task package could not be read. | [SCN-R258](../tools/scanners.md) |
 | `automatic_active_checks_unsupported` | — | no | Reason code of audit_profile_unsupported for a profile prohibition conflicting with selected active tools. | [AUD-R89](../audits/audits.md) |
 | `project_active_checks_prohibited` | — | no | Reason code of audit_profile_unsupported for active tools prohibited by Project settings. | [AUD-R89](../audits/audits.md) |
+| `pentest_capability_unsupported` | — | no | Engagement requires a Server capability that is not implemented; metadata support never implies target execution. | [AUD-R246](../audits/audits.md) |
+| `pentest_source_closure_unsupported` | — | no | Blackbox closure would expose source or has unclassified source provenance. | [AUD-R246](../audits/audits.md) |
+| `pentest_active_checks_unsupported` | — | no | Effective Project/profile active-check policy is incompatible with the engagement. | [AUD-R246](../audits/audits.md) |
 | `batching_unsupported` | — | not specified | Reserved reason value of audit_profile_unsupported kept for compatible clients; the Server does not produce it. | [AUD-R91](../audits/audits.md) |
 | `binary_file_unsupported` | — | not specified | Binary file unsupported by the workspace tools | [ERR-R10](errors.md), [WSP-R54](../tools/workspace.md) |
 | `caido_not_configured` | — | not specified | Caido not configured | [ERR-R13](errors.md), [HTP-R114](../tools/http-caido.md) |

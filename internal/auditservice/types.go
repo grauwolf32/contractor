@@ -94,7 +94,8 @@ type ProfileProjection struct {
 }
 
 type CreateDraftParams struct {
-	Labels runlabels.RunMetadataLabels
+	OperationsPrincipal bool
+	Labels              runlabels.RunMetadataLabels
 	// PinnedProfile is trusted server-side Eval preparation, never a public field.
 	PinnedProfile         *auditprofile.ResolvedAuditProfile
 	ExpectedProfileSHA256 string

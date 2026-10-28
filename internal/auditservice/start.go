@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentskills"
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -21,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -198,6 +200,14 @@ func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams)
 	if err != nil {
 		return startPlan{}, err
 	}
+	engagement, err := readEngagement(ctx, artifactService, audit.ProjectID, profile, selection)
+	if err != nil {
+		return startPlan{}, err
+	}
+	_, _, engagementReasons := engagementCompatibility(profile, policy, engagement)
+	if len(engagementReasons) > 0 {
+		return startPlan{}, unsupported(engagementReasons)
+	}
 	plan := startPlan{
 		revision: audit.Revision, profile: profile, selection: selection, standards: pinnedStandards,
 		projectPolicy: project.ActiveChecks, activeChecks: policy,
@@ -293,7 +303,22 @@ func (s *Service) startInTransaction(
 	if err := contentdigest.CheckPinnedSelection(params.ExpectedRuntimeSHA256, runtimeSnapshot); err != nil {
 		return StartedAudit{}, err
 	}
+	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
+	engagement, err := readEngagement(ctx, artifactService, audit.ProjectID, profile, selection)
+	if err != nil {
+		return StartedAudit{}, err
+	}
+	if err := validateEngagementCredentials(ctx, tx, credentials.RuntimeCredentialUser{UserID: params.OwnerID, Operations: params.OperationsPrincipal}, engagement); err != nil {
+		return StartedAudit{}, err
+	}
+	_, _, engagementReasons := engagementCompatibility(profile, plan.activeChecks, engagement)
+	if len(engagementReasons) > 0 {
+		return StartedAudit{}, unsupported(engagementReasons)
+	}
 	projectTarget := project.HTTPTarget.Clone()
+	if engagement != nil {
+		projectTarget = nil
+	}
 	projectRuntimeCredentialIDs := []string{}
 	if projectTarget != nil && projectTarget.Credential != nil {
 		if err := runtimeCredentials.ValidateRuntimeCredentialUse(
@@ -305,7 +330,6 @@ func (s *Service) startInTransaction(
 		projectRuntimeCredentialIDs = append(projectRuntimeCredentialIDs, projectTarget.Credential.CredentialID)
 	}
 
-	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
 	standardLinks, err := auditStandardLinks(plan.standards)
 	if err != nil {
 		return StartedAudit{}, err
@@ -344,9 +368,21 @@ func (s *Service) startInTransaction(
 		ProjectHTTPTarget:    projectTarget,
 		Standards:            append([]auditstandards.PinnedPackage{}, plan.standards...),
 	}
+	if engagement != nil {
+		policyDigest, err := engagement.document.Policy.Digest()
+		if err != nil {
+			return StartedAudit{}, err
+		}
+		baseline.Engagement = &auditbaseline.EngagementSnapshot{Schema: auditbaseline.EngagementSchema, Artifact: engagement.artifact, Document: engagement.document, PolicyDigest: policyDigest, AuthorizedBy: params.OwnerID, AuthorizedAt: s.now().UTC()}
+		baseline.RuntimeCredentialIDs = mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, engagement.credentialIDs)
+		standardLinks = append(standardLinks, engagement.inputs...)
+	}
 	deadlineSeconds := profile.Execution.DeadlineSeconds
 	if params.DeadlineSeconds != nil {
 		deadlineSeconds = *params.DeadlineSeconds
+	}
+	if engagement != nil && (deadlineSeconds == 0 || deadlineSeconds > int(engagement.document.Budgets.ActiveSeconds)) {
+		deadlineSeconds = int(engagement.document.Budgets.ActiveSeconds)
 	}
 	var deadline time.Time
 	if deadlineSeconds > 0 {
@@ -569,6 +605,28 @@ func readAndVerifyInputs(
 	if err != nil {
 		return nil, err
 	}
+	names, err := verifyInputMetadata(ctx, store, profile, selection)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string]artifacts.ReadResult, len(names))
+	for _, name := range names {
+		selected := selection.Inputs[name]
+		read, err := store.ReadExact(ctx, selected)
+		if errors.Is(err, contracts.ErrExactArtifactMismatch) {
+			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation: %v", ErrInvalid, err)
+		}
+		if err != nil {
+			return nil, err
+		}
+		result[name] = read
+	}
+	return result, nil
+}
+
+// verifyInputMetadata shares bounded, payload-free admission between preflight
+// and start. Exact immutable revisions are checked before any payload read.
+func verifyInputMetadata(ctx context.Context, store artifacts.ScopedStore, profile auditprofile.ResolvedAuditProfile, selection DraftSelection) ([]string, error) {
 	names := make([]string, 0, len(selection.Inputs))
 	for name, selected := range selection.Inputs {
 		contract, exists := profile.Inputs[name]
@@ -600,6 +658,9 @@ func readAndVerifyInputs(
 	rulepacks := auditRulepackInputs(profile)
 	for index, name := range names {
 		metadata := described[index]
+		if metadata.MediaType == pentestcontract.MediaType && metadata.SizeBytes > pentestcontract.MaxDocumentBytes {
+			return nil, fmt.Errorf("%w: engagement exceeds its byte limit", ErrInvalid)
+		}
 		if err := selection.Inputs[name].Verify(metadata); err != nil {
 			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation: %v", ErrInvalid, err)
 		}
@@ -609,19 +670,7 @@ func readAndVerifyInputs(
 			}
 		}
 	}
-	result := make(map[string]artifacts.ReadResult, len(names))
-	for _, name := range names {
-		selected := selection.Inputs[name]
-		read, err := store.ReadExact(ctx, selected)
-		if errors.Is(err, contracts.ErrExactArtifactMismatch) {
-			return nil, fmt.Errorf("%w: exact Audit input failed integrity validation: %v", ErrInvalid, err)
-		}
-		if err != nil {
-			return nil, err
-		}
-		result[name] = read
-	}
-	return result, nil
+	return names, nil
 }
 
 func buildInventory(

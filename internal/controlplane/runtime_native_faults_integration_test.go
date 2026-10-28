@@ -159,7 +159,7 @@ type nativeHarness struct {
 	toolsets    int
 }
 
-func startNativeHarness(t *testing.T, mode string) *nativeHarness {
+func startNativeHarness(t *testing.T, mode string, configure ...func(*nativeHarness)) *nativeHarness {
 	t.Helper()
 	repository, err := filepath.Abs("../..")
 	if err != nil {
@@ -255,6 +255,9 @@ func startNativeHarness(t *testing.T, mode string) *nativeHarness {
 	settings := runtimesettings.WorkerExecutionSettings{ModelPolicy: template.ModelPolicy, RuntimeSettings: testRuntimeSettings(), ResolvedRuntimeConfigProvenance: testRuntimeProvenance()}
 	settings.RuntimeSettings.LLMGatewayURL = server.URL + "/v1"
 	h := &nativeHarness{t: t, ctx: ctx, client: client, invoker: invoker, reservation: reservation, directory: directory, gateway: gateway, settings: settings, exited: exited, output: output, toolsets: 1}
+	for _, option := range configure {
+		option(h)
+	}
 	h.wait("fault_harness_ready")
 	if mode == "native_failed_prepare_rollback" {
 		// Observe listener readiness without consuming the one failing Prepare.

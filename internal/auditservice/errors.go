@@ -19,6 +19,9 @@ var (
 type CompatibilityReason string
 
 const (
+	ReasonPentestCapabilityUnsupported     CompatibilityReason = "pentest_capability_unsupported"
+	ReasonPentestSourceClosureUnsupported  CompatibilityReason = "pentest_source_closure_unsupported"
+	ReasonPentestActiveChecksUnsupported   CompatibilityReason = "pentest_active_checks_unsupported"
 	ReasonPreparationUnsupported           CompatibilityReason = "preparation_unsupported"
 	ReasonDiscoveryUnsupported             CompatibilityReason = "discovery_unsupported"
 	ReasonAssessmentUnsupported            CompatibilityReason = "assessment_unsupported"

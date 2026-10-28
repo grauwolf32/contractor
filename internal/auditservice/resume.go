@@ -101,6 +101,25 @@ func (s *Service) resumeInTransaction(ctx context.Context, tx pgx.Tx, params Mut
 }
 
 func resumeDeadline(audit auditstore.Audit, seconds *int, now time.Time) (*time.Time, error) {
+	baseline, err := DecodeBaseline(audit.BaselineSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	deadline, err := requestedResumeDeadline(audit, seconds, now)
+	if err != nil || baseline.Engagement == nil {
+		return deadline, err
+	}
+	// Match start's tighter-bound rule: even an unlimited request cannot
+	// remove the engagement's finite admission allowance. This caps each
+	// continuation; it does not implement cumulative target-time accounting.
+	maximum := now.Add(time.Duration(baseline.Engagement.Document.Budgets.ActiveSeconds) * time.Second)
+	if deadline == nil || deadline.After(maximum) {
+		deadline = &maximum
+	}
+	return deadline, nil
+}
+
+func requestedResumeDeadline(audit auditstore.Audit, seconds *int, now time.Time) (*time.Time, error) {
 	if seconds != nil {
 		if *seconds == 0 {
 			return nil, nil

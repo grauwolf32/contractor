@@ -32,6 +32,7 @@ type AuditManagement interface {
 	Standards(context.Context, string) ([]auditstandards.PackageProjection, error)
 	Standard(context.Context, string, auditstandards.Reference) (auditstandards.PackageProjection, error)
 	CreateDraft(context.Context, auditservice.CreateDraftParams) (auditstore.Audit, bool, error)
+	Preflight(context.Context, auditservice.PreflightParams) (auditservice.PreflightResult, error)
 	Start(context.Context, auditservice.StartParams) (auditservice.StartedAudit, error)
 	Pause(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)
 	Resume(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)
@@ -165,8 +166,9 @@ func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) {
 	audit, created, err := h.Audits.CreateDraft(r.Context(), auditservice.CreateDraftParams{
 		Labels:  runlabels.RunMetadataLabels(request.Labels).Clone(),
 		AuditID: auditID, OwnerID: principalUserID(r.Context()), ProjectID: projectID,
-		Profile: auditservice.ProfileSelector{Name: request.Profile.Name, Version: request.Profile.Version},
-		Inputs:  request.Inputs, RuntimeLabels: labels, Scope: request.Scope,
+		OperationsPrincipal: runtimeCredentialUser(r.Context()).Operations,
+		Profile:             auditservice.ProfileSelector{Name: request.Profile.Name, Version: request.Profile.Version},
+		Inputs:              request.Inputs, RuntimeLabels: labels, Scope: request.Scope,
 		IdempotencyKey: key, RequestDigest: digest,
 	})
 	if err != nil {
