@@ -12,7 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/pentest"
+	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -46,9 +46,9 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string)
 		if err != nil {
 			t.Fatal(err)
 		}
-		document.Inputs = append(document.Inputs, pentest.Input{ID: "source", Role: "source", Artifact: source.Ref, ContentDigest: metadata.Digest})
+		document.Inputs = append(document.Inputs, pentestcontract.Input{ID: "source", Role: "source", Artifact: source.Ref, ContentDigest: metadata.Digest})
 		f.credential(t, "allocated-account", f.project.OwnerID)
-		document.Identities = append(document.Identities, pentest.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "allocated-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+		document.Identities = append(document.Identities, pentestcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "allocated-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	}
 	draft, err := f.create(t, "allocation-engagement", document)
 	if err != nil {
@@ -120,12 +120,12 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string)
 	if first.EngagementDigest != pin.Artifact.Digest || first.PolicyDigest != pin.PolicyDigest || first.AuthorizedBy != f.project.OwnerID || !first.AuthorizedAt.Equal(pin.AuthorizedAt) || first.Budgets != document.Budgets || !first.Engagement.SameExact(pin.Artifact.Ref) || len(first.Routes)+len(first.Exclusions)+len(first.Identities)+len(first.Inputs) != 0 {
 		t.Fatalf("private projection drifted or exposed unassigned authority: %+v", first)
 	}
-	document.Target.Deployment = &pentest.Deployment{Marker: "new mutable document"}
+	document.Target.Deployment = &pentestcontract.Deployment{Marker: "new mutable document"}
 	replacement, err := json.Marshal(document)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: pin.Artifact.Ref.Namespace, Name: pin.Artifact.Ref.Name}, artifacts.Payload{MediaType: pentest.MediaType, Data: replacement}, pin.Artifact.Ref.Revision); err != nil {
+	if _, err = f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: pin.Artifact.Ref.Namespace, Name: pin.Artifact.Ref.Name}, artifacts.Payload{MediaType: pentestcontract.MediaType, Data: replacement}, pin.Artifact.Ref.Revision); err != nil {
 		t.Fatal(err)
 	}
 	prohibited := contracts.ActiveChecksProhibited

@@ -18,7 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
-	"github.com/grauwolf32/contractor/internal/contracts/pentest"
+	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -51,7 +51,7 @@ func (e *RuntimeAPIError) Error() string {
 // (CTL-R164): Release closes the released principal's connections and Close
 // ends them all when the Server stops.
 type RuntimeControlClient struct {
-	engagementResolver func(context.Context, string, string) (*pentest.AllocationProjection, error)
+	engagementResolver func(context.Context, string, string) (*pentestcontract.AllocationProjection, error)
 	grantReader        interface {
 		GetGrant(string) (AllocationGrant, error)
 	}
@@ -81,7 +81,7 @@ func NewMTLSRuntimeControlClient(files mtls.Files, timeout time.Duration) (*Runt
 // WithEngagementResolver binds the Audit-owned projection port at composition.
 // The resolver performs I/O without holding the Registry mutex; the grant is
 // checked again afterwards, immediately before the private prepare request.
-func (c *RuntimeControlClient) WithEngagementResolver(resolve func(context.Context, string, string) (*pentest.AllocationProjection, error), grants interface {
+func (c *RuntimeControlClient) WithEngagementResolver(resolve func(context.Context, string, string) (*pentestcontract.AllocationProjection, error), grants interface {
 	GetGrant(string) (AllocationGrant, error)
 }) *RuntimeControlClient {
 	c.engagementResolver, c.grantReader = resolve, grants

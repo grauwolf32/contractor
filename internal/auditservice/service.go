@@ -18,7 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/pentest"
+	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -149,7 +149,7 @@ func (s *Service) CreateDraft(
 	var engagement *engagementSelection
 	hasEngagement := false
 	for _, exact := range inputs {
-		hasEngagement = hasEngagement || exact.MediaType == pentest.MediaType
+		hasEngagement = hasEngagement || exact.MediaType == pentestcontract.MediaType
 	}
 	if hasEngagement {
 		err = s.credentialGuard.WithRunCreation(ctx, func() error {

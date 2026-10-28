@@ -594,6 +594,10 @@ const REASON_WORDS: Readonly<Record<CompatibilityReason, string>> = {
   manual_applicability_unsupported: "manual applicability decisions",
   report_acceptance_unsupported: "report acceptance",
   manual_item_unsupported: "manual items",
+  pentest_capability_unsupported: "the required live-testing tools",
+  pentest_source_closure_unsupported: "checking without source-code access",
+  pentest_active_checks_unsupported:
+    "automatic live tests under these settings",
 };
 
 /** A Server compatibility reason in words. */

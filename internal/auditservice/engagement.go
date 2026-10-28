@@ -18,7 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/pentest"
+	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -49,7 +49,7 @@ type PreflightResult struct {
 
 type engagementSelection struct {
 	artifact           auditstore.ExactArtifact
-	document           pentest.Document
+	document           pentestcontract.Document
 	inputs             []auditstore.ArtifactLink
 	credentialIDs      []string
 	unclassifiedInputs bool
@@ -135,11 +135,11 @@ func (s *Service) Preflight(ctx context.Context, params PreflightParams) (Prefli
 func readEngagement(ctx context.Context, service *artifacts.Service, projectID string, profile auditprofile.ResolvedAuditProfile, selection DraftSelection) (*engagementSelection, error) {
 	var selected *engagementSelection
 	for name, exact := range selection.Inputs {
-		if exact.MediaType != pentest.MediaType {
+		if exact.MediaType != pentestcontract.MediaType {
 			continue
 		}
 		slot, ok := profile.Inputs[name]
-		if !ok || !slices.Contains(slot.MediaTypes, pentest.MediaType) || len(slot.MediaTypes) != 1 || selected != nil {
+		if !ok || !slices.Contains(slot.MediaTypes, pentestcontract.MediaType) || len(slot.MediaTypes) != 1 || selected != nil {
 			return nil, fmt.Errorf("%w: engagement needs exactly one explicit typed input slot", ErrInvalid)
 		}
 		selected = &engagementSelection{artifact: exact, inputs: []auditstore.ArtifactLink{}, credentialIDs: []string{}}
@@ -153,14 +153,14 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 	}
 	// Check metadata before loading bytes; an oversized engagement is rejected
 	// even when selected by an earlier draft.
-	if selected.artifact.SizeBytes > pentest.MaxDocumentBytes {
+	if selected.artifact.SizeBytes > pentestcontract.MaxDocumentBytes {
 		return nil, fmt.Errorf("%w: engagement exceeds its byte limit", ErrInvalid)
 	}
 	read, err := store.ReadExact(ctx, selected.artifact)
 	if err != nil {
 		return nil, err
 	}
-	document, err := pentest.Decode(read.Payload.Data)
+	document, err := pentestcontract.Decode(read.Payload.Data)
 	if err != nil {
 		return nil, fmt.Errorf("%w: pentest engagement failed validation", ErrInvalid)
 	}
@@ -169,7 +169,7 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 		return nil, fmt.Errorf("%w: engagement inputs exceed Audit input limit", ErrInvalid)
 	}
 	for _, exact := range selection.Inputs {
-		if exact.MediaType == pentest.MediaType {
+		if exact.MediaType == pentestcontract.MediaType {
 			continue
 		}
 		classified := false
@@ -251,7 +251,7 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 	for _, capability := range append(slices.Clone(selected.document.Policy.RequiredCapabilities), selected.document.Policy.OptionalCapabilities...) {
 		// This task supplies the metadata contract only. Future target adapters and
 		// program-availability policies must register support with their consumers.
-		if capability == pentest.Capability {
+		if capability == pentestcontract.Capability {
 			compatible = append(compatible, capability)
 		} else {
 			missing = append(missing, capability)
@@ -331,12 +331,12 @@ func validateEngagementBaseline(baseline BaselineSnapshot) error {
 	}
 	matched := false
 	for _, input := range baseline.Inputs {
-		matched = matched || (input.Verify(engagement.Artifact) == nil && input.MediaType == pentest.MediaType)
+		matched = matched || (input.Verify(engagement.Artifact) == nil && input.MediaType == pentestcontract.MediaType)
 	}
 	if !matched {
 		return fmt.Errorf("%w: engagement is not an exact baseline input", ErrInvalid)
 	}
-	if engagement.Schema != auditbaseline.EngagementSchema || engagement.Artifact.Validate() != nil || !engagement.Artifact.HasMetadata() || engagement.Artifact.MediaType != pentest.MediaType || engagement.Document.Validate() != nil || engagement.AuthorizedBy == "" || engagement.AuthorizedAt.IsZero() {
+	if engagement.Schema != auditbaseline.EngagementSchema || engagement.Artifact.Validate() != nil || !engagement.Artifact.HasMetadata() || engagement.Artifact.MediaType != pentestcontract.MediaType || engagement.Document.Validate() != nil || engagement.AuthorizedBy == "" || engagement.AuthorizedAt.IsZero() {
 		return fmt.Errorf("%w: engagement baseline is invalid", ErrInvalid)
 	}
 	digest, err := engagement.Document.Policy.Digest()
@@ -402,7 +402,7 @@ func cloneEngagement(source *auditbaseline.EngagementSnapshot) *auditbaseline.En
 	return &result
 }
 
-func cloneEngagementRoutes(source []pentest.Route) []pentest.Route {
+func cloneEngagementRoutes(source []pentestcontract.Route) []pentestcontract.Route {
 	result := slices.Clone(source)
 	for i := range result {
 		route := &result[i]

@@ -66,6 +66,11 @@ func (a countingAudits) Start(ctx context.Context, params auditservice.StartPara
 	return a.AuditManagement.Start(ctx, params)
 }
 
+func (a countingAudits) Preflight(ctx context.Context, params auditservice.PreflightParams) (auditservice.PreflightResult, error) {
+	a.calls.Add(1)
+	return a.AuditManagement.Preflight(ctx, params)
+}
+
 func (a countingAudits) Pause(ctx context.Context, params auditservice.MutationParams) (auditservice.MutationResult, error) {
 	a.calls.Add(1)
 	return a.AuditManagement.Pause(ctx, params)

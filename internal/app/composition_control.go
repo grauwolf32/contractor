@@ -12,7 +12,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	workflowconfig "github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
-	"github.com/grauwolf32/contractor/internal/contracts/pentest"
+	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -110,7 +110,7 @@ func configureControlPlane(
 	if err != nil {
 		return controlServices{}, fmt.Errorf("configure Runtime Agent client: %w", err)
 	}
-	runtimeClient.WithEngagementResolver(func(ctx context.Context, runID, stageID string) (*pentest.AllocationProjection, error) {
+	runtimeClient.WithEngagementResolver(func(ctx context.Context, runID, stageID string) (*pentestcontract.AllocationProjection, error) {
 		return auditservice.ResolveAllocationEngagement(ctx, pool, runID, stageID)
 	}, registry)
 	workers, err := controlplane.NewRuntimeBatchController(

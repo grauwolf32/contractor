@@ -23,7 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/pentest"
+	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -118,16 +118,16 @@ func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string,
 	}
 	return &engagementFixture{ctx, pool, service, creds, project, store, contracts.ExactArtifact{Ref: meta.Ref, Digest: meta.Digest, MediaType: meta.MediaType, SizeBytes: meta.Size}, now}
 }
-func (f *engagementFixture) document(origin string) pentest.Document {
-	return pentest.Document{Schema: pentest.Schema, AccessMode: "blackbox", Target: pentest.Target{Origins: []string{origin}, SeedURLs: []string{origin + "/"}}, Scope: pentest.Scope{Routes: []pentest.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, ActionClasses: []string{"read"}, AddressRanges: []string{"127.0.0.0/8"}}}, Exclusions: []pentest.Route{}, ActionClasses: []string{"read"}, CallbackDestinations: []string{}}, Identities: []pentest.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}}, Inputs: []pentest.Input{{ID: "checklist", Role: "documentation", Artifact: f.checklist.Ref, ContentDigest: f.checklist.Digest}}, Policy: pentest.Policy{Version: "1", ActiveChecks: "automatic", RetryPolicy: "conservative@1", ReplayPolicy: "fresh-session@1", RequiredCapabilities: []string{pentest.Capability}, OptionalCapabilities: []string{}}, TestData: []pentest.TestData{}, Budgets: pentest.Budgets{ActiveSeconds: 120, TargetRequests: 10, RequestsPerSecond: 1, ConcurrentRequests: 1, CrawlDepth: 1, FetchedPages: 10, SurfaceVariants: 10, Hypotheses: 10, Rounds: 1, SubmittedRuns: 3, RecipeSteps: 4, ReplayExecutions: 1, LoginActions: 2, LoginAttempts: 1, RequestBodyBytes: 1024, ResponseBodyBytes: 1024, EvidenceBytes: 1024, ModelCalls: 2, ModelTokens: 4096, ActionIntents: 10}}
+func (f *engagementFixture) document(origin string) pentestcontract.Document {
+	return pentestcontract.Document{Schema: pentestcontract.Schema, AccessMode: "blackbox", Target: pentestcontract.Target{Origins: []string{origin}, SeedURLs: []string{origin + "/"}}, Scope: pentestcontract.Scope{Routes: []pentestcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, ActionClasses: []string{"read"}, AddressRanges: []string{"127.0.0.0/8"}}}, Exclusions: []pentestcontract.Route{}, ActionClasses: []string{"read"}, CallbackDestinations: []string{}}, Identities: []pentestcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}}, Inputs: []pentestcontract.Input{{ID: "checklist", Role: "documentation", Artifact: f.checklist.Ref, ContentDigest: f.checklist.Digest}}, Policy: pentestcontract.Policy{Version: "1", ActiveChecks: "automatic", RetryPolicy: "conservative@1", ReplayPolicy: "fresh-session@1", RequiredCapabilities: []string{pentestcontract.Capability}, OptionalCapabilities: []string{}}, TestData: []pentestcontract.TestData{}, Budgets: pentestcontract.Budgets{ActiveSeconds: 120, TargetRequests: 10, RequestsPerSecond: 1, ConcurrentRequests: 1, CrawlDepth: 1, FetchedPages: 10, SurfaceVariants: 10, Hypotheses: 10, Rounds: 1, SubmittedRuns: 3, RecipeSteps: 4, ReplayExecutions: 1, LoginActions: 2, LoginAttempts: 1, RequestBodyBytes: 1024, ResponseBodyBytes: 1024, EvidenceBytes: 1024, ModelCalls: 2, ModelTokens: 4096, ActionIntents: 10}}
 }
-func (f *engagementFixture) create(t *testing.T, id string, document pentest.Document) (auditstore.Audit, error) {
+func (f *engagementFixture) create(t *testing.T, id string, document pentestcontract.Document) (auditstore.Audit, error) {
 	t.Helper()
 	data, err := json.Marshal(document)
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifact, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: id}, artifacts.Payload{MediaType: pentest.MediaType, Data: data}, nil)
+	artifact, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: id}, artifacts.Payload{MediaType: pentestcontract.MediaType, Data: data}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestEngagementPreflightStartPinsAndReplay(t *testing.T) {
 	defer target.Close()
 	document := f.document(target.URL)
 	f.credential(t, "target-one", f.project.OwnerID)
-	document.Identities = append(document.Identities, pentest.Identity{ID: "account-a", Kind: "bearer", Origins: []string{target.URL}, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "target-one", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+	document.Identities = append(document.Identities, pentestcontract.Identity{ID: "account-a", Kind: "bearer", Origins: []string{target.URL}, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "target-one", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	draft, err := f.create(t, "engagement-valid", document)
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +165,7 @@ func TestEngagementPreflightStartPinsAndReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	preflight, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision})
-	if err != nil || !preflight.ServerCompatible || len(preflight.MissingCapabilities) != 0 || !slices.Equal(preflight.CompatibleCapabilities, []string{pentest.Capability}) {
+	if err != nil || !preflight.ServerCompatible || len(preflight.MissingCapabilities) != 0 || !slices.Equal(preflight.CompatibleCapabilities, []string{pentestcontract.Capability}) {
 		t.Fatalf("preflight=%+v err=%v", preflight, err)
 	}
 	var afterWrites int
@@ -223,7 +223,7 @@ func TestEngagementPreflightStaleOwnershipAndStartRevalidation(t *testing.T) {
 	f := newEngagementFixture(t)
 	document := f.document("http://127.0.0.1")
 	f.credential(t, "target-stale", f.project.OwnerID)
-	document.Identities = append(document.Identities, pentest.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "target-stale", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+	document.Identities = append(document.Identities, pentestcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "target-stale", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	draft, err := f.create(t, "engagement-stale", document)
 	if err != nil {
 		t.Fatal(err)
@@ -323,9 +323,9 @@ func TestEngagementSourceAssistedRetainsExactInputsAndPurgeReleasesHolds(t *test
 		t.Fatal(err)
 	}
 	document.AccessMode = "source-assisted"
-	document.Inputs = append(document.Inputs, pentest.Input{ID: "source", Role: "source", Artifact: source.Ref, ContentDigest: metadata.Digest})
+	document.Inputs = append(document.Inputs, pentestcontract.Input{ID: "source", Role: "source", Artifact: source.Ref, ContentDigest: metadata.Digest})
 	f.credential(t, "source-account", f.project.OwnerID)
-	document.Identities = append(document.Identities, pentest.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "source-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+	document.Identities = append(document.Identities, pentestcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "source-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	draft, err := f.create(t, "engagement-source", document)
 	if err != nil {
 		t.Fatal(err)
@@ -380,7 +380,7 @@ func TestEngagementCredentialOwnershipAndStartDeleteRace(t *testing.T) {
 				f := newEngagementFixture(t, conns)
 				document := f.document("http://127.0.0.1")
 				f.credential(t, "race-target", f.project.OwnerID)
-				document.Identities = append(document.Identities, pentest.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "race-target", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+				document.Identities = append(document.Identities, pentestcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "race-target", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 				draft, err := f.create(t, "engagement-race", document)
 				if err != nil {
 					t.Fatal(err)
@@ -418,7 +418,7 @@ func TestEngagementCredentialOwnershipAndStartDeleteRace(t *testing.T) {
 		f := newEngagementFixture(t)
 		f.credential(t, "foreign-target", "another-owner")
 		doc := f.document("http://127.0.0.1")
-		doc.Identities = append(doc.Identities, pentest.Identity{ID: "account-a", Kind: "bearer", Origins: doc.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "foreign-target", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+		doc.Identities = append(doc.Identities, pentestcontract.Identity{ID: "account-a", Kind: "bearer", Origins: doc.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "foreign-target", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 		if _, err := f.create(t, "engagement-foreign", doc); !errors.Is(err, credentials.ErrRuntimeCredentialNotFound) {
 			t.Fatalf("foreign credential error=%v", err)
 		}
@@ -434,10 +434,10 @@ func TestEngagementPersistedClosureStopsBeforeExposure(t *testing.T) {
 	for _, test := range []struct {
 		name     string
 		worker   func(string) string
-		document func(*pentest.Document)
+		document func(*pentestcontract.Document)
 		want     CompatibilityReason
 	}{
-		{"unclassified-selected-input", nil, func(d *pentest.Document) { d.Inputs = []pentest.Input{} }, ReasonPentestSourceClosureUnsupported},
+		{"unclassified-selected-input", nil, func(d *pentestcontract.Document) { d.Inputs = []pentestcontract.Input{} }, ReasonPentestSourceClosureUnsupported},
 		{"source-skill", func(s string) string {
 			return strings.Replace(s, "  toolsets:", "  skills: [{namespace: skills, name: source-context}]\n  toolsets:", 1)
 		}, nil, ReasonPentestSourceClosureUnsupported},
@@ -562,7 +562,7 @@ func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oversized, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "oversized-engagement"}, artifacts.Payload{MediaType: pentest.MediaType, Data: []byte(strings.Repeat(" ", pentest.MaxDocumentBytes+1))}, nil)
+	oversized, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "oversized-engagement"}, artifacts.Payload{MediaType: pentestcontract.MediaType, Data: []byte(strings.Repeat(" ", pentestcontract.MaxDocumentBytes+1))}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -592,7 +592,7 @@ func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "metadata-engagement"}, artifacts.Payload{MediaType: pentest.MediaType, Data: data}, nil)
+	written, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "metadata-engagement"}, artifacts.Payload{MediaType: pentestcontract.MediaType, Data: data}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -297,6 +297,14 @@ settings, reports and their consumers use the current fields under the
 original model names, with one schema and fixture catalog
 (CTL-R8).
 
+**CTL-R168.** An optional pentest engagement projection on AllocationSpec is
+resolved by the composition-owned Audit reader from the trusted Run/Stage
+reservation, outside Registry locks. It follows [AUD-R248](../audits/audits.md):
+exact immutable attribution, no secret material, and only task-assigned routes,
+identities and inputs. Metadata-only preparation has empty assignment arrays
+and does not advertise an executable target adapter. Both wire validators and
+Runtime prepare reject an execution assignment whose enforcement is absent.
+
 **CTL-R7.** There is no parallel legacy model, `V2` alias,
 conversion fallback or separate `privateProtocolVersion` negotiation, and the
 registration request and response contain no separate private-protocol version

@@ -18,8 +18,8 @@ goal: Make scope, source mode, target identities and finite policy explicit immu
   with non-executing owner-visible preflight and a narrow allocation projection that cannot be widened
   by mutable Project configuration.
 context:
-  authority: User request on 2026-10-24 to decompose the updated proposals into implementation tasks.
-    This record authorizes no implementation during planning and does not reactivate deferred work.
+  authority: Planned from the user request on 2026-10-24; explicitly authorized on 2026-10-28
+    to revalidate, implement, verify, close and merge V411-002 into main.
   proposal:
   - docs/proposals/0033-autonomous-pentest-audits.md#3-engagement-document-and-immutable-baseline
   - docs/proposals/0033-autonomous-pentest-audits.md#41-route-policy
@@ -30,8 +30,17 @@ context:
   - docs/spec/audits/audits.md#AUD-R12
   - docs/spec/audits/audits.md#AUD-R97
   - docs/spec/audits/audits.md#AUD-R227
+  - docs/spec/audits/audits.md#AUD-R241
+  - docs/spec/audits/audits.md#AUD-R242
+  - docs/spec/audits/audits.md#AUD-R243
+  - docs/spec/audits/audits.md#AUD-R244
+  - docs/spec/audits/audits.md#AUD-R245
+  - docs/spec/audits/audits.md#AUD-R246
+  - docs/spec/audits/audits.md#AUD-R247
+  - docs/spec/audits/audits.md#AUD-R248
   - docs/spec/execution/control-plane.md#CTL-R6
   - docs/spec/execution/control-plane.md#CTL-R149
+  - docs/spec/execution/control-plane.md#CTL-R168
   - docs/spec/platform/persistence.md#PER-R24
   code:
   - internal/auditbaseline
@@ -41,6 +50,26 @@ context:
   - internal/httpapi/public
   - api/v1alpha1
   - runtime/src/contractor_runtime/contracts
+  decisions:
+  - Revalidated against main c83afbe922ab8770d0b98aa281ca1d83841df114. The typed engagement,
+    non-executing public preflight and immutable private projection were absent; V411-001 was complete.
+  - Use an ordinary exact Project artifact selected by a single explicitly typed profile input,
+    plus the existing Audit baseline, artifact links, credential dispatch holds and start receipt.
+    No new table, migration, receipt mechanism, public draft field or draft-update API is introduced.
+  - The private projection carries immutable attribution and finite policy but assigns no routes,
+    identities or inputs until concrete admission and execution adapters exist. Both languages reject
+    nonempty action assignments and selected external-network tools; metadata support never enables transport.
+  - Blackbox rejects source inputs, hydration, source-analysis tools, opaque inherited inputs and
+    selected Skills without trusted source provenance. Reopen the Skill restriction only with a
+    production provenance writer and source-free reader; source-assisted keeps exact source revisions.
+  - Start and Resume cap each ordinary deadline allowance at pinned activeSeconds, preserving
+    shorter allowances and replay. Cumulative active-time accounting belongs to V411-006; this
+    metadata slice performs no target actions and does not claim that later ledger is implemented.
+  - Baseline lookup follows the exact Run/Stage and execution association without duplicating
+    Audit lifecycle admission. Paused children can drain; existing cancellation/deletion and grant
+    checks retain authority. Reads occur outside the Registry mutex and the grant is rechecked.
+  - The new Go package is pentestcontract because the project reserves package names ending
+    in test for test helpers. The existing linter was preserved without an exception.
 scope:
   in:
   - Implement the closed engagement artifact, canonical route/identity/input/budget types and shared
@@ -78,9 +107,9 @@ requirements:
     of metadata does not advertise working transport/proof.
 failure_outcomes:
 - operation: Draft/preflight validation
-  permanent: Malformed documents use existing 400 audit_document_invalid/validation shape; foreign/missing
-    IDs use safe 404; stale If-Match or invalid lifecycle use existing 409 conflict; no retries for
-    these outcomes.
+  permanent: Malformed documents use the existing validation error classification; audit_document_invalid is 422,
+    malformed request headers/body are 400, foreign/missing IDs use safe 404, stale If-Match uses 412
+    and invalid lifecycle uses 409; no retries for these outcomes.
   retryable: Read-only 503 storage_transaction_conflict follows existing bounded policy and Retry-After.
   ambiguous: Preflight creates no authorization or hold, so retry recomputes from the same requested
     revision and may return a stale-revision conflict.
@@ -110,8 +139,8 @@ cardinality:
     records.
 lifecycle:
 - entity: Engagement baseline and exact input/credential holds
-  delete: Draft can be edited through existing CAS; started engagement changes require a new Audit.
-    Project deletion blocks new start.
+  delete: Draft creation validates its selected exact inputs; the current API has no draft-edit
+    operation. Changed selection or started engagement requires a new Audit. Project deletion blocks new start.
   cascade: Existing Audit deletion releases owned exact links/holds after children drain; source Run
     deletion cannot reinterpret a retained baseline.
   retention: Immutable baseline and authorization metadata remain with the Audit; credential material
@@ -142,13 +171,19 @@ acceptance_criteria:
   then: One exact baseline is committed/replayed; holds and private materialization respect ownership,
     deletion fences and cleanup.
 tests:
-- command: go test -tags=integration -count=1 ./internal/auditbaseline ./internal/auditservice ./internal/auditstore/...
+- command: go test -tags=integration -count=1 ./internal/auditbaseline ./internal/auditservice
     ./internal/config/... ./internal/contracts/... ./internal/controlplane ./internal/httpapi/public
+    ./internal/runstore ./internal/app ./internal/publicclient/...
   covers:
   - A1
   - A2
   - A3
   - A4
+  - A5
+- command: go test -tags=integration -count=1 ./internal/auditstore/internal/pgstore
+  covers:
+  - A1
+  - A2
   - A5
 - command: make verify-public-api test-wire-cross-language test-runtime
   covers:
@@ -163,6 +198,10 @@ tests:
   - A3
   - A4
   - A5
+- command: make ui-verify
+  covers:
+  - A1
+  - A4
 test_prerequisites:
 - Disposable PostgreSQL able to create/drop isolated schemas; never print its connection secret.
 - Repository-pinned Go and locked Runtime dependencies; run commands from the repository root unless

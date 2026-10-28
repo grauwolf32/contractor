@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/pentest"
+	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -95,7 +95,7 @@ func validateLifecycleRequest(apiVersion, allocationID, idField, idValue string,
 }
 
 type AllocationSpec struct {
-	PentestEngagement               *pentest.AllocationProjection                   `json:"pentestEngagement,omitempty"`
+	PentestEngagement               *pentestcontract.AllocationProjection           `json:"pentestEngagement,omitempty"`
 	SummarizerModelPolicy           *contracts.ResolvedModelPolicy                  `json:"summarizerModelPolicy,omitempty"`
 	CompletionContract              *contracts.WorkerCompletionContract             `json:"completionContract,omitempty"`
 	APIVersion                      string                                          `json:"apiVersion" strictjson:"required"`

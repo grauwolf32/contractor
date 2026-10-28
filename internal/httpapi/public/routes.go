@@ -120,6 +120,7 @@ func (c contextHandlers) routes() []route {
 		{"GET", "/v1/projects/{projectId}/audits", "listProjectAudits", c.audits.listProjectAudits},
 		{"GET", "/v1/audits/{auditId}", "getAudit", c.audits.getAudit},
 		{"DELETE", "/v1/audits/{auditId}", "deleteAudit", c.audits.deleteAudit},
+		{"POST", "/v1/audits/{auditId}/preflight", "preflightAudit", c.audits.preflightAudit},
 		{"POST", "/v1/audits/{auditId}/start", "startAudit", c.audits.startAudit},
 		{"POST", "/v1/audits/{auditId}/pause", "pauseAudit", c.audits.pauseAudit},
 		{"POST", "/v1/audits/{auditId}/resume", "resumeAudit", c.audits.resumeAudit},
