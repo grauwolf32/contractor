@@ -5,7 +5,7 @@ milestone: autonomous-http-pentest-2026-10
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V411-002
 languages:
@@ -178,10 +178,10 @@ cardinality:
     actions and 256 KiB metadata per pass; never rescan the entire journal.
 - collection: Protocol documents and projections
   expected: One request/action per message
-  maximum: Existing 4 MiB document ceiling; request projection obeys 8,192-byte URL and 32 KiB header
-    bounds
-  bound: Use a tighter bounded metadata-only projection for receipts; raw body/secret material is not
-    stored in ledger rows.
+  maximum: Private action requests are 64 KiB and responses are 16 KiB; canonical URLs are at most
+    8,192 bytes. Recovery pages are at most 100 rows and 256 KiB of encoded metadata.
+  bound: Target response headers are bounded to 64 fields and 32 KiB before buffering, and response
+    bodies to the lower engagement limit or 1 MiB. Raw body/secret material is not stored in ledger rows.
 - collection: Connections/redirect attempts within one Audit
   expected: Five requests per second and two concurrent requests
   maximum: 20 requests per second, eight concurrent requests, five redirect hops and one additional safe
@@ -316,3 +316,65 @@ implementation_notes:
 - Reversal condition for fixed anonymous preflight is a later production caller with its own explicit
   identity/capture contract. It must retain the same receipt, scope, actual-start and stop-proof guarantees;
   no model-produced package, compatibility reader or ordinary HTTP fallback is authorized here.
+- Each physical attempt uses a fresh HTTP/1 client without cookies, connection reuse or proxy fallback.
+  Explicit httpcore URL components preserve the exact authorized request target, including semicolon
+  path parameters and an empty query delimiter; redirect resolution preserves explicit query clearing.
+  Regression tests compare the actual serialized request bytes with the authorized URL and digest.
+- Independent-Audit progress is checked against real PostgreSQL while another Audit's row and keyed
+  receipt locks remain held. The test covers prepare, grant, sending and exact-stop recovery, and a
+  temporary global receipt-lock mutation was proved to make it fail before restoring the production code.
+
+implementation_commit: d61731a3f10b38ff378a3a303b8eee6469cbe4f9
+verification:
+  date: '2026-10-29'
+  results:
+  - The complete required Go command passed with integration tags, the race detector and a disposable
+    PostgreSQL. The same invocation additionally covered all runstore, rundeletion, persistence,
+    app, apierror, publicclient and archtest packages. Audit service passed in 237.926s, controller
+    in 169.183s and private handlers in 56.872s; no configured database case was skipped.
+  - After adding the final independent-Audit regression, the complete pgstore package passed again
+    with -race -tags=integration -count=1 in 205.302s. Its focused pentest suite also passed;
+    a temporary global advisory-lock mutation made the new test fail as intended and was restored.
+  - make test-pentest-action-process passed on native Linux with actual Server/Runtime processes,
+    RFC1918 HTTP and verified HTTPS targets, dropped prepare/grant/sending/started/settle replies,
+    and grant delivery delayed beyond its allowance. Both required scenarios ran with zero skips;
+    no duplicate target requests or expired-grant target writes occurred.
+  - make test-wire-cross-language passed with 425 fixtures, 359 Go and 244 Python shared tests.
+    The maximum-URL fixture is registered for both actual readers. Full contracts packages and
+    468 Runtime contract/performance cases passed within the same command.
+  - make test-runtime passed in an isolated native Linux container with locked dependencies and
+    a clean non-root environment; 5506 passed and 55 existing optional integration cases skipped
+    in 422.86s. The standard verify-runtime report gate passed. The skips require separate external
+    opt-ins or fixtures (34 rootless Podman, 16 scanner, three live Gateway, one real-Go Audit API
+    and one pinned Interactsh server); no mandatory preflight process case was skipped or waived.
+  - make test-http-caido-runtime passed all 208 tests in 164.77s. Exact canonical request-target
+    regressions additionally compare real httpcore serialized bytes, including semicolon parameters,
+    empty query delimiters and redirect query clearing; ordinary target policy tests remain green.
+  - make verify-public-api and make verify-public-api-postgres passed. make ui-verify passed
+    204 test files, 2525 tests and one declared expected failure, plus generated-client checks,
+    lint, typecheck and production build.
+  - make lint passed with architecture, SQL placement/ownership, table reads, test-only exports,
+    shared fixture sources and release graph checks enabled. The process-gate and release-graph
+    unit suites passed 56 tests. Generated ERD, dependency graph and clients were regenerated.
+  - Current main 74030639b62b801e0341b3f52207cba11a7abc80 was integrated without rewriting either
+    history. Main's Project receipt migration remains 000056 and this task's migration is 000057.
+    Shared sitemap metadata behavior and both receipt families passed real PostgreSQL checks.
+  linux_snapshot:
+    image: localhost/contractor-v421-runtime-base:1
+    source_commit: fa8201235aa38d6a096b9fd55bfd834f80fd29ca
+    source_archive_sha256: 8797607096dc89e8827f4f69b08c2bd09107527b354cb671d40f2541a83993a7
+    invocation: Clean non-root environment with UV_PYTHON=/usr/bin/python3.13, UV_OFFLINE=1,
+      GOMAXPROCS=2, GOFLAGS=-p=1 and CI=true; make test-pentest-action-process
+      test-wire-cross-language test-runtime test-http-caido-runtime.
+    final_tree_comparison: All production code and Runtime tests match the Linux snapshot exactly.
+      The later implementation commit adds only the independent-Audit PostgreSQL regression,
+      verified through the complete pgstore package; closing changes are task metadata and generated indexes.
+  reports:
+    go: /private/tmp/v411003-delivery-evidence/go-integrated.log
+    pgstore_final: /private/tmp/v411003-delivery-evidence/pgstore-final.log
+    linux: /private/tmp/v411003-delivery-evidence/linux-integrated.log
+    runtime_junit: /private/tmp/v411003-delivery-evidence/linux-reports/runtime.xml
+    source_comparison: /private/tmp/v411003-delivery-evidence/source-comparison.json
+    public_api_and_ui: /private/tmp/v411003-delivery-evidence/public-ui.log
+    process_gate_units: /private/tmp/v411003-delivery-evidence/process-gate-tests.log
+    lint: /private/tmp/v411003-delivery-evidence/lint-closed.log
