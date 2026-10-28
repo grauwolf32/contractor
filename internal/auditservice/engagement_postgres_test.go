@@ -52,6 +52,10 @@ type engagementFixture struct {
 }
 
 func newEngagementFixture(t *testing.T, connections ...int32) *engagementFixture {
+	return newEngagementFixtureWithEdits(t, nil, nil, connections...)
+}
+
+func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string, customize func(map[string]string), connections ...int32) *engagementFixture {
 	t.Helper()
 	dsn := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if dsn == "" {
@@ -72,9 +76,13 @@ func newEngagementFixture(t *testing.T, connections ...int32) *engagementFixture
 		t.Cleanup(limited.Close)
 		pool = limited
 	}
-	snapshot := loadAuditServiceProfilesWithProfile(t, func(s string) string {
+	snapshot := loadAuditServiceProfilesWithEdits(t, func(s string) string {
 		s = strings.Replace(s, "  inputs:\n", "  inputs:\n    engagement: {required: true, mediaTypes: [application/vnd.contractor.pentest-engagement+json]}\n", 1)
 		return strings.Replace(s, "activeChecks: prohibited", "activeChecks: automatic", 1)
+	}, editWorker, func(files map[string]string) {
+		if customize != nil {
+			customize(files)
+		}
 	})
 	gateway, err := snapshot.LLMGateway("test-gateway@1")
 	if err != nil {
@@ -420,4 +428,130 @@ func TestEngagementCredentialOwnershipAndStartDeleteRace(t *testing.T) {
 			t.Fatalf("wrong credential kind error=%v", err)
 		}
 	})
+}
+
+func TestEngagementPersistedClosureStopsBeforeExposure(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		worker   func(string) string
+		document func(*pentest.Document)
+		want     CompatibilityReason
+	}{
+		{"unclassified-selected-input", nil, func(d *pentest.Document) { d.Inputs = []pentest.Input{} }, ReasonPentestSourceClosureUnsupported},
+		{"source-skill", func(s string) string {
+			return strings.Replace(s, "  toolsets:", "  skills: [{namespace: skills, name: source-context}]\n  toolsets:", 1)
+		}, nil, ReasonPentestSourceClosureUnsupported},
+		{"repository-hydration", nil, nil, ReasonPentestSourceClosureUnsupported},
+		{"network-sandbox", func(s string) string { return strings.Replace(s, "local-workdir@1", "podman-network@1", 1) }, nil, ReasonPentestCapabilityUnsupported},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			f := newEngagementFixtureWithEdits(t, test.worker, func(files map[string]string) {
+				if test.name == "network-sandbox" || test.name == "repository-hydration" {
+					files["workflows/check.yaml"] = strings.Replace(files["workflows/check.yaml"], "      context:\n", "      context:\n        workspace:\n          mode: direct\n          sources: [{artifact: task, target: \"\"}]\n", 1)
+				}
+			})
+			document := f.document("http://127.0.0.1")
+			if test.document != nil {
+				test.document(&document)
+			}
+			draft, err := f.create(t, "closure-"+test.name, document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			preflight, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision})
+			if err != nil || preflight.ServerCompatible || !slices.Contains(preflight.Reasons, test.want) {
+				t.Fatalf("persisted closure: %+v %v", preflight, err)
+			}
+			var before int
+			if err = f.pool.QueryRow(f.ctx, `SELECT count(*) FROM artifact_binding_revisions`).Scan(&before); err != nil {
+				t.Fatal(err)
+			}
+			if _, err = f.service.Start(f.ctx, f.start(draft)); !errors.Is(err, ErrUnsupported) {
+				t.Fatalf("source/target closure reached materialization: %v", err)
+			}
+			var after int
+			if err = f.pool.QueryRow(f.ctx, `SELECT count(*) FROM artifact_binding_revisions`).Scan(&after); err != nil {
+				t.Fatal(err)
+			}
+			if after != before {
+				t.Fatalf("unsupported closure wrote staged material: %d/%d", before, after)
+			}
+			current, err := f.service.Get(f.ctx, f.project.OwnerID, draft.AuditID)
+			if err != nil || current.State != auditstore.AuditDraft || current.BaselineSnapshot != nil {
+				t.Fatalf("unsupported closure exposed baseline: %+v %v", current, err)
+			}
+		})
+	}
+}
+
+func TestEngagementPreflightRepeatsProjectPolicyAndSuppressesDefaultIdentity(t *testing.T) {
+	f := newEngagementFixture(t)
+	material, err := credentials.NewHTTPOriginBearerCredential("private-default-target-canary")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.credentials.Create(f.ctx, credentials.RuntimeCredentialCreateRequest{CredentialID: "default-target", ActorID: f.project.OwnerID, IdempotencyKey: "default-target", Material: material}); err != nil {
+		t.Fatal(err)
+	}
+	project, err := projectstore.NewPostgresStore(f.pool).Update(f.ctx, projectstore.UpdateParams{ProjectID: f.project.ProjectID, OwnerID: f.project.OwnerID, ExpectedRevision: f.project.Revision, Name: f.project.Name, HTTPTarget: &runtimesettings.HTTPOriginTargetRef{URL: "http://127.0.0.1", Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "default-target", Kind: runtimesettings.RuntimeCredentialOriginBearer}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	draft, err := f.create(t, "project-policy", f.document("http://127.0.0.1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision})
+	if err != nil || !before.ServerCompatible {
+		t.Fatalf("preflight before policy: %+v %v", before, err)
+	}
+	prohibited := contracts.ActiveChecksProhibited
+	project, err = projectstore.NewPostgresStore(f.pool).Update(f.ctx, projectstore.UpdateParams{ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision, Name: project.Name, HTTPTarget: project.HTTPTarget, ActiveChecks: &prohibited})
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision})
+	if err != nil || after.ServerCompatible || before.BaselineInputDigest == after.BaselineInputDigest {
+		t.Fatalf("stale policy preflight: %+v %v", after, err)
+	}
+	if _, err = f.service.Start(f.ctx, f.start(draft)); !errors.Is(err, ErrUnsupported) {
+		t.Fatalf("start trusted preflight policy: %v", err)
+	}
+	automatic := contracts.ActiveChecksAutomatic
+	if _, err = projectstore.NewPostgresStore(f.pool).Update(f.ctx, projectstore.UpdateParams{ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision, Name: project.Name, HTTPTarget: project.HTTPTarget, ActiveChecks: &automatic}); err != nil {
+		t.Fatal(err)
+	}
+	started, err := f.service.Start(f.ctx, f.start(draft))
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseline, err := DecodeBaseline(started.Audit.BaselineSnapshot)
+	if err != nil || baseline.ProjectHTTPTarget != nil || slices.Contains(baseline.RuntimeCredentialIDs, "default-target") {
+		t.Fatalf("inherited mutable default identity: %+v %v", baseline, err)
+	}
+}
+
+func TestEngagementNestedInputBound(t *testing.T) {
+	f := newEngagementFixture(t)
+	for _, count := range []int{auditprofile.MaxAuditProfileInputs, auditprofile.MaxAuditProfileInputs + 1} {
+		document := f.document("http://127.0.0.1")
+		for len(document.Inputs) < count {
+			input := document.Inputs[0]
+			input.ID = fmt.Sprintf("input-%d", len(document.Inputs))
+			document.Inputs = append(document.Inputs, input)
+		}
+		draft, err := f.create(t, fmt.Sprintf("input-bound-%d", count), document)
+		if count > auditprofile.MaxAuditProfileInputs {
+			if !errors.Is(err, ErrInvalid) {
+				t.Fatalf("oversized nested inputs accepted: %v", err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = f.service.Start(f.ctx, f.start(draft)); err != nil {
+			t.Fatalf("maximum nested input set failed: %v", err)
+		}
+	}
 }
