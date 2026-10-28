@@ -231,3 +231,23 @@ Every Runtime cache hit first authorizes the consuming exact ref through this
 strict response. The golden metadata fixture and invalid key fixtures test
 both language readers; generated required-member and mutation cases cover
 missing, duplicate, unknown and overlong members.
+
+The pentest preflight boundary uses `pentest-preflight-request.schema.json` and
+`pentest-preflight-response.schema.json` for the Server's allocation-bound
+`run`/`stop` control command. `stopped: true` is evidence only for the exact
+allocation and Runtime instance after its transport has joined.
+
+`pentest-action-command.schema.json` and `pentest-action-reply.schema.json` define
+one authenticated allocation endpoint, `POST /pentest-actions`, with the closed
+`prepare`, `grant`, `sending`, `started` and `settle` operations. The Server derives
+actor identity and semantic receipt keys. Waiting carries only `retryAfterMs`;
+an authorized grant carries its immutable identity and a remaining allowance of
+at most 120000 ms. Replays never renew that allowance. Safe outcomes contain no
+headers, bodies, URL queries or redirect Location; a redirect continuation is
+bound by the digest of its canonical target URL.
+
+`pentest-allocation.schema.json` contains an optional typed `preflight` assignment
+only when the pinned policy requires `pentest-target-http@1`. It carries explicit
+anonymous seeds, scope and protected infrastructure destinations. An allocation
+without this assignment performs no target work. The shared fixture index covers
+every command/reply state, missing/null/unknown fields, aliases and numeric bounds.

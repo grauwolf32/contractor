@@ -88,3 +88,7 @@ test-artifact-history-postgres: require-database
 
 test-artifact-history-e2e: require-database runtime-venv
 	$(call run-family-test,go test -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^TestArtifactHistoryAcrossProductionProcesses$$')
+
+.PHONY: test-pentest-action-process
+test-pentest-action-process: require-database runtime-venv
+	$(call run-family-test,python3 scripts/test-pentest-action-process.py)
