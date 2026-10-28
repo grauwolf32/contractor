@@ -73,7 +73,7 @@ func TestPostgresFindingReportPreconditionsTransitionPreservesCurrentAndDiscarde
 	seedFindingReportTransitionArtifact(t, ctx, pool)
 	before := findingReportTransitionBytes(t, ctx, pool)
 	result, err := ApplyMigrations(ctx, pool, MigrationBudgets{})
-	if err != nil || len(result.AppliedVersions) != 1 || result.AppliedVersions[0] != previous+1 {
+	if err != nil || len(result.AppliedVersions) < 1 || result.AppliedVersions[0] != previous+1 {
 		t.Fatalf("current projections upgrade=%+v error=%v", result, err)
 	}
 	if before != findingReportTransitionBytes(t, ctx, pool) {

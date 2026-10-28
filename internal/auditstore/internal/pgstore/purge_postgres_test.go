@@ -45,6 +45,7 @@ func TestPostgresPurgeCoversEveryAuditOwnedForeignKey(t *testing.T) {
 	duplicateID := insertAuditChildFinding(t, f, "receipt-purge-duplicate", duplicateProposal)
 	seedDecidedPurgeReviews(t, f, confirmedID, duplicateID)
 	seedPublishedSnapshotForPurge(t, f)
+	seedPurgePentestRows(t, f)
 
 	keys := auditOwnedForeignKeys(t, f)
 	for _, key := range keys {
@@ -348,6 +349,20 @@ func drainDeletedAuditForPurge(
 func deleteChildRunForPurge(t *testing.T, f collectingAuditFixture) {
 	t.Helper()
 	if _, err := f.pool.Exec(f.ctx, `DELETE FROM workflow_runs WHERE run_id = $1`, *f.execution.RunID); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Populate the journal's audit ownership and composite action identity keys;
+// parent purge must remove attempts before intents without cascading a batch.
+func seedPurgePentestRows(t *testing.T, f collectingAuditFixture) {
+	t.Helper()
+	actionID := pentestID("pa-", f.audit.AuditID+":0")
+	attemptID := pentestID("pt-", actionID+":0")
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO audit_actions(action_id,audit_id,seed_index) VALUES($1,$2,0)`, actionID, f.audit.AuditID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO audit_action_attempts(attempt_id,audit_id,action_id,attempt_ordinal,redirect_hop,retry_ordinal,request_digest,target_digest,origin,method,action_class,identity_id,allocation_id,run_id,stage_execution_id,runtime_agent_id,runtime_instance_id,state,outcome) VALUES($1,$2,$3,0,0,0,$4,$4,'https://target.example','GET','read','anonymous','purge-allocation',$5,'purge-stage',$6,'purge-instance','cancelled_before_send','{"kind":"cancelled_before_send","responseBytes":0,"truncated":false,"reason":"cancelled"}')`, attemptID, f.audit.AuditID, actionID, testDigest("d"), *f.execution.RunID, strings.Repeat("a", 64)); err != nil {
 		t.Fatal(err)
 	}
 }

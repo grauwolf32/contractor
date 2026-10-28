@@ -30,11 +30,11 @@ func TestRowTriggerGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
 		guards     int
 		why        string
 	}{
-		{name: "stage_allocations", guards: 4,
-			why: "the identity, performance policy, placement label and completion guards"},
+		{name: "stage_allocations", guards: 5,
+			why: "the identity, performance policy, placement label, completion and exact transport stop guards"},
 		// The preparation guard selects the Audit's executions by audit_id.
-		{name: "audits", guards: 1, why: "the preparation guard",
-			qualifiers: explaintest.Qualifiers{"audits_protect_preparation_baseline": {"audit_id"}}},
+		{name: "audits", guards: 3, why: "the preparation, clock ownership and unsettled transport guards",
+			qualifiers: explaintest.Qualifiers{"audits_protect_preparation_baseline": {"audit_id"}, "audits_pentest_terminal": {"audit_id"}}},
 		{name: "artifact_bindings", guards: 1, why: "the identity guard; Project admission depends on other tables"},
 		// The preparation check reads the Run and the receipt's source only
 		// to validate the receipt being assigned.
@@ -63,12 +63,16 @@ type rowTrigger struct {
 // WHEN condition, states why it is retained.
 var rowTriggerInventory = map[string]map[string]rowTrigger{
 	"stage_allocations": {
+		"stage_allocations_pentest_stop_immutable":     {definition: "CREATE TRIGGER stage_allocations_pentest_stop_immutable BEFORE UPDATE OF pentest_transport_stopped_at ON stage_allocations FOR EACH ROW EXECUTE FUNCTION contractor_protect_pentest_transport_stop()"},
 		"stage_allocations_protect_identity":           {definition: "CREATE TRIGGER stage_allocations_protect_identity BEFORE UPDATE OF allocation_id, stage_execution_id, logical_agent_name, namespace, agent_template_ref, worker_runtime_ref, runtime_agent_instance_id, runtime_agent_id, runtime_agent_label_revision, runtime_configuration_schema_version, runtime_configuration, created_at ON stage_allocations FOR EACH ROW EXECUTE FUNCTION contractor_protect_stage_allocation_identity()"},
 		"stage_allocations_protect_performance_policy": {definition: "CREATE TRIGGER stage_allocations_protect_performance_policy BEFORE UPDATE OF performance_collection_policy ON stage_allocations FOR EACH ROW EXECUTE FUNCTION contractor_protect_stage_allocation_performance_policy()"},
 		"stage_allocations_protect_placement_labels":   {definition: "CREATE TRIGGER stage_allocations_protect_placement_labels BEFORE UPDATE OF runtime_placement_labels ON stage_allocations FOR EACH ROW WHEN ((new.runtime_placement_labels IS DISTINCT FROM old.runtime_placement_labels)) EXECUTE FUNCTION contractor_protect_placement_labels()"},
 		"stage_allocations_require_completion":         {definition: "CREATE TRIGGER stage_allocations_require_completion BEFORE INSERT OR UPDATE OF completion_contract ON stage_allocations FOR EACH ROW EXECUTE FUNCTION contractor_require_allocation_completion()"},
 	},
 	"audits": {
+		"audits_pentest_clock":            {definition: "CREATE TRIGGER audits_pentest_clock AFTER UPDATE OF state, started_at ON audits FOR EACH ROW WHEN (((old.state IS DISTINCT FROM new.state) OR (old.started_at IS DISTINCT FROM new.started_at))) EXECUTE FUNCTION contractor_audit_pentest_clock()"},
+		"audits_protect_pentest_clock":    {definition: "CREATE TRIGGER audits_protect_pentest_clock BEFORE UPDATE OF pentest_clock_valid, pentest_active_us, pentest_active_since ON audits FOR EACH ROW EXECUTE FUNCTION contractor_protect_pentest_clock()"},
+		"audits_pentest_terminal":         {definition: "CREATE TRIGGER audits_pentest_terminal BEFORE UPDATE OF state ON audits FOR EACH ROW EXECUTE FUNCTION contractor_guard_pentest_terminal()"},
 		"audits_discard_report_pages":     {definition: "CREATE TRIGGER audits_discard_report_pages AFTER UPDATE OF state ON audits FOR EACH ROW WHEN (((old.state = 'finalizing'::text) AND (new.state <> 'finalizing'::text))) EXECUTE FUNCTION contractor_discard_audit_report_pages()"},
 		"audits_hold_artifacts":           {definition: "CREATE TRIGGER audits_hold_artifacts AFTER INSERT ON audits FOR EACH ROW EXECUTE FUNCTION contractor_hold_audit_artifacts()"},
 		"audits_hold_artifacts_on_update": {definition: "CREATE TRIGGER audits_hold_artifacts_on_update AFTER UPDATE OF input_selection, baseline_snapshot ON audits FOR EACH ROW WHEN (((old.input_selection IS DISTINCT FROM new.input_selection) OR (old.baseline_snapshot IS DISTINCT FROM new.baseline_snapshot))) EXECUTE FUNCTION contractor_hold_audit_artifacts()"},

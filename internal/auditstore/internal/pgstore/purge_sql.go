@@ -24,11 +24,15 @@ WITH candidates AS MATERIALIZED (
 SELECT CASE WHEN EXISTS(SELECT 1 FROM weighted WHERE cumulative>$2) THEN $2
  ELSE COALESCE((SELECT sum(work) FROM deleted),0)::integer END`
 
+// The journal shares a tighter 100-row budget before ordinary domain purge.
+const purgeAuditActionAttemptsSQL = `WITH batch AS (SELECT ctid FROM audit_action_attempts WHERE audit_id=$1 LIMIT $2)
+DELETE FROM audit_action_attempts target USING batch WHERE target.ctid=batch.ctid`
+const purgeAuditActionsSQL = `WITH batch AS (SELECT ctid FROM audit_actions WHERE audit_id=$1 LIMIT $2)
+DELETE FROM audit_actions target USING batch WHERE target.ctid=batch.ctid`
+
 var purgeAuditDomainSQL = []string{
-	`WITH batch AS (SELECT ctid FROM audit_action_attempts WHERE audit_id=$1 LIMIT $2)
-DELETE FROM audit_action_attempts target USING batch WHERE target.ctid=batch.ctid`,
-	`WITH batch AS (SELECT ctid FROM audit_actions WHERE audit_id=$1 LIMIT $2)
-DELETE FROM audit_actions target USING batch WHERE target.ctid=batch.ctid`,
+	purgeAuditActionAttemptsSQL,
+	purgeAuditActionsSQL,
 	`WITH batch AS (
   SELECT ctid FROM audit_round_result_pages WHERE audit_id = $1 LIMIT $2
 )
