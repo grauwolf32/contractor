@@ -6,14 +6,14 @@ epic: ui
 kind: defect
 introduced_by: V4-009
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V4-009]
 languages: [go, typescript, yaml, markdown]
 goal: Make ordinary artifact viewing and update controls work for domain-produced JSON without adding sitemap-specific UI behavior.
 context:
   authority: The 2026-10-28 sitemap modularity review requested ordinary artifact usability and shared fixes; the user approved retaining delta commands over generic CAS.
   finding: ui/src/api/artifacts.ts:336 allows previews only from a closed MIME list and downloads unknown structured JSON as .bin; artifact-detail-view.tsx:280 offers Upload a new version for every current User/Project artifact even when frozen or reserved for a domain publisher.
-  siblings: Generic User, Project and Run metadata/list/history projections, both generated public clients, artifact preview/download adapters, current versus historical revision controls and shared namespace write policy.
+  siblings: Generic User, Project and Run metadata/list/history projections, both generated public clients and CLI metadata validation, artifact preview/download adapters, current versus historical revision controls and shared namespace write policy.
   specification:
   - docs/spec/ui/journeys.md
   - docs/spec/artifacts/artifact-store.md
@@ -59,3 +59,21 @@ tests:
   covers: [A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
+implementation_commit: cbc2f79fa25dda48a828fd2dcd9196649837c768
+verification:
+  date: '2026-10-29'
+  result: passed
+  tested_commit: cbc2f79fa25dda48a828fd2dcd9196649837c768
+  commands:
+  - command: make ui-verify
+    result: Passed generated schema/client checks, lint, typecheck and production build; 204 UI test files, 2525 passed tests and one pre-existing expected failure, plus 17 passed Node server tests. The UI tree is byte-identical to the verified implementation commit fd120a40e7499d97a60a9a042ae65aaab3d1e442.
+  - command: make verify-public-api
+    result: Passed error registry and complete public-operation contract coverage on the integrated branch.
+  - command: make test-project-sitemap-postgres
+    result: Passed 14 complete packages and all 24 mandatory real-store cases with zero mandatory skips, including public upload availability, nested repeat Project lifecycle, strict CLI shared fixtures and public context boundaries.
+  - command: make lint
+    result: Passed generated checks, UI gates, Go vet/staticcheck/testonlyexports, deployment/release graph checks, tasks/specs/fixtures, Ruff and Runtime layer contracts.
+  notes:
+  - Upload availability is a public-only projection over common ArtifactStore admission and already-read endpoint/lifecycle state; stored and private Runtime metadata remain unchanged and no per-row queries were added.
+  - Generic concrete structured JSON types include model/gltf+json; preview remains bounded escaped text with existing UTF-8 checks. No sitemap UI branch was introduced.
+  - The first complete integrated gate caught missing CLI presence validation for the required boolean and an unclassified shared public read model. Both were fixed and the complete gate reran successfully; independent API/UI review found no remaining blockers.
