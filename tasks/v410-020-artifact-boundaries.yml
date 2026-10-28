@@ -68,8 +68,6 @@ acceptance_criteria:
   when: Architecture and complete affected-package checks run
   then: Sitemap has no direct artifact-table SQL, the store has no sitemap dispatch and lifecycle uses a generic Project receipt purge; no new compatibility path or mechanism duplicates an existing owner.
 tests:
-- command: go test -tags=integration -count=1 ./internal/runstore
-  covers: [A2, A4]
 - command: make test-project-sitemap-postgres
   covers: [A1, A2, A3, A4]
 - command: make test-project-sitemap-tools-e2e
