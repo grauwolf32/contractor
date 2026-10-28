@@ -16,11 +16,11 @@ import (
 )
 
 type typedCandidateResult struct {
-	item             auditdomain.PreparedRoundItem
-	retained         []auditstore.ArtifactLink
-	selectionContent []byte
-	admitted         bool
-	unschedulable    string
+	item          auditdomain.PreparedRoundItem
+	retained      []auditstore.ArtifactLink
+	pageContent   []byte
+	admitted      bool
+	unschedulable string
 }
 
 // prepareTypedCandidate joins the session's candidate savepoint. The complete
@@ -100,18 +100,13 @@ func prepareTypedCandidate(ctx context.Context, service *artifacts.Service, read
 	result.item = auditdomain.PreparedRoundItem{ItemID: itemID, ItemKey: itemKey, Ordinal: progress.SelectedCount, Kind: work.Kind, SubjectKey: work.SubjectKey, WorkflowRole: work.WorkflowRole, Task: tasks[0], InitialState: string(state), ApprovalKind: string(kind), ApprovalDigest: digest,
 		Origin:          auditdomain.PreparedItemOrigin{Schema: auditdomain.ItemOriginSchema, SourceRef: sourceArtifact.Ref, SourceContentDigest: inventory.SourceContentDigest, SourceMediaType: auditdomain.JSONMediaType, CanonicalInventoryDigest: inventory.CanonicalInventoryDigest, EntryKey: itemKey},
 		Coverage:        auditdomain.RoundResultCoverage{Status: auditdomain.CoverageNotTested, Requested: slices.Clone(inventory.Coverage.Rows[0].Requested), Completed: []string{}, Gaps: slices.Clone(inventory.Coverage.Rows[0].Gaps)},
-		ProposalSources: []auditdomain.PreparedProposalSource{{ReceiptID: receipt.ReceiptID, ProposedCheckOrdinal: ordinal, Proposal: check.Source.Retained}}, Execution: manifest.Items[0]}
-	selectionPage := typedCandidatePage(progress, result.item, auditdomain.RoundSelectionPageSchema, progress.SelectionPagesDigest)
-	result.selectionContent, err = auditdomain.EncodeRoundSelectionPage(selectionPage)
+		ProposalSources: []auditdomain.PreparedProposalSource{{ReceiptID: receipt.ReceiptID, ProposedCheckOrdinal: ordinal, Proposal: check.Source.Retained}}, Execution: auditdomain.PreparedExecutionItem{ExecutionItem: manifest.Items[0], AcceptedPlan: inventory.Tasks[0].Document.AcceptedPlan, Dependencies: inventory.Tasks[0].Document.Dependencies}}
+	page := typedCandidatePage(progress, result.item)
+	result.pageContent, err = auditdomain.EncodePreparedRoundPage(page)
 	if err != nil {
 		return result, err
 	}
-	preparedPage := typedCandidatePage(progress, result.item, auditdomain.PreparedRoundPageSchema, auditdomain.DigestBytes(nil))
-	preparedBytes, err := auditdomain.EncodePreparedRoundPage(preparedPage)
-	if err != nil {
-		return result, err
-	}
-	stageBytes, err := hookstore.PreparedPageStageBytes(preparedPage)
+	stageBytes, err := hookstore.PreparedPageStageBytes(page)
 	if err != nil {
 		return result, err
 	}
@@ -126,13 +121,13 @@ func prepareTypedCandidate(ctx context.Context, service *artifacts.Service, read
 	if err != nil {
 		return result, err
 	}
-	// The later staging transaction reads this selected page, validates its
-	// exact source index and writes both the prepared page and the actual row
-	// envelope. Reserve the bounded progress document too, before selection.
-	if len(result.selectionContent)+len(preparedBytes)+stageBytes+len(projectionBytes)+len(sourceMetadata)+256 > auditstore.MaxAdmissionMetadataBytes-auditstore.MaxAdmissionProgressBytes || len(result.selectionContent)+len(preparedBytes) > auditstore.MaxAdmissionMetadataBytes {
+	// The later staging transaction reads this same immutable page, validates
+	// its exact source index and writes the actual row envelope. Reserve the
+	// bounded progress document too, before selecting the candidate.
+	if len(result.pageContent)+stageBytes+len(projectionBytes)+len(sourceMetadata)+256 > auditstore.MaxAdmissionMetadataBytes-auditstore.MaxAdmissionProgressBytes {
 		return typedCandidateResult{unschedulable: "prepared_page.work"}, nil
 	}
-	options.Check.PreparedMetadataBytes = int64(len(result.selectionContent) + len(preparedBytes))
+	options.Check.PreparedMetadataBytes = int64(len(result.pageContent))
 	admission, err := budget.AdmitCheck(sourceBytes, options)
 	if err != nil {
 		return result, err
@@ -155,8 +150,8 @@ func prepareTypedCandidate(ctx context.Context, service *artifacts.Service, read
 	return result, nil
 }
 
-func typedCandidatePage(progress auditstore.AdmissionProgress, item auditdomain.PreparedRoundItem, schema, previous string) auditdomain.PreparedRoundPage {
-	return auditdomain.PreparedRoundPage{Schema: schema, AuditID: progress.AuditID, RoundID: progress.RoundID, Generation: progress.Generation, PageOrdinal: progress.SelectionPages, FirstItemOrdinal: item.Ordinal, PreviousPageDigest: previous, Items: []auditdomain.PreparedRoundItem{item}}
+func typedCandidatePage(progress auditstore.AdmissionProgress, item auditdomain.PreparedRoundItem) auditdomain.PreparedRoundPage {
+	return auditdomain.PreparedRoundPage{Schema: auditdomain.PreparedRoundPageSchema, AuditID: progress.AuditID, RoundID: progress.RoundID, Generation: progress.Generation, PageOrdinal: progress.PublishedPages, FirstItemOrdinal: item.Ordinal, PreviousPageDigest: progress.PagesDigest, Items: []auditdomain.PreparedRoundItem{item}}
 }
 
 func typedPreparationInputs(ctx context.Context, reads dependencySourceReader, auditID string, binding auditprofile.ResolvedAuditWorkflowBinding) (map[string]auditstore.ExactArtifact, error) {

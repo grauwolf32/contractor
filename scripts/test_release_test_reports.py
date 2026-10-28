@@ -4,11 +4,11 @@ import contextlib
 import io
 import json
 import os
-from pathlib import Path
 import sys
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 import release_test_reports as reports
 
@@ -59,9 +59,9 @@ class ReportReuseTest(unittest.TestCase):
             )
             events = []
             for package, names in required.items():
-                for name in names:
-                    for action in ("run", "pass"):
-                        events.append(dict(Action=action, Package=package, Test=name))
+                all_names = {"/".join(name.split("/")[:length]) for name in names for length in range(1, len(name.split("/")) + 1)}
+                for action, names in (("run", sorted(all_names)), ("pass", sorted(all_names, reverse=True))):
+                    events.extend(dict(Action=action, Package=package, Test=name) for name in names)
                 events.append(dict(Action="pass", Package=package))
             events.append(dict(Action="skip", Package="other/package", Test="TestOptional"))
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
@@ -84,6 +84,68 @@ class ReportReuseTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     reports.verify_go(path, kind)
 
+    def test_shared_go_verifier_preserves_each_family_root_scope(self) -> None:
+        package = "example/audit"
+        required = {package: ["TestAuditCompletion/required"]}
+        valid = [dict(Action=action, Package=package, Test=case) for action, case in (
+            ("run", "TestAuditCompletion"), ("run", "TestAuditCompletion/required"),
+            ("pass", "TestAuditCompletion/required"), ("pass", "TestAuditCompletion"))]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "go.jsonl"
+            def report(extra):
+                path.write_text("".join(json.dumps(event) + "\n" for event in [
+                    *valid, *extra, dict(Action="pass", Package=package)]))
+            for action in ("skip", "fail", "build-fail"):
+                report([dict(Action=action, Package=package, Test="TestOptional")])
+                reports.verify_go_report(path, required)
+                with self.assertRaises(ValueError):
+                    reports.verify_go_report(path, required, root_pattern=".*")
+                reports.verify_go_report(path, required, root_pattern="AuditCompletion|^TestImporter|^TestStandard")
+                for root in ("TestImporterUnlisted", "TestStandardUnlisted", "TestAuditCompletion/unlisted"):
+                    report([dict(Action=action, Package=package, Test=root)])
+                    with self.assertRaises(ValueError):
+                        reports.verify_go_report(path, required, root_pattern="AuditCompletion|^TestImporter|^TestStandard")
+                report([dict(Action=action, Package=package)])
+                with self.assertRaises(ValueError):
+                    reports.verify_go_report(path, required)
+            report([dict(Action="run", Package=package, Test="TestImporterExtra"),
+                    dict(Action="pass", Package=package, Test="TestImporterExtra")])
+            self.assertIn(package + "/TestImporterExtra", reports.verify_go_report(
+                path, required, root_pattern="AuditCompletion|^TestImporter|^TestStandard"))
+
+    def test_literal_slashes_do_not_invent_intermediate_parent_tests(self) -> None:
+        package = "example/audit"
+        names = ("TestRoot/x", "TestRoot/x/y", "TestRoot/virtual/middle/leaf")
+        events = [dict(Action="run", Package=package, Test="TestRoot")]
+        for name in names:
+            events.extend(dict(Action=action, Package=package, Test=name) for action in ("run", "pass"))
+        events += [dict(Action="pass", Package=package, Test="TestRoot"), dict(Action="pass", Package=package)]
+        with tempfile.TemporaryDirectory() as directory:
+            report = Path(directory) / "go.jsonl"
+            report.write_text("".join(json.dumps(event) + "\n" for event in events))
+            self.assertEqual(reports.verify_go_report(report, {package: names}),
+                             sorted(package + "/" + name for name in ("TestRoot", *names)))
+            # The guaranteed root still cannot pass before a required or running subcase.
+            early = [events[0], events[-2], *events[1:-2], events[-1]]
+            report.write_text("".join(json.dumps(event) + "\n" for event in early))
+            with self.assertRaises(ValueError):
+                reports.verify_go_report(report, {package: names})
+
+    def test_diagnostic_console_keeps_credentials_out_of_framework_identity(self) -> None:
+        from unittest import mock
+        for password in ("pass", "contractor"):
+            event = dict(Action="pass", Package="contractor", Test="TestCase", Output=password)
+            with self.subTest(password=password), tempfile.TemporaryDirectory() as directory, mock.patch.dict(
+                os.environ, {"CONTRACTOR_TEST_DATABASE_URL": "postgres://u:" + password + "@localhost/db"},
+            ), contextlib.redirect_stdout(io.StringIO()) as displayed:
+                report = Path(directory) / "go.jsonl"
+                self.assertEqual(reports.capture(report, [sys.executable, "-c", "print(" + repr(json.dumps(event)) + ")"], display_events=False), 0)
+                self.assertNotIn(password, displayed.getvalue())
+                saved = json.loads(report.read_text())
+                self.assertEqual(saved["Action"], "pass")
+                self.assertEqual(saved["Package"], "contractor")
+                self.assertEqual(saved["Output"], "[redacted]")
+
     def test_capture_truncates_old_evidence_and_propagates_failure(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "report.jsonl"
@@ -93,7 +155,7 @@ class ReportReuseTest(unittest.TestCase):
                     path, [sys.executable, "-c", "print('new evidence'); raise SystemExit(7)"]
                 )
             self.assertEqual(status, 7)
-            self.assertEqual(path.read_text(), "new evidence\n")
+            self.assertEqual(path.read_text(), "Invalid test event: new evidence\n")
 
     def test_capture_redacts_output_without_changing_framework_identity(self) -> None:
         event = dict(
@@ -190,7 +252,6 @@ class ReportReuseTest(unittest.TestCase):
                         pass
 
     def test_deadline_joins_silent_child(self) -> None:
-        import signal
         import subprocess
         import threading
         from types import SimpleNamespace
@@ -251,8 +312,10 @@ class ReportReuseTest(unittest.TestCase):
                 os.kill(int(pidfile.read_text()), 0)
 
     def test_content_free_capture_never_turns_malformed_output_into_success(self) -> None:
-        from test_audit_iterative_gate import gate as iterative, selection
         from unittest import mock
+
+        from test_audit_iterative_gate import gate as iterative
+        from test_audit_iterative_gate import selection
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()) as output:
             report = Path(directory) / "report"
             self.assertEqual(reports.capture(report, [sys.executable, "-c", "print('postgres://u:secret-value@localhost/db fixture-target-body-marker')"], retain_output=False), 0)
@@ -272,21 +335,43 @@ class ReportReuseTest(unittest.TestCase):
 
     def test_iterative_report_cli_reuses_canonical_cases(self) -> None:
         from unittest import mock
-        from test_audit_iterative_gate import gate as iterative, selection, events, write_report
+
+        from test_audit_iterative_gate import events, selection, write_report
+        from test_audit_iterative_gate import gate as iterative
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(iterative, "matrix", return_value=selection()):
             path = Path(directory) / "go.jsonl"
             write_report(path, events())
             module = {"matrix": iterative.matrix, "verify": iterative.verify}
-            with mock.patch.object(reports, "gate", return_value=module):
+            with mock.patch.object(reports, "gate", return_value=module), mock.patch.object(reports, "capture") as capture, mock.patch.object(iterative, "run") as execute, mock.patch.object(reports, "source_state") as source:
                 for action in ("verify-iterative-postgres", "verify-iterative-process"):
                     with self.subTest(action=action), mock.patch.object(sys, "argv", ["reports", action, "--report", str(path)]):
                         self.assertEqual(reports.main(), 0)
                 with mock.patch.object(sys, "argv", ["reports", "iterative-pattern"]), contextlib.redirect_stdout(io.StringIO()) as output:
                     self.assertEqual(reports.main(), 0)
+                capture.assert_not_called()
+                execute.assert_not_called()
+                source.assert_not_called()
                 self.assertEqual(output.getvalue(), "TestJourney\n")
                 write_report(path, [])
                 with mock.patch.object(sys, "argv", ["reports", "verify-iterative-postgres", "--report", str(path)]), self.assertRaises(ValueError):
                     reports.main()
+
+    def test_redaction_cannot_repair_a_malformed_terminal_event(self) -> None:
+        from unittest import mock
+        package = "example/audit"
+        # The decoded quote in the password makes this terminal event invalid JSON.
+        # Redaction must not turn it into valid passing execution evidence.
+        lines = [json.dumps(dict(Action="run", Package=package, Test="TestRequired")),
+                 '{"Action":"pass","Package":"example/audit","Test":"TestRequired","Output":"q"uote"}',
+                 json.dumps(dict(Action="pass", Package=package))]
+        with tempfile.TemporaryDirectory() as directory, mock.patch.dict(os.environ, {
+            "CONTRACTOR_TEST_DATABASE_URL": "postgres://u:q%22uote@localhost/db",
+        }), contextlib.redirect_stdout(io.StringIO()) as displayed:
+            report = Path(directory) / "go.jsonl"
+            self.assertEqual(reports.capture(report, [sys.executable, "-c", "print(" + repr("\n".join(lines)) + ")"]), 0)
+            self.assertNotIn('q"uote', report.read_text() + displayed.getvalue())
+            with self.assertRaises(ValueError):
+                reports.verify_go_report(report, {package: ["TestRequired"]})
 
     def test_non_event_json_diagnostics_are_redacted(self) -> None:
         from unittest import mock
@@ -309,3 +394,70 @@ class ReportReuseTest(unittest.TestCase):
                     )
             self.assertEqual(status, 0)
             self.assertNotIn("secret-password", path.read_text() + output.getvalue())
+
+class AuditEvidenceTest(unittest.TestCase):
+    def test_completion_pins_execution_and_never_promotes_failed_attempts(self):
+        from unittest import mock
+
+        from test_audit_iterative_gate import PACKAGE, events, write_report
+
+        completion = reports.gate('test-audit-completion-e2e.py')
+        namespace = completion['run'].__globals__
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = root / 'runtime/.venv/bin/python'
+            runtime.parent.mkdir(parents=True)
+            runtime.touch()
+            matrix = root / 'matrix.json'
+            document = {'go': {PACKAGE: ['TestJourney/required']},
+                        'python': {'tests.fixture::test_case': 1}}
+            for disposition in ('passed', 'cancelled', 'timed_out', 'changed_matrix', 'changed_source'):
+                matrix.write_text(json.dumps(document))
+                state = {'revision': 'a' * 40, 'dirty': False}
+                def run_command(_command, *, cwd, report):
+                    if disposition == 'cancelled':
+                        raise KeyboardInterrupt
+                    if disposition == 'timed_out':
+                        raise TimeoutError
+                    if report.name == 'runtime.log':
+                        report.write_text('bounded runtime log')
+                        (report.parent / 'runtime.xml').write_text('<testsuite><testcase classname="tests.fixture" name="test_case"/></testsuite>')
+                    else:
+                        write_report(report, events())
+                        if disposition == 'changed_matrix':
+                            matrix.write_text(matrix.read_text() + ' ')
+                        elif disposition == 'changed_source':
+                            state['dirty'] = True
+                output = root / disposition
+                with (self.subTest(disposition=disposition),
+                      mock.patch.dict(os.environ, {'CONTRACTOR_TEST_DATABASE_URL': 'configured'}),
+                      mock.patch.dict(namespace, {'ROOT': root, 'MATRIX': matrix, 'run_command': run_command}),
+                      mock.patch.object(namespace['shutil'], 'which', return_value='tool'),
+                      mock.patch.object(reports, 'source_state', side_effect=lambda: dict(state)),
+                      contextlib.redirect_stdout(io.StringIO())):
+                    if disposition == 'passed':
+                        completion['run'](output)
+                    else:
+                        with self.assertRaises(BaseException):
+                            completion['run'](output)
+                    result = json.loads(next(output.glob('*/executed.json')).read_text())
+                    self.assertEqual(result['status'], disposition if disposition in ('passed', 'cancelled', 'timed_out') else 'failed')
+                    if disposition == 'passed':
+                        self.assertEqual(result['source'], {'revision': 'a' * 40, 'dirty': False})
+                        self.assertEqual(result['matrix']['digest'], reports.digest(matrix))
+                        self.assertEqual(result['go'], [PACKAGE + '/TestJourney', PACKAGE + '/TestJourney/required'])
+                        self.assertEqual(result['python'], ['tests.fixture::test_case'])
+                        self.assertEqual(set(result['reports']), {'go.jsonl', 'runtime.xml'})
+                    else:
+                        self.assertNotIn('go', result)
+                        self.assertNotIn('python', result)
+
+    def test_evidence_writer_is_bounded_and_atomic(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'result.json'
+            reports.write_evidence(path, {'status': 'incomplete'})
+            with self.assertRaises(ValueError):
+                reports.write_evidence(path, {'payload': 'x' * (64 << 10)})
+            self.assertEqual(json.loads(path.read_text()), {'status': 'incomplete'})
+            reports.write_evidence(path, {'payload': 'x' * (80 << 10)}, max_bytes=128 << 10)
+            self.assertEqual(len(json.loads(path.read_text())['payload']), 80 << 10)

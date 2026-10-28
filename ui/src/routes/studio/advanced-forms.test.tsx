@@ -445,10 +445,16 @@ describe("typed check method controls", () => {
     expect(at(current().value, ["spec", "methods", "method_1", "method"])).toBe(
       "verify",
     );
+    expect(
+      at(current().value, ["spec", "methods", "method_1", "phase"]),
+    ).toBeUndefined();
     await user.selectOptions(screen.getByLabelText("Method"), "replay");
-    expect(at(current().value, ["spec", "methods", "method_1", "phase"])).toBe(
+    expect(at(current().value, ["spec", "methods", "method_1", "method"])).toBe(
       "replay",
     );
+    expect(
+      at(current().value, ["spec", "methods", "method_1", "phase"]),
+    ).toBeUndefined();
     await user.click(
       screen.getByRole("button", { name: "Add required tools" }),
     );

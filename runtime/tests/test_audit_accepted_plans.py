@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import jcs
@@ -13,6 +14,14 @@ from test_audit_results_toolset import digest, fixture_inputs, package
 from contractor_runtime.toolsets.audit_results.accepted_plans import (
     MAX_ACCEPTED_PLAN_BYTES,
     validate_accepted_plan,
+)
+from contractor_runtime.toolsets.audit_results.contracts import (
+    AuditInvocationOwner,
+    AuditTrustedInputs,
+)
+from contractor_runtime.toolsets.audit_results.encoding import (
+    AuditResultError,
+    CanonicalAuditPackageEncoder,
 )
 from contractor_runtime.toolsets.audit_results.packages import (
     _decode_execution_manifest,
@@ -100,8 +109,6 @@ def test_shared_accepted_plan_actual_task_execution_readers():
         {
             "item_key": task["item_key"],
             "subject_key": task["subject_key"],
-            "accepted_plan": copy.deepcopy(plan),
-            "dependencies": copy.deepcopy(task["dependencies"]),
         }
     )
     payload = package(
@@ -113,9 +120,42 @@ def test_shared_accepted_plan_actual_task_execution_readers():
     decoded_task, decoded_id = _decode_task_package(payload, "application/zip")
     decoded_execution = _decode_execution_manifest(jcs.canonicalize(execution), "application/json")
     _match_trusted_inputs([(decoded_task, decoded_id, digest(payload))], decoded_execution)
-    decoded_execution["items"][0]["accepted_plan"]["route"]["workflow_role"] = "another"
+    # A different, internally valid task is rejected by its actual package
+    # digest without transporting a second accepted-plan/dependency copy.
+    changed = copy.deepcopy(task)
+    changed["accepted_plan"]["plan"]["objective"] += " Changed check."
+    changed["accepted_plan"]["plan_digest"] = sha(changed["accepted_plan"]["plan"])
+    changed["finding"]["objective"] = changed["accepted_plan"]["plan"]["objective"]
+    different = package(
+        package_id,
+        "item-task",
+        [("task-document", "task.json", "application/json", jcs.canonicalize(changed))],
+    )
+    changed_task, changed_id = _decode_task_package(different, "application/zip")
     with pytest.raises(ValueError, match="identities differ"):
-        _match_trusted_inputs([(decoded_task, decoded_id, digest(payload))], decoded_execution)
+        _match_trusted_inputs([(changed_task, changed_id, digest(different))], decoded_execution)
+    encoder = CanonicalAuditPackageEncoder()
+    inputs = AuditTrustedInputs(
+        AuditInvocationOwner("allocation-1", "invocation-1", digest(payload), (task["item_key"],)),
+        payload,
+        jcs.canonicalize(execution),
+    )
+    cached = encoder.trusted_inputs(inputs)
+    assert cached.tasks[task["item_key"]]["accepted_plan"] == plan
+    assert encoder.trusted_inputs(inputs) is cached
+    changed_inputs = replace(
+        inputs,
+        owner=replace(inputs.owner, task_set_sha256=digest(different)),
+        task_package=different,
+    )
+    with pytest.raises(AuditResultError, match="audit_result_invalid"):
+        encoder.trusted_inputs(changed_inputs)
+    assert encoder.trusted_inputs(inputs) is cached
+    for removed in ("accepted_plan", "dependencies"):
+        expanded = copy.deepcopy(execution)
+        expanded["items"][0][removed] = copy.deepcopy(task[removed])
+        with pytest.raises(ValueError, match="manifest item is invalid"):
+            _decode_execution_manifest(jcs.canonicalize(expanded), "application/json")
     task["accepted_plan"] = None
     invalid = package(
         package_id,

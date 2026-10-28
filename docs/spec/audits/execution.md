@@ -259,8 +259,11 @@ atomically.
 
 **AUX-R18.** The Run receives one immutable ordered execution manifest and,
 when it has more than one member, one deterministic `item-task-set` in the
-ordinary `task` input slot. It returns one complete result set, a
-`CheckResultSet`.
+ordinary `task` input slot. Execution entries contain item identity and ordinal,
+subject key, exact task package identity/digest/ref and named exact inputs.
+`accepted_plan` and `dependencies` are rejected execution-entry fields: their
+complete content belongs only to the exact task document. The Run returns one
+complete result set, a `CheckResultSet`.
 
 **AUX-R19.** Existing Planners need no Audit awareness. Discovery and
 assessment Workflows produce normal fixed outputs.
@@ -406,6 +409,17 @@ AuditExecution and AuditExecutionItem after Run deletion in
 
 **AUX-R93.** The execution input of a check execution contains an immutable
 manifest with an ordered list of item keys and exact task and input refs.
+Dispatch fixes its fitting descriptor prefix before reading task payloads.
+Typed singletons and final multi-item batches read each selected exact task
+once, strictly decode it before typed route authorization, and reuse those
+same verified bytes for task-set assembly. The cache is local to that one
+preparation and bound to each complete exact descriptor and digest; excluded
+items have no task payload read. Ordinary singletons keep their accepted SQL
+dependency and exact task descriptor path without a task payload read. Runtime
+always verifies the actual task package and plan/dependency body before model
+context. The private prepared projection remains bounded, immutable and
+separate from this compact Run-visible manifest. The incompatible format
+preflight is [PER-R40](../platform/persistence.md).
 
 **AUX-R36.** The importer verifies a result set against the immutable
 execution manifest of its execution (AUX-R93): it verifies the

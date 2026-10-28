@@ -5142,7 +5142,6 @@
       "required": [
         "planSchema",
         "method",
-        "phase",
         "workflowRole",
         "requiredCapabilities"
       ],
@@ -5158,9 +5157,6 @@
             "http-probe"
           ]
         },
-        "phase": {
-          "enum": ["verify", "replay", "applicability", "alternative"]
-        },
         "workflowRole": { "type": "string", "minLength": 1, "maxLength": 128 },
         "requiredCapabilities": {
           "type": "array",
@@ -5170,33 +5166,7 @@
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCheckCapabilityRequirement"
           }
         }
-      },
-      "oneOf": [
-        {
-          "properties": {
-            "method": { "enum": ["verify", "static-trace", "http-probe"] },
-            "phase": { "const": "verify" }
-          }
-        },
-        {
-          "properties": {
-            "method": { "const": "replay" },
-            "phase": { "const": "replay" }
-          }
-        },
-        {
-          "properties": {
-            "method": { "const": "applicability" },
-            "phase": { "const": "applicability" }
-          }
-        },
-        {
-          "properties": {
-            "method": { "const": "alternative" },
-            "phase": { "const": "alternative" }
-          }
-        }
-      ]
+      }
     },
     "AuditProfileWorkflow": {
       "type": "object",

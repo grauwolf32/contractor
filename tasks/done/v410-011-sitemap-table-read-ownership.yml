@@ -1,0 +1,87 @@
+schema_version: '1.0'
+id: V410-011
+title: Declare the bounded Project sitemap table reads
+milestone: project-sitemap-2026-10
+epic: projects-artifacts
+kind: chore
+introduced_by: V410-002
+priority: P3
+status: completed
+depends_on:
+- V410-001
+- V410-002
+languages:
+- go
+- text
+- yaml
+goal: Make existing transaction-bound sitemap metadata reads explicit under PER-R23 without changing authority,
+  SQL or persistence behavior.
+context:
+  authority: User requested verification, task creation, correction and necessary checks for the three
+    undeclared sitemap reads on 2026-10-27.
+  finding: 'TestSQLAccessFollowsTableOwnership fails on main 1716e40db: internal/projectsitemap/allocation.go:39
+    reads workflow_runs, allocation_sql.go:6 reads artifact_lineage, service.go:43 reads projects, without
+    [reads] grants.'
+  specification:
+  - docs/spec/platform/persistence.md#PER-R23
+  - docs/spec/artifacts/project-sitemap.md#SMT-R1
+  - docs/spec/artifacts/project-sitemap.md#SMT-R12
+  - docs/spec/artifacts/project-sitemap.md#SMT-R13
+  provenance: V410-002 commit e9465c6cf571648c16d7a1a753b89188ffaae556 introduced Run ownership and original
+    input-fork reads. The Project lifecycle/shared-lock read originated in V410-001 commit 7318b118541cd98c257d02a437d80c40a91d85ae.
+    The omission was observed during V62-021 verification.
+  decision: Use the existing [reads] registry with one concrete reason per relation. PER-R23 permits shared
+    row locks. Keep original-fork selection bounded to LIMIT2 per at-most-eight policy names and all lookup/mutation
+    work in the existing transaction. Owner APIs continue to own writes, Artifact retention and receipts;
+    revisit if a new write/exclusive lock or broader lookup is proposed.
+scope:
+  in:
+  - Declare only projectsitemap reads of workflow_runs, artifact_lineage and projects, with their owner/Project,
+    original-input and deletion-fence purposes.
+  - Review all sibling production SQL in projectsitemap and retain the existing ownership scanner unchanged.
+  - Record the resolved V62-021 observation and correct its owning epic attribution.
+  out:
+  - No new tables, migrations, SQL queries, APIs, permissions or test exceptions.
+  - No change to sitemap business behavior, read bounds, authorization, retention or Project/Run deletion.
+acceptance_criteria:
+- id: A1
+  text: The existing architecture test reproduces exactly the three missing reads before the fix and passes
+    after the three justified declarations; no scanner rule or test is weakened.
+- id: A2
+  text: The full persistence suite and Project sitemap package pass with real PostgreSQL, covering owner/Project
+    isolation, deletion fences and original exact input selection; make lint passes.
+- id: A3
+  text: The task records provenance, verification and implementation hash, is moved to done, and generated
+    backlog remains consistent.
+tests:
+- command: go test -count=1 ./internal/persistence -run '^TestSQLAccessFollowsTableOwnership$'
+  covers:
+  - A1
+- command: go test -tags=integration -count=1 ./internal/persistence/... ./internal/projectsitemap
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+implementation_commit: c7f7e32b54ae7fc8d28b1abf52474393901c4cb6
+verification:
+  date: '2026-10-27'
+  results:
+  - Before the fix, go test -count=1 ./internal/persistence -run '^TestSQLAccessFollowsTableOwnership$'
+    failed on exactly the three recorded missing declarations. After the fix the unchanged test passed
+    (0.410s).
+  - 'go test -tags=integration -count=1 ./internal/persistence/... ./internal/projectsitemap passed with
+    the disposable PostgreSQL configured: foundation 1.850s, PostgreSQL persistence 48.777s, sitemap 255.577s.
+    Packages without test files are reported as such, not skipped database tests.'
+  - make lint passed. Existing scanner and production SQL remain unchanged; independent review confirmed
+    the three direct reads are allowed by PER-R23 and implement SMT-R12/R13 within existing bounds.
+  reports:
+    before: /private/tmp/sitemap-read-ownership-before.log
+    after: /private/tmp/sitemap-read-ownership-after.log
+    full: /private/tmp/sitemap-read-ownership-full.log
+    lint: /private/tmp/sitemap-read-ownership-lint.log
+  delivery: Merged from codex/sitemap-table-read-ownership into local main with --no-ff on 2026-10-27,
+    following explicit user authorization. Implementation and verification evidence are unchanged.

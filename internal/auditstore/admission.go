@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	AdmissionSchema            = "contractor.audit.admission.v1"
+	AdmissionSchema            = "contractor.audit.admission.v2"
 	AdmissionProvenanceSchema  = "contractor.audit.admission-provenance.v1"
 	AdmissionDecisionSchema    = "contractor.audit.admission-decision.v1"
 	MaxAdmissionPrimary        = auditdomain.MaximumPreparedRoundPageItems
@@ -27,33 +27,31 @@ type AdmissionCursor struct {
 }
 
 type AdmissionProgress struct {
-	Schema               string          `json:"schema" strictjson:"required"`
-	Generation           string          `json:"generation" strictjson:"required"`
-	Revision             uint64          `json:"revision" strictjson:"required"`
-	AuditID              string          `json:"audit_id" strictjson:"required"`
-	PreviousRoundID      string          `json:"previous_round_id" strictjson:"required"`
-	RoundID              string          `json:"round_id" strictjson:"required"`
-	RoundOrdinal         int             `json:"round_ordinal" strictjson:"required"`
-	ProfileDigest        string          `json:"profile_digest" strictjson:"required"`
-	BaselineDigest       string          `json:"baseline_digest" strictjson:"required"`
-	SourceCutoffAt       time.Time       `json:"source_cutoff_at" strictjson:"required"`
-	SourceUpper          AdmissionCursor `json:"source_upper" strictjson:"required"`
-	Cursor               AdmissionCursor `json:"cursor" strictjson:"required"`
-	Budget               json.RawMessage `json:"budget" strictjson:"required"`
-	SelectedCount        int             `json:"selected_count" strictjson:"required"`
-	SelectionPages       int             `json:"selection_pages" strictjson:"required"`
-	SelectionPagesDigest string          `json:"selection_pages_digest" strictjson:"required"`
-	PreparedPages        int             `json:"prepared_pages" strictjson:"required"`
-	PagesDigest          string          `json:"pages_digest" strictjson:"required"`
-	StagedCount          int             `json:"staged_count" strictjson:"required"`
-	Exhausted            bool            `json:"exhausted" strictjson:"required"`
-	BlockedReceiptID     string          `json:"blocked_receipt_id,omitempty"`
-	BlockedCode          string          `json:"blocked_code,omitempty"`
-	StopCode             string          `json:"stop_code,omitempty"`
-	SelectionRoot        *ExactArtifact  `json:"selection_root" strictjson:"required,nullable"`
-	PreparedRoot         *ExactArtifact  `json:"prepared_root" strictjson:"required,nullable"`
-	DeadlineAt           time.Time       `json:"deadline_at" strictjson:"required"`
-	Changed              bool            `json:"-"`
+	Schema           string          `json:"schema" strictjson:"required"`
+	Generation       string          `json:"generation" strictjson:"required"`
+	Revision         uint64          `json:"revision" strictjson:"required"`
+	AuditID          string          `json:"audit_id" strictjson:"required"`
+	PreviousRoundID  string          `json:"previous_round_id" strictjson:"required"`
+	RoundID          string          `json:"round_id" strictjson:"required"`
+	RoundOrdinal     int             `json:"round_ordinal" strictjson:"required"`
+	ProfileDigest    string          `json:"profile_digest" strictjson:"required"`
+	BaselineDigest   string          `json:"baseline_digest" strictjson:"required"`
+	SourceCutoffAt   time.Time       `json:"source_cutoff_at" strictjson:"required"`
+	SourceUpper      AdmissionCursor `json:"source_upper" strictjson:"required"`
+	Cursor           AdmissionCursor `json:"cursor" strictjson:"required"`
+	Budget           json.RawMessage `json:"budget" strictjson:"required"`
+	SelectedCount    int             `json:"selected_count" strictjson:"required"`
+	PublishedPages   int             `json:"published_pages" strictjson:"required"`
+	StagedPages      int             `json:"staged_pages" strictjson:"required"`
+	PagesDigest      string          `json:"pages_digest" strictjson:"required"`
+	StagedCount      int             `json:"staged_count" strictjson:"required"`
+	Exhausted        bool            `json:"exhausted" strictjson:"required"`
+	BlockedReceiptID string          `json:"blocked_receipt_id,omitempty"`
+	BlockedCode      string          `json:"blocked_code,omitempty"`
+	StopCode         string          `json:"stop_code,omitempty"`
+	Root             *ExactArtifact  `json:"root" strictjson:"required,nullable"`
+	DeadlineAt       time.Time       `json:"deadline_at" strictjson:"required"`
+	Changed          bool            `json:"-"`
 }
 
 type AdmissionStepParams struct {
@@ -82,15 +80,14 @@ type AdmissionDecision struct {
 // artifacts through its transaction-bound service, then returns their exact
 // descriptors here. The store commits links, counters and checkpoint together.
 type AdmissionMutation struct {
-	Next          AdmissionProgress
-	SelectionPage *ExactArtifact
-	PreparedPage  *ExactArtifact
-	PageContent   json.RawMessage
-	Retained      []ArtifactLink
-	Decisions     []AdmissionDecision
-	SelectionRoot *ExactArtifact
-	PreparedRoot  *ExactArtifact
-	Restart       bool
+	Next             AdmissionProgress
+	Page             *ExactArtifact
+	PageContent      json.RawMessage
+	Root             *ExactArtifact
+	StagePageOrdinal *int
+	Retained         []ArtifactLink
+	Decisions        []AdmissionDecision
+	Restart          bool
 }
 
 type AdmissionCandidate struct {
@@ -141,7 +138,7 @@ type AdmissionReader interface {
 	ReadCandidates(context.Context, AdmissionCursor, int) (AdmissionCandidatePage, error)
 	FindingSource(context.Context, string) (AdmissionFindingSource, error)
 	ReadFindingCheck(context.Context, string, int) (AdmissionFindingCheck, error)
-	ReadSelectionPage(context.Context, int) (ExactArtifact, []byte, error)
+	ReadPage(context.Context, int) (ExactArtifact, []byte, error)
 	GetPreparationOutput(context.Context, string, string, string) (AcceptedPreparationOutput, error)
 	GetArtifactLink(context.Context, string, string) (ArtifactLink, error)
 	DependencyResultSource(context.Context, string, string, string) (DependencyResultSource, error)

@@ -91,17 +91,17 @@ WITH input AS MATERIALIZED (
  SELECT * FROM jsonb_to_recordset($3::jsonb) AS item(item_id text,item_key text,ordinal integer,kind text,subject_key text,
   task_ref jsonb,task_digest text,origin jsonb,workflow_role text,initial_state text,approval_kind text,approval_digest text,
   status text,requested jsonb,completed jsonb,gaps jsonb,rationale text,receipt_id text,proposed_check_ordinal integer,
-  proposal_ref jsonb,proposal_digest text,retained_dependencies text,accepted_plan text,prepared_execution text,
+  proposal_ref jsonb,proposal_digest text,retained_dependencies text,prepared_execution text,
   prepared_page_ordinal integer,prepared_related_count integer)
 )
 INSERT INTO audit_items(item_id,audit_id,round_id,item_key,ordinal,kind,subject_key,task_ref,task_digest,origin,workflow_role,state,
  approval_kind,approval_subject_digest,coverage_status,coverage_requested,coverage_completed,coverage_gaps,coverage_rationale,
- proposal_receipt_id,proposal_check_ordinal,proposal_ref,proposal_digest,retained_dependencies,accepted_plan,prepared_execution,
+ proposal_receipt_id,proposal_check_ordinal,proposal_ref,proposal_digest,retained_dependencies,prepared_execution,
  prepared_page_ordinal,prepared_related_count)
 SELECT item.item_id,$1,$2,item.item_key,item.ordinal,item.kind,item.subject_key,item.task_ref,item.task_digest,item.origin,
  item.workflow_role,item.initial_state,item.approval_kind,NULLIF(item.approval_digest,''),item.status,item.requested,item.completed,
  item.gaps,item.rationale,item.receipt_id,item.proposed_check_ordinal,item.proposal_ref,item.proposal_digest,
- NULLIF(item.retained_dependencies,'')::json,item.accepted_plan::json,item.prepared_execution::json,item.prepared_page_ordinal,item.prepared_related_count
+ NULLIF(item.retained_dependencies,'')::json,item.prepared_execution::json,item.prepared_page_ordinal,item.prepared_related_count
 FROM input AS item JOIN audit_rounds AS round ON round.audit_id=$1 AND round.round_id=$2 AND round.state='proposed'`
 
 const admissionStageReviewsSQL = `
@@ -136,3 +136,12 @@ SELECT octet_length(receipt.proposal_ref::text)+octet_length(hold.proposal_ref::
  receipt.checks_projection_bytes
 FROM finding_proposal_receipts AS receipt JOIN finding_proposal_audit_holds AS hold USING(receipt_id)
 WHERE hold.audit_id=$1 AND receipt.owner_id=$2 AND hold.project_id=$3 AND receipt.receipt_id=$4`
+
+// The final bounded staging transaction installs the database membership seal.
+// Root publication precedes staging and cannot set these nullable seal fields.
+const admissionSealMembershipSQL = `
+UPDATE audit_rounds SET acceptance_digest=$4,prepared_page_count=$5,prepared_pages_digest=$6
+WHERE audit_id=$1 AND round_id=$2 AND state='proposed'
+ AND prepared_generation=$3 AND manifest_digest=$4
+ AND prepared_page_count IS NULL AND prepared_pages_digest IS NULL
+ AND prepared_staged_count=$7 AND expected_item_count=$7`

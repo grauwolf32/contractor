@@ -146,6 +146,7 @@ allowlists it with its opt-in target and the reason (real scanners or Podman).
 
 `make test-audit-iterative-postgres` runs the exact store, scale and recovery
 selection in [`audit_iterative_matrix.yml`](../../tests/e2e/audit_iterative_matrix.yml)
+(each case appears once, with its boundary and acceptance links)
 with the race detector. It includes the 4,096-item Round inside a 100,000-item
 Audit, 32-dependency closures, bounded capture/admission/materialization and
 populated deletion. Fixtures use real PostgreSQL and deterministic work/query
@@ -163,6 +164,17 @@ registry, paid provider or live-model quality assumption.
 Both direct targets execute their focused harness unit checks once per make
 invocation. Missing prerequisites, a zero/missing/skipped required selection,
 changed source/matrix, command failure or an incomplete report fails the gate.
+The Audit gates use one strict Go-event verifier and one process-group capture
+owner in `scripts/release_test_reports.py`; completion keeps its Runtime JUnit
+policy and composition keeps its browser checks. Family root scopes remain
+explicit, so an unlisted importer case cannot hide a selected skip.
+
+Fresh Audit completion, composition and iterative execution evidence requires a clean checkout and records the
+actual source revision, matrix path/digest, report digest and executed case
+identities, including focused descendants. It does not copy acceptance prose
+from the matrix. Report-only verification checks the supplied stream without
+executing tests or publishing fresh source evidence. Historical task evidence
+retains its original schema and source pins.
 Independent finite command deadlines and signal cleanup stop and join the
 owned process group. The harness does not retry a failing whole suite.
 Use a separate disposable database for each concurrent lane; sharing a schema

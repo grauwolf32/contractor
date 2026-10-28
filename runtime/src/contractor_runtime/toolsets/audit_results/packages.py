@@ -178,6 +178,16 @@ def _decode_execution_manifest(payload: bytes, media_type: str) -> dict[str, Any
     for index, item in enumerate(items):
         if (
             not isinstance(item, dict)
+            or set(item)
+            - {
+                "item_key",
+                "ordinal",
+                "subject_key",
+                "task_package_id",
+                "task_package_digest",
+                "task_ref",
+                "inputs",
+            }
             or item.get("ordinal") != index
             or not isinstance(item.get("item_key"), str)
             or IDENTIFIER.fullmatch(item["item_key"]) is None
@@ -191,12 +201,6 @@ def _decode_execution_manifest(payload: bytes, media_type: str) -> dict[str, Any
             raise ValueError("execution manifest item is invalid")
         if item["item_key"] in seen_items or item["task_package_id"] in seen_packages:
             raise ValueError("execution manifest identity is duplicated")
-        if "dependencies" in item:
-            validate_retained_dependencies(item["dependencies"], item["item_key"])
-        if "accepted_plan" in item:
-            validate_accepted_plan(
-                item["accepted_plan"], item.get("dependencies"), item["item_key"]
-            )
         seen_items.add(item["item_key"])
         seen_packages.add(item["task_package_id"])
     return manifest
@@ -216,8 +220,6 @@ def _match_trusted_inputs(
             or item.get("subject_key") != task.get("subject_key")
             or item.get("task_package_id") != task_package_id
             or item.get("task_package_digest") != task_package_digest
-            or item.get("dependencies") != task.get("dependencies")
-            or item.get("accepted_plan") != task.get("accepted_plan")
         ):
             raise ValueError("task and execution manifest identities differ")
         if not isinstance(task.get("item_key"), str) or not isinstance(

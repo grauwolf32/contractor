@@ -75,7 +75,7 @@ func testTypedNonTimeBudget(t *testing.T, budget string) {
 		t.Fatalf("bounded defer disposition count=%d error=%v", deferred, err)
 	}
 	progress := readTypedAdmissionProgress(t, ctx, h)
-	if progress.SelectedCount != 0 || progress.StopCode != code || progress.SelectionRoot != nil || progress.PreparedRoot != nil {
+	if progress.SelectedCount != 0 || progress.StopCode != code || progress.Root != nil {
 		t.Fatal("exhausted non-time budget created partial accepted work")
 	}
 }

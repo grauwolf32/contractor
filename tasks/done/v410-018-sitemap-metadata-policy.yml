@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V410-011
+id: V410-018
 title: Preserve sitemap metadata without secret filtering
 milestone: project-sitemap-2026-10
 epic: http-tools
@@ -155,5 +155,10 @@ verification:
   limitations:
   - Verification used disposable local PostgreSQL 17, Go 1.26.9, Node 24.20 and the locked Runtime environment.
     No demo data or primary checkout files were changed.
-  - The working branch codex/v410-011-sitemap-metadata is not merged into main. Original structured-import, reconciliation
+  - Initial verification completed on codex/v410-011-sitemap-metadata before main integration. Original structured-import, reconciliation
     and remaining delivery tasks retain their status; this does not claim the full V410 release gate.
+
+integration_identity:
+  date: '2026-10-28'
+  previous_branch_id: V410-011
+  reason: Main already contains the completed table-read ownership task V410-011; the metadata-policy task is reassigned without rewriting implementation history.

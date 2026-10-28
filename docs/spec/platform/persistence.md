@@ -891,19 +891,63 @@ same transaction, including with one pool connection. A rejected candidate
 rolls back its speculative forks and task artifacts while its natural decision
 key may commit in the outer transaction.
 
-**PER-R39.** Selection and prepared pages are immutable frozen Audit artifacts
-registered through existing ArtifactLinks. A non-current `proposed` Round stages
-at most one bounded prepared page per phase. Its private execution rows pin
-that verified page and freeze original source, item identity, role, task,
-origin and approval authority. A final seal checks fixed-size generation,
-count and chain-digest parent fields and atomically publishes the Round and
-current pointer; it neither inserts nor rebuilds the complete item collection.
-Deletion updates physical staging counters in the same transaction, so a
-withdrawn source cannot leave an acceptable stale seal. Dispatch preflights
-stored selected-row bytes and descriptor counts before hydrating only the
-selected immutable execution entries. It never reads whole pages to select
-sparse items. A lost acceptance response replays the same root and generation
-without another debit or accepted event.
+**PER-R39.** One immutable prepared page chain and one root are frozen Audit
+artifacts registered and charged once through existing ArtifactLinks. Each page
+pins its preceding exact page digest; the root pins the complete ordered chain,
+selected count, generation and profile/baseline digests. Published selection and
+private staging keep independent item/page counters. The root has no second
+selection-root reference and its publication grants no membership authority.
+
+A non-current `proposed` Round stages at most one bounded stored page per phase.
+The caller supplies only its next ordinal; the transaction reads the trusted
+natural-key page once and revalidates original receipt/source and pinned route
+before staging. Private execution rows freeze the verified page's source, item
+identity, role, task, origin and approval authority. The accepted plan is stored
+only inside that immutable execution projection; its object/schema, 64 KiB
+encoded-byte bound and owning Audit/item identity are enforced there, without a
+separate plan column. Ordinary items have no prepared projection or page/cost
+headers.
+
+The final bounded staging transaction verifies that staged item/page counts
+match the published chain and atomically installs the existing SQL membership
+seal. Acceptance separately checks fixed-size generation, count and chain-digest
+parent fields and atomically publishes the Round and current pointer; it neither
+inserts nor rebuilds the complete item collection. Partial membership remains
+invisible to reads, review and dispatch. Deletion updates physical staging
+counters in the same transaction, so a withdrawn source cannot leave an
+acceptable stale seal. Dispatch preflights stored selected-row bytes and
+descriptor counts before hydrating only selected immutable execution entries.
+It never reads whole pages to select sparse items. Lost page, root, stage or
+acceptance responses resume the same generation, exact artifacts and counters
+without another debit or accepted event. Checkpoint readers reject removed
+selection/prepared duplicate fields rather than reinterpret historical data;
+the forward transition is defined by [PER-R41](#PER-R41).
+
+**PER-R40.** The incompatible Audit worklist execution-manifest transition
+requires the previous Server to finish or cancel Audits that already have a
+Round before the operator stops it and applies the forward migration. The
+migration rejects an Audit in `active`, `waiting_review`, `paused`,
+`finalizing`, `cancelling` or `deleting` with any Round, using only indexed
+Audit/Round metadata. The check is not limited to typed finding worklists.
+Drafts and preparation without Rounds may remain. Terminal historical
+artifacts and records are preserved without rewriting their frozen content;
+current readers accept only the current execution format. The migration's
+metadata locks keep the preflight stable until commit; they do not provide a
+mixed-version Server protocol or permission to restart the previous writer.
+
+**PER-R41.** The incompatible typed-admission page-chain transition requires
+the previous Server to finish or cancel Audits with admission checkpoints or
+typed prepared membership before it is stopped and the forward migration is
+applied. The migration rejects an Audit in `active`, `waiting_review`, `paused`,
+`finalizing`, `cancelling` or `deleting` when any of its Rounds has a non-NULL
+admission checkpoint, prepared generation or prepared page count. Only parent
+Audit/Round metadata is inspected under transaction-scoped metadata locks;
+no item, checkpoint JSON or artifact payload is parsed or rewritten. Ordinary
+live Rounds with none of these typed markers, and preparation without Rounds,
+may remain. Terminal checkpoints, private projections, frozen page/root bytes,
+exact holds and accounting remain unchanged. The new Server accepts only the
+current checkpoint and page/root format. The previous writer must remain
+stopped after migration commit; the locks are not a mixed-version protocol.
 
 ## Limits, failures and errors
 

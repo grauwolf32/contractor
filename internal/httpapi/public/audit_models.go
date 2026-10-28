@@ -30,7 +30,15 @@ func auditProfileReadModel(source auditservice.ProfileProjection, detail bool) a
 		CompatibilityReasons:    append([]auditservice.CompatibilityReason{}, source.Compatibility.Reasons...),
 	}
 	if detail {
-		result.Methods = profile.Clone().Methods
+		if len(profile.Methods) > 0 {
+			result.Methods = make(map[string]auditProfileCheckMethodResponse, len(profile.Methods))
+			for name, mapping := range profile.Clone().Methods {
+				result.Methods[name] = auditProfileCheckMethodResponse{
+					PlanSchema: mapping.PlanSchema, Method: mapping.Method, WorkflowRole: mapping.WorkflowRole,
+					RequiredCapabilities: mapping.RequiredCapabilities,
+				}
+			}
+		}
 		result.Workflows = make(map[string]auditProfileWorkflowResponse, len(profile.Workflows))
 		for role, binding := range profile.Workflows {
 			result.Workflows[role] = auditProfileWorkflowResponse{

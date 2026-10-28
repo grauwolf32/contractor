@@ -130,7 +130,7 @@ func TestResolveInputsForksTrustedExecutionManifestWithoutSelfReference(t *testi
 	}}}
 
 	runInputs, memberInputs, err := (&PinnedSubmissionBuilder{}).resolveInputs(
-		context.Background(), auditstore.ReconcileSnapshot{}, binding, baseline, manifest, task, execution,
+		context.Background(), auditstore.ReconcileSnapshot{}, binding, baseline, manifest, nil, task, execution,
 	)
 	if err != nil {
 		t.Fatal(err)

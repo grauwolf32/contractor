@@ -1742,8 +1742,12 @@ items:
 ## Registered proposed-check routing
 
 **AUD-R233.** A profile may declare a `methods` mapping with at most 128 entries.
-Each entry names one registered `planSchema`, `method` and `phase`, an exact
+Each entry names one registered `planSchema` and `method`, an exact
 `kind: check` Workflow role, and an explicit `requiredCapabilities` array.
+The authored manifest and public mapping omit `phase`; an authored `phase`
+member is rejected. The registry derives it in the resolved route, where it
+remains part of the immutable profile digest. Retained profiles must contain
+the exact registered phase; readers never repair a missing or changed value.
 Semantic keys are unique across mapping names. The finding-check-plan.v1
 registry maps `verify`, `static-trace` and `http-probe` to `verify`; `replay`,
 `applicability` and `alternative` each use their same-named phase. Neither role
@@ -1761,16 +1765,21 @@ valid ordinary finding submission. An absent index means explicit data migration
 is pending; it is never a legacy admission fallback. Exact source authorization
 and accepted membership precede any model context or target execution.
 
-**AUD-R235.** A typed item retains an immutable `accepted_plan` in both its task
-and execution entry. It pins owner, Project, Audit, item, baseline and profile;
+**AUD-R235.** A typed task retains the immutable `accepted_plan` transported to
+its Worker. The bounded private prepared projection retains the same accepted
+metadata for admission and indexed membership reads; it is not a Run input.
+The compact execution entry pins the exact task package and carries no plan or
+dependency body. The accepted plan pins owner, Project, Audit, item, baseline and profile;
 the original and retained proposal, receipt, producer Run and ordinal; canonical
 plan bytes/digest; the selected mapping, role, binding, Workflow and Skills;
 and scope, active-check policy, limits and required approval. Accepted-plan
 metadata is at most 64KiB. Every task with an accepted plan requires an explicit
 registered `profile_mode`; missing, null, empty or unknown modes fail both the
 Server factory/reader and Runtime reader. Its explicitly nullable `dependencies_digest` pins the
-complete existing dependency manifest without duplicating it. Task, execution,
-source, route and dependency identities must agree. JSON origin fields alone
+complete existing task dependency manifest without duplicating it. Exact task
+package identity/digest, source, route and dependency identities must agree;
+the Server and Runtime validate the task body rather than compare transported
+copies. JSON origin fields alone
 establish no authority; unknown source variants require a production adapter.
 
 **AUD-R236.** Required capabilities name tools selected by one exact Stage and
@@ -1782,8 +1791,10 @@ A selected toolset or enabled capability never grants target or approval authori
 
 **AUD-R237.** Typed admission measures each candidate's own role, approval,
 inputs, accepted plan and full dependency closure before accepting it. Paged
-Round construction accounts exact source/task bytes, complete selected and
-prepared page metadata, and bounded root metadata within 64MiB. Its durable
+Round construction publishes and charges one immutable prepared page chain and
+one compact root, accounting exact source/task bytes and that complete page/root
+metadata within 64MiB. Published selection and database staging keep separate
+item/page counters; publishing the root alone grants no accepted membership. Its durable
 budget state contains fixed document totals and a shape digest, at most 4KiB,
 independent of the selected and containing Audit population. Resume validates
 that exact generation and shape; it does not reconstruct a growing history map.

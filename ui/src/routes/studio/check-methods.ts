@@ -6,14 +6,14 @@ export const FINDING_CHECK_PLAN_SCHEMA =
 export const MAX_CHECK_METHODS = 128;
 export const MAX_CHECK_CAPABILITIES = 32;
 const MAX_CHECK_CAPABILITY_TOOLS = 128;
-export const CHECK_METHOD_PHASES: Readonly<Record<string, string>> = {
-  verify: "verify",
-  replay: "replay",
-  applicability: "applicability",
-  alternative: "alternative",
-  "static-trace": "verify",
-  "http-probe": "verify",
-};
+export const CHECK_METHODS: readonly string[] = [
+  "verify",
+  "replay",
+  "applicability",
+  "alternative",
+  "static-trace",
+  "http-probe",
+];
 
 export function validateCheckMethods(
   methods: unknown,
@@ -35,7 +35,6 @@ export function validateCheckMethods(
     const fields = [
       "planSchema",
       "method",
-      "phase",
       "workflowRole",
       "requiredCapabilities",
     ];
@@ -54,13 +53,12 @@ export function validateCheckMethods(
     const method = textValue(value.method);
     if (
       value.planSchema !== FINDING_CHECK_PLAN_SCHEMA ||
-      !Object.hasOwn(CHECK_METHOD_PHASES, method) ||
-      value.phase !== CHECK_METHOD_PHASES[method]
+      !CHECK_METHODS.includes(method)
     )
-      error(path, "Choose a registered plan method and its declared phase.");
-    const key = `${textValue(value.planSchema)}\0${method}\0${textValue(value.phase)}`;
+      error(path, "Choose a registered plan method.");
+    const key = `${textValue(value.planSchema)}\0${method}`;
     if (selected.has(key))
-      error(path, "Each schema, method and phase selects one route.");
+      error(path, "Each schema and method selects one route.");
     selected.add(key);
     if (record(workflows[textValue(value.workflowRole)]).kind !== "check")
       error([...path, "workflowRole"], "Choose a check workflow role.");

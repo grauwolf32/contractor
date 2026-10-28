@@ -10,6 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
+	"github.com/grauwolf32/contractor/internal/contentdigest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
@@ -116,7 +117,7 @@ func (s *ClaimedAdmission) WithStep(ctx context.Context, params auditstore.Admis
 				AuditID: params.Claim.AuditID, PreviousRoundID: params.PreviousRoundID, RoundOrdinal: ordinal + 1,
 				ProfileDigest: profile, BaselineDigest: auditdomain.DigestBytes(baseline),
 				Budget: json.RawMessage(`{}`), DeadlineAt: now.Add(auditstore.AdmissionValidationTimeout),
-				SelectionPagesDigest: auditdomain.DigestBytes(nil), PagesDigest: auditdomain.DigestBytes(nil)}
+				PagesDigest: auditdomain.DigestBytes(nil)}
 			state.RoundID = auditdomain.DeterministicID("round", state.AuditID, fmt.Sprint(state.RoundOrdinal))
 			if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&state.SourceCutoffAt); err != nil {
 				return err
@@ -162,9 +163,21 @@ func (s *ClaimedAdmission) WithStep(ctx context.Context, params auditstore.Admis
 func encodeAdmissionProgress(state auditstore.AdmissionProgress) ([]byte, error) {
 	if state.Schema != auditstore.AdmissionSchema || state.Revision == 0 || state.Generation == "" || state.DeadlineAt.IsZero() ||
 		state.SelectedCount < 0 || state.SelectedCount > auditdomain.MaximumItems || state.StagedCount < 0 || state.StagedCount > state.SelectedCount ||
-		state.SelectionPages < 0 || state.PreparedPages < 0 || state.PreparedPages > state.SelectionPages || validateJSONObject("admission budget", state.Budget, 4096) != nil || state.SourceCutoffAt.IsZero() || state.RoundOrdinal < 2 || state.RoundOrdinal > 33 || state.RoundOrdinal == 33 && state.SelectedCount > 0 ||
+		state.PublishedPages < 0 || state.StagedPages < 0 || state.StagedPages > state.PublishedPages || validateJSONObject("admission budget", state.Budget, 4096) != nil || state.SourceCutoffAt.IsZero() || state.RoundOrdinal < 2 || state.RoundOrdinal > 33 || state.RoundOrdinal == 33 && state.SelectedCount > 0 ||
 		state.StopCode != "" && state.StopCode != "round_budget_exhausted" && state.StopCode != "item_budget_exhausted" && state.StopCode != "evidence_budget_exhausted" && state.StopCode != "submission_budget_exhausted" ||
 		(state.BlockedCode == "") != (state.BlockedReceiptID == "") || state.Cursor.Ordinal < 0 || state.Cursor.Ordinal > 512 {
+		return nil, auditstore.ErrInvalid
+	}
+	if state.PublishedPages > state.SelectedCount || state.StagedPages > state.StagedCount ||
+		(state.PublishedPages == 0) != (state.SelectedCount == 0) || (state.StagedPages == 0) != (state.StagedCount == 0) ||
+		!contentdigest.Valid(state.PagesDigest) || state.PublishedPages == 0 && state.PagesDigest != auditdomain.DigestBytes(nil) ||
+		state.Root == nil && (state.StagedPages != 0 || state.StagedCount != 0) {
+		return nil, auditstore.ErrInvalid
+	}
+	if state.Root != nil && (!state.Exhausted || state.SelectedCount == 0 || state.Root.Validate() != nil || !state.Root.HasMetadata() || state.Root.MediaType != auditdomain.PreparedRoundRootMediaType || state.Root.SizeBytes < 1 || state.Root.SizeBytes > auditdomain.MaximumPreparedRoundRootBytes || state.Root.Ref.Namespace != auditdomain.ArtifactNamespace(state.AuditID)) {
+		return nil, auditstore.ErrInvalid
+	}
+	if state.Root != nil && (state.StagedPages == state.PublishedPages) != (state.StagedCount == state.SelectedCount) {
 		return nil, auditstore.ErrInvalid
 	}
 	encoded, err := json.Marshal(state)

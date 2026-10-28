@@ -8,7 +8,7 @@ priority: P1
 status: pending
 depends_on:
 - V410-006
-- V410-011
+- V410-018
 - V410-012
 - V410-013
 - V410-014

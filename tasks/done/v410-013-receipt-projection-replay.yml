@@ -14,7 +14,7 @@ languages:
 goal: Preserve structural omission intent during sitemap receipt replay.
 context:
   authority: User requested a second assessment, task creation and fixes on 2026-10-27. The raw owner-selected blackbox
-    input finding is withdrawn; secret filtering is removed by V410-011.
+    input finding is withdrawn; secret filtering is removed by V410-018.
   specification:
   - docs/spec/artifacts/project-sitemap.md
   severity: medium
@@ -96,5 +96,5 @@ verification:
   limitations:
   - Verification used disposable local PostgreSQL 17, Go 1.26.9, Node 24.20 and the locked Runtime environment.
     No demo data or primary checkout files were changed.
-  - The working branch codex/v410-011-sitemap-metadata is not merged into main. Original structured-import, reconciliation
+  - Initial verification completed on codex/v410-011-sitemap-metadata before main integration. Original structured-import, reconciliation
     and remaining delivery tasks retain their status; this does not claim the full V410 release gate.

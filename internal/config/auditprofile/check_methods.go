@@ -24,7 +24,6 @@ type AuditCheckMethodMapping struct {
 type checkMethodSource struct {
 	PlanSchema           string                   `yaml:"planSchema"`
 	Method               string                   `yaml:"method"`
-	Phase                string                   `yaml:"phase"`
 	WorkflowRole         string                   `yaml:"workflowRole"`
 	RequiredCapabilities *[]checkCapabilitySource `yaml:"requiredCapabilities"`
 }
@@ -131,10 +130,14 @@ func resolveCheckMethods(source map[string]checkMethodSource) (map[string]AuditC
 	}
 	result := make(map[string]AuditCheckMethodMapping, len(source))
 	for name, value := range source {
+		key, known := contracts.LookupCheckPlanMethod(value.PlanSchema, value.Method)
+		if !known {
+			return nil, fmt.Errorf("methods selects an unregistered schema or method")
+		}
 		if value.RequiredCapabilities == nil {
 			return nil, fmt.Errorf("methods.requiredCapabilities is required")
 		}
-		mapping := AuditCheckMethodMapping{PlanSchema: value.PlanSchema, Method: value.Method, Phase: value.Phase, WorkflowRole: value.WorkflowRole, RequiredCapabilities: []contracts.CheckCapabilityRequirement{}}
+		mapping := AuditCheckMethodMapping{PlanSchema: key.Schema, Method: key.Method, Phase: key.Phase, WorkflowRole: value.WorkflowRole, RequiredCapabilities: []contracts.CheckCapabilityRequirement{}}
 		for _, capability := range *value.RequiredCapabilities {
 			tools := slices.Clone(capability.Tools)
 			sort.Strings(tools)

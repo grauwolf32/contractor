@@ -409,14 +409,6 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		if findErr != nil {
 			return PreparedSubmission{}, findErr
 		}
-		if manifestItem.AcceptedPlan != nil {
-			if routed == nil || routed.Validate(*manifestItem.AcceptedPlan, manifestItem.Dependencies, item.WorkflowRole) != nil {
-				return PreparedSubmission{}, invalidSubmission("accepted check plan differs from its pinned route or authority")
-			}
-		}
-		if err := b.validateItemDependencies(ctx, snapshot, binding, baseline, item, manifestItem); err != nil {
-			return PreparedSubmission{}, err
-		}
 		task, resolveErr := b.artifacts.ResolveProjectExact(ctx, audit.ProjectID, item.Task)
 		if resolveErr != nil {
 			return PreparedSubmission{}, resolveErr
@@ -438,6 +430,24 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		attemptIdentity = append(attemptIdentity, item.ItemID, strconv.Itoa(attempt))
 	}
 	selected = selected[:len(tasks)]
+	// Finish the fitting descriptor prefix before reading any task body. The
+	// local cache lives for this one preparation and is reused for assembly.
+	verified, err := b.readSelectedTasks(ctx, audit.ProjectID, manifestItems, tasks, selected, baseline.Scope.Values(), paged)
+	if err != nil {
+		return PreparedSubmission{}, err
+	}
+	for index, member := range selected {
+		if paged {
+			task := verified[index].document
+			if routed == nil || routed.Validate(*task.AcceptedPlan, task.Dependencies, member.Item.WorkflowRole) != nil {
+				return PreparedSubmission{}, invalidSubmission("accepted check plan differs from its pinned route or authority")
+			}
+		}
+		if err := b.validateItemDependencies(ctx, snapshot, binding, baseline, member.Item); err != nil {
+			return PreparedSubmission{}, err
+		}
+	}
+
 	manifest := auditdomain.ExecutionManifest{
 		Schema: auditdomain.ExecutionManifestSchema,
 		Items:  manifestItems,
@@ -459,7 +469,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 	if manifestArtifact.Digest != manifestDigest {
 		return PreparedSubmission{}, invalidSubmission("stored execution manifest digest differs")
 	}
-	taskInput, err := b.buildTaskInput(ctx, audit.ProjectID, namespace, manifestDigest, manifestItems, tasks, selected[:len(tasks)], baseline.Scope.Values())
+	taskInput, err := b.buildTaskInput(ctx, audit.ProjectID, namespace, manifestDigest, tasks, verified)
 	if err != nil {
 		return PreparedSubmission{}, err
 	}
@@ -468,7 +478,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 	members := make([]auditstore.ExecutionMemberIntent, len(selected))
 	for index, member := range selected {
 		candidateInputs, memberInputs, resolveErr := b.resolveInputs(
-			ctx, snapshot, binding, baseline, manifestItems[index], taskInput, manifestArtifact,
+			ctx, snapshot, binding, baseline, manifestItems[index], member.Item.Dependencies, taskInput, manifestArtifact,
 		)
 		if resolveErr != nil {
 			return PreparedSubmission{}, resolveErr
@@ -485,7 +495,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		if len(selected) > 1 {
 			memberInputs = append(memberInputs, taskInput.Clone())
 		}
-		if manifestItems[index].Dependencies != nil {
+		if member.Item.Dependencies != nil {
 			memberInputs, err = uniqueDependencyInputs(memberInputs)
 			if err != nil {
 				return PreparedSubmission{}, err
@@ -554,7 +564,7 @@ func (b *PinnedSubmissionBuilder) PrepareBatch(
 		Parameters:        parameters, Inputs: runInputs,
 		ExecutionManifest: manifestArtifact, RequestDigest: requestDigest,
 	}
-	if manifestItems[0].Dependencies != nil {
+	if selected[0].Item.Dependencies != nil {
 		run.InputMaterializationID = auditdomain.DigestBytes([]byte("retained-dependency:" + manifestDigest))
 		run.MaterializeInputs = runservice.MaterializeAuditRetainedDependencies
 	}
@@ -567,51 +577,61 @@ func fitsBatchedTaskPayload(selectedBytes, candidateBytes int64) bool {
 		candidateBytes <= maximumBatchedTaskPayloadBytes-selectedBytes
 }
 
+type verifiedTask struct {
+	descriptor auditstore.ExactArtifact
+	payload    []byte
+	document   auditdomain.ItemTask
+}
+
+// readSelectedTasks reads a typed singleton or a final multi-item batch once.
+// An ordinary singleton keeps the accepted SQL/exact-descriptor path; its
+// Runtime verifies the task body before any model context is prepared.
+func (b *PinnedSubmissionBuilder) readSelectedTasks(ctx context.Context, projectID string, manifest []auditdomain.ExecutionItem, tasks []auditstore.ExactArtifact, selected []CheckExecutionMember, scope map[string]string, typed bool) ([]verifiedTask, error) {
+	if !typed && len(tasks) == 1 {
+		return nil, nil
+	}
+	result := make([]verifiedTask, len(tasks))
+	for index, descriptor := range tasks {
+		payload, err := b.artifacts.ReadProjectExact(ctx, projectID, descriptor)
+		if err != nil {
+			return nil, err
+		}
+		pkg, err := auditdomain.ValidatePackage(payload.Data)
+		if err != nil || payload.MediaType != auditdomain.PackageMediaType || pkg.Manifest.Kind != auditdomain.PackageKindTask || pkg.Manifest.PackageID != manifest[index].TaskPackageID || pkg.Digest != descriptor.Digest || pkg.Digest != manifest[index].TaskPackageDigest {
+			return nil, invalidSubmission("Audit batch contains an invalid exact task package")
+		}
+		member, exists := pkg.MemberByID("task-document")
+		if !exists || len(pkg.Members()) != 1 || member.Metadata().Path != "task.json" || member.Metadata().MediaType != auditdomain.JSONMediaType {
+			return nil, invalidSubmission("Audit task document is absent")
+		}
+		document, err := auditdomain.DecodeItemTask(member.Data())
+		if err != nil {
+			return nil, invalidSubmission("Audit task document is invalid")
+		}
+		if err := validateTaskContent(document, selected[index].Item, scope, typed); err != nil {
+			return nil, err
+		}
+		result[index] = verifiedTask{descriptor: descriptor.Clone(), payload: payload.Data, document: document}
+	}
+	return result, nil
+}
+
 func (b *PinnedSubmissionBuilder) buildTaskInput(
-	ctx context.Context,
-	projectID string,
-	namespace string,
-	manifestDigest string,
-	manifestItems []auditdomain.ExecutionItem,
-	tasks []auditstore.ExactArtifact,
-	selected []CheckExecutionMember,
-	scope map[string]string,
+	ctx context.Context, projectID, namespace, manifestDigest string,
+	tasks []auditstore.ExactArtifact, verified []verifiedTask,
 ) (auditstore.ExactArtifact, error) {
 	if len(tasks) == 1 {
-		if manifestItems[0].AcceptedPlan != nil {
-			payload, err := b.artifacts.ReadProjectExact(ctx, projectID, tasks[0])
-			if err != nil {
-				return auditstore.ExactArtifact{}, err
-			}
-			pkg, err := auditdomain.ValidatePackage(payload.Data)
-			if err != nil || pkg.Manifest.Kind != auditdomain.PackageKindTask || pkg.Manifest.PackageID != manifestItems[0].TaskPackageID || pkg.Digest != tasks[0].Digest || validateRoutedTaskContent(pkg, manifestItems[0], selected[0].Item, scope) != nil {
-				return auditstore.ExactArtifact{}, invalidSubmission("typed task package differs from its accepted plan or source")
-			}
-		}
 		return tasks[0].Clone(), nil
 	}
-	if len(tasks) < 2 || len(tasks) != len(manifestItems) || len(tasks) > auditstore.MaxCollectionItems {
+	if len(tasks) < 2 || len(tasks) != len(verified) || len(tasks) > auditstore.MaxCollectionItems {
 		return auditstore.ExactArtifact{}, invalidSubmission("Audit task set membership is invalid")
 	}
 	inputs := make([]auditdomain.PackageInput, len(tasks))
 	for index, descriptor := range tasks {
-		payload, err := b.artifacts.ReadProjectExact(ctx, projectID, descriptor)
-		if err != nil {
-			return auditstore.ExactArtifact{}, err
+		if verified[index].descriptor.Verify(descriptor) != nil {
+			return auditstore.ExactArtifact{}, invalidSubmission("verified task identity differs during assembly")
 		}
-		pkg, err := auditdomain.ValidatePackage(payload.Data)
-		if err != nil || payload.MediaType != auditdomain.PackageMediaType ||
-			pkg.Manifest.Kind != auditdomain.PackageKindTask || pkg.Manifest.PackageID != manifestItems[index].TaskPackageID ||
-			pkg.Digest != descriptor.Digest || pkg.Digest != manifestItems[index].TaskPackageDigest {
-			return auditstore.ExactArtifact{}, invalidSubmission("Audit batch contains an invalid exact task package")
-		}
-		if manifestItems[index].AcceptedPlan != nil && validateRoutedTaskContent(pkg, manifestItems[index], selected[index].Item, scope) != nil {
-			return auditstore.ExactArtifact{}, invalidSubmission("typed task package differs from its accepted plan or source")
-		}
-		inputs[index] = auditdomain.PackageInput{
-			ID: fmt.Sprintf("task-%03d", index), Path: fmt.Sprintf("tasks/%03d.zip", index),
-			MediaType: auditdomain.PackageMediaType, Data: payload.Data,
-		}
+		inputs[index] = auditdomain.PackageInput{ID: fmt.Sprintf("task-%03d", index), Path: fmt.Sprintf("tasks/%03d.zip", index), MediaType: auditdomain.PackageMediaType, Data: verified[index].payload}
 	}
 	packageID := "task-set-" + stringsDigest(manifestDigest)
 	payload, pkg, err := auditdomain.BuildPackage(
@@ -730,6 +750,7 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 	binding auditprofile.ResolvedAuditWorkflowBinding,
 	baseline auditservice.BaselineSnapshot,
 	manifest auditdomain.ExecutionItem,
+	dependencies *auditdomain.RetainedDependencyManifest,
 	task auditstore.ExactArtifact,
 	executionManifest auditstore.ExactArtifact,
 ) (map[string]auditstore.ExactArtifact, []auditstore.ExactArtifact, error) {
@@ -744,8 +765,8 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 		names = append(names, name)
 	}
 	sort.Strings(names)
-	if manifest.Dependencies != nil {
-		for _, dependency := range manifest.Dependencies.Dependencies {
+	if dependencies != nil {
+		for _, dependency := range dependencies.Dependencies {
 			memberInputs = append(memberInputs, dependency.Retained.Clone())
 		}
 	}
@@ -787,9 +808,9 @@ func (b *PinnedSubmissionBuilder) resolveInputs(
 
 		case auditprofile.AuditInputFromRetainedDependency:
 			var dependency *auditdomain.RetainedDependency
-			if manifest.Dependencies != nil {
-				for index := range manifest.Dependencies.Dependencies {
-					candidate := &manifest.Dependencies.Dependencies[index]
+			if dependencies != nil {
+				for index := range dependencies.Dependencies {
+					candidate := &dependencies.Dependencies[index]
 					if candidate.Name == mapping.Name {
 						dependency = candidate
 						break

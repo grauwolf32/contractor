@@ -33,8 +33,11 @@ func (s *ClaimStore) acceptPreparedRound(ctx context.Context, p auditstore.Accep
 		if err := tx.QueryRow(ctx, `SELECT admission_checkpoint FROM audit_rounds WHERE audit_id=$1 AND round_id=$2`, p.Claim.AuditID, p.PreviousRoundID).Scan(&data); err != nil {
 			return err
 		}
-		if strictjson.Decode(data, &state) != nil || state.Generation != p.Generation || state.RoundID != p.RoundID || state.RoundOrdinal != p.RoundOrdinal || state.PreparedRoot == nil || state.PreparedRoot.Verify(*p.PreparedRoot) != nil || state.StagedCount != state.SelectedCount || state.PreparedPages != state.SelectionPages {
+		if strictjson.Decode(data, &state) != nil || state.Generation != p.Generation || state.RoundID != p.RoundID || state.RoundOrdinal != p.RoundOrdinal || state.Root == nil || state.Root.Verify(*p.PreparedRoot) != nil || state.StagedCount != state.SelectedCount || state.StagedPages != state.PublishedPages {
 			return auditstore.ErrInvalid
+		}
+		if _, err := encodeAdmissionProgress(state); err != nil {
+			return err
 		}
 		round, err := scanRound(tx.QueryRow(ctx, `SELECT `+prefixedRoundColumns("round")+` FROM audit_rounds AS round WHERE audit_id=$1 AND round_id=$2 FOR UPDATE`, p.Claim.AuditID, p.RoundID))
 		if err != nil {
@@ -48,7 +51,7 @@ func (s *ClaimStore) acceptPreparedRound(ctx context.Context, p auditstore.Accep
 			return nil
 		}
 		ref, _ := json.Marshal(p.PreparedRoot.Ref)
-		result, err = scanRound(tx.QueryRow(ctx, acceptPreparedRoundSQL, p.Claim.AuditID, p.PreviousRoundID, p.RoundID, p.ExpectedAuditRevision, p.Generation, string(ref), p.PreparedRoot.Digest, state.SelectedCount, state.PreparedPages, state.PagesDigest, p.RoundOrdinal))
+		result, err = scanRound(tx.QueryRow(ctx, acceptPreparedRoundSQL, p.Claim.AuditID, p.PreviousRoundID, p.RoundID, p.ExpectedAuditRevision, p.Generation, string(ref), p.PreparedRoot.Digest, state.SelectedCount, state.StagedPages, state.PagesDigest, p.RoundOrdinal))
 		if errors.Is(err, pgx.ErrNoRows) {
 			return auditstore.ErrPrecondition
 		}
@@ -61,8 +64,8 @@ func (s *ClaimStore) acceptPreparedRound(ctx context.Context, p auditstore.Accep
 // ReadSelectedPreparedManifest hydrates only the immutable execution entries
 // selected for a batch, after summing cheap stored byte and descriptor costs.
 // The accepted root/generation identifies their already-verified page chain.
-func (s *QueryStore) ReadSelectedPreparedManifest(ctx context.Context, auditID, roundID string, itemIDs []string, maxBytes, maxRelated int) ([]auditdomain.ExecutionItem, error) {
-	result := []auditdomain.ExecutionItem{}
+func (s *QueryStore) ReadSelectedPreparedManifest(ctx context.Context, auditID, roundID string, itemIDs []string, maxBytes, maxRelated int) ([]auditdomain.PreparedExecutionItem, error) {
+	result := []auditdomain.PreparedExecutionItem{}
 	if validateID("Audit", auditID) != nil || validateID("Round", roundID) != nil || len(itemIDs) < 1 || len(itemIDs) > auditstore.MaxReconcileRows || maxBytes < 1 || maxBytes > auditstore.MaxAdmissionMetadataBytes || maxRelated < 1 || maxRelated > auditstore.MaxAdmissionRelated {
 		return result, auditstore.ErrInvalid
 	}
@@ -122,8 +125,8 @@ func (s *QueryStore) ReadSelectedPreparedManifest(ctx context.Context, auditID, 
 		if err := rows.Scan(&data, &ordinal); err != nil {
 			return result, err
 		}
-		var item auditdomain.ExecutionItem
-		if strictjson.Decode(data, &item) != nil {
+		var item auditdomain.PreparedExecutionItem
+		if strictjson.Decode(data, &item) != nil || auditdomain.ValidatePreparedExecutionItem(item) != nil {
 			return result, auditstore.ErrInvalid
 		}
 		item.Ordinal = ordinal

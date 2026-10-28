@@ -10,10 +10,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 )
 
-func (b *PinnedSubmissionBuilder) validateItemDependencies(ctx context.Context, snapshot auditstore.ReconcileSnapshot, binding auditprofile.ResolvedAuditWorkflowBinding, baseline auditservice.BaselineSnapshot, item auditstore.Item, manifest auditdomain.ExecutionItem) error {
-	if !sameDependencyManifest(item.Dependencies, manifest.Dependencies) {
-		return invalidSubmission("accepted item dependency manifest differs from current Round")
-	}
+func (b *PinnedSubmissionBuilder) validateItemDependencies(ctx context.Context, snapshot auditstore.ReconcileSnapshot, binding auditprofile.ResolvedAuditWorkflowBinding, baseline auditservice.BaselineSnapshot, item auditstore.Item) error {
 	if item.Dependencies == nil {
 		return nil
 	}

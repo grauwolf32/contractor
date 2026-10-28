@@ -114,14 +114,14 @@ func (s *Service) selectTypedCandidate(ctx context.Context, session *hookstore.A
 		return typedSelectionCheckpoint(mutation, budget)
 	}
 	writer := auditArtifactWriter{service: session.Artifacts, projectID: audit.ProjectID}
-	digest := auditdomain.DigestBytes(prepared.selectionContent)
-	artifact, err := writer.write(ctx, contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(audit.AuditID), Name: typedAdmissionArtifactName("round-selection-page", state, digest)}, artifacts.Payload{MediaType: auditdomain.RoundSelectionPageMediaType, Data: prepared.selectionContent})
+	digest := auditdomain.DigestBytes(prepared.pageContent)
+	artifact, err := writer.write(ctx, contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(audit.AuditID), Name: typedAdmissionArtifactName("prepared-round-page", state, digest)}, artifacts.Payload{MediaType: auditdomain.PreparedRoundPageMediaType, Data: prepared.pageContent})
 	if err != nil {
 		return mutation, err
 	}
 	decision.Disposition, decision.Code, decision.ItemID = "admitted", "selected", prepared.item.ItemID
-	mutation.SelectionPage = &artifact
-	mutation.PageContent = prepared.selectionContent
+	mutation.Page = &artifact
+	mutation.PageContent = prepared.pageContent
 	mutation.Retained = prepared.retained
 	mutation.Decisions = []auditstore.AdmissionDecision{decision}
 	mutation.Next.Cursor = candidate.Cursor

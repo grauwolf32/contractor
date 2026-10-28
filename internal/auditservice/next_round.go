@@ -209,7 +209,7 @@ func (s *Service) PrepareNextRound(
 		}
 		originRef := task.SourceRef
 		items[index] = auditstore.MaterializedItem{
-			Dependencies: manifest.Items[index].Dependencies, ItemID: itemID,
+			Dependencies: task.Dependencies, ItemID: itemID,
 			ItemKey: item.ItemKey, Ordinal: item.Ordinal, Kind: item.Kind,
 			SubjectKey: item.SubjectKey, Task: taskArtifacts[index], WorkflowRole: item.WorkflowRole,
 			InitialState: state, ApprovalKind: approvalKind, ApprovalDigest: approvalDigest,

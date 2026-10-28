@@ -71,9 +71,9 @@ func TestAcceptedPlanExactBindingAndFragmentFactory(t *testing.T) {
 	if inventory.SourceContentDigest != DigestBytes(encoded) || inventory.Tasks[0].Document.AcceptedPlan == nil || inventory.Tasks[0].Document.Finding.ProposedCheckOrdinal != 0 {
 		t.Fatal("exact fragment source drifted")
 	}
-	inventory.ExecutionManifest.Items[0].AcceptedPlan = nil
+	inventory.Tasks[0].Document.AcceptedPlan = nil
 	if err = ValidateInventory(inventory); err == nil {
-		t.Fatal("task/manifest plan mismatch accepted")
+		t.Fatal("task/package plan mismatch accepted")
 	}
 }
 

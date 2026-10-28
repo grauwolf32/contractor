@@ -51,8 +51,23 @@ func TestAuditCompletionGateRejectsFalseGreenGoReports(t *testing.T) {
 	}
 	valid := ""
 	for pkg, names := range required {
+		identities := make(map[string]bool)
 		for _, name := range names {
-			valid += event("run", pkg, name) + event("pass", pkg, name)
+			parts := strings.Split(name, "/")
+			for i := range parts {
+				identities[strings.Join(parts[:i+1], "/")] = true
+			}
+		}
+		ordered := make([]string, 0, len(identities))
+		for name := range identities {
+			ordered = append(ordered, name)
+		}
+		sort.Strings(ordered)
+		for _, name := range ordered {
+			valid += event("run", pkg, name)
+		}
+		for i := len(ordered) - 1; i >= 0; i-- {
+			valid += event("pass", pkg, ordered[i])
 		}
 		valid += event("pass", pkg, "")
 	}
@@ -144,14 +159,16 @@ func TestAuditCompletionGateRequiresPrerequisites(t *testing.T) {
 				if err := os.Mkdir(filepath.Join(root, "scripts"), 0700); err != nil {
 					t.Fatal(err)
 				}
-				data, err := os.ReadFile(path)
-				if err != nil {
-					t.Fatal(err)
+				for _, name := range []string{"test-audit-completion-e2e.py", "release_test_reports.py"} {
+					data, err := os.ReadFile(filepath.Join("../../scripts", name))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(filepath.Join(root, "scripts", name), data, 0600); err != nil {
+						t.Fatal(err)
+					}
 				}
 				path = filepath.Join(root, "scripts", "test-audit-completion-e2e.py")
-				if err := os.WriteFile(path, data, 0600); err != nil {
-					t.Fatal(err)
-				}
 			}
 			command := exec.Command("python3", path)
 			for _, value := range os.Environ() {
@@ -180,7 +197,8 @@ func TestAuditCompletionGateRedactsDatabaseCredentials(t *testing.T) {
 		"host=localhost dbname=test password=''",
 	} {
 		command := exec.Command("python3", "-c", `
-import json, os, runpy
+import json, os, runpy, sys
+sys.path.insert(0, '../../scripts')
 redact = runpy.run_path('../../scripts/test-audit-completion-e2e.py')['redact']
 dsn = os.environ['CONTRACTOR_TEST_DATABASE_URL']
 for value in [dsn, json.dumps({'Output': dsn}), 'private-token%22', 'private-token"']:
@@ -213,6 +231,7 @@ import runpy
 import sys
 from urllib.parse import quote
 
+sys.path.insert(0, '../../scripts')
 gate = runpy.run_path('../../scripts/test-audit-completion-e2e.py')
 mode, password, directory = sys.argv[1], sys.argv[2], Path(sys.argv[3])
 dsn = 'postgres://fixture:' + quote(password, safe='') + '@127.0.0.1/test'
@@ -221,8 +240,9 @@ required = gate['matrix']()['go']
 expected = sorted(package + '/' + name for package, names in required.items() for name in names)
 events = []
 for package, names in required.items():
-    for name in names:
-        events.extend({'Package': package, 'Test': name, 'Action': action} for action in ['run', 'pass'])
+    identities = sorted({'/'.join(name.split('/')[:length]) for name in names for length in range(1, len(name.split('/'))+1)})
+    for action, ordered in [('run', identities), ('pass', list(reversed(identities)))]:
+        events.extend({'Package': package, 'Test': name, 'Action': action} for name in ordered)
     events.append({'Package': package, 'Action': 'pass'})
 package, names = next(iter(required.items()))
 diagnostic = 'plain=' + password + ' escaped=' + json.dumps(password) + ' dsn=' + dsn + ' escaped_dsn=' + json.dumps(dsn) + '\n'
@@ -253,7 +273,7 @@ displayed = io.StringIO()
 command_error = None
 with contextlib.redirect_stdout(displayed):
     try:
-        gate['run_command']([sys.executable, str(emitter)], cwd=Path.cwd(), report=report, go=True)
+        gate['run_command']([sys.executable, str(emitter)], cwd=Path.cwd(), report=report)
     except gate['GateError'] as error:
         command_error = error
 if mode == 'nonzero':

@@ -79,17 +79,31 @@ def test_shared_retained_dependency_real_task_and_execution_readers():
         "item-task",
         [("task-document", "task.json", "application/json", jcs.canonicalize(task))],
     )
-    execution["items"][0]["dependencies"] = copy.deepcopy(task["dependencies"])
     execution["items"][0]["task_package_digest"] = digest(task_payload)
     decoded_task, decoded_id = _decode_task_package(task_payload, "application/zip")
     decoded_execution = _decode_execution_manifest(jcs.canonicalize(execution), "application/json")
     _match_trusted_inputs([(decoded_task, decoded_id, digest(task_payload))], decoded_execution)
-    decoded_execution["items"][0]["dependencies"]["workflow_digest"] = "sha256:" + "f" * 64
+    changed = copy.deepcopy(task)
+    changed["dependencies"]["workflow_digest"] = "sha256:" + "f" * 64
+    different = package(
+        package_id,
+        "item-task",
+        [("task-document", "task.json", "application/json", jcs.canonicalize(changed))],
+    )
+    changed_task, changed_id = _decode_task_package(different, "application/zip")
     with pytest.raises(ValueError, match="identities differ"):
-        _match_trusted_inputs([(decoded_task, decoded_id, digest(task_payload))], decoded_execution)
-    execution["items"][0]["dependencies"]["dependencies"][1]["origin"]["receipt_id"] = "bad / id"
-    with pytest.raises(ValueError):
+        _match_trusted_inputs([(changed_task, changed_id, digest(different))], decoded_execution)
+    execution["items"][0]["dependencies"] = copy.deepcopy(task["dependencies"])
+    with pytest.raises(ValueError, match="manifest item is invalid"):
         _decode_execution_manifest(jcs.canonicalize(execution), "application/json")
+    task["dependencies"]["dependencies"][1]["origin"]["receipt_id"] = "bad / id"
+    invalid = package(
+        package_id,
+        "item-task",
+        [("task-document", "task.json", "application/json", jcs.canonicalize(task))],
+    )
+    with pytest.raises(ValueError):
+        _decode_task_package(invalid, "application/zip")
 
 
 def test_shared_retained_dependency_published_schema_and_canonical_digest():

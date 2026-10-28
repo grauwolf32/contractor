@@ -1,6 +1,7 @@
 package auditprofile_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -16,7 +17,7 @@ func TestCheckMethodAuthoringStrictRegistryAndPersistedPins(t *testing.T) {
 		t.Run(method, func(t *testing.T) {
 			root := copyCatalog(t, "audit-profile-catalog")
 			key, _ := contracts.LookupCheckPlanMethod(contracts.FindingCheckPlanSchema, method)
-			text := strings.Replace(templateAuditProfileYAML(t, "routed-check"), "  workflows:", "  methods:\n    renamed-route:\n      planSchema: "+key.Schema+"\n      method: "+method+"\n      phase: "+key.Phase+"\n      workflowRole: check\n      requiredCapabilities: []\n  workflows:", 1)
+			text := strings.Replace(templateAuditProfileYAML(t, "routed-check"), "  workflows:", "  methods:\n    renamed-route:\n      planSchema: "+key.Schema+"\n      method: "+method+"\n      workflowRole: check\n      requiredCapabilities: []\n  workflows:", 1)
 			writeAuditProfile(t, root, "routed-check", text)
 			catalog, err := configload.Load(root)
 			if err != nil {
@@ -31,8 +32,16 @@ func TestCheckMethodAuthoringStrictRegistryAndPersistedPins(t *testing.T) {
 				t.Fatal(err)
 			}
 			selected, ok := index.Select(key)
-			if !ok || selected.Name != "renamed-route" || selected.Mapping.WorkflowRole != "check" {
+			if !ok || selected.Name != "renamed-route" || selected.Mapping.WorkflowRole != "check" || selected.Mapping.Phase != key.Phase {
 				t.Fatalf("selected %+v,%t", selected, ok)
+			}
+			withoutPhase := profile.Clone()
+			mapping := withoutPhase.Methods["renamed-route"]
+			mapping.Phase = ""
+			withoutPhase.Methods["renamed-route"] = mapping
+			withoutPhaseDigest, err := auditprofile.Digest(withoutPhase)
+			if err != nil || withoutPhaseDigest == profile.Ref.Digest {
+				t.Fatal("resolved phase is absent from the profile digest", err)
 			}
 			encoded, _ := json.Marshal(profile)
 			if _, err = auditprofile.DecodeResolvedAuditProfileSnapshot(encoded); err != nil {
@@ -47,6 +56,11 @@ func TestCheckMethodAuthoringStrictRegistryAndPersistedPins(t *testing.T) {
 				func(p *auditprofile.ResolvedAuditProfile) {
 					v := p.Methods["renamed-route"]
 					v.Phase = "guessed-phase"
+					p.Methods["renamed-route"] = v
+				},
+				func(p *auditprofile.ResolvedAuditProfile) {
+					v := p.Methods["renamed-route"]
+					v.Phase = ""
 					p.Methods["renamed-route"] = v
 				},
 				func(p *auditprofile.ResolvedAuditProfile) { p.Methods["duplicate"] = p.Methods["renamed-route"] },
@@ -73,13 +87,62 @@ func TestCheckMethodAuthoringStrictRegistryAndPersistedPins(t *testing.T) {
 	}
 }
 
+func TestSharedCheckMethodAuthoringDerivesPhase(t *testing.T) {
+	var fixture struct {
+		AuthoredMappingCases []struct {
+			Name          string          `json:"name"`
+			Valid         bool            `json:"valid"`
+			Mapping       json.RawMessage `json:"mapping"`
+			ResolvedPhase string          `json:"resolvedPhase"`
+		} `json:"authoredMappingCases"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-check-plans", "accepted-plan-cases.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(fixture.AuthoredMappingCases) == 0 {
+		t.Fatal("shared authored mappings are empty")
+	}
+	for _, test := range fixture.AuthoredMappingCases {
+		t.Run(test.Name, func(t *testing.T) {
+			root := copyCatalog(t, "audit-profile-catalog")
+			var mapping bytes.Buffer
+			if err := json.Compact(&mapping, test.Mapping); err != nil {
+				t.Fatal(err)
+			}
+			methods := "  methods:\n    renamed-route: " + mapping.String() + "\n  workflows:"
+			manifest := strings.Replace(templateAuditProfileYAML(t, "derived-phase"), "  workflows:", methods, 1)
+			writeAuditProfile(t, root, "derived-phase", manifest)
+			catalog, err := configload.Load(root)
+			if (err == nil) != test.Valid {
+				t.Fatalf("valid=%t want %t: %v", err == nil, test.Valid, err)
+			}
+			if err != nil {
+				return
+			}
+			profile, err := catalog.AuditProfile("derived-phase@1")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if profile.Methods["renamed-route"].Phase != test.ResolvedPhase {
+				t.Fatalf("resolved phase=%q want %q", profile.Methods["renamed-route"].Phase, test.ResolvedPhase)
+			}
+			encoded, err := json.Marshal(profile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := auditprofile.DecodeResolvedAuditProfileSnapshot(encoded); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestCheckMethodCapabilitiesUseExactWorkerAndClone(t *testing.T) {
 	root := copyCatalog(t, "audit-profile-catalog")
 	manifest := strings.Replace(templateAuditProfileYAML(t, "capability-route"), "  workflows:", `  methods:
     exact-reader:
       planSchema: contractor.audit.finding-check-plan.v1
       method: verify
-      phase: verify
       workflowRole: check
       requiredCapabilities:
         - stage: trace
@@ -142,7 +205,7 @@ func TestSharedCheckMethodMappingNameText(t *testing.T) {
 		t.Run(test.Name, func(t *testing.T) {
 			root := copyCatalog(t, "audit-profile-catalog")
 			name, _ := json.Marshal(test.Value)
-			methods := "  methods:\n    " + string(name) + ":\n      planSchema: contractor.audit.finding-check-plan.v1\n      method: verify\n      phase: verify\n      workflowRole: check\n      requiredCapabilities: []\n  workflows:"
+			methods := "  methods:\n    " + string(name) + ":\n      planSchema: contractor.audit.finding-check-plan.v1\n      method: verify\n      workflowRole: check\n      requiredCapabilities: []\n  workflows:"
 			manifest := strings.Replace(templateAuditProfileYAML(t, "mapping-text"), "  workflows:", methods, 1)
 			writeAuditProfile(t, root, "mapping-text", manifest)
 			catalog, err := configload.Load(root)
