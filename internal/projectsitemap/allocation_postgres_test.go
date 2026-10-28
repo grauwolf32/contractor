@@ -231,6 +231,19 @@ func TestPostgresSitemapContextProjectionSerializesWithHistoryEviction(t *testin
 			})
 			close(start)
 			wg.Wait()
+			// A snapshot may protect the planned victim before eviction locks it.
+			// The store then commits maintenance and asks the caller to retry.
+			if errors.Is(writeErr, artifacts.ErrHistoryMaintenancePending) {
+				var pending *artifacts.HistoryMaintenanceError
+				if snapshotErr != nil || !errors.As(writeErr, &pending) || !pending.Maintained || pending.Cause != nil {
+					t.Fatalf("unexpected maintenance outcome: snapshot=%v write=%v", snapshotErr, writeErr)
+				}
+				var retried Result
+				retried, writeErr = service.Mutate(ctx, authority, "evict", Mutation{Operation: "observe", Observations: []Observation{observation("/evict")}})
+				if writeErr == nil && (!retried.Changed || retried.Replayed) {
+					t.Fatalf("maintenance committed the mutation before retry: %+v", retried)
+				}
+			}
 			if writeErr != nil {
 				t.Fatal(writeErr)
 			}

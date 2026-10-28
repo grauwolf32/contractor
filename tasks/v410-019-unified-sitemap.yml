@@ -13,7 +13,7 @@ goal: Give every permitted sitemap reader the same Project knowledge while remov
 context:
   authority: On 2026-10-28 the user clarified that absent or incomplete source code does not justify hiding accumulated routes, approved removal of sourceMode and related simplification, and requested updated specification and diagrams.
   finding: internal/projectsitemap/view.go:17 filters shared knowledge by source mode and rebuilds grouping; allocation.go:53 resolves exact inputs on every access, including every cached page; allocation.go:133 repeats projection for editor authorization. These restrictions contradict the accepted shared Project map model.
-  siblings: Go domain and allocation adapters, private/public contracts, Python policy/client/session, generated document validators and clients, shared fixtures, real-process fixtures, owning specs and unfinished V410 tasks.
+  siblings: Go domain and allocation adapters, private/public contracts, Python policy/client/session, generated document validators and clients, shared fixtures, real-process fixtures, Audit engagement preflight, owning specs and unfinished V410 tasks.
   specification:
   - docs/spec/artifacts/project-sitemap.md
   - docs/spec/configuration/agent-templates.md
@@ -26,6 +26,8 @@ scope:
   - Rename openapiInputs to snapshotInputs with its existing eight-name bound, resolve original immutable inputs only inside the snapshot transaction, and omit unneeded access response descriptors and stored snapshot policy copies.
   - Preserve exact file authority and frozen lineage for selected snapshot attachments, without treating metadata provenance as permission to read arbitrary artifact bytes.
   - Add real-store and process regressions, strict obsolete-field fixtures, bounded-work evidence, update normative specs and unfinished tasks, and regenerate diagrams from the final implementation.
+  - Align the concurrently landed Audit engagement preflight with shared sitemap metadata while preserving its separate source-input, workspace, Skill and tool restrictions.
+  - Make the snapshot/eviction race regression recognize the existing bounded history-maintenance outcome when a snapshot protects the planned eviction victim, then verify unchanged-intent retry after both operations join.
   out:
   - Unfinished import adapters, OpenAPI reconciliation, browser capture and other agents' active tasks.
   - Changes to general artifact permissions, HTTP evidence redaction, target execution, collection retry budgets or retention policy.
@@ -63,6 +65,8 @@ acceptance_criteria:
   when: Implementation is complete
   then: They state unified Project knowledge and ordinary operation/file authority without source-mode restrictions; obsolete projection code and policy transport have no production callers.
 tests:
+- command: go test -tags=integration -count=1 ./internal/auditservice
+  covers: [A1, A2]
 - command: make test-project-sitemap-postgres
   covers: [A1, A3]
 - command: make test-project-sitemap-tools-e2e
