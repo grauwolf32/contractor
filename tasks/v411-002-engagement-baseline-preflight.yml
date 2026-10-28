@@ -5,7 +5,7 @@ milestone: autonomous-http-pentest-2026-10
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V411-001
 languages:
@@ -178,3 +178,8 @@ verification_requirements:
 - Update the owning normative specification, shared limits/errors/lifecycle registries and public/private
   contracts in the same change. Preserve existing contract ownership; do not add backward-compatibility
   readers or edit generated clients manually.
+
+assignment:
+  branch: codex/v411-002-engagement
+  claimed: 2026-10-28
+  authority: User requested implementation, verification, closure and merge into main.
