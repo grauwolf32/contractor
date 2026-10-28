@@ -340,11 +340,11 @@ INSERT INTO stage_allocations (
 	}
 
 	for label, query := range map[string]string{
-		"Project Runs":      `SELECT count(*) FROM workflow_runs WHERE project_id = 'project-delete'`,
-		"Project scope":     `SELECT count(*) FROM artifact_scopes WHERE scope_kind = 'project' AND scope_id = 'project-delete'`,
-		"Project revisions": `SELECT count(*) FROM artifact_binding_revisions WHERE scope_kind = 'project' AND scope_id = 'project-delete'`,
-		"Project receipts":  `SELECT count(*) FROM finding_proposal_receipts WHERE project_id = 'project-delete'`,
-		"Sitemap receipts":  `SELECT count(*) FROM mutation_receipts WHERE project_id='project-delete' AND key_scope[1]='project-sitemap'`,
+		"Project Runs":              `SELECT count(*) FROM workflow_runs WHERE project_id = 'project-delete'`,
+		"Project scope":             `SELECT count(*) FROM artifact_scopes WHERE scope_kind = 'project' AND scope_id = 'project-delete'`,
+		"Project revisions":         `SELECT count(*) FROM artifact_binding_revisions WHERE scope_kind = 'project' AND scope_id = 'project-delete'`,
+		"Project receipts":          `SELECT count(*) FROM finding_proposal_receipts WHERE project_id = 'project-delete'`,
+		"Project mutation receipts": `SELECT count(*) FROM mutation_receipts WHERE project_id='project-delete' AND key_scope[1]='project'`,
 	} {
 		var count int
 		if err := pool.QueryRow(ctx, query).Scan(&count); err != nil || count != 0 {
