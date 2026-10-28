@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestPostgresDescribeOriginalInputsPreservesOriginalsAndBoundsWork(t *testing.T) {
+func TestPostgresDescribeForkRevisionsPreservesTargetsAndBoundsWork(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	base := isolatedArtifactPool(t, ctx)
@@ -70,7 +70,7 @@ func TestPostgresDescribeOriginalInputsPreservesOriginalsAndBoundsWork(t *testin
 		defer tx.Rollback(ctx) //nolint:errcheck // cleanup after a successful commit is harmless
 		counter := &countingDB{DBTX: tx}
 		store, _ := NewService(NewPostgresRepository(counter)).Run("original-inputs")
-		got, err := store.DescribeOriginalInputs(ctx, selection)
+		got, err := store.DescribeForkRevisions(ctx, "inputs", selection, LineageInputFork)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -99,13 +99,27 @@ func TestPostgresDescribeOriginalInputsPreservesOriginalsAndBoundsWork(t *testin
 	seedRunBindings(t, ctx, pool, "original-inputs", unrelated)
 	describe(names, names, 2)
 	foreign, _ := service.Run("foreign-inputs")
-	if got, err := foreign.DescribeOriginalInputs(ctx, names); err != nil || len(got) != 0 {
+	if got, err := foreign.DescribeForkRevisions(ctx, "inputs", names, LineageInputFork); err != nil || len(got) != 0 {
 		t.Fatalf("foreign Run returned inputs: %v %v", got, err)
 	}
 	cancelled, stop := context.WithCancel(ctx)
 	stop()
-	if _, err := run.DescribeOriginalInputs(cancelled, names); !errors.Is(err, context.Canceled) {
+	if _, err := run.DescribeForkRevisions(cancelled, "inputs", names, LineageInputFork); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cancelled description: %v", err)
+	}
+	// Namespace and lineage kind are caller-selected mechanics. A retained
+	// context fork uses the same reader, with its target ref rather than source.
+	scope := mustRunScope(t, "original-inputs")
+	retained, err := service.Fork(ctx, Fork{Kind: LineageContextProjection, Source: scope, SourceRef: first.Ref, Target: scope, TargetRef: ArtifactRef{Namespace: "retained", Name: "selected"}, Frozen: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	described, err := run.DescribeForkRevisions(ctx, "retained", []string{"selected"}, LineageContextProjection)
+	if err != nil || len(described) != 1 || !described[0].Ref.SameExact(retained.TargetRef) || described[0].Digest != first.Digest {
+		t.Fatalf("other namespace/kind target=%+v err=%v", described, err)
+	}
+	if got, err := run.DescribeForkRevisions(ctx, "retained", []string{"selected"}, LineageInputFork); err != nil || len(got) != 0 {
+		t.Fatalf("wrong lineage kind returned context fork: %v %v", got, err)
 	}
 	// Inject a second original-fork edge at the edited revision. It is valid
 	// relational storage but ambiguous original input identity, never latest.
@@ -116,7 +130,7 @@ func TestPostgresDescribeOriginalInputsPreservesOriginalsAndBoundsWork(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := run.DescribeOriginalInputs(ctx, names); got != nil || !errors.Is(err, ErrArtifactIntegrity) {
+	if got, err := run.DescribeForkRevisions(ctx, "inputs", names, LineageInputFork); got != nil || !errors.Is(err, ErrArtifactIntegrity) {
 		t.Fatalf("ambiguous original lineage: %v %v", got, err)
 	}
 }

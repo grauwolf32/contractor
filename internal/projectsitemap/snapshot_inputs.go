@@ -3,8 +3,8 @@ package projectsitemap
 import (
 	"context"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -15,9 +15,5 @@ func resolveSnapshotInputs(ctx context.Context, tx pgx.Tx, access AllocationAcce
 	if access.Policy.Validate() != nil {
 		return nil, ErrInvalid
 	}
-	store, err := artifacts.NewService(artifacts.NewPostgresRepository(tx)).Run(access.RunID)
-	if err != nil {
-		return nil, err
-	}
-	return store.DescribeOriginalInputs(ctx, access.Policy.SnapshotInputs)
+	return runstore.NewPostgresStore(tx).DescribeOriginalInputs(ctx, access.RunID, access.Policy.SnapshotInputs)
 }
