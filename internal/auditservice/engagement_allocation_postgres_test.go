@@ -1,8 +1,11 @@
 package auditservice
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
@@ -22,20 +25,25 @@ import (
 
 // The baseline is created by ordinary Audit start, then consumed through the
 // actual execution/Run/Stage ownership chain. Mutable inputs and Project
-// policy cannot broaden the private task's still-empty target assignment.
+// policy cannot broaden the private task's pinned target assignment.
 func TestEngagementStartToPrivateAllocationPins(t *testing.T) {
 	for _, accessMode := range []string{"blackbox", "source-assisted"} {
-		t.Run(accessMode, func(t *testing.T) { testEngagementStartToPrivateAllocationPins(t, accessMode) })
+		for _, controlled := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/controlled=%v", accessMode, controlled), func(t *testing.T) { testEngagementStartToPrivateAllocationPins(t, accessMode, controlled) })
+		}
 	}
 }
 
-func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string) {
+func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string, controlled bool) {
 	f := newEngagementFixture(t, 1)
 	// Dispatch admission compares its deadline to the database clock. No test
 	// assertion depends on elapsed time; the authorized timestamp is compared
 	// only to the exact baseline returned by start.
 	f.service.now = time.Now
 	document := f.document("http://127.0.0.1")
+	if controlled {
+		document.Policy.RequiredCapabilities = append(document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterPentestTargetHTTP))
+	}
 	if accessMode == "source-assisted" {
 		document.AccessMode = accessMode
 		source, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("print('fixture source')")}, nil)
@@ -112,13 +120,31 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string)
 	if err != nil {
 		t.Fatal(err)
 	}
-	first, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID)
+	protected := func(context.Context) ([]pentestcontract.ProtectedDestination, error) {
+		if f.pool.Stat().AcquiredConns() != 0 {
+			t.Fatal("infrastructure resolution held a database transaction")
+		}
+		return []pentestcontract.ProtectedDestination{{Hostname: "server.example", Addresses: []string{"10.22.1.2"}, Port: 443}}, nil
+	}
+	requirements, err := AllocationPentestAdapterRequirements(f.ctx, f.pool, runID, stage.StageExecutionID)
+	if err != nil || (len(requirements) == 1) != controlled {
+		t.Fatalf("requirements=%v err=%v", requirements, err)
+	}
+	if controlled {
+		if _, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, nil); err == nil {
+			t.Fatal("controlled projection omitted protected destinations")
+		}
+	}
+	first, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, protected)
 	if err != nil || first == nil {
 		t.Fatalf("private projection=%+v %v", first, err)
 	}
 	pin := baseline.Engagement
-	if first.EngagementDigest != pin.Artifact.Digest || first.PolicyDigest != pin.PolicyDigest || first.AuthorizedBy != f.project.OwnerID || !first.AuthorizedAt.Equal(pin.AuthorizedAt) || first.Budgets != document.Budgets || !first.Engagement.SameExact(pin.Artifact.Ref) || len(first.Routes)+len(first.Exclusions)+len(first.Identities)+len(first.Inputs) != 0 {
+	if first.EngagementDigest != pin.Artifact.Digest || first.PolicyDigest != pin.PolicyDigest || first.AuthorizedBy != f.project.OwnerID || !first.AuthorizedAt.Equal(pin.AuthorizedAt) || first.Budgets != document.Budgets || !first.Engagement.SameExact(pin.Artifact.Ref) || (first.Preflight != nil) != controlled {
 		t.Fatalf("private projection drifted or exposed unassigned authority: %+v", first)
+	}
+	if controlled && (!reflect.DeepEqual(first.Preflight.SeedURLs, document.Target.SeedURLs) || !reflect.DeepEqual(first.Preflight.Routes, document.Scope.Routes) || first.Preflight.Identity.ID != "anonymous" || first.Preflight.Identity.Credential != nil || first.Preflight.Identity.LoginRecipe != nil) {
+		t.Fatal("controlled assignment drifted or exposed identity authority")
 	}
 	document.Target.Deployment = &pentestcontract.Deployment{Marker: "new mutable document"}
 	replacement, err := json.Marshal(document)
@@ -132,7 +158,7 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string)
 	if _, err = projectstore.NewPostgresStore(f.pool).Update(f.ctx, projectstore.UpdateParams{ProjectID: f.project.ProjectID, OwnerID: f.project.OwnerID, ExpectedRevision: f.project.Revision, Name: f.project.Name, ActiveChecks: &prohibited}); err != nil {
 		t.Fatal(err)
 	}
-	second, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID)
+	second, err := ResolveAllocationEngagement(f.ctx, f.pool, runID, stage.StageExecutionID, protected)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,10 +173,10 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string)
 	if string(firstBytes) != string(secondBytes) {
 		t.Fatal("private metadata reread mutable Project or engagement")
 	}
-	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, "foreign-run", stage.StageExecutionID); !errors.Is(err, runstore.ErrNotFound) {
+	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, "foreign-run", stage.StageExecutionID, nil); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("foreign Run reached baseline: %v", err)
 	}
-	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, runID, "foreign-stage"); !errors.Is(err, runstore.ErrNotFound) {
+	if _, err = ResolveAllocationEngagement(f.ctx, f.pool, runID, "foreign-stage", nil); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("foreign Stage reached baseline: %v", err)
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -249,9 +250,9 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 		return compatible, missing, reasons
 	}
 	for _, capability := range append(slices.Clone(selected.document.Policy.RequiredCapabilities), selected.document.Policy.OptionalCapabilities...) {
-		// This task supplies the metadata contract only. Future target adapters and
-		// program-availability policies must register support with their consumers.
-		if capability == pentestcontract.Capability {
+		// Controlled anonymous preflight has a placed Runtime consumer. Other
+		// execution capabilities still need their own production consumer.
+		if capability == pentestcontract.Capability || capability == string(runtimesettings.RuntimeAdapterPentestTargetHTTP) {
 			compatible = append(compatible, capability)
 		} else {
 			missing = append(missing, capability)

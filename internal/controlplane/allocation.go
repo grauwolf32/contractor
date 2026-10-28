@@ -35,6 +35,8 @@ type BindingRequirement struct {
 }
 
 type ReservationRequest struct {
+	// auditAdapters comes only from the immutable Audit binding at composition.
+	auditAdapters           []runtimesettings.RuntimeAdapterRef
 	RequiredPlacementLabels []string
 	RunID                   string
 	StageExecutionID        string

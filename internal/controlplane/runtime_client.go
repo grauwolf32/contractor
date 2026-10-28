@@ -51,7 +51,10 @@ func (e *RuntimeAPIError) Error() string {
 // (CTL-R164): Release closes the released principal's connections and Close
 // ends them all when the Server stops.
 type RuntimeControlClient struct {
-	engagementResolver func(context.Context, string, string) (*pentestcontract.AllocationProjection, error)
+	pentestPending     func(context.Context, Reservation) (bool, error)
+	pentestRequired    func(context.Context, Reservation) (bool, error)
+	pentestStopped     func(context.Context, Reservation) error
+	engagementResolver func(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (*pentestcontract.AllocationProjection, error)
 	grantReader        interface {
 		GetGrant(string) (AllocationGrant, error)
 	}
@@ -81,7 +84,7 @@ func NewMTLSRuntimeControlClient(files mtls.Files, timeout time.Duration) (*Runt
 // WithEngagementResolver binds the Audit-owned projection port at composition.
 // The resolver performs I/O without holding the Registry mutex; the grant is
 // checked again afterwards, immediately before the private prepare request.
-func (c *RuntimeControlClient) WithEngagementResolver(resolve func(context.Context, string, string) (*pentestcontract.AllocationProjection, error), grants interface {
+func (c *RuntimeControlClient) WithEngagementResolver(resolve func(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (*pentestcontract.AllocationProjection, error), grants interface {
 	GetGrant(string) (AllocationGrant, error)
 }) *RuntimeControlClient {
 	c.engagementResolver, c.grantReader = resolve, grants
@@ -127,7 +130,7 @@ func (c *RuntimeControlClient) Prepare(
 		PerformanceMetrics:              clonePerformanceMetricsRequest(reservation.PerformanceMetrics),
 	}
 	if c.engagementResolver != nil {
-		projection, err := c.engagementResolver(ctx, reservation.Grant.RunID, reservation.Grant.StageExecutionID)
+		projection, err := c.engagementResolver(ctx, reservation, settings)
 		if err != nil {
 			return contracts.WorkerHandle{}, err
 		}
@@ -163,6 +166,18 @@ func (c *RuntimeControlClient) Prepare(
 	}
 	if err := validateWorkerHandle(response.WorkerHandle, reservation, settings.RuntimeSettings); err != nil {
 		return contracts.WorkerHandle{}, err
+	}
+	if spec.PentestEngagement != nil && spec.PentestEngagement.Preflight != nil {
+		outcome, err := c.pentestPreflight(ctx, reservation, "run")
+		if err != nil {
+			return contracts.WorkerHandle{}, err
+		}
+		if outcome.CompletedSeeds+outcome.FailedSeeds+outcome.UnknownSeeds != len(spec.PentestEngagement.Preflight.SeedURLs) || outcome.Stopped {
+			return contracts.WorkerHandle{}, fmt.Errorf("%w: preflight result is incomplete", ErrInvalidRequest)
+		}
+		if outcome.CompletedSeeds == 0 {
+			return contracts.WorkerHandle{}, fmt.Errorf("%w: preflight found no reachable seed", ErrInvalidRequest)
+		}
 	}
 	response.WorkerHandle.RuntimeAgentID = reservation.Grant.RuntimeAgentID
 	return response.WorkerHandle, nil
@@ -237,6 +252,9 @@ func (c *RuntimeControlClient) Release(ctx context.Context, reservation Reservat
 		// call of this allocation follows, and a retry or the next allocation
 		// opens and verifies a new connection (CTL-R164).
 		defer c.transports.Evict(reservation.Grant.RuntimeAgentID)
+	}
+	if err := c.stopPentestTransport(ctx, reservation); err != nil {
+		return err
 	}
 	request := control.ReleaseAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,

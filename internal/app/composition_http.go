@@ -152,7 +152,8 @@ func configureHTTP(
 	}
 	artifactHandler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{
 		Registry: control.registry, Artifacts: catalogs.artifacts, Findings: catalogs.findings, GatewayRecovery: workflows.gatewayRecovery, Logger: logger,
-		Sitemap: projectsitemap.NewService(pool),
+		Sitemap:        projectsitemap.NewService(pool),
+		PentestActions: audits.service,
 	})
 	if err != nil {
 		return serverHandlers{}, fmt.Errorf("configure private Artifact API: %w", err)

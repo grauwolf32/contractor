@@ -40,6 +40,7 @@ type PlacementRuntimeCredentialLookup interface {
 }
 
 type PlacementAllocatorOptions struct {
+	AuditAdapterRequirements  func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error)
 	Pool                      *pgxpool.Pool
 	Registry                  *InMemoryRegistry
 	Gateways                  PlacementGatewayLookup
@@ -54,6 +55,7 @@ type PlacementAllocatorOptions struct {
 // liveness Registry. Every potentially blocking lookup happens outside the
 // Registry mutex; only compact compatibility edges cross that boundary.
 type PlacementAllocator struct {
+	auditAdapterRequirements  func(context.Context, string, string) ([]runtimesettings.RuntimeAdapterRef, error)
 	pool                      *pgxpool.Pool
 	registry                  *InMemoryRegistry
 	gateways                  PlacementGatewayLookup
@@ -130,7 +132,8 @@ func NewPlacementAllocator(options PlacementAllocatorOptions) (*PlacementAllocat
 		return nil, errors.New("candidate placement dependencies are incomplete")
 	}
 	return &PlacementAllocator{
-		pool: options.Pool, registry: options.Registry, gateways: options.Gateways,
+		auditAdapterRequirements: options.AuditAdapterRequirements,
+		pool:                     options.Pool, registry: options.Registry, gateways: options.Gateways,
 		llmCredentials: options.LLMCredentials, runtimeCredentials: options.RuntimeCredentials,
 		transactionLLMCredentials: options.TransactionLLMCredentials,
 		credentialGuard:           options.CredentialGuard, performanceMetrics: options.PerformanceMetrics,
@@ -143,6 +146,15 @@ func (a *PlacementAllocator) ReserveAllContext(
 ) ([]Reservation, error) {
 	if err := contracts.ValidatePlacementLabels(request.RequiredPlacementLabels); err != nil {
 		return nil, fmt.Errorf("%w: invalid required placement labels: %v", ErrInvalidRequest, err)
+	}
+	// This read is outside Registry locks and pinning transactions. The Audit
+	// baseline is immutable, so the same requirement survives placement retries.
+	if a.auditAdapterRequirements != nil {
+		required, err := a.auditAdapterRequirements(ctx, request.RunID, request.StageExecutionID)
+		if err != nil {
+			return nil, err
+		}
+		request.auditAdapters = slices.Clone(required)
 	}
 	attempt := newPlacementAttemptCache()
 	reservations, err := a.reserveAllContext(ctx, request, attempt)
@@ -224,7 +236,7 @@ func (a *PlacementAllocator) candidateEdges(
 				}
 				return nil, nil, err
 			}
-			if !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, resolved.RequiredRuntimeAdapters) {
+			if !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, resolved.RequiredRuntimeAdapters) || !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, request.auditAdapters) {
 				continue
 			}
 			if !containsRuntimeAdapters(resolved.RequiredRuntimeAdapters, toolAdapters) {
@@ -236,7 +248,7 @@ func (a *PlacementAllocator) candidateEdges(
 				LogicalAgentName: binding.LogicalAgentName, RuntimeAgentID: candidate.Principal.RuntimeAgentID,
 				RuntimeAgentInstanceID:    candidate.Registration.InstanceID,
 				RuntimeAgentLabelRevision: candidate.Principal.LabelRevision,
-				RequiredRuntimeAdapters:   append([]runtimesettings.RuntimeAdapterRef{}, resolved.RequiredRuntimeAdapters...),
+				RequiredRuntimeAdapters:   append(slices.Clone(resolved.RequiredRuntimeAdapters), request.auditAdapters...),
 			})
 		}
 	}
@@ -457,7 +469,7 @@ func (a *PlacementAllocator) pinReservations(
 		if !ok || !sameResolvedRuntimeConfig(observed, resolved) ||
 			!contracts.PlacementLabelsMatch(request.RequiredPlacementLabels, candidate.Registration.PlacementLabels) ||
 			!isBindingCompatible(candidate.Registration, binding) ||
-			!containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, resolved.RequiredRuntimeAdapters) {
+			!containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, resolved.RequiredRuntimeAdapters) || !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, request.auditAdapters) {
 			return errPlacementRevisionChanged
 		}
 		result[reservation.Grant.AllocationID] = resolved
