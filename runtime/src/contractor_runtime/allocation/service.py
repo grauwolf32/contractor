@@ -18,7 +18,7 @@ from contractor_runtime.adapters import (
     AllocationAdapterHost,
 )
 from contractor_runtime.adapters.pentest_actions import PentestProtocolError
-from contractor_runtime.adapters.pentest_target import PreflightSummary
+from contractor_runtime.adapters.pentest_target import MAX_PREFLIGHT_SECONDS, PreflightSummary
 from contractor_runtime.agent_skills.runtime import AgentSkillPreparationError
 from contractor_runtime.allocation.cleanup import (
     _await_before_deadline,
@@ -92,6 +92,7 @@ class AllocationService:
         a2a_base_url: str,
         private_bypass_urls: Sequence[str] = (),
         now: Callable[[], datetime] | None = None,
+        confirmed_control_deadline: Callable[[], float | None] | None = None,
         force_exit: Callable[[int], Any] = os._exit,
         resource_collector_factory: Callable[[], ResourceCollector] = ResourceCollector,
     ) -> None:
@@ -104,6 +105,7 @@ class AllocationService:
         self._a2a_base_url = a2a_base_url.rstrip("/")
         self._private_bypass_hosts = _url_hosts((*private_bypass_urls, a2a_base_url))
         self._now = now or (lambda: datetime.now(UTC))
+        self._confirmed_control_deadline = confirmed_control_deadline or (lambda: None)
         self._exit_process = force_exit
         self._resource_collector_factory = resource_collector_factory
         self._lock = asyncio.Lock()
@@ -229,6 +231,10 @@ class AllocationService:
             if state.process_state is not ProcessState.IDLE:
                 raise _conflict("Runtime Agent slot is not idle")
             self._validate_spec(spec)
+            # A separate ceiling for the whole preflight, including passive
+            # resource preparation. Exact Stage/prepare deadlines also clip
+            # every durable Server grant; local control authority is monotonic.
+            pentest_deadline = time.monotonic() + MAX_PREFLIGHT_SECONDS
 
             sandbox = self._sandbox_factory(spec)
             runtime_factory = self._runtime_factory(spec)
@@ -403,6 +409,7 @@ class AllocationService:
                     resource_metrics=resource_metrics,
                     collector=collector,
                     prepare_response=response,
+                    pentest_deadline=pentest_deadline,
                     pentest=(
                         self._factories.pentest_target_factory.create(spec)
                         if spec.pentestEngagement is not None
@@ -574,7 +581,10 @@ class AllocationService:
                 if state.process_state is not ProcessState.ALLOCATED:
                     raise _conflict("allocation is not active")
                 try:
-                    task = resource.start()
+                    task = resource.start(
+                        deadline=context.pentest_deadline,
+                        authority_deadline=self._confirmed_control_deadline,
+                    )
                 except PentestProtocolError:
                     raise _conflict("pentest preflight is stopped") from None
             else:

@@ -63,6 +63,7 @@ class _AllocationContext:
     worker: WorkerRuntime | None = field(repr=False)
     execution: PreparedExecution | None = field(default=None, repr=False)
     pentest: PentestPreflight | None = field(default=None, repr=False)
+    pentest_deadline: float = 0.0
     collector: SitemapCollector | None = field(default=None, repr=False)
     resource_metrics: ResourceCollector | None = field(default=None, repr=False)
     prepare_response: PrepareAllocationResponse | None = None
