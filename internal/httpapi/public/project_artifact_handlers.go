@@ -9,13 +9,13 @@ import (
 )
 
 func (h *artifactHandlers) listProjectArtifacts(w http.ResponseWriter, r *http.Request) {
-	store, projectID, err := h.ownedProjectArtifactStore(r)
+	store, project, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
 		return
 	}
 	h.listArtifactBindings(
-		w, r, store, "project-artifacts:"+projectID, false, "",
+		w, r, store, project.Lifecycle != projectstore.LifecycleDeleting, "project-artifacts:"+project.ProjectID, false, "",
 		artifactpolicy.AuditManagedProjectNamespacePrefix,
 	)
 }
@@ -89,7 +89,7 @@ func (h *artifactHandlers) ownedActiveProjectArtifactStore(
 }
 
 func (h *artifactHandlers) getProjectArtifactMetadata(w http.ResponseWriter, r *http.Request) {
-	store, _, err := h.ownedProjectArtifactStore(r)
+	store, project, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -97,11 +97,11 @@ func (h *artifactHandlers) getProjectArtifactMetadata(w http.ResponseWriter, r *
 	if h.rejectAuditManagedProjectArtifact(w, r) {
 		return
 	}
-	h.getArtifactMetadataFromStore(w, r, store)
+	h.getArtifactMetadataFromStore(w, r, store, project.Lifecycle != projectstore.LifecycleDeleting)
 }
 
 func (h *artifactHandlers) listProjectArtifactVersions(w http.ResponseWriter, r *http.Request) {
-	store, projectID, err := h.ownedProjectArtifactStore(r)
+	store, project, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -109,11 +109,11 @@ func (h *artifactHandlers) listProjectArtifactVersions(w http.ResponseWriter, r 
 	if h.rejectAuditManagedProjectArtifact(w, r) {
 		return
 	}
-	h.listArtifactVersionsFromStore(w, r, store, "project-artifact-versions:"+projectID)
+	h.listArtifactVersionsFromStore(w, r, store, project.Lifecycle != projectstore.LifecycleDeleting, "project-artifact-versions:"+project.ProjectID)
 }
 
 func (h *artifactHandlers) listProjectArtifactLineage(w http.ResponseWriter, r *http.Request) {
-	store, projectID, err := h.ownedProjectArtifactStore(r)
+	store, project, err := h.ownedProjectArtifactStore(r)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -121,21 +121,21 @@ func (h *artifactHandlers) listProjectArtifactLineage(w http.ResponseWriter, r *
 	if h.rejectAuditManagedProjectArtifact(w, r) {
 		return
 	}
-	h.listArtifactLineageFromStore(w, r, store, "project-artifact-lineage:"+projectID)
+	h.listArtifactLineageFromStore(w, r, store, "project-artifact-lineage:"+project.ProjectID)
 }
 
 func (h *artifactHandlers) ownedProjectArtifactStore(
 	r *http.Request,
-) (artifacts.ScopedStore, string, error) {
+) (artifacts.ScopedStore, projectstore.Project, error) {
 	projectID := r.PathValue("projectId")
 	project, err := h.Projects.Get(
 		r.Context(), principalUserID(r.Context()), projectID,
 	)
 	if err != nil {
-		return artifacts.ScopedStore{}, "", err
+		return artifacts.ScopedStore{}, projectstore.Project{}, err
 	}
 	store, err := h.Artifacts.Project(project.ProjectID)
-	return store, project.ProjectID, err
+	return store, project, err
 }
 
 func (h *artifactHandlers) rejectAuditManagedProjectArtifact(w http.ResponseWriter, r *http.Request) bool {

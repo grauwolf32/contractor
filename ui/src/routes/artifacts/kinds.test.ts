@@ -22,6 +22,7 @@ function item(
   extra: Partial<ArtifactMetadata> = {},
 ): ArtifactMetadata {
   return {
+    canUploadNewVersion: true,
     storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: { namespace, name: `${namespace}-item`, revision: "r1" },
     mediaType,

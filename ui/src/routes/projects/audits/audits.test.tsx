@@ -73,6 +73,7 @@ const profile: AuditProfile = build.conforming("AuditProfile", {
 });
 
 const sourceArtifact = {
+  canUploadNewVersion: true,
   storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "sources",

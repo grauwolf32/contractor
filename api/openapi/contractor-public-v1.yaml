@@ -14876,8 +14876,11 @@ components:
     ArtifactMetadata:
       type: object
       additionalProperties: false
-      required: [artifact, mediaType, size, current, frozen, createdAt, storageTimestamps]
+      required: [artifact, mediaType, size, current, frozen, createdAt, storageTimestamps, canUploadNewVersion]
       properties:
+        canUploadNewVersion:
+          type: boolean
+          description: Whether this owner endpoint currently permits uploading a new version. False for historical, frozen, managed, Run-scope or deleting-Project bindings. Informational only; uploads still require current authorization and exact CAS.
         storageTimestamps: {$ref: '#/components/schemas/ArtifactStorageTimestamps'}
         gitSource: {$ref: '#/components/schemas/GitSource'}
         artifact: {$ref: '#/components/schemas/ExactArtifactRef'}

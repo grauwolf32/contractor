@@ -47,6 +47,7 @@ async function installProjectAPI(
     updatedAt: "2026-09-01T10:00:00Z",
   });
   const artifact = {
+    canUploadNewVersion: true,
     storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: {
       namespace: "sources",

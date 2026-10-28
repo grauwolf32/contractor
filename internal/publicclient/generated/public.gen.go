@@ -3265,13 +3265,16 @@ type ArtifactLineagePage struct {
 
 // ArtifactMetadata defines model for ArtifactMetadata.
 type ArtifactMetadata struct {
-	Artifact  ExactArtifactRef `json:"artifact"`
-	CreatedAt time.Time        `json:"createdAt"`
-	Current   bool             `json:"current"`
-	Frozen    bool             `json:"frozen"`
-	GitSource *GitSource       `json:"gitSource,omitempty"`
-	MediaType MediaType        `json:"mediaType"`
-	Size      int              `json:"size"`
+	Artifact ExactArtifactRef `json:"artifact"`
+
+	// CanUploadNewVersion Whether this owner endpoint currently permits uploading a new version. False for historical, frozen, managed, Run-scope or deleting-Project bindings. Informational only; uploads still require current authorization and exact CAS.
+	CanUploadNewVersion bool       `json:"canUploadNewVersion"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	Current             bool       `json:"current"`
+	Frozen              bool       `json:"frozen"`
+	GitSource           *GitSource `json:"gitSource,omitempty"`
+	MediaType           MediaType  `json:"mediaType"`
+	Size                int        `json:"size"`
 
 	// StorageTimestamps Registry dates; shared blob/version dates may predate this material. At most 512 encoded UTF-8 bytes.
 	StorageTimestamps *ArtifactStorageTimestamps `json:"storageTimestamps,omitempty"`

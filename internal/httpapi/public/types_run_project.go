@@ -231,8 +231,8 @@ type artifactWriteResponse struct {
 }
 
 type artifactPageResponse struct {
-	Items []artifacts.Metadata `json:"items"`
-	Page  pageInfoResponse     `json:"page"`
+	Items []artifactMetadataResponse `json:"items"`
+	Page  pageInfoResponse           `json:"page"`
 }
 
 type artifactLineagePageResponse struct {
@@ -293,12 +293,12 @@ type runRepeatExecutionConfig struct {
 }
 
 type runRepeatInputSelection struct {
-	Status      string                 `json:"status"`
-	SourceScope artifacts.ScopeKind    `json:"sourceScope,omitempty"`
-	Artifact    *contracts.ArtifactRef `json:"artifact,omitempty"`
-	Metadata    *artifacts.Metadata    `json:"metadata,omitempty"`
-	Code        string                 `json:"code,omitempty"`
-	Message     string                 `json:"message,omitempty"`
+	Status      string                    `json:"status"`
+	SourceScope artifacts.ScopeKind       `json:"sourceScope,omitempty"`
+	Artifact    *contracts.ArtifactRef    `json:"artifact,omitempty"`
+	Metadata    *artifactMetadataResponse `json:"metadata,omitempty"`
+	Code        string                    `json:"code,omitempty"`
+	Message     string                    `json:"message,omitempty"`
 }
 
 type runRepeatDraftNotice struct {

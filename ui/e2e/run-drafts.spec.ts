@@ -34,6 +34,7 @@ const workflow = workflowResource(WORKFLOW_NAME, WORKFLOW_VERSION, {
 });
 
 const existingArtifact = {
+  canUploadNewVersion: true,
   storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "sources",
@@ -48,6 +49,7 @@ const existingArtifact = {
 };
 
 const uploadedArtifact = {
+  canUploadNewVersion: true,
   storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "artifacts",

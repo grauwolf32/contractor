@@ -200,6 +200,7 @@ async function installArtifactAPI(page: Page): Promise<void> {
     }
     const artifact = artifacts[name];
     const metadata = {
+      canUploadNewVersion: false,
       storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: { namespace: "projects", name, revision: REVISION },
       mediaType: artifact.mediaType,

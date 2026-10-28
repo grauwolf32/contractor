@@ -27,6 +27,7 @@ const runtimeConfig: RuntimeConfig = {
 };
 
 const metadata: ArtifactMetadata = {
+  canUploadNewVersion: true,
   storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "projects",
@@ -226,6 +227,44 @@ describe("Artifact API", () => {
     expect(
       canPreviewArtifact({ ...exactMetadata, mediaType: "text/html" }),
     ).toBe(false);
+  });
+
+  it.each([
+    "application/vnd.example.surface+json",
+    "model/gltf+json",
+    "application/vnd.contractor.project-sitemap+json",
+    "application/vnd.contractor.project-sitemap-context+json",
+  ])("previews structured JSON and downloads .json: %s", async (mediaType) => {
+    const content = '{"note":"<script>untrusted</script>"}';
+    const api = new PublicAPI(
+      runtimeConfig,
+      vi.fn(async () =>
+        response(content, {
+          headers: {
+            "content-type": mediaType,
+            "content-length": String(content.length),
+          },
+        }),
+      ),
+    );
+    const exact = { ...metadata, mediaType, size: content.length };
+    expect(canPreviewArtifact(exact)).toBe(true);
+    expect(
+      canPreviewArtifact({ ...exact, size: MAXIMUM_PREVIEW_BYTES + 1 }),
+    ).toBe(false);
+    await expect(previewArtifact(api, exact)).resolves.toBe(content);
+    expect((await downloadArtifact(api, exact)).filename).toMatch(/\.json$/);
+  });
+
+  it.each([
+    "application/+json",
+    "application/vnd.example+json; charset=utf-8",
+    "APPLICATION/TEST+JSON",
+    "not-a-type+json",
+    "application/*+json",
+    "*/example+json",
+  ])("does not admit a malformed JSON media type: %s", (mediaType) => {
+    expect(canPreviewArtifact({ ...metadata, mediaType })).toBe(false);
   });
 
   it("rejects download metadata drift and creates a sanitized filename", async () => {

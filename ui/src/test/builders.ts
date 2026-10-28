@@ -477,6 +477,8 @@ export function artifactMetadata(
     merge<Schemas["ArtifactMetadata"]>(
       {
         storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
+        canUploadNewVersion:
+          overrides.current !== false && overrides.frozen !== true,
         artifact: { namespace, name, revision: "r1" },
         mediaType: "application/zip",
         size: 64,

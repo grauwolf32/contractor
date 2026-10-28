@@ -19,6 +19,7 @@ const PROJECT_ID = "project_dialog_fixture";
 const WORKFLOW_NAME = "dialog-workflow";
 const WORKFLOW_VERSION = "1";
 const SOURCE = {
+  canUploadNewVersion: true,
   storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "sources",

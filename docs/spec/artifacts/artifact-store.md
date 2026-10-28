@@ -1507,3 +1507,17 @@ transaction without acquiring another pool connection or starting a nested
 transaction. RunStore owns the interpretation of Run `inputs` with `input_fork`
 lineage as original Run inputs; domain consumers use that operation without
 reading artifact tables. This metadata lookup creates no hold or file authority.
+
+### Public upload availability
+
+**ART-R134.** Every public `ArtifactMetadata` response, including list and
+retained-history pages, supplies `canUploadNewVersion`. It is true only when the
+owner endpoint supports upload, the selected revision is current, the binding
+is unfrozen and the common generic namespace write policy permits replacement.
+Run-scope owner endpoints and deleting Projects always report false. Compute it
+from the metadata and scope lifecycle already read, without new storage fields
+or per-row queries. Private Runtime metadata does not carry this public-only
+projection. This is a snapshot of availability, never a write grant: uploads
+still recheck owner, lifecycle, namespace and exact CAS admission. The Artifact
+API owns this guarantee; revisit it only if a new generic mutation changes the
+meaning of uploading a replacement revision.

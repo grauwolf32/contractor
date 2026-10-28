@@ -47,6 +47,7 @@ const response: RunRepeatDraftResponse = {
           revision: "source-r1",
         },
         metadata: {
+          canUploadNewVersion: false,
           storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
           artifact: {
             namespace: "sources",

@@ -98,6 +98,7 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 		return
 	}
 	response.Authority = repeatAuthorityOrdinary
+	projectUploadsAllowed := false
 	if run.ProjectID != nil {
 		project, projectErr := h.Projects.Get(
 			r.Context(), run.OwnerID, *run.ProjectID,
@@ -115,6 +116,8 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 				Code: "project_deleting", Severity: "blocking", Field: "projectId",
 				Message: "The owning Project is deleting and cannot accept another Run.",
 			})
+		} else {
+			projectUploadsAllowed = true
 		}
 	}
 	selector := run.WorkflowName + "@" + run.WorkflowVersion
@@ -160,7 +163,7 @@ func (h *runRepeatHandlers) getRunRepeatDraft(w http.ResponseWriter, r *http.Req
 		},
 	}
 	response.Draft = draft
-	draft.Inputs, err = h.repeatInputsFromSnapshot(r.Context(), run, snapshot)
+	draft.Inputs, err = h.repeatInputsFromSnapshot(r.Context(), run, snapshot, projectUploadsAllowed)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -231,11 +234,11 @@ func (h *runRepeatHandlers) loadRunRepeatSnapshot(
 }
 
 func (h *runRepeatHandlers) repeatInputsFromSnapshot(
-	ctx context.Context, run runstore.WorkflowRun, snapshot runrepeat.Snapshot,
+	ctx context.Context, run runstore.WorkflowRun, snapshot runrepeat.Snapshot, projectUploadsAllowed bool,
 ) (map[string]runRepeatInputSelection, error) {
 	result := make(map[string]runRepeatInputSelection, len(snapshot.Inputs))
 	for _, slot := range sortedArtifactSlots(snapshot.Inputs) {
-		selection, err := h.resolveRepeatSource(ctx, run, snapshot.Inputs[slot])
+		selection, err := h.resolveRepeatSource(ctx, run, snapshot.Inputs[slot], projectUploadsAllowed)
 		if err != nil {
 			return nil, err
 		}
@@ -245,7 +248,7 @@ func (h *runRepeatHandlers) repeatInputsFromSnapshot(
 }
 
 func (h *runRepeatHandlers) resolveRepeatSource(
-	ctx context.Context, run runstore.WorkflowRun, source runrepeat.InputSource,
+	ctx context.Context, run runstore.WorkflowRun, source runrepeat.InputSource, projectUploadsAllowed bool,
 ) (runRepeatInputSelection, error) {
 	ref := source.Artifact
 	copy := ref.Clone()
@@ -276,7 +279,7 @@ func (h *runRepeatHandlers) resolveRepeatSource(
 		return unavailableRepeatInput(&copy, "input_source_mismatch",
 			"The exact original Artifact revision could not be verified. Select a replacement explicitly."), nil
 	}
-	metadataCopy := metadata
+	metadataCopy := ownerArtifactMetadata(store, metadata, kind == artifacts.ScopeUser || projectUploadsAllowed)
 	return runRepeatInputSelection{
 		Status: repeatStatusAvailable, SourceScope: kind,
 		Artifact: &copy, Metadata: &metadataCopy,

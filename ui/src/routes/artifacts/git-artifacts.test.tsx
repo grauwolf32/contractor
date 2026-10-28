@@ -309,6 +309,7 @@ describe("Git artifacts", () => {
         "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata":
           () =>
             json({
+              canUploadNewVersion: true,
               ...imported,
               storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
               artifact: { ...imported.artifact, revision: "rev-before" },
