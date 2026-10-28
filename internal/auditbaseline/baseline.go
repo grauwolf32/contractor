@@ -57,6 +57,7 @@ type DerivedInventory struct {
 }
 
 type BaselineSnapshot struct {
+	Engagement              *EngagementSnapshot                  `json:"engagement,omitempty"`
 	Labels                  runlabels.RunMetadataLabels          `json:"labels"`
 	RequiredPlacementLabels []string                             `json:"requiredPlacementLabels"`
 	Schema                  string                               `json:"schema"`
