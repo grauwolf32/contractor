@@ -159,9 +159,11 @@ acceptance_criteria:
   when: A permitted tool computes/publishes through production boundaries
   then: Authorized outputs are materialized only in declared needed slots. Source publication receipts and exact selected
     holds keep their existing semantics without republishing, source substitution, implicit pinning or a cumulative
-    Run quota. Dedicated views expose the same complete shared metadata to every permitted reader. Needed missing
-    snapshot files produce source-unavailable gaps or fail requireReferencedInputs; ordinary owner-selected inputs
-    remain usable in full. No missing file is silently replaced with current content.
+    Run quota. Dedicated views expose the same complete shared metadata to every permitted reader. A referenced file
+    without a matching permitted original input produces a source-unavailable gap or fails requireReferencedInputs.
+    Missing/corrupt bytes or I/O failure after exact input resolution rolls back through ordinary ArtifactStore errors,
+    regardless of that flag, preserving existing frozen-context replay. Ordinary owner-selected inputs remain usable
+    in full; no missing file is silently replaced with current content.
 deliverables:
 - path: internal/scanplan
   description: Reuse the existing normalization/reference authority; extract common lower-layer types only with both

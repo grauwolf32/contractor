@@ -148,7 +148,10 @@ acceptance_criteria:
   then: Existing exact mappings feed consumers and no baseline mutation or implicit cross-round artifact lookup occurs;
     expired research cursors fail and selected context obtains its real hold before acceptance or fails unavailable,
     never substituting latest. Ordinary owner-selected map inputs and permitted dedicated readers expose the same
-    shared metadata. Missing needed snapshot files produce gaps or fail requireReferencedInputs; they never hide routes.
+    shared metadata. A referenced file without a matching permitted original input produces a gap or fails
+    requireReferencedInputs. A resolved needed exact input with missing/corrupt bytes or I/O failure rolls back the
+    snapshot under ordinary storage errors regardless of that flag; it never hides routes from map reads or changes
+    existing frozen-context replay.
 - id: A4
   given: Invalid schema, quota/source conflict, cancellation and lost output/collection replies
   when: The production composition hits each boundary

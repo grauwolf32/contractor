@@ -65,7 +65,9 @@ scope:
     V410-010 generic admission/history/hold/GC gate evidence instead of rebuilding all-scope matrices here.
   - Verify identical shared metadata for all permitted readers across every adapter, including credential-like names,
     opaque paths and known-credential matches. Check current operation permission on every cached page, no input
-    resolution on reads, and bounded snapshot-only original-file retention with missing optional/required files.
+    resolution on reads, and bounded snapshot-only original-file retention. Distinguish references without matching
+    permitted original inputs (gap unless requireReferencedInputs) from missing/corrupt resolved content or I/O failure
+    (ordinary storage error and rollback regardless of the flag), preserving existing frozen-context replay.
     Deliberate ordinary owner-selected inputs remain complete; general telemetry redaction is unchanged.
   - Document best-effort automatic updates, isolated failure handling and explicit snapshot/import semantics. Prove
     that blocked/refused storage never delays HTTP submission or changes target/Run results and that no publisher

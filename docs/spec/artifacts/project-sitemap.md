@@ -328,6 +328,14 @@ attempt metadata. The existing mTLS allocation gate and
 No Project selector, source classification or raw headers/body are accepted.
 Explicit allocation tools retain their separate read/mutation/snapshot operations.
 
+`GET /private/v1/allocations/{allocationId}/sitemap/access` requires the
+`operation` query parameter naming the exact selected sitemap tool. Runtime
+checks this operation before serving each cached list/read page and before
+editor metadata reads. Missing or unknown operations are invalid; an ungranted
+operation is denied even if another sitemap operation or automatic collection
+remains allowed. The endpoint accepts no policy-digest precondition. Snapshot
+POST independently checks its exact selected operation and allocation fence.
+
 The CLI uses the generated public client:
 
 ```text

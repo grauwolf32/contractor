@@ -420,10 +420,15 @@ Immutable views and signed cursors name the exact map revision and query, with n
 view policy digest or stored policy copy. A context snapshot selects group/member
 IDs from that exact revision. Only its transaction resolves the at-most-eight
 `snapshotInputs` names to original Run input revisions and freezes needed
-permitted bytes. Missing optional needed files produce `source-unavailable`
-gaps, or fail when `requireReferencedInputs` is true. A metadata descriptor alone
-never authorizes foreign-Run bytes. Derived context and its exact lineage holds
-commit together and do not claim byte identity with the complete map.
+permitted bytes. A referenced file without a matching permitted original input
+produces a `source-unavailable` gap, or fails when `requireReferencedInputs` is
+true. Once a needed exact input is resolved, missing or corrupt content and
+storage I/O failures retain ordinary ArtifactStore errors and roll back the
+snapshot regardless of that flag. Existing frozen-context replay remains
+unchanged; storage failure must not create a different accepted result for the
+same selection and key. A metadata descriptor alone never authorizes foreign-Run
+bytes. Derived context and its exact lineage holds commit together and do not
+claim byte identity with the complete map.
 
 Removing an entry means removing it from the working map, not rewriting prior
 artifact revisions or deleting finding evidence. Suppression applies to its

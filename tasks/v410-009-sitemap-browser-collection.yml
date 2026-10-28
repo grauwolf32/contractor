@@ -134,9 +134,11 @@ acceptance_criteria:
   when: Events reach map publication and permitted dedicated readers or snapshots
   then: Valid metadata is retained without secret filtering or matching-secret transport, fields outside the model
     remain excluded and every permitted reader sees the same accumulated metadata without claiming live proof from
-    declarations. Snapshots enforce original-file authority and exact holds; absent optional files produce gaps,
-    while requireReferencedInputs fails for missing needed files. General browser credential handling and telemetry
-    redaction are unchanged; ordinary owner-selected inputs remain authorized in full.
+    declarations. Snapshots enforce original-file authority and exact holds. References without matching permitted
+    original inputs produce gaps or fail requireReferencedInputs; missing/corrupt content or I/O failure after needed
+    exact input resolution rolls back through ordinary storage errors regardless of that flag. Existing frozen-context
+    replay, general browser credential handling and telemetry redaction are unchanged; ordinary owner-selected inputs
+    remain authorized in full.
 - id: A3
   given: HTTP/browser events with and without trusted correlation
   when: They contribute concurrently
