@@ -277,16 +277,16 @@ export function ArtifactDetailView({
           {(shown) => (
             <>
               <ArtifactFacts metadata={shown} />
-              {scope.kind === "run" ? null : shown.current ? (
+              {scope.kind === "run" ? null : shown.canUploadNewVersion ? (
                 <ArtifactUpdatePanel
                   scope={scope}
                   metadata={shown}
                   onUploadPending={recordUploadPending}
                   onUploadRejected={recordUploadRejected}
                 />
-              ) : (
+              ) : !shown.current ? (
                 <HistoricalNote />
-              )}
+              ) : null}
               <ArtifactPreviewPanel
                 key={`preview-${shown.artifact.revision}`}
                 archiveScope={scope}

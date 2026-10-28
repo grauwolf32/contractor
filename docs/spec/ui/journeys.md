@@ -215,7 +215,10 @@ lineage metadata.
 
 **UIJ-R19.** The surface previews bounded UTF-8 Markdown, YAML, JSON, OpenAPI
 and LikeC4 artifacts, plus selected HTTP exchanges, and retains an explicit
-download action for the original bytes.
+download action for the original bytes. Valid media types with the `+json`
+structured syntax suffix use the same bounded, escaped UTF-8 source preview
+and `.json` download extension as JSON, without per-domain MIME registration.
+Specialized renderers retain their explicit format contracts.
 
 **UIJ-R20.** The surface shows bounded Planner, Worker and Runtime metrics
 without exposing prompts, tool payloads, provider bodies or secrets.
@@ -227,6 +230,11 @@ analysis, with clear section navigation.
 
 **UIJ-R22.** After an upload or Git import, the storage scope, the exact
 revision and the next step are clear to the user.
+The current Artifact's upload action follows the Server's public
+`canUploadNewVersion` field; the UI does not infer domain write authority from
+namespace or media type. Historical, frozen, managed, Run and deleting-Project
+bindings offer no new-version upload. The field is informational; the Server
+rechecks write admission and exact CAS when an upload arrives.
 
 **UIJ-R23.** The Project root is a short Overview of decisions, recent results
 and activity; what it reads is specified in [UI](ui.md).

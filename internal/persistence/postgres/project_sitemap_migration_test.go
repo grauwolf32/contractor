@@ -63,7 +63,7 @@ func TestPostgresProjectSitemapMigrationsPreserveMainLedgerAndReceipts(t *testin
 	if _, err := pool.Exec(ctx, `INSERT INTO projects (project_id,owner_id,kind,name,request_idempotency_key,request_digest) VALUES ('sitemap-upgrade','owner','project','Sitemap upgrade','create-upgrade',$1)`, digest); err != nil {
 		t.Fatal(err)
 	}
-	sitemapKey := ProjectSitemapReceiptKey("owner", "sitemap-upgrade", "publish")
+	sitemapKey := ProjectReceiptKey("owner", "sitemap-upgrade", "sitemap-upgrade", "sitemap.mutate", "publish")
 	if err := InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		_, _, err := KeyedMutation(ctx, tx, sitemapKey, digest, func() (Receipt, error) {
 			return Receipt{OwnerID: "owner", ProjectID: "sitemap-upgrade", ResourceID: "sitemap-upgrade", Operation: "sitemap.mutate", Response: []byte(`{"accepted":true}`)}, nil

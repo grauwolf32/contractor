@@ -13,7 +13,7 @@ PACKAGES = (
     "internal/projectsitemap", "internal/artifacts", "internal/projectstore",
     "internal/projectlifecycle", "internal/persistence/postgres",
     "internal/httpapi/public", "internal/cli", "internal/publicclient",
-    "internal/app", "internal/artifactpolicy", "internal/archtest", "internal/httpapi/privateartifacts", "internal/controlplane",
+    "internal/app", "internal/artifactpolicy", "internal/archtest", "internal/httpapi/privateartifacts", "internal/controlplane", "internal/runstore",
 )
 REQUIRED = {
     "TestPostgresSitemapReceiptsOwnershipAndHistory",
@@ -36,6 +36,13 @@ REQUIRED = {
 REQUIRED_CASES = {(PREFIX + "internal/projectsitemap", case) for case in REQUIRED} | {
     (PREFIX + "internal/httpapi/privateartifacts", "TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence"),
     (PREFIX + "internal/controlplane", "TestSitemapGrantPinsSelectedOperationsAndNeverAliasesPolicy"),
+    (PREFIX + "internal/artifacts", "TestPostgresDescribeForkRevisionsPreservesTargetsAndBoundsWork"),
+    (PREFIX + "internal/httpapi/public", "TestPostgresPublicArtifactUploadAvailability"),
+    (PREFIX + "internal/httpapi/public", "TestPostgresRepeatArtifactUploadAvailabilityFollowsSourceProject"),
+    (PREFIX + "internal/runstore", "TestPostgresDescribeOriginalInputsKeepsCreationRevisionsInCallerTransaction"),
+    (PREFIX + "internal/persistence/postgres", "TestPostgresProjectReceiptMigrationPreservesAcceptedIntent"),
+    (PREFIX + "internal/persistence/postgres", "TestPostgresProjectReceiptScopesAndStrictShape"),
+    (PREFIX + "internal/persistence/postgres", "TestPostgresProjectReceiptPurgeIsBoundedAndIsolated"),
 }
 
 

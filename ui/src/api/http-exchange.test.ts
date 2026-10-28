@@ -117,6 +117,7 @@ describe("selected HTTP evidence artifact", () => {
   });
   it("keeps preview admission bounded before any payload read", () => {
     const metadata = {
+      canUploadNewVersion: false,
       storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "finding-proposals",

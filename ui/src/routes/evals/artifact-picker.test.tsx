@@ -12,6 +12,7 @@ import { renderWithAPI, testSession } from "../../test/render";
 import { EvalArtifactPicker } from "./artifact-picker";
 
 const input = conforming("ArtifactMetadata", {
+  canUploadNewVersion: true,
   storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: { namespace: "inputs", name: "spec", revision: "revision-1" },
   mediaType: "text/plain",

@@ -142,6 +142,7 @@ function artifactMetadata(
   size = 12,
 ) {
   return conforming("ArtifactMetadata", {
+    canUploadNewVersion: false,
     storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact,
     mediaType,

@@ -71,6 +71,7 @@ async function installAPI(page: Page): Promise<void> {
           url.searchParams.get("namespace") === "skills"
             ? [
                 {
+                  canUploadNewVersion: true,
                   storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
                   artifact: {
                     namespace: "skills",

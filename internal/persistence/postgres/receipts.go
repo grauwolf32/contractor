@@ -8,8 +8,8 @@ import (
 )
 
 // A keyed mutation is a request its caller may repeat under an idempotency
-// key: an owner's Audit mutation, a managed Eval mutation or a Runtime
-// management operation. Each records one receipt in mutation_receipts in the
+// key: an owner's Audit or Project mutation, a managed Eval mutation or a
+// Runtime management operation. Each records one receipt in mutation_receipts in the
 // transaction of its effect, through KeyedMutation (PER-R24): the key's
 // advisory lock first, then the replay of a stored receipt, then the effect
 // and the claim of the key with the new receipt.
@@ -58,23 +58,27 @@ func ScanSweepReceiptKey(ownerID, idempotencyKey string) ReceiptKey {
 	return ReceiptKey{scope: []string{"scan-sweep", ownerID, "scan-sweep.create"}, key: idempotencyKey}
 }
 
-// ProjectSitemapReceiptKey binds one publication intent to its owner and
-// Project. Its receipt survives result eviction and leaves only in Project purge.
-func ProjectSitemapReceiptKey(ownerID, projectID, idempotencyKey string) ReceiptKey {
-	return ReceiptKey{scope: []string{"project-sitemap", ownerID, projectID}, key: idempotencyKey}
+// ProjectReceiptKey binds a resource operation to its owner and Project. Its
+// receipt survives resource changes and leaves only in Project purge.
+func ProjectReceiptKey(ownerID, projectID, resourceID, operation, idempotencyKey string) ReceiptKey {
+	return ReceiptKey{scope: []string{"project", ownerID, projectID, resourceID, operation}, key: idempotencyKey}
 }
 
-// DeleteProjectSitemapReceiptsBatch removes one bounded batch under the existing
+// DeleteProjectReceiptsBatch removes one bounded batch under the existing
 // Project lifecycle fence. The caller must have locked its drained Project.
-func DeleteProjectSitemapReceiptsBatch(ctx context.Context, tx pgx.Tx, projectID string) (bool, error) {
+// Other receipt families retain their own lifecycle and are untouched.
+func DeleteProjectReceiptsBatch(ctx context.Context, tx pgx.Tx, projectID string) (bool, error) {
+	if tx == nil || projectID == "" {
+		return false, errors.New("Project receipt purge arguments are invalid")
+	}
 	if _, err := tx.Exec(ctx, `SELECT set_config('contractor.lifecycle_purge', 'project', true)`); err != nil {
 		return false, WrapError("authorize Project receipt purge", err)
 	}
 	budget := CleanupBudget{RowLimit: CleanupBatchRows, ByteLimit: 64 << 20}
 	gone, err := DeleteWithinBudget(ctx, tx, &budget, BoundedDelete{Table: "mutation_receipts",
-		Filter: `project_id=$5 AND key_scope[1]='project-sitemap'`, RowBytes: receiptRowBytes, RowCost: 1, Args: []any{projectID}})
+		Filter: `project_id=$5 AND key_scope[1]='project'`, RowBytes: receiptRowBytes, RowCost: 1, Args: []any{projectID}})
 	if err != nil {
-		return false, WrapError("purge sitemap receipts", err)
+		return false, WrapError("purge Project mutation receipts", err)
 	}
 	// Commit receipt work before the controller starts an Artifact purge pass.
 	return gone && budget.Rows == 0, nil
@@ -88,8 +92,8 @@ func (k ReceiptKey) AdvisoryKey() AdvisoryKey {
 // Receipt is the record of one keyed mutation: what it did, to which
 // resource, for which request, and the response a replay returns. OwnerID,
 // ProjectID and AuditID are empty unless the receipt's family records them:
-// an Audit receipt names its owner and Audit, an Eval receipt its owner and
-// Project.
+// an Audit receipt names its owner and Audit, while Project and Eval receipts
+// name their owner and Project.
 type Receipt struct {
 	Operation     string
 	ResourceID    string

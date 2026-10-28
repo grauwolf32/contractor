@@ -8675,9 +8675,11 @@
         "current",
         "frozen",
         "createdAt",
-        "storageTimestamps"
+        "storageTimestamps",
+        "canUploadNewVersion"
       ],
       "properties": {
+        "canUploadNewVersion": { "type": "boolean" },
         "storageTimestamps": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactStorageTimestamps"
         },

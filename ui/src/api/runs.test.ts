@@ -167,6 +167,7 @@ describe("Run API", () => {
         }
         if (path.endsWith("/metadata")) {
           return response({
+            canUploadNewVersion: false,
             storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
             artifact: {
               namespace: "builder",
@@ -344,6 +345,7 @@ describe("Run API", () => {
       }),
     );
     const downloaded = await downloadRunArtifact(api, "run-1", {
+      canUploadNewVersion: false,
       storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "outputs",
@@ -458,6 +460,7 @@ describe("Run API", () => {
                 sourceScope: "user",
                 artifact: exact,
                 metadata: {
+                  canUploadNewVersion: false,
                   storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
                   artifact: exact,
                   mediaType: "application/zip",

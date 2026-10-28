@@ -40,6 +40,7 @@ for (const width of [1440, 390]) {
           : "sources";
         const artifact = { namespace, name: "package", revision: "r1" };
         const metadata = {
+          canUploadNewVersion: false,
           storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
           artifact,
           mediaType:

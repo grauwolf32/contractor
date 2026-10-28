@@ -5134,6 +5134,8 @@ export interface components {
             bindingUpdatedAt: components["schemas"]["ArtifactStorageTimestamp"];
         };
         ArtifactMetadata: {
+            /** @description Whether this owner endpoint currently permits uploading a new version. False for historical, frozen, managed, Run-scope or deleting-Project bindings. Informational only; uploads still require current authorization and exact CAS. */
+            canUploadNewVersion: boolean;
             storageTimestamps: components["schemas"]["ArtifactStorageTimestamps"];
             gitSource?: components["schemas"]["GitSource"];
             artifact: components["schemas"]["ExactArtifactRef"];

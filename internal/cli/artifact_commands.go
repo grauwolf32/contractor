@@ -498,12 +498,17 @@ func decodeArtifactMetadata(body []byte, namespace, name, revision string) (*pub
 		return nil, errors.New("Artifact metadata did not match the requested revision")
 	}
 	var wire struct {
-		StorageTimestamps map[string]string `json:"storageTimestamps"`
+		StorageTimestamps   map[string]string `json:"storageTimestamps"`
+		CanUploadNewVersion *bool             `json:"canUploadNewVersion"`
 	}
 	// The complete strict decode above closes every member. This projection checks
-	// spelling too, because time.Time accepts a noncanonical UTC offset.
+	// required presence and spelling, because bool accepts null and time.Time
+	// accepts a noncanonical UTC offset.
 	if err := json.Unmarshal(body, &wire); err != nil {
 		return nil, errors.New("invalid Artifact storage dates")
+	}
+	if wire.CanUploadNewVersion == nil {
+		return nil, errors.New("missing Artifact upload availability")
 	}
 	for _, value := range wire.StorageTimestamps {
 		date, err := time.Parse(time.RFC3339Nano, value)

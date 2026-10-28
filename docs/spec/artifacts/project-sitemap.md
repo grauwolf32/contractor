@@ -152,8 +152,10 @@ reselection; cached bytes cannot recreate the source or authorize latest.
 **SMT-R12.** Project deletion must fence publication under the existing shared
 Project admission lock. Deleting a producer Run must not erase self-contained
 Project metadata. Project purge must remove the domain's receipts through the
-shared bounded receipt helper before removing the Project; no independent
+shared bounded Project receipt helper before removing the Project; no independent
 receipt journal, claim, deletion controller or evidence lifetime is introduced.
+Sitemap uses the common Project mutation key scope and lifecycle; persistence
+and Project cleanup must contain no sitemap-specific receipt family or branch.
 
 **SMT-R13.** Allocation access requires an explicit pinned `sitemap-access@1`
 policy in the AgentTemplate and exact selected `sitemap@1` operations. The
@@ -217,9 +219,10 @@ checks current snapshot permission and rereads the exact map inside the snapshot
 transaction; Runtime view bytes are not a source for materialization.
 
 Only in that transaction, the at-most-eight configured `snapshotInputs` names
-resolve through a bounded batch to immutable original Run-creation input forks,
+resolve through RunStore's original-input operation and ArtifactStore's bounded
+fork-revision descriptors to immutable original Run-creation input forks,
 never Worker-editable current bindings. Query work is independent of the
-containing Run's artifact count. Only needed permitted original input bytes are
+containing Run's artifact count. Sitemap owns no artifact-table SQL. Only needed permitted original input bytes are
 frozen with ordinary exact forks. If a referenced file has no matching permitted
 original input, preserve selected metadata and record the existing
 `source-unavailable` gap; `requireReferencedInputs: true` makes this fail the

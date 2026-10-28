@@ -43,6 +43,7 @@ function metadata(
   overrides: { current?: boolean; createdAt?: string } = {},
 ) {
   return conforming("ArtifactMetadata", {
+    canUploadNewVersion: false,
     storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact,
     mediaType,

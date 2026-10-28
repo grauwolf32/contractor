@@ -217,6 +217,14 @@ to the exact Workflow document it names
 binding; an optional input may be absent. The source scope, version selection,
 media-type validation and fork of each supplied input follow
 [ART-R74 to ART-R79](../artifacts/artifact-store.md).
+RunStore owns resolving a bounded selection of original Run inputs by name:
+it selects the Run's `inputs` namespace and `input_fork` lineage through the
+generic ArtifactStore fork-revision descriptor operation (ART-R133). It must
+not replace the original revision with the mutable working copy or query
+artifact tables directly. Absent names are omitted; malformed or ambiguous
+stored lineage retains the common artifact integrity failure. The caller's
+transaction and authorization remain authoritative; this lookup adds neither
+file access nor a retention hold.
 
 **RUN-R4.** `executionConfig` is the reference-only override specified by
 [TPL-R70, TPL-R76 and TPL-R77](../configuration/agent-templates.md).

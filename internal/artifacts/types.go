@@ -228,6 +228,9 @@ type Repository interface {
 	// MaxExactReadBatchSize exact revisions of one scope in request order,
 	// without reading their payloads.
 	DescribeExact(context.Context, Scope, []ArtifactRef) ([]contracts.ExactArtifact, error)
+	// DescribeForkRevisions describes at most MaxExactReadBatchSize exact target
+	// revisions of selected lineage edges without payload I/O, omitting absent names.
+	DescribeForkRevisions(context.Context, Scope, string, []string, string) ([]contracts.ExactArtifact, error)
 	ListRefs(context.Context, Scope, RefPageQuery) (RefPage, error)
 	ListMetadata(context.Context, Scope, BindingPageQuery) ([]Metadata, error)
 	ListVersions(context.Context, Scope, ArtifactRef, VersionPageQuery) ([]Metadata, error)

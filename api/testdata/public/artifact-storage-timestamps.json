@@ -18,7 +18,8 @@
         "blobCreatedAt": "2026-01-01T00:00:00Z",
         "versionCreatedAt": "2026-01-01T00:00:00Z",
         "bindingUpdatedAt": "2026-10-27T01:00:00Z"
-      }
+      },
+      "canUploadNewVersion": true
     }
   },
   {
@@ -34,7 +35,8 @@
       "size": 2,
       "current": true,
       "frozen": false,
-      "createdAt": "2026-10-27T00:00:00.123456Z"
+      "createdAt": "2026-10-27T00:00:00.123456Z",
+      "canUploadNewVersion": true
     }
   },
   {
@@ -51,7 +53,8 @@
       "current": true,
       "frozen": false,
       "createdAt": "2026-10-27T00:00:00.123456Z",
-      "storageTimestamps": null
+      "storageTimestamps": null,
+      "canUploadNewVersion": true
     }
   },
   {
@@ -72,7 +75,8 @@
         "scopeCreatedAt": "2026-10-27T00:00:00.123456Z",
         "versionCreatedAt": "2026-01-01T00:00:00Z",
         "bindingUpdatedAt": "2026-10-27T01:00:00Z"
-      }
+      },
+      "canUploadNewVersion": true
     }
   },
   {
@@ -94,7 +98,8 @@
         "blobCreatedAt": null,
         "versionCreatedAt": "2026-01-01T00:00:00Z",
         "bindingUpdatedAt": "2026-10-27T01:00:00Z"
-      }
+      },
+      "canUploadNewVersion": true
     }
   },
   {
@@ -116,7 +121,8 @@
         "blobCreatedAt": "0001-01-01T00:00:00Z",
         "versionCreatedAt": "2026-01-01T00:00:00Z",
         "bindingUpdatedAt": "2026-10-27T01:00:00Z"
-      }
+      },
+      "canUploadNewVersion": true
     }
   },
   {
@@ -138,7 +144,8 @@
         "blobCreatedAt": "2026-01-01T00:00:00+00:00",
         "versionCreatedAt": "2026-01-01T00:00:00Z",
         "bindingUpdatedAt": "2026-10-27T01:00:00Z"
-      }
+      },
+      "canUploadNewVersion": true
     }
   },
   {
@@ -160,7 +167,8 @@
         "blobCreatedAt": "yesterday",
         "versionCreatedAt": "2026-01-01T00:00:00Z",
         "bindingUpdatedAt": "2026-10-27T01:00:00Z"
-      }
+      },
+      "canUploadNewVersion": true
     }
   },
   {
@@ -183,7 +191,8 @@
         "versionCreatedAt": "2026-01-01T00:00:00Z",
         "bindingUpdatedAt": "2026-10-27T01:00:00Z",
         "objectCreatedAt": "2026-01-01T00:00:00Z"
-      }
+      },
+      "canUploadNewVersion": true
     }
   },
   {
@@ -205,7 +214,8 @@
         "blobCreatedAt": "0001-01-01T00:00:00.000000Z",
         "versionCreatedAt": "2026-01-01T00:00:00Z",
         "bindingUpdatedAt": "2026-10-27T01:00:00Z"
-      }
+      },
+      "canUploadNewVersion": true
     }
   },
   {
@@ -227,7 +237,76 @@
         "blobCreatedAt": "0000-01-01T00:00:00Z",
         "versionCreatedAt": "2026-01-01T00:00:00Z",
         "bindingUpdatedAt": "2026-10-27T01:00:00Z"
+      },
+      "canUploadNewVersion": true
+    }
+  },
+  {
+    "name": "missing-upload-availability",
+    "valid": false,
+    "value": {
+      "artifact": {
+        "namespace": "docs",
+        "name": "source",
+        "revision": "r1"
+      },
+      "mediaType": "text/plain",
+      "size": 2,
+      "current": true,
+      "frozen": false,
+      "createdAt": "2026-10-27T00:00:00.123456Z",
+      "storageTimestamps": {
+        "scopeCreatedAt": "2026-10-27T00:00:00.123456Z",
+        "blobCreatedAt": "2026-01-01T00:00:00Z",
+        "versionCreatedAt": "2026-01-01T00:00:00Z",
+        "bindingUpdatedAt": "2026-10-27T01:00:00Z"
       }
+    }
+  },
+  {
+    "name": "null-upload-availability",
+    "valid": false,
+    "value": {
+      "artifact": {
+        "namespace": "docs",
+        "name": "source",
+        "revision": "r1"
+      },
+      "mediaType": "text/plain",
+      "size": 2,
+      "current": true,
+      "frozen": false,
+      "createdAt": "2026-10-27T00:00:00.123456Z",
+      "storageTimestamps": {
+        "scopeCreatedAt": "2026-10-27T00:00:00.123456Z",
+        "blobCreatedAt": "2026-01-01T00:00:00Z",
+        "versionCreatedAt": "2026-01-01T00:00:00Z",
+        "bindingUpdatedAt": "2026-10-27T01:00:00Z"
+      },
+      "canUploadNewVersion": null
+    }
+  },
+  {
+    "name": "nonboolean-upload-availability",
+    "valid": false,
+    "value": {
+      "artifact": {
+        "namespace": "docs",
+        "name": "source",
+        "revision": "r1"
+      },
+      "mediaType": "text/plain",
+      "size": 2,
+      "current": true,
+      "frozen": false,
+      "createdAt": "2026-10-27T00:00:00.123456Z",
+      "storageTimestamps": {
+        "scopeCreatedAt": "2026-10-27T00:00:00.123456Z",
+        "blobCreatedAt": "2026-01-01T00:00:00Z",
+        "versionCreatedAt": "2026-01-01T00:00:00Z",
+        "bindingUpdatedAt": "2026-10-27T01:00:00Z"
+      },
+      "canUploadNewVersion": "true"
     }
   }
 ]

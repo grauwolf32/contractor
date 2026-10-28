@@ -767,7 +767,7 @@ an artifact write that a deleting Project rejects at the write itself
 **PER-R24.** A keyed mutation is a request its caller may repeat under an
 idempotency key and whose receipt is kept apart from the entity it changes:
 an owner's Audit mutation (create, start, pause, cancel, resume and delete),
-a durable scan-sweep creation, a Project sitemap mutation,
+a durable scan-sweep creation, a Project-scoped domain mutation,
 a managed Eval mutation, and a Runtime label binding or Agent label set
 operation. Each records one receipt in `mutation_receipts`, in the
 transaction of its effect, through one flow:
@@ -784,10 +784,14 @@ operation, an Eval key per owner, Project, resource and operation, and a
 Runtime management key across every operation, held only as the digest of the
 operator's key. A scan-sweep create key is scoped by owner and operation; its receipt survives
 purge and a replay resolves the original identity or returns `not_found`,
-never creates new traffic. A sitemap key is scoped by owner and Project; its
-receipt leaves only in Project purge. Its bounded safe replay policy is read
-under the same receipt lock before the common digest comparison, so grouping
-changes or eviction cannot reinterpret accepted intent or require secret hashes
+never creates new traffic. A Project mutation key is scoped by owner, Project,
+resource and operation; its immutable receipt leaves only in the drained
+deleting Project's purge. The common Project receipt family admits domain
+operations without registering their names in persistence or cleanup code.
+Cleanup uses the shared row/byte budget and a Project-family index, committing
+its receipt pass before artifact purge. A caller may read bounded replay policy
+under the same receipt lock before the common digest comparison, so domain rule
+changes or result eviction cannot reinterpret accepted intent
 ([SMT-R9](../artifacts/project-sitemap.md)). A family that also compares the stored operation or resource
 on replay, as Runtime management does, reports a difference as the same
 conflict. No receipt changes once claimed. An Audit receipt is deleted with

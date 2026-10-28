@@ -50,6 +50,7 @@ function material(
   mediaType: string,
 ): ArtifactMetadata {
   return {
+    canUploadNewVersion: true,
     storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: { namespace, name, revision: `${name}-r1` },
     mediaType,

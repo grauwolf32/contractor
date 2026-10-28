@@ -418,8 +418,8 @@ func (c *Controller) purgeProject(ctx context.Context, claim projectstore.Deleti
 		if !receiptsGone {
 			return nil
 		}
-		sitemapReceiptsGone, err := persistencepostgres.DeleteProjectSitemapReceiptsBatch(ctx, tx, claim.ProjectID)
-		if err != nil || !sitemapReceiptsGone {
+		projectReceiptsGone, err := persistencepostgres.DeleteProjectReceiptsBatch(ctx, tx, claim.ProjectID)
+		if err != nil || !projectReceiptsGone {
 			return err
 		}
 		purger, err := artifacts.NewPostgresPurger(tx)

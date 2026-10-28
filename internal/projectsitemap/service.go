@@ -168,7 +168,7 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 	if err := checkProject(ctx, tx, a.OwnerID, a.ProjectID, true); err != nil {
 		return Result{}, err
 	}
-	receiptKey := postgres.ProjectSitemapReceiptKey(a.OwnerID, a.ProjectID, idempotencyKey)
+	receiptKey := postgres.ProjectReceiptKey(a.OwnerID, a.ProjectID, a.ProjectID, "sitemap.mutate", idempotencyKey)
 	if err := postgres.LockReceipt(ctx, tx, receiptKey); err != nil {
 		return Result{}, err
 	}

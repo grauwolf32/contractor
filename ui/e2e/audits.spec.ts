@@ -43,6 +43,7 @@ test("Project Audit pins exact input and exposes authoritative coverage", async 
     updatedAt: "2026-09-06T10:00:00Z",
   });
   const artifact = {
+    canUploadNewVersion: true,
     storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: {
       namespace: "sources",
