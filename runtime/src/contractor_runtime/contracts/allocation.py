@@ -23,6 +23,7 @@ from contractor_runtime.contracts.base import (
     _require_text,
     normalize_run_metadata_labels,
 )
+from contractor_runtime.contracts.pentest_allocation import PentestAllocationProjection
 from contractor_runtime.contracts.reports import PerformanceMetricsRequest
 from contractor_runtime.contracts.settings import (
     AgentTemplateRef,
@@ -116,6 +117,9 @@ class ReleaseAllocationRequest(VersionedWireModel):
 class AllocationSpec(VersionedWireModel):
     nullable_fields = frozenset({"workspace", "performance_metrics"})
 
+    # Pydantic 2.13 silently ignores a disabled optional field-name alias.
+    # Keeping this authority field's exact wire spelling makes other names unknown.
+    pentestEngagement: PentestAllocationProjection | None = None
     completion_contract: WorkerCompletionContract | None = None
     allocation_id: str
     run_id: str
@@ -143,6 +147,13 @@ class AllocationSpec(VersionedWireModel):
 
     @model_validator(mode="after")
     def validate_spec(self) -> Self:
+        if (
+            self.pentestEngagement is not None
+            and self.pentestEngagement.access_mode == "blackbox"
+            and self.workspace is not None
+            and (self.workspace.sources or self.workspace.state is not None)
+        ):
+            raise ValueError("blackbox pentest allocation forbids repository workspace hydration")
         if self.completion_contract is not None:
             self.completion_contract.validate_allocation(self.namespace, self.agent_template)
         for field, value in (

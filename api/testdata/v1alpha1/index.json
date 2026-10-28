@@ -1,6 +1,7 @@
 {
   "description": "Every private wire fixture: the message type both languages decode it as, the JSON Schema that must accept or reject it, and for invalid fixtures whether the strict decoder rejects it and the private codec error class.",
   "valid": {
+    "allocation-spec-pentest-metadata.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},
     "allocation-spec-summary-model-selection.json": {"type": "AllocationSpec", "schema": "allocation.schema.json"},
     "abort-allocation.json": {"type": "AbortAllocationRequest", "schema": "allocation.schema.json"},
     "agent-heartbeat.json": {"type": "AgentHeartbeat", "schema": "agent-heartbeat.schema.json"},
@@ -43,6 +44,11 @@
     "workspace-capabilities.json": {"type": "WorkspaceCapabilities", "schema": "agent-registration.schema.json#/$defs/WorkspaceCapabilities"}
   },
   "invalid": {
+    "allocation-spec-pentest-alias.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
+    "allocation-spec-pentest-unknown-field.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
+    "allocation-spec-pentest-execution-capability.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
+    "allocation-spec-pentest-assigned-route.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
+    "allocation-spec-pentest-null.json": {"type": "AllocationSpec", "schema": "allocation.schema.json", "strict": true},
     "registration-response-removed-runtimeAgentId.json": {"type": "AgentRegistrationResponse", "schema": "agent-registration-response.schema.json", "strict": true},
     "registration-response-removed-labels.json": {"type": "AgentRegistrationResponse", "schema": "agent-registration-response.schema.json", "strict": true},
     "registration-response-removed-labelRevision.json": {"type": "AgentRegistrationResponse", "schema": "agent-registration-response.schema.json", "strict": true},

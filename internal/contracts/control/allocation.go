@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/pentest"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -94,6 +95,7 @@ func validateLifecycleRequest(apiVersion, allocationID, idField, idValue string,
 }
 
 type AllocationSpec struct {
+	PentestEngagement               *pentest.AllocationProjection                   `json:"pentestEngagement,omitempty"`
 	SummarizerModelPolicy           *contracts.ResolvedModelPolicy                  `json:"summarizerModelPolicy,omitempty"`
 	CompletionContract              *contracts.WorkerCompletionContract             `json:"completionContract,omitempty"`
 	APIVersion                      string                                          `json:"apiVersion" strictjson:"required"`
@@ -115,6 +117,14 @@ type AllocationSpec struct {
 }
 
 func (s AllocationSpec) Validate() error {
+	if s.PentestEngagement != nil {
+		if err := s.PentestEngagement.Validate(); err != nil {
+			return err
+		}
+		if s.PentestEngagement.AccessMode == "blackbox" && s.Workspace != nil && (len(s.Workspace.Sources) != 0 || s.Workspace.State != nil) {
+			return contracts.Invalidf("blackbox pentest allocation forbids repository workspace hydration")
+		}
+	}
 	if s.CompletionContract != nil {
 		if err := s.CompletionContract.ValidateAllocation(s.Namespace); err != nil {
 			return err
