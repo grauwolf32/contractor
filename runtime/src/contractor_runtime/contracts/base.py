@@ -284,7 +284,7 @@ def _require_state_workspace_path(value: str) -> str:
 
 
 RUNTIME_ADAPTER_REFS = frozenset(
-    {"caido-graphql@1", "interactsh-http@1", "http-proxy@1", "otlp-http@1"}
+    {"caido-graphql@1", "interactsh-http@1", "http-proxy@1", "otlp-http@1", "pentest-target-http@1"}
 )
 _HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$")
 _RUNTIME_ADAPTER_ERROR_CODES = frozenset(
