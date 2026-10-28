@@ -6,14 +6,14 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V410-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V410-010, V410-002, V410-019]
 languages: [go, sql, markdown, yaml]
 goal: Keep sitemap as domain logic over ordinary artifacts without sitemap-specific storage, input-lineage or Project cleanup branches.
 context:
   authority: On 2026-10-28 the user requested a modularity and isolation audit and authorized shared mechanisms wherever sitemap otherwise needs special artifact handling.
   finding: internal/artifacts/service.go:98 names sitemap directly in generic write admission; internal/projectsitemap/snapshot_sql.go reads artifact_lineage directly; internal/persistence/postgres/receipts.go and internal/projectlifecycle/controller.go contain sitemap-specific receipt keys and cleanup. Ordinary bytes, metadata, history, CAS, input forks and derived context already use generic ArtifactStore primitives.
-  siblings: Audit-managed Project namespaces share write reservation; original immutable Run inputs are a general artifact concern; Audit/Eval/Runtime receipts retain their existing scope and lifecycle. Sitemap public/private domain adapters, route grouping, collection and JSON validation remain domain-owned.
+  siblings: Audit-managed Project namespaces share write reservation; RunStore owns original-input semantics over shared artifact lineage; Audit/Eval/Runtime receipts retain their existing scope and lifecycle. Sitemap public/private domain adapters, route grouping, collection and JSON validation remain domain-owned.
   specification:
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/artifacts/project-sitemap.md
@@ -74,3 +74,22 @@ tests:
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A4]
+implementation_commit: b798598a5f655d16a7b841c7603233b52861e5a4
+verification:
+  date: '2026-10-29'
+  result: passed
+  tested_commit: cbc2f79fa25dda48a828fd2dcd9196649837c768
+  commands:
+  - command: make test-project-sitemap-postgres
+    result: Passed 14 complete packages and all 24 mandatory real-store cases with zero mandatory skips. Includes 32-name fork lookup amid 7000 unrelated artifacts, original target revisions after edits, MaxConns=1, migration replay, strict receipt scope and bounded isolated purge.
+  - command: make test-project-sitemap-tools-e2e
+    result: Passed both actual Server/Runtime/PostgreSQL scenarios with zero skips.
+  - command: make lint
+    result: Passed generated checks, UI gates, Go vet/staticcheck/testonlyexports, deployment and release graph checks, tasks/specs/shared fixtures, schema diagram freshness, Ruff and all four Runtime import contracts.
+  - command: make docs-erd
+    result: Regenerated schema diagram from a disposable database through migration 000056; 74 tables and 103 foreign keys.
+  notes:
+  - Independent reviews found no blockers in the RunStore-to-ArtifactStore lookup or generic Project receipt migration and lifecycle boundary.
+  - Original-input semantics belong to RunStore; ArtifactStore owns generic target-fork descriptors and SQL. Existing statement count, caller transaction, cancellation and domain limits are preserved.
+  - No new table, queue, full-map cache, Runtime wire field or runtime compatibility reader. Domain commands still write complete revisions through ordinary CAS.
+  - The first combined gate caught two V410-021 consumer/classification gaps; both were fixed before the complete successful rerun. Initial stale generated dependency and schema diagrams were regenerated before final lint.
