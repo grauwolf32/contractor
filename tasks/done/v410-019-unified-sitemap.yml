@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V410-002
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V410-001, V410-002, V410-003, V410-018]
 languages: [go, python, json, yaml, markdown]
 goal: Give every permitted sitemap reader the same Project knowledge while removing source classification, projection work and repeated input resolution.
@@ -79,3 +79,36 @@ tests:
   covers: [A2]
 - command: make lint
   covers: [A2, A4]
+implementation_commit: f041845d745a3c574c4d7d58651f4c2ed6c97158
+verification:
+  date: '2026-10-28'
+  result: passed
+  tested_commit: f041845d745a3c574c4d7d58651f4c2ed6c97158
+  commands:
+  - command: go test -tags=integration -count=1 ./internal/auditservice
+    result: Passed the complete package with real PostgreSQL, including shared sitemap Preflight and Start in a blackbox Audit.
+  - command: make test-project-sitemap-postgres
+    result: 'Passed 13 complete packages and all 17 mandatory cases with zero mandatory skips. One producer accepted 257 publications totaling 357966641 encoded bytes. Original-input lookup remains bounded for both one and eight inputs; access reads no artifact lineage or payload.'
+  - command: make test-project-sitemap-tools-e2e
+    result: Passed both mandatory actual Server/Runtime/PostgreSQL scenarios with zero skips, including complete shared views, edits, exact operation grants, original input attachment and metadata preservation.
+  - command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_http_*.py runtime/tests/test_capabilities*.py
+    result: 224 passed.
+  - command: make test-wire-cross-language
+    result: Passed contract packages, 337 Runtime contract cases, 314 shared fixtures, 356 Go and 243 Python shared tests; the Python shared selection executed 1385 cases.
+  - command: make verify-public-api
+    result: Passed public operation coverage and error/schema contracts with regenerated clients.
+  - command: make lint
+    result: Passed generated checks, UI gates, Go vet/staticcheck/testonlyexports, deployment/release graph checks, tasks/specs/fixtures, Ruff and all four Runtime import contracts.
+  - command: go test ./internal/projectsitemap -run '^TestPostgresSitemapContextProjectionSerializesWithHistoryEviction$' -count=5
+    result: Passed 30 snapshot/eviction races, including the common maintenance outcome and unchanged-intent retry.
+  performance:
+    document: 10000 groups and 50000 members; allocation document processing only, excluding SQL and network.
+    command: go test ./internal/projectsitemap -run '^$' -bench '^BenchmarkSitemapAllocationDocumentRead$' -benchtime=1x -count=3 -benchmem
+    before: Approximately 423 ms and 420 MB allocated per read across three samples.
+    after: Approximately 277 ms and 256 MB allocated per read across three samples; about 34 percent less processing time and 39 percent fewer allocated bytes.
+    queries: Access performs two metadata queries plus BEGIN/COMMIT and no artifact queries. Snapshot metadata lookup uses the same bounded statement count for one and eight configured names.
+  notes:
+  - Main V411-002 landed during implementation; its removed-field reference and sitemap-specific contract were aligned before the final gates. Independent review found no remaining blockers.
+  - An earlier concurrent wire run hit an existing two-second process-start test deadline; the individual case and complete final gate passed without that competing load. An invocation missing the required database environment stopped before tests and was corrected.
+  - The earlier eviction race test omitted the common history-maintenance outcome. Only its expectation and bounded retry verification changed; production history and retry behavior remain unchanged.
+  - Final process diagrams describe the implemented shared map, grouping, publication, collection, cached reads and snapshots; unfinished imports, reconciliation and browser collection remain outside this task.
