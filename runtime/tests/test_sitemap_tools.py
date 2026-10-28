@@ -184,7 +184,6 @@ def test_empty_map_metadata_supplies_complete_source_precondition_to_editor():
             "provenance": {
                 "sourceId": identity("manual"),
                 "kind": "manual",
-                "mode": "blackbox",
                 "runId": "previous-producer",
             },
             "generation": 2,

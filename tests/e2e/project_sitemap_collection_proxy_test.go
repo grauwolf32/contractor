@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -167,17 +168,68 @@ func (p *sitemapPublicationProxy) verify(t *testing.T) {
 }
 
 // A live reader proves that its own pending HTTP observation is published
-// before the safe view is fetched. The subsequent HTTP body read still works
+// before the shared view is fetched. The subsequent HTTP body read still works
 // when automatic publication is refused; the read serves committed map data.
 func sitemapHTTPGatewayStage(stage domainGatewayStage) domainGatewayStage {
-	stage.tools = append(stage.tools, "list_sitemap_entries")
+	stage.tools = append(stage.tools, "list_sitemap_entries", "read_sitemap_entry", "upsert_sitemap_entry", "snapshot_sitemap_context")
 	sort.Strings(stage.tools)
 	read := toolGatewayStep("list_sitemap_entries", fixedArguments(map[string]any{"refresh": true, "limit": 100}))
 	read.validate = requireToolOutput("500")
+	readManual := toolGatewayStep("read_sitemap_entry", func(request map[string]any) (map[string]any, error) {
+		if _, err := unifiedSitemapSelection(request); err != nil {
+			return nil, err
+		}
+		for _, result := range sitemapToolResponses(request, "list_sitemap_entries") {
+			entries, _ := result["entries"].([]any)
+			for _, raw := range entries {
+				entry, _ := raw.(map[string]any)
+				if entry["route"] == "/manual-canary" {
+					return map[string]any{"entry_id": entry["id"]}, nil
+				}
+			}
+		}
+		return nil, fmt.Errorf("manual entry unavailable to editor")
+	})
+	annotate := toolGatewayStep("upsert_sitemap_entry", func(request map[string]any) (map[string]any, error) {
+		for _, result := range sitemapToolResponses(request, "read_sitemap_entry") {
+			entries, _ := result["entries"].([]any)
+			for _, raw := range entries {
+				entry, _ := raw.(map[string]any)
+				value, _ := entry["value"].(map[string]any)
+				if entry["kind"] == "member" && value["path"] == "/manual-canary" {
+					return map[string]any{"expected_revision": result["revision"], "member_ids": []any{entry["memberId"]}, "note": "unified-editor"}, nil
+				}
+			}
+		}
+		return nil, fmt.Errorf("manual member unavailable to editor")
+	})
+	metadata := toolGatewayStep("list_sitemap_entries", fixedArguments(map[string]any{"scope": "metadata", "limit": 100}))
+	metadata.validate = func(request map[string]any) error {
+		_, err := unifiedSitemapSelection(request)
+		return err
+	}
+	snapshot := func(required bool) domainGatewayStep {
+		return toolGatewayStep("snapshot_sitemap_context", func(request map[string]any) (map[string]any, error) {
+			groups, err := unifiedSitemapSelection(request)
+			return map[string]any{"group_ids": groups, "require_referenced_inputs": required}, err
+		})
+	}
+	denied := snapshot(true)
+	denied.validate = requireUnifiedSitemapMetadata
+	retained := snapshot(false)
+	retained.validate = requireToolOutput("artifact_not_found")
 	following := stage.steps[3]
-	following.validate = requireToolOutput("/failure")
+	following.validate = func(request map[string]any) error {
+		for _, result := range sitemapToolResponses(request, "snapshot_sitemap_context") {
+			artifact, _ := result["artifact"].(map[string]any)
+			if result["status"] == "completed" && artifact["mediaType"] == "application/vnd.contractor.project-sitemap-context+json" {
+				return nil
+			}
+		}
+		return fmt.Errorf("shared sitemap snapshot was not retained")
+	}
 	steps := append([]domainGatewayStep{}, stage.steps[:3]...)
-	steps = append(steps, read, following)
+	steps = append(steps, read, readManual, annotate, metadata, denied, retained, following)
 	stage.steps = append(steps, stage.steps[4:]...)
 	return stage
 }

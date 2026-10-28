@@ -1,4 +1,4 @@
-"""One allocation-owned, joined safe view and signed pagination sequence."""
+"""One allocation-owned, joined Project view and signed pagination sequence."""
 
 from __future__ import annotations
 
@@ -39,7 +39,6 @@ class SitemapSession:
         self._view: ViewIndex | None = None
         self._identity = ""
         self._revision = ""
-        self._policy = ""
         self._closed = False
 
     async def close(self) -> None:
@@ -50,7 +49,7 @@ class SitemapSession:
 
     def _drop(self) -> None:
         self._view = None
-        self._identity = self._revision = self._policy = ""
+        self._identity = self._revision = ""
 
     @staticmethod
     def expired() -> ArtifactAPIError:
@@ -102,12 +101,8 @@ class SitemapSession:
                 lambda: ViewIndex(raw.data), name="sitemap-view-index"
             )
             self._view = view
-            self._identity, self._revision, self._policy = (
-                str(uuid4()),
-                raw.revision,
-                raw.policy_digest,
-            )
-        await self.client.access(self._policy)
+            self._identity, self._revision = str(uuid4()), raw.revision
+        await self.client.access()
         if self._view is None:
             raise self.expired()
         return self._view, offset
@@ -121,7 +116,6 @@ class SitemapSession:
     def _page(self, rows: list[dict], query: str, offset: int | None) -> dict[str, Any]:
         result = {
             "revision": self._revision,
-            "policyDigest": self._policy,
             "entries": rows,
             "nextCursor": self._cursor(query, offset) if offset is not None else None,
         }
@@ -305,11 +299,10 @@ class SitemapSession:
         async with self._lock:
             if self._closed or self._view is None or self._revision == "absent":
                 raise self.expired()
-            await self.client.access(self._policy)
+            await self.client.access()
             result = await self.client.snapshot(
                 {
                     "revision": self._revision,
-                    "expectedPolicyDigest": self._policy,
                     "groups": groups,
                     "members": members,
                     "requireReferencedInputs": require_inputs,

@@ -1,13 +1,12 @@
 apiVersion: contractor/v1alpha1
 kind: AgentTemplate
-metadata: {name: sitemap-blackbox-list, version: "1"}
+metadata: {name: sitemap-metadata, version: "1"}
 spec:
-  description: Verify authorized sitemap operations through production processes.
+  description: Read complete sitemap metadata even when no surface entries remain.
   runtime: tool@1
   sandboxProfile: local-workdir@1
   sitemap:
     version: sitemap-access@1
-    sourceMode: blackbox
     collectObservations: false
   toolsets:
     - ref: sitemap@1
@@ -15,6 +14,7 @@ spec:
   execution:
     tool: list_sitemap_entries
     arguments:
+      scope: {source: literal, value: metadata}
       limit: {source: literal, value: 100}
     resultArtifact: report
     timeoutSeconds: 30

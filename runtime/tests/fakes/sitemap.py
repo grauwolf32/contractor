@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 from contractor_runtime.artifacts import ArtifactHTTPResponse, ArtifactTransportError
 
-POLICY_DIGEST = "sha256:" + "a" * 64
+ARTIFACT_DIGEST = "sha256:" + "a" * 64
 
 
 def identity(value: str) -> str:
@@ -14,7 +14,7 @@ def identity(value: str) -> str:
 
 
 def document(groups: int = 3, members: int = 1, note_bytes: int = 0) -> dict:
-    provenance = {"sourceId": "public", "kind": "http", "mode": "blackbox"}
+    provenance = {"sourceId": "public", "kind": "http"}
     result = {
         "version": "project-sitemap@1",
         "projection": "sitemap-safe-projection@1",
@@ -78,12 +78,9 @@ class SitemapTransport:
                     "apiVersion": "contractor/v1alpha1",
                     "policy": {
                         "version": "sitemap-access@1",
-                        "sourceMode": "blackbox",
                         "collectObservations": False,
                     },
-                    "policyDigest": POLICY_DIGEST,
                     "manualSourceId": identity("manual"),
-                    "inputs": [],
                 }
             )
         if method == "GET":
@@ -92,7 +89,6 @@ class SitemapTransport:
                 {
                     "content-type": "application/vnd.contractor.project-sitemap+json",
                     "x-contractor-sitemap-revision": self.revision,
-                    "x-contractor-sitemap-policy": POLICY_DIGEST,
                 },
                 json.dumps(self.document, separators=(",", ":")).encode(),
             )
@@ -112,7 +108,7 @@ class SitemapTransport:
                                 "name": "snapshot",
                                 "revision": "saved-revision",
                             },
-                            "digest": POLICY_DIGEST,
+                            "digest": ARTIFACT_DIGEST,
                             "mediaType": "application/vnd.contractor.project-sitemap-context+json",
                             "sizeBytes": 10,
                         },

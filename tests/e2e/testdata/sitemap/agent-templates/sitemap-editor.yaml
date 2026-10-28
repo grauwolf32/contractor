@@ -1,20 +1,21 @@
 apiVersion: contractor/v1alpha1
 kind: AgentTemplate
-metadata: {name: sitemap-source-assisted-list, version: "1"}
+metadata: {name: sitemap-editor, version: "1"}
 spec:
   description: Verify authorized sitemap operations through production processes.
   runtime: tool@1
   sandboxProfile: local-workdir@1
   sitemap:
     version: sitemap-access@1
-    sourceMode: source-assisted
     collectObservations: false
   toolsets:
     - ref: sitemap@1
-      tools: [list_sitemap_entries]
+      tools: [upsert_sitemap_entry]
   execution:
-    tool: list_sitemap_entries
+    tool: upsert_sitemap_entry
     arguments:
-      limit: {source: literal, value: 100}
+      expected_revision: {source: parameter, name: revision}
+      url: {source: parameter, name: url}
+      method: {source: literal, value: GET}
     resultArtifact: report
     timeoutSeconds: 30
