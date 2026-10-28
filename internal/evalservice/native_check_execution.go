@@ -60,6 +60,9 @@ func (c *nativeChecker) roles(check evaldomain.Check) []string {
 }
 
 func (c *nativeChecker) check(ctx context.Context, check evaldomain.Check) (evaldomain.CheckResult, error) {
+	if err := check.ValidateHumanReviewParameters(); err != nil {
+		return evaldomain.CheckResult{}, err
+	}
 	result := evaldomain.CheckResult{
 		ID:                   check.ID,
 		Evaluator:            check.Evaluator,

@@ -23,11 +23,14 @@ func TestSharedAuditCompletionSharedTaskLocalValidation(t *testing.T) {
 			Mode   auditprofile.AuditProfileMode `json:"mode"`
 			Valid  bool                          `json:"valid"`
 			Result struct {
-				Assessment string                 `json:"assessment"`
-				Summary    string                 `json:"summary"`
-				Completed  []string               `json:"completed"`
-				Gaps       []string               `json:"gaps"`
-				Evidence   []auditdomain.Evidence `json:"evidence"`
+				Assessment string   `json:"assessment"`
+				Summary    string   `json:"summary"`
+				Completed  []string `json:"completed"`
+				Gaps       []string `json:"gaps"`
+				Evidence   []struct {
+					Kind    string `json:"kind"`
+					Summary string `json:"summary"`
+				} `json:"evidence"`
 			} `json:"result"`
 		} `json:"cases"`
 	}
@@ -52,10 +55,9 @@ func TestSharedAuditCompletionSharedTaskLocalValidation(t *testing.T) {
 			ids := []string{}
 			for index, value := range fixture.Result.Evidence {
 				id := fmt.Sprintf("ev-%03d", index)
-				value.ID = id
-				value.ContentMemberID = id
-				evidence[id] = validatedEvidence{value: value}
-				evidenceValues = append(evidenceValues, value)
+				item := auditdomain.Evidence{ID: id, Kind: value.Kind, Summary: value.Summary, ContentMemberID: id}
+				evidence[id] = validatedEvidence{value: item}
+				evidenceValues = append(evidenceValues, item)
 				ids = append(ids, id)
 			}
 			result := auditdomain.CheckResult{

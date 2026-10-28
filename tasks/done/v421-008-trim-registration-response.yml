@@ -1,0 +1,156 @@
+schema_version: "1.0"
+id: V421-008
+title: Remove unused principal metadata from the Runtime registration response
+milestone: data-model-consumers-2026-10
+epic: execution-core
+kind: chore
+introduced_by: V8-003
+priority: P3
+status: completed
+implementation_commit: 537139ac98b16ebdac7bfcd38093b602019ecebd
+depends_on: []
+languages: [go, python, json]
+goal: >-
+  Return only the versioned lease timing contract that the Runtime registration
+  client consumes, retaining principal identity and label authority on Server.
+context:
+  authority: >-
+    User-requested detailed data-model consumer review on 2026-10-27 and explicit
+    selection to remove runtimeAgentId, labels and labelRevision from the RESPONSE
+    only. The user authorized task creation, not implementation.
+  specification:
+    - docs/spec/execution/control-plane.md#CTL-R16
+    - docs/spec/execution/control-plane.md#CTL-R17
+    - docs/spec/execution/control-plane.md#CTL-R18
+    - docs/spec/execution/control-plane.md#CTL-R39
+    - docs/spec/execution/runtime-agent.md
+    - docs/spec/configuration/runtime-config.md
+    - docs/spec/platform/security.md
+  finding: >-
+    internal/contracts/control/registration.go:91-93 and
+    runtime/src/contractor_runtime/contracts/registration.py:68-70 require
+    runtimeAgentId, labels and labelRevision in AgentRegistrationResponse.
+    InMemoryRegistry.RegistrationResponse in internal/controlplane/registry.go:175
+    copies them into the reply. ControlClient.register at control_client.py:227-246
+    decodes/validates the whole object, uses only heartbeatIntervalSeconds and
+    confirmedLeaseSeconds, and returns an object all production callers discard
+    (register_until_stopped at :260 and heartbeat reconciliation paths). No local
+    diagnostic consumer implements the speculative permission in CTL-R16.
+    Server-side AuthenticatedPrincipal, durable labels/revision, authorization,
+    placement and allocation provenance have real consumers and are not redundant.
+  origin: >-
+    Following blame through the required-tag and file-split commits leads to
+    AgentRegistrationResponseV2 in commit
+    2ff1ebcdb7fd08c919590df4b65c228d616191f6, implementation_commit of completed
+    V8-003. V50-001 commit 25788c210dbfa9c76cd8767419fb03535d09757d moved the
+    existing fields into the consolidated v1alpha1 contract; it did not create
+    their original semantics. This task removes only the unused response leaves.
+  sibling_paths:
+    - internal/contracts/control/registration.go and shared registration/contract tests
+    - internal/controlplane/registry.go RegistrationResponse and HTTP/registry/principal test fixtures
+    - runtime/src/contractor_runtime/contracts/registration.py and control_client.py
+    - Runtime registration, lease/watchdog, control transport and real mTLS test helpers
+    - api/v1alpha1/agent-registration-response.schema.json and API README/owning spec
+    - api/testdata/v1alpha1/valid/agent-registration-response.json and generated required-member/mutation cases
+    - Integration/e2e/fake registration response bodies anywhere in the repository
+  revalidated_on_main: >-
+    Still applicable on main 1716e40db. The user now explicitly authorizes removing only runtimeAgentId, labels and labelRevision from the registration response; all Server principal, labels and revision authority remains required.
+scope:
+  in:
+    - Remove runtimeAgentId, labels and labelRevision from the registration response DTO, producer, schema, validation and shared fixtures.
+    - Simplify response-only helper parameters or return plumbing made unused by the removal, without changing registry/authentication inputs.
+    - Update CTL-R16, the registration sequence diagram and any response examples to the exact narrowed contract.
+    - Preserve strict validation and existing registration/heartbeat/watchdog integration evidence with the narrowed response.
+  out:
+    - Removing Server RuntimeAgent principal IDs, stored labels or label revisions, or their public Operations projections.
+    - Changing the registration request, initialLabels/placementLabels, capabilities, principal registration, label update concurrency or placement resolution.
+    - Changing certificate-derived identity binding, ownership checks, Run/allocation provenance, heartbeat sequences, lease timing or reconciliation actions.
+    - Adding local diagnostics, fallback readers, aliases, compatibility fields, new endpoints or persistence migrations.
+requirements:
+  - id: R1
+    text: >-
+      AgentRegistrationResponse has exactly apiVersion, heartbeatIntervalSeconds
+      and confirmedLeaseSeconds. Keep all three required and non-null, exact
+      apiVersion matching, positive heartbeat interval and confirmed lease strictly
+      greater than that interval in Go/Python validation before watchdog renewal.
+      The schema pins representable numeric bounds and required/non-null members;
+      it need not express a cross-property inequality. Every removed member is
+      unknown and rejected by strict Go/Python/schema readers, rather than accepted
+      and ignored.
+  - id: R2
+    text: >-
+      Registration still derives the principal from mTLS, registers/loads its
+      durable authoritative labels/revision and binds the accepted live instance
+      to that principal. Server label refresh, stale-revision rejection, placement,
+      cross-principal rejection and immutable allocation provenance continue to
+      consume those Server-side values. Trim only their response projection.
+  - id: R3
+    text: >-
+      Runtime watchdog renewal continues to use Server timings and the request
+      send instant. Initial registration, retryable/permanent rejection,
+      re-registration, in-flight cancellation and lease expiry preserve existing
+      outcomes and ordering. Do not replace fields with defaults or local labels.
+  - id: R4
+    text: >-
+      Update the Go/Python DTOs, producer, JSON Schema, shared valid/invalid cases,
+      all integration/fake responses and owning specification atomically. Regenerate
+      generated required-member/mutation cases with their existing generators;
+      no manual generated edits, old-format reader or compatibility branch.
+failure_outcomes:
+  - operation: Registration response receipt and validation
+    permanent: Strictly invalid reply is rejected by the existing bounded invalid-response path; missing/null timings and removed/unknown fields never renew the watchdog.
+    retryable: Preserve existing transport and retryable registration rejection backoff, ceilings and stop behavior; do not change retry classification in this cleanup.
+    ambiguous: Response loss retains the existing same-instance re-registration/reconciliation mechanism and cannot create a new principal or extend an unconfirmed local lease.
+    cancelled: Existing ControlClient owner cancels and joins request/control tasks before shutdown; no pending renewal escapes cleanup.
+    timeout: Registration/transport timeouts and watchdog lease deadlines remain independently owned; successful delayed replies cannot extend the lease past the send-time-based boundary.
+cardinality:
+  - collection: Registration response
+    expected: Three fixed scalar fields per successful registration.
+    maximum: Constant field count and the existing bounded private response size.
+    bound: No new reads, lists, polling or diagnostic data; principal/label collections stay on Server.
+acceptance_criteria:
+  - id: A1
+    given: Successful initial registration and re-registration
+    when: The real Server reply is decoded by Go, Python and JSON Schema
+    then: It contains exactly apiVersion and the two required timing fields; all sides reject each removed field, missing/null timings and incompatible versions. Go/Python also reject a lease not greater than the heartbeat interval before watchdog renewal; schema checks its representable numeric bounds.
+  - id: A2
+    given: A real mTLS Runtime with authoritative principal labels and a competing or stale principal/label revision
+    when: Registration, heartbeat, label update, placement and private allocation ownership checks execute
+    then: Server identity/labels/revision retain their authority, stale or mismatched access fails as before, and required Runtime capabilities/provenance are unchanged without echoing metadata in the reply.
+  - id: A3
+    given: Response loss, permanent/retryable rejection, delayed reply, lease expiry, re-registration and cancellation
+    when: The control client and watchdog run with the narrowed response
+    then: Existing retry/reconciliation/lease outcomes pass, renewal uses send time and Server timing, and no malformed response renews an idle/active lease.
+  - id: A4
+    text: All response producers, fakes, schemas, shared generated cases, specification examples and sequence diagram agree; Server/request/public principal fields are explicitly retained.
+tests:
+  - command: make lint
+    covers: [A1, A4]
+  - command: make test-wire-cross-language
+    covers: [A1, A4]
+  - command: go test -count=1 ./internal/contracts/... ./internal/controlplane/... ./internal/agentprincipal/... ./internal/runtimeconfig/...
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A1, A3]
+  - command: make test-control-integration
+    covers: [A1, A2, A3]
+test_prerequisites:
+  - These commands are future implementation acceptance, not checks performed during task drafting.
+  - Use locked Runtime dependencies, testdata catalogs and the existing real Go/Python mTLS process harness; no live-config test reads.
+  - Set CONTRACTOR_TEST_DATABASE_URL for the shared-wire and real principal/label/placement suites. A configured unreachable database or skipped mandatory case fails; a fake that omits store validation is insufficient.
+  - Run complete suites for every touched Go package and zero-test-selection guards. Keep watchdog assertions deterministic with the existing injected clocks rather than wall-clock thresholds.
+
+implementation_notes:
+  changes: >-
+    The response now contains only API version and lease timing. Server principal
+    validation no longer borrows the response DTO: it uses the existing owning
+    label validator plus unchanged ID/revision rules. Dedicated regressions
+    preserve Server authority and reject echoed fields before lease/state mutation.
+  verification: >-
+    Full touched Go packages passed after correcting the test's use of placement
+    eligibility before its first heartbeat. make test-wire-cross-language and
+    real cross-language mTLS integration passed; focused Runtime tests passed.
+    make lint passed. Exact-source commit 537139ac98b16ebdac7bfcd38093b602019ecebd
+    passed make test-runtime and verify-runtime on nonroot Linux: 5280 passed,
+    55 allowed optional skips, zero failures/errors.
+    Evidence: tasks/evidence/v421-008-registration-response.json.

@@ -795,8 +795,13 @@ class AllocationService:
             created = await factory.create_selected(
                 **(
                     {
+                        "deployment_marker": (
+                            spec.agent_template.sitemap.deployment
+                            if spec.agent_template.sitemap is not None
+                            else None
+                        ),
                         "preparation_deadline": asyncio.get_running_loop().time()
-                        + max(0.0, (preparation_deadline - self._now()).total_seconds())
+                        + max(0.0, (preparation_deadline - self._now()).total_seconds()),
                     }
                     if ref == "http-tools@1"
                     else {}

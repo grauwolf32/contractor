@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { describe, expect, it } from "vitest";
 
 import type { ArtifactMetadata } from "../api/artifacts";
@@ -22,6 +23,7 @@ const workflow: WorkflowResource = {
 };
 
 const source: ArtifactMetadata = {
+  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "projects",
     name: "source",

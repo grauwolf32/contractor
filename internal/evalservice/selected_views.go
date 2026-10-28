@@ -67,7 +67,7 @@ func (s *Service) withSelectedView(ctx context.Context, p MemberPageParams, read
 			return err
 		}
 		var setup preparedSetup
-		if err = json.Unmarshal(plan.Setup, &setup); err != nil {
+		if err = decodePreparedSetup(plan.Setup, &setup); err != nil {
 			return err
 		}
 		if len(setup.Variants) != 2 {

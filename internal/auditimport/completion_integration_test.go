@@ -48,6 +48,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/mtls"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
+	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
@@ -60,7 +61,7 @@ import (
 // Scheduler driving and the external model are deterministic test orchestration.
 func TestAuditCompletionRuntimeZIPImporter(t *testing.T) {
 	pool := completionPool(t)
-	for _, mode := range []string{"reverse", "correction", "dropped-reply", "missing", "partial", "invalid", "injected-empty-evidence", "injected-partial", "cancel-before-write", "cancel-after-write"} {
+	for _, mode := range []string{"reverse", "correction", "dropped-reply", "http-observation", "missing", "partial", "invalid", "injected-empty-evidence", "injected-partial", "cancel-before-write", "cancel-after-write"} {
 		t.Run(mode, func(t *testing.T) {
 			f := newCompletionFixture(t, pool)
 			bridge := f.bridge(t)
@@ -68,7 +69,7 @@ func TestAuditCompletionRuntimeZIPImporter(t *testing.T) {
 			if strings.HasPrefix(mode, "injected-") || mode == "dropped-reply" {
 				probeMode = "reverse"
 			}
-			if mode == "dropped-reply" {
+			if mode == "dropped-reply" || mode == "http-observation" {
 				bridge.dropReply.Store(true)
 			}
 			report := bridge.probe(t, probeMode, false)
@@ -101,6 +102,9 @@ func TestAuditCompletionRuntimeZIPImporter(t *testing.T) {
 					f.injectInvalid(t, value, mode)
 				}
 				f.collect(t, runstore.RunSucceeded, !strings.HasPrefix(mode, "injected-"))
+				if mode == "http-observation" {
+					f.assertRetainedHTTPObservation(t)
+				}
 			}
 		})
 	}
@@ -177,6 +181,8 @@ func newCompletionFixtureWithInteraction(t *testing.T, pool *pgxpool.Pool, accep
 
 type completionOptions struct {
 	acceptance, findingConfirmation string
+	// findingWriter selects the real intake tool for report-projection regressions.
+	findingWriter bool
 	// standards, when set, retains standard packages in the fixture Project
 	// and returns their pins for the Audit baseline.
 	standards func(*testing.T, *completionFixture) []auditstandards.PinnedPackage
@@ -259,6 +265,9 @@ func newCompletionFixtureWithOptions(t *testing.T, pool *pgxpool.Pool, options c
 				t.Fatal("catalog fixture no longer selects the unused trace Skill")
 			}
 			data = edited
+			if options.findingWriter {
+				data = bytes.ReplaceAll(data, []byte("  sandboxProfile:"), []byte("    - ref: security-findings@1\n      tools: [finding]\n  sandboxProfile:"))
+			}
 		}
 		if strings.HasPrefix(name, "audit-profiles/") {
 			data = bytes.ReplaceAll(data, []byte("reportAcceptance: automatic"), []byte("reportAcceptance: "+acceptance))
@@ -684,4 +693,48 @@ func (completionCredentials) ValidateRuntimeCredentialUse(
 	context.Context, credentials.RuntimeCredentialUser, string, ...string,
 ) error {
 	return nil
+}
+
+func (f *completionFixture) assertRetainedHTTPObservation(t *testing.T) {
+	t.Helper()
+	mustCompletion(t, rundeletion.New(f.pool).DeleteReleasedTerminalRun(f.ctx, "owner", f.run.RunID))
+	rows, err := f.pool.Query(f.ctx, `SELECT artifact_ref, source_provenance FROM audit_artifact_links
+ WHERE audit_id=$1 AND source_provenance->'evidence'->>'http_request_id'='1'
+ ORDER BY logical_key LIMIT 10`, f.id)
+	mustCompletion(t, err)
+	defer rows.Close()
+	count := 0
+	store, err := f.artifacts.Project(f.id)
+	mustCompletion(t, err)
+	for rows.Next() {
+		var rawRef, provenance []byte
+		mustCompletion(t, rows.Scan(&rawRef, &provenance))
+		var ref contracts.ArtifactRef
+		mustCompletion(t, json.Unmarshal(rawRef, &ref))
+		var origin struct {
+			Evidence auditdomain.Evidence `json:"evidence"`
+		}
+		mustCompletion(t, json.Unmarshal(provenance, &origin))
+		if origin.Evidence.ObservedAt != "2026-10-27T12:00:00.125Z" || origin.Evidence.DeploymentMarker != "deployment-test" || origin.Evidence.HTTPRequestTag == "" {
+			t.Fatalf("lost HTTP provenance: %+v", origin.Evidence)
+		}
+		retained, readErr := store.Read(f.ctx, ref)
+		mustCompletion(t, readErr)
+		pkg, decodeErr := auditdomain.DecodeCheckResultPackage(retained.Payload.Data)
+		mustCompletion(t, decodeErr)
+		member, found := pkg.Package.MemberByID(origin.Evidence.ContentMemberID)
+		if !found {
+			t.Fatal("retained evidence member is missing")
+		}
+		var capture auditdomain.CapturedHTTPExchange
+		mustCompletion(t, json.Unmarshal(member.Data(), &capture))
+		if capture.RequestID != origin.Evidence.HTTPRequestID || capture.RequestTag != origin.Evidence.HTTPRequestTag || len(capture.Attempts) != 1 || capture.Attempts[0].Response == nil {
+			t.Fatal("retained capture differs from provenance")
+		}
+		count++
+	}
+	mustCompletion(t, rows.Err())
+	if count != 2 {
+		t.Fatalf("retained HTTP observations=%d", count)
+	}
 }

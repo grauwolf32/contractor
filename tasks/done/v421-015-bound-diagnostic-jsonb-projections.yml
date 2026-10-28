@@ -1,0 +1,88 @@
+schema_version: '1.0'
+id: V421-015
+title: Bound retained diagnostic JSONB projection work on large Stage metrics
+milestone: data-model-consumers-2026-10
+epic: operations
+kind: defect
+introduced_by: V421-003
+priority: P2
+status: completed
+implementation_commit: e660fd6557926ff23f9e95ca2b589ba763fe849c
+depends_on:
+- V421-003
+- V421-004
+languages:
+- go
+- sql
+- yaml
+goal: Keep realistic retained diagnostic pagination inside its existing read budgets by avoiding repeated
+  expansion/projection of the containing JSONB document.
+context:
+  evidence: tasks/evidence/v421-015-diagnostic-projections.json
+  review: Complete canonical Go unit pass on Linux pin baee4e57a9f6bc7bf8d1c9c28178af13cd987479; no additional
+    application failure besides this case.
+  specification:
+  - docs/spec/platform/observability.md#OBS-R113
+  - docs/spec/platform/observability.md#OBS-R114
+  - docs/spec/platform/observability.md#OBS-R116
+  - docs/spec/platform/observability.md#OBS-R117
+  finding: internal/telemetry/attempt_diagnostics_postgres_test.go:79 failed TestRuntimeDiagnosticsPostgresBoundsOwnershipGenerationAndRetainedAuthority
+    after120.09s while walking1003 healthy participants with a roughly40MiB Runtime map. The2min harness
+    includes setup and every page. Inspect internal/telemetry/attempt_diagnostics_sql.go owned/selected/projected
+    CTE inlining and repeated JSONB extraction before attributing the failure solely to timeout.
+  siblings: Review both Runtime participant paging and selected Planner/Worker tool-call projection in
+    tool_diagnostics_sql.go. Preserve one-query owner/Run/Stage authorization, retained authority after
+    raw report deletion, key-first pagination, UTF8/decimal limits and generation semantics.
+  implementation: Runtime SQL materializes the single extracted map and its key enumeration, then only
+    narrow selected values and their serialized bounded documents. Tool SQL uses a direct selected
+    path with a strict object-container predicate (numeric logical names never become array indices),
+    and serializes the selected report once. The original pagination fixture and 2min context remain
+    unchanged. A selected-tool regression adds an oversized unselected sibling; malformed-container
+    read coverage deliberately drops the container CHECK only inside its isolated test schema.
+scope:
+  in:
+  - Reproduce/profile the large real-PostgreSQL path and record EXPLAIN/projection evidence.
+  - Make the containing JSONB projection and selected values execute once where needed; use direct selected
+    paths for tool reports and preserve all existing wire semantics.
+  - Keep the existing realistic pagination regression and original timeout; run complete touched owner
+    suites on real PostgreSQL and a focused exact-source Linux reproduction.
+  out:
+  - Longer timeout as a substitute for query correction, new tables/caches/retention, API/worker schema
+    changes, weaker size or ownership checks.
+acceptance_criteria:
+- id: A1
+  given: The existing1003-participant retained metrics fixture with oversized multibyte stop reasons
+  when: Every page is read through the real repository on the isolated Linux runner
+  then: It completes within the existing2min test context with no duplicates/omissions, unchanged precision/byte
+    bounds and no increased timeout.
+- id: A2
+  given: The SQL plan and both diagnostic reader siblings
+  when: The containing metrics are large
+  then: Projection work avoids repeated full-document extraction for every output expression; selected-only
+    payload bounds, authorization and generation conflict behavior remain intact.
+- id: A3
+  given: Missing/malformed/partial reports, foreign scopes, source deletion and cancellation
+  when: Complete owner/API/lint checks run
+  then: All existing semantics pass and the old failing run remains recorded honestly as failure evidence.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}"
+    go test -tags=integration -count=1 ./internal/telemetry ./internal/httpapi/public ./internal/runservice
+    ./internal/controlplane
+  covers:
+  - A1
+  - A2
+  - A3
+- command: CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}"
+    go test -count=1 ./internal/telemetry -run "^TestRuntimeDiagnosticsPostgresBoundsOwnershipGenerationAndRetainedAuthority$"
+  covers:
+  - A1
+  - A2
+  - A3
+- command: make verify-public-api verify-public-api-postgres
+  covers:
+  - A2
+  - A3
+- command: make lint
+  covers:
+  - A2
+  - A3

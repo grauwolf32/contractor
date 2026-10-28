@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { expect, test, type Page } from "@playwright/test";
 
 import { audit, project } from "../src/test/builders";
@@ -23,6 +24,7 @@ const exactSource = {
   revision: "source-r1",
 };
 const sourceMetadata = {
+  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: exactSource,
   mediaType: "application/zip",
   size: 42,
@@ -99,6 +101,7 @@ async function installFixture(
         expect(url.searchParams.get("revision")).toBe(report.revision);
         if (path.endsWith("/metadata")) {
           await fulfillJSON(route, {
+            storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
             artifact: report,
             mediaType: "text/plain",
             size: Buffer.byteLength(source),

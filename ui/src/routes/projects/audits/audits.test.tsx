@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../../test/builders";
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeAll, describe, expect, it, vi } from "vitest";
@@ -72,6 +73,7 @@ const profile: AuditProfile = build.conforming("AuditProfile", {
 });
 
 const sourceArtifact = {
+  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "sources",
     name: "payment-service",

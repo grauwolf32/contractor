@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-008",
+  "implementation_commit": "537139ac98b16ebdac7bfcd38093b602019ecebd",
+  "linux_runtime": {
+    "command": "make test-runtime",
+    "result": {
+      "tests": 5335,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 55,
+      "exit_code": 0
+    },
+    "passed": 5280,
+    "verifier": "python3 scripts/release_test_reports.py verify-runtime --report reports/runtime.xml",
+    "uid": 1000,
+    "python": "3.13.5",
+    "source_manifest_sha256": "cc0a0a1541a14e559c8c0589be6aebf62783f6659ad1d0cd3af33ea7f57cdf00",
+    "archive_sha256": "ab07d99e67af7bc8654a64e62dfde707e9549f2f227b03e759890fb34d718da6",
+    "runtime_xml_sha256": "b24619c225f58dade514075eccbb664c8c01bfec88cb2bd613155d71519c7989"
+  },
+  "host_checks": [
+    {
+      "command": "make lint",
+      "exit_code": 0
+    },
+    {
+      "command": "make test-wire-cross-language",
+      "exit_code": 0
+    },
+    {
+      "command": "go test -count=1 ./internal/contracts/... ./internal/controlplane/... ./internal/agentprincipal/... ./internal/runtimeconfig/...",
+      "exit_code": 0
+    },
+    {
+      "command": "make test-control-integration",
+      "exit_code": 0
+    }
+  ],
+  "regressions": [
+    "Each removed response member is rejected by shared Go/Python/schema fixtures.",
+    "Control client rejects echoed fields before changing state or renewing lease.",
+    "Server principal ID/labels/revision validation remains strict independently of response."
+  ],
+  "intermediate_failure": "A new test initially used PlacementCandidates before the first confirmed heartbeat. It now inspects the actual stored principal; the complete owner suite passed again."
+}

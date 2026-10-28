@@ -290,7 +290,6 @@ def test_observation_scope_and_read_coverage_acquire_current_disk_each_invocatio
                 allowed_tool_names=frozenset(tools),
                 workspace_observation_source=session.reader_view(),
             )
-            previous_digest = None
             try:
                 for index in range(2):
                     if index:
@@ -310,12 +309,6 @@ def test_observation_scope_and_read_coverage_acquire_current_disk_each_invocatio
                     assert completed is not None
                     observation = completed["lastCompletedInvocation"]["workspace"]
                     assert observation["scopePaths"] == [path]
-                    assert (
-                        observation["workspaceDigest"]
-                        == (await session.observation_metadata()).digest
-                    )
-                    assert observation["workspaceDigest"] != previous_digest
-                    previous_digest = observation["workspaceDigest"]
                     summary, truncated = lean_workspace_summary(observation)
                     assert summary is not None and not truncated
                     assert summary.read_files == 1 and summary.unread_files == 0

@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../test/builders";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -11,6 +12,7 @@ import { renderWithAPI, testSession } from "../../test/render";
 import { EvalArtifactPicker } from "./artifact-picker";
 
 const input = conforming("ArtifactMetadata", {
+  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: { namespace: "inputs", name: "spec", revision: "revision-1" },
   mediaType: "text/plain",
   size: 4,

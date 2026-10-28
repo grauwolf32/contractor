@@ -172,12 +172,9 @@ func NewRegistry(options RegistryOptions) (*InMemoryRegistry, error) {
 	}, nil
 }
 
-func (r *InMemoryRegistry) RegistrationResponse(principal AuthenticatedPrincipal) control.AgentRegistrationResponse {
+func (r *InMemoryRegistry) RegistrationResponse() control.AgentRegistrationResponse {
 	return control.AgentRegistrationResponse{
 		APIVersion:               contracts.APIVersion,
-		RuntimeAgentID:           principal.RuntimeAgentID,
-		Labels:                   append([]string{}, principal.Labels...),
-		LabelRevision:            principal.LabelRevision,
 		HeartbeatIntervalSeconds: int(r.heartbeatInterval / time.Second),
 		ConfirmedLeaseSeconds:    int(r.confirmedLease / time.Second),
 	}
@@ -1594,11 +1591,8 @@ func sameRuntimeEndpoint(left, right control.AgentRegistration) bool {
 }
 
 func validateAuthenticatedPrincipal(principal AuthenticatedPrincipal) error {
-	probe := control.AgentRegistrationResponse{
-		APIVersion: contracts.APIVersion, RuntimeAgentID: principal.RuntimeAgentID, Labels: principal.Labels,
-		LabelRevision: principal.LabelRevision, HeartbeatIntervalSeconds: 1, ConfirmedLeaseSeconds: 2,
-	}
-	if err := probe.Validate(); err != nil {
+	if !contracts.ValidRuntimeAgentID(principal.RuntimeAgentID) || principal.LabelRevision == 0 ||
+		runtimeconfig.ValidateAgentLabels(principal.Labels) != nil {
 		return fmt.Errorf("%w: authenticated Runtime Agent principal is invalid", ErrInvalidRequest)
 	}
 	return nil

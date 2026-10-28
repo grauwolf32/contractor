@@ -585,3 +585,10 @@ objects (BLB-R74). Telemetry content rules are in
   queue, automatic reconstruction, background reconciliation service or
   power-loss durability guarantee is required.
 - A targeted repair protocol for missing or corrupt content.
+
+**BLB-R79.** The public diagnostic `storageTimestamps.blobCreatedAt`
+([ART-R130](artifact-store.md)) dates creation of the shared blob registry row.
+Deduplication and replacement of a missing filesystem generation preserve that
+date. It does not date file creation, mtime, staging or orphan generations, and
+metadata projection never stats or reads a filesystem object. Existing physical
+identity, byte verification, repair and reference-safe deletion remain unchanged.

@@ -1,0 +1,9 @@
+{
+  "id": "evidence-review",
+  "evaluator": "human-review@1",
+  "rubricRevision": "r1",
+  "required": true,
+  "parameters": {
+    "output": "report"
+  }
+}

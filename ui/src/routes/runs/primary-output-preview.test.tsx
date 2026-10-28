@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../test/builders";
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -42,6 +43,7 @@ function metadata(
   overrides: { current?: boolean; createdAt?: string } = {},
 ) {
   return conforming("ArtifactMetadata", {
+    storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact,
     mediaType,
     size,

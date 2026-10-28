@@ -70,9 +70,18 @@ func TestPrivateHTTPRequiresVerifiedMTLSAndStrictBody(t *testing.T) {
 	wantPrincipal, _ := mtls.RuntimeAgentID(&x509.Certificate{
 		RawSubjectPublicKeyInfo: []byte("test-runtime-key"),
 	})
-	if response.APIVersion != contracts.APIVersion || response.RuntimeAgentID != wantPrincipal ||
-		response.LabelRevision != 1 || response.Labels == nil {
-		t.Fatalf("registration principal response = %+v", response)
+	if response.APIVersion != contracts.APIVersion {
+		t.Fatalf("registration response = %+v", response)
+	}
+	registry.mu.Lock()
+	entry := registry.agents[registration.InstanceID]
+	var principal AuthenticatedPrincipal
+	if entry != nil {
+		principal = clonePrincipal(entry.principal)
+	}
+	registry.mu.Unlock()
+	if principal.RuntimeAgentID != wantPrincipal || principal.LabelRevision != 1 || principal.Labels == nil {
+		t.Fatalf("registration lost Server principal authority: %+v", principal)
 	}
 
 	var incompleteRegistration map[string]any

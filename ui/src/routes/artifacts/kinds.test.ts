@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../../test/builders";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -21,6 +22,7 @@ function item(
   extra: Partial<ArtifactMetadata> = {},
 ): ArtifactMetadata {
   return {
+    storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: { namespace, name: `${namespace}-item`, revision: "r1" },
     mediaType,
     size: 10,

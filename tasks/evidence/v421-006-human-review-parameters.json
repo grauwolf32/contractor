@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-006",
+  "implementation_commit": "f8047c0b9217cfb15040191b8cd746e5c18a0740",
+  "checks": [
+    {
+      "command": "test -n \"$CONTRACTOR_TEST_DATABASE_URL\" && go test -race -count=1 ./api/evals/v1 ./internal/evaldomain ./internal/evalstore ./internal/evalservice ./internal/evalcoordinator",
+      "exit_code": 0,
+      "log_sha256": "25e449f458918705aa957cbe9f0f85dd488f0d968c6d95ea188e40896ebe978f"
+    },
+    {
+      "command": "go test -count=1 ./internal/httpapi/public ./internal/publicclient/...",
+      "exit_code": 0,
+      "log_sha256": "5f8d32bd9af70bb71188218a42e93f1714f287a095879716306fb8d0b114d04f"
+    },
+    {
+      "command": "make verify-public-api",
+      "exit_code": 0,
+      "log_sha256": "37fb4b4496cfea058087c36e0b3ca686ceeb8fafd259cf12f83f07058c5264c1"
+    },
+    {
+      "command": "make verify-public-api-postgres",
+      "exit_code": 0,
+      "log_sha256": "d02e1f69019695a0bf2a7326186e8d2e3a0165706466526f4c42ffedca7fe88c"
+    },
+    {
+      "command": "make ui-verify",
+      "exit_code": 0,
+      "log_sha256": "890dda669d1335cd64230de7cc8781d5df641763aa5103fce59accb75d488862"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log_sha256": "ac7e9db0bdf31365865603218b1020b6b692ecdf1f984bca6d8e64064ca2a1b9"
+    }
+  ],
+  "regressions": [
+    "TestSharedHumanReviewParametersCannotReachFrozenPlanOrNativeExecution",
+    "TestSharedEvalPostgresHumanReviewParametersRejectedBeforeEffects",
+    "TestSharedEvalPostgresRetainedHumanParametersRejectReviewAndAssessment",
+    "UI shared EvalCheck validator and all three structural evaluator switches"
+  ],
+  "bounded_read": "Existing immutable setup projection plus at most128 Checks; no full plan/matrix schema rescan or extra query. TestSharedPostgresNativeTickTrustsStoredPlanAtMemberCeiling passed in full owner race suite.",
+  "retained_bytes": "Real PostgreSQL regression seeds unsupported historical policy only through transactional test DDL; Review/Get/members and human/native assessment reject eval_invalid without changing records, selections, plans, authority or receipts.",
+  "preserved": [
+    "omitted and empty human-review parameters",
+    "registered structural and producer-owned external evaluator parameters",
+    "rubric revision and assessment implementation pins",
+    "authenticated human actor and exact result/evidence association",
+    "existing correct production UI evaluator switch",
+    "portable schemas and immutable stored bytes"
+  ],
+  "database": "Owned disposable PostgreSQL; configured required store suites executed; no connection value retained.",
+  "independent_review": "Read-only review confirmed all six frozen-policy semantic readers are guarded and existing read budget is preserved."
+}

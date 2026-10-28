@@ -17,6 +17,7 @@ import jcs
 from contractor_runtime.digests import sha256_digest
 from contractor_runtime.toolsets.audit_results.accepted_plans import validate_accepted_plan
 from contractor_runtime.toolsets.audit_results.dependencies import validate_retained_dependencies
+from contractor_runtime.toolsets.common.http_capture import CapturedHTTPExchange
 
 PACKAGE_SCHEMA = "contractor.audit.package.v1"
 TASK_SCHEMA = "contractor.audit.item-task.v1"
@@ -252,20 +253,40 @@ def _build_result_package(
                 evidence_id = f"ev-{task_index + 1}-{evidence_index + 1}"
             content_id = evidence_id.replace("ev-", "ev-content-", 1)
             evidence_ids.append(evidence_id)
+            content = evidence["summary"].encode("utf-8")
+            media_type, extension = "text/plain", "txt"
+            observation = {}
+            if "http_capture" in evidence:
+                content = evidence["http_capture"]
+                capture = CapturedHTTPExchange.model_validate_json(content).model_dump(
+                    exclude_none=True
+                )
+                media_type, extension = "application/json", "json"
+                observation = {
+                    "http_request_id": capture["request_id"],
+                    "http_request_tag": capture["request_tag"],
+                    "observed_at": evidence["observed_at"],
+                    **(
+                        {"deployment_marker": evidence["deployment_marker"]}
+                        if "deployment_marker" in evidence
+                        else {}
+                    ),
+                }
             evidence_values.append(
                 {
                     "id": evidence_id,
                     "kind": evidence["kind"],
                     "summary": evidence["summary"],
                     "content_member_id": content_id,
+                    **observation,
                 }
             )
             evidence_members.append(
                 (
                     content_id,
-                    f"evidence/{evidence_id}.txt",
-                    "text/plain",
-                    evidence["summary"].encode("utf-8"),
+                    f"evidence/{evidence_id}.{extension}",
+                    media_type,
+                    content,
                 )
             )
         result_values.append(

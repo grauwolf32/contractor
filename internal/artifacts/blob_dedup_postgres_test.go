@@ -34,6 +34,10 @@ func TestFilesystemDedupRepairsMissingContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	beforeRepair, err := store.Metadata(ctx, first.Ref)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var oldKey string
 	if err := pool.QueryRow(ctx, `SELECT object_key FROM artifact_blobs`).Scan(&oldKey); err != nil {
 		t.Fatal(err)
@@ -47,6 +51,10 @@ func TestFilesystemDedupRepairsMissingContent(t *testing.T) {
 	second, err := store.Write(ctx, ArtifactRef{Namespace: "docs", Name: "second"}, payload, nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+	afterRepair, err := store.Metadata(ctx, first.Ref)
+	if err != nil || afterRepair.StorageTimestamps.BlobCreatedAt != beforeRepair.StorageTimestamps.BlobCreatedAt {
+		t.Fatalf("repair changed blob registration date: %v", err)
 	}
 	for _, ref := range []ArtifactRef{second.Ref, first.Ref} {
 		read, err := store.Read(ctx, ref)

@@ -36,9 +36,6 @@ def test_registration_commits_idle_and_uses_server_timing(
             [
                 {
                     "apiVersion": "contractor/v1alpha1",
-                    "runtimeAgentId": "a" * 64,
-                    "labels": [],
-                    "labelRevision": 1,
                     "heartbeatIntervalSeconds": 12,
                     "confirmedLeaseSeconds": 72,
                 }
@@ -681,9 +678,6 @@ class WaitingTransport:
 def registration_response() -> Mapping[str, Any]:
     return {
         "apiVersion": "contractor/v1alpha1",
-        "runtimeAgentId": "a" * 64,
-        "labels": [],
-        "labelRevision": 1,
         "heartbeatIntervalSeconds": 10,
         "confirmedLeaseSeconds": 60,
     }
@@ -753,3 +747,29 @@ def generate_pki(root: Path) -> dict[str, Path]:
         "agent_certificate": root / "agents" / "agent-1.crt",
         "agent_key": root / "agents" / "agent-1.key",
     }
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("runtimeAgentId", "a" * 64), ("labels", ["private-token"]), ("labelRevision", 1)],
+)
+def test_registration_rejects_principal_echo_before_state_or_lease_mutation(
+    runtime_capabilities: CapabilitySnapshot, field: str, value: object
+) -> None:
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-unused-echo", capabilities=runtime_capabilities)
+        watchdog = LeaseWatchdog(noop_expiry)
+        await watchdog.arm(60)
+        deadline = watchdog.confirmed_deadline
+        response = dict(registration_response())
+        response[field] = value
+        client = ControlClient(make_settings(), state, FakeTransport([response]), watchdog=watchdog)
+
+        with pytest.raises(ControlClientError) as error:
+            await client.register()
+
+        assert (await state.snapshot()).process_state is ProcessState.STARTING
+        assert watchdog.confirmed_deadline == deadline
+        assert "private-token" not in "".join(traceback.format_exception(error.value))
+
+    asyncio.run(scenario())

@@ -42,8 +42,9 @@ LIMIT $11`
 var metadataSQL = `
 SELECT revision.revision, version.media_type, blob.size_bytes,
        'sha256:' || encode(blob.sha256, 'hex'), version.version_id,
-       revision.revision = binding.current_revision, binding.frozen, revision.created_at, ` + gitSourceProjection + `
+       revision.revision = binding.current_revision, binding.frozen, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
 FROM artifact_bindings AS binding
+JOIN artifact_scopes AS scope ON scope.scope_kind = binding.scope_kind AND scope.scope_id = binding.scope_id
 JOIN artifact_binding_revisions AS revision
   ON revision.scope_kind = binding.scope_kind
  AND revision.scope_id = binding.scope_id
@@ -64,8 +65,9 @@ WHERE binding.scope_kind = $1 AND binding.scope_id = $2
 // it is not empty, at most $8 rows. Used by PostgresRepository.ListMetadata.
 var listMetadataSQL = `
 SELECT binding.namespace, binding.name, revision.revision,
-       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, ` + gitSourceProjection + `
+       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
 FROM artifact_bindings AS binding
+JOIN artifact_scopes AS scope ON scope.scope_kind = binding.scope_kind AND scope.scope_id = binding.scope_id
 JOIN artifact_binding_revisions AS revision
   ON revision.scope_kind = binding.scope_kind
  AND revision.scope_id = binding.scope_id
@@ -97,8 +99,9 @@ LIMIT $8`
 // PostgresRepository.ListMetadata.
 var listProjectMetadataSQL = `
 SELECT binding.namespace, binding.name, revision.revision,
-       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, ` + gitSourceProjection + `
+       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
 FROM artifact_bindings AS binding
+JOIN artifact_scopes AS scope ON scope.scope_kind = binding.scope_kind AND scope.scope_id = binding.scope_id
 JOIN artifact_binding_revisions AS revision
   ON revision.scope_kind = binding.scope_kind
  AND revision.scope_id = binding.scope_id
@@ -124,13 +127,14 @@ LIMIT $6`
 var listVersionsSQL = `
 SELECT revision.namespace, revision.name, revision.revision,
        version.media_type, blob.size_bytes,
-       revision.revision = binding.current_revision, binding.frozen, revision.created_at, ` + gitSourceProjection + `
+       revision.revision = binding.current_revision, binding.frozen, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
 FROM artifact_binding_revisions AS revision
 JOIN artifact_bindings AS binding
   ON binding.scope_kind = revision.scope_kind
  AND binding.scope_id = revision.scope_id
  AND binding.namespace = revision.namespace
  AND binding.name = revision.name
+JOIN artifact_scopes AS scope ON scope.scope_kind = binding.scope_kind AND scope.scope_id = binding.scope_id
 JOIN artifact_versions AS version ON version.version_id = revision.version_id
 JOIN artifact_blobs AS blob ON blob.sha256 = version.blob_sha256
 WHERE revision.scope_kind = $1 AND revision.scope_id = $2
@@ -143,8 +147,9 @@ LIMIT $7`
 // and catalog packages do not enter the scan before LIMIT (ART-R119).
 var listUserMetadataSQL = `
 SELECT binding.namespace, binding.name, revision.revision,
-       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, ` + gitSourceProjection + `
+       version.media_type, blob.size_bytes, true, binding.frozen, revision.created_at, scope.created_at, blob.created_at, version.created_at, binding.updated_at, ` + gitSourceProjection + `
 FROM artifact_bindings AS binding
+JOIN artifact_scopes AS scope ON scope.scope_kind = binding.scope_kind AND scope.scope_id = binding.scope_id
 JOIN artifact_binding_revisions AS revision
   ON revision.scope_kind = binding.scope_kind
  AND revision.scope_id = binding.scope_id

@@ -82,10 +82,11 @@ type ForkResult struct {
 // Metadata describes one exact immutable Artifact revision and its relation to
 // the current logical binding. It never contains bytes or a physical blob key.
 type Metadata struct {
-	GitSource *GitSource  `json:"gitSource,omitempty"`
-	Ref       ArtifactRef `json:"artifact"`
-	MediaType string      `json:"mediaType"`
-	Size      int64       `json:"size"`
+	GitSource         *GitSource        `json:"gitSource,omitempty"`
+	StorageTimestamps StorageTimestamps `json:"storageTimestamps"`
+	Ref               ArtifactRef       `json:"artifact"`
+	MediaType         string            `json:"mediaType"`
+	Size              int64             `json:"size"`
 	// Digest is an internal projection of the immutable blob identity. It is
 	// deliberately absent from the public Metadata JSON contract.
 	ContentCacheKey string    `json:"-"`

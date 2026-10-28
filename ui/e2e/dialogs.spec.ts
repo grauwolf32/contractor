@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { expect, test, type Page } from "@playwright/test";
 
 import { project } from "../src/test/builders";
@@ -18,6 +19,7 @@ const PROJECT_ID = "project_dialog_fixture";
 const WORKFLOW_NAME = "dialog-workflow";
 const WORKFLOW_VERSION = "1";
 const SOURCE = {
+  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "sources",
     name: "dialog-source",

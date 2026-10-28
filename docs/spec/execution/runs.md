@@ -798,10 +798,24 @@ non-contract error codes.
 **RUN-R94.** Raw model output, prompts, provider bodies and URLs, tool
 calls, tool arguments and results, stack traces, physical Runtime addresses and
 report, session and allocation identities are never part of public Run status.
+The separate owner-only sanitized tool-call surface of OBS-R116 is explicitly
+outside this Run-status projection.
 
 **RUN-R95.** An absent StageMetrics record omits diagnostics; a
 present record with no normalized errors returns an empty list, so the UI can
 distinguish "no participant errors" from "telemetry unavailable".
+
+**RUN-R110.** The separate owner-only Runtime diagnostic endpoint of
+OBS-R113 exposes bounded retained adapter facts in the attempt's Technical
+details, not in public Run status. RUN-R94 continues excluding raw reports,
+physical identities and model/tool content. Run/Stage ownership, generation
+conflicts, unknown measurements and report availability remain explicit.
+
+**RUN-R111.** An attempt's Technical details can inspect one participant's
+retained tool calls through OBS-R116 to OBS-R119. This narrow owner-only
+projection is separate from GET Run status: no raw report or tool result is
+returned, numeric literals and available measurements remain exact, retention
+and truncation are explicit, and diagnostic read outcomes never alter the Run.
 
 ### Repeat draft
 

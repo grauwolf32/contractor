@@ -174,9 +174,10 @@ verifies the instruction text digest and uses the text literally as the summary
 agent's instruction. Omission selects the built-in instruction. This
 character limit does not guarantee a 2,000-token upper bound.
 
-`AgentStateSnapshot.state.schemaVersion` is `2`: invocation metrics include a
-required nullable `latestPromptTokens`, and every current/completed invocation
-contains a closed summarizer phase/usage record. The HTTP ETag's existing
+`AgentStateSnapshot.state.schemaVersion` is `2`: every current/completed invocation
+contains bounded invocation metrics and a closed summarizer phase/usage record.
+Prompt-token trigger tracking and workspace integrity digests stay internal to
+their Runtime owners; the State contract rejects these unused exported fields. The HTTP ETag's existing
 `contractor-agent-state-v1-*` prefix versions cache semantics independently.
 
 `llm-gateway-config-manifest.schema.json` describes the strict non-secret YAML

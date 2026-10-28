@@ -23,9 +23,8 @@ func TestPostgresFindingComparisonProjectionIsBoundedImmutableAndDiscarded(t *te
 	if err := pool.QueryRow(ctx, "SELECT to_jsonb(r)::text FROM finding_proposal_receipts r").Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
-		t.Fatal(err)
-	}
+	// Preserve this historical fixture before the incompatible required-conditions transition.
+	applyMigrationsThrough(t, ctx, pool, "audit_admission_chain_transition")
 	var cache []byte
 	if err := pool.QueryRow(ctx, "SELECT (to_jsonb(r)-ARRAY['comparison_projection','checks_projection','checks_projection_bytes','checks_projection_count'])::text,comparison_projection FROM finding_proposal_receipts r").Scan(&after, &cache); err != nil {
 		t.Fatal(err)

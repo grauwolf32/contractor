@@ -1,0 +1,191 @@
+schema_version: "1.0"
+id: V421-010
+title: Verify the agreed data-model consumers and contract simplifications
+milestone: data-model-consumers-2026-10
+epic: quality
+kind: chore
+priority: P3
+status: completed
+implementation_commit: 64a8522ded78e598bc14f84899ffa312e39869e7
+depends_on:
+  - V421-001
+  - V421-002
+  - V421-003
+  - V421-004
+  - V421-005
+  - V421-006
+  - V421-007
+  - V421-008
+  - V421-009
+  - V421-011
+  - V421-012
+  - V421-013
+  - V421-014
+  - V421-015
+  - V421-016
+  - V421-017
+languages: [go, python, typescript, sql, yaml, markdown]
+goal: >-
+  Verify that every change accepted in the October 27 data-model review has a
+  real producer and consumer or has been removed end to end, and that the
+  combined landing revision passes the deterministic release gate.
+context:
+  resumption: >-
+    On 2026-10-27 the user explicitly resumed the paused work. All original
+    implementations and V421-011/012 remain complete. Revalidate and merge
+    the new main f18dec3db table-read declarations, restore the isolated Linux
+    dependency prerequisite, then freeze a fresh clean source and run the
+    complete release gate. The prior cancelled attempt remains historical
+    evidence and is not reused as a pass.
+  checkpoint: tasks/evidence/v421-010-checkpoint.json
+  integrated_gate_followups: >-
+    The resumed baee4e57 attempt exposed two corrected SQLSTATE fixtures and
+    repeated diagnostic JSONB work, completed in V421-013/014/015. The next
+    clean 30329ddb attempt completed seven stages, then exposed a pre-existing
+    sitemap volume fixture timeout under race instrumentation; the same failure
+    was reproduced on main and corrected by V421-016 without changing its
+    original body or production deadlines. Its integration stage started but
+    was cancelled and remains unproven. The subsequent 895fe2eb attempt ran
+    all twelve stages and failed only the two real Memory scenarios sharing
+    an outdated strict public Artifact page DTO. V421-017 now uses the
+    generated model; both complete real scenarios, the untagged harness and
+    Linux lint pass on b53ec214. All unsuccessful attempts remain historical;
+    the fresh E1 attempt on 754f2b76 now passes the complete gate and all four
+    direct exit validators without reusing failed-attempt outcomes.
+  integration_followups: >-
+    Independent combined review found two concrete UI defects before release:
+    V421-011 now guards unresolved replacement inputs and retained recovery;
+    V421-012 refreshes cached diagnostics on genuine page entry with bounded
+    cache passes. Both are completed prerequisites of this exit. Their regressions
+    reproduce the prior failures and preserve the original nine decisions.
+  review: >-
+    The user requested a detailed data-model consumer review on 2026-10-27 and
+    then detailed task intake for every agreed change. The reviewed committed
+    baseline was 20c2343c097e24d7fc6be3538e06f54920a57e3b, with a separate
+    dirty sitemap implementation in the primary checkout. Review was static;
+    no passing test or completed implementation is claimed by this intake.
+  specification:
+    - docs/spec/README.md
+    - docs/spec/conventions.md
+    - docs/spec/platform/observability.md
+    - docs/spec/platform/lifecycle.md
+    - docs/spec/platform/limits.md
+    - docs/spec/platform/failure-model.md
+    - docs/testing/README.md
+  dispositions:
+    - "Finding 1: connect Audit evidence observation time and available deployment marker to a trusted producer, V421-001."
+    - "Finding 2: retain finding preconditions in the final report, V421-002."
+    - "Finding 3: expose retained Runtime adapter diagnostics, V421-003."
+    - "Finding 4: keep tool-call detail and give it a concrete diagnostic interface, V421-004; do not delete it."
+    - "Finding 5: remove unused managed Eval PrivateCheck.Schema, V421-005."
+    - "Finding 6: reject ignored human-review parameters, V421-006."
+    - "Finding 7: remove unused exported Worker State fields only, V421-007."
+    - "Finding 8: remove runtimeAgentId/labels/labelRevision from registration response only, V421-008; Server identity and placement data remain required."
+    - "Finding 9: preserve physical Artifact timestamps and expose accurately named Technical details, V421-009; do not delete timestamps."
+  delivery_order: >-
+    Tasks can proceed independently except V421-004 follows V421-003's minimal
+    attempt diagnostic boundary. V421-005 and V421-006 share Eval models and
+    fixtures; V421-003/004/009 share public clients and UI generation, so rebase,
+    regenerate and rerun the relevant gates after integration. V421-007 must
+    preserve internal Worker/summarizer budgets and projectfs integrity and
+    coordinate with pending V417 compaction work. V421-008 shares control-plane
+    specs with the independent sitemap lane; neither task may overwrite the
+    other's changes. V421-001 defines generic evidence provenance and must not
+    claim future V411 trusted-pentest proof is delivered. V421-002 is a current
+    report-contract extension, not a dependency on unfinished pentest reports.
+    Existing delivery focus in tasks/index.yml is unchanged by this intake.
+  boundary_decisions: >-
+    No table was proven wholly unnecessary. Do not turn this review into a
+    blanket schema pruning or compatibility project. Candidate/accepted result
+    schema-version fields have equality guards and are not accepted removals.
+    Summarizer contextWindowTokens remains operator metadata under WRK-R148;
+    token-based prompt admission was not accepted work. New diagnostic readers
+    keep existing retention, ownership and execution semantics.
+  intake_validation:
+    - "Task intake only: all ten new task YAML files parse; specification anchors, introduced_by references, acceptance covers and concrete package/test paths were checked."
+    - "make tasks-backlog passed using the existing locked Python environment without dependency synchronization; scripts/check_tasks.py reports 1283 consistent records."
+    - "python3 -m unittest discover -s scripts -p test_check_tasks.py passed all 11 tests; python3 scripts/check_spec.py reports 48 consistent specification documents; git diff --check passed."
+    - "make lint was attempted and stopped before checks: /bin/sh: go: command not found at generate-public-client-check. No full lint, implementation tests, database tests or release gate is claimed by this intake."
+  implementation_authorization: >-
+    On 2026-10-27 the user asked to revalidate against newly merged main and
+    implement all agreed V421 changes. Main 1716e40db was merged into this
+    branch; all nine changes remain relevant, with the V421-006 UI switch
+    already correct. Revalidation notes in child tasks update the affected
+    authority and retention boundaries; no accepted task is silently dropped.
+scope:
+  in:
+    - Verify every dependency is completed with full implementation commit and real acceptance evidence; pending, deferred and archived tasks never satisfy the exit.
+    - Trace producer to storage to public/model consumer on the integrated revision for every retained field and check removed fields are absent from every write/read/schema/client/fixture.
+    - Check diagnostics and artifact timestamps together for bounded reads, redaction, owner isolation, accurate semantics, retention expiry and parent deletion.
+    - Verify shared generations, UI package bumps, OpenAPI clients, shared Go/Python fixtures and all affected specs are current after branches integrate.
+    - Run the complete deterministic release gate with a real disposable PostgreSQL database, record the exact revision and results and state whether the branch is merged into main.
+  out:
+    - Implementing child changes inside this exit task, completing them by paperwork or claiming the static review checked every column exhaustively.
+    - Live-model quality experiments, changing configured models, deployment, demo migrations or deleting business data.
+    - Starting or reprioritizing unrelated pending/deferred tasks or replacing the user's in-progress sitemap work.
+acceptance_criteria:
+  - id: A1
+    given: The nine reviewed findings and explicit user decisions in context.dispositions
+    when: This exit task is closed
+    then: Each owning task is completed with its implementation commit and accepted real-path evidence; diagnostics and timestamps were retained as agreed.
+  - id: A2
+    given: The integrated landing revision and all retained/new producer-consumer paths
+    when: Cross-domain review traces them and checks removal siblings
+    then: No accepted field remains a serialize-only placeholder, no useful internal counter/digest/identity is removed, and authority, retention and bounds agree across specs and implementations.
+  - id: A3
+    given: A disposable PostgreSQL database and the documented locked build environment
+    when: The deterministic release gate runs
+    then: It passes with exact command/revision evidence; skipped database/process requirements and zero-test selectors are never reported as passes.
+  - id: A4
+    given: Final tracker records, generated backlog, public clients and the delivery branch
+    when: Results are reported
+    then: Tracker and generated artifacts are current and merge status plus any remaining work are stated explicitly.
+tests:
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" make release-verify'
+    covers: [A1, A2, A3, A4]
+  - command: cd runtime && uv run python ../scripts/check_tasks.py
+    covers: [A1, A4]
+  - command: python3 scripts/check_spec.py
+    covers: [A2, A4]
+  - command: make verify-public-api
+    covers: [A2, A3, A4]
+  - command: make verify-public-api-postgres
+    covers: [A2, A3, A4]
+verification:
+  tested_source: 754f2b7686b1d5706566e6937731dfd0b25bb0b4
+  tested_tree: 32a0e1bdda67cf5daaec6cacb67173981c9364d8
+  consumer_trace: tasks/evidence/v421-010-consumer-trace.json
+  evidence: tasks/evidence/v421-010-release-verified.json
+  manifest: tasks/evidence/v421-010-release-manifest.json
+  integrated_release: >-
+    Fresh clean Linux E1 ran make -k release-verify RACE_PACKAGE_PARALLELISM=1
+    with real disposable PostgreSQL and locked dependencies. The whole gate
+    exited 0 after 8844.730 seconds; all twelve stage boundaries are proven.
+    The canonical integration report verifies 285 roots / 709 case identities;
+    actual gate streams and receipts verify all 31 selected process roots,
+    all 10 browser roots and all 8 configuration roots with no missing,
+    failed, skipped or incomplete selected test.
+  other_counts: >-
+    Go unit reports 9806 passing cases and 7 reviewed optional skips; Runtime
+    reports 5287 passes and 55 reviewed optional skips. UI reports 2510 passes
+    and one intentional contract-harness negative control. Race output proves
+    102 test-package passes plus 5 source-owned packages without tests, not
+    individual test counts. Overlapping family/browser/report counts are not
+    summed as unique tests. Optional external/rootless/live checks remain
+    explicitly classified rather than reported as passed.
+  direct_exits: >-
+    On the same frozen source, check_tasks.py, check_spec.py,
+    make verify-public-api and make verify-public-api-postgres all exited 0.
+    Both Make API validators ran directly with RELEASE_CONSOLIDATED unset.
+    No zero-test selection or skipped database requirement is accepted.
+  source_and_processes: >-
+    Source revision, tree, four lockfiles and actual Runtime editable import
+    stayed unchanged through gate and direct exits. Python 3.13, Go 1.26.9,
+    Node 24.20 and PostgreSQL 17.11 are recorded; all owned processes were
+    joined. Evidence and tracker closure commits follow the tested source
+    and do not change functional code or replace its exact revision claim.
+  delivery: >-
+    All sixteen prerequisites are completed with full implementation hashes.
+    The latest main baseline f18dec3dbf9316b3347859db1da6873f54ffa1b0 is an
+    ancestor; work is on codex/data-model-review-tasks and is not merged to
+    main. The user performs the final --no-ff merge. No deployment is claimed.

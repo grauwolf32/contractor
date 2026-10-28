@@ -185,11 +185,12 @@ export function useRunDraftState(
       }));
       if (reviewed) clearError("repeatReview");
     },
-    /** Selects `selected` (an exact ref key) for `slot`, as reviewed. */
+    /** Selects an exact ref; unresolved stored choices revoke its review. */
     selectArtifact(
       slot: string,
       selected: string,
       metadata?: ArtifactMetadata,
+      reviewed = true,
     ): void {
       updateDraft((current) => {
         const known =
@@ -215,7 +216,7 @@ export function useRunDraftState(
           artifactReviews: updateRecord(
             current.artifactReviews,
             slot,
-            selected,
+            reviewed ? selected : "",
           ),
           knownArtifacts: known,
         };

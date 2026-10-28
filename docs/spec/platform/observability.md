@@ -1061,7 +1061,95 @@ and `tool_call_failed` (OBS-R32).
 
 This whole document is the shared observability model.
 
-### Telemetry rules owned by other documents
+#### Owner-visible retained Runtime diagnostics
+
+**OBS-R113.** The authenticated Run owner can read one exact Stage attempt's
+Runtime diagnostics through `GET /v1/runs/{runId}/attempts/{stageExecutionId}/runtime-diagnostics`.
+The reader authorizes the owner and Stage-to-Run association in the same SQL
+statement before projecting data. Retained `stage_metrics` is authoritative,
+including Eval-held metrics after source report rows expire. It reads Runtime
+participant projections only, never full Worker reports or tool arguments.
+
+**OBS-R114.** A page defaults to five and permits at most ten logical Workers,
+128 KiB compact UTF-8 JSON, eleven participant selections including lookahead,
+and 2 MiB of returned Runtime-only JSON before Go decoding (LIM-OBS-18).
+Participants use deterministic bytewise name order. A signed cursor binds the
+owner, Run, Stage, last name and retained metric generation. Generation hashes
+the row update time and MVCC tuple generation, so updating the same timestamp
+still invalidates a cursor. A changed generation returns 409 conflict and
+requires a fresh first page; reads create no snapshot rows or retention holds.
+The SQL extracts the containing Runtime map and enumerates its keys once per
+page. Subsequent materialized projections carry only selected participant
+values and bounded documents, rather than a copy of that map per participant.
+
+**OBS-R115.** Public adapter counters are canonical unsigned decimal strings
+bounded by uint64; optional Runtime milliseconds use nonnegative int64 decimal
+strings (LIM-OBS-19). Browser clients preserve them without passing through a
+JavaScript number. The projection preserves absent flush/duration facts, exact
+adapter refs, closed error codes and optional local dropped-span counters.
+Stop reasons are URL-redacted and limited to 4096 UTF-8 bytes with explicit
+truncation. A missing live report is pending; missing terminal telemetry is
+unavailable (it may have expired). A malformed participant remains unavailable
+without hiding healthy siblings. Reports marked incomplete remain partial.
+These supplementary facts never change execution results, retries or Eval
+usage. The UI reads on disclosure open, observed Stage state change and
+explicit refresh, backs off retryable failures and does not poll settled data.
+
+#### Owner-visible retained tool-call diagnostics
+
+**OBS-R116.** The authenticated Run owner can read retained call detail through
+`GET /v1/runs/{runId}/attempts/{stageExecutionId}/tool-calls`. The same SQL
+statement authorizes the owner and exact Stage-to-Run association before
+selecting only `planner`, or `worker` with a required logical Agent name in the
+shared name grammar. A Planner selector forbids a logical Agent name. Retained
+StageMetrics is authoritative, including Eval-held metrics after source report
+cleanup; no new report, retention hold or call ledger is created. Selected
+reports are decoded strictly under stored-report rules (OBS-R110); malformed
+selected data is unavailable and does not hide a healthy other participant.
+
+**OBS-R117.** One request decodes at most one selected participant projection,
+limited in PostgreSQL to 8 MiB of JSON text before it leaves the database. A
+larger projection is unavailable with `report_oversized`. Pages default to 25
+records and permit at most 100 and 128 KiB of compact UTF-8 response JSON,
+including string escaping (LIM-OBS-20). Retained source order is preserved. A
+byte-limited page stops before its first nonfitting row; every bounded row fits
+an empty page. Opaque signed cursors bind the owner, Run, Stage, participant,
+logical name, retained metric generation and record offset. Each scope member
+is framed unambiguously, including resource IDs containing colons. A changed
+generation requires a fresh first page with 409 conflict. Reads do no per-tool
+query or all-participant report scan and stop when the request is cancelled.
+The SQL selects a Worker directly from an object-valued Worker map and
+serializes the selected report once for both its byte guard and returned text.
+
+**OBS-R118.** Each public row contains an opaque 64-character hexadecimal
+`callReference` derived from the selected report generation and record ordinal,
+never a source CallID or report identity. It contains the Runtime vocabulary
+tool name, succeeded/failed outcome, nullable nonnegative int64 decimal-string
+`durationMs` and `resultSizeBytes`, and the sanitized argument/error summary.
+The public boundary reuses the common persistence sanitizer and removes
+URL-shaped text recursively, including argument keys, while preserving
+`json.Number` values. `argumentsJson` is canonical JSON **text**, at most 4096
+UTF-8 bytes under OBS-R42, rendered without parsing through browser numbers.
+Oversized argument text becomes an explicit valid JSON truncation summary.
+Names outside the public 128-byte vocabulary bound become an unavailable-name
+marker with `toolTruncated`; error messages are bounded to 4096 UTF-8 bytes
+with `messageTruncated` (LIM-OBS-21). Error codes follow OBS-R32's existing name
+grammar and fallback. Arguments preserve `argumentsTruncated` and additionally
+mark public redaction or truncation. No raw results, model/provider content,
+physical identities, URLs, credentials or invented call timestamps are added.
+
+**OBS-R119.** This surface is retained call detail, not a full event history.
+Report completeness, report-level detail truncation, argument truncation, an
+empty retained call list, a pending live report, unavailable terminal telemetry
+and read failure are distinct. Availability follows OBS-R115 and failures are
+FAIL-OBS-9. The UI selects one participant, expands arguments on demand and
+loads later pages explicitly. It refreshes on disclosure open, that Stage's
+observed state change or explicit action, uses bounded retry backoff and
+preserves loaded facts visibly on failed refresh. Other Run updates, projection
+remounts and settled objects do not cause perpetual polling. Diagnostic reads
+never change execution results, aggregate counters or Eval usage.
+
+## Telemetry rules owned by other documents
 
 | Topic | Owner |
 | --- | --- |

@@ -341,6 +341,7 @@ export async function getRunArtifactMetadata(
   }
   const result = await api.request((client) =>
     client.GET("/v1/runs/{runId}/artifacts/{namespace}/{name}/metadata", {
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
       params: {
         path: {
           runId: request.runId,

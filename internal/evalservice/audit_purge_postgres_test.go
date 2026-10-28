@@ -104,7 +104,7 @@ INSERT INTO finding_proposal_receipts (
           'finding-source', '1', 'contractor/v1alpha1',
           '{"name":"finding-source","version":"1"}'::jsonb, $1,
           $4::jsonb, $1, 'application/json', 128, '[]'::jsonb,
-          '{"description":"Test finding.","limitations":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}')`,
+          '{"description":"Test finding.","limitations":[],"preconditions":[],"severity_suggestion":"","standard_refs":[],"subject":null,"title":"Test finding."}')`,
 			[]any{digest, audit.OwnerID, audit.ProjectID, proposalRef}},
 		{`
 UPDATE finding_proposal_receipts

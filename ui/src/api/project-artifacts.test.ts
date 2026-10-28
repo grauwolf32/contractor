@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { describe, expect, it, vi } from "vitest";
 
 import type { RuntimeConfig } from "../config/runtime-config";
@@ -16,6 +17,7 @@ const runtimeConfig: RuntimeConfig = {
 };
 
 const metadata: ArtifactMetadata = {
+  storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "sources",
     name: "service",

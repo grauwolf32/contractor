@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0",
+  "task": "V421-005",
+  "implementation_commit": "63385f67d968112ddf2224fdf57b5b777334cdf3",
+  "checks": [
+    {
+      "command": "test -n \"$CONTRACTOR_TEST_DATABASE_URL\" && go test -race -count=1 ./api/evals/v1 ./internal/evaldomain ./internal/evalstore ./internal/evalservice ./internal/evalcoordinator",
+      "exit_code": 0,
+      "log_sha256": "157d420aaff3f08b3a19ba096d60e4444c1dc460cab2b03bfd33e6a1a38753f6"
+    },
+    {
+      "command": "go test -count=1 ./internal/httpapi/public ./internal/publicclient/...",
+      "exit_code": 0,
+      "log_sha256": "69851c1318e7df6e194bdde788c69dd7a4a1f31e2241e51ee7c74a3c4027dbdf"
+    },
+    {
+      "command": "make verify-public-api",
+      "exit_code": 0,
+      "log_sha256": "64fe4ebc320e1f996bc26dc0f1866c82eaad3a970fb622d9a1160774e927e0a7"
+    },
+    {
+      "command": "make verify-public-api-postgres",
+      "exit_code": 0,
+      "log_sha256": "044bbae4838d58f0826477e8836727aebfe1aafa20266cbdfce251980a064164"
+    },
+    {
+      "command": "make ui-verify",
+      "exit_code": 0,
+      "log_sha256": "da0026fc2da0247858baa2f9a86894286b05925c69d9f9c81ae7e2d05a30a0d2"
+    },
+    {
+      "command": "make lint",
+      "exit_code": 0,
+      "log_sha256": "8406694e921fcd935f70d8f9354ee932619c0f213ef361d94208bcf14b1a1e35"
+    }
+  ],
+  "regression": "TestSharedEvalPostgresRejectsUnusedPrivateSchemaBeforeEffects",
+  "private_contract": "id, revision, rubric, expected only",
+  "preserved": [
+    "Check.parameters.schema registered structural selector",
+    "portable schemas and immutable stored bytes",
+    "rubric/expected privacy, preparation and owner review",
+    "assessment implementation pins"
+  ],
+  "database": "Owned disposable PostgreSQL; configured and required store suites executed; no connection value retained."
+}

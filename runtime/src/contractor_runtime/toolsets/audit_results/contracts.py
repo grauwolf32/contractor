@@ -13,6 +13,7 @@ from typing import Literal
 
 from contractor_runtime.contracts.base import is_blank
 from contractor_runtime.digests import sha256_digest
+from contractor_runtime.toolsets.common.http_capture import HTTPObservation
 
 MAX_ITEMS = 64
 MAX_SUMMARY_BYTES = 16 * 1024
@@ -101,10 +102,22 @@ class AuditTrustedInputs:
 class AuditEvidence:
     kind: str
     summary: str = field(repr=False)
+    http_capture: bytes | None = field(default=None, repr=False)
+    observed_at: str | None = None
+    deployment_marker: str | None = None
+    http_request_id: str | None = None
 
     def __post_init__(self):
         _identifier(self.kind)
         _text(self.summary)
+        if (self.http_capture is None) != (self.observed_at is None):
+            raise ValueError("HTTP evidence requires its observation time")
+        if self.http_capture is not None and not isinstance(self.http_capture, bytes):
+            raise ValueError("HTTP evidence requires immutable capture bytes")
+        if self.http_capture is not None:
+            HTTPObservation(self.observed_at, self.deployment_marker)
+        if self.deployment_marker is not None and self.http_capture is None:
+            raise ValueError("deployment metadata requires an HTTP capture")
 
 
 @dataclass(frozen=True, slots=True)

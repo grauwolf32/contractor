@@ -811,6 +811,18 @@ func semanticCoverage(
 	}
 	conclusive := result.Assessment == "satisfied" || result.Assessment == "violated" ||
 		result.Assessment == "supported" || result.Assessment == "refuted"
+	if conclusive && task.RequiresHTTPObservation() {
+		found := false
+		for _, id := range result.EvidenceIDs {
+			if value, ok := evidence[id]; ok && value.value.HTTPRequestID != "" &&
+				(value.value.Kind == "http-observation" || task.Finding != nil && task.Finding.Method == "http-probe") {
+				found = true
+			}
+		}
+		if !found {
+			return auditstore.Coverage{}, fmt.Errorf("%s", auditdomain.CodeResultSetInvalid)
+		}
+	}
 	if task.Standard != nil && !standardEvidenceContractAccepts(
 		task.Standard.EvidenceContract, result, evidence, conclusive,
 	) {

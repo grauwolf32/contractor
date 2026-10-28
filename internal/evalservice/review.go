@@ -83,7 +83,7 @@ func (s *Service) Review(ctx context.Context, owner, id, member, resultDigest st
 			return err
 		}
 		var setup preparedSetup
-		if err = json.Unmarshal(plan.Setup, &setup); err != nil {
+		if err = decodePreparedSetup(plan.Setup, &setup); err != nil {
 			return err
 		}
 		out.Policy = setup.Checks

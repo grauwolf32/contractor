@@ -1664,6 +1664,11 @@ a.runs-publication-ref {
   overflow-wrap: anywhere;
 }
 
+.runs-tool-arguments {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .runs-terminal-record {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

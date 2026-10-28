@@ -465,13 +465,25 @@ version or wrapper.
 is imported.
 
 **EVM-R56.** Registered native evaluators include required artifact, media and
-schema checks that use allowlisted existing validators, and `human-review@1`.
+schema checks that use allowlisted existing validators, and `human-review@1`. The registered
+`human-review@1` accepts only omitted or empty-object `parameters`; every nonempty
+map is `422 eval_invalid` before managed native/external authoring side effects
+or plan freeze, including direct preparation calls. Frozen-policy semantic reads
+also reject the map without rewriting retained bytes or silently ignoring it.
+Other external evaluator
+identities retain their producer-owned parameters. This authoring restriction
+adds no implicit review scope and changes neither assessment authority nor its
+implementation pins.
 
 **EVM-R57.** A validator reports the stated structural property, not overall
 semantic correctness.
 
 **EVM-R58.** A native human rubric or check configuration is versioned and
-pinned separately from visible inputs.
+pinned separately from visible inputs. A managed private rubric contains
+only `id`, `revision`, `rubric` and `expected`. An additional `schema` member
+is invalid: structural schema checks use the registered `Check.parameters.schema`
+selector, not a private-rubric field. This pre-production API narrowing follows
+API-R3; it adds no legacy reader and never rewrites retained immutable bytes.
 
 **EVM-R59.** External semantic and domain scorers are supported through
 attributed assessment ingestion.

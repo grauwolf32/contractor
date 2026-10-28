@@ -50,6 +50,7 @@ from contractor_runtime.toolsets.common.credentials import target_authorization
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.finding_locations import validate_web_url
 from contractor_runtime.toolsets.common.http_capture import (
+    HTTPObservation,
     RecentHTTPCaptures,
     allocation_http_captures,
 )
@@ -190,6 +191,7 @@ class HTTPToolsetFactory:
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
         preparation_deadline: float | None = None,
+        deployment_marker: str | None = None,
     ) -> Mapping[str, Any]:
         del run_id, workspace, project_workspace
         require_selected_tools(selected, self.exported_tools)
@@ -225,6 +227,7 @@ class HTTPToolsetFactory:
             captures=allocation_http_captures(state),
             checkpoint=checkpoint,
             observation_sink=getattr(state, "http_observation_sink", None),
+            deployment_marker=deployment_marker,
         )
         try:
             await session.restore(deadline=preparation_deadline)
@@ -317,6 +320,7 @@ class _HTTPSession:
         captures: RecentHTTPCaptures,
         checkpoint: CookieCheckpoint,
         observation_sink: HTTPObservationSink | None = None,
+        deployment_marker: str | None = None,
     ) -> None:
         self._timeout_cap_seconds = timeout_cap_seconds
         self._target_policy = target_policy
@@ -339,6 +343,7 @@ class _HTTPSession:
         self._closed = False
         self._checkpoint = checkpoint
         self._observation_sink = observation_sink
+        self._deployment_marker = deployment_marker
         self._session_generation = 1
         self._observation_context: tuple = ()
 
@@ -433,7 +438,13 @@ class _HTTPSession:
                     captured.evidence, name="http-exchange-capture"
                 )
                 try:
-                    await self._captures.put(evidence, invocation_id)
+                    await self._captures.put(
+                        evidence,
+                        invocation_id,
+                        observation=HTTPObservation(
+                            captured.attempts[0].at, self._deployment_marker
+                        ),
+                    )
                 except ValueError:
                     # A deterministic capture rejection is permanent, exactly
                     # as for a failed exchange below.
@@ -581,7 +592,13 @@ class _HTTPSession:
                         captured.evidence, name="http-exchange-capture"
                     )
                     try:
-                        await self._captures.put(evidence, invocation_id)
+                        await self._captures.put(
+                            evidence,
+                            invocation_id,
+                            observation=HTTPObservation(
+                                captured.attempts[0].at, self._deployment_marker
+                            ),
+                        )
                     except ValueError:
                         raise HTTPToolError("http_response_invalid") from None
 

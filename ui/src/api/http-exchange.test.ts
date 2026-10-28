@@ -1,3 +1,4 @@
+import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { describe, expect, it } from "vitest";
 import captures from "../../../api/testdata/http-capture-cases.json";
 import attempts from "../../../internal/auditdomain/testdata/finding-http-attempts.json";
@@ -116,6 +117,7 @@ describe("selected HTTP evidence artifact", () => {
   });
   it("keeps preview admission bounded before any payload read", () => {
     const metadata = {
+      storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "finding-proposals",
         name: "http.exchange.proposal-test",

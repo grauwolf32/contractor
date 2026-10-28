@@ -140,7 +140,7 @@ Each allocation of `http-tools@1` holds this state in memory:
 | Default headers | Session default request headers | Non-sensitive values; redaction markers for sensitive headers |
 | Authentication | `none`, `bearer` or `basic` | `auth_kind` |
 | History | Recent request summaries and explicit failed outcomes | `http_history`; the history count |
-| Outgoing exchange store | Shared bounded HTTP/Caido capture buffer, including attempts, available response bytes and invocation ownership | HTTP bodies through `http_read_body`; selection through `finding(request_id=...)` or `finding(caido_request_id=...)` |
+| Outgoing exchange store | Shared bounded HTTP/Caido capture buffer, including attempts, available response bytes and invocation ownership | HTTP bodies through `http_read_body`; selection through `finding(request_id=...)` or `finding(caido_request_id=...)`; selected current-invocation Runtime HTTP capture through Audit result `http_request_id` (AWC-R126) |
 | Project target | Target URL, derived `Authorization` header and source secret | Never |
 
 ### One `http_request` call
@@ -1140,6 +1140,15 @@ projection, persistence, retry or drain. The automatic subscriber cannot add
 sitemap failure fields to HTTP results, repeat target traffic or replace its
 outcome. Caller cancellation remains joined. [SMT-R18](../artifacts/project-sitemap.md)
 through [SMT-R21](../artifacts/project-sitemap.md) own collector behavior.
+
+**HTP-R136.** The private recent Runtime HTTP capture retains its first captured request-attempt's
+start timestamp and optional pinned deployment marker with the same
+invocation ownership, count/byte eviction and teardown as its exact capture
+bytes. Metadata is charged to the existing buffer byte bound. Audit result
+selection may retain one of these captures through AWC-R126; selection performs
+no target request, history enumeration or durable write. Model arguments cannot
+set observation facts. A generic Caido history read does not establish the
+original observation instant and cannot manufacture one from read time.
 
 ## Invariants
 

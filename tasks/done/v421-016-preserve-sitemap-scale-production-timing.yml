@@ -1,0 +1,95 @@
+schema_version: "1.0"
+id: V421-016
+title: Keep the large sitemap publication test under production timing
+milestone: data-model-consumers-2026-10
+epic: quality
+kind: chore
+introduced_by: V410-001
+priority: P3
+status: completed
+implementation_commit: b9f7366193adca40c6f2c1266866f7ffac0dc0fb
+depends_on: [V410-001]
+languages: [go, markdown, yaml]
+goal: >-
+  Preserve the complete sitemap publication-volume proof with its real production
+  deadline while keeping the package's concurrency paths under the race detector.
+context:
+  review: >-
+    The integrated release attempt on 30329ddb380083ecbb52fd7fdb082a1e614342fd
+    passed the large fixture normally in 247.19 seconds, then failed its first
+    publication under the race detector. The attempt was stopped and retained
+    as unsuccessful; no full release pass is claimed.
+  finding: >-
+    internal/projectsitemap/service_postgres_test.go:139 reports publication 0:
+    context deadline exceeded under race instrumentation. Service.Mutate owns
+    a 15-second operation deadline; the fixture's eight-minute context does not
+    extend that deadline. The fixture exercises 257 serial publications of a
+    map with 300 annotated operations and over 256 MiB cumulative encoded bytes.
+  baseline: >-
+    The exact focused race command failed on clean main f18dec3dbf9316b3347859db1da6873f54ffa1b0
+    and clean integrated 30329ddb380083ecbb52fd7fdb082a1e614342fd in the same
+    isolated Linux runner, in 26.273 and 26.206 seconds respectively. The original
+    test file has identical Git blob 982b2597fbd68fb78b2b1a53aecacb53c11091a5.
+    Evidence: /private/tmp/v421-sitemap-race-baseline-compare-s1/result.json.
+  introduction: >-
+    V410-001 commit 7318b118541cd98c257d02a437d80c40a91d85ae introduced both the
+    fixture and the 15-second production budget. New V421 Artifact metadata
+    reads occur only after the failed Mutate and are not on its failing path.
+  specification:
+    - docs/testing/README.md
+    - docs/spec/artifacts/project-sitemap.md
+  boundary: >-
+    This is a production-volume and deadline proof, not a concurrency fixture.
+    Keep its exact name and body in a !race test file. The full ordinary release
+    unit pass must still run it, and the graph guard must require complete
+    non-race owner coverage. All other package tests, including ten concurrent
+    writers, receipts, retention holds and fences, remain in the race pass.
+scope:
+  in:
+    - Move only the original large serial test into a documented !race test file with its body unchanged.
+    - Document its production-timing proof and the retained package race coverage.
+    - Verify complete owner suites normally and under race detection with real PostgreSQL, release graph and lint.
+  out:
+    - Production changes, larger operation/test timeouts, smaller fixtures, fewer publications, weaker assertions or package race exceptions.
+    - Treating an excluded test as a race pass or reusing the failed integrated attempt as a successful release gate.
+acceptance_criteria:
+  - id: A1
+    text: The test name, function body, 257 publications, 300 annotated operations, cumulative byte check, retention assertions and existing deadlines remain unchanged in a !race file.
+  - id: A2
+    text: The complete normal owner suite passes and actually executes the large fixture; the complete race owner suite passes with the remaining concurrency tests executed and no mandatory skips.
+  - id: A3
+    text: The release graph confirms a complete normal owner pass and unchanged package race coverage; lint passes and V421-010 requires this completed correction before its fresh integrated gate.
+tests:
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -count=1 -timeout=15m -v ./internal/projectsitemap'
+    covers: [A1, A2]
+  - command: 'CONTRACTOR_TEST_DATABASE_URL="${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}" go test -race -count=1 -timeout=15m -v ./internal/projectsitemap'
+    covers: [A2, A3]
+  - command: python3 scripts/check_release_verify_graph.py
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A3]
+verification:
+  evidence: tasks/evidence/v421-016-sitemap-production-scale.json
+  source: b9f7366193adca40c6f2c1266866f7ffac0dc0fb
+  unchanged_proof: >-
+    Independent review and Linux acceptance recomputed the original function
+    SHA-256 9bd02614aee3e900f9fd7387ec57c8b993fd78a855990b0fb676e577892fa7bf;
+    the body and the remaining 11 source-file functions are unchanged. No
+    production file, fixture size, publication count, assertion or deadline changed.
+  owner_checks: >-
+    Complete real-PostgreSQL host owner suites passed normally (27 roots,
+    261.895 seconds) and under race detection (26 roots, 9.687 seconds), with
+    zero skips. Clean Linux b9f73661 passed all 36 normal identities/27 roots
+    and 35 race identities/26 roots, zero failures or skips; the original scale
+    case passed in 272.26 seconds only in the normal build. Concurrent writers,
+    receipts, holds and lifecycle cases remain raced. Linux used the stricter
+    default ten-minute package timeout; the original eight-minute fixture
+    context and production 15-second operation timeout are unchanged.
+  static_checks: >-
+    The explicit release graph command passed in 133.395 seconds; make lint
+    passed in 186.435 seconds. The graph requires the normal complete owner
+    pass and retains the package's race coverage without an exception.
+  release_status: >-
+    This focused acceptance does not pass the integrated release gate.
+    V421-010 remains in progress and requires a fresh full attempt after this
+    completed correction. The failed/cancelled 30329ddb attempt is preserved.

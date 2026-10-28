@@ -742,6 +742,7 @@ func (f *fakeArtifactRepository) metadataLocked(
 		Digest:  "sha256:" + hex.EncodeToString(digest[:]),
 		Current: current.Ref.Revision != nil && *current.Ref.Revision == *read.Ref.Revision,
 		Frozen:  f.frozen[key], CreatedAt: f.created[key][*read.Ref.Revision],
+		StorageTimestamps: artifacts.StorageTimestamps{ScopeCreatedAt: f.created[key][*read.Ref.Revision], BlobCreatedAt: f.created[key][*read.Ref.Revision], VersionCreatedAt: f.created[key][*read.Ref.Revision], BindingUpdatedAt: f.created[key][*current.Ref.Revision]},
 	}, nil
 }
 

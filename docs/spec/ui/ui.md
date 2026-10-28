@@ -1304,3 +1304,56 @@ coverage kind identity; hosts retain authorized evidence links and receipts.
 Unknown reports keep raw preview; unsupported scanner input views remain
 explicit and preserve evidence access. Generic lifecycle and format-based
 OpenAPI/LikeC4 previews remain shared.
+
+**UI-R207.** The shared User/Project/Run material Technical details disclosure
+shows every ART-R130 storage timestamp with absolute time and timezone. Labels
+identify storage scope creation, shared blob registration, storage version
+creation and current binding change. Explain that shared dates may predate the
+material or target scope, blob registration is not upload/file creation time,
+and locking/unlocking can change the current binding date without changing
+content, including on a historical revision. Keep ordinary Created/revision
+information intact. Metadata loading, failures and selection changes must not
+show another material's dates; no missing date is guessed. Use shared Facts and
+TechnicalDetails, keyboard disclosure, theme tokens and a layout that fits
+390 px in light, dark and black themes.
+
+An uploaded/imported input replacement immediately revokes the prior confirmed
+selection. Every Run submission path remains blocked while its exact metadata
+is unresolved, including optional slots and failed reads. A successful read or
+an explicit new library selection, confirmation or cancellation resolves the
+intent; superseded completions cannot restore an older choice. A retained draft
+keeps the new exact reference unconfirmed when a pending read is cancelled.
+
+### Runtime adapter diagnostic disclosure
+
+**UI-R208.** One Stage attempt's Technical details has an on-demand retained
+Runtime adapter diagnostic view (OBS-R113 to OBS-R115). It displays exact
+lossless decimal counters, logical attribution, flush results, local discard
+reasons and available duration/stop facts. Missing, partial, unavailable and
+shortened data remain visibly distinct. Every page is reachable through Load
+more, a generation conflict requires refresh, navigation cancels obsolete
+reads and terminal data is not polled indefinitely. Use shared components and
+tokens at 390 px and in light, dark and black themes.
+Each actual Run page entry marks its previously cached attempt facts stale
+and refreshes active disclosures once; closed disclosures wait until opened.
+Cold initial reads are not duplicated, unrelated Run invalidation and
+same-page live projection remounts do not refetch, and previously loaded facts
+stay visibly identified while a background refresh is pending or has failed.
+Entry and state-change invalidation use bounded cache passes, with work linear
+in retained attempts and cached queries rather than a cache scan per attempt.
+
+### Retained tool-call disclosure
+
+**UI-R209.** An attempt's Technical details has an owner-only Tool calls panel
+(OBS-R116 to OBS-R119). It selects the Planner or one logical Worker, renders
+exact decimal measurements and sanitized argument JSON as text, expands
+arguments on demand and loads every later page explicitly. It explains that
+retained records are not a complete event history and do not have recorded
+wall-clock start times. Missing measurements, unavailable or pending reports,
+incomplete reports, empty lists, report/field truncation and failed reads stay
+distinct. A generation conflict requires refresh; failed refresh keeps prior
+facts visibly stale. Unrelated Run updates and projection remounts do not
+refetch loaded settled pages. Navigation cancels obsolete reads. Use shared
+components and tokens at 390 px and in light, dark and black themes.
+The same actual-page-entry, closed-disclosure and cached-fact refresh rule as
+UI-R208 applies, including after navigation cancelled a terminal-state read.

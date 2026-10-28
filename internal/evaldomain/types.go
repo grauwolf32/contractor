@@ -45,7 +45,6 @@ type PrivateCheck struct {
 	Revision string            `json:"revision"`
 	Rubric   string            `json:"rubric"`
 	Expected map[string]string `json:"expected"`
-	Schema   string            `json:"schema,omitempty"`
 }
 
 type DatasetInput struct {

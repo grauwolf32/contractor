@@ -1377,8 +1377,7 @@
             "maxLength": 8192
           },
           "maxProperties": 128
-        },
-        "schema": { "type": "string", "minLength": 0, "maxLength": 65536 }
+        }
       },
       "required": ["id", "revision", "rubric", "expected"],
       "additionalProperties": false
@@ -1614,6 +1613,14 @@
         "allowNotApplicable": { "type": "boolean" }
       },
       "required": ["id", "evaluator", "required"],
+      "allOf": [
+        {
+          "if": {
+            "properties": { "evaluator": { "const": "human-review@1" } }
+          },
+          "then": { "properties": { "parameters": { "maxProperties": 0 } } }
+        }
+      ],
       "additionalProperties": false
     },
     "EvalBudgets": {
@@ -6565,6 +6572,21 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 128
+              },
+              "observedAt": { "type": "string", "format": "date-time" },
+              "deploymentMarker": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "httpRequestId": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,15}$"
+              },
+              "httpRequestTag": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
               }
             }
           }
@@ -8541,6 +8563,59 @@
         "text": { "type": "string", "maxLength": 1048576 }
       }
     },
+    "ArtifactStorageTimestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,9})?Z$",
+      "not": {
+        "anyOf": [
+          { "pattern": "^0000-" },
+          { "pattern": "^0001-01-01T00:00:00(\\.0{1,9})?Z$" }
+        ]
+      },
+      "readOnly": true
+    },
+    "ArtifactStorageTimestamps": {
+      "type": "object",
+      "additionalProperties": false,
+      "readOnly": true,
+      "required": [
+        "scopeCreatedAt",
+        "blobCreatedAt",
+        "versionCreatedAt",
+        "bindingUpdatedAt"
+      ],
+      "properties": {
+        "scopeCreatedAt": {
+          "allOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactStorageTimestamp"
+            }
+          ]
+        },
+        "blobCreatedAt": {
+          "allOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactStorageTimestamp"
+            }
+          ]
+        },
+        "versionCreatedAt": {
+          "allOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactStorageTimestamp"
+            }
+          ]
+        },
+        "bindingUpdatedAt": {
+          "allOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactStorageTimestamp"
+            }
+          ]
+        }
+      }
+    },
     "ArtifactMetadata": {
       "type": "object",
       "additionalProperties": false,
@@ -8550,9 +8625,13 @@
         "size",
         "current",
         "frozen",
-        "createdAt"
+        "createdAt",
+        "storageTimestamps"
       ],
       "properties": {
+        "storageTimestamps": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactStorageTimestamps"
+        },
         "gitSource": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/GitSource"
         },
@@ -8862,6 +8941,266 @@
           "then": { "required": ["logicalAgent"] }
         }
       ]
+    },
+    "DiagnosticUnsignedDecimal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20,
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "DiagnosticInt64Decimal": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 19,
+      "pattern": "^(0|[1-9][0-9]*)$"
+    },
+    "DroppedSpanDiagnosticCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "queueOverflow",
+        "encodingFailed",
+        "nonRetryable",
+        "retryExhausted",
+        "collectorRejected",
+        "deadlineExceeded",
+        "cancelled",
+        "shutdown"
+      ],
+      "properties": {
+        "queueOverflow": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "encodingFailed": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "nonRetryable": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "retryExhausted": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "collectorRejected": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "deadlineExceeded": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "cancelled": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "shutdown": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        }
+      }
+    },
+    "RuntimeAdapterDiagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "operations", "failedOperations"],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "enum": [
+            "otlp-http@1",
+            "http-proxy@1",
+            "caido-graphql@1",
+            "interactsh-http@1"
+          ]
+        },
+        "operations": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "failedOperations": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticUnsignedDecimal"
+        },
+        "flushAttempted": { "type": "boolean" },
+        "flushSucceeded": { "type": "boolean" },
+        "lastErrorCode": {
+          "type": "string",
+          "enum": [
+            "close_failed",
+            "delivery_failed",
+            "flush_failed",
+            "flush_timeout",
+            "queue_overflow",
+            "request_failed"
+          ]
+        },
+        "droppedSpans": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DroppedSpanDiagnosticCounts"
+        }
+      },
+      "dependentRequired": {
+        "flushAttempted": ["flushSucceeded"],
+        "flushSucceeded": ["flushAttempted"]
+      }
+    },
+    "RuntimeDiagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["logicalAgent", "status", "stopReasonTruncated", "adapters"],
+      "properties": {
+        "logicalAgent": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["available", "partial", "unavailable"]
+        },
+        "reason": { "type": "string", "enum": ["invalid_report"] },
+        "complete": { "type": "boolean" },
+        "durationMs": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticInt64Decimal"
+        },
+        "stopReason": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "stopReasonTruncated": { "type": "boolean" },
+        "adapters": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeAdapterDiagnostic"
+          }
+        }
+      }
+    },
+    "ToolCallDiagnosticError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "messageTruncated"],
+      "properties": {
+        "code": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
+        },
+        "message": { "type": "string", "minLength": 1, "maxLength": 4096 },
+        "messageTruncated": { "type": "boolean" },
+        "retryable": { "type": "boolean" }
+      }
+    },
+    "ToolCallDiagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "callReference",
+        "tool",
+        "toolTruncated",
+        "outcome",
+        "argumentsTruncated",
+        "durationMs",
+        "resultSizeBytes"
+      ],
+      "properties": {
+        "callReference": {
+          "type": "string",
+          "minLength": 64,
+          "maxLength": 64,
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "tool": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "toolTruncated": { "type": "boolean" },
+        "outcome": { "type": "string", "enum": ["succeeded", "failed"] },
+        "argumentsJson": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 4096
+        },
+        "argumentsTruncated": { "type": "boolean" },
+        "durationMs": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticInt64Decimal"
+            },
+            { "type": "null" }
+          ]
+        },
+        "resultSizeBytes": {
+          "oneOf": [
+            {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/DiagnosticInt64Decimal"
+            },
+            { "type": "null" }
+          ]
+        },
+        "error": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ToolCallDiagnosticError"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "outcome": { "const": "succeeded" } } },
+          "then": { "not": { "required": ["error"] } }
+        },
+        {
+          "if": { "properties": { "outcome": { "const": "failed" } } },
+          "then": { "required": ["error"] }
+        }
+      ]
+    },
+    "ToolDiagnosticPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "participant", "detailTruncated", "items", "page"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["available", "pending", "unavailable"]
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["report_missing", "invalid_report", "report_oversized"]
+        },
+        "participant": { "type": "string", "enum": ["planner", "worker"] },
+        "logicalAgent": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
+        },
+        "complete": { "type": "boolean" },
+        "detailTruncated": { "type": "boolean" },
+        "items": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ToolCallDiagnostic"
+          }
+        },
+        "page": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "participant": { "const": "planner" } } },
+          "then": { "not": { "required": ["logicalAgent"] } }
+        },
+        {
+          "if": { "properties": { "participant": { "const": "worker" } } },
+          "then": { "required": ["logicalAgent"] }
+        }
+      ]
+    },
+    "RuntimeDiagnosticPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "items", "page"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["available", "pending", "unavailable"]
+        },
+        "reason": {
+          "type": "string",
+          "enum": ["report_missing", "invalid_report"]
+        },
+        "items": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeDiagnostic"
+          }
+        },
+        "page": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PageInfo"
+        }
+      }
     },
     "AttemptDiagnostics": {
       "type": "object",
