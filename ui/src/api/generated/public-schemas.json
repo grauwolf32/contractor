@@ -158,7 +158,7 @@
     "SitemapProvenance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["sourceId", "kind", "mode"],
+      "required": ["sourceId", "kind"],
       "properties": {
         "sourceId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
@@ -175,7 +175,6 @@
             "openapi"
           ]
         },
-        "mode": { "type": "string", "enum": ["blackbox", "source-assisted"] },
         "runId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
@@ -8676,9 +8675,11 @@
         "current",
         "frozen",
         "createdAt",
-        "storageTimestamps"
+        "storageTimestamps",
+        "canUploadNewVersion"
       ],
       "properties": {
+        "canUploadNewVersion": { "type": "boolean" },
         "storageTimestamps": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactStorageTimestamps"
         },

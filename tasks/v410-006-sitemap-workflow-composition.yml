@@ -25,7 +25,8 @@ context:
     generic collection-completeness/status requirements: automatic sitemap updates are best effort and must remain
     isolated from HTTP/scanner outcomes and Run contracts. The 2026-10-27 metadata-policy decision removes sitemap
     secret filtering and matching-secret transport; ordinary owner-selected inputs authorize complete selected context,
-    while dedicated sitemap views and snapshots retain source-mode restrictions.'
+    and the 2026-10-28 shared-map decision removes source-mode classification and consumer filtering. All permitted
+    readers use the same Project metadata; snapshotInputs controls only needed original-file retention during snapshots.'
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 1-2, 5-6 and 12: independent first delivery and ordinary Workflow/Audit composition.'
   specification:
@@ -80,11 +81,12 @@ requirements:
     are selected explicitly; their absence does not synthesize generic completeness flags.
 - id: R3
   text: Preparation outputs use existing prepare-output semantics; same-round discovery uses retained-output. Fresh
-    live map reads use bounded allocation-owned materialized authorized snapshots, not history pins; replacement or
+    live map reads use bounded allocation-owned immutable views, not history pins; replacement or
     release expires their cursors. Exact selected inputs/outputs need real holds before acceptance, atomically against
     eviction. Neither a cursor nor metadata refs imply previous-round lookup or mutate the Audit baseline. An owner-selected
-    ordinary input authorizes the complete selected context, including a mixed-source map for a blackbox Worker;
-    only dedicated sitemap views and snapshots apply the Worker's source-mode restriction.
+    ordinary input authorizes the complete selected context. Dedicated reads expose the same map to all permitted
+    readers; snapshotInputs selects only needed original files to retain inside the snapshot transaction. Cached
+    pages recheck their current operation permission without resolving input files.
 - id: R4
   text: Catalog identity follows the current pre-production rules; validate actual shipped configurations explicitly,
     while ordinary tests use testdata and never read live configs.
@@ -145,8 +147,11 @@ acceptance_criteria:
   when: Fresh map snapshots are reconciled before inventory/checks
   then: Existing exact mappings feed consumers and no baseline mutation or implicit cross-round artifact lookup occurs;
     expired research cursors fail and selected context obtains its real hold before acceptance or fails unavailable,
-    never substituting latest. A deliberate ordinary owner-selected map input remains available in full to a blackbox
-    Worker, independently of the filtering applied by dedicated sitemap tools.
+    never substituting latest. Ordinary owner-selected map inputs and permitted dedicated readers expose the same
+    shared metadata. A referenced file without a matching permitted original input produces a gap or fails
+    requireReferencedInputs. A resolved needed exact input with missing/corrupt bytes or I/O failure rolls back the
+    snapshot under ordinary storage errors regardless of that flag; it never hides routes from map reads or changes
+    existing frozen-context replay.
 - id: A4
   given: Invalid schema, quota/source conflict, cancellation and lost output/collection replies
   when: The production composition hits each boundary

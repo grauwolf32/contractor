@@ -337,7 +337,15 @@ export async function writeScopedArtifact(
 export function canPreviewArtifact(metadata: ArtifactMetadata): boolean {
   return (
     metadata.size <= MAXIMUM_PREVIEW_BYTES &&
-    PREVIEW_MEDIA_TYPES.has(metadata.mediaType)
+    (PREVIEW_MEDIA_TYPES.has(metadata.mediaType) ||
+      isJSONMediaType(metadata.mediaType))
+  );
+}
+
+function isJSONMediaType(mediaType: string): boolean {
+  return (
+    MEDIA_TYPE_PATTERN.test(mediaType) &&
+    (mediaType === "application/json" || mediaType.endsWith("+json"))
   );
 }
 
@@ -349,7 +357,10 @@ function suggestedArtifactFilename(
   requireArtifactName("name", artifact.name);
   requireRevision(artifact.revision);
   const safeRevision = artifact.revision.replace(/[^A-Za-z0-9_.-]/g, "_");
-  return `${artifact.namespace}-${artifact.name}-${safeRevision}${EXTENSIONS.get(mediaType) ?? ".bin"}`;
+  const extension =
+    EXTENSIONS.get(mediaType) ??
+    (isJSONMediaType(mediaType) ? ".json" : ".bin");
+  return `${artifact.namespace}-${artifact.name}-${safeRevision}${extension}`;
 }
 
 export async function downloadArtifact(

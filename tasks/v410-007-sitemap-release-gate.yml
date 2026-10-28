@@ -15,6 +15,9 @@ depends_on:
 - V410-015
 - V410-016
 - V410-017
+- V410-019
+- V410-020
+- V410-021
 languages:
 - go
 - python
@@ -28,7 +31,8 @@ context:
     generic collection-completeness/status requirements: automatic sitemap updates are best effort and must remain
     isolated from HTTP/scanner outcomes and Run contracts. The 2026-10-27 metadata-policy decision removes sitemap
     secret filtering and matching-secret transport; ordinary owner-selected inputs authorize complete selected context,
-    while dedicated sitemap views and snapshots retain source-mode restrictions.'
+    and the 2026-10-28 shared-map decision removes source-mode classification and consumer filtering. All permitted
+    readers use the same Project metadata; snapshotInputs controls only needed original-file retention during snapshots.'
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 10-12: measured publication amplification, limits, required cases and first useful
     delivery.'
@@ -59,11 +63,14 @@ scope:
     compose them, but do not create a second case registry/orchestration framework.
   - Measure deterministic work counters, total encoded publication bytes, retained revisions, CAS attempts and paging/import
     work at representative and ceiling sizes; record actual measurements and conclusions during implementation verification.
-  - Test sitemap-specific ten-writer, import, source-CAS, safe-view, publication and lifecycle paths. Consume the
+  - Test sitemap-specific ten-writer, import, source-CAS, shared-view, publication and lifecycle paths. Consume the
     V410-010 generic admission/history/hold/GC gate evidence instead of rebuilding all-scope matrices here.
-  - Verify source-mode projections and metadata retention across every adapter, including credential-like names,
-    opaque paths and known-credential matches. Dedicated blackbox snapshots filter unauthorized source contributions;
-    deliberate ordinary owner-selected inputs remain complete. Check the unchanged general telemetry redaction policy.
+  - Verify identical shared metadata for all permitted readers across every adapter, including credential-like names,
+    opaque paths and known-credential matches. Check current operation permission on every cached page, no input
+    resolution on reads, and bounded snapshot-only original-file retention. Distinguish references without matching
+    permitted original inputs (gap unless requireReferencedInputs) from missing/corrupt resolved content or I/O failure
+    (ordinary storage error and rollback regardless of the flag), preserving existing frozen-context replay.
+    Deliberate ordinary owner-selected inputs remain complete; general telemetry redaction is unchanged.
   - Document best-effort automatic updates, isolated failure handling and explicit snapshot/import semantics. Prove
     that blocked/refused storage never delays HTTP submission or changes target/Run results and that no publisher
     survives cleanup.
@@ -82,7 +89,8 @@ requirements:
 - id: R2
   text: Run existing V410-010 generic ArtifactStore gates as prerequisites. Add only sitemap-specific full-map/nested-bound,
     ten-writer, source replacement and exact snapshot/view races. Use deterministic work counters; do not recreate
-    the all-scope retention/holder/writer matrix.
+    the all-scope retention/holder/writer matrix. Require RunStore original-input resolution through generic artifact
+    fork descriptors, common Project mutation receipts and ordinary artifact UI metadata without sitemap-specific storage branches.
 - id: R3
   text: Prove more than 256 MiB of cumulative Project map writes and more than 256 accepted map updates within one
     Run succeed while current-map/nested bounds and generic per-binding history policy holds. Use a controlled source
@@ -92,7 +100,7 @@ requirements:
     is one option. Numeric policy changes require explicit user approval, not a silent increase.
 - id: R4
   text: 'All reviewed sitemap failure classes specified by proposal 0042 for this slice have explicit executable coverage:
-    bounded metadata normalization, source-mode metadata, context namespaces, stale source replacement, bounded members/suppression,
+    bounded metadata normalization, trusted source provenance, context namespaces, stale source replacement, bounded members/suppression,
     and shared retained-history policy bypass paths.'
 - id: R5
   text: Run full touched-package suites and existing affected HTTP/Caido, OpenAPI/scan preparation and Audit composition
@@ -102,8 +110,8 @@ requirements:
     common admission, holds, accounting and GC. Add a case asserting best-effort automatic publication creates no
     Run/report fields or generic incompleteness markers and never repeats target work.
 - id: R7
-  text: Prove that one allocation-owned materialized safe view obeys its 32-MiB encoded/128-MiB total limit and current
-    Server authority checks on every page after source eviction; replaced/absent views fail explicitly. Pagination
+  text: Prove that one allocation-owned immutable shared-map view obeys its 32-MiB encoded/128-MiB total limit and current
+    Server operation checks on every page after source eviction, without input-lineage resolution; replaced/absent views fail explicitly. Pagination
     creates no hold. Durable proof selection either wins atomic existing-reference protection or reports the exact
     ref unavailable. Memory/eligible disk bytes never grant access or acquire an implicit pin; exercise the cache
     boundary without depending on the optional V413-001 implementation.
@@ -158,11 +166,12 @@ acceptance_criteria:
     cases prove scan/delete limits and generic backpressure without payload/all-JSON scans. Mixed pins, all pins and
     former-current replacement preserve every legitimate retention obligation.
 - id: A3
-  given: Credential-like metadata, excluded fields, source-mode/identity/source-CAS/member-overflow fixtures and owner-selected inputs
+  given: Credential-like metadata, excluded fields, source-kind/identity/source-CAS/member-overflow fixtures and owner-selected inputs
   when: Every ingress and consumer surface is exercised
   then: Valid metadata survives without secret matching or matching-secret transport. Fields outside the map model
-    stay excluded, dedicated tool views enforce source-mode authority and ordinary owner-selected inputs remain
-    complete. General telemetry redaction is unchanged; no old-source rollback or principal conflation occurs, and
+    stay excluded, permitted dedicated readers see the same shared map and ordinary owner-selected inputs remain
+    complete. Current operation grants and exact snapshot-file permissions remain enforced without view policy digests.
+    General telemetry redaction is unchanged; no old-source rollback or principal conflation occurs, and
     split/merge/suppression uncertainty remains truthful.
 - id: A4
   given: Lost replies, evicted receipt results, pin/delete/publication races, shared blobs, direct bypass attempts
@@ -182,7 +191,7 @@ acceptance_criteria:
 - id: A6
   given: Authorized materialized views, revoked grants, evicted source refs and concurrent proof selection
   when: Cursors continue/replace/expire and a durable exact selection races oldest-unpinned eviction
-  then: One bounded view serves only its original safe pages while current Server authority permits; invalidated cursors
+  then: One bounded view serves its original shared-map pages while the current Server operation grant permits; invalidated cursors
     fail explicitly. Proof selection acquires the legitimate hold atomically or reports unavailable; neither memory
     nor an optional eligible disk cache becomes authority, a pin or a source of implicit latest.
 deliverables:

@@ -8,16 +8,16 @@ import (
 )
 
 const (
-	SitemapAccessVersion    = "sitemap-access@1"
-	MaxSitemapOpenAPIInputs = 8
-	SitemapListTool         = "list_sitemap_entries"
-	SitemapReadTool         = "read_sitemap_entry"
-	SitemapUpsertTool       = "upsert_sitemap_entry"
-	SitemapRemoveTool       = "remove_sitemap_entry"
-	SitemapRestoreTool      = "restore_sitemap_entry"
-	SitemapGroupingTool     = "configure_sitemap_grouping"
-	SitemapSnapshotTool     = "snapshot_sitemap_context"
-	SitemapImportTool       = "import_sitemap_source"
+	SitemapAccessVersion     = "sitemap-access@1"
+	MaxSitemapSnapshotInputs = 8
+	SitemapListTool          = "list_sitemap_entries"
+	SitemapReadTool          = "read_sitemap_entry"
+	SitemapUpsertTool        = "upsert_sitemap_entry"
+	SitemapRemoveTool        = "remove_sitemap_entry"
+	SitemapRestoreTool       = "restore_sitemap_entry"
+	SitemapGroupingTool      = "configure_sitemap_grouping"
+	SitemapSnapshotTool      = "snapshot_sitemap_context"
+	SitemapImportTool        = "import_sitemap_source"
 )
 
 func SitemapToolNames() []string {
@@ -29,27 +29,22 @@ func SitemapToolNames() []string {
 // the explicit permission for the allocation's automatic observation writer.
 type ProjectSitemapPolicy struct {
 	Version             string   `json:"version" yaml:"version" strictjson:"required"`
-	SourceMode          string   `json:"sourceMode" yaml:"sourceMode" strictjson:"required"`
 	CollectObservations bool     `json:"collectObservations" yaml:"collectObservations" strictjson:"required"`
 	Deployment          *string  `json:"deployment,omitempty" yaml:"deployment,omitempty"`
-	OpenAPIInputs       []string `json:"openapiInputs,omitempty" yaml:"openapiInputs,omitempty"`
-}
-
-func ValidSitemapSourceMode(mode string) bool {
-	return mode == "blackbox" || mode == "source-assisted"
+	SnapshotInputs      []string `json:"snapshotInputs,omitempty" yaml:"snapshotInputs,omitempty"`
 }
 
 func (p ProjectSitemapPolicy) Validate() error {
-	if p.Version != SitemapAccessVersion || !ValidSitemapSourceMode(p.SourceMode) ||
-		p.Deployment != nil && !ValidResourceID(*p.Deployment) || len(p.OpenAPIInputs) > MaxSitemapOpenAPIInputs {
+	if p.Version != SitemapAccessVersion ||
+		p.Deployment != nil && !ValidResourceID(*p.Deployment) || len(p.SnapshotInputs) > MaxSitemapSnapshotInputs {
 		return Invalidf("invalid Project sitemap policy")
 	}
-	if !slices.IsSorted(p.OpenAPIInputs) || len(slices.Compact(slices.Clone(p.OpenAPIInputs))) != len(p.OpenAPIInputs) {
-		return Invalidf("sitemap OpenAPI inputs must be sorted and unique")
+	if !slices.IsSorted(p.SnapshotInputs) || len(slices.Compact(slices.Clone(p.SnapshotInputs))) != len(p.SnapshotInputs) {
+		return Invalidf("sitemap snapshot inputs must be sorted and unique")
 	}
-	for _, name := range p.OpenAPIInputs {
+	for _, name := range p.SnapshotInputs {
 		if !ValidName(name) {
-			return Invalidf("invalid sitemap OpenAPI input name")
+			return Invalidf("invalid sitemap snapshot input name")
 		}
 	}
 	return nil
@@ -64,7 +59,7 @@ func (p *ProjectSitemapPolicy) Clone() *ProjectSitemapPolicy {
 		deployment := *p.Deployment
 		copy.Deployment = &deployment
 	}
-	copy.OpenAPIInputs = slices.Clone(p.OpenAPIInputs)
+	copy.SnapshotInputs = slices.Clone(p.SnapshotInputs)
 	return &copy
 }
 
@@ -88,17 +83,17 @@ func (p *ProjectSitemapPolicy) UnmarshalYAML(node *yaml.Node) error {
 		return Invalidf("sitemap policy is not JSON-compatible")
 	}
 	// Set order is normalized at authoring; private wire readers remain strict.
-	if names, ok := fields["openapiInputs"].([]any); ok {
+	if names, ok := fields["snapshotInputs"].([]any); ok {
 		strings := make([]string, 0, len(names))
 		for _, name := range names {
 			text, valid := name.(string)
 			if !valid {
-				return Invalidf("invalid sitemap OpenAPI input name")
+				return Invalidf("invalid sitemap snapshot input name")
 			}
 			strings = append(strings, text)
 		}
 		slices.Sort(strings)
-		fields["openapiInputs"] = strings
+		fields["snapshotInputs"] = strings
 		data, err = json.Marshal(fields)
 		if err != nil {
 			return err

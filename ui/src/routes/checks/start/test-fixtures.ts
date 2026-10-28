@@ -249,6 +249,7 @@ export function materialFixture(
   overrides: Partial<ArtifactMetadata> = {},
 ): ArtifactMetadata {
   return build.conforming("ArtifactMetadata", {
+    canUploadNewVersion: true,
     storageTimestamps: build.ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: { namespace: "sources", name, revision: `${name}-r1` },
     mediaType,

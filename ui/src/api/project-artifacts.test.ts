@@ -17,6 +17,7 @@ const runtimeConfig: RuntimeConfig = {
 };
 
 const metadata: ArtifactMetadata = {
+  canUploadNewVersion: true,
   storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "sources",

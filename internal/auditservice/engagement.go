@@ -295,11 +295,9 @@ func blackboxClosure(profile auditprofile.ResolvedAuditProfile, selected *engage
 				return false
 			}
 			for _, agent := range stage.Agents {
+				// Shared sitemap metadata does not grant source-file access (SMT-R14).
 				// Skill packages have no trusted source-provenance classification. Until
 				// they do, a selected package cannot establish blackbox isolation.
-				if agent.Template.Sitemap != nil && string(agent.Template.Sitemap.SourceMode) != "blackbox" {
-					return false
-				}
 				if len(agent.Template.Skills) > 0 {
 					return false
 				}

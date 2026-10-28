@@ -53,7 +53,7 @@ func TestRunRepeatDraftRetainsExactRequestAndHidesSystemArtifact(t *testing.T) {
 	assertRepeatDraftNotCached(t, response)
 	input := repeat.Draft.Inputs["source"]
 	if input.Status != repeatStatusAvailable || input.Artifact == nil || input.Metadata == nil ||
-		!input.Artifact.Equal(source.Ref) || !input.Metadata.Ref.Equal(source.Ref) {
+		!input.Artifact.Equal(source.Ref) || !input.Metadata.Ref.Equal(source.Ref) || !input.Metadata.CanUploadNewVersion {
 		t.Fatalf("repeat input = %+v, source = %+v", input, source.Ref)
 	}
 	encodedPatch, err := json.Marshal(repeat.Draft.ExecutionConfig.Value)

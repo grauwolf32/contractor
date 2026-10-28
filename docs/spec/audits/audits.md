@@ -1906,8 +1906,9 @@ not repository access. Until trusted Skill provenance can prove the absence
 of target source, selected Skills are refused in blackbox mode rather than
 classified from their name or instruction text. Reopen this restriction when
 such provenance has a production writer and a validated reader. Live Project
-sitemap/findings context never changes baseline authority and needs its own
-source-mode-safe projection.
+sitemap/findings context never changes baseline authority. Shared sitemap
+metadata is available in either mode under SMT-R14 and grants no source-file
+access; Project findings context follows its separate access contract.
 
 **AUD-R246.** `POST /v1/audits/{auditId}/preflight` validates one authenticated
 owner's draft revision under a required strong `If-Match`. It accepts no body

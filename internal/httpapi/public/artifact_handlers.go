@@ -41,7 +41,7 @@ func (h *artifactHandlers) listArtifacts(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	h.listArtifactBindings(
-		w, r, store, "user-artifacts", true,
+		w, r, store, true, "user-artifacts", true,
 		artifactpolicy.AuditStandardCatalogNamespace, "",
 	)
 }
@@ -56,7 +56,7 @@ func (h *artifactHandlers) getArtifactMetadata(w http.ResponseWriter, r *http.Re
 		handleError(w, err)
 		return
 	}
-	h.getArtifactMetadataFromStore(w, r, store)
+	h.getArtifactMetadataFromStore(w, r, store, true)
 }
 
 func (h *artifactHandlers) listArtifactVersions(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +69,7 @@ func (h *artifactHandlers) listArtifactVersions(w http.ResponseWriter, r *http.R
 		handleError(w, err)
 		return
 	}
-	h.listArtifactVersionsFromStore(w, r, store, "user-artifact-versions")
+	h.listArtifactVersionsFromStore(w, r, store, true, "user-artifact-versions")
 }
 
 func (h *artifactHandlers) listArtifactLineage(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +92,7 @@ func (h *artifactHandlers) listRunArtifacts(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	h.listArtifactBindings(
-		w, r, store, "run-artifacts:"+runID, false,
+		w, r, store, false, "run-artifacts:"+runID, false,
 		artifactpolicy.RunSystemNamespace, "",
 	)
 }
@@ -123,7 +123,7 @@ func (h *artifactHandlers) getRunArtifactMetadata(w http.ResponseWriter, r *http
 	if h.rejectRunSystemArtifactRoute(w, r) {
 		return
 	}
-	h.getArtifactMetadataFromStore(w, r, store)
+	h.getArtifactMetadataFromStore(w, r, store, false)
 }
 
 func (h *artifactHandlers) listRunArtifactVersions(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +135,7 @@ func (h *artifactHandlers) listRunArtifactVersions(w http.ResponseWriter, r *htt
 	if h.rejectRunSystemArtifactRoute(w, r) {
 		return
 	}
-	h.listArtifactVersionsFromStore(w, r, store, "run-artifact-versions:"+runID)
+	h.listArtifactVersionsFromStore(w, r, store, false, "run-artifact-versions:"+runID)
 }
 
 func (h *artifactHandlers) listRunArtifactLineage(w http.ResponseWriter, r *http.Request) {
@@ -173,6 +173,7 @@ func (h *artifactHandlers) listArtifactBindings(
 	w http.ResponseWriter,
 	r *http.Request,
 	store artifacts.ScopedStore,
+	uploadsAllowed bool,
 	cursorPrefix string,
 	allowNamespaceExclusion bool,
 	hardExcludeNamespace string,
@@ -237,11 +238,11 @@ func (h *artifactHandlers) listArtifactBindings(
 		handleError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, artifactPageResponse{Items: items, Page: page})
+	writeJSON(w, http.StatusOK, artifactPageResponse{Items: ownerArtifactPage(store, items, uploadsAllowed), Page: page})
 }
 
 func (h *artifactHandlers) getArtifactMetadataFromStore(
-	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore,
+	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, uploadsAllowed bool,
 ) {
 	ref, err := artifactRouteRef(r)
 	if err != nil {
@@ -253,11 +254,11 @@ func (h *artifactHandlers) getArtifactMetadataFromStore(
 		handleError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, metadata)
+	writeJSON(w, http.StatusOK, ownerArtifactMetadata(store, metadata, uploadsAllowed))
 }
 
 func (h *artifactHandlers) listArtifactVersionsFromStore(
-	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, cursorPrefix string,
+	w http.ResponseWriter, r *http.Request, store artifacts.ScopedStore, uploadsAllowed bool, cursorPrefix string,
 ) {
 	_, limit, encodedCursor, err := pageQuery(r.URL.RawQuery)
 	if err != nil {
@@ -297,7 +298,7 @@ func (h *artifactHandlers) listArtifactVersionsFromStore(
 		handleError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, artifactPageResponse{Items: items, Page: page})
+	writeJSON(w, http.StatusOK, artifactPageResponse{Items: ownerArtifactPage(store, items, uploadsAllowed), Page: page})
 }
 
 func (h *artifactHandlers) listArtifactLineageFromStore(

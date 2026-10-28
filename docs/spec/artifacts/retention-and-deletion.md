@@ -649,6 +649,10 @@ all frozen selection/prepared material remain attributable until ordinary
 Audit purge. Pause keeps the checkpoint and its original deadline; resume
 continues the same generation or reports its finite validation timeout.
 
-**DEL-R67.** The shared Project receipt purge includes sitemap mutations as specified by
-[SMT-R12](project-sitemap.md) and LIFE-SMT-1. Their immutable receipts leave only
-with the drained deleting Project, independently of ordinary history eviction.
+**DEL-R67.** The shared Project receipt purge removes one row- and byte-bounded
+batch of the common Project mutation family under the drained deleting
+Project's lifecycle fence, independently of ordinary artifact history eviction.
+It commits receipt work before starting an Artifact purge pass and needs no
+per-domain cleanup branch. Sitemap is one caller under
+[SMT-R12](project-sitemap.md) and LIFE-SMT-1; other receipt families retain their
+existing owning lifecycles.

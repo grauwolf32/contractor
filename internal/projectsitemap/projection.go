@@ -109,7 +109,7 @@ func projectAnnotation(note string, tags []string, a Authority) (Annotation, err
 }
 
 func (a Authority) provenance() Provenance {
-	return Provenance{SourceID: a.SourceID, Kind: a.Kind, Mode: a.Mode, RunID: a.RunID, Deployment: a.Deployment, CredentialRevision: a.CredentialRevision, SessionGeneration: a.SessionGeneration}
+	return Provenance{SourceID: a.SourceID, Kind: a.Kind, RunID: a.RunID, Deployment: a.Deployment, CredentialRevision: a.CredentialRevision, SessionGeneration: a.SessionGeneration}
 }
 
 func (a Authority) contextKey() string {
@@ -126,7 +126,7 @@ func (a Authority) contextKey() string {
 }
 
 func (a Authority) validate() error {
-	if !contracts.ValidResourceID(a.SourceID) || !contracts.ValidSitemapSourceMode(a.Mode) ||
+	if !contracts.ValidResourceID(a.SourceID) ||
 		!slices.Contains([]string{"manual", "http", "caido", "ffuf", "katana", "dirsearch", "openapi"}, a.Kind) {
 		return ErrInvalid
 	}

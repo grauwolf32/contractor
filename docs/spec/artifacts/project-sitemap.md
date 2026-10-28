@@ -31,7 +31,7 @@ Keys use SHA-256 over length-prefixed UTF-8 components, so component boundaries
 are unambiguous. URL userinfo, fragments and nonstructural query values do not
 participate in these hashes because they are outside the metadata model.
 
-Every contribution records trusted source kind, source mode, deployment and,
+Every contribution records trusted source kind, deployment and,
 when known, producer Run, credential revision and session generation. Context
 keys use the trusted engagement plus its local identity ID, or the ordinary
 Run plus its local identity ID. Empty identity is a Run-local unknown context.
@@ -45,10 +45,9 @@ and context. A source registry entry is not a retention hold.
 ## Requirements
 
 **SMT-R1.** The authenticated endpoint must derive Project ownership and the
-producer's authority. Mutation JSON must not select owner, Project, producer,
-source mode or observed-event authority. The public owner source is the fixed service-assigned `owner` identity.
-Public owner commands may declare and
-edit metadata but must not manufacture HTTP observations. Generic Project
+producer's authority. Mutation JSON must not select owner, Project, producer or
+observed-event authority. The public owner source is the fixed service-assigned
+`owner` identity. Public owner commands may declare and edit metadata but must not manufacture HTTP observations. Generic Project
 Artifact writes must reject the sitemap namespace; only the trusted domain
 reducer publishes it.
 
@@ -104,9 +103,9 @@ retained concrete members and evidence must not be dropped to make room.
 Manual declarations and observations use the same concrete member identity and
 route/structural-selector placement, regardless of arrival order. A manual
 declaration retains its concrete path and structural selection separately from
-the group's template route, so its provenance can recover the member after
-other contributions are excluded. Annotation and suppression selections continue
-to name that same member.
+the group's template route, so its provenance survives source replacement and
+regrouping. Annotation and suppression selections continue to name that same
+member.
 
 **SMT-R7.** A source replacement must compare its expected generation,
 predecessor exact descriptor and policy digest, together with stable source and
@@ -153,46 +152,54 @@ reselection; cached bytes cannot recreate the source or authorize latest.
 **SMT-R12.** Project deletion must fence publication under the existing shared
 Project admission lock. Deleting a producer Run must not erase self-contained
 Project metadata. Project purge must remove the domain's receipts through the
-shared bounded receipt helper before removing the Project; no independent
+shared bounded Project receipt helper before removing the Project; no independent
 receipt journal, claim, deletion controller or evidence lifetime is introduced.
+Sitemap uses the common Project mutation key scope and lifecycle; persistence
+and Project cleanup must contain no sitemap-specific receipt family or branch.
 
 **SMT-R13.** Allocation access requires an explicit pinned `sitemap-access@1`
 policy in the AgentTemplate and exact selected `sitemap@1` operations. The
-policy fixes `sourceMode` (`blackbox` or `source-assisted`), an optional deployment
-identity and explicitly authorized OpenAPI input names. Authority resolves each
-name to its immutable original Run-creation input fork, never the Worker-editable
-current binding. Resolving the at-most-eight selected inputs uses a bounded
-batch of original references and exact metadata, with query count independent
-of the selected count; every request still checks current authority. Advancing a working copy cannot declassify another source. Reader, editor and
-importer authority derives from the selected operations. Only the policy's
-explicit `collectObservations` setting grants the separate observation writer;
-reader selection alone grants no collection. Project and owner come from the
-allocation's durable Run. A request may not select another Project or relabel
-its source mode. Manual editor mutations cannot select a Project artifact; exact source selection belongs to authorized import adapters. Unknown policy versions and operations fail validation.
+policy supplies an optional deployment identity, explicit `collectObservations`
+permission and optional `snapshotInputs` names for retaining original Run input
+files in a context snapshot. Reader, editor, importer and snapshot authority
+derive from the selected operations. Reader selection alone grants no collection.
+Project and owner come from the allocation's durable Run. Every request checks
+current allocation, Project and operation authority; a request cannot select
+another Project or manufacture producer identity. Manual editor mutations cannot
+select a Project artifact; exact source selection belongs to authorized import
+adapters. Unknown policy versions, operations and obsolete members fail strict
+validation. Access checks return no input descriptors or view policy digest and
+perform no input-lineage or input-payload lookup.
 
-**SMT-R14.** Dedicated sitemap tool views and snapshots for a blackbox
-allocation must be assembled from allowed contributions before returning any
-document bytes. Source-assisted annotations, declarations, paths, parameter
-names and grouping effects must be excluded from those views. An OpenAPI
-contribution requires an explicitly authorized original exact Run input revision;
-another Run's import is not a grant. Allowed observations may recover their
-concrete route after excluded templates are removed. If a structural selection
-cannot be reconstructed from authorized contributions, omit it with a gap.
-This source-mode restriction governs the dedicated sitemap surface. An owner's
-explicit ordinary Run input selection authorizes the complete selected context,
-including a mixed-source sitemap for a blackbox consumer; it must not be narrowed
-or rejected by the Worker's sitemap policy.
+**SMT-R14.** Every permitted sitemap reader sees the same complete Project map
+at a selected revision, with the same grouping and contribution provenance.
+Missing or incomplete source files do not hide accumulated route metadata.
+There is no source-mode classification, consumer-specific source filtering or
+regrouping. Observed traffic and declarations remain distinct: metadata from
+source code, OpenAPI, manual edits or another Run does not establish current
+reachability, a current HTTP response, complete coverage or verified proof.
+An owner's explicit ordinary Run input selection also supplies the complete
+selected map. Reading metadata through either path grants no permission to read
+arbitrary referenced artifact bytes.
 
-Rationale (user decision, 2026-10-27): the owner chooses ordinary Run inputs.
-A tool's blackbox policy controls what that tool can fetch on the Worker's behalf;
-it does not override context the owner deliberately supplied. No additional
-input-selection guard or source-mode filtering is required on that path.
+Rationale (user decision, 2026-10-28): a shared Project map accumulates useful
+knowledge from every available source; absent code is missing input, not a
+reason to conceal routes already learned elsewhere. The earlier dedicated-tool
+blackbox/source-assisted split added filtering, identities and repeated input
+resolution without a concrete consumer requiring that distinction. Project,
+operation and exact-file authorization provide the required boundaries. The
+sitemap area owns this decision; reconsider a separate context restriction only
+for an explicitly requested consumer, such as a deliberately blind experiment,
+with a defined purpose and enforcement boundary. It is not a default sitemap
+mode.
 
 **SMT-R15.** Runtime keeps one immutable encoded authorized view per allocation,
 bounded by LIM-SMT-12. Parsing and indexing run in joined threads. A cursor binds
 the view identity, original exact revision and filters. Every page checks current
-Server allocation, Project and source-mode authority; local bytes confer no
-authority. Publication or source eviction does not change an existing view.
+Server allocation, Project and the requested operation permission; local bytes
+confer no authority. Neither a view policy digest nor a policy-copy precondition
+is part of the page contract. Publication or source eviction does not change an
+existing view.
 Refresh, absence, replacement and release invalidate old cursors with
 `sitemap_cursor_expired`. There is no view TTL or implicit Artifact hold.
 The existing `list_sitemap_entries` operation accepts `scope="entries"` by
@@ -204,18 +211,40 @@ markers, without repeating global sources, rules or gaps. Complete Source
 metadata remains discoverable after its rules are cleared so a later editor can
 supply the exact source precondition.
 
-**SMT-R16.** A context snapshot must contain only the selected authorized
-projection, original map revision, projection policy and authorized exact inputs.
-The Server must atomically acquire ordinary exact-reference protection before
-accepting it. Needed permitted original Run input bytes are frozen with ordinary
-exact forks in the same transaction; foreign provenance alone grants no byte
-read. Derived context has its own bytes and must not claim byte identity
-with the full map. A lost eviction race returns exact-source unavailability;
-Runtime memory and disk caches cannot revive the source. A snapshot preserves
-the selected members' authorized concrete manual declarations even when their members belong to template groups; companion
-declaration groups add no unselected members or unrelated declarations. A
-snapshot does not change an existing Audit baseline or grant arbitrary foreign-Run
-reads.
+**SMT-R16.** A context snapshot selects bounded group/member IDs from an exact
+map revision and contains that selected metadata, the original revision and any
+retained exact input descriptors. It contains no allocation policy copy or view
+policy digest, and selection has no expected-policy precondition. The Server
+checks current snapshot permission and rereads the exact map inside the snapshot
+transaction; Runtime view bytes are not a source for materialization.
+
+Only in that transaction, the at-most-eight configured `snapshotInputs` names
+resolve through RunStore's original-input operation and ArtifactStore's bounded
+fork-revision descriptors to immutable original Run-creation input forks,
+never Worker-editable current bindings. Query work is independent of the
+containing Run's artifact count. Sitemap owns no artifact-table SQL. Only needed permitted original input bytes are
+frozen with ordinary exact forks. If a referenced file has no matching permitted
+original input, preserve selected metadata and record the existing
+`source-unavailable` gap; `requireReferencedInputs: true` makes this fail the
+snapshot. Once a needed exact input is resolved, missing or corrupt stored
+content and storage I/O errors remain ordinary ArtifactStore errors and roll
+back the snapshot, regardless of that flag. Optional selection must not turn
+storage failure into a different accepted result on replay. This distinction is
+owned by the sitemap snapshot contract; reconsider it only together with an
+explicit change to frozen-context replay semantics. Preserve omission details
+for selected sources and whole-map gaps in the selected context.
+Unneeded missing input names do not invalidate metadata reads or snapshots.
+Foreign provenance alone grants no byte read.
+
+The derived frozen context, required forks and ordinary exact-reference
+protection commit atomically or roll back together. A lost map-revision eviction
+race returns exact-source unavailability; Runtime memory and disk caches cannot
+revive the source or substitute latest. Derived context has its own bytes and
+must not claim byte identity with the full map. A snapshot preserves the selected
+members' concrete manual declarations even when their members belong to template
+groups; companion declaration groups add no unselected members or unrelated
+declarations. A snapshot does not change an existing Audit baseline or grant
+arbitrary foreign-Run reads.
 
 **SMT-R17.** Allocation fencing and release must join mutations, view construction
 and materialization through the existing allocation gate. Clearing/replacing a
@@ -252,7 +281,7 @@ persistent queue, URL identity or receipt digest are constructed there. One
 background private batch request invokes the existing Go normalizer before
 sitemap identities, receipt hashing and Artifact publication; the existing
 reducer owns coalescing. Server code assigns Project,
-source, Run and mode from the allocation; Runtime's session generation
+source, Run and deployment from the allocation; Runtime's session generation
 distinguishes unknown sessions without claiming an authenticated principal.
 
 **SMT-R20.** Pending and in-flight batches obey LIM-SMT-14; count, byte and time
@@ -299,8 +328,16 @@ The allocation collector uses
 `{apiVersion, input}` and `Idempotency-Key`. Transient input contains only bounded
 attempt metadata. The existing mTLS allocation gate and
 [private wire schema](../../../api/v1alpha1/project-sitemap.schema.json) apply.
-No Project/source-mode selector or raw headers/body are accepted. Explicit
-allocation tools retain their separate read/mutation/snapshot operations.
+No Project selector, source classification or raw headers/body are accepted.
+Explicit allocation tools retain their separate read/mutation/snapshot operations.
+
+`GET /private/v1/allocations/{allocationId}/sitemap/access` requires the
+`operation` query parameter naming the exact selected sitemap tool. Runtime
+checks this operation before serving each cached list/read page and before
+editor metadata reads. Missing or unknown operations are invalid; an ungranted
+operation is denied even if another sitemap operation or automatic collection
+remains allowed. The endpoint accepts no policy-digest precondition. Snapshot
+POST independently checks its exact selected operation and allocation fence.
 
 The CLI uses the generated public client:
 
@@ -310,10 +347,10 @@ contractor project sitemap mutate PROJECT --file command.json --idempotency-key 
 ```
 
 An owner can select the exact sitemap binding as an ordinary declared input
-when creating a Project Run, including for a blackbox consumer. This deliberate
-selection authorizes the complete selected map. Dedicated sitemap tools still
-apply their pinned source-mode policy when reading live views or creating
-snapshots. The existing input fork retains the selected source; a live read
+when creating a Project Run. This deliberate selection and permitted dedicated
+sitemap reads expose the complete selected map. Dedicated snapshots select
+entries from an exact map revision and retain only explicitly permitted needed
+input files. The existing input fork retains the selected source; a live read
 alone creates no such dependency.
 
 ## Limits, failures and errors
@@ -336,10 +373,11 @@ the existing public/private not-found mapping and distinct content-missing error
 ## Security
 
 The owner may read the complete map and explicitly select it as ordinary Run
-context. Source-mode metadata remains trusted provenance, including for manual
-notes and rules, for dedicated tool views and snapshots. Public commands cannot
-self-classify imported facts as observed traffic. Sitemap normalization does not
-classify or redact metadata content. General credential storage, HTTP evidence
+context. Dedicated operations retain current Project/allocation grants and
+fencing, while artifact bytes retain their own exact-read authority. Source kind,
+producer, deployment and observation context remain trusted provenance; public
+commands cannot classify imported facts as observed traffic. Sitemap normalization
+does not classify or redact metadata content. General credential storage, HTTP evidence
 redaction and telemetry policies retain their existing owners and guarantees.
 
 ## Invariants

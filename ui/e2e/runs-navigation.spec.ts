@@ -112,6 +112,7 @@ async function installRunResultAPI(
     ) {
       resultRequests.push(url);
       await fulfillJSON(route, {
+        canUploadNewVersion: false,
         storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
         artifact: report,
         mediaType: "text/plain",

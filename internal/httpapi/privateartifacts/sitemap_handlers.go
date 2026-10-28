@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
@@ -16,15 +15,11 @@ import (
 )
 
 var (
-	errSitemapAccessDenied  = errors.New("allocation does not permit this sitemap operation")
-	errSitemapCursorExpired = errors.New("sitemap view authority changed")
-	errSitemapUnavailable   = errors.New("sitemap service is unavailable")
+	errSitemapAccessDenied = errors.New("allocation does not permit this sitemap operation")
+	errSitemapUnavailable  = errors.New("sitemap service is unavailable")
 )
 
-const (
-	sitemapRevisionHeader = "X-Contractor-Sitemap-Revision"
-	sitemapPolicyHeader   = "X-Contractor-Sitemap-Policy"
-)
+const sitemapRevisionHeader = "X-Contractor-Sitemap-Revision"
 
 type sitemapMutationRequest struct {
 	APIVersion string                  `json:"apiVersion" strictjson:"required"`
@@ -68,21 +63,22 @@ func sitemapReader(grant controlplane.AllocationGrant) bool {
 }
 
 func (h *handler) getSitemapAccess(w http.ResponseWriter, r *http.Request) {
-	query, err := exactQuery(r.URL.RawQuery, "policy")
+	query, err := exactQuery(r.URL.RawQuery, "operation")
 	if err != nil {
 		h.handleError(w, err)
 		return
 	}
-	if value := query.Get("policy"); value != "" && !contentdigest.Valid(value) {
+	operation := query.Get("operation")
+	if !slices.Contains(contracts.SitemapToolNames(), operation) {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
 	err = h.withSitemapGrant(r, func(grant controlplane.AllocationGrant) bool {
-		return len(grant.SitemapTools) > 0 || grant.SitemapPolicy.CollectObservations
-	}, func(_ context.Context, access projectsitemap.AllocationAccess) error {
-		if expected := query.Get("policy"); expected != "" && expected != access.PolicyDigest {
-			return errSitemapCursorExpired
+		if !slices.Contains(grant.SitemapTools, operation) {
+			return false
 		}
+		return operation == contracts.SitemapListTool || operation == contracts.SitemapReadTool || grant.WritePolicy == controlplane.WriteInputsAndIntermediates
+	}, func(_ context.Context, access projectsitemap.AllocationAccess) error {
 		writeJSON(w, http.StatusOK, access)
 		return nil
 	})
@@ -128,7 +124,6 @@ func (h *handler) getSitemap(w http.ResponseWriter, r *http.Request) {
 			revision = "absent"
 		}
 		w.Header().Set(sitemapRevisionHeader, revision)
-		w.Header().Set(sitemapPolicyHeader, access.PolicyDigest)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(body)
 		return nil
@@ -227,9 +222,6 @@ func (h *handler) snapshotSitemap(w http.ResponseWriter, r *http.Request) {
 	err = h.withSitemapGrant(r, func(grant controlplane.AllocationGrant) bool {
 		return grant.WritePolicy == controlplane.WriteInputsAndIntermediates && slices.Contains(grant.SitemapTools, contracts.SitemapSnapshotTool)
 	}, func(ctx context.Context, access projectsitemap.AllocationAccess) error {
-		if selection.ExpectedPolicyDigest != access.PolicyDigest {
-			return errSitemapCursorExpired
-		}
 		result, err := h.dependencies.Sitemap.SnapshotAllocation(ctx, access, keys[0], selection)
 		if err != nil {
 			return err

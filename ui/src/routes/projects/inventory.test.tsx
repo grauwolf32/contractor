@@ -33,6 +33,7 @@ function renderInventory(handle: Fallback): () => Inventory {
 
 const artifact = (name: string) =>
   build.conforming("ArtifactMetadata", {
+    canUploadNewVersion: true,
     storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: { namespace: "sources", name, revision: "r1" },
     mediaType: "application/zip",

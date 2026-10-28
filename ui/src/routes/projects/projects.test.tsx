@@ -567,6 +567,7 @@ describe("Project routes", () => {
     const requests: Request[] = [];
     let uploaded = false;
     const artifact = {
+      canUploadNewVersion: true,
       storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "sources",
@@ -810,6 +811,7 @@ describe("Project routes", () => {
   it("opens exact Project Artifact history and bounded preview", async () => {
     const content = "Project documentation\n";
     const artifact = {
+      canUploadNewVersion: true,
       storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "docs",
@@ -889,6 +891,7 @@ describe("Project routes", () => {
     "keeps contextual return navigation after a %s Artifact version upload",
     async (scope) => {
       const original = {
+        canUploadNewVersion: true,
         storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
         artifact: { namespace: "docs", name: "readme", revision: "revision-1" },
         mediaType: "text/plain",
@@ -974,6 +977,7 @@ describe("Project routes", () => {
   it("recommends compatible Workflows and launches through the Project endpoint", async () => {
     const requests: Request[] = [];
     const source = {
+      canUploadNewVersion: true,
       storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "sources",
@@ -1159,6 +1163,7 @@ describe("Project routes", () => {
 
   it("suppresses an existing primary result only from Recommended", async () => {
     const source = {
+      canUploadNewVersion: true,
       storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "sources",
@@ -1172,6 +1177,7 @@ describe("Project routes", () => {
       createdAt: "2026-09-01T10:10:00Z",
     };
     const existingOutput = {
+      canUploadNewVersion: true,
       storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "outputs",

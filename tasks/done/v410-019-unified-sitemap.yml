@@ -1,0 +1,114 @@
+schema_version: '1.0'
+id: V410-019
+title: Share all Project sitemap knowledge without source-mode filtering
+milestone: project-sitemap-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V410-002
+priority: P1
+status: completed
+depends_on: [V410-001, V410-002, V410-003, V410-018]
+languages: [go, python, json, yaml, markdown]
+goal: Give every permitted sitemap reader the same Project knowledge while removing source classification, projection work and repeated input resolution.
+context:
+  authority: On 2026-10-28 the user clarified that absent or incomplete source code does not justify hiding accumulated routes, approved removal of sourceMode and related simplification, and requested updated specification and diagrams.
+  finding: internal/projectsitemap/view.go:17 filters shared knowledge by source mode and rebuilds grouping; allocation.go:53 resolves exact inputs on every access, including every cached page; allocation.go:133 repeats projection for editor authorization. These restrictions contradict the accepted shared Project map model.
+  siblings: Go domain and allocation adapters, private/public contracts, Python policy/client/session, generated document validators and clients, shared fixtures, real-process fixtures, Audit engagement preflight, owning specs and unfinished V410 tasks.
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  - docs/spec/configuration/agent-templates.md
+  - docs/spec/platform/limits.md
+scope:
+  in:
+  - Remove sourceMode from allocation policy and mode from sitemap provenance, including identities and validation. Preserve kind, source, producer, deployment and observation provenance.
+  - Delete source-mode projection and editor filtering. Read the shared validated map directly and select snapshot entries without regrouping by consumer.
+  - Remove redundant view policy digests, policy headers and expected-policy snapshot preconditions; immutable exact revisions, allocation-local cursors and current operation grants remain authoritative.
+  - Rename openapiInputs to snapshotInputs with its existing eight-name bound, resolve original immutable inputs only inside the snapshot transaction, and omit unneeded access response descriptors and stored snapshot policy copies.
+  - Preserve exact file authority and frozen lineage for selected snapshot attachments, without treating metadata provenance as permission to read arbitrary artifact bytes.
+  - Add real-store and process regressions, strict obsolete-field fixtures, bounded-work evidence, update normative specs and unfinished tasks, and regenerate diagrams from the final implementation.
+  - Align the concurrently landed Audit engagement preflight with shared sitemap metadata while preserving its separate source-input, workspace, Skill and tool restrictions.
+  - Make the snapshot/eviction race regression recognize the existing bounded history-maintenance outcome when a snapshot protects the planned eviction victim, then verify unchanged-intent retry after both operations join.
+  out:
+  - Unfinished import adapters, OpenAPI reconciliation, browser capture and other agents' active tasks.
+  - Changes to general artifact permissions, HTTP evidence redaction, target execution, collection retry budgets or retention policy.
+failure_outcomes:
+- operation: Sitemap read, edit and snapshot
+  permanent: Reject malformed or obsolete contract members, wrong Project or operation grants, stale revision/source intent and unavailable exact snapshot revisions through existing classified errors. References without a matching permitted original input produce source-unavailable gaps; requireReferencedInputs makes missing needed inputs fail. Missing or corrupt stored bytes of a resolved input remain ordinary ArtifactStore failures and roll back the snapshot regardless of that flag.
+  retryable: Existing bounded transaction conflict retries and operation deadlines remain unchanged.
+  ambiguous: Reuse existing mutation receipts and frozen snapshot lineage replay.
+  cancelled: Join existing allocation-owned collectors and view indexing before cleanup.
+  timeout: Preserve separate lock, checkpoint, read and mutation budgets.
+cardinality:
+- collection: Shared map, page and snapshot attachments
+  maximum: Existing map/page bounds; at most eight explicitly configured snapshot input names; no full Run artifact enumeration.
+  bound: Reading or validating a cached page never resolves input lineage or payloads. Snapshot original-input lookup is batched and bounded independently of Run artifact count.
+lifecycle:
+- entity: Existing Project sitemap and Run context snapshot
+  delete: Existing Project and Run deletion remain authoritative.
+  retention: Live reads hold no revision; exact snapshot source and attached input forks retain ordinary lineage protection.
+  cascade: No new entities, tables or retention mechanisms.
+acceptance_criteria:
+- id: A1
+  given: A shared map containing observed, declared, manual and imported knowledge
+  when: Any permitted allocation reads, edits or snapshots selected entries
+  then: All source kinds remain available with unchanged grouping and provenance; absent source files do not hide metadata or claim live observation.
+- id: A2
+  given: JSON, YAML, public and private wire, generated clients and Runtime tools
+  when: New contracts and obsolete source classification or policy fields are submitted
+  then: All implementations agree on the simplified contract; obsolete members fail strict decoding without compatibility paths.
+- id: A3
+  given: Bounded snapshot input selections and a Run with unrelated artifacts or advanced input bindings
+  when: Reading pages and creating a snapshot
+  then: Reads perform no input lineage resolution; snapshots retain only needed original exact inputs atomically and preserve foreign-scope, eviction, replay and purge behavior.
+- id: A4
+  given: Current specs, unfinished task acceptance and diagrams
+  when: Implementation is complete
+  then: They state unified Project knowledge and ordinary operation/file authority without source-mode restrictions; obsolete projection code and policy transport have no production callers.
+tests:
+- command: go test -tags=integration -count=1 ./internal/auditservice
+  covers: [A1, A2]
+- command: make test-project-sitemap-postgres
+  covers: [A1, A3]
+- command: make test-project-sitemap-tools-e2e
+  covers: [A1, A2, A3]
+- command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_http_*.py runtime/tests/test_capabilities*.py
+  covers: [A1, A2, A3]
+- command: make test-wire-cross-language
+  covers: [A2]
+- command: make verify-public-api
+  covers: [A2]
+- command: make lint
+  covers: [A2, A4]
+implementation_commit: f041845d745a3c574c4d7d58651f4c2ed6c97158
+verification:
+  date: '2026-10-28'
+  result: passed
+  tested_commit: f041845d745a3c574c4d7d58651f4c2ed6c97158
+  commands:
+  - command: go test -tags=integration -count=1 ./internal/auditservice
+    result: Passed the complete package with real PostgreSQL, including shared sitemap Preflight and Start in a blackbox Audit.
+  - command: make test-project-sitemap-postgres
+    result: 'Passed 13 complete packages and all 17 mandatory cases with zero mandatory skips. One producer accepted 257 publications totaling 357966641 encoded bytes. Original-input lookup remains bounded for both one and eight inputs; access reads no artifact lineage or payload.'
+  - command: make test-project-sitemap-tools-e2e
+    result: Passed both mandatory actual Server/Runtime/PostgreSQL scenarios with zero skips, including complete shared views, edits, exact operation grants, original input attachment and metadata preservation.
+  - command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_http_*.py runtime/tests/test_capabilities*.py
+    result: 224 passed.
+  - command: make test-wire-cross-language
+    result: Passed contract packages, 337 Runtime contract cases, 314 shared fixtures, 356 Go and 243 Python shared tests; the Python shared selection executed 1385 cases.
+  - command: make verify-public-api
+    result: Passed public operation coverage and error/schema contracts with regenerated clients.
+  - command: make lint
+    result: Passed generated checks, UI gates, Go vet/staticcheck/testonlyexports, deployment/release graph checks, tasks/specs/fixtures, Ruff and all four Runtime import contracts.
+  - command: go test ./internal/projectsitemap -run '^TestPostgresSitemapContextProjectionSerializesWithHistoryEviction$' -count=5
+    result: Passed 30 snapshot/eviction races, including the common maintenance outcome and unchanged-intent retry.
+  performance:
+    document: 10000 groups and 50000 members; allocation document processing only, excluding SQL and network.
+    command: go test ./internal/projectsitemap -run '^$' -bench '^BenchmarkSitemapAllocationDocumentRead$' -benchtime=1x -count=3 -benchmem
+    before: Approximately 423 ms and 420 MB allocated per read across three samples.
+    after: Approximately 277 ms and 256 MB allocated per read across three samples; about 34 percent less processing time and 39 percent fewer allocated bytes.
+    queries: Access performs two metadata queries plus BEGIN/COMMIT and no artifact queries. Snapshot metadata lookup uses the same bounded statement count for one and eight configured names.
+  notes:
+  - Main V411-002 landed during implementation; its removed-field reference and sitemap-specific contract were aligned before the final gates. Independent review found no remaining blockers.
+  - An earlier concurrent wire run hit an existing two-second process-start test deadline; the individual case and complete final gate passed without that competing load. An invocation missing the required database environment stopped before tests and was corrected.
+  - The earlier eviction race test omitted the common history-maintenance outcome. Only its expectation and bounded retry verification changed; production history and retry behavior remain unchanged.
+  - Final process diagrams describe the implemented shared map, grouping, publication, collection, cached reads and snapshots; unfinished imports, reconciliation and browser collection remain outside this task.

@@ -1,6 +1,6 @@
 apiVersion: contractor/v1alpha1
 kind: Workflow
-metadata: {name: sitemap-source-assisted-list, version: "1"}
+metadata: {name: sitemap-metadata, version: "1"}
 spec:
   parameters: {}
   inputs: {}
@@ -9,11 +9,11 @@ spec:
   entryStage: research
   stages:
     research:
-      objective: Verify authorized Project context
+      objective: Read retained sitemap source preconditions
       instructions: {ref: instructions/probe.md}
       planner: passthrough@1
       agents:
-        researcher: {template: sitemap-source-assisted-list@1}
+        researcher: {template: sitemap-metadata@1}
       context: {artifacts: {}}
       result:
         artifacts:

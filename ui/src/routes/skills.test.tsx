@@ -10,6 +10,7 @@ import { failure, json, page } from "../test/responses";
 
 function skill(name: string, revision: string) {
   return conforming("ArtifactMetadata", {
+    canUploadNewVersion: false,
     storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: { namespace: "skills", name, revision },
     mediaType: "application/zip",

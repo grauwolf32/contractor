@@ -52,6 +52,7 @@ async function fixture(
   let configured = false;
   const metadata = [
     {
+      canUploadNewVersion: true,
       storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "sources",
@@ -65,6 +66,7 @@ async function fixture(
       createdAt: timestamp,
     },
     {
+      canUploadNewVersion: true,
       storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "notes",
@@ -160,6 +162,7 @@ async function fixture(
             : {}),
         };
         const item = {
+          canUploadNewVersion: true,
           storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
           artifact: { namespace, name, revision: "rev-imported" },
           mediaType: "application/zip",

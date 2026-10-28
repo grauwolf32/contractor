@@ -24,6 +24,7 @@ const exactSource = {
   revision: "source-r1",
 };
 const sourceMetadata = {
+  canUploadNewVersion: false,
   storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: exactSource,
   mediaType: "application/zip",
@@ -101,6 +102,7 @@ async function installFixture(
         expect(url.searchParams.get("revision")).toBe(report.revision);
         if (path.endsWith("/metadata")) {
           await fulfillJSON(route, {
+            canUploadNewVersion: false,
             storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
             artifact: report,
             mediaType: "text/plain",

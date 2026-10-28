@@ -2400,24 +2400,6 @@ func (e SitemapProvenanceKind) Valid() bool {
 	}
 }
 
-// Defines values for SitemapProvenanceMode.
-const (
-	Blackbox       SitemapProvenanceMode = "blackbox"
-	SourceAssisted SitemapProvenanceMode = "source-assisted"
-)
-
-// Valid indicates whether the value is a known member of the SitemapProvenanceMode enum.
-func (e SitemapProvenanceMode) Valid() bool {
-	switch e {
-	case Blackbox:
-		return true
-	case SourceAssisted:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for SitemapSourceUpdateSourceId.
 const (
 	Owner SitemapSourceUpdateSourceId = "owner"
@@ -3286,13 +3268,16 @@ type ArtifactLineagePage struct {
 
 // ArtifactMetadata defines model for ArtifactMetadata.
 type ArtifactMetadata struct {
-	Artifact  ExactArtifactRef `json:"artifact"`
-	CreatedAt time.Time        `json:"createdAt"`
-	Current   bool             `json:"current"`
-	Frozen    bool             `json:"frozen"`
-	GitSource *GitSource       `json:"gitSource,omitempty"`
-	MediaType MediaType        `json:"mediaType"`
-	Size      int              `json:"size"`
+	Artifact ExactArtifactRef `json:"artifact"`
+
+	// CanUploadNewVersion Whether this owner endpoint currently permits uploading a new version. False for historical, frozen, managed, Run-scope or deleting-Project bindings. Informational only; uploads still require current authorization and exact CAS.
+	CanUploadNewVersion bool       `json:"canUploadNewVersion"`
+	CreatedAt           time.Time  `json:"createdAt"`
+	Current             bool       `json:"current"`
+	Frozen              bool       `json:"frozen"`
+	GitSource           *GitSource `json:"gitSource,omitempty"`
+	MediaType           MediaType  `json:"mediaType"`
+	Size                int        `json:"size"`
 
 	// StorageTimestamps Registry dates; shared blob/version dates may predate this material. At most 512 encoded UTF-8 bytes.
 	StorageTimestamps *ArtifactStorageTimestamps `json:"storageTimestamps,omitempty"`
@@ -8043,7 +8028,6 @@ type SitemapProvenance struct {
 	CredentialRevision *ResourceId           `json:"credentialRevision,omitempty"`
 	Deployment         *ResourceId           `json:"deployment,omitempty"`
 	Kind               SitemapProvenanceKind `json:"kind"`
-	Mode               SitemapProvenanceMode `json:"mode"`
 	RunId              *ResourceId           `json:"runId,omitempty"`
 	SessionGeneration  *ResourceId           `json:"sessionGeneration,omitempty"`
 	SourceId           ResourceId            `json:"sourceId"`
@@ -8051,9 +8035,6 @@ type SitemapProvenance struct {
 
 // SitemapProvenanceKind defines model for SitemapProvenance.Kind.
 type SitemapProvenanceKind string
-
-// SitemapProvenanceMode defines model for SitemapProvenance.Mode.
-type SitemapProvenanceMode string
 
 // SitemapResult defines model for SitemapResult.
 type SitemapResult struct {

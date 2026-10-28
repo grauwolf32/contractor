@@ -23,7 +23,8 @@ context:
     generic collection-completeness/status requirements: automatic sitemap updates are best effort and must remain
     isolated from HTTP/scanner outcomes and Run contracts. The 2026-10-27 metadata-policy decision removes sitemap
     secret filtering and matching-secret transport; ordinary owner-selected inputs authorize complete selected context,
-    while dedicated sitemap views and snapshots retain source-mode restrictions.'
+    and the 2026-10-28 shared-map decision removes source-mode classification and consumer filtering. All permitted
+    readers use the same Project metadata; snapshotInputs controls only needed original-file retention during snapshots.'
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 3-5 and 7-11: source adapters, metadata normalization, exact provenance, idempotent imports
     and factual limitations declared by the source.'
@@ -88,8 +89,9 @@ requirements:
 - id: R6
   text: Imports use the same metadata normalization as HTTP. Valid paths, parameter names, finite structural values,
     notes and tags retain credential-like words, opaque values and known-credential matches. Userinfo, fragments,
-    nonstructural query values, raw headers and bodies remain outside the map model. Source-mode provenance cannot
-    be self-declassified by an import payload; general evidence and telemetry redaction retain their existing owners.
+    nonstructural query values, raw headers and bodies remain outside the map model. Imports preserve trusted source kind,
+    producer, deployment and context without manufacturing observations. All permitted readers see the same map; exact
+    source-file authority and general evidence/telemetry redaction retain their existing owners.
 failure_outcomes:
 - operation: Read and parse exact structured report
   permanent: Unknown format/version, inaccessible ref, malformed envelope or incompatible records return permanent
@@ -147,10 +149,10 @@ acceptance_criteria:
     fields in the metadata model persist. Available trusted correlations preserve attribution and missing correlation
     produces no false traffic count. Observation frames and private collection requests carry no matching-secret list.
 - id: A5
-  given: Source-mode restrictions, source deletion and cancellation during parsing/publication
+  given: Project/operation/file permissions, source deletion and cancellation during parsing/publication
   when: Imports run through actual Server/Runtime/PostgreSQL
-  then: Authorization and unavailable evidence are truthful, source provenance survives and all local work joins before
-    release.
+  then: Current grants and unavailable files are truthful, metadata remains visible to every permitted reader, source
+    provenance survives and all local work joins before release. Missing source bytes do not manufacture live proof.
 deliverables:
 - path: runtime/tests/testdata
   description: Sanitized exact ffuf/Katana and selected Caido fixtures at normal and maximum sizes; no live-config

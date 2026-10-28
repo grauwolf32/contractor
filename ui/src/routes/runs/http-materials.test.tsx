@@ -19,6 +19,7 @@ const SOURCE = JSON.stringify({
 /** 130 HTTP exchanges saved with possible issues: three pages of 50. */
 const MATERIALS = Array.from({ length: 130 }, (_, index) =>
   conforming("ArtifactMetadata", {
+    canUploadNewVersion: false,
     storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
     artifact: {
       namespace: "finding-proposals",

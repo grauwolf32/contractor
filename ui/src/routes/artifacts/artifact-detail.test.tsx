@@ -195,6 +195,7 @@ describe("Material detail", () => {
       ...historical,
       artifact: { ...historical.artifact, revision: "rev-3" },
       current: true,
+      canUploadNewVersion: true,
     };
     const { router, user } = renderAt(
       "/projects/project-1/artifacts/docs/readme?revision=rev-2",
@@ -369,6 +370,50 @@ describe("Material detail", () => {
       URL.revokeObjectURL = originalRevoke;
     }
   });
+
+  it.each([
+    { frozen: false, name: "managed" },
+    { frozen: true, name: "frozen" },
+  ])(
+    "honors unavailable owner upload for $name material",
+    async ({ frozen }) => {
+      const source = '{"html":"<script>example</script>"}';
+      const { user } = renderAt("/projects/project-1/artifacts/custom/result", {
+        "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata":
+          () =>
+            json(
+              metadataOf(
+                "custom",
+                "result",
+                "application/vnd.example.result+json",
+                {
+                  frozen,
+                  current: true,
+                  canUploadNewVersion: false,
+                  size: source.length,
+                },
+              ),
+            ),
+        "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}": () =>
+          bytes(source, "application/vnd.example.result+json"),
+      });
+      expect(
+        await screen.findByRole("heading", { level: 1, name: "custom/result" }),
+      ).toBeVisible();
+      const preview = await screen.findByRole("button", {
+        name: "Load preview",
+      });
+      expect(
+        screen.queryByText("Upload a new version", { selector: "summary" }),
+      ).toBeNull();
+      expect(
+        screen.queryByText("Historical revisions are read-only."),
+      ).toBeNull();
+      await user.click(preview);
+      expect(await screen.findByText(source)).toBeVisible();
+      expect(document.querySelector("script")).toBeNull();
+    },
+  );
 
   it("keeps Run files read-only", async () => {
     renderAt("/runs/run-1/artifacts/outputs/report", {

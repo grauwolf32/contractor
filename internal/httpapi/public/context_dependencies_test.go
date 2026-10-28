@@ -53,7 +53,7 @@ var contextFiles = map[string][]string{
 // the read models every context may use. Only the composition files among them
 // name context handler structs.
 var sharedFiles = []string{
-	"artifact_response.go", "authorization.go", "error_diagnostics.go", "errors.go", "pagination.go", "request.go",
+	"artifact_metadata.go", "artifact_response.go", "authorization.go", "error_diagnostics.go", "errors.go", "pagination.go", "request.go",
 	"types.go", "types_configuration.go", "types_operations.go", "types_run_project.go", "version.go",
 }
 

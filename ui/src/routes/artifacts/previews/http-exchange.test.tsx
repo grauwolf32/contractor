@@ -34,6 +34,7 @@ function preview(value = document(), trusted = true) {
       context={{
         scope: { kind: "run", id: "run-test" },
         metadata: {
+          canUploadNewVersion: false,
           storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
           artifact: {
             namespace: trusted ? "finding-proposals" : "worker",
@@ -217,6 +218,7 @@ describe("HTTP exchange preview", () => {
     renderWithAPI(
       <ArtifactPreviewPanel
         metadata={{
+          canUploadNewVersion: false,
           storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
           artifact: {
             namespace: "finding-proposals",

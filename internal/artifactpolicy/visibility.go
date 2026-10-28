@@ -30,6 +30,12 @@ func IsAuditManagedProjectNamespace(namespace string) bool {
 	return strings.HasPrefix(namespace, AuditManagedProjectNamespacePrefix)
 }
 
+// IsPurposeReservedProjectNamespace reports Project namespaces whose trusted
+// domain publisher owns writes. Generic reads and exact input forks stay ordinary.
+func IsPurposeReservedProjectNamespace(namespace string) bool {
+	return IsAuditManagedProjectNamespace(namespace) || namespace == ProjectSitemapNamespace
+}
+
 // IsAuditStandardCatalogNamespace reports the one UserScope Namespace reserved
 // for curated Audit standard packages (ART-R25). It is an exact name, not a
 // prefix: audit-standards-notes is an ordinary user Namespace.

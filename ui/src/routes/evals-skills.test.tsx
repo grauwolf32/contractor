@@ -173,6 +173,7 @@ describe("Evals and global Skills routes", () => {
   it("uses only UserScope Artifact APIs for global Skill packages", async () => {
     let created = false;
     const existing = build.conforming("ArtifactMetadata", {
+      canUploadNewVersion: true,
       storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
       artifact: {
         namespace: "skills",

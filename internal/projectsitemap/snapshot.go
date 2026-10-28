@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/strictjson"
@@ -19,7 +18,6 @@ const SnapshotMediaType = "application/vnd.contractor.project-sitemap-context+js
 // SnapshotSelection selects only from the exact view the caller reviewed.
 type SnapshotSelection struct {
 	Revision                string   `json:"revision" strictjson:"required"`
-	ExpectedPolicyDigest    string   `json:"expectedPolicyDigest" strictjson:"required"`
 	RequireReferencedInputs bool     `json:"requireReferencedInputs,omitempty"`
 	Groups                  []string `json:"groups,omitempty"`
 	Members                 []string `json:"members,omitempty"`
@@ -41,17 +39,15 @@ type SnapshotResult struct {
 }
 
 type snapshotDocument struct {
-	Schema       string                         `json:"schema"`
-	Source       contracts.ArtifactRef          `json:"source"`
-	PolicyDigest string                         `json:"policyDigest"`
-	Policy       contracts.ProjectSitemapPolicy `json:"policy"`
-	Inputs       []contracts.ExactArtifact      `json:"inputs"`
-	Selection    SnapshotSelection              `json:"selection"`
-	Document     Document                       `json:"document"`
+	Schema    string                    `json:"schema"`
+	Source    contracts.ArtifactRef     `json:"source"`
+	Inputs    []contracts.ExactArtifact `json:"inputs"`
+	Selection SnapshotSelection         `json:"selection"`
+	Document  Document                  `json:"document"`
 }
 
 func (s SnapshotSelection) Validate() error {
-	if !contracts.ValidResourceID(s.Revision) || s.Revision == "absent" || !contentdigest.Valid(s.ExpectedPolicyDigest) || len(s.Groups)+len(s.Members) == 0 || len(s.Groups)+len(s.Members) > MaxBatch {
+	if !contracts.ValidResourceID(s.Revision) || s.Revision == "absent" || len(s.Groups)+len(s.Members) == 0 || len(s.Groups)+len(s.Members) > MaxBatch {
 		return ErrInvalid
 	}
 	seen := map[string]bool{}
@@ -70,9 +66,6 @@ func (s SnapshotSelection) Validate() error {
 func (s *Service) SnapshotAllocation(ctx context.Context, access AllocationAccess, keyValue string, selection SnapshotSelection) (SnapshotResult, error) {
 	if !contracts.ValidIdempotencyKey(keyValue) || selection.Validate() != nil {
 		return SnapshotResult{}, ErrInvalid
-	}
-	if selection.ExpectedPolicyDigest != access.PolicyDigest {
-		return SnapshotResult{}, ErrConflict
 	}
 	selection.Groups = slices.Sorted(slices.Values(selection.Groups))
 	selection.Members = slices.Sorted(slices.Values(selection.Members))
@@ -103,11 +96,11 @@ func (s *Service) SnapshotAllocation(ctx context.Context, access AllocationAcces
 			if err != nil {
 				return err
 			}
-			view, err := SafeProjection(document, access.Policy, access.RunID, access.Inputs)
+			inputs, err := resolveSnapshotInputs(ctx, tx, access)
 			if err != nil {
 				return err
 			}
-			selected, inputs, err := selectSnapshot(view, selection, access.RunID, access.Inputs)
+			selected, inputs, err := selectSnapshot(document, selection, access.RunID, inputs)
 			if err != nil {
 				return err
 			}
@@ -119,9 +112,11 @@ func (s *Service) SnapshotAllocation(ctx context.Context, access AllocationAcces
 			if err != nil {
 				return err
 			}
+			// Attachment rebinding may change evidence order.
+			canonicalize(&selected)
 			encoded, err := json.Marshal(snapshotDocument{
-				Schema: "project-sitemap-context@1", Source: ref, PolicyDigest: access.PolicyDigest,
-				Policy: access.Policy, Inputs: inputs, Selection: selection, Document: selected,
+				Schema: "project-sitemap-context@1", Source: ref,
+				Inputs: inputs, Selection: selection, Document: selected,
 			})
 			if err != nil || len(encoded) > MaxDocumentBytes {
 				return ErrInvalid
@@ -242,9 +237,7 @@ func selectSnapshot(view Document, selection SnapshotSelection, runID string, in
 	}
 	view.Markers = markers
 	view.Sources = slices.DeleteFunc(view.Sources, func(source Source) bool { return !used[source.Provenance.SourceID] })
-	if len(view.Gaps) > 0 {
-		view.Gaps = []Gap{{Reason: "projection", Count: 1}}
-	}
+	view.Gaps = slices.DeleteFunc(view.Gaps, func(gap Gap) bool { return gap.SourceID != "" && !used[gap.SourceID] })
 	for i := range view.Sources {
 		source := &view.Sources[i]
 		if source.Artifact == nil {
@@ -285,7 +278,6 @@ func selectSnapshot(view Document, selection SnapshotSelection, runID string, in
 			needed = append(needed, input)
 		}
 	}
-	canonicalize(&view)
 	if _, err := encode(view); err != nil {
 		return Document{}, nil, err
 	}

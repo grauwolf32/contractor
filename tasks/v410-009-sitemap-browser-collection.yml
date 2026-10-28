@@ -20,11 +20,14 @@ goal: Add optional BrowserContext-level request/response/failure metadata collec
   adapter while preserving identity separation, safe shared context and independent HTTP availability.
 context:
   authority: User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
-    this task records planned work, not implementation or verification evidence.
+    this task records planned work, not implementation or verification evidence. The 2026-10-28 user decision makes
+    sitemap metadata shared by every permitted reader, without source-mode classification. Original file retention
+    belongs only to explicit snapshots through snapshotInputs; current operation and exact-file authority remain.
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 3-5 and 9-12: optional browser collector, source correlation, explicit coverage gaps
     and allocation lifecycle.'
   specification:
+  - docs/spec/artifacts/project-sitemap.md
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/artifacts/projects.md
   - docs/spec/artifacts/retention-and-deletion.md
@@ -127,11 +130,15 @@ acceptance_criteria:
   then: Context-level capture retains correct distinct identity/session/outcome provenance and does not confuse
     failure with response.
 - id: A2
-  given: Credential-like and opaque URL metadata, excluded URL/header/body fields and mixed source-mode contributions
-  when: Events reach map publication and dedicated blackbox snapshots
+  given: Credential-like and opaque URL metadata, excluded URL/header/body fields and mixed source-kind contributions
+  when: Events reach map publication and permitted dedicated readers or snapshots
   then: Valid metadata is retained without secret filtering or matching-secret transport, fields outside the model
-    remain excluded and dedicated snapshots enforce source-mode authority. General browser credential handling and
-    telemetry redaction are unchanged; ordinary owner-selected inputs remain authorized in full.
+    remain excluded and every permitted reader sees the same accumulated metadata without claiming live proof from
+    declarations. Snapshots enforce original-file authority and exact holds. References without matching permitted
+    original inputs produce gaps or fail requireReferencedInputs; missing/corrupt content or I/O failure after needed
+    exact input resolution rolls back through ordinary storage errors regardless of that flag. Existing frozen-context
+    replay, general browser credential handling and telemetry redaction are unchanged; ordinary owner-selected inputs
+    remain authorized in full.
 - id: A3
   given: HTTP/browser events with and without trusted correlation
   when: They contribute concurrently

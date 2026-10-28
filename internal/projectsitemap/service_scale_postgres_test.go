@@ -28,7 +28,7 @@ func TestPostgresSitemapSingleRunExceedsRemovedPublicationCaps(t *testing.T) {
 	// A realistic map of 300 annotated operations ensures the assertion measures
 	// actual encoded publication bytes, rather than a synthetic byte counter.
 	d := Empty()
-	owner := Authority{SourceID: "owner", Kind: "manual", Mode: "source-assisted"}
+	owner := Authority{SourceID: "owner", Kind: "manual"}
 	d.Sources = append(d.Sources, Source{Provenance: owner.provenance(), Generation: 1, PolicyDigest: key(Projection)})
 	note := strings.Repeat("A public route description. ", 140)
 	for i := range 300 {

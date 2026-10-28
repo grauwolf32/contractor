@@ -23,6 +23,7 @@ const workflow: WorkflowResource = {
 };
 
 const source: ArtifactMetadata = {
+  canUploadNewVersion: true,
   storageTimestamps: ARTIFACT_STORAGE_TIMESTAMPS,
   artifact: {
     namespace: "projects",
