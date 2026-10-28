@@ -48,6 +48,7 @@ type Options struct {
 }
 
 type Service struct {
+	pentestCooldown           pentestCooldown
 	pool                      *pgxpool.Pool
 	profiles                  ProfileCatalog
 	transactionLLMCredentials runtimeconfig.TransactionLLMCredentialLookupFactory

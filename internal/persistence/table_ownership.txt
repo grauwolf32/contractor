@@ -68,6 +68,8 @@ runtime_label_bindings               internal/runtimeconfig           runtime
 audit_artifact_links                 internal/auditstore/internal/pgstore audits
 audit_controller_claims              internal/auditstore/internal/pgstore audits
 audit_events                         internal/auditstore/internal/pgstore audits
+audit_actions                         internal/auditstore/internal/pgstore audits
+audit_action_attempts                         internal/auditstore/internal/pgstore audits
 audit_execution_items                internal/auditstore/internal/pgstore audits
 audit_executions                     internal/auditstore/internal/pgstore audits
 audit_items                          internal/auditstore/internal/pgstore audits
