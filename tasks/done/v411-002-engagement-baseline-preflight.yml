@@ -5,7 +5,7 @@ milestone: autonomous-http-pentest-2026-10
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V411-001
 languages:
@@ -185,7 +185,16 @@ tests:
   - A1
   - A2
   - A5
-- command: make verify-public-api test-wire-cross-language test-runtime
+- command: make verify-public-api
+  covers:
+  - A1
+  - A4
+- command: make test-wire-cross-language
+  covers:
+  - A1
+  - A3
+  - A4
+- command: make test-runtime
   covers:
   - A1
   - A3
@@ -202,10 +211,17 @@ tests:
   covers:
   - A1
   - A4
+- command: go test -count=1 ./internal/archtest ./internal/persistence
+  covers:
+  - A1
+  - A3
+  - A4
 test_prerequisites:
 - Disposable PostgreSQL able to create/drop isolated schemas; never print its connection secret.
 - Repository-pinned Go and locked Runtime dependencies; run commands from the repository root unless
   the command explicitly changes directory.
+- Run the full Runtime suite on native Linux; its sandbox unit tests exercise Linux SOCK_SEQPACKET
+  and pidfd directly. A macOS diagnostic run is not a substitute for this gate.
 verification_requirements:
 - Use testdata fixtures, never the live configs tree outside the documented e2e/eval exceptions. Keep
   model choice unchanged; deterministic targets need no real Gateway.
@@ -222,3 +238,59 @@ assignment:
   branch: codex/v411-002-engagement
   claimed: 2026-10-28
   authority: User requested implementation, verification, closure and merge into main.
+
+implementation_commit: 68f6a7ccd0bbd6b7c994948d0ee27fb7c5282c8d
+verification:
+  date: '2026-10-28'
+  results:
+  - The complete affected Go packages passed with integration tags and a disposable PostgreSQL.
+    Final auditservice 142.839s, controlplane 26.135s, public HTTP 101.716s, runstore 27.590s,
+    app 27.194s and publicclient 6.457s; all configuration and contract packages also passed.
+    The full pgstore integration suite passed separately in 159.839s, without skipped database cases.
+  - Real-store regressions cover anonymous and authenticated source-assisted starts, exact nested
+    input retention, current-revision changes, creator/Operations credential ownership, start/delete
+    races at MaxConns 1 and 4, duplicate start, cancellation/purge, Run/Stage allocation lookup,
+    child draining after pause/cancellation/deletion and bounded Resume replay.
+  - make verify-public-api passed. make test-wire-cross-language passed with 314 fixtures,
+    356 Go and 243 Python shared tests; the fixture-source guard also passed after the package rename.
+  - make ui-verify passed with 204 test files and 2510 passed tests plus one declared expected
+    failure; generated clients, lint, typecheck and production build passed. UI version is 0.10.13.
+  - make lint passed with the existing architecture, table-read, test-only-export and release-graph
+    rules unchanged. Dependency documentation was regenerated through make docs-dependencies.
+  - The complete archtest and persistence packages passed in 1.387s and 2.011s after registering
+    the new package's actual wire-symbol imports. Kernel importer, layer, SQL ownership and
+    SQL placement checks remain enabled without exceptions.
+  - The native mTLS Runtime process rejected nonempty action authority and preserved prepare/release
+    replay. The grant-recheck test passed under the Go race detector.
+  - The macOS full Runtime diagnostic run failed with 106 failures and 7 errors; Linux-only
+    SOCK_SEQPACKET/pidfd and RLIM_INFINITY assumptions were among its failures. It is not counted
+    as a pass or as evidence for the required Linux gate.
+  - The unchanged make test-runtime passed in an isolated native Linux container with a clean
+    non-root environment and locked dependencies; 5321 passed, 55 existing optional integration skips,
+    zero failures/errors in 527.70s. The standard verify-runtime report gate also passed.
+    Every source/test/doc byte in the snapshot matched 6902575e5dbee0d3f2721bfb7d918fb480b8924b;
+    only task metadata differed. The final implementation commit adds only the separately verified
+    architecture importer registration; Runtime and production Go code are unchanged.
+    No test was edited, excluded or waived for the Linux run.
+    The skips require explicit opt-in or external fixtures (34 rootless Podman, 16 scanner,
+    three live Gateway, one Audit real-Go-API and one pinned Interactsh-server case).
+  linux_snapshot:
+    image: localhost/contractor-v421-runtime-base:1
+    source_archive_sha256: 9b64be6833c159b1bcc6b3a7aea4e6fe4cd90ee5343c8ff67512d0feea1a6c50
+    invocation: Clean non-root env with HOME=/home/contractor-test, TMPDIR=/tmp,
+      UV_PYTHON=/usr/bin/python3.13, UV_OFFLINE=1, GOMAXPROCS=2, GOFLAGS=-p=1 and CI=true;
+      cd /work/v411002-validation && make test-runtime.
+  reports:
+    go: /private/tmp/v411-002-go-final.log
+    postgres: /private/tmp/v411-private-pgstore-full.log
+    public_api: /private/tmp/v411-002-public-api.log
+    wire_and_macos_diagnostic: /private/tmp/v411-002-wire-runtime.log
+    ui: /private/tmp/v411-002-ui-verify.log
+    lint: /private/tmp/v411-002-lint-final.log
+    architecture: /private/tmp/v411-002-architecture.log
+    native_process: /private/tmp/v411-private-process-renamed.log
+    race: /private/tmp/v411-private-race.log
+    runtime_linux: /private/tmp/v411002-runtime-linux-vbsszueo/make-test-runtime.log
+    runtime_linux_result: /private/tmp/v411002-runtime-linux-vbsszueo/result.json
+    runtime_linux_junit: /private/tmp/v411002-runtime-linux-vbsszueo/reports/runtime.xml
+    snapshot_comparison: /private/tmp/v411002-runtime-linux-vbsszueo/head-comparison.json
