@@ -20,8 +20,10 @@ import (
 const retainedProcessLogBytes = 64 << 10
 
 type boundedLog struct {
-	mu   sync.Mutex
-	data []byte
+	mu       sync.Mutex
+	data     []byte
+	canaries [][]byte
+	leaked   bool
 }
 
 func (b *boundedLog) Write(value []byte) (int, error) {
@@ -29,10 +31,38 @@ func (b *boundedLog) Write(value []byte) (int, error) {
 	defer b.mu.Unlock()
 	written := len(value)
 	b.data = append(b.data, value...)
+	// Check before truncation and across Write boundaries. Diagnostics remain
+	// bounded while a secret in an early log chunk cannot disappear from proof.
+	b.checkCanaries()
 	if len(b.data) > retainedProcessLogBytes {
 		b.data = append([]byte(nil), b.data[len(b.data)-retainedProcessLogBytes:]...)
 	}
 	return written, nil
+}
+
+func (b *boundedLog) observeCanaries(values ...string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, value := range values {
+		if value != "" {
+			b.canaries = append(b.canaries, []byte(value))
+		}
+	}
+	b.checkCanaries()
+}
+
+func (b *boundedLog) checkCanaries() {
+	for _, value := range b.canaries {
+		if bytes.Contains(b.data, value) {
+			b.leaked = true
+		}
+	}
+}
+
+func (b *boundedLog) canaryLeaked() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.leaked
 }
 
 func (b *boundedLog) redacted(secrets ...string) string {
