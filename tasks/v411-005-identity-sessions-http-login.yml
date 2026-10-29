@@ -5,7 +5,7 @@ milestone: autonomous-http-pentest-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V411-001
 - V411-004
@@ -17,8 +17,8 @@ goal: Give pentest preflight and subsequent checks separate anonymous/A/B identi
   credential injection, verifiable authentication and bounded refresh without leaking or inheriting
   Project sessions.
 context:
-  authority: User request on 2026-10-24 to decompose the updated proposals into implementation tasks.
-    This record authorizes no implementation during planning and does not reactivate deferred work.
+  authority: User request on 2026-10-29 to continue after the completed V411-004 with the next
+    ready pentest task, implementing, verifying, closing and merging it under the project rules.
   proposal:
   - docs/proposals/0033-autonomous-pentest-audits.md#6-identities-login-and-test-data
   - docs/proposals/0033-autonomous-pentest-audits.md#61-login-recipe
@@ -174,3 +174,15 @@ verification_requirements:
 - Update the owning normative specification, shared limits/errors/lifecycle registries and public/private
   contracts in the same change. Preserve existing contract ownership; do not add backward-compatibility
   readers or edit generated clients manually.
+
+assignment:
+  branch: codex/v411-005-identity-sessions
+  claimed: '2026-10-29'
+  base: 607e0e509aed4d421f25265e2c5d4ec766bc3ad8
+applicability:
+- Both declared dependencies are completed on current main. Exact immutable target credentials and
+  the independent controlled HTTP gate exist; the placed preflight remains anonymous-only and has
+  no isolated Basic/bearer/login sessions, authenticated identity control or bounded refresh.
+- Reuse the current controlled transport, action ledger and private exact-credential authority.
+  Coordinate assignment/action/schema changes before Runtime implementation; do not add a general
+  recipe executor, another receipt mechanism or Project session inheritance.
