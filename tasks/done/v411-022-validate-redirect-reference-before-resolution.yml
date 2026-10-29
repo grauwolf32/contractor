@@ -110,3 +110,16 @@ verification:
     runtime_junit: /private/tmp/v411004-evidence/runtime.xml
     process_gate: /private/tmp/v411004-evidence/focused-gate-final.log
     lint: /private/tmp/v411004-evidence/lint-code-final.log
+  integration_recheck:
+    source: bc99bfa8e9f64144a0ab0c41bd0b21904d3e29cf
+    main: 08a6b8310213283269da338536ea49bcf64e6153
+    result: After integrating shared Artifact reads, every required target passed again on the same
+      source. Wire verified 426 fixtures, 360 Go and 246 Python shared readers; full Runtime had
+      5606 passed and the same 55 optional skips; all 208 HTTP/Caido Runtime cases passed.
+      The independent HTTP gate passed 38 process identities, two real-store cases and 31 socket
+      cases with zero selected skips. The original action gate, ordinary HTTP/Caido process gate,
+      public API and full lint passed. The redirect implementation itself is unchanged.
+    reports:
+      runtime_wire_and_http: /private/tmp/v411004-evidence/integrated-runtime.log
+      runtime_junit: /private/tmp/v411004-evidence/integrated-runtime-reports/runtime.xml
+      lint: /private/tmp/v411004-evidence/integrated-lint.log
