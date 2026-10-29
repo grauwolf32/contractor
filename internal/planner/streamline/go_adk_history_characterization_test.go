@@ -15,7 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 	"google.golang.org/adk/v2/agent"
 	"google.golang.org/adk/v2/agent/llmagent"
 	"google.golang.org/adk/v2/model"

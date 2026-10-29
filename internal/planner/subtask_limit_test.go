@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 )
 
 func TestPlannerConfiguredSubtaskLimitCountsResolvedRecords(t *testing.T) {

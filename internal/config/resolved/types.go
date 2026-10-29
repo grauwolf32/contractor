@@ -203,11 +203,12 @@ type StageTransitions struct {
 }
 
 type ResolvedStage struct {
+	Operation       *ServerOperationConfig                   `json:"operation,omitempty"`
 	ModelDefaults   map[string]contracts.ResolvedModelPolicy `json:"modelDefaults,omitempty"`
 	MaxSubtasks     contracts.PlannerSubtaskLimit            `json:"maxSubtasks,omitempty"`
 	Objective       string                                   `json:"objective"`
-	Instructions    contracts.ResolvedInstructions           `json:"instructions"`
-	Planner         PlannerRef                               `json:"planner"`
+	Instructions    contracts.ResolvedInstructions           `json:"instructions,omitzero"`
+	Planner         PlannerRef                               `json:"planner,omitzero"`
 	ScanPlan        *scan.ScanPlanPolicy                     `json:"scanPlan,omitempty"`
 	AuditScan       *AuditScanConfig                         `json:"auditScan,omitempty"`
 	Session         contracts.WorkerSessionMode              `json:"session"`

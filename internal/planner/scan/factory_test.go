@@ -20,7 +20,7 @@ import (
 	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 

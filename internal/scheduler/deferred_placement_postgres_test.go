@@ -18,12 +18,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

@@ -12,8 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 )
 
 type WorkflowRunState string

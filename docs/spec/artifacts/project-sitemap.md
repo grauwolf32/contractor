@@ -428,6 +428,69 @@ storage invariants; Runtime tools own all source preprocessing. Reconsider this
 boundary only for an explicitly selected producer outside Runtime with a defined
 trust and transport contract.
 
+## OpenAPI contract operations
+
+**SMT-R26.** OpenAPI is an API contract artifact, not a provider observation.
+`sitemap-openapi-join@1` is a Server operation that joins exact current-Run
+`sitemap` and `openapi` Stage context inputs in a Project Run. It requires string
+arguments `origin` (explicit absolute deployment base URL) and `contract` (stable
+contract name), with optional `deployment` identity. Source identity derives
+from contract/deployment, independently of producer Run and artifact binding.
+The common Stage declaration permits `sitemap` and `report` results;
+only declared slots are materialized, and `result.artifacts: {}` creates neither.
+The bounded Stage summary always gives comparison counts and, for apply, the
+actual Project publication ref. No Runtime, Planner, model, provider call,
+target traffic or remote reference request occurs. `internal/operations/sitemapjoin`
+is an adapter; `internal/projectsitemap` owns computation and publication.
+
+**SMT-R27.** Join reuses the existing Go OpenAPI decoder/version policy and
+local structural reference resolver, including local reference/sibling overlay
+budgets. Explicit `origin` supplies the base path; OpenAPI `servers` does not
+choose or guess a deployment. Invalid origin, malformed/unsupported selected
+structure, reference cycles, remote/missing references and exceeded limits fail
+permanently and atomically; no partial source replacement is accepted. Schemas,
+request/response bodies and examples are not interpreted as traffic. Parameters
+merge path-item and operation declarations by location/name with operation
+overrides; declared statuses support exact codes, `nXX` and `default`.
+
+**SMT-R28.** Computation uses the ordinary source reducer and its common
+concrete-before-template and ambiguity rules. Only retained concrete members
+are regrouped; annotations, evidence, suppression selections and existing
+omission gaps retain SMT-R5/R6/R7 semantics. Comparison uses only the selected
+contract's rules, even if other contracts affect the shared grouping. It counts
+retained observed members and declared method/path operations, not requests.
+A declaration alone never creates observed behavior or coverage. Parameter
+comparison uses the union of retained observed query names; it is not per-request
+validation or a required-parameter verdict. Declarations without a retained match, unmatched
+observations, ambiguous members/declarations, query-name differences and undeclared response
+statuses have bounded report entries. Observed media types are unavailable in
+the metadata model and are explicitly reported as a limitation. Limits and
+omitted counts are LIM-SMT-15; retained-members-only and reachability limitations
+are always explicit. A declaration with only ambiguous matches is counted separately
+as unresolved, never as declared-only.
+
+**SMT-R29.** Pure join creates ordinary Run artifacts without changing the
+live Project map. `sitemap-apply-openapi@1` is a separate explicit operation with
+the same bindings, applying only the computed source change to the current map.
+It preserves concurrent observations but compares the selected predecessor's
+source generation/exact descriptor/policy and manual rules, annotations and
+suppression state. A conflict never refreshes the selected intent. Its output
+contains the map actually published; its comparison basis remains the pinned
+input map. An optional JSON report names exact input descriptors, comparison and
+actual Project publication ref. No report or patch copy is mandatory.
+
+**SMT-R30.** Artifact reads, ordinary output creation and optional live
+publication share one transaction with the existing Project keyed mutation
+receipt, keyed by StageExecution identity. Replay precedes input/content reads,
+keeps exact returned refs and never republishes or substitutes latest bytes.
+Run cancellation, expired/replaced claim, Stage progression and Project deletion
+fence publication. All effects roll back together on any definite error. Common
+Artifact limits, exact holds, history eviction, cleanup and Project receipt
+purge apply; descriptors and receipts acquire no additional retention hold.
+New attempts retain original pinned inputs and source intent. The first slice
+requires a Project Run, including pure join, to use its existing receipt and
+lifecycle owner; standalone execution is not silently inferred.
+
 ## Interfaces
 
 Owner reads use the ordinary Project Artifact raw/metadata endpoints for
@@ -488,7 +551,7 @@ alone creates no such dependency.
 
 Source and deployment identifiers reuse the shared ResourceId grammar
 (LIM-API-19); manual owner mutation cannot choose a transport source identity.
-The numeric contract is LIM-SMT-1 through LIM-SMT-14 in the
+The numeric contract is LIM-SMT-1 through LIM-SMT-15 in the
 [limits registry](../platform/limits.md). Common artifact history and maintenance
 bounds remain LIM-ART-9 through LIM-ART-11; they are not copied into the domain.
 

@@ -34,6 +34,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestProjectSitemapToolsAcrossProductionProcesses",
     "TestProjectSitemapHTTPCollectionAcrossProductionProcesses",
     "TestProjectSitemapReportImportsAcrossProductionProcesses",
+    "TestProjectSitemapServerOperationsAcrossProductionProcesses",
     "TestAuditProgramCatalogReplacementRestartsServer",
     "TestAuditProgramsAcrossProductionProcesses",
     "TestAuditIterativeCompositionAcrossProductionProcesses",

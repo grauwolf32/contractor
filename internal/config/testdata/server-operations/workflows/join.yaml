@@ -1,0 +1,34 @@
+apiVersion: contractor/v1alpha1
+kind: Workflow
+metadata: {name: sitemap-join, version: "1"}
+spec:
+  parameters:
+    api_origin: {required: true}
+  inputs:
+    openapi: {required: true, mediaTypes: [application/json]}
+    sitemap: {required: true, mediaTypes: [application/vnd.contractor.project-sitemap+json]}
+  outputs:
+    sitemap: {required: true, primary: true, mediaTypes: [application/vnd.contractor.project-sitemap+json]}
+  entryStage: join-api
+  stages:
+    join-api:
+      operation:
+        ref: sitemap-openapi-join@1
+        arguments:
+          origin: {source: parameter, name: api_origin}
+          contract: {source: literal, value: public-api}
+      context:
+        artifacts:
+          openapi: {namespace: inputs, name: openapi, required: true}
+          sitemap: {namespace: inputs, name: sitemap, required: true}
+      result:
+        artifacts:
+          sitemap:
+            required: true
+            mediaTypes: [application/vnd.contractor.project-sitemap+json]
+            from: {namespace: join-api, name: sitemap}
+      workflowOutputs: {sitemap: sitemap}
+      on:
+        succeeded: {succeed: {}}
+        failed: {fail: {}}
+        interrupted: {fail: {}}

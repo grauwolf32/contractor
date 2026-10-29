@@ -13,8 +13,8 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 	"google.golang.org/adk/v2/model"
 	adksession "google.golang.org/adk/v2/session"
 	"google.golang.org/genai"

@@ -61,6 +61,7 @@ How a Run executes: Runs, the Scheduler, the Control Plane, Runtime Agents, Plan
 | Document | Prefix | Owns |
 | --- | --- | --- |
 | [Runs](execution/runs.md) | `RUN` | WorkflowRun resource and lifecycle, creation and admission, metadata labels, cancellation, outputs |
+| [Server operations](execution/server-operations.md) | `SOP` | Direct Server Stage execution, operation modules, input/output bindings and recovery |
 | [Scheduler](execution/scheduler.md) | `SCH` | StageExecution, claims, lanes and concurrency, retry and escalation, owner pause, recovery |
 | [Control Plane](execution/control-plane.md) | `CTL` | Runtime Agent registration, principals, mTLS identity, heartbeat and lease, capability discovery, placement, allocation and release |
 | [Runtime Agent](execution/runtime-agent.md) | `RTA` | Runtime process, startup probes, allocation lifecycle on the Runtime side, A2A endpoint, work root |

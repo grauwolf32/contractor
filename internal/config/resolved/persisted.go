@@ -72,7 +72,12 @@ func DecodeResolvedStageSnapshot(data []byte) (ResolvedStage, error) {
 	if err := ValidateScanPlanStage(stage); err != nil {
 		return ResolvedStage{}, err
 	}
-	if stage.ScanPlan != nil {
+	if stage.Operation != nil {
+		if err := ValidateStageExecutor(stage); err != nil {
+			return ResolvedStage{}, err
+		}
+	}
+	if stage.ScanPlan != nil || stage.Operation != nil {
 		if err := ValidateStageExecutionConfig("persisted", stage); err != nil {
 			return ResolvedStage{}, err
 		}

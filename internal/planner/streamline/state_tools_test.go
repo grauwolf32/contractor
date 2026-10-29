@@ -16,8 +16,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/planner/stateview"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 	"google.golang.org/adk/v2/model"
 	"google.golang.org/adk/v2/tool"
 )

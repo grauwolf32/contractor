@@ -10,7 +10,7 @@ be selected by an [Audit](../audits/audits.md) as part of a broader assessment.
 
 This document owns the Workflow definition: the `v1alpha1` document shape,
 string parameters, presentation metadata, Stages and their `objective`,
-`instructions`, Planner selector, Worker `session` policy and Agent bindings,
+`instructions`, Planner or Server operation selection, Worker `session` policy and Agent bindings,
 the `on` transitions and their typed actions, the retry action and its attempt
 count, the escalation action and the closed union of its `executionConfig`,
 Workflow input and output slots, Stage context and result artifacts, the slot
@@ -229,14 +229,28 @@ complete durable Run snapshot remains execution authority
 
 **WFL-R14.** A Stage declares:
 
-- one literal objective and one set of Stage-specific instructions;
-- one exact Planner factory/version;
-- one or more uniquely named Worker bindings;
+- either a Planner with one literal objective, Stage-specific instructions,
+  exact factory/version and one or more uniquely named Worker bindings, or a
+  registered Server operation under WFL-R89;
 - its Stage context and references to available Run artifacts;
 - named result-artifact slots and their required/optional and media-type
   contracts.
 
-**WFL-R15.** Every Stage declares a mandatory non-empty literal
+**WFL-R89.** A Stage selects exactly one of `planner` or `operation`.
+`operation` is a non-null object containing an exact registered `ref` and an
+`arguments` map. Arguments reuse the shared literal/parameter binding grammar;
+artifact inputs use required `context.artifacts` aliases. A parameter argument
+names a declared required Workflow parameter or supplies an explicit default.
+The operation's registered contract validates argument/input/output names.
+Operation Stages forbid Planner instructions, Worker bindings, model selections,
+workspace and shared sessions. `objective` is optional for this variant and
+resolves to the operation ref when omitted; the persisted session marker is
+`isolated`, without creating a Worker session. An operation cannot summarize.
+Common context pinning, result media types, explicit `from`, Workflow output
+mappings and transitions remain in force. Execution and recovery are owned by
+[Server operations](../execution/server-operations.md), never Planner.
+
+**WFL-R15.** Every Planner Stage declares a mandatory non-empty literal
 `objective` and one mandatory Planner-instruction resource ref,
 `instructions`:
 
@@ -593,8 +607,9 @@ refers to context artifact aliases, is owned by
 
 **WFL-R61.** A Stage result artifact has, in addition to the slot payload
 contract, a mandatory versionless `from` binding with exactly `namespace` and
-`name`. Its Namespace must be assigned to at least one logical Agent of that
-Stage.
+`name`. On a Planner Stage its Namespace must be assigned to at least one
+logical Agent of that Stage. A Server operation uses ordinary explicit output
+bindings without Worker namespaces (WFL-R89).
 
 **WFL-R62.** A revision is invalid in `from`, because the concrete
 revision is created or observed only inside one Run.

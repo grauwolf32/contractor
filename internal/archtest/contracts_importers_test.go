@@ -18,7 +18,7 @@ import (
 // contracts and the vocabulary they share: artifact refs, names and media
 // types, identifier grammars, SecretString, validation errors and the strict
 // codec. Domain rules live with their owners: Run Skill provenance in
-// agentskills, the Stage result in planner/stageresult, Audit task contracts,
+// agentskills, the Stage result in stageresult, Audit task contracts,
 // the finding collection media type, Planner model policies and the
 // audit-results Toolset rules in config/resolved, Runtime adapter and
 // credential kinds in contracts/runtimesettings, and pinned selections in
@@ -30,6 +30,8 @@ const contractsKernel = "internal/contracts"
 // is added for such a symbol; a package that needs only a domain rule
 // imports the rule's owner instead.
 var contractsImporters = map[string][]string{
+	"internal/operations":                  {"ArtifactRef", "ValidResourceID"},
+	"internal/operations/sitemapjoin":      {"ArtifactRef", "APIVersion"},
 	"internal/agentprincipal":              {"ValidRuntimeAgentID"},
 	"internal/agentskills":                 {"ArtifactRef", "ValidAgentSkillName"},
 	"internal/app":                         {"ArtifactRef", "SecretString"},
@@ -71,7 +73,7 @@ var contractsImporters = map[string][]string{
 	"internal/planner/a2a":                 {"DecodePrivateStrict", "StageContentRequest", "WorkerCompletion"},
 	"internal/planner/scan":                {"StageContentRequest", "WorkerCompletion"},
 	"internal/planner/session":             {"ArtifactRef"},
-	"internal/planner/stageresult":         {"ArtifactRef", "ResultJSONSize", "TerminationError"},
+	"internal/stageresult":                 {"ArtifactRef", "ResultJSONSize", "TerminationError"},
 	"internal/planner/stateview":           {"WorkerCompletion", "WorkerHandle"},
 	"internal/planner/streamline":          {"StageContentRequest", "WorkerResult"},
 	"internal/projectsitemap":              {"ArtifactRef", "ExactArtifact"},
