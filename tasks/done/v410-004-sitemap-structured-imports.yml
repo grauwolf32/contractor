@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: scan-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V410-002
 - V410-003
@@ -272,3 +272,32 @@ implementation_decisions:
     a new explicit import invocation must read its exact input and fails if those bytes disappeared.
     No new receipt-lookup endpoint or source-specific durable checkpoint is introduced to reproduce
     the superseded selection-only replay guarantee. Source labels affect provenance, not algorithms.
+
+implementation_commit: a07ab173e74e9f135d3b73c92402715e40800cd5
+verification:
+  date: '2026-10-29'
+  result: passed
+  tested_commit: a07ab173e74e9f135d3b73c92402715e40800cd5
+  commands:
+  - command: make test-project-sitemap-postgres
+    result: Passed all 14 complete packages and 35 mandatory real-PostgreSQL cases with zero mandatory skips. Arbitrary provider labels and opaque evidence prove the Server does not parse source reports; prepared-batch replay performs no Artifact reads after source and map eviction.
+  - command: make test-project-sitemap-tools-e2e
+    result: Passed all three mandatory real Server/Runtime/PostgreSQL scenarios with zero skips, including model-free explicit ffuf/Katana imports, repeated Runs, malformed input isolation, selected Caido metadata, live reads and retained snapshots.
+  - command: make test-http-caido-e2e
+    result: Passed the complete heterogeneous-runtime process scenario in 77.586 seconds; collection-disabled target behavior and provider calls remain unchanged.
+  - command: uv run --project runtime pytest -q runtime/tests/test_sitemap_*.py runtime/tests/test_observation_metadata.py runtime/tests/test_tool_worker*.py runtime/tests/test_tool_report_publication.py runtime/tests/test_http_*.py runtime/tests/test_scan_ffuf.py runtime/tests/test_scan_katana.py runtime/tests/test_scan_katana_lifecycle.py runtime/tests/test_caido_*.py runtime/tests/test_allocation*.py runtime/tests/test_capabilities.py
+    result: Passed 743 tests with zero skips, errors or failures on the final integrated source. Covers source preprocessing, strict report formats and bounds, shared host syntax, prepared-payload retries, failure isolation, cancellation and collector lifecycle.
+  - command: make test-wire-cross-language
+    result: Passed 454 shared fixtures with 362 Go and 271 Python shared readers, 1619 selected Python tests and the complete 504-test Runtime contract/performance selection.
+  - command: make verify-public-api
+    result: Passed registry validation, generated client checks and complete public-operation coverage with extensible source-label grammar.
+  - command: make ui-verify
+    result: Passed generation, lint, typecheck and build; 204 test files and 2525 UI tests passed with one existing expected failure, plus 17 Node tests.
+  - command: make lint
+    result: Passed generated checks, Go vet/staticcheck/testonlyexports, tasks/specifications, release graph, deployment checks, Ruff and all four Runtime import-layer contracts.
+  notes:
+  - No new table, receipt journal, retention owner, source-specific Server endpoint or ArtifactStore branch was introduced. Runtime source adapters feed one generic collector and one normalized publication contract.
+  - The source-independent boundary supersedes the earlier intermediate Go report parser and Caido row-repair implementation; both were removed before delivery.
+  - A new explicit import invocation must still read its exact source. Only the already prepared batch is retried after ambiguous publication or source eviction; this narrower contract is documented in SMT-R23.
+  - Additional compatibility diagnostics ran 104 pentest allocation/identity/socket/target tests successfully on a reachable RFC1918 LAN interface, changing only the fixture address in memory. An earlier unmodified diagnostic selected an unreachable VPN interface and timed out; it is not counted as a passing gate, and no production transport or repository fixture was changed.
+  - Independent Server-boundary and Runtime parser/collector reviews found no remaining blockers. Optional Caido preprocessing errors and cancellation are covered by regressions and cannot replace the original tool result.
