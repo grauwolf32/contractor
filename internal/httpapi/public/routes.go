@@ -52,7 +52,6 @@ func (c contextHandlers) routes() []route {
 		{"GET", "/v1/projects/{projectId}", "getProject", c.projects.getProject},
 		{"PATCH", "/v1/projects/{projectId}", "updateProject", c.projects.updateProject},
 		{"DELETE", "/v1/projects/{projectId}", "deleteProject", c.projects.deleteProject},
-		{"GET", "/v1/projects/{projectId}/sitemap", "getProjectSitemap", c.projects.getSitemap},
 		{"POST", "/v1/projects/{projectId}/sitemap/mutations", "mutateProjectSitemap", c.projects.mutateSitemap},
 
 		{"POST", "/v1/runs", "createRun", c.runs.createRun},

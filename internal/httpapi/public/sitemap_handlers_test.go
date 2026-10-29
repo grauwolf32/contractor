@@ -2,6 +2,8 @@ package public
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/getkin/kin-openapi/routers/gorillamux"
@@ -17,17 +19,13 @@ type fakeSitemap struct {
 	revision string
 }
 
-func (f *fakeSitemap) Read(_ context.Context, _, _, _ string) (projectsitemap.View, error) {
-	if f.document.Version == "" {
-		f.document = projectsitemap.Empty()
-	}
-	return projectsitemap.View{Revision: f.revision, Document: f.document}, nil
-}
-func (f *fakeSitemap) Mutate(ctx context.Context, a projectsitemap.Authority, _ string, m projectsitemap.Mutation) (projectsitemap.Result, error) {
+func (f *fakeSitemap) Mutate(_ context.Context, a projectsitemap.Authority, _ string, m projectsitemap.Mutation) (projectsitemap.Result, error) {
 	if f.err != nil {
 		return projectsitemap.Result{}, f.err
 	}
-	view, _ := f.Read(ctx, "", "", "")
+	if f.document.Version == "" {
+		f.document = projectsitemap.Empty()
+	}
 	expected := "absent"
 	if f.revision != "" {
 		expected = f.revision
@@ -35,7 +33,7 @@ func (f *fakeSitemap) Mutate(ctx context.Context, a projectsitemap.Authority, _ 
 	if m.ExpectedRevision != expected {
 		return projectsitemap.Result{}, projectsitemap.ErrConflict
 	}
-	document, _, err := projectsitemap.Reduce(view.Document, m, a)
+	document, _, err := projectsitemap.Reduce(f.document, m, a)
 	if err != nil {
 		return projectsitemap.Result{}, err
 	}
@@ -54,8 +52,8 @@ func TestPublicProjectSitemapContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct{ method, path, body string }{
-		{"GET", "/v1/projects/project-one/sitemap", ""},
-		{"POST", "/v1/projects/project-one/sitemap/mutations", `{"operation":"declare","expectedRevision":"absent","url":"https://example.test/users","method":"GET"}`},
+		{"POST", "/v1/projects/project-one/sitemap/mutations", `{"operation":"replace-source","expectedRevision":"absent","source":{"rules":[{"origin":"https://example.test","method":"GET","path":"/users/{id}","pointer":"","parameters":["id"],"structural":[]}]}}`},
+		{"POST", "/v1/projects/project-one/sitemap/mutations", `{"operation":"declare","expectedRevision":"rev-sitemap","url":"https://example.test/users","method":"GET"}`},
 	} {
 		request := newPublicContractRequest(tc.method, tc.path, []byte(tc.body))
 		if tc.body != "" {
@@ -66,5 +64,10 @@ func TestPublicProjectSitemapContract(t *testing.T) {
 		if response.Code != 200 {
 			t.Fatalf("%s: %d %s", tc.path, response.Code, response.Body.String())
 		}
+	}
+	removed := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(removed, newPublicContractRequest(http.MethodGet, "/v1/projects/project-one/sitemap", nil))
+	if removed.Code != http.StatusNotFound {
+		t.Fatalf("removed sitemap read route: %d %s", removed.Code, removed.Body.String())
 	}
 }

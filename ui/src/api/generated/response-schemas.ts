@@ -24,7 +24,7 @@ export type PublicSchemaName =
   | "SitemapGap"
   | "SitemapMutation"
   | "SitemapSourceUpdate"
-  | "SitemapView"
+  | "SitemapEditorRule"
   | "SitemapResult"
   | "SitemapExactArtifact"
   | "CreateScanSweepRequest"
@@ -1054,17 +1054,6 @@ export const RESPONSE_SCHEMAS = {
     "404": "Error",
     "409": "Error",
     "412": "Error",
-    "413": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
-  "GET /v1/projects/{projectId}/sitemap": {
-    "200": "SitemapView",
-    "400": "Error",
-    "401": "Error",
-    "403": "Error",
-    "404": "Error",
-    "409": "Error",
     "413": "Error",
     "500": "Error",
     "503": "Error",
