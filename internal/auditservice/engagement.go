@@ -51,6 +51,7 @@ type PreflightResult struct {
 type engagementSelection struct {
 	artifact           auditstore.ExactArtifact
 	document           pentestcontract.Document
+	loginRecipes       map[string]pentestcontract.LoginRecipe
 	inputs             []auditstore.ArtifactLink
 	credentialIDs      []string
 	unclassifiedInputs bool
@@ -166,6 +167,7 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 		return nil, fmt.Errorf("%w: pentest engagement failed validation", ErrInvalid)
 	}
 	selected.document = document
+	selected.loginRecipes = map[string]pentestcontract.LoginRecipe{}
 	if len(document.Inputs) > auditprofile.MaxAuditProfileInputs {
 		return nil, fmt.Errorf("%w: engagement inputs exceed Audit input limit", ErrInvalid)
 	}
@@ -209,6 +211,31 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 			if expected[i].Verify(exact) != nil {
 				return nil, fmt.Errorf("%w: engagement input digest differs from exact revision", ErrInvalid)
 			}
+
+			if strings.HasPrefix(keys[i], "pentest-login/") {
+				identityID := strings.TrimPrefix(keys[i], "pentest-login/")
+				var identity pentestcontract.Identity
+				for _, candidate := range document.Identities {
+					if candidate.ID == identityID {
+						identity = candidate
+						break
+					}
+				}
+				if identity.Kind != "browser-login" {
+					if exact.MediaType != pentestcontract.LoginRecipeMediaType || exact.SizeBytes > pentestcontract.MaxLoginRecipeBytes {
+						return nil, fmt.Errorf("%w: invalid login recipe artifact", ErrInvalid)
+					}
+					read, readErr := store.ReadExact(ctx, exact)
+					if readErr != nil {
+						return nil, readErr
+					}
+					recipe, decodeErr := pentestcontract.DecodeLoginRecipe(read.Payload.Data)
+					if decodeErr != nil || recipe.ValidateIdentity(identity, document) != nil {
+						return nil, fmt.Errorf("%w: invalid login recipe artifact", ErrInvalid)
+					}
+					selected.loginRecipes[identity.ID] = recipe
+				}
+			}
 			provenance, err := json.Marshal(struct {
 				Schema     string                   `json:"schema"`
 				Engagement auditstore.ExactArtifact `json:"engagement"`
@@ -218,6 +245,14 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 				return nil, err
 			}
 			selected.inputs = append(selected.inputs, auditstore.ArtifactLink{LogicalKey: keys[i], Artifact: exact, SourceProvenance: provenance})
+		}
+	}
+
+	if slices.Contains(document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterPentestTargetHTTP)) {
+		for _, identity := range document.Identities {
+			if identity.Kind == "browser-login" || identity.Kind == "http-login" && identity.LoginRecipe == nil {
+				return nil, fmt.Errorf("%w: executable identity requires a supported login recipe", ErrInvalid)
+			}
 		}
 	}
 	selected.credentialIDs = mergeIDs(selected.credentialIDs)
@@ -250,7 +285,7 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 		return compatible, missing, reasons
 	}
 	for _, capability := range append(slices.Clone(selected.document.Policy.RequiredCapabilities), selected.document.Policy.OptionalCapabilities...) {
-		// Controlled anonymous preflight has a placed Runtime consumer. Other
+		// Controlled identity preflight has a placed Runtime consumer. Other
 		// execution capabilities still need their own production consumer.
 		if capability == pentestcontract.Capability || capability == string(runtimesettings.RuntimeAdapterPentestTargetHTTP) {
 			compatible = append(compatible, capability)
@@ -342,7 +377,26 @@ func validateEngagementBaseline(baseline BaselineSnapshot) error {
 	if err != nil || engagement.PolicyDigest != digest {
 		return fmt.Errorf("%w: engagement policy digest differs", ErrInvalid)
 	}
+	if engagement.LoginRecipes == nil || len(engagement.LoginRecipes) > 7 {
+		return fmt.Errorf("%w: missing login recipe snapshots", ErrInvalid)
+	}
+	for id, recipe := range engagement.LoginRecipes {
+		matched := false
+		for _, identity := range engagement.Document.Identities {
+			if identity.ID == id && recipe.ValidateIdentity(identity, engagement.Document) == nil {
+				matched = true
+			}
+		}
+		if !matched {
+			return fmt.Errorf("%w: invalid login recipe snapshot", ErrInvalid)
+		}
+	}
 	for _, identity := range engagement.Document.Identities {
+		if identity.Kind != "browser-login" && identity.LoginRecipe != nil {
+			if _, ok := engagement.LoginRecipes[identity.ID]; !ok {
+				return fmt.Errorf("%w: missing login recipe snapshot", ErrInvalid)
+			}
+		}
 		if identity.Credential != nil && !slices.Contains(baseline.RuntimeCredentialIDs, identity.Credential.CredentialID) {
 			return fmt.Errorf("%w: engagement credential is not held", ErrInvalid)
 		}
@@ -356,6 +410,12 @@ func cloneEngagement(source *auditbaseline.EngagementSnapshot) *auditbaseline.En
 	}
 	result := *source
 	result.Artifact = source.Artifact.Clone()
+	result.LoginRecipes = map[string]pentestcontract.LoginRecipe{}
+	for id, recipe := range source.LoginRecipes {
+		encoded, _ := json.Marshal(recipe)
+		copy, _ := pentestcontract.DecodeLoginRecipe(encoded)
+		result.LoginRecipes[id] = copy
+	}
 	d := &result.Document
 	d.Target.Origins = slices.Clone(d.Target.Origins)
 	d.Target.SeedURLs = slices.Clone(d.Target.SeedURLs)

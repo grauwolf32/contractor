@@ -244,6 +244,14 @@
     "agent-registration-pentest.json": {
       "type": "AgentRegistration",
       "schema": "agent-registration.schema.json"
+    },
+    "pentest-allocation-basic.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
+    },
+    "pentest-allocation-http-login.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
     }
   },
   "invalid": {

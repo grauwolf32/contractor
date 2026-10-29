@@ -23,9 +23,10 @@ func everySecretSettings() RuntimeSettings {
 		return &result
 	}
 	return RuntimeSettings{
-		LLMGatewayURL:   "https://gateway.example/v1",
-		LLMGatewayToken: secret("canary-llm-token"),
-		ArtifactAPIURL:  "https://server.example/private/v1",
+		PentestIdentities: map[string]PentestIdentityMaterial{"account-a": {Credential: RuntimeCredentialRef{CredentialID: "target-a", Kind: RuntimeCredentialTargetLogin}, Fields: map[string]contracts.SecretString{"password": contracts.NewSecretString("canary-target-password")}}},
+		LLMGatewayURL:     "https://gateway.example/v1",
+		LLMGatewayToken:   secret("canary-llm-token"),
+		ArtifactAPIURL:    "https://server.example/private/v1",
 		Telemetry: &TelemetrySettings{
 			Adapter: RuntimeAdapterOTLPHTTP, Endpoint: "https://otel.example/v1/traces",
 			Headers: map[string]contracts.SecretString{

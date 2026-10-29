@@ -373,7 +373,7 @@ func (s *Service) startInTransaction(
 		if err != nil {
 			return StartedAudit{}, err
 		}
-		baseline.Engagement = &auditbaseline.EngagementSnapshot{Schema: auditbaseline.EngagementSchema, Artifact: engagement.artifact, Document: engagement.document, PolicyDigest: policyDigest, AuthorizedBy: params.OwnerID, AuthorizedAt: s.now().UTC()}
+		baseline.Engagement = &auditbaseline.EngagementSnapshot{Schema: auditbaseline.EngagementSchema, Artifact: engagement.artifact, Document: engagement.document, LoginRecipes: engagement.loginRecipes, PolicyDigest: policyDigest, AuthorizedBy: params.OwnerID, AuthorizedAt: s.now().UTC()}
 		baseline.RuntimeCredentialIDs = mergeIDs(runtimeSnapshot.RuntimeCredentialIDs, engagement.credentialIDs)
 		standardLinks = append(standardLinks, engagement.inputs...)
 	}

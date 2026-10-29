@@ -51,6 +51,7 @@ func (e *RuntimeAPIError) Error() string {
 // (CTL-R164): Release closes the released principal's connections and Close
 // ends them all when the Server stops.
 type RuntimeControlClient struct {
+	pentestMaterials        func(context.Context, *pentestcontract.AllocationProjection) (map[string]runtimesettings.PentestIdentityMaterial, error)
 	pentestDeadlineRecorder func(context.Context, Reservation, time.Time) error
 	pentestPending          func(context.Context, Reservation) (bool, error)
 	pentestRequired         func(context.Context, Reservation) (bool, error)
@@ -90,6 +91,22 @@ func (c *RuntimeControlClient) WithEngagementResolver(resolve func(context.Conte
 }) *RuntimeControlClient {
 	c.engagementResolver, c.grantReader = resolve, grants
 	return c
+}
+
+// WithPentestMaterials binds the private decrypt port after trusted assignment
+// resolution. No credential material is published in allocation provenance.
+func (c *RuntimeControlClient) WithPentestMaterials(resolve func(context.Context, *pentestcontract.AllocationProjection) (map[string]runtimesettings.PentestIdentityMaterial, error)) *RuntimeControlClient {
+	c.pentestMaterials = resolve
+	return c
+}
+
+// clearPentestMaterials drops private target values immediately after the
+// prepare response is checked, or on any earlier error. It is safe to repeat.
+func clearPentestMaterials(material map[string]runtimesettings.PentestIdentityMaterial) {
+	for id, value := range material {
+		clear(value.Fields)
+		delete(material, id)
+	}
 }
 
 // Close ends every Runtime Agent connection the client owns. The Server calls
@@ -135,7 +152,19 @@ func (c *RuntimeControlClient) Prepare(
 		if err != nil {
 			return contracts.WorkerHandle{}, err
 		}
+
 		spec.PentestEngagement = projection
+		if projection != nil && projection.Preflight != nil && c.pentestMaterials != nil {
+			materialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			material, materialErr := c.pentestMaterials(materialCtx, projection)
+			cancel()
+			spec.RuntimeSettings.PentestIdentities = material
+			defer clearPentestMaterials(material)
+			if materialErr != nil {
+				return contracts.WorkerHandle{}, materialErr
+			}
+		}
+
 		if projection != nil && resolved.TemplateRequiresNetwork(spec.AgentTemplate) {
 			return contracts.WorkerHandle{}, fmt.Errorf("%w: pentest metadata does not authorize target transport", ErrInvalidRequest)
 		}
@@ -183,16 +212,17 @@ func (c *RuntimeControlClient) Prepare(
 	); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
-	if err := validateWorkerHandle(response.WorkerHandle, reservation, settings.RuntimeSettings); err != nil {
+	if err := validateWorkerHandle(response.WorkerHandle, reservation, spec.RuntimeSettings); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
+	clearPentestMaterials(spec.RuntimeSettings.PentestIdentities)
 	if spec.PentestEngagement != nil && spec.PentestEngagement.Preflight != nil {
 		outcome, err := c.pentestPreflight(ctx, reservation, "run")
 		if err != nil {
 			return contracts.WorkerHandle{}, err
 		}
-		if outcome.CompletedSeeds+outcome.FailedSeeds+outcome.UnknownSeeds != len(spec.PentestEngagement.Preflight.SeedURLs) || outcome.Stopped {
-			return contracts.WorkerHandle{}, fmt.Errorf("%w: preflight result is incomplete", ErrInvalidRequest)
+		if err := validatePentestPreflightResult(outcome, *spec.PentestEngagement.Preflight); err != nil {
+			return contracts.WorkerHandle{}, err
 		}
 		if outcome.CompletedSeeds == 0 {
 			return contracts.WorkerHandle{}, fmt.Errorf("%w: preflight found no reachable seed", ErrInvalidRequest)

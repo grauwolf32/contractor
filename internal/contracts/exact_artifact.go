@@ -23,8 +23,8 @@ var ErrExactArtifactMismatch = errors.New("exact artifact content differs from i
 // executions and results) read back as a digest-only descriptor without media
 // type and size. The digest still pins the bytes, and therefore the size.
 type ExactArtifact struct {
-	Ref       ArtifactRef `json:"ref"`
-	Digest    string      `json:"digest"`
+	Ref       ArtifactRef `json:"ref" strictjson:"required"`
+	Digest    string      `json:"digest" strictjson:"required"`
 	MediaType string      `json:"mediaType,omitempty"`
 	SizeBytes int64       `json:"sizeBytes,omitempty"`
 }

@@ -2237,6 +2237,768 @@
         ""
       ]
     },
+    "pentest-allocation-basic.json": {
+      "enum": [
+        "/apiVersion",
+        "/pentestEngagement/accessMode",
+        "/pentestEngagement/policy/activeChecks",
+        "/pentestEngagement/policy/replayPolicy",
+        "/pentestEngagement/policy/requiredCapabilities/0",
+        "/pentestEngagement/policy/requiredCapabilities/1",
+        "/pentestEngagement/policy/retryPolicy",
+        "/pentestEngagement/policy/version",
+        "/pentestEngagement/preflight/adapter",
+        "/pentestEngagement/preflight/identities/0/id",
+        "/pentestEngagement/preflight/identities/0/kind",
+        "/pentestEngagement/preflight/identities/1/credential/kind",
+        "/pentestEngagement/preflight/identities/1/kind",
+        "/pentestEngagement/preflight/routes/0/actionClasses/0",
+        "/pentestEngagement/preflight/routes/0/methods/0",
+        "/pentestEngagement/schema",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
+        "/runtimeSettings/pentestIdentities/account-a/credential/kind",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/engagement/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/engagement/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/identities/0/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/identities/1/credential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/identities/1/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/addresses/0",
+          "maxLength": 45
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/hostname",
+          "maxLength": 253
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/routes/0/origin",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/routes/0/pathPrefixes/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/seedUrls/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/credential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/password",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/username",
+          "maxLength": 8192
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/engagement/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/engagement/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/identities/0/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/identities/1/credential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/identities/1/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/addresses/0",
+          "maxLength": 45,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/hostname",
+          "maxLength": 253,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/routes/0/origin",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/routes/0/pathPrefixes/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/seedUrls/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/credential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/password",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/username",
+          "maxLength": 8192,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/pentestEngagement",
+        "/pentestEngagement/budgets",
+        "/pentestEngagement/engagement",
+        "/pentestEngagement/policy",
+        "/pentestEngagement/preflight",
+        "/pentestEngagement/preflight/identities/0",
+        "/pentestEngagement/preflight/identities/1",
+        "/pentestEngagement/preflight/identities/1/credential",
+        "/pentestEngagement/preflight/protectedDestinations/0",
+        "/pentestEngagement/preflight/routes/0",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings",
+        "/runtimeSettings/pentestIdentities/account-a",
+        "/runtimeSettings/pentestIdentities/account-a/credential"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/pentestEngagement",
+        "/pentestEngagement/budgets",
+        "/pentestEngagement/engagement",
+        "/pentestEngagement/policy",
+        "/pentestEngagement/preflight",
+        "/pentestEngagement/preflight/identities/0",
+        "/pentestEngagement/preflight/identities/1",
+        "/pentestEngagement/preflight/identities/1/credential",
+        "/pentestEngagement/preflight/protectedDestinations/0",
+        "/pentestEngagement/preflight/routes/0",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runMetadataLabels",
+        "/runtimeSettings",
+        "/runtimeSettings/pentestIdentities",
+        "/runtimeSettings/pentestIdentities/account-a",
+        "/runtimeSettings/pentestIdentities/account-a/credential",
+        "/runtimeSettings/pentestIdentities/account-a/fields"
+      ]
+    },
+    "pentest-allocation-http-login.json": {
+      "enum": [
+        "/apiVersion",
+        "/pentestEngagement/accessMode",
+        "/pentestEngagement/policy/activeChecks",
+        "/pentestEngagement/policy/replayPolicy",
+        "/pentestEngagement/policy/requiredCapabilities/0",
+        "/pentestEngagement/policy/requiredCapabilities/1",
+        "/pentestEngagement/policy/retryPolicy",
+        "/pentestEngagement/policy/version",
+        "/pentestEngagement/preflight/adapter",
+        "/pentestEngagement/preflight/identities/0/id",
+        "/pentestEngagement/preflight/identities/0/kind",
+        "/pentestEngagement/preflight/identities/1/credential/kind",
+        "/pentestEngagement/preflight/identities/1/kind",
+        "/pentestEngagement/preflight/loginRecipes/account-a/schema",
+        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/actionClass",
+        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/encoding",
+        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/method",
+        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control/actionClass",
+        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control/method",
+        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/kind",
+        "/pentestEngagement/preflight/routes/0/actionClasses/0",
+        "/pentestEngagement/preflight/routes/0/actionClasses/1",
+        "/pentestEngagement/preflight/routes/0/methods/0",
+        "/pentestEngagement/preflight/routes/0/methods/1",
+        "/pentestEngagement/schema",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
+        "/runtimeSettings/pentestIdentities/account-a/credential/kind",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/engagement/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/engagement/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/identities/0/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/identities/1/credential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/identities/1/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/identityId",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/secretFields/0",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/secretFields/1",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/password/variable",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/username/variable",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/id",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/url",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control/id",
+          "maxLength": 64
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control/url",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/expected",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/pointer",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/addresses/0",
+          "maxLength": 45
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/hostname",
+          "maxLength": 253
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/routes/0/origin",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/routes/0/pathPrefixes/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/seedUrls/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/credential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/password",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/username",
+          "maxLength": 8192
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/engagement/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/engagement/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/identities/0/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/identities/1/credential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/identities/1/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/identityId",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/secretFields/0",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/secretFields/1",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/password/variable",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/username/variable",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/id",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/url",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control/id",
+          "maxLength": 64,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control/url",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/expected",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/pointer",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/addresses/0",
+          "maxLength": 45,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/hostname",
+          "maxLength": 253,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/routes/0/origin",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/routes/0/pathPrefixes/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/preflight/seedUrls/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/credential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/password",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/username",
+          "maxLength": 8192,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/pentestEngagement",
+        "/pentestEngagement/budgets",
+        "/pentestEngagement/engagement",
+        "/pentestEngagement/policy",
+        "/pentestEngagement/preflight",
+        "/pentestEngagement/preflight/identities/0",
+        "/pentestEngagement/preflight/identities/1",
+        "/pentestEngagement/preflight/identities/1/credential",
+        "/pentestEngagement/preflight/identities/1/loginRecipe",
+        "/pentestEngagement/preflight/identities/1/loginRecipe/ref",
+        "/pentestEngagement/preflight/loginRecipes/account-a",
+        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0",
+        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body",
+        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/password",
+        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/username",
+        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate",
+        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control",
+        "/pentestEngagement/preflight/protectedDestinations/0",
+        "/pentestEngagement/preflight/routes/0",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings",
+        "/runtimeSettings/pentestIdentities/account-a",
+        "/runtimeSettings/pentestIdentities/account-a/credential"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/pentestEngagement",
+        "/pentestEngagement/budgets",
+        "/pentestEngagement/engagement",
+        "/pentestEngagement/policy",
+        "/pentestEngagement/preflight",
+        "/pentestEngagement/preflight/identities/0",
+        "/pentestEngagement/preflight/identities/1",
+        "/pentestEngagement/preflight/identities/1/credential",
+        "/pentestEngagement/preflight/identities/1/loginRecipe",
+        "/pentestEngagement/preflight/identities/1/loginRecipe/ref",
+        "/pentestEngagement/preflight/loginRecipes",
+        "/pentestEngagement/preflight/loginRecipes/account-a",
+        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0",
+        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body",
+        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields",
+        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/password",
+        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/username",
+        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate",
+        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control",
+        "/pentestEngagement/preflight/protectedDestinations/0",
+        "/pentestEngagement/preflight/routes/0",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runMetadataLabels",
+        "/runtimeSettings",
+        "/runtimeSettings/pentestIdentities",
+        "/runtimeSettings/pentestIdentities/account-a",
+        "/runtimeSettings/pentestIdentities/account-a/credential",
+        "/runtimeSettings/pentestIdentities/account-a/fields"
+      ]
+    },
     "pentest-allocation-preflight.json": {
       "enum": [
         "/apiVersion",
@@ -2248,7 +3010,8 @@
         "/pentestEngagement/policy/retryPolicy",
         "/pentestEngagement/policy/version",
         "/pentestEngagement/preflight/adapter",
-        "/pentestEngagement/preflight/identity/kind",
+        "/pentestEngagement/preflight/identities/0/id",
+        "/pentestEngagement/preflight/identities/0/kind",
         "/pentestEngagement/preflight/routes/0/actionClasses/0",
         "/pentestEngagement/preflight/routes/0/methods/0",
         "/pentestEngagement/schema",
@@ -2283,7 +3046,7 @@
           "maxLength": 256
         },
         {
-          "pointer": "/pentestEngagement/preflight/identity/origins/0",
+          "pointer": "/pentestEngagement/preflight/identities/0/origins/0",
           "maxLength": 8192
         },
         {
@@ -2363,7 +3126,7 @@
           "verdict": "reject"
         },
         {
-          "pointer": "/pentestEngagement/preflight/identity/origins/0",
+          "pointer": "/pentestEngagement/preflight/identities/0/origins/0",
           "maxLength": 8192,
           "verdict": "reject"
         },
@@ -2441,7 +3204,7 @@
         "/pentestEngagement/engagement",
         "/pentestEngagement/policy",
         "/pentestEngagement/preflight",
-        "/pentestEngagement/preflight/identity",
+        "/pentestEngagement/preflight/identities/0",
         "/pentestEngagement/preflight/protectedDestinations/0",
         "/pentestEngagement/preflight/routes/0",
         "/resolvedRuntimeConfigProvenance",
@@ -2476,7 +3239,7 @@
         "/pentestEngagement/engagement",
         "/pentestEngagement/policy",
         "/pentestEngagement/preflight",
-        "/pentestEngagement/preflight/identity",
+        "/pentestEngagement/preflight/identities/0",
         "/pentestEngagement/preflight/protectedDestinations/0",
         "/pentestEngagement/preflight/routes/0",
         "/resolvedRuntimeConfigProvenance",

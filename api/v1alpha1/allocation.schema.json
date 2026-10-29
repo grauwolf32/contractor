@@ -1283,6 +1283,73 @@
             }
           ],
           "default": null
+        },
+        "pentestIdentities": {
+          "type": "object",
+          "minProperties": 1,
+          "maxProperties": 7,
+          "propertyNames": {
+            "allOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "x-maxBytes": 64,
+                "pattern": "^[a-z][a-z0-9-]{0,63}$"
+              },
+              {
+                "not": {
+                  "const": "anonymous"
+                }
+              }
+            ]
+          },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "credential": {
+                "allOf": [
+                  {
+                    "$ref": "#/$defs/RuntimeCredentialRef"
+                  },
+                  {
+                    "properties": {
+                      "kind": {
+                        "enum": [
+                          "target-basic@1",
+                          "target-bearer@1",
+                          "target-login@1"
+                        ]
+                      }
+                    }
+                  }
+                ]
+              },
+              "fields": {
+                "type": "object",
+                "minProperties": 1,
+                "maxProperties": 16,
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "x-maxBytes": 64,
+                  "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 8192,
+                  "x-maxBytes": 8192
+                }
+              }
+            },
+            "required": [
+              "credential",
+              "fields"
+            ]
+          }
         }
       },
       "required": [
