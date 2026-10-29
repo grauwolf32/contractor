@@ -65,6 +65,7 @@ from contractor_runtime.toolsets.common.http_observations import (
     HTTPObservationSink,
     notify_http_observations,
 )
+from contractor_runtime.toolsets.common.observation_metadata import normalize_http_observations
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_PAGE_SIZE = 100
@@ -399,6 +400,14 @@ class _CaidoSession:
     def redact_result(self, value: Any) -> Any:
         return self._redaction.result(value)
 
+    async def _notify_observations(self, observations: list[dict]) -> None:
+        if self._observation_sink is None:
+            return
+        accepted, gaps = await threads.to_thread_until_done(
+            normalize_http_observations, observations, name="caido-observation-metadata"
+        )
+        await notify_http_observations(self._observation_sink, accepted, gaps=gaps)
+
     def _require_target(self, host: str, port: int) -> None:
         try:
             self._target_policy.check_host(host, port)
@@ -470,8 +479,7 @@ class _CaidoSession:
                 }
             )
             if self._observation_sink is not None:
-                await notify_http_observations(
-                    self._observation_sink,
+                await self._notify_observations(
                     [_request_observation(row, row["status_code"]) for row in requests],
                 )
             return result
@@ -493,8 +501,7 @@ class _CaidoSession:
             )
             response = request["response"]
             if self._observation_sink is not None:
-                await notify_http_observations(
-                    self._observation_sink,
+                await self._notify_observations(
                     [_request_observation(request, response["status_code"] if response else None)],
                 )
             await self._remember_exchange(
@@ -635,8 +642,7 @@ class _CaidoSession:
                     raw_replayed_request = observation.pop("_raw_request")
                     created_at = observation.pop("_created_at")
                     if self._observation_sink is not None:
-                        await notify_http_observations(
-                            self._observation_sink,
+                        await self._notify_observations(
                             [
                                 _request_observation(
                                     {
@@ -1950,17 +1956,18 @@ def _captured_url(host: str, port: int | None, is_tls: bool, path: str, query: s
 
 
 def _request_observation(request: Mapping[str, Any], status: int | None) -> dict[str, Any]:
-    """Forward selected provider facts before model-output redaction.
-
-    The subscriber owns normalization and acceptance. In particular, keep an
-    unsupported response status or textual timestamp intact instead of inventing
-    an attempt, success or read-time observation. No raw exchange or provider ID
-    becomes an observation or an Artifact reference here.
-    """
+    """Select provider facts for local normalization before output redaction."""
+    try:
+        # Caido supplies a connection host separately. Do not reinterpret an
+        # invalid host containing '@' as URL userinfo and invent another origin.
+        host = _connection_host(request["host"])
+        url = _captured_url(
+            host, request["port"], request["is_tls"], request["path"], request["query"]
+        )
+    except CaidoToolError:
+        url = ""
     return {
-        "url": _captured_url(
-            request["host"], request["port"], request["is_tls"], request["path"], request["query"]
-        ),
+        "url": url,
         "method": request["method"],
         "outcome": "attempt" if status is None else "response",
         "status": 0 if status is None else status,

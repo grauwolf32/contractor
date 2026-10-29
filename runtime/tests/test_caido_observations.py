@@ -20,9 +20,11 @@ from test_caido_read_tools import (
 class RecordingSink:
     def __init__(self):
         self.rows = []
+        self.gaps = []
 
-    async def receive(self, observations):
+    async def receive(self, observations, *, gaps=()):
         self.rows.extend(deepcopy(observations))
+        self.gaps.extend(deepcopy(gaps))
 
 
 def test_selected_reads_emit_only_metadata_before_output_redaction(tmp_path):
@@ -38,9 +40,13 @@ def test_selected_reads_emit_only_metadata_before_output_redaction(tmp_path):
         malformed_metadata["response"]["statusCode"] = 700
         responses["RequestsByOffset"]["requestsByOffset"] = {
             "count": {"value": 500},
-            "nodes": [selected, missing_response, malformed_metadata],
+            "nodes": [selected, malformed_metadata, missing_response],
         }
-        responses["RequestDetail"]["request"].update(path=selected["path"], query=selected["query"])
+        responses["RequestDetail"]["request"].update(
+            path=selected["path"],
+            query=selected["query"],
+            createdAt="2026-09-01T03:00:00.000+03:00",
+        )
         calls = []
 
         async def handler(request):
@@ -57,7 +63,7 @@ def test_selected_reads_emit_only_metadata_before_output_redaction(tmp_path):
             history = await tools["caido_history"](filter='req.host.eq:"target.example"', limit=3)
             assert history["count"] == 500 and len(history["requests"]) == 3
             assert CAIDO_TOKEN not in history["requests"][0]["path"]
-            assert len(sink.rows) == 3
+            assert len(sink.rows) == 2
             assert sink.rows[0] == {
                 "url": f"https://target.example/session/{CAIDO_TOKEN}?password=opaque&token=value",
                 "method": "GET",
@@ -67,18 +73,18 @@ def test_selected_reads_emit_only_metadata_before_output_redaction(tmp_path):
             }
             assert sink.rows[1]["outcome"] == "attempt" and sink.rows[1]["status"] == 0
             assert sink.rows[1]["at"] == "2026-09-01T00:00:00.123Z"
-            # Invalid provider facts reach the owning normalizer unchanged;
-            # they never turn into invented successes or prevent other rows.
-            assert sink.rows[2]["outcome"] == "response" and sink.rows[2]["status"] == 700
-            assert sink.rows[2]["at"] == "invalid-provider-time"
+            # Invalid facts become a bounded omission locally, not an invented
+            # attempt or a malformed Server row. The following valid row survives.
+            assert sink.gaps == [{"reason": "projection", "count": 1}]
             detail = await tools["caido_request_detail"]("request-1")
             assert CAIDO_TOKEN not in detail["path"]
+            assert detail["created_at"] == "2026-09-01T03:00:00.000+03:00"
             assert sink.rows[-1] == sink.rows[0]
-            assert len(sink.rows) == 4
+            assert len(sink.rows) == 3
             await tools["caido_sitemap"](scope_id="scope-1")
             await tools["caido_automate_results"]("session-1")
             await tools["caido_workflow_findings"]()
-            assert len(sink.rows) == 4
+            assert len(sink.rows) == 3
             assert [call["operationName"] for call in calls] == [
                 "RequestsByOffset",
                 "RequestDetail",
@@ -92,6 +98,52 @@ def test_selected_reads_emit_only_metadata_before_output_redaction(tmp_path):
             assert "raw-only" not in json.dumps(sink.rows)
             assert "body-only" not in json.dumps(sink.rows)
             assert artifacts.payloads == {}
+        finally:
+            await close_tools(tools)
+            await handle.close()
+
+    asyncio.run(scenario())
+
+
+def test_all_invalid_selected_metadata_still_notifies_bounded_gaps(tmp_path):
+    async def scenario():
+        bad_status = request_summary()
+        bad_status["response"]["statusCode"] = 700
+        bad_method = request_summary()
+        bad_method["method"] = "get"
+        bad_host = request_summary()
+        bad_host["host"] = "invalid@target.example"
+        calls = []
+
+        async def handler(request):
+            calls.append(json.loads(request.content)["operationName"])
+            return httpx.Response(
+                200,
+                json={
+                    "data": {
+                        "requestsByOffset": {
+                            "count": {"value": 3},
+                            "nodes": [bad_status, bad_method, bad_host],
+                        }
+                    }
+                },
+            )
+
+        sink = RecordingSink()
+        tools, _, handle = await create_tools(
+            tmp_path,
+            handler,
+            FakeArtifactClient(),
+            selected={"caido_history"},
+            observation_sink=sink,
+        )
+        try:
+            result = await tools["caido_history"]()
+            assert result["requests"][0]["status_code"] == 700
+            assert result["requests"][1]["method"] == "get"
+            assert result["requests"][2]["host"] == "invalid@target.example"
+            assert sink.rows == [] and sink.gaps == [{"reason": "projection", "count": 3}]
+            assert calls == ["RequestsByOffset"]
         finally:
             await close_tools(tools)
             await handle.close()
@@ -167,8 +219,7 @@ def test_completed_replay_uses_provider_time_and_actual_connection_without_extra
         try:
             arguments = {
                 "raw_request": (
-                    "POST /session/opaque?token=value HTTP/1.1\r\n"
-                    "Host: target.example\r\n\r\n"
+                    "POST /session/opaque?token=value HTTP/1.1\r\nHost: target.example\r\n\r\n"
                 ),
                 "host": "target.example",
                 "port": 8443,
