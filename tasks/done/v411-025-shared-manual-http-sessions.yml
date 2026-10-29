@@ -5,7 +5,8 @@ milestone: autonomous-http-pentest-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: e1dd859392fd3354e724f9adee030253d306b56e
 depends_on: [V411-005]
 languages: [go, python, sql, json, yaml, typescript]
 goal: >-
@@ -102,3 +103,16 @@ implementation_notes:
 - A received 401/403/200 sequence is tested as current transport behavior with the same selected cookies. Obsolete login-budget, principal-control and refresh scenarios were removed rather than preserved as absence tests.
 - Automatic-login credentials and immutable engagement pins have no honest conversion to ready cookies. Migration 59 refuses them before changing data; Operations must explicitly resolve such records before upgrading. No working or demo database was migrated.
 - Future authentication automation belongs to a separate component only when a concrete caller and bounded contract exist; this change creates no unused provider or framework.
+verification:
+  date: '2026-10-29'
+  environment: Disposable local PostgreSQL over TCP, Go 1.26.9, locked Runtime environment, Node 24.20 and pinned pnpm. Native target fixtures used an explicitly selected active RFC1918 interface; TMPDIR used a canonical path without macOS symlink components.
+  results:
+  - make lint passed, including staticcheck, test-only exports, release graph, task/spec/ERD checks, Ruff and import layers.
+  - make verify-public-api passed. make test-wire-cross-language passed all contracts packages, 483 contract/performance cases and the shared fixture gate with 436 fixtures, 361 Go and 247 Python shared tests (1535 Runtime shared cases).
+  - make ui-verify passed generation, lint, typecheck, 2525 tests with one declared expected failure, and production build.
+  - The exact task-listed integration Go command passed every credentials, contracts, auditservice, pgstore, controlplane, public API and persistence package with disposable PostgreSQL. After adding immutable-pin migration cases, the complete persistence/postgres package passed again.
+  - make test-http-caido-runtime passed 208 tests. make test-pentest-http-process passed 45 process cases, two accounting cases with race detection and 46 Runtime cases, with zero selected skips.
+  - Additional identity and ordinary cookie regressions passed 28 cases, including current 401/403/200 outcomes, failed redirect-cookie updates, shared-credential isolation, aggregate initialization bounds and DNS/IPv4/IPv6 cookie deletion.
+  - Initial broad Go attempts failed on a symlinked macOS temporary directory and the Unix-socket termination assertion; the complete command passed after selecting canonical TMPDIR and TCP, without changing unrelated production code or weakening assertions.
+  - An initial process attempt exposed an incorrect test expectation: credential-kind mismatch is rejected at Audit creation, before start. The final complete gate passed after checking the actual admission boundary.
+  delivery: Implemented on codex/v411-shared-http-session; not merged into main. The user retains merge control.
