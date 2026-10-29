@@ -5,7 +5,8 @@ milestone: autonomous-http-pentest-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
+implementation_commit: 53a04dc07d33a1608bd812a8e08cd7dfd5db8e14
 depends_on:
 - V411-001
 - V411-004
@@ -301,3 +302,39 @@ verification:
     runtime_junit: /private/tmp/v411005-evidence/runtime-final/runtime.xml
     runtime_shared: /private/tmp/v411005-evidence/runtime-final/shared-fixture-reads.log
     http_and_runtime_diagnostic: /private/tmp/v411005-runtime-validation-7a62bc93.txt
+
+landing_integration:
+  concurrent_main: 71e39f365a12d002415dbafdc02b75fb58b4ea17
+  tested_source: ca502fade796d90c3139f94e9b60c44a038359a1
+  reason: V410-024 landed while the complete identity gates were running. Integrate its Run-independent
+    sitemap observations before landing; regenerate the only merge conflict, tasks/BACKLOG.md, through
+    make tasks-backlog. No implementation conflict or policy relaxation was needed.
+  scope: Pentest adapters, identity sessions, private material, allocation contracts, action authority,
+    journal and migration are byte-for-byte unchanged from the full Runtime/process evidence above.
+    The concurrent change removes sitemap-only observation metadata from ordinary HTTP. Its generated
+    UI/publicclient and sitemap implementation match the already verified concurrent main. Independent
+    review confirmed the changed boundary and the targeted integrated checks; no full release rerun
+    is claimed for this integration.
+  results:
+  - make lint passed, including generated checks, Go vet/staticcheck, task/spec/release graph checks,
+    script suites, UI lint, Ruff and all four Runtime import contracts.
+  - make test-wire-cross-language and make verify-public-api passed. Shared-wire coverage remained
+    452 fixtures, 362 Go and 247 Python readers, with 1556 shared Runtime cases and 504 contract cases.
+  - Complete projectsitemap, privateartifacts and projectlifecycle packages passed with integration
+    tags, race detection, count=1 and disposable PostgreSQL.
+  - make test-http-caido-runtime passed all 208 cases and the full Runtime sitemap glob passed all
+    60 cases with warnings-as-errors and zero skips; the sitemap JUnit report is retained.
+  - make test-project-sitemap-tools-e2e and make test-http-caido-e2e passed on the integrated source.
+    Both required sitemap Server/Runtime/PostgreSQL roots and the ordinary HTTP/Caido root completed
+    successfully, with zero selected skips and retained raw reports. The earlier complete process
+    union plus these changed roots cover the final integration without repeating unchanged scenarios.
+  - Initial sandbox-restricted attempts could not open local sockets or reach PostgreSQL, and lint
+    could not fetch its pinned staticcheck module. Those attempts failed and are not gate evidence;
+    the same commands passed with the required execution permissions, without changing code or tests.
+  reports:
+    lint: /private/tmp/v411005-integrated-lint.log
+    wire_public: /private/tmp/v411005-integrated-wire-public-authorized.log
+    postgres: /private/tmp/v411005-integrated-go-authorized.log
+    runtime: /private/tmp/v411005-evidence/integrated-runtime/evidence-summary.json
+    process: /private/tmp/v411005-evidence/integrated-process/result.json
+    closure_lint: /private/tmp/v411005-closure-lint.log
