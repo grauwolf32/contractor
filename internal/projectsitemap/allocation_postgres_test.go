@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -40,20 +39,12 @@ func TestPostgresSitemapSharedMapSnapshotAndReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if access.OwnerID != "owner" || access.ProjectID != "project" || access.ManualSourceID == "owner" {
+	if access.OwnerID != "owner" || access.ProjectID != "project" {
 		t.Fatal("allocation authority was not derived")
 	}
-	wire, _ := json.Marshal(access)
-	if bytes.Contains(wire, []byte(`"owner"`)) || bytes.Contains(wire, []byte(`"project"`)) {
-		t.Fatal("access exposed scope selectors")
-	}
-	view, err := service.ReadAllocation(ctx, access, *mixed.Ref.Revision)
+	view, err := readSitemap(service, ctx, access.ProjectID, *mixed.Ref.Revision)
 	if err != nil || len(view.Document.Groups) != 2 {
 		t.Fatalf("shared view: %+v %v", view, err)
-	}
-	ownerView, err := service.Read(ctx, "owner", "project", *mixed.Ref.Revision)
-	if err != nil || !reflect.DeepEqual(ownerView, view) {
-		t.Fatalf("allocation map differs from owner map: %v", err)
 	}
 	selection := SnapshotSelection{Revision: *mixed.Ref.Revision}
 	for _, group := range view.Document.Groups {
@@ -95,10 +86,10 @@ func TestPostgresSitemapSharedMapSnapshotAndReplay(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := service.Read(ctx, "owner", "project", *first.Ref.Revision); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+	if _, err := readSitemap(service, ctx, "project", *first.Ref.Revision); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 		t.Fatalf("unheld revision retained: %v", err)
 	}
-	if _, err := service.Read(ctx, "owner", "project", *mixed.Ref.Revision); err != nil {
+	if _, err := readSitemap(service, ctx, "project", *mixed.Ref.Revision); err != nil {
 		t.Fatalf("projection lineage did not protect exact source: %v", err)
 	}
 	replay, err := service.SnapshotAllocation(ctx, access, "save", selection)
@@ -127,29 +118,29 @@ func TestPostgresSitemapEditorsShareMembersAndDeriveProjectAuthority(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	full, err := service.Read(ctx, "owner", "project", "")
+	full, err := readSitemap(service, ctx, "project", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	command := Mutation{Operation: "remove", MarkerID: "removed-by-consumer", ExpectedRevision: *seeded.Ref.Revision, MemberIDs: []string{full.Document.Groups[0].Members[0].ID}}
+	command := EditorMutation{Operation: "remove", MarkerID: "removed-by-consumer", ExpectedRevision: *seeded.Ref.Revision, MemberIDs: []string{full.Document.Groups[0].Members[0].ID}}
 	removedEarlier, err := service.MutateAllocation(ctx, access, "hide-earlier-research", command)
 	if err != nil {
 		t.Fatalf("editor cannot select another producer's member: %v", err)
 	}
-	restored, err := service.MutateAllocation(ctx, access, "restore-earlier-research", Mutation{Operation: "restore", MarkerID: command.MarkerID, ExpectedRevision: *removedEarlier.Ref.Revision})
+	restored, err := service.MutateAllocation(ctx, access, "restore-earlier-research", EditorMutation{Operation: "restore", MarkerID: command.MarkerID, ExpectedRevision: *removedEarlier.Ref.Revision})
 	if err != nil {
 		t.Fatal(err)
 	}
-	command = Mutation{Operation: "declare", ExpectedRevision: *restored.Ref.Revision, URL: "https://example.test/manual", Method: "GET"}
+	command = EditorMutation{Operation: "declare", ExpectedRevision: *restored.Ref.Revision, URL: "https://example.test/manual", Method: "GET"}
 	added, err := service.MutateAllocation(ctx, access, "declare", command)
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err := service.ReadAllocation(ctx, access, *added.Ref.Revision)
+	view, err := readSitemap(service, ctx, access.ProjectID, *added.Ref.Revision)
 	if err != nil || len(view.Document.Groups) != 2 || len(view.Document.Markers) != 0 {
 		t.Fatalf("declared shared view: %+v %v", view, err)
 	}
-	command = Mutation{Operation: "remove", MarkerID: "removed-by-consumer", ExpectedRevision: *added.Ref.Revision, MemberIDs: []string{view.Document.Groups[0].Members[0].ID}}
+	command = EditorMutation{Operation: "remove", MarkerID: "removed-by-consumer", ExpectedRevision: *added.Ref.Revision, MemberIDs: []string{view.Document.Groups[0].Members[0].ID}}
 	removed, err := service.MutateAllocation(ctx, access, "remove", command)
 	if err != nil {
 		t.Fatal(err)
@@ -167,14 +158,10 @@ func TestPostgresSitemapEditorsShareMembersAndDeriveProjectAuthority(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	forged := contracts.ExactContent(schema.Ref, "application/json", []byte(`{"openapi":"3.1.0"}`))
-	if _, err := service.MutateAllocation(ctx, access, "forged-project-source", Mutation{Operation: "replace-source", Source: &SourceUpdate{SourceID: access.ManualSourceID, Artifact: &forged, Rules: []Rule{}}}); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("manual editor gained a Project artifact selector: %v", err)
-	}
 	selected := readerPolicy()
 	selected.SnapshotInputs = []string{"schema"}
 	granted, err := service.AllocationAccess(ctx, "consumer", "research", selected)
-	if err != nil || granted.ManualSourceID != access.ManualSourceID {
+	if err != nil || granted.Namespace != access.Namespace {
 		t.Fatalf("snapshot input configuration changed the map source: %+v %v", granted, err)
 	}
 	selected.SnapshotInputs = []string{"unselected"}
@@ -210,7 +197,7 @@ func TestPostgresSitemapContextProjectionSerializesWithHistoryEviction(t *testin
 			if err != nil {
 				t.Fatal(err)
 			}
-			view, err := service.ReadAllocation(ctx, access, *original.Ref.Revision)
+			view, err := readSitemap(service, ctx, access.ProjectID, *original.Ref.Revision)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -251,7 +238,7 @@ func TestPostgresSitemapContextProjectionSerializesWithHistoryEviction(t *testin
 				t.Fatal(snapshotErr)
 			}
 			if snapshotErr == nil {
-				if _, err := service.Read(ctx, "owner", "project", *original.Ref.Revision); err != nil {
+				if _, err := readSitemap(service, ctx, "project", *original.Ref.Revision); err != nil {
 					t.Fatalf("committed snapshot lost exact source: %v", err)
 				}
 				run, _ := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Run("consumer")
@@ -318,7 +305,7 @@ func TestPostgresSitemapSnapshotMaterializesOnlyNeededAuthorizedExactInputs(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err := service.ReadAllocation(ctx, access, *published.Ref.Revision)
+	view, err := readSitemap(service, ctx, access.ProjectID, *published.Ref.Revision)
 	if err != nil || len(view.Document.Groups) != 2 {
 		t.Fatalf("shared view hid known schema routes: %+v %v", view, err)
 	}

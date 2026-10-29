@@ -20,6 +20,7 @@ from contractor_runtime.artifacts import (
     ArtifactAPIError,
     ArtifactClient,
     ArtifactHTTPResponse,
+    ArtifactReadTarget,
     ArtifactResponseLimitError,
     ArtifactTransportError,
     MTLSArtifactTransport,
@@ -41,6 +42,140 @@ TIMESTAMP_HEADERS = {
     "x-contractor-binding-created-at": CREATED_AT,
     "x-contractor-revision-created-at": UPDATED_AT,
 }
+
+
+def test_project_read_target_keeps_run_provenance_and_shared_metadata_contract() -> None:
+    async def scenario() -> None:
+        ref = ArtifactRef(namespace="analysis", name="report")
+        project_ref = ArtifactRef(namespace=ref.namespace, name=ref.name, revision="project-rev")
+        metadata = {
+            "apiVersion": "contractor/v1alpha1",
+            "artifact": project_ref.model_dump(by_alias=True),
+            "mediaType": "text/plain",
+            "size": 3,
+            "contentCacheKey": "project-content",
+        }
+        transport = FakeTransport(
+            [
+                ArtifactHTTPResponse(
+                    200,
+                    {"content-type": "text/plain", "etag": '"run-rev"', **TIMESTAMP_HEADERS},
+                    b"run",
+                ),
+                ArtifactHTTPResponse(
+                    200,
+                    {"content-type": "text/plain", "etag": '"project-rev"', **TIMESTAMP_HEADERS},
+                    b"map",
+                ),
+                json_response(200, metadata),
+                ArtifactHTTPResponse(204, {}, b""),
+            ]
+        )
+        client = ArtifactClient("allocation-1", transport)
+        run = await client.read_artifact(ref)
+        cursor = client.observation_cursor
+        target = ArtifactReadTarget(scope="project", operation="read_report")
+        value = await client.read_artifact(project_ref, max_bytes=3, target=target)
+        described = await client.read_artifact_metadata(project_ref, target=target)
+        await client.check_artifact_access(ref, target=target)
+        assert value.artifact == described.artifact == project_ref
+        assert value.data == b"map" and described.size == 3
+        assert value.binding_created_at == run.binding_created_at
+        assert value.revision_created_at == run.revision_created_at
+        assert client.known_exact_refs == (run.artifact,)
+        assert client.observed_exact_refs_since(cursor) == ()
+        root = "/allocations/allocation-1/artifacts/analysis/report"
+        assert [request.path for request in transport.requests] == [
+            root,
+            root + "?scope=project&operation=read_report&revision=project-rev",
+            root + "/metadata?scope=project&operation=read_report&revision=project-rev",
+            root + "/access?scope=project&operation=read_report",
+        ]
+        assert transport.requests[1].maximum == 3
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "scope,operation",
+    [
+        ("run", "read"),
+        ("user", "read"),
+        ("project", ""),
+        ("project", "a" * 129),
+        ("project", "read&scope=run"),
+        ("project", None),
+    ],
+)
+def test_artifact_read_target_rejects_unbounded_or_unsupported_options(scope, operation):
+    with pytest.raises(ValueError, match="read target"):
+        ArtifactReadTarget(scope=scope, operation=operation)
+
+
+def test_shared_artifact_read_targets():
+    cases = json.loads(
+        (
+            Path(__file__).parents[2] / "api/testdata/v1alpha1/artifact-read-target-cases.json"
+        ).read_text()
+    )
+    assert len(cases["valid"]) >= 5 and len(cases["invalid"]) >= 16
+    for value in cases["valid"]:
+        target = ArtifactReadTarget(**value)
+        assert target.scope == "project" and target.operation == value["operation"]
+    for value in cases["invalid"]:
+        with pytest.raises((TypeError, ValueError)):
+            ArtifactReadTarget(**value)
+
+
+@pytest.mark.parametrize("status,body", [(200, b""), (200, b"{}"), (204, b"{}")])
+def test_artifact_access_requires_empty_204_without_recording_content(status, body):
+    async def scenario():
+        client = ArtifactClient(
+            "allocation", FakeTransport([ArtifactHTTPResponse(status, {}, body)])
+        )
+        with pytest.raises(ArtifactTransportError, match="access response"):
+            await client.check_artifact_access(
+                ArtifactRef(namespace="analysis", name="report"),
+                target=ArtifactReadTarget(scope="project", operation="read_report"),
+            )
+        assert client.observation_cursor == 0 and client.known_exact_refs == ()
+
+    asyncio.run(scenario())
+
+
+def test_project_exact_reads_preserve_shared_bounds_and_missing_revision_failures():
+    async def scenario():
+        target = ArtifactReadTarget(scope="project", operation="read_report")
+        ref = ArtifactRef(namespace="analysis", name="report", revision="wanted")
+        headers = {"content-type": "text/plain", "etag": '"wanted"', **TIMESTAMP_HEADERS}
+        for changed, limit, error in [
+            ({"etag": '"latest"'}, 3, ArtifactTransportError),
+            ({"etag": 'W/"wanted"'}, 3, ArtifactTransportError),
+            ({"x-contractor-revision-created-at": "invalid"}, 3, ArtifactTransportError),
+            ({}, 2, ArtifactResponseLimitError),
+        ]:
+            client = ArtifactClient(
+                "allocation",
+                FakeTransport([ArtifactHTTPResponse(200, {**headers, **changed}, b"map")]),
+            )
+            with pytest.raises(error):
+                await client.read_artifact(ref, max_bytes=limit, target=target)
+            assert client.observation_cursor == 0
+        failure = json_response(
+            404,
+            {
+                "code": "artifact_not_found",
+                "message": "not found",
+                "retryable": False,
+                "requestId": "request-missing",
+            },
+        )
+        client = ArtifactClient("allocation", FakeTransport([failure]))
+        with pytest.raises(ArtifactAPIError, match="artifact_not_found"):
+            await client.read_artifact(ref, target=target)
+        assert len(client.transport.requests) == 1
+
+    asyncio.run(scenario())
 
 
 def test_client_preserves_exact_revisions_without_any_scope_selector() -> None:

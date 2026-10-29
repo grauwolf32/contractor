@@ -90,7 +90,7 @@ func TestPostgresSitemapReceiptPreservesStructuralOmissions(t *testing.T) {
 			if _, err := service.Mutate(ctx, producer, "observations", changed); !errors.Is(err, contracts.ErrIdempotencyConflict) {
 				t.Fatalf("changed accepted selector order: %v", err)
 			}
-			view, err := service.Read(ctx, "owner", "project", "")
+			view, err := readSitemap(service, ctx, "project", "")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -106,7 +106,7 @@ func TestPostgresSitemapReceiptPreservesStructuralOmissions(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := service.Read(ctx, "owner", "project", *first.Ref.Revision); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+			if _, err := readSitemap(service, ctx, "project", *first.Ref.Revision); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 				t.Fatalf("original result was not evicted: %v", err)
 			}
 			replayed, err = service.Mutate(ctx, producer, "observations", command)
@@ -116,7 +116,7 @@ func TestPostgresSitemapReceiptPreservesStructuralOmissions(t *testing.T) {
 			if _, err := service.Mutate(ctx, producer, "observations", changed); !errors.Is(err, contracts.ErrIdempotencyConflict) {
 				t.Fatalf("replacement policy changed accepted-intent conflict: %v", err)
 			}
-			view, err = service.Read(ctx, "owner", "project", "")
+			view, err = readSitemap(service, ctx, "project", "")
 			if err != nil || view.Revision != *current.Ref.Revision {
 				t.Fatalf("replay changed current revision: %s %v", view.Revision, err)
 			}
@@ -144,7 +144,7 @@ func TestPostgresSitemapDeclarationReceiptPreservesStructuralValues(t *testing.T
 	if _, err := service.Mutate(ctx, owner, "declare", changed); !errors.Is(err, contracts.ErrIdempotencyConflict) {
 		t.Fatalf("changed declaration structural value: %v", err)
 	}
-	view, err := service.Read(ctx, "owner", "project", "")
+	view, err := readSitemap(service, ctx, "project", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestPostgresSitemapDeclarationReceiptPreservesParameterNames(t *testing.T) 
 		}
 	}
 	checkReplay()
-	view, err := service.Read(ctx, "owner", "project", "")
+	view, err := readSitemap(service, ctx, "project", "")
 	if err != nil {
 		t.Fatal(err)
 	}

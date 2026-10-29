@@ -117,7 +117,7 @@ func TestPostgresSitemapSelectedContextUsesOrdinaryExactForkHold(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := service.Read(ctx, "owner", "project", *first.Ref.Revision); err != nil {
+	if _, err := readSitemap(service, ctx, "project", *first.Ref.Revision); err != nil {
 		t.Fatalf("ordinary input lineage lost its source: %v", err)
 	}
 	run, _ := artifactsService.Run("context-consumer")
@@ -136,7 +136,7 @@ func TestPostgresSitemapSelectedContextUsesOrdinaryExactForkHold(t *testing.T) {
 	if _, err := artifactstest.ForkProjectInput(ctx, artifactsService, "project", unheld.Ref, "context-consumer", "missing"); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 		t.Fatalf("lost exact selection race: %v", err)
 	}
-	view, err := service.Read(ctx, "owner", "project", "")
+	view, err := readSitemap(service, ctx, "project", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +148,7 @@ func TestPostgresSitemapSelectedContextUsesOrdinaryExactForkHold(t *testing.T) {
 	if _, err := service.Mutate(ctx, a, "all-protected", Mutation{Operation: "observe", Observations: []Observation{observation("/blocked")}}); !errors.Is(err, artifacts.ErrHistoryProtected) {
 		t.Fatalf("protected history was not permanent: %v", err)
 	}
-	after, err := service.Read(ctx, "owner", "project", "")
+	after, err := readSitemap(service, ctx, "project", "")
 	if err != nil || after.Revision != view.Revision {
 		t.Fatal("protected-history refusal changed current")
 	}
@@ -190,7 +190,7 @@ func TestPostgresSitemapCommitsCommonMaintenanceAfterRollback(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	before, err := service.Read(ctx, "owner", "project", "")
+	before, err := readSitemap(service, ctx, "project", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +204,7 @@ func TestPostgresSitemapCommitsCommonMaintenanceAfterRollback(t *testing.T) {
 	if !errors.As(err, &pending) || !pending.Maintained {
 		t.Fatalf("ordinary committed maintenance outcome: %v", err)
 	}
-	after, err := service.Read(ctx, "owner", "project", "")
+	after, err := readSitemap(service, ctx, "project", "")
 	if err != nil || after.Revision != before.Revision {
 		t.Fatal("failed publication changed map")
 	}
@@ -246,11 +246,8 @@ func TestPostgresSitemapReceiptsOwnershipAndHistory(t *testing.T) {
 	if err != nil || !replayed.Replayed || !replayed.Ref.SameExact(first.Ref) {
 		t.Fatalf("receipt replay: %+v %v", replayed, err)
 	}
-	if _, err := service.Read(ctx, "owner", "project", *first.Ref.Revision); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+	if _, err := readSitemap(service, ctx, "project", *first.Ref.Revision); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 		t.Fatalf("evicted read: %v", err)
-	}
-	if _, err := service.Read(ctx, "foreign", "project", ""); !errors.Is(err, projectstore.ErrNotFound) {
-		t.Fatalf("foreign read: %v", err)
 	}
 	foreign := a
 	foreign.OwnerID = "foreign"
@@ -273,7 +270,7 @@ func TestPostgresSitemapReceiptsOwnershipAndHistory(t *testing.T) {
 	if _, err := store.Write(ctx, mapRef(), artifacts.Payload{MediaType: MediaType, Data: []byte(`{}`)}, nil); !errors.Is(err, artifacts.ErrReservedNamespace) {
 		t.Fatalf("generic bypass: %v", err)
 	}
-	view, err := service.Read(ctx, "owner", "project", "")
+	view, err := readSitemap(service, ctx, "project", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,7 +280,7 @@ func TestPostgresSitemapReceiptsOwnershipAndHistory(t *testing.T) {
 	if _, err := service.Mutate(ctx, a, "bad", Mutation{Operation: "observe", Observations: []Observation{{URL: "bad"}}}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("invalid observation: %v", err)
 	}
-	after, err := service.Read(ctx, "owner", "project", "")
+	after, err := readSitemap(service, ctx, "project", "")
 	if err != nil || after.Revision != view.Revision {
 		t.Fatal("rejected write changed current")
 	}
@@ -321,7 +318,7 @@ func TestPostgresSitemapTenWritersAndPermanentSourceConflict(t *testing.T) {
 	if t.Failed() {
 		return
 	}
-	view, err := service.Read(ctx, "owner", "project", "")
+	view, err := readSitemap(service, ctx, "project", "")
 	if err != nil || len(view.Document.Groups) != 10 {
 		t.Fatalf("concurrent appends: %d %v", len(view.Document.Groups), err)
 	}
@@ -331,11 +328,11 @@ func TestPostgresSitemapTenWritersAndPermanentSourceConflict(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, _ := service.Read(ctx, "owner", "project", "")
+	before, _ := readSitemap(service, ctx, "project", "")
 	if _, err := service.Mutate(ctx, a, "stale-source", Mutation{Operation: "replace-source", Source: &u}); !errors.Is(err, ErrConflict) {
 		t.Fatalf("stale replacement: %v", err)
 	}
-	after, _ := service.Read(ctx, "owner", "project", "")
+	after, _ := readSitemap(service, ctx, "project", "")
 	if before.Revision != after.Revision {
 		t.Fatal("stale source changed current")
 	}
@@ -349,7 +346,7 @@ func TestPostgresSitemapMalformedAndProjectFence(t *testing.T) {
 	if _, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Create(ctx, scope, mapRef(), artifacts.Payload{MediaType: MediaType, Data: []byte(`{}`)}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Read(ctx, "owner", "project", ""); !errors.Is(err, ErrInvalid) {
+	if _, err := readSitemap(service, ctx, "project", ""); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("malformed read: %v", err)
 	}
 	if _, err := service.Mutate(ctx, httpAuthority("producer"), "cannot-replace", Mutation{Operation: "observe", Observations: []Observation{observation("/new")}}); !errors.Is(err, ErrInvalid) {
@@ -386,7 +383,7 @@ func TestPostgresSitemapReplayKeepsOriginalStructuralPolicy(t *testing.T) {
 	if _, err := service.Mutate(ctx, a, "observation", Mutation{Operation: "observe", Observations: []Observation{observation("/dispatch?action=delete")}}); !errors.Is(err, contracts.ErrIdempotencyConflict) {
 		t.Fatalf("different structural function replayed old intent: %v", err)
 	}
-	view, err := service.Read(ctx, "owner", "project", "")
+	view, err := readSitemap(service, ctx, "project", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -430,7 +427,7 @@ func TestPostgresSitemapUsesSharedTransferAdmission(t *testing.T) {
 			release()
 		}
 	}()
-	if _, err := service.Read(ctx, "owner", "project", ""); !errors.Is(err, artifacts.ErrTransferCapacity) {
+	if _, err := readSitemap(service, ctx, "project", ""); !errors.Is(err, artifacts.ErrTransferCapacity) {
 		t.Fatalf("read bypassed common admission: %v", err)
 	}
 	if _, err := service.Mutate(ctx, a, "second", Mutation{Operation: "observe", Observations: []Observation{observation("/another")}}); !errors.Is(err, artifacts.ErrTransferCapacity) {

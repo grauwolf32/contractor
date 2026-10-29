@@ -11,9 +11,15 @@ from typing import Any
 from uuid import uuid4
 
 from contractor_runtime import threads
-from contractor_runtime.artifacts import ArtifactAPIError
+from contractor_runtime.artifacts import (
+    ArtifactAPIError,
+    ArtifactClient,
+    ArtifactReadTarget,
+    ArtifactTransportError,
+)
+from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError
-from contractor_runtime.sitemap import SitemapClient
+from contractor_runtime.sitemap import MAX_SITEMAP_BYTES, SITEMAP_MEDIA_TYPE, SitemapClient
 from contractor_runtime.toolsets.common.cursors import (
     decode_cursor,
     encode_cursor,
@@ -30,9 +36,10 @@ from contractor_runtime.toolsets.sitemap.index import (
 
 class SitemapSession:
     def __init__(
-        self, client: SitemapClient, before_read: Callable[[], Awaitable[None]] | None = None
+        self, artifacts: ArtifactClient, before_read: Callable[[], Awaitable[None]] | None = None
     ) -> None:
-        self.client = client
+        self.client = SitemapClient(artifacts)
+        self._artifacts = artifacts
         self._before_read = before_read
         self._lock = asyncio.Lock()
         self._key = bytearray(secrets.token_bytes(32))
@@ -82,6 +89,8 @@ class SitemapSession:
     ) -> tuple[ViewIndex, int]:
         if self._closed or (refresh and cursor is not None):
             raise self.expired()
+        target = ArtifactReadTarget(scope="project", operation=operation)
+        ref = ArtifactRef(namespace="sitemap", name="map")
         offset = 0
         if cursor is not None:
             try:
@@ -98,13 +107,30 @@ class SitemapSession:
                 raise self.expired()
             offset = value["offset"]
         elif refresh or self._view is None:
-            raw = await self.client.view()
+            try:
+                raw = await self._artifacts.read_artifact(
+                    ref, max_bytes=MAX_SITEMAP_BYTES, target=target
+                )
+            except ArtifactAPIError as error:
+                # Only a missing current binding is an empty domain view.
+                # Project/operation failures have separate Server error codes.
+                if error.status_code != 404 or error.code != "artifact_not_found":
+                    raise
+                data = (
+                    b'{"version":"project-sitemap@1","projection":"sitemap-safe-projection@1",'
+                    b'"groups":[],"sources":[],"rules":[],"markers":[],"gaps":[]}'
+                )
+                revision = "absent"
+            else:
+                if raw.media_type != SITEMAP_MEDIA_TYPE:
+                    raise ArtifactTransportError("sitemap artifact has an invalid media type")
+                data, revision = raw.data, raw.artifact.require_exact().revision
             view = await threads.to_thread_until_done(
-                lambda: ViewIndex(raw.data), name="sitemap-view-index"
+                lambda: ViewIndex(data), name="sitemap-view-index"
             )
             self._view = view
-            self._identity, self._revision = str(uuid4()), raw.revision
-        await self.client.access(operation)
+            self._identity, self._revision = str(uuid4()), revision
+        await self._artifacts.check_artifact_access(ref, target=target)
         if self._view is None:
             raise self.expired()
         return self._view, offset

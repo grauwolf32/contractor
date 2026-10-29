@@ -1,17 +1,6 @@
 {
   "valid": [
     {
-      "type": "SitemapAccess",
-      "value": {
-        "apiVersion": "contractor/v1alpha1",
-        "policy": {
-          "version": "sitemap-access@1",
-          "collectObservations": false
-        },
-        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      }
-    },
-    {
       "type": "SitemapMutationRequest",
       "value": {
         "apiVersion": "contractor/v1alpha1",
@@ -86,59 +75,31 @@
           ]
         }
       }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "replace-source",
+          "expectedRevision": "absent",
+          "source": {
+            "rules": [
+              {
+                "origin": "https://example.com",
+                "method": "GET",
+                "path": "/items/{id}",
+                "pointer": "/fixture",
+                "parameters": [],
+                "structural": []
+              }
+            ]
+          }
+        }
+      }
     }
   ],
   "invalid": [
-    {
-      "type": "SitemapAccess",
-      "value": {
-        "policy": {
-          "version": "sitemap-access@1",
-          "collectObservations": false
-        },
-        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      }
-    },
-    {
-      "type": "SitemapAccess",
-      "value": {
-        "apiVersion": "contractor/v1alpha1",
-        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      }
-    },
-    {
-      "type": "SitemapAccess",
-      "value": {
-        "apiVersion": "contractor/v1alpha1",
-        "policy": {
-          "version": "sitemap-access@1",
-          "collectObservations": false
-        }
-      }
-    },
-    {
-      "type": "SitemapAccess",
-      "value": {
-        "apiVersion": "future",
-        "policy": {
-          "version": "sitemap-access@1",
-          "collectObservations": false
-        },
-        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      }
-    },
-    {
-      "type": "SitemapAccess",
-      "value": {
-        "apiVersion": "contractor/v1alpha1",
-        "policy": {
-          "version": "sitemap-access@1",
-          "collectObservations": false
-        },
-        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "foreignProject": "other"
-      }
-    },
     {
       "type": "SitemapMutationRequest",
       "value": {
@@ -394,42 +355,6 @@
       }
     },
     {
-      "type": "SitemapAccess",
-      "value": {
-        "apiVersion": "contractor/v1alpha1",
-        "policy": {
-          "version": "sitemap-access@1",
-          "collectObservations": false
-        },
-        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "policyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      }
-    },
-    {
-      "type": "SitemapAccess",
-      "value": {
-        "apiVersion": "contractor/v1alpha1",
-        "policy": {
-          "version": "sitemap-access@1",
-          "collectObservations": false
-        },
-        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        "inputs": []
-      }
-    },
-    {
-      "type": "SitemapAccess",
-      "value": {
-        "apiVersion": "contractor/v1alpha1",
-        "policy": {
-          "version": "sitemap-access@1",
-          "collectObservations": false,
-          "sourceMode": "blackbox"
-        },
-        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-      }
-    },
-    {
       "type": "SitemapSnapshotRequest",
       "value": {
         "apiVersion": "contractor/v1alpha1",
@@ -440,14 +365,6 @@
           ],
           "expectedPolicyDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         }
-      }
-    },
-    {
-      "type": "SitemapAccess",
-      "value": {
-        "apiVersion": "contractor/v1alpha1",
-        "policy": null,
-        "manualSourceId": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       }
     },
     {
@@ -468,6 +385,109 @@
               "policyDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             },
             "rules": []
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "replace-source",
+          "expectedRevision": "absent",
+          "source": {
+            "rules": [
+              {
+                "origin": "https://example.com",
+                "method": "GET",
+                "path": "/items/{id}",
+                "pointer": "/fixture",
+                "parameters": [],
+                "structural": []
+              }
+            ],
+            "sourceId": "caller-controlled"
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "replace-source",
+          "expectedRevision": "absent",
+          "source": {
+            "rules": [
+              {
+                "origin": "https://example.com",
+                "method": "GET",
+                "path": "/items/{id}",
+                "pointer": "/fixture",
+                "parameters": [],
+                "structural": [],
+                "sourceId": "caller-controlled"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "replace-source",
+          "expectedRevision": "absent",
+          "source": {
+            "rules": null
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "replace-source",
+          "expectedRevision": "absent",
+          "source": {
+            "rules": [
+              {
+                "origin": "https://example.com",
+                "method": "GET",
+                "path": "/items/{id}",
+                "pointer": "/fixture",
+                "parameters": null,
+                "structural": []
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "replace-source",
+          "expectedRevision": "absent",
+          "source": {
+            "rules": [
+              {
+                "origin": "https://example.com",
+                "method": "GET",
+                "path": "/items/{id}",
+                "pointer": "/fixture",
+                "parameters": [],
+                "structural": null
+              }
+            ]
           }
         }
       }

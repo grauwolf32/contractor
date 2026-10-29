@@ -41,7 +41,7 @@ func TestPostgresSitemapHTTPCollectionProjectionSessionsAndReceipt(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err := s.Read(ctx, "owner", "project", "")
+	view, err := readSitemap(s, ctx, "project", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestPostgresSitemapHTTPCollectionProjectionSessionsAndReceipt(t *testing.T)
 	if err != nil || !replayed.Replayed || *replayed.Ref.Revision != *committed.Ref.Revision {
 		t.Fatalf("lost receipt after eviction: %+v %v", replayed, err)
 	}
-	if _, err = s.Read(ctx, "owner", "project", *committed.Ref.Revision); err == nil {
+	if _, err = readSitemap(s, ctx, "project", *committed.Ref.Revision); err == nil {
 		t.Fatal("evicted bytes were revived")
 	}
 	access.Policy.CollectObservations = false
@@ -109,8 +109,8 @@ func TestPostgresSitemapRetainsCredentialNamedMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rule := Rule{SourceID: access.ManualSourceID, Origin: "https://example.test", Method: "GET", Path: "/dispatch", Pointer: "#/paths/~1session~1short-password", Parameters: []string{"password", "token"}, Structural: []StructuralParameter{{Name: "token", Allowed: []string{"short-password", "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"}}}}
-	_, err = service.MutateAllocation(ctx, access, "configure", Mutation{Operation: "replace-source", ExpectedRevision: "absent", Source: &SourceUpdate{SourceID: access.ManualSourceID, Rules: []Rule{rule}}})
+	rule := EditorRule{Origin: "https://example.test", Method: "GET", Path: "/dispatch", Pointer: "#/paths/~1session~1short-password", Parameters: []string{"password", "token"}, Structural: []StructuralParameter{{Name: "token", Allowed: []string{"short-password", "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"}}}}
+	_, err = service.MutateAllocation(ctx, access, "configure", EditorMutation{Operation: "replace-source", ExpectedRevision: "absent", Source: &EditorSourceUpdate{Rules: []EditorRule{rule}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestPostgresSitemapRetainsCredentialNamedMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err := service.ReadAllocation(ctx, access, "")
+	view, err := readSitemap(service, ctx, access.ProjectID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,11 +131,11 @@ func TestPostgresSitemapRetainsCredentialNamedMetadata(t *testing.T) {
 	if memberID == "" {
 		t.Fatal("credential-named structural selection was discarded")
 	}
-	_, err = service.MutateAllocation(ctx, access, "annotate", Mutation{Operation: "annotate", ExpectedRevision: view.Revision, MemberIDs: []string{memberID}, Note: "password token short-password ABCDEFGHIJKLMNOPQRSTUVWXYZ123456", Tags: []string{"password", "token", "short-password", "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"}})
+	_, err = service.MutateAllocation(ctx, access, "annotate", EditorMutation{Operation: "annotate", ExpectedRevision: view.Revision, MemberIDs: []string{memberID}, Note: "password token short-password ABCDEFGHIJKLMNOPQRSTUVWXYZ123456", Tags: []string{"password", "token", "short-password", "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err = service.ReadAllocation(ctx, access, "")
+	view, err = readSitemap(service, ctx, access.ProjectID, "")
 	if err != nil {
 		t.Fatal(err)
 	}

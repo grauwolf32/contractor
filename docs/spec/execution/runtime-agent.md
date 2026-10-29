@@ -1241,3 +1241,14 @@ revoked ref fails at Server metadata. Keep only the bounded in-memory index and
 aggregate hit/miss/bypass/corruption and charged-byte counters; operational logs
 expose scalar aggregates without refs, keys, paths or owner labels. No unbounded
 access journal is retained.
+
+**RTA-R125.** A domain reader may use the common allocation Artifact client with
+an explicit Project read target (ART-R135). Its transient indexed view retains
+one immutable payload and its domain index, obeys the owning domain's byte/page
+bounds, and rechecks current operation authority through the common Artifact
+access endpoint before each page. Refresh/release joins indexing before clearing
+or replacing it; no background refresh, TTL, disk persistence or implicit Artifact
+hold is added. Sitemap limits and cursor/selection semantics remain SMT-R15 and
+SMT-R16. Project reads must not enter the current-Run exact-reference observation
+journal. A cached view is research context; frozen materialization still reads
+and protects the exact source through ArtifactStore on the Server.

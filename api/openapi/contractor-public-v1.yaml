@@ -3350,47 +3350,6 @@ paths:
 
 
 
-  /v1/projects/{projectId}/sitemap:
-    parameters:
-    - $ref: '#/components/parameters/ProjectId'
-    get:
-      operationId: getProjectSitemap
-      tags:
-      - Projects
-      summary: Read an owned Project sitemap
-      responses:
-        '200':
-          description: Exact or current sitemap; missing current is empty
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestId'
-            Cache-Control:
-              $ref: '#/components/headers/NoStore'
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/SitemapView'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '500':
-          $ref: '#/components/responses/InternalError'
-        '503':
-          $ref: '#/components/responses/ArtifactUnavailable'
-      parameters:
-      - name: revision
-        in: query
-        schema:
-          $ref: '#/components/schemas/Revision'
   /v1/projects/{projectId}/sitemap/mutations:
     parameters:
     - $ref: '#/components/parameters/ProjectId'
@@ -7808,35 +7767,51 @@ components:
       type: object
       additionalProperties: false
       required:
-      - sourceId
       - rules
       properties:
-        sourceId:
-          type: string
-          const: owner
-          enum:
-          - owner
         expected:
           $ref: '#/components/schemas/SitemapSource'
-        artifact:
-          $ref: '#/components/schemas/SitemapExactArtifact'
         rules:
           type: array
           maxItems: 256
           items:
-            $ref: '#/components/schemas/SitemapRule'
-    SitemapView:
+            $ref: '#/components/schemas/SitemapEditorRule'
+    SitemapEditorRule:
       type: object
       additionalProperties: false
       required:
-      - revision
-      - document
+      - origin
+      - method
+      - path
+      - pointer
+      - parameters
+      - structural
       properties:
-        revision:
+        origin:
           type: string
           maxLength: 8192
-        document:
-          $ref: '#/components/schemas/SitemapDocument'
+        method:
+          type: string
+          pattern: ^[A-Z]{1,16}$
+          maxLength: 16
+        path:
+          type: string
+          maxLength: 8192
+        pointer:
+          type: string
+          maxLength: 8192
+        parameters:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            maxLength: 64
+            x-max-utf8-bytes: 64
+        structural:
+          type: array
+          maxItems: 16
+          items:
+            $ref: '#/components/schemas/SitemapStructuralParameter'
     SitemapResult:
       type: object
       additionalProperties: false

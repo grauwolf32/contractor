@@ -1,4 +1,4 @@
-"""Pinned authority for allocation-scoped Project sitemap access."""
+"""Pinned Project sitemap policy and allocation command responses."""
 
 from __future__ import annotations
 
@@ -55,16 +55,6 @@ class SitemapInputDescriptor(WireModel):
     def validate_descriptor(self) -> Self:
         self.ref.require_exact()
         validate_media_type(self.media_type)
-        return self
-
-
-class SitemapAccess(VersionedWireModel):
-    policy: ProjectSitemapPolicy
-    manual_source_id: str
-
-    @model_validator(mode="after")
-    def validate_access(self) -> Self:
-        _require_resource_id("sitemap manual source", self.manual_source_id)
         return self
 
 

@@ -193,15 +193,22 @@ for an explicitly requested consumer, such as a deliberately blind experiment,
 with a defined purpose and enforcement boundary. It is not a default sitemap
 mode.
 
-**SMT-R15.** Runtime keeps one immutable encoded authorized view per allocation,
+**SMT-R15.** Runtime downloads the map through the ordinary Artifact client and
+explicit Project read target (ART-R135), then keeps one immutable encoded view per allocation,
 bounded by LIM-SMT-12. Parsing and indexing run in joined threads. A cursor binds
 the view identity, original exact revision and filters. Every page checks current
-Server allocation, Project and the requested operation permission; local bytes
+Server allocation, Project and the requested operation permission through the
+common authority-only Artifact check; local bytes
 confer no authority. Neither a view policy digest nor a policy-copy precondition
 is part of the page contract. Publication or source eviction does not change an
 existing view.
 Refresh, absence, replacement and release invalidate old cursors with
-`sitemap_cursor_expired`. There is no view TTL or implicit Artifact hold.
+`sitemap_cursor_expired`. There is no view TTL, disk persistence or implicit Artifact hold. The view keeps
+one encoded payload plus byte-span/index metadata, not a second decoded document
+graph. Commands do not edit or invalidate that view; only an explicit refresh
+loads the later committed map. A missing current binding becomes the domain
+empty map after authorized artifact absence; an exact missing revision remains
+unavailable. Generic artifact transport never interprets map contents.
 The existing `list_sitemap_entries` operation accepts `scope="entries"` by
 default and `scope="metadata"` for independently paged sources, rules and gaps,
 including maps with no entries. Metadata uses the same view and page bounds,
@@ -315,29 +322,36 @@ collection and supplies the decision that depends on it.
 
 ## Interfaces
 
-The public owner operations are `GET /v1/projects/{projectId}/sitemap` and
-`POST /v1/projects/{projectId}/sitemap/mutations` in the
-[public OpenAPI contract](../../../api/openapi/contractor-public-v1.yaml).
-The read accepts an optional exact revision; mutations require `Idempotency-Key`.
-Commands are `declare`, `annotate`, `remove`, `restore` and `replace-source`.
-The trusted service also accepts observation batches from an authenticated
-producer context. No command accepts a replacement map document.
+Owner reads use the ordinary Project Artifact raw/metadata endpoints for
+`sitemap/map`, with optional exact revision and the common owner-read lifecycle
+policy. There is no public sitemap GET. The CLI preserves its sitemap get command
+as a domain decoder over ordinary Artifact bytes and ETag; a missing current map
+becomes empty only after confirming that the Project exists and is active. An
+exact miss and an inaccessible/missing Project never become empty.
+
+The public owner mutation is `POST /v1/projects/{projectId}/sitemap/mutations`
+in the [public OpenAPI contract](../../../api/openapi/contractor-public-v1.yaml).
+Commands are `declare`, `annotate`, `remove`, `restore` and `replace-source` and
+require `Idempotency-Key`. Manual editor commands carry source rules and optional
+exact source preconditions, but no new source/rule identity or source artifact:
+the authenticated domain handler assigns those identities. Stored documents and
+expected source descriptors retain their identities. No command accepts a
+replacement map document.
 
 The allocation collector uses
 `POST /private/v1/allocations/{allocationId}/sitemap/observations` with
 `{apiVersion, input}` and `Idempotency-Key`. Transient input contains only bounded
-attempt metadata. The existing mTLS allocation gate and
+attempt metadata. Existing mTLS allocation fencing and the
 [private wire schema](../../../api/v1alpha1/project-sitemap.schema.json) apply.
-No Project selector, source classification or raw headers/body are accepted.
-Explicit allocation tools retain their separate read/mutation/snapshot operations.
+Explicit allocation commands retain their mutation/snapshot operations.
 
-`GET /private/v1/allocations/{allocationId}/sitemap/access` requires the
-`operation` query parameter naming the exact selected sitemap tool. Runtime
-checks this operation before serving each cached list/read page and before
-editor metadata reads. Missing or unknown operations are invalid; an ungranted
-operation is denied even if another sitemap operation or automatic collection
-remains allowed. The endpoint accepts no policy-digest precondition. Snapshot
-POST independently checks its exact selected operation and allocation fence.
+Allocation reads use the common Artifact raw/metadata API with `scope=project`
+and the exact selected operation (ART-R135). Before every cached list/read page,
+Runtime uses the same binding's common `/access` operation; that check reads no
+artifact bytes, metadata or lineage. There is no private sitemap GET/access or
+sitemap-specific revision header. Grouping commands derive their manual source
+identity on the Server without a preceding metadata endpoint. Snapshot POST
+independently checks its selected operation, write permission and allocation fence.
 
 The CLI uses the generated public client:
 
@@ -347,8 +361,8 @@ contractor project sitemap mutate PROJECT --file command.json --idempotency-key 
 ```
 
 An owner can select the exact sitemap binding as an ordinary declared input
-when creating a Project Run. This deliberate selection and permitted dedicated
-sitemap reads expose the complete selected map. Dedicated snapshots select
+when creating a Project Run. This deliberate selection and permitted allocation
+artifact reads expose the complete selected map. Dedicated snapshots select
 entries from an exact map revision and retain only explicitly permitted needed
 input files. The existing input fork retains the selected source; a live read
 alone creates no such dependency.
