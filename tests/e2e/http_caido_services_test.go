@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -160,6 +161,7 @@ type fakeCaidoControl struct {
 	mu         sync.Mutex
 	operations []string
 	failures   []string
+	replayRaw  string
 }
 
 func newFakeCaidoControl(name string, blockFirst bool) *fakeCaidoControl {
@@ -198,7 +200,7 @@ func (c *fakeCaidoControl) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := decoder.Decode(&request); err != nil || request.OperationName == "" ||
 		!strings.HasPrefix(request.Query, map[bool]string{
 			true: "mutation ", false: "query ",
-		}[request.OperationName == "CreateScope"]) {
+		}[request.OperationName == "CreateScope" || request.OperationName == "CreateReplaySession" || request.OperationName == "StartReplayTask"]) {
 		c.recordFailure("invalid static GraphQL request")
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
@@ -219,17 +221,63 @@ func (c *fakeCaidoControl) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	var data map[string]any
 	switch request.OperationName {
 	case "RequestsByOffset":
+		count := 1
+		node := fakeCaidoSelectedRequest(c.name, "/observed")
+		if request.Variables["limit"] == float64(1) {
+			// The tool selected one row. The provider has another page, whose
+			// presence must not cause background history synchronization.
+			count = 2
+			if request.Variables["offset"] != float64(0) {
+				node = fakeCaidoSelectedRequest(c.name, "/unselected-history")
+			}
+		}
 		data = map[string]any{"requestsByOffset": map[string]any{
-			"count": map[string]any{"value": 1},
-			"nodes": []any{map[string]any{
-				"id": "request-" + c.name, "method": "GET", "host": "target.example",
-				"path": "/observed", "port": 443, "query": "", "isTls": true,
-				"source": "PROXY", "createdAt": "2026-09-01T00:00:00Z",
-				"response": map[string]any{
-					"statusCode": 500, "length": 12000, "roundtripTime": 7,
-				},
-			}},
+			"count": map[string]any{"value": count}, "nodes": []any{node},
 		}}
+	case "RequestDetail":
+		if request.Variables["id"] != "detail-"+c.name {
+			c.recordFailure("unexpected detail selection")
+		}
+		node := fakeCaidoSelectedRequest(c.name, "/detail-only")
+		node["id"], node["method"], node["response"] = "detail-"+c.name, "DELETE", nil
+		node["createdAt"] = "2026-09-01T03:01:00+03:00"
+		node["raw"] = base64.StdEncoding.EncodeToString([]byte("DELETE /detail-only HTTP/1.1\r\nHost: target.example\r\n\r\n"))
+		data = map[string]any{"request": node}
+	case "CreateReplaySession":
+		data = map[string]any{"createReplaySession": map[string]any{
+			"session": map[string]any{"id": "replay-" + c.name, "name": "selected", "activeEntry": map[string]any{"id": "entry-" + c.name}},
+		}}
+	case "StartReplayTask":
+		input, _ := request.Variables["input"].(map[string]any)
+		c.mu.Lock()
+		c.replayRaw, _ = input["raw"].(string)
+		c.mu.Unlock()
+		data = map[string]any{"startReplayTask": map[string]any{
+			"error": nil, "task": map[string]any{"id": "task-" + c.name, "replayEntry": map[string]any{"id": "entry-" + c.name}},
+		}}
+	case "ReplayEntry":
+		if !strings.Contains(request.Query, "createdAt") {
+			c.recordFailure("replay query omitted provider timestamp")
+		}
+		c.mu.Lock()
+		raw := c.replayRaw
+		c.mu.Unlock()
+		data = map[string]any{"replayEntry": map[string]any{
+			"id": "entry-" + c.name, "raw": raw, "error": nil,
+			"request": map[string]any{
+				"id": "replayed-" + c.name, "method": "POST", "host": "target.example",
+				"path": "/replayed", "query": "password=unretained-value", "createdAt": 1788220920123,
+				"response": map[string]any{
+					"statusCode": 201, "length": 2, "roundtripTime": 7,
+					"raw": base64.StdEncoding.EncodeToString([]byte("HTTP/1.1 201 Created\r\n\r\nok")),
+				},
+			},
+		}}
+	case "SitemapDescendants":
+		data = map[string]any{"sitemapDescendantEntries": map[string]any{"nodes": []any{map[string]any{
+			"id": "native-only-" + c.name, "label": "native-sitemap-only", "kind": "PATH",
+			"hasDescendants": false, "parentId": "domain-" + c.name, "metadata": nil,
+		}}}}
 	case "CreateScope":
 		input, _ := request.Variables["input"].(map[string]any)
 		name, _ := input["name"].(string)
@@ -249,6 +297,15 @@ func (c *fakeCaidoControl) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"data": data})
+}
+
+func fakeCaidoSelectedRequest(name, path string) map[string]any {
+	return map[string]any{
+		"id": "request-" + name, "method": "GET", "host": "target.example",
+		"path": path, "port": 443, "query": "", "isTls": true,
+		"source": "PROXY", "createdAt": "2026-09-01T00:00:00Z",
+		"response": map[string]any{"statusCode": 500, "length": 12000, "roundtripTime": 7},
+	}
 }
 
 func (c *fakeCaidoControl) recordFailure(message string) {

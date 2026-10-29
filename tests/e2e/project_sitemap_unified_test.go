@@ -92,7 +92,7 @@ func unifiedSitemapSelection(request map[string]any) ([]string, error) {
 			entry, _ := raw.(map[string]any)
 			id, hasID := entry["id"].(string)
 			route, hasRoute := entry["route"].(string)
-			if hasID && hasRoute {
+			if hasID && hasRoute && slices.Contains([]string{"/manual-canary", "/openapi-only", "/{route}"}, route) {
 				ids, routes = append(ids, id), append(routes, route)
 			}
 		}
