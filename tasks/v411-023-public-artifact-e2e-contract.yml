@@ -47,10 +47,19 @@ tests:
   covers: [A1, A2, A3]
 - command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestAgentSkillsMVPProcesses$'
   covers: [A1, A2]
-- command: make test-release-process-e2e
+- command: make test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
   covers: [A1, A3]
 - command: make lint
   covers: [A1, A2, A3]
 assignment:
   branch: codex/v411-004-http-conformance
   claimed: '2026-10-29'
+
+process_verification_execution:
+  reason: The sequential canonical process invocation reached its aggregate 50-minute timeout after
+    33 successful parents; it remains a failed/incomplete diagnostic. While it ran, main delivered
+    shared Artifact reads and one additional adapter-selector regression.
+  final_command: make test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
+  guarantee: Execute all three existing CI shards on the same integrated source. Their exact union
+    is the complete 36-root canonical deterministic process selection; no test is dropped, no
+    prerequisite or skip check is relaxed, and each shard retains its existing timeout/report gate.
