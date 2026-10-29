@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Sequence
 from typing import Protocol
+
+from contractor_runtime.toolsets.common.subscribers import notify_subscriber
 
 
 class HTTPObservationSink(Protocol):
@@ -22,17 +23,4 @@ async def notify_http_observations(
     """
     if sink is None or not observations:
         return
-    task = asyncio.create_task(sink.receive(observations), name="http-observation")
-    cancelled = False
-    while not task.done():
-        try:
-            await asyncio.shield(task)
-        except asyncio.CancelledError:
-            current = asyncio.current_task()
-            cancelled = cancelled or bool(current and current.cancelling())
-        except Exception:
-            break
-    if not task.cancelled():
-        task.exception()  # consume a subscriber failure without changing target data
-    if cancelled:
-        raise asyncio.CancelledError
+    await notify_subscriber(lambda: sink.receive(observations), name="http-observation")

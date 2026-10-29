@@ -80,6 +80,14 @@ from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
 
 
+class _CaidoObservationSink:
+    def __init__(self, collector: SitemapCollector) -> None:
+        self._collector = collector
+
+    async def receive(self, observations: Sequence[dict]) -> None:
+        await self._collector.receive_caido(observations)
+
+
 class AllocationService:
     """Constructs, drains, and erases exactly one in-process Worker context."""
 
@@ -319,6 +327,8 @@ class AllocationService:
                         )
                     )
                     worker_state.http_observation_sink = collector
+                    worker_state.caido_observation_sink = _CaidoObservationSink(collector)
+                    worker_state.report_publication_sink = collector
                     worker_state.sitemap_read_flush = collector.checkpoint
                     worker_state.before_completion = collector.checkpoint
                 if execution is not None:

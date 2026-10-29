@@ -11,10 +11,11 @@ from uuid import uuid4
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient
-from contractor_runtime.contracts import RuntimeSettings
+from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.redaction import runtime_secrets
-from contractor_runtime.sitemap import SitemapClient
+from contractor_runtime.sitemap import REPORT_FORMATS, SitemapClient
+from contractor_runtime.toolsets.common.artifact_visibility import require_model_visible_binding
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
@@ -22,6 +23,26 @@ from contractor_runtime.toolsets.sitemap.session import SitemapSession
 from contractor_runtime.workspace import AllocationWorkspace
 
 ImportDispatcher = Callable[[SitemapClient, Mapping[str, Any], str], Awaitable[dict[str, Any]]]
+
+
+async def import_sitemap_report(
+    client: SitemapClient, selection: Mapping[str, Any], key: str
+) -> dict[str, Any]:
+    if (
+        not isinstance(selection, Mapping)
+        or set(selection) != {"format", "artifact"}
+        or selection["format"] not in REPORT_FORMATS.values()
+    ):
+        raise ToolInputError("selection requires a supported report format and exact artifact")
+    try:
+        artifact = ArtifactRef.model_validate(selection["artifact"]).require_exact()
+        require_model_visible_binding(artifact.namespace, artifact.name)
+    except (ValueError, TypeError):
+        raise ToolInputError("artifact must be an accessible exact current-Run ref") from None
+    result = await client.import_source(
+        {"format": selection["format"], "artifact": artifact.model_dump(by_alias=True)}, key
+    )
+    return result.model_dump(by_alias=True)
 
 
 class SitemapToolsetFactory:
@@ -49,7 +70,7 @@ class SitemapToolsetFactory:
         self._import = import_dispatcher
 
     async def probe(self) -> frozenset[str]:
-        # A parser is a later adapter; an uninstalled operation is never positive capability.
+        # An uninstalled format dispatcher is never a positive capability.
         return (
             self.exported_tools
             if self._import is not None
@@ -436,14 +457,19 @@ class ImportSitemapSource(_SitemapTool):
     description = """Import an explicitly selected exact source through an installed format adapter.
 
     Args:
-        selection: Adapter format and exact authorized current-Run artifact selection.
+        format: ffuf-report@1 or katana-report@1.
+        artifact_ref: Exact current-Run artifact with namespace, name and revision.
         idempotency_key: Reuse only for an identical ambiguous operation.
 
     Returns:
         Classified import result, accepted map reference and gaps.
     """
 
-    async def __call__(self, selection: dict[str, Any], idempotency_key: str | None = None) -> dict:
+    async def __call__(
+        self, format: str, artifact_ref: dict[str, Any], idempotency_key: str | None = None
+    ) -> dict:
+        selection = {"format": format, "artifact": artifact_ref}
+
         async def operation() -> dict:
             if self._dispatcher is None:
                 raise RuntimeError("sitemap import adapter is not installed")
@@ -454,5 +480,6 @@ class ImportSitemapSource(_SitemapTool):
             )
 
         return await self._invoke(
-            {"selection": selection, "idempotency_key": idempotency_key}, operation
+            {"format": format, "artifact_ref": artifact_ref, "idempotency_key": idempotency_key},
+            operation,
         )

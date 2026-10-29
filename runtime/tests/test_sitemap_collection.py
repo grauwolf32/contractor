@@ -111,7 +111,7 @@ def test_observation_bytes_still_bound_batches_without_matching_secrets():
         assert len(client.calls) == 2
         assert sum(len(payload["observations"]) for payload, _ in client.calls) == 40
         for payload, _ in client.calls:
-            assert set(payload) == {"observations"}
+            assert set(payload) == {"kind", "observations"} and payload["kind"] == "http"
             encoded = json.dumps(
                 {"apiVersion": "contractor/v1alpha1", "input": payload},
                 ensure_ascii=False,
@@ -177,7 +177,8 @@ def test_http_collection_sends_only_attempt_metadata_and_preserves_credential_li
             assert method == "POST" and path.endswith("/sitemap/observations")
             request = json.loads(body)
             assert set(request) == {"apiVersion", "input"}
-            assert set(request["input"]) == {"observations"}
+            assert set(request["input"]) == {"kind", "observations"}
+            assert request["input"]["kind"] == "http"
             rows = request["input"]["observations"]
             assert len(rows) == 1 and rows[0]["url"] == url
             assert set(rows[0]) == {"url", "method", "outcome", "status", "at"}
