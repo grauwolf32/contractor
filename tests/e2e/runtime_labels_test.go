@@ -193,10 +193,10 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 				if item.SlotState != "idle" || item.ConfirmedLeaseUntil == nil {
 					return false
 				}
-				switch strings.Join(item.SupportedRuntimeAdapters, ",") {
-				case "http-proxy@1":
+				switch {
+				case matchesCurrentRuntimeAdapters(item.SupportedRuntimeAdapters, "http-proxy@1"):
 					foundProxyOnly = true
-				case "otlp-http@1":
+				case matchesCurrentRuntimeAdapters(item.SupportedRuntimeAdapters, "otlp-http@1"):
 					foundTelemetry = true
 				}
 			}
@@ -752,9 +752,8 @@ func principalWithAdapters(
 	adapters ...string,
 ) observedRuntimePrincipal {
 	t.Helper()
-	want := strings.Join(adapters, ",")
 	for _, principal := range principals {
-		if principal.Live != nil && strings.Join(principal.Live.SupportedRuntimeAdapters, ",") == want {
+		if principal.Live != nil && matchesCurrentRuntimeAdapters(principal.Live.SupportedRuntimeAdapters, adapters...) {
 			return principal
 		}
 	}
