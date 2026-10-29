@@ -7,6 +7,9 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const HTTPExchangeMediaType = "application/vnd.contractor.http-exchange+json"
@@ -52,9 +55,19 @@ type HTTPMessage struct {
 func (capture *CapturedHTTPExchange) UnmarshalJSON(data []byte) error {
 	type plain CapturedHTTPExchange
 	var value plain
-	raw, err := decodeStrictJSON(data, &value)
+	// Capture has its own byte bounds: base64 response bodies may exceed the
+	// ordinary Audit document/string bounds. Keep the same strict member,
+	// Unicode, depth and number checks without silently shrinking FND-R53.
+	if len(data) > contracts.MaxArtifactPayloadBytes || !utf8.Valid(data) || !strictjson.ValidUnicodeEscapes(data) || strictjson.HasNULEscape(data) {
+		return invalid(CodeInvalid, "httpEvidence")
+	}
+	raw, err := strictjson.DecodeBounded(data, strictjson.Bounds{MaxDepth: MaximumJSONDepth, MaxNodes: MaximumJSONNodes, MaxStringBytes: base64.StdEncoding.EncodedLen(MaximumHTTPResponseBodyBytes)}, finiteJSONNumber)
 	if err != nil {
-		return err
+		return invalid(CodeInvalid, "httpEvidence")
+	}
+	normalized, err := json.Marshal(raw)
+	if err != nil || strictjson.DecodeNonNull(normalized, &value) != nil {
+		return invalid(CodeInvalid, "httpEvidence")
 	}
 	if err := validateFindingJSONFields(raw, "source request_id attempts", "request_tag", ""); err != nil {
 		return err

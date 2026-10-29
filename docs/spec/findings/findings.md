@@ -43,7 +43,7 @@ It leaves to other documents:
 - AgentTemplate Toolset selection:
   [agent templates](../configuration/agent-templates.md); Workflow input
   slots: [workflows](../configuration/workflows.md).
-- SARIF export and finding analysis:
+- SARIF export:
   [proposal 0028](../../proposals/0028-finding-analysis-and-sarif.md);
   redacted evidence for autonomous pentest Audits:
   [proposal 0033](../../proposals/0033-autonomous-pentest-audits.md).
@@ -495,7 +495,9 @@ raw request is invalid. Source and message kinds must agree. HTTP IDs are
 canonical decimal integers 1–9007199254740991; Caido IDs are nonempty strings
 of at most 256 UTF-8 bytes without ASCII control characters. The owning schema
 is [http-exchange.schema.json](../../../api/v1alpha1/http-exchange.schema.json);
-Go and Runtime validate the shared capture cases.
+Go and Runtime validate the shared capture cases. Capture decoding applies
+the HTTP body/header and complete private-submission bounds; the ordinary
+Audit document/string limits must not shrink a valid base64 body.
 
 **FND-R56.** Runtime submits a proposal through the allocation-bound private
 route `POST /private/v1/allocations/{allocation_id}/finding-proposals`.
@@ -1463,6 +1465,102 @@ ordinary Run and Audit origins, an optional hypothesis, a review without a
 decision ID, and identical evidence bindings from different Runs. Codec tests
 require exact conformance and reject inconsistent metadata, byte content and
 evidence membership.
+
+### Optional typed analysis evidence
+
+**FND-R191.** A proposal may select zero or one ordinary evidence document
+with media type `application/vnd.contractor.finding-analysis+json` and schema
+`contractor.finding.analysis.v1`. The document is closed canonical RFC 8785
+JSON; `client_key` equals the containing proposal's key. Its required arrays
+are `sources`, `locations`, `flows` and `http_exchanges`. Optional fields are
+`rule`, `primary_location_id` and `primary_http_exchange_id`; explicit nulls,
+unknown or case-variant members, repeated keys and invalid Unicode fail.
+The text Artifact writer validates the authoring shape and canonicalizes this
+media type off the event loop, joining work on cancellation. Proposal,
+collection and model-visible finding tool schemas remain unchanged.
+
+**FND-R192.** Analysis sources are `{id, kind: archive|file, artifact_ref}`.
+Locations are `{id, source_id, path, file_digest}` with optional `region` and
+`symbol`. Regions have required `start_line` and optional `end_line`,
+`start_column`, `end_column`; symbols have required `name` and optional
+`qualified_name`, `language`, `kind`, `signature`. Every dependency is an exact
+ref explicitly selected by the same receipt; analysis cannot reference itself
+or another analysis, choose another scope or cause a store/network lookup.
+Source identity includes exact scope/version, not just matching content.
+After source deletion, the trusted receipt-to-Audit-hold mapping binds original
+refs to the requesting Audit's verified retained copies; byte equality alone
+does not create an alias. Original source identity and capture origin remain
+provenance and do not grant access to the deleted Run.
+Collection publication checks recorded digest/size against bytes, resolves
+only the selected UTF-8 file or ZIP member and checks its file SHA-256.
+Paths are relative case-sensitive POSIX paths without backslashes, colons,
+control characters, empty/dot/dot-dot components or symlinks. All locations
+of a plain file agree on its logical path. Lines and Unicode code-point
+columns are one-based; end columns are exclusive, require start columns and
+must fit the exact text. CRLF is one terminator, tabs one code point. Empty
+files have no invented first line. Invalid supplied coordinates fail; missing
+coordinates stay missing, without source discovery or remapping edited files.
+
+**FND-R193.** Flows have `id`, `kind: call-path|data-flow|execution-trace`,
+`description`, `completeness: complete|partial`, `steps`, `edges`, `gaps` and
+exact `evidence_refs`. Steps have `id`, `roles`, `message`, `evidence_refs`,
+optional `location_id`, `value`, `value_state`. Roles are `source`,
+`propagation`, `call`, `return`, `validation`, `sanitizer`, `sink`,
+`observation`; value states are `unknown`, `tainted`, `derived`, `validated`,
+`clean`. Edges have `from`, `to`, `relation`, `basis`, `evidence_refs`,
+optional `argument_binding: {caller_value, callee_parameter}`; relations are
+`call`, `return`, `argument`, `assignment`, `transform`, `control`,
+`observation`. Gaps have `after_step_id`, `before_step_id`, `reason`.
+Every consecutive step pair has exactly one edge or gap. Unlocated steps
+have gaps to their neighbors. Complete data-flow starts at a located source,
+ends at a located sink, has coordinates for every step and evidence for every
+edge; argument transfer needs an explicit binding. A gap makes a flow partial.
+`producer-asserted` evidence never establishes semantic truth; a
+`tool-reported` edge needs a recognized durable relation decoder. No such
+code-relation decoder is admitted by this contract: copied graph output or
+annotations must remain producer assertions. Validation never invents an edge,
+sanitizer effect, overloaded callee or primary location.
+
+**FND-R194.** HTTP analysis exchanges have `id`, exact `evidence_ref`,
+`decoder`, optional `operation: {document_ref, pointer, method, path_template}`
+and `implementation_location_id`. Decoder `contractor-http-exchange/v1`
+strictly reads the current HTTP/Caido captured-exchange envelope and preserves
+its original finding association, including reuse by a later proposal.
+A capture in the reserved `finding-proposals/http.exchange.<proposal_id>`
+Run binding has Runtime capture origin; an uploaded copy has producer origin.
+Decoder `http-response-body/v1` projects only the retained media type; a body
+cannot recover a request or status. Unknown decoders fail. The projection
+contains only known method, URI without query/fragment/userinfo, response
+status and content type, with omitted field names and producer/capture origin.
+Bodies, headers and credentials are not embedded. A Caido raw response must
+parse under its decoder and agree with its recorded status. An OpenAPI
+operation must resolve its exact `/paths/<escaped-path>/<method>` JSON Pointer
+in a selected JSON/YAML OpenAPI document; operation IDs and handler names are
+not join keys. An implementation link must name an existing analysis location.
+
+**FND-R195.** The optional rule is `{id, version, name, description}` with
+optional absolute HTTPS `help_uri` without userinfo; no documentation URL is
+fetched. Rule IDs use the Audit identifier grammar extended with `/` and `-`,
+at most 160 ASCII bytes. All local IDs are unique in their containing array;
+primary IDs must resolve. Analysis is at most 1 MiB, 32 sources, 256 locations,
+32 flows with 128 steps each, 32 exchanges, 16 KiB per text field and depth 32
+(LIM-FND-47). Collection selection/document bounds remain FND-R97/FND-R98.
+One resolver bounds distinct selected input bytes to 16 MiB and source ZIP
+expanded bytes to 64 MiB, entries per archive to 10,000 and each member to
+4 MiB (LIM-FND-48). It checks directories before allocating ZIP records, reads
+only selected members, verifies their actual lengths/CRC and reuses exact
+source caches across receipts; no per-finding store read or parent scan occurs.
+
+**FND-R196.** Invalid analysis, missing dependencies, conflicting paths,
+digests, coordinates or edges reject the whole collection with a bounded
+`audit_document_invalid` 422 before publication (FAIL-FND-7). Existing source
+owner checks, finite PostgreSQL retries and publication-key replay remain
+unchanged. Cancellation remains cancellation and joins all work; ambiguous
+publication reuses its existing paired receipt. Resolver caches are transient
+and released with the call; analysis remains ordinary evidence under its
+existing Run/Audit/Project retention and purge rules (LIFE-FND-6). Validation
+does not change triage, proposal severity, duplicate identity or collection
+format and does not assert that authored descriptions are secret-free.
 
 ## Interfaces
 

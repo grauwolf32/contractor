@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any
 
+from contractor_runtime import threads
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import ArtifactClient
@@ -28,6 +29,12 @@ from contractor_runtime.toolsets.common.artifacts import (
     _reject_unconfigured_client,
 )
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.finding_analysis import (
+    MEDIA_TYPE as ANALYSIS_MEDIA_TYPE,
+)
+from contractor_runtime.toolsets.common.finding_analysis import (
+    canonical_analysis,
+)
 from contractor_runtime.toolsets.common.tool_base import ArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
@@ -255,6 +262,13 @@ class WriteTextArtifactTool(ArtifactTool):
             require_model_visible_binding(self._namespace, name)
             if len(data) > MAX_TEXT_WRITE_BYTES:
                 raise ToolInputError("UTF-8 artifact text exceeds the 1 MiB tool limit")
+            if media_type == ANALYSIS_MEDIA_TYPE:
+                try:
+                    data = await threads.to_thread_until_done(
+                        lambda: canonical_analysis(text), name="finding-analysis-authoring"
+                    )
+                except ValueError:
+                    raise ToolInputError("finding analysis is invalid") from None
             result = await self._client.write_artifact(
                 ArtifactRef(namespace=self._namespace, name=name),
                 data=data,

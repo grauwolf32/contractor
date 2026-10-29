@@ -12,7 +12,8 @@ disclosure is owned by UI-R198 through UI-R201
 and UIJ-R117. There is no separate pair-comparison UI; the pair API remains
 available to authorized API clients.
 
-Typed finding analysis, its resolver, export snapshots, SARIF rendering, the
+The optional typed finding analysis codec and exact-evidence resolver are folded
+into FND-R191 through FND-R196 of the findings specification. Export snapshots, SARIF rendering, the
 `github-code-scanning` profile and `POST /v1/finding-exports` remain target
 design. The finding proposal schema, complete model-visible
 `security-findings@1` tool declarations and finding collection format stay
@@ -22,6 +23,21 @@ their published contracts. Capability/version changes are explicit amendments
 to owning specs. Upload, source maps, fixes, suppression sync, native
 security-score classification and complete-scan replacement remain deferred
 beyond [Delivery and conformance](#delivery-and-conformance).
+
+## Audit-scoped export delivery
+
+User direction on 2026-10-29 narrows the initial export delivery: one Audit
+per snapshot and SARIF file, with export/download inside that Audit. The
+endpoint is `POST /v1/audits/{auditId}/finding-exports`; Audit identity and
+owner authority come from the route. Its closed body selects exact Audit
+finding revisions and optional contributing presentation receipts, rather
+than a cross-Audit `sources` list. Independent results and decisions of other
+Audits remain in their own exports. Publication keys and immutable output
+bindings are Audit-local and follow the existing Audit Artifact namespace
+lifecycle. A minimal generic API caller accompanies snapshot delivery; the
+structured SARIF mapping and CLI/UI follow through their dedicated tasks.
+The broader direct-receipt/multi-source design below is outside this first
+delivery; it does not authorize mixing Audit results in one file.
 
 ## Ownership and decisions
 

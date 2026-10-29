@@ -5,7 +5,7 @@ milestone: finding-sarif-export-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V397-001
 - V397-002
@@ -93,13 +93,15 @@ acceptance_criteria:
   when: All required gates run with a disposable PostgreSQL URL.
   then: Deterministic output, production callers and public operation coverage are proved, without skipped database tests.
 tests:
+- command: cd runtime && uv run pytest -W error tests/test_finding_analysis.py tests/test_text_artifacts_toolset.py tests/test_http_capture.py tests/test_security_findings_toolset.py tests/test_findings_reader_toolset.py tests/test_finding_facades.py tests/test_finding_tool_contracts.py
+  covers: [A1, A2, A3]
 - command: go test -count=1 ./internal/auditdomain ./internal/findingintake ./internal/auditservice ./internal/httpapi/public ./internal/publicclient/...
     ./internal/cli
   covers:
   - A1
   - A2
   - A3
-- command: make test-runtime test-wire-cross-language test-findings-e2e verify-public-api
+- command: make test-wire-cross-language test-findings-e2e verify-public-api
   covers:
   - A1
   - A2
@@ -111,3 +113,14 @@ tests:
 - command: make lint
   covers:
   - A3
+
+verification_scope:
+  authority: "User decision on 2026-10-29: continue SARIF with complete checks of touched packages; record the full Runtime gate as a limitation."
+  full_runtime: "The macOS full run was interrupted after 11 failures, 3257 passes and 5 skips; failures were outside SARIF, including known V401-007 platform cases and pentest identity socket tests. No complete Runtime pass is claimed."
+  linux_attempt: "A local Podman VM was available, but package repositories returned HTTP 403 while preparing an isolated Linux runner; no Linux pass is claimed."
+
+implementation_evidence: tasks/evidence/v397-006-verification.json
+implementation_notes:
+  - "The exact-analysis resolver is consumed by existing collection publication without changing the proposal or collection format."
+  - "A trusted original-ref mapping preserves source identity and capture provenance through Audit-retained copies after source Run deletion."
+  - "HTTP capture decoding now uses its declared HTTP/private-submission bounds instead of the smaller generic Audit document/string limits; maximum-body regressions failed before the fix."

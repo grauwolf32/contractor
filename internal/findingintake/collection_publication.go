@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/findinganalysis"
 	postgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -304,6 +305,7 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 	if err := builder.read(ctx); err != nil {
 		return fail(err)
 	}
+	var analysisResolver findinganalysis.Resolver
 	for _, plan := range planned {
 		entry := plan.entry
 		decoded, err := auditdomain.DecodeFindingProposal(builder.contents[entry.ProposalDocumentID])
@@ -315,6 +317,22 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 				return fail(artifacts.ErrArtifactIntegrity)
 			}
 			entry.Evidence = append(entry.Evidence, auditdomain.FindingCollectionEvidence{EvidenceID: decoded.EvidenceIDs[i], DocumentID: documentID})
+		}
+		evidenceDocuments := make([]auditdomain.FindingCollectionDocument, 0, len(plan.evidenceDocumentIDs))
+		origins := make(map[string]auditdomain.FindingCollectionDocument, len(plan.evidenceDocumentIDs))
+		receipt := receipts[entry.ReceiptID]
+		for index, id := range plan.evidenceDocumentIDs {
+			evidenceDocuments = append(evidenceDocuments, builder.documents[id])
+			exact := receipt.Evidence[index]
+			origin := auditdomain.FindingCollectionDocument{Scope: auditdomain.FindingCollectionSource{Kind: "run", ID: receipt.Origin.RunID}, Ref: exact.Ref, Digest: exact.Digest, MediaType: exact.MediaType, SizeBytes: exact.SizeBytes}
+			origin.ID, err = auditdomain.FindingCollectionDocumentID(origin)
+			if err != nil {
+				return fail(err)
+			}
+			origins[id] = origin
+		}
+		if _, err := analysisResolver.Resolve(ctx, decoded.ClientKey, evidenceDocuments, builder.contents, origins); err != nil {
+			return fail(err)
 		}
 		sort.Slice(entry.Evidence, func(i, j int) bool { return entry.Evidence[i].EvidenceID < entry.Evidence[j].EvidenceID })
 		value.Entries = append(value.Entries, entry)
