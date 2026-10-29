@@ -5,7 +5,7 @@ milestone: finding-sarif-export-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V397-008
 - V397-019
@@ -123,3 +123,5 @@ implementation_notes:
 - Downloads are streamed under the generated public byte caps and verified against exact size, ETag revision and SHA-256 before saving; snapshot and diagnostics remain behind Technical details.
 - A changed revision or 409 requires explicit clear/refresh. Selection and duplicate controls are disabled while requests run, another Audit resets them, and navigation aborts pending transport and blocks late saves.
 - UI version is 0.10.15. The final real process scenario verifies both duplicate options, selected identity isolation, saved snapshot download, corrected renderer declarations and 390/1440 px in light/dark/black themes.
+
+implementation_commit: 3d1303cbf4a481acfbf03ddfe918077268151f67
