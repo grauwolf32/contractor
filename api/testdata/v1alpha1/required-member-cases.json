@@ -2197,6 +2197,58 @@
         "/url"
       ]
     },
+    "pentest-action-auth-check-identity.json": {
+      "omit": [
+        "/apiVersion",
+        "/operation",
+        "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/retryOrdinal",
+        "/prepare/stepIndex",
+        "/prepare/url"
+      ],
+      "null": [
+        "/apiVersion",
+        "/operation",
+        "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/retryOrdinal",
+        "/prepare/stepIndex",
+        "/prepare/url"
+      ]
+    },
+    "pentest-action-control-identity.json": {
+      "omit": [
+        "/apiVersion",
+        "/operation",
+        "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/retryOrdinal",
+        "/prepare/stepIndex",
+        "/prepare/url"
+      ],
+      "null": [
+        "/apiVersion",
+        "/operation",
+        "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/retryOrdinal",
+        "/prepare/stepIndex",
+        "/prepare/url"
+      ]
+    },
     "pentest-action-grant.json": {
       "omit": [
         "/actionId",
@@ -2211,23 +2263,133 @@
         "/operation"
       ]
     },
-    "pentest-action-prepare.json": {
+    "pentest-action-login-identity.json": {
       "omit": [
         "/apiVersion",
         "/operation",
         "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
         "/prepare/redirectHop",
         "/prepare/retryOrdinal",
-        "/prepare/seedIndex",
+        "/prepare/stepIndex",
         "/prepare/url"
       ],
       "null": [
         "/apiVersion",
         "/operation",
         "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
         "/prepare/redirectHop",
         "/prepare/retryOrdinal",
-        "/prepare/seedIndex",
+        "/prepare/stepIndex",
+        "/prepare/url"
+      ]
+    },
+    "pentest-action-prepare.json": {
+      "omit": [
+        "/apiVersion",
+        "/operation",
+        "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/retryOrdinal",
+        "/prepare/stepIndex",
+        "/prepare/url"
+      ],
+      "null": [
+        "/apiVersion",
+        "/operation",
+        "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/retryOrdinal",
+        "/prepare/stepIndex",
+        "/prepare/url"
+      ]
+    },
+    "pentest-action-refresh-control-identity.json": {
+      "omit": [
+        "/apiVersion",
+        "/operation",
+        "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/retryOrdinal",
+        "/prepare/stepIndex",
+        "/prepare/url"
+      ],
+      "null": [
+        "/apiVersion",
+        "/operation",
+        "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/retryOrdinal",
+        "/prepare/stepIndex",
+        "/prepare/url"
+      ]
+    },
+    "pentest-action-refresh-identity.json": {
+      "omit": [
+        "/apiVersion",
+        "/operation",
+        "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/retryOrdinal",
+        "/prepare/stepIndex",
+        "/prepare/url"
+      ],
+      "null": [
+        "/apiVersion",
+        "/operation",
+        "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/retryOrdinal",
+        "/prepare/stepIndex",
+        "/prepare/url"
+      ]
+    },
+    "pentest-action-seed-identity.json": {
+      "omit": [
+        "/apiVersion",
+        "/operation",
+        "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/retryOrdinal",
+        "/prepare/stepIndex",
+        "/prepare/url"
+      ],
+      "null": [
+        "/apiVersion",
+        "/operation",
+        "/prepare",
+        "/prepare/generation",
+        "/prepare/identityId",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/retryOrdinal",
+        "/prepare/stepIndex",
         "/prepare/url"
       ]
     },
@@ -3298,12 +3460,20 @@
         "/workerSessionMode"
       ]
     },
-    "pentest-preflight-response.json": {
+    "pentest-preflight-identities.json": {
       "omit": [
         "/allocationId",
         "/apiVersion",
         "/completedSeeds",
         "/failedSeeds",
+        "/identities",
+        "/identities/0/identityId",
+        "/identities/0/state",
+        "/identities/1/identityId",
+        "/identities/1/state",
+        "/identities/2/identityId",
+        "/identities/2/state",
+        "/identities/2/verifiedOrigin",
         "/runtimeInstanceId",
         "/stopped",
         "/unknownSeeds"
@@ -3313,6 +3483,40 @@
         "/apiVersion",
         "/completedSeeds",
         "/failedSeeds",
+        "/identities",
+        "/identities/0/identityId",
+        "/identities/0/state",
+        "/identities/1/identityId",
+        "/identities/1/state",
+        "/identities/2/identityId",
+        "/identities/2/state",
+        "/identities/2/verifiedOrigin",
+        "/runtimeInstanceId",
+        "/stopped",
+        "/unknownSeeds"
+      ]
+    },
+    "pentest-preflight-response.json": {
+      "omit": [
+        "/allocationId",
+        "/apiVersion",
+        "/completedSeeds",
+        "/failedSeeds",
+        "/identities",
+        "/identities/0/identityId",
+        "/identities/0/state",
+        "/runtimeInstanceId",
+        "/stopped",
+        "/unknownSeeds"
+      ],
+      "null": [
+        "/allocationId",
+        "/apiVersion",
+        "/completedSeeds",
+        "/failedSeeds",
+        "/identities",
+        "/identities/0/identityId",
+        "/identities/0/state",
         "/runtimeInstanceId",
         "/stopped",
         "/unknownSeeds"
