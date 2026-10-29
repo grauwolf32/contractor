@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V410-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V410-019, V410-020, V410-021]
 languages: [go, python, typescript, yaml, markdown]
 goal: Remove sitemap-specific read transport while preserving domain processing and immutable allocation-local read views over shared Artifact APIs.
@@ -81,3 +81,29 @@ tests:
   covers: [A1, A4]
 - command: make lint
   covers: [A4]
+implementation_commit: abea319df316457674417049b82c99e73fb0939d
+verification:
+  date: '2026-10-29'
+  result: passed
+  tested_commit: abea319df316457674417049b82c99e73fb0939d
+  commands:
+  - command: make test-project-sitemap-postgres
+    result: Passed all 14 complete packages and 26 mandatory cases with real PostgreSQL and zero mandatory skips on the final read-grant implementation.
+  - command: make test-project-sitemap-tools-e2e
+    result: Passed both mandatory Server/Runtime/PostgreSQL scenarios with zero skips, repeated after removing the unused snapshot read grant.
+  - command: make test-wire-cross-language
+    result: Passed complete contracts checks and 426 shared fixtures with 360 Go and 246 Python shared readers; Runtime shared selection passed 1519 tests.
+  - command: make test-runtime
+    result: Passed in Linux as an ordinary user with locked dependencies; 5522 passed, 55 expected optional or separately invoked integration/live skips, no failures or errors; verify-runtime passed. Runtime sources, tests and generated-contract inputs are byte-identical to the integrated branch.
+  - command: make verify-public-api
+    result: Passed registry validation and complete public-operation contract coverage on the integrated implementation.
+  - command: make ui-verify
+    result: Passed generated clients/schemas, lint, typecheck and build; 2525 UI tests passed with one pre-existing expected failure, plus 17 Node server tests. UI sources are unchanged since this verified public-lane commit.
+  - command: make lint
+    result: Passed final generated checks, UI gates, Go vet/staticcheck/testonlyexports, deployment/release graph, tasks/specs/fixtures, Ruff and Runtime layer contracts.
+  notes:
+  - Shared raw/metadata/access handling contains no sitemap dispatch. Its Project authority check performs two metadata queries without Artifact payload, metadata or lineage reads; a real-store test enforces this after history eviction with MaxConns=1.
+  - Only list/read receive generic Project read targets. Snapshot requires an already opened view and independently checks its domain POST permission before exact server-side materialization.
+  - Per-allocation views remain one immutable encoded payload plus index; writes do not synchronize or mutate a local map. Refresh/release invalidate cursors and join indexing; no disk cache, TTL or implicit history hold was added.
+  - The complete Runtime gate requires Linux and a non-root user. Native macOS and root-container attempts exposed environment incompatibilities; the corrected Linux run passed. Its 55 skips comprise 34 explicit real-Podman gates, 16 optional scanner binaries, three live-Gateway tests, one separate Audit-completion API gate and one separate pinned InterActsh gate.
+  - V410-023 corrected an existing additive-capability process-test regression found during verification; HTTP/Caido and Runtime-label process gates also passed before the final sitemap scenarios.
