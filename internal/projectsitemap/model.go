@@ -156,6 +156,7 @@ type Mutation struct {
 	Operation        string        `json:"operation" strictjson:"required"`
 	ExpectedRevision string        `json:"expectedRevision,omitempty"`
 	Observations     []Observation `json:"observations,omitempty"`
+	Gaps             []Gap         `json:"gaps,omitempty"`
 	URL              string        `json:"url,omitempty"`
 	Method           string        `json:"method,omitempty"`
 	MemberIDs        []string      `json:"memberIds,omitempty"`
