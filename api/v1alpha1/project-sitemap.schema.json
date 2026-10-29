@@ -71,14 +71,9 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "sourceId",
         "rules"
       ],
       "properties": {
-        "sourceId": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        },
         "expected": {
           "$ref": "#/$defs/SitemapSource"
         },
@@ -89,7 +84,7 @@
           "type": "array",
           "maxItems": 256,
           "items": {
-            "$ref": "#/$defs/SitemapRule"
+            "$ref": "#/$defs/SitemapEditorRule"
           }
         }
       }
@@ -329,26 +324,6 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 67108864
-        }
-      }
-    },
-    "SitemapAccess": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "apiVersion",
-        "policy",
-        "manualSourceId"
-      ],
-      "properties": {
-        "apiVersion": {
-          "$ref": "common.schema.json#/$defs/apiVersion"
-        },
-        "policy": {
-          "$ref": "common.schema.json#/$defs/projectSitemapPolicy"
-        },
-        "manualSourceId": {
-          "$ref": "common.schema.json#/$defs/resourceId"
         }
       }
     },
@@ -605,12 +580,56 @@
         "apiVersion",
         "input"
       ]
+    },
+    "SitemapEditorRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "method",
+        "path",
+        "pointer",
+        "parameters",
+        "structural"
+      ],
+      "properties": {
+        "origin": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "method": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,16}$",
+          "maxLength": 16
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "pointer": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "parameters": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "x-maxBytes": 64
+          }
+        },
+        "structural": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/SitemapStructuralParameter"
+          }
+        }
+      }
     }
   },
   "oneOf": [
-    {
-      "$ref": "#/$defs/SitemapAccess"
-    },
     {
       "$ref": "#/$defs/SitemapMutationRequest"
     },
