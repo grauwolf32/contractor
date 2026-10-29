@@ -82,12 +82,13 @@ from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
 
 
-class _CaidoObservationSink:
-    def __init__(self, collector: SitemapCollector) -> None:
+class _SourceObservationSink:
+    def __init__(self, collector: SitemapCollector, kind: str) -> None:
         self._collector = collector
+        self._kind = kind
 
     async def receive(self, observations: Sequence[dict], *, gaps: Sequence[dict] = ()) -> None:
-        await self._collector.receive_caido(observations, gaps=gaps)
+        await self._collector.receive_source(self._kind, observations, gaps=gaps)
 
 
 class AllocationService:
@@ -329,8 +330,8 @@ class AllocationService:
                         report_projector=partial(prepare_report, collection_artifacts),
                         report_formats=REPORT_FORMATS,
                     )
-                    worker_state.http_observation_sink = collector
-                    worker_state.caido_observation_sink = _CaidoObservationSink(collector)
+                    worker_state.http_observation_sink = _SourceObservationSink(collector, "http")
+                    worker_state.caido_observation_sink = _SourceObservationSink(collector, "caido")
                     worker_state.report_publication_sink = collector
                     worker_state.sitemap_read_flush = collector.checkpoint
                     worker_state.before_completion = collector.checkpoint

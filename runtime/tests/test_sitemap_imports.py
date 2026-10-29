@@ -10,6 +10,7 @@ from fakes.sitemap_reports import ReportTransport, report_collector
 from test_sitemap_collection import no_timer, observation
 from test_sitemap_tools import tools_for
 
+from contractor_runtime.allocation.service import _SourceObservationSink
 from contractor_runtime.artifacts import ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.input_errors import ToolInputError
@@ -104,19 +105,20 @@ def test_shared_one_queue_preserves_source_order_and_imports_only_supported_repo
     async def scenario():
         transport = ReportTransport()
         collector = report_collector(transport, wait=no_timer)
-        await collector.receive([observation(1), observation(2)])
+        await collector.receive_source("http", [observation(1), observation(2)])
         await collector.receive_report("scan_ffuf", report_ref())
-        await collector.receive_caido([observation(3), observation(4)])
+        other = _SourceObservationSink(collector, "custom-provider")
+        await other.receive([observation(3), observation(4)])
         await collector.receive_report("scan_nuclei", report_ref("unselected"))
         await collector.receive_report("scan_katana", report_ref("crawl"))
-        await collector.receive([observation(5)])
+        await collector.receive_source("http", [observation(5)])
         assert not transport.requests and len(collector._pending) == 7
         await collector.close()
         frames = [json.loads(body) for _, _, _, body in transport.requests]
         assert [frame.get("input", {}).get("kind", "report") for frame in frames] == [
             "http",
             "ffuf",
-            "caido",
+            "custom-provider",
             "katana",
             "http",
         ]
@@ -141,7 +143,7 @@ def test_shared_large_caido_frame_admits_bounded_chunks_and_skips_only_oversized
             {**observation(i), "url": "https://target.example/" + "a" * 7000 + str(i)}
             for i in range(MAX_ITEMS)
         ]
-        await collector.receive_caido(rows)
+        await collector.receive_source("caido", rows)
         assert not transport.requests
         assert collector._bytes <= MAX_BYTES and len(collector._pending) <= MAX_ITEMS
         await collector.close()
@@ -159,8 +161,8 @@ def test_shared_large_caido_frame_admits_bounded_chunks_and_skips_only_oversized
         collector = SitemapCollector(
             SitemapClient(ArtifactClient("allocation", transport)), wait=no_timer
         )
-        await collector.receive_caido(
-            [{**observation(), "url": "x" * MAX_BYTES}, observation(1000)]
+        await collector.receive_source(
+            "caido", [{**observation(), "url": "x" * MAX_BYTES}, observation(1000)]
         )
         await collector.close()
         assert json.loads(transport.requests[0][3])["input"]["observations"] == [observation(1000)]
@@ -186,9 +188,9 @@ def test_shared_sources_share_one_pending_capacity_while_report_publication_is_b
         checkpoint = asyncio.create_task(collector.checkpoint())
         await entered.wait()
         rows = [observation(i) for i in range(50)]
-        await collector.receive(rows)
+        await collector.receive_source("http", rows)
         rows[0]["url"] = "https://changed.example/"
-        await collector.receive_caido([observation(i) for i in range(49)])
+        await collector.receive_source("caido", [observation(i) for i in range(49)])
         await collector.receive_report("scan_katana", report_ref("crawl"))
         await collector.receive_report("scan_ffuf", report_ref("overflow"))
         assert len(collector._pending) == MAX_ITEMS
@@ -218,7 +220,7 @@ def test_shared_bad_automatic_report_does_not_disable_later_http_or_valid_report
         transport = FirstReportFails()
         collector = report_collector(transport, wait=no_timer)
         await collector.receive_report("scan_ffuf", report_ref("bad"))
-        await collector.receive([observation()])
+        await collector.receive_source("http", [observation()])
         await collector.receive_report("scan_katana", report_ref("good"))
         await collector.close()
         assert len(transport.requests) == 3 and not collector._disabled
@@ -234,7 +236,7 @@ def test_shared_global_report_publication_refusal_keeps_existing_collector_stop(
         transport.post_error = (409, code, False)
         collector = report_collector(transport, wait=no_timer)
         await collector.receive_report("scan_ffuf", report_ref())
-        await collector.receive([observation()])
+        await collector.receive_source("http", [observation()])
         await collector.close()
         assert len(transport.requests) == 1 and collector._disabled
 
@@ -294,8 +296,8 @@ def test_shared_cancelled_close_joins_current_publisher_without_chaining_more_so
             clock=lambda: now[0],
         )
         await collector.receive_report("scan_ffuf", report_ref())
-        await collector.receive([observation()])
-        await collector.receive_caido([observation()])
+        await collector.receive_source("http", [observation()])
+        await collector.receive_source("caido", [observation()])
         closing = asyncio.create_task(collector.close())
         await first_entered.wait()
         closing.cancel()
@@ -379,7 +381,7 @@ def test_shared_malformed_automatic_report_drops_only_that_item_before_http_and_
         transport.reports["bad"] = b"{}"
         collector = report_collector(transport, wait=no_timer)
         await collector.receive_report("scan_ffuf", report_ref("bad"))
-        await collector.receive([observation()])
+        await collector.receive_source("http", [observation()])
         await collector.receive_report("scan_katana", report_ref("good"))
         await collector.close()
         assert len(transport.reads) == 2 and not collector._disabled
@@ -426,8 +428,10 @@ def test_shared_collector_keeps_gaps_without_rows_and_aggregates_one_source_batc
         collector = SitemapCollector(
             SitemapClient(ArtifactClient("allocation", transport)), wait=no_timer
         )
-        await collector.receive_caido([], gaps=[{"reason": "projection", "count": 1}])
-        await collector.receive_caido([observation()], gaps=[{"reason": "projection", "count": 2}])
+        await collector.receive_source("caido", [], gaps=[{"reason": "projection", "count": 1}])
+        await collector.receive_source(
+            "caido", [observation()], gaps=[{"reason": "projection", "count": 2}]
+        )
         await collector.close()
         assert len(transport.requests) == 1
         assert json.loads(transport.requests[0][3])["input"] == {

@@ -93,16 +93,6 @@ class SitemapCollector:
         self._failure: ArtifactAPIError | None = None
         self._buffer_warning = False
 
-    async def receive(self, observations: Sequence[dict], *, gaps: Sequence[dict] = ()) -> None:
-        """Admit HTTP attempt metadata without awaiting storage or network I/O."""
-        self._receive_observations("http", observations, gaps)
-
-    async def receive_caido(
-        self, observations: Sequence[dict], *, gaps: Sequence[dict] = ()
-    ) -> None:
-        """Admit selected Caido metadata into the same bounded pending queue."""
-        self._receive_observations("caido", observations, gaps)
-
     async def receive_report(self, tool: str, artifact: ArtifactRef) -> None:
         """Queue an already-published report reference without reading its bytes."""
         format_ = self._report_formats.get(tool)
@@ -112,9 +102,10 @@ class SitemapCollector:
                 {"format": format_, "artifact": artifact.require_exact().model_dump(by_alias=True)},
             )
 
-    def _receive_observations(
-        self, kind: str, observations: Sequence[dict], gaps: Sequence[dict]
+    async def receive_source(
+        self, kind: str, observations: Sequence[dict], *, gaps: Sequence[dict] = ()
     ) -> None:
+        """Admit source metadata without awaiting storage or network I/O."""
         if self._closed or self._closing or self._disabled:
             return
         if gaps:

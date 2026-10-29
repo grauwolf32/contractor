@@ -11,6 +11,7 @@ from fakes.sitemap import SitemapTransport
 from http_cookie_store import HTTPToolsetFactory
 
 from contractor_runtime.allocation import WorkerState
+from contractor_runtime.allocation.service import _SourceObservationSink
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, ArtifactTransportError
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.sitemap import SitemapClient
@@ -58,11 +59,13 @@ def test_receive_never_waits_for_storage_and_bounds_both_batches(caplog):
         client = Client()
         client.block = True
         collector = SitemapCollector(client, wait=no_timer)
-        await collector.receive([observation(n) for n in range(MAX_ITEMS)])
+        await collector.receive_source("http", [observation(n) for n in range(MAX_ITEMS)])
         await client.entered.wait()
         # Publication is blocked; another complete pending batch is admitted.
-        await collector.receive([observation(n + MAX_ITEMS) for n in range(MAX_ITEMS)])
-        await collector.receive([observation(999)])
+        await collector.receive_source(
+            "http", [observation(n + MAX_ITEMS) for n in range(MAX_ITEMS)]
+        )
+        await collector.receive_source("http", [observation(999)])
         assert len(collector._pending) == MAX_ITEMS and collector._bytes <= MAX_BYTES
         assert "buffer full" in caplog.text
         client.resume.set()
@@ -72,7 +75,7 @@ def test_receive_never_waits_for_storage_and_bounds_both_batches(caplog):
         for payload, _ in client.calls:
             assert len(payload["observations"]) == MAX_ITEMS
             assert "lost" not in payload
-        await collector.receive([observation()])
+        await collector.receive_source("http", [observation()])
         assert len(client.calls) == 2
 
     asyncio.run(scenario())
@@ -89,7 +92,7 @@ def test_ambiguous_publication_reuses_exact_input_and_key():
             delays.append(delay)
 
         collector = SitemapCollector(client, sleep=advance, wait=no_timer)
-        await collector.receive([observation()])
+        await collector.receive_source("http", [observation()])
         assert not client.calls
         await collector.checkpoint()
         await collector.close()
@@ -104,9 +107,9 @@ def test_observation_bytes_still_bound_batches_without_matching_secrets():
         client = Client()
         collector = SitemapCollector(client, wait=no_timer)
         row = {**observation(), "url": "https://target.example/" + "a" * 7000}
-        await collector.receive([row] * 35)
+        await collector.receive_source("http", [row] * 35)
         assert collector._bytes <= MAX_BYTES and not client.calls
-        await collector.receive([row] * 5)
+        await collector.receive_source("http", [row] * 5)
         await collector.close()
         assert len(client.calls) == 2
         assert sum(len(payload["observations"]) for payload, _ in client.calls) == 40
@@ -142,7 +145,7 @@ def test_http_collection_sends_only_attempt_metadata_and_preserves_credential_li
             )
 
         state = WorkerState()
-        state.http_observation_sink = collector
+        state.http_observation_sink = _SourceObservationSink(collector, "http")
         factory = HTTPToolsetFactory(
             lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler))
         )
@@ -209,7 +212,7 @@ def test_collection_keeps_http_sessions_and_request_tags_without_identity_metada
             return httpx.Response(200, request=request)
 
         state = WorkerState()
-        state.http_observation_sink = collector
+        state.http_observation_sink = _SourceObservationSink(collector, "http")
         factory = HTTPToolsetFactory(
             lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler))
         )
@@ -277,7 +280,7 @@ def test_failure_is_logged_without_changing_read_or_completion(caplog):
         client = Client()
         client.failure = ArtifactAPIError(409, "artifact_history_protected", False)
         collector = SitemapCollector(client, wait=no_timer)
-        await collector.receive([observation()])
+        await collector.receive_source("http", [observation()])
         await collector.checkpoint()
         await collector.checkpoint()
         await collector.close()
@@ -302,7 +305,7 @@ def test_fresh_read_keeps_its_allowance_after_automatic_flush_exhaustion(operati
         client = Client()
         client.block = True
         collector = SitemapCollector(client, clock=asyncio.get_running_loop().time, wait=no_timer)
-        await collector.receive([observation()])
+        await collector.receive_source("http", [observation()])
         transport = SitemapTransport()
         transport.access_error = read_error
         tools, _ = await tools_for(transport, [operation])
@@ -335,7 +338,7 @@ def test_cancelled_fresh_read_joins_checkpoint_before_propagating():
         client = Client()
         client.block = True
         collector = SitemapCollector(client, wait=no_timer)
-        await collector.receive([observation()])
+        await collector.receive_source("http", [observation()])
         transport = SitemapTransport()
         tools, _ = await tools_for(transport, ["list_sitemap_entries"])
         tool = tools["list_sitemap_entries"]
@@ -360,7 +363,7 @@ def test_unknown_remote_failure_text_is_never_logged(caplog):
         client = Client()
         client.failure = ArtifactAPIError(503, "private-canary/remote-text", False)
         collector = SitemapCollector(client, wait=no_timer)
-        await collector.receive([observation()])
+        await collector.receive_source("http", [observation()])
         await collector.close()
         assert "private-canary" not in caplog.text
         assert "sitemap_unavailable" in caplog.text
@@ -384,7 +387,7 @@ def test_retry_budget_is_not_renewed_and_retry_after_is_honoured():
             client = Client()
             client.failure = ArtifactAPIError(503, code, True)
             collector = SitemapCollector(client, clock=lambda: now[0], sleep=advance, wait=no_timer)
-            await collector.receive([observation()])
+            await collector.receive_source("http", [observation()])
             await collector.checkpoint()
             await collector.checkpoint()
             await collector.close()
@@ -394,7 +397,7 @@ def test_retry_budget_is_not_renewed_and_retry_after_is_honoured():
         client.failure.retry_after_seconds = 2
         client.failure_once = True
         collector = SitemapCollector(client, clock=lambda: now[0], sleep=advance, wait=no_timer)
-        await collector.receive([observation()])
+        await collector.receive_source("http", [observation()])
         await collector.close()
         assert len(client.calls) == 2 and delays[-1] == 2
 
@@ -411,7 +414,7 @@ def test_checkpoint_does_not_give_the_second_batch_a_fresh_budget():
                 await super().collect(value, key)
                 if len(self.calls) == 1:
                     now[0] += 14
-                    await collector.receive([observation(999)])
+                    await collector.receive_source("http", [observation(999)])
                 else:
                     error = ArtifactAPIError(503, "artifact_history_maintenance_pending", True)
                     error.retry_after_seconds = 2
@@ -423,7 +426,7 @@ def test_checkpoint_does_not_give_the_second_batch_a_fresh_budget():
 
         client = AdvancingClient()
         collector = SitemapCollector(client, clock=lambda: now[0], sleep=advance, wait=no_timer)
-        await collector.receive([observation()])
+        await collector.receive_source("http", [observation()])
         await collector.checkpoint()
         await collector.close()
         assert len(client.calls) == 2 and not delays and collector._disabled
@@ -441,7 +444,7 @@ def test_timer_and_close_join_the_actual_publisher():
         client = Client()
         client.block = True
         collector = SitemapCollector(client, wait=timer)
-        await collector.receive([observation()])
+        await collector.receive_source("http", [observation()])
         tick.set()
         await client.entered.wait()
         closing = asyncio.create_task(collector.close())
@@ -609,7 +612,7 @@ def test_malformed_target_status_does_not_poison_observation_batch(tmp_path, pro
         )
         client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
         state = WorkerState()
-        state.http_observation_sink = collector
+        state.http_observation_sink = _SourceObservationSink(collector, "http")
         tools = await HTTPToolsetFactory(lambda: client).create_selected(
             selected=["http_request"],
             allocation_id="allocation",
