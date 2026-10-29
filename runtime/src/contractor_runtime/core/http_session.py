@@ -33,6 +33,13 @@ def is_cookie_pair(name: str, value: str | None) -> bool:
     return bool(name) and is_field_value(pair)
 
 
+def discard_expired_cookies(cookies: httpx.Cookies, now: float) -> None:
+    """Remove expired source entries using the owning session's clock."""
+    for cookie in list(cookies.jar):
+        if cookie.is_expired(now):
+            cookies.jar.clear(cookie.domain, cookie.path, cookie.name)
+
+
 class _CookieRow(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
 
@@ -95,15 +102,14 @@ class _CookieDocument(BaseModel):
 def encode_cookies(
     cookies: httpx.Cookies, origin: tuple[str, str, int] | None, now: float
 ) -> bytes:
-    """Canonical bytes, including complete CookieJar matching/lifetime attributes."""
+    """Prune expired source entries and encode complete matching/lifetime attributes."""
     try:
+        discard_expired_cookies(cookies, now)
         # Cookie's internal attribute is named _rest; never serialize arbitrary
         # instance members, headers, auth defaults or Runtime settings.
         rows = []
         fields = tuple(_CookieRow.model_fields)
         for cookie in cookies.jar:
-            if cookie.is_expired(now):
-                continue
             rows.append(
                 _CookieRow(
                     **{

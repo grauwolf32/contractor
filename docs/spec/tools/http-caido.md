@@ -441,10 +441,12 @@ is `application/vnd.contractor.http-cookie-session+json`.
 **HTP-R128.** A jar is bounded to 128 cookies and 65536 encoded UTF-8 bytes
 including metadata (LIM-HTP-37). Restore reads the direct binding with this byte
 cap and never scans other artifacts. Absence starts empty; corrupt or oversized
-state prevents readiness. Expired cookies are dropped against an injectable
-clock. Session cookies survive only within this Run's retention. CookieJar
-attributes preserve domain/path/Secure matching on both transports; host-only
-cookies never reach subdomains. Without a Project target, ordinary RFC cookie
+state prevents readiness. Expired cookies are removed from the live jar against
+the owning session's injectable clock before request construction, session
+projections, merges and count/encoded-byte validation; omitting them only from
+serialized output is insufficient. Session cookies survive only within this
+Run's retention. CookieJar attributes preserve domain/path/Secure matching on
+both transports; host-only cookies never reach subdomains. Without a Project target, ordinary RFC cookie
 scope applies; explicit unscoped `http_session_set` cookies keep their existing
 scope. With a Project target, explicit cookies are scoped to that host.
 
@@ -1310,8 +1312,9 @@ explicit failure outcomes and bounded execution; no unused auth framework is
 introduced in its place.
 
 **HTP-R143.** Supplied cookies satisfy RCF-R184. Initial exact-origin jars and
-every prospective response update are checked against the aggregate cookie count
-and encoded-byte bounds before the state is published or a request can use it.
+every prospective response update discard expired entries from all origin jars
+before checking the aggregate cookie count and encoded-byte bounds. Only then
+may the state be published or used by a request.
 Response-cookie parsing uses the common HTTP session core. Credentials, cookies,
 response bodies and hashes derived from private values never enter artifacts,
 model inputs, telemetry, Agent Cards, public errors or the durable action journal.

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -37,9 +39,10 @@ async def tools_for(
     namespace: str = "worker",
     origin: str = "https://target.example",
     origin_token: str | None = None,
+    now: Callable[[], float] = time.time,
 ) -> dict[str, Any]:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler), trust_env=False)
-    factory = HTTPToolsetFactory(lambda: client, artifact_client_factory=lambda *_: store)
+    factory = HTTPToolsetFactory(lambda: client, artifact_client_factory=lambda *_: store, now=now)
     settings = RuntimeSettings(
         llmGatewayUrl="https://gateway.example",
         llmGatewayToken="infrastructure-canary",
@@ -124,6 +127,57 @@ def test_replacement_restores_login_and_clear_without_auth_or_history(
             await tools_for(tmp_path, store, target, origin="https://other.example")
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("proxy", [False, True])
+@pytest.mark.parametrize("operation", ["get", "merge"])
+def test_expired_cookies_leave_live_session_before_view_or_merge(tmp_path, proxy, operation):
+    async def scenario():
+        store = CookieArtifactStore()
+        now = [2524608000.0]  # 2050; cookies below expire in 2080.
+
+        def target(request):
+            return httpx.Response(
+                200,
+                headers=[("set-cookie", "session=ready; Path=/")]
+                + [
+                    ("set-cookie", f"c{i}=temporary; Expires=Mon, 01 Jan 2080 00:00:00 GMT; Path=/")
+                    for i in range(127)
+                ],
+            )
+
+        tools = await tools_for(tmp_path, store, target, proxy=proxy, now=lambda: now[0])
+        try:
+            assert (await tools["http_request"]("https://target.example/prime"))["status"] == 200
+            assert (await tools["http_session_get"]())["cookie_count"] == 128
+            now[0] = 4102444800.0  # 2100, without sleeping or changing system time.
+            if operation == "get":
+                view = await tools["http_session_get"]()
+                assert view["cookie_names"] == ["session"] and view["cookie_count"] == 1
+                assert store.writes == 1
+            view = await tools["http_session_set"](cookies={"fresh": "value"})
+            assert view["cookie_names"] == ["fresh", "session"] and view["cookie_count"] == 2
+            assert store.writes == 2
+            restored = decode_cookies(
+                store.current[("worker", COOKIE_BINDING)].data, ORIGIN, now[0]
+            )
+            assert {cookie.name for cookie in restored.jar} == {"session", "fresh"}
+        finally:
+            await close(tools)
+
+    asyncio.run(scenario())
+
+
+def test_encoding_removes_expired_entries_from_source_jar():
+    cookies = httpx.Cookies({"session": "ready"})
+    for i in range(127):
+        cookies.set(f"c{i}", "temporary")
+    for cookie in cookies.jar:
+        if cookie.name != "session":
+            cookie.expires = 1001
+    encoded = encode_cookies(cookies, None, 1002)
+    assert {cookie.name for cookie in cookies.jar} == {"session"}
+    assert {cookie.name for cookie in decode_cookies(encoded, None, 1002).jar} == {"session"}
 
 
 def test_matching_expiry_and_all_cookie_attributes_roundtrip() -> None:

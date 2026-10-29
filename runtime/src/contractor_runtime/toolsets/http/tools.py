@@ -33,7 +33,11 @@ from contractor_runtime.adapters.http_proxy import (
 from contractor_runtime.adapters.otlp_retry import retry_after_seconds
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.contracts.fields import is_field_value
-from contractor_runtime.core.http_session import extract_sendable_cookies, matching_cookies
+from contractor_runtime.core.http_session import (
+    discard_expired_cookies,
+    extract_sendable_cookies,
+    matching_cookies,
+)
 from contractor_runtime.core.target_policy import (
     TargetDenied,
     TargetPolicy,
@@ -225,6 +229,7 @@ class HTTPToolsetFactory:
             target_authorization=target_authorization(runtime_settings),
             captures=allocation_http_captures(state),
             checkpoint=checkpoint,
+            now=self._now,
             observation_sink=getattr(state, "http_observation_sink", None),
             deployment_marker=deployment_marker,
         )
@@ -318,6 +323,7 @@ class _HTTPSession:
         target_authorization: str | None,
         captures: RecentHTTPCaptures,
         checkpoint: CookieCheckpoint,
+        now: Callable[[], float],
         observation_sink: HTTPObservationSink | None = None,
         deployment_marker: str | None = None,
     ) -> None:
@@ -341,6 +347,7 @@ class _HTTPSession:
         self._nonce = secrets.token_hex(8)
         self._closed = False
         self._checkpoint = checkpoint
+        self._now = now
         self._observation_sink = observation_sink
         self._deployment_marker = deployment_marker
 
@@ -590,6 +597,7 @@ class _HTTPSession:
         attempts: list[CapturedAttempt],
     ) -> tuple[httpx.Response, str, str, int, int, httpx.Cookies]:
         # Commit this prospective jar only after the complete response is buffered.
+        discard_expired_cookies(self._cookies, self._now())
         candidate_cookies = httpx.Cookies(self._cookies)
         redirects = 0
         retries = 0
@@ -916,6 +924,7 @@ class _HTTPSession:
                 )
             candidate_cookies = self._cookies
             if selected_cookies is not None:
+                discard_expired_cookies(self._cookies, self._now())
                 candidate_cookies = httpx.Cookies()
                 if not replace_cookies:
                     candidate_cookies.update(self._cookies)
@@ -1007,6 +1016,7 @@ class _HTTPSession:
             await client.aclose()
 
     def _session_projection(self) -> dict[str, Any]:
+        discard_expired_cookies(self._cookies, self._now())
         headers = {
             name: ("[REDACTED]" if _is_sensitive_header(name) else value)
             for name, value in sorted(
