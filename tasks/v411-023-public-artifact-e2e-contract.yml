@@ -1,0 +1,56 @@
+schema_version: '1.0'
+id: V411-023
+title: Use current public Artifact metadata in end-to-end consumers
+milestone: project-sitemap-2026-10
+epic: projects-artifacts
+kind: chore
+introduced_by: V410-021
+priority: P2
+status: in_progress
+depends_on: [V410-021]
+languages: [go]
+goal: Restore strict end-to-end verification of public Artifact responses without confusing them
+  with the stored/private metadata type or relaxing response validation.
+context:
+  authority: Repair a mandatory baseline verification failure discovered during the user-authorized
+    V411-004 implementation on 2026-10-29.
+  specification:
+  - docs/spec/artifacts/artifact-store.md
+  finding: >-
+    TestAgentSkillsMVPProcesses fails at agent_skills_test.go:136 with unknown field
+    canUploadNewVersion. V410-021 commit c27a44a93989879f13d82d3d59dbfbfe37106790 added
+    that public metadata field, but list/metadata/history helpers at lines 488,495,546,563
+    still decode into artifacts.Metadata. git_artifacts_test.go:184 has the same stale
+    public consumer hidden by lenient json.Unmarshal.
+  siblings: Public metadata/list/history consumers throughout tests were searched; fix the Skill
+    and Git Run consumers while retaining stored/private metadata types in their actual boundaries.
+scope:
+  in:
+  - Reuse the existing generated public ArtifactMetadata and ArtifactPage types in public
+    e2e consumers; retain strict response decoding and existing assertions.
+  - Assert truthful upload availability for current and historical Skill revisions and Run inputs.
+  - Run the real Skills process regression and the canonical deterministic process suite.
+  out:
+  - No production behavior, schema, generated-client edits or backward-compatible decoder fallback.
+acceptance_criteria:
+- id: A1
+  text: The actual Skills process test accepts the current closed public metadata contract and
+    verifies content/ref/history plus current-versus-historical upload availability.
+- id: A2
+  text: The sibling Git Run metadata consumer uses the same public contract, rejects unknown
+    fields and asserts that ordinary upload is unavailable; its tagged package compiles.
+- id: A3
+  text: Existing public/private metadata boundaries remain separate; the canonical deterministic
+    e2e package and lint pass without requiring unrelated opt-in Podman/scanner installations.
+tests:
+- command: go test -count=1 ./tests/e2e
+  covers: [A1, A2, A3]
+- command: go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestAgentSkillsMVPProcesses$'
+  covers: [A1, A2]
+- command: make test-release-process-e2e
+  covers: [A1, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+assignment:
+  branch: codex/v411-004-http-conformance
+  claimed: '2026-10-29'
