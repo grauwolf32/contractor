@@ -636,6 +636,15 @@ through **Possible matches**, with separately selectable retained source
 proposals. Pagination, stale-state recovery and matching limitations are owned
 by [UI](ui.md#UI-R198).
 
+**UIJ-R118.** In one check's Possible issues, the user opens Export SARIF,
+selects exact observed findings across pages, optionally includes duplicates,
+and creates a saved export. The Server's result and warning counts identify
+what was saved; Download SARIF retrieves those frozen bytes. Changed
+selections require clear/refresh, retry preserves an unchanged publication
+key, and a failed download retries the existing export. Technical details
+provides the snapshot and diagnostics. Independent checks always export
+separately (UI-R210 to UI-R212).
+
 ## Limits, failures and errors
 
 Limits ([registry](../platform/limits.md)):

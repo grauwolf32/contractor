@@ -8,6 +8,7 @@ priority: P2
 status: in_progress
 depends_on:
 - V397-008
+- V397-019
 languages:
 - typescript
 - markdown
@@ -114,3 +115,11 @@ verification_scope:
   authority: "User decision on 2026-10-29: continue SARIF with complete checks of touched packages; record the full Runtime gate as a limitation."
   full_runtime: "The macOS full run was interrupted after 11 failures, 3257 passes and 5 skips; failures were outside SARIF, including known V401-007 platform cases and pentest identity socket tests. No complete Runtime pass is claimed."
   linux_attempt: "A local Podman VM was available, but package repositories returned HTTP 403 while preparing an isolated Linux runner; no Linux pass is claimed."
+
+implementation_evidence: tasks/evidence/v397-009-verification.json
+implementation_notes:
+- API and CLI publication/download shipped in V397-007; V397-008 and V397-019 complete the structured renderer and result-only taxonomy projection.
+- The check-local UI offers exact revision selection across pages and filters, includeDuplicates false by default, stable unchanged retry identity and separate saved-content downloads.
+- Downloads are streamed under the generated public byte caps and verified against exact size, ETag revision and SHA-256 before saving; snapshot and diagnostics remain behind Technical details.
+- A changed revision or 409 requires explicit clear/refresh. Selection and duplicate controls are disabled while requests run, another Audit resets them, and navigation aborts pending transport and blocks late saves.
+- UI version is 0.10.15. The final real process scenario verifies both duplicate options, selected identity isolation, saved snapshot download, corrected renderer declarations and 390/1440 px in light/dark/black themes.

@@ -1,6 +1,6 @@
 # Structured finding analysis, correlation and SARIF export
 
-Proposal 0028 · Status: **Partially folded: correlation, analysis and generic Audit export; export UI remains in progress.**
+Proposal 0028 · Status: **Partially folded: correlation, analysis and generic Audit export, API, CLI and UI.**
 
 Versioned producer fingerprints, exact-source structural anchors, automatic
 retained duplicate marks, bounded duplicate-candidate search and cross-Audit
@@ -15,8 +15,9 @@ available to authorized API clients.
 The optional typed finding analysis codec and exact-evidence resolver are folded
 into FND-R191 through FND-R196 of the findings specification. Generic Audit
 export snapshots and structured rendering are folded into FND-R197 through
-FND-R208. The UI flow remains in progress and the `github-code-scanning`
-profile remains deferred; Audit export follows the narrowed contract below. The finding proposal schema, complete model-visible
+FND-R208. The check-local UI flow is owned by UI-R210 through UI-R212 and UIJ-R118.
+The `github-code-scanning` profile remains deferred; Audit export follows the
+narrowed contract below. The finding proposal schema, complete model-visible
 `security-findings@1` tool declarations and finding collection format stay
 unchanged; hidden publisher metadata and owner API projections implement the
 correlation slice. Existing code-analysis, annotation and HTTP tools retain
@@ -36,7 +37,7 @@ than a cross-Audit `sources` list. Independent results and decisions of other
 Audits remain in their own exports. Publication keys and immutable output
 bindings are Audit-local and follow the existing Audit Artifact namespace
 lifecycle. A minimal generic API caller accompanies snapshot delivery; the
-structured SARIF mapping and CLI are implemented; the UI flow follows through its exit task.
+structured SARIF mapping, CLI and check-local UI are implemented.
 User direction on 2026-10-30 adds the optional boolean `includeDuplicates`
 (default `false`). The snapshot retains every selected identity and its own
 review. With `false`, SARIF emits one selected representative per group under

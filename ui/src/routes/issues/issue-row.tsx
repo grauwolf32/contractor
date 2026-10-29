@@ -85,6 +85,7 @@ interface IssueRowProps {
   context?: ReactNode;
   id?: string | undefined;
   onSelect?: (() => void) | undefined;
+  trailing?: ReactNode;
 }
 
 /**
@@ -99,6 +100,7 @@ export function IssueRow({
   context,
   id,
   onSelect,
+  trailing,
 }: IssueRowProps) {
   const document = finding.firstProposal.document;
   const state = findingStateLabel(finding.state);
@@ -110,6 +112,7 @@ export function IssueRow({
       to={to}
       onSelect={onSelect}
       selected={selected}
+      trailing={trailing}
       id={id}
       glyph={<StatusGlyph tone={state.tone} />}
       title={document.title}

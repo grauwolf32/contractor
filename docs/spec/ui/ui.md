@@ -1357,3 +1357,34 @@ refetch loaded settled pages. Navigation cancels obsolete reads. Use shared
 components and tokens at 390 px and in light, dark and black themes.
 The same actual-page-entry, closed-disclosure and cached-fact refresh rule as
 UI-R208 applies, including after navigation cancelled a terminal-state read.
+
+### Check-local SARIF export
+
+**UI-R210.** A check's Possible issues list offers an on-demand **Export
+SARIF** panel. Selection is explicit, binds each finding ID to the observed
+revision, can span all list pages and filters, and is bounded to the public
+export request's 256 selections. Select this page selects only that visible
+page and refuses a page that would exceed the bound. Navigating to another
+check resets selection, option and publication state; no Project-wide combined
+export is offered. Empty selection cannot publish through the UI.
+
+**UI-R211.** **Include duplicates** is a checkbox, initially unchecked, that
+sends `includeDuplicates`. The UI explains that the default emits one selected
+representative per duplicate group and that the saved snapshot retains every
+selected identity and independent review (FND-R199). It displays only the
+Server's returned selected/result/warning counts, without predicting equality
+or copying ratings. Changing selection or option starts an explicit new
+publication intent; retrying an unchanged ambiguous or retryable publication
+uses the original exact body and client key, with no automatic mutation retry.
+
+**UI-R212.** A changed page or selected revision and a publication conflict
+require explicit clear/refresh; refetching cannot silently replace selected
+revisions. Publication controls remain disabled in flight. After publication,
+**Download SARIF** reads the saved export ID; failed downloads can be repeated
+without another publication. Snapshot and diagnostics downloads and the saved
+time remain under Technical details. Each part is streamed under its public
+byte bound and checked against its exact size, revision and SHA-256 before
+saving. Missing, inaccessible, changed and corrupt downloads show an error,
+never a successful file. Leaving the mounted check cancels pending transport
+and prevents a late download. Use shared components and tokens at 390 px and
+in light, dark and black themes.
