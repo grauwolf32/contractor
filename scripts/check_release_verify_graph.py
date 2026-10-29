@@ -42,6 +42,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses",
     "TestHeterogeneousRuntimeCapabilityPlacement",
     "TestLabelDrivenRuntimeConfigurationAcrossProcesses",
+    "TestRuntimeAdapterSelectionAllowsAdditionalCapabilities",
     "TestLocalGoToPythonArtifactCopy",
     "TestProductionMemoryTemplatesAcrossProcesses",
     "TestProjectWorkspaceLifecycleAcrossProductionProcesses",

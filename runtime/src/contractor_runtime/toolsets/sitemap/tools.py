@@ -73,9 +73,7 @@ class SitemapToolsetFactory:
         require_selected_tools(selected, await self.probe())
         metrics = require_metrics(state, self.ref)
         artifact = self._clients(allocation_id, runtime_settings)
-        session = SitemapSession(
-            SitemapClient(artifact), getattr(state, "sitemap_read_flush", None)
-        )
+        session = SitemapSession(artifact, getattr(state, "sitemap_read_flush", None))
         secrets = runtime_secrets(runtime_settings)
         classes = (
             ListSitemapEntries,
@@ -379,11 +377,7 @@ class ConfigureSitemapGrouping(_SitemapTool):
         del arguments["self"]
 
         async def operation() -> dict:
-            access = await self._session.client.access("configure_sitemap_grouping")
-            source = {
-                "sourceId": access.manual_source_id,
-                "rules": [{**rule, "sourceId": access.manual_source_id} for rule in rules],
-            }
+            source = {"rules": rules}
             if expected_source is not None:
                 source["expected"] = expected_source
             return await self._mutate(

@@ -454,32 +454,51 @@
     "SitemapSourceUpdate": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["sourceId", "rules"],
+      "required": ["rules"],
       "properties": {
-        "sourceId": { "type": "string", "const": "owner", "enum": ["owner"] },
         "expected": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapSource"
-        },
-        "artifact": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapExactArtifact"
         },
         "rules": {
           "type": "array",
           "maxItems": 256,
           "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapRule"
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapEditorRule"
           }
         }
       }
     },
-    "SitemapView": {
+    "SitemapEditorRule": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["revision", "document"],
+      "required": [
+        "origin",
+        "method",
+        "path",
+        "pointer",
+        "parameters",
+        "structural"
+      ],
       "properties": {
-        "revision": { "type": "string", "maxLength": 8192 },
-        "document": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapDocument"
+        "origin": { "type": "string", "maxLength": 8192 },
+        "method": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,16}$",
+          "maxLength": 16
+        },
+        "path": { "type": "string", "maxLength": 8192 },
+        "pointer": { "type": "string", "maxLength": 8192 },
+        "parameters": {
+          "type": "array",
+          "maxItems": 100,
+          "items": { "type": "string", "maxLength": 64, "x-max-utf8-bytes": 64 }
+        },
+        "structural": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapStructuralParameter"
+          }
         }
       }
     },

@@ -153,6 +153,8 @@ func configureHTTP(
 	artifactHandler, err := privateartifacts.NewHandler(privateartifacts.Dependencies{
 		Registry: control.registry, Artifacts: catalogs.artifacts, Findings: catalogs.findings, GatewayRecovery: workflows.gatewayRecovery, Logger: logger,
 		Sitemap:        projectsitemap.NewService(pool),
+		RunProjects:    runStore,
+		Projects:       projects,
 		PentestActions: audits.service,
 	})
 	if err != nil {

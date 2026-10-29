@@ -66,34 +66,37 @@ class SitemapTransport:
         self.access_operations: set[str] | None = None
         self.collect_observations = False
         self.access_error: tuple[int, str, bool] | None = None
+        self.read_error: tuple[int, str, bool] | None = None
         self.post_error: tuple[int, str, bool] | None = None
         self.ambiguous_once = False
 
     async def request(self, method, path, *, headers, body, max_response_bytes):
         self.requests.append((method, path, dict(headers), body))
         route = urlsplit(path).path
-        if route.endswith("/access"):
-            operation = parse_qs(urlsplit(path).query).get("operation", [None])[0]
+        if method == "GET":
+            query = parse_qs(urlsplit(path).query)
+            assert route in {
+                "/allocations/allocation/artifacts/sitemap/map",
+                "/allocations/allocation/artifacts/sitemap/map/access",
+            }
+            assert query.get("scope") == ["project"]
+            operation = query.get("operation", [None])[0]
+            assert operation is not None
             if self.access_operations is not None and operation not in self.access_operations:
-                return self.error((403, "sitemap_access_denied", False))
+                return self.error((403, "artifact_access_denied", False))
             if self.access_error:
                 return self.error(self.access_error)
-            return self.json(
-                {
-                    "apiVersion": "contractor/v1alpha1",
-                    "policy": {
-                        "version": "sitemap-access@1",
-                        "collectObservations": self.collect_observations,
-                    },
-                    "manualSourceId": identity("manual"),
-                }
-            )
-        if method == "GET":
+            if route.endswith("/access"):
+                return ArtifactHTTPResponse(204, {}, b"")
+            if self.read_error:
+                return self.error(self.read_error)
             return ArtifactHTTPResponse(
                 200,
                 {
                     "content-type": "application/vnd.contractor.project-sitemap+json",
-                    "x-contractor-sitemap-revision": self.revision,
+                    "etag": f'"{self.revision}"',
+                    "x-contractor-binding-created-at": "2026-10-01T12:00:00Z",
+                    "x-contractor-revision-created-at": "2026-10-02T12:00:00Z",
                 },
                 json.dumps(self.document, separators=(",", ":")).encode(),
             )

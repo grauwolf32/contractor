@@ -566,25 +566,6 @@ export interface paths {
         patch: operations["updateProject"];
         trace?: never;
     };
-    "/v1/projects/{projectId}/sitemap": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                projectId: components["parameters"]["ProjectId"];
-            };
-            cookie?: never;
-        };
-        /** Read an owned Project sitemap */
-        get: operations["getProjectSitemap"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/projects/{projectId}/sitemap/mutations": {
         parameters: {
             query?: never;
@@ -2649,18 +2630,16 @@ export interface components {
             source?: components["schemas"]["SitemapSourceUpdate"];
         };
         SitemapSourceUpdate: {
-            /**
-             * @constant
-             * @enum {string}
-             */
-            sourceId: "owner";
             expected?: components["schemas"]["SitemapSource"];
-            artifact?: components["schemas"]["SitemapExactArtifact"];
-            rules: components["schemas"]["SitemapRule"][];
+            rules: components["schemas"]["SitemapEditorRule"][];
         };
-        SitemapView: {
-            revision: string;
-            document: components["schemas"]["SitemapDocument"];
+        SitemapEditorRule: {
+            origin: string;
+            method: string;
+            path: string;
+            pointer: string;
+            parameters: string[];
+            structural: components["schemas"]["SitemapStructuralParameter"][];
         };
         SitemapResult: {
             artifact: components["schemas"]["ExactArtifactRef"];
@@ -9465,40 +9444,6 @@ export interface operations {
             413: components["responses"]["PayloadTooLarge"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
-        };
-    };
-    getProjectSitemap: {
-        parameters: {
-            query?: {
-                revision?: components["schemas"]["Revision"];
-            };
-            header?: never;
-            path: {
-                projectId: components["parameters"]["ProjectId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Exact or current sitemap; missing current is empty */
-            200: {
-                headers: {
-                    "X-Request-ID": components["headers"]["RequestId"];
-                    "Cache-Control": components["headers"]["NoStore"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SitemapView"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            413: components["responses"]["PayloadTooLarge"];
-            500: components["responses"]["InternalError"];
-            503: components["responses"]["ArtifactUnavailable"];
         };
     };
     mutateProjectSitemap: {

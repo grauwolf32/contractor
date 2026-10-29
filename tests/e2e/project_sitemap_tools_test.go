@@ -105,7 +105,7 @@ func TestProjectSitemapToolsAcrossProductionProcesses(t *testing.T) {
 	stale := create("sitemap-editor", map[string]string{"revision": original, "url": "https://example.test/must-not-appear"})
 	status = h.terminal(t, stale, "failed")
 	assertSitemapToolReport(t, h, status, "upsert_sitemap_entry", "sitemap_conflict")
-	current := h.operations.request(http.MethodGet, "/v1/projects/"+project.ProjectID+"/sitemap", nil, 200, nil)
+	current := h.operations.request(http.MethodGet, "/v1/projects/"+project.ProjectID+"/artifacts/sitemap/map", nil, 200, nil)
 	if bytes.Contains(current, []byte("must-not-appear")) {
 		t.Fatal("stale editor intent was refreshed or replayed")
 	}
@@ -113,7 +113,7 @@ func TestProjectSitemapToolsAcrossProductionProcesses(t *testing.T) {
 	// that Runtime certificate cannot use a settled allocation to read a map.
 	allocation := onlyRunAllocation(t, h.ctx, h.store, listed)
 	runtimeClient := newMTLSClient(t, h.caFile, h.identities["sitemap-runtime"])
-	request, err := http.NewRequest(http.MethodGet, h.privateURL+"/private/v1/allocations/"+allocation.AllocationID+"/sitemap", nil)
+	request, err := http.NewRequest(http.MethodGet, h.privateURL+"/private/v1/allocations/"+allocation.AllocationID+"/artifacts/sitemap/map?scope=project&operation=list_sitemap_entries", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,33 +131,34 @@ func assertEmptySitemapMetadataAcrossProcesses(t *testing.T, h *placementProcess
 		"kind": "project", "name": "Empty sitemap metadata", "description": "Retained source precondition fixture",
 	}, http.StatusCreated, map[string]string{"Idempotency-Key": "empty-metadata-project"}), &project)
 	path := "/v1/projects/" + project.ProjectID + "/sitemap"
-	replace := func(revision string, expected *projectsitemap.Source, rules []projectsitemap.Rule, key string) projectsitemap.Result {
+	replace := func(revision string, expected *projectsitemap.Source, rules []projectsitemap.EditorRule, key string) projectsitemap.Result {
 		t.Helper()
 		var result projectsitemap.Result
-		h.decode(t, h.operations.request(http.MethodPost, path+"/mutations", projectsitemap.Mutation{
+		h.decode(t, h.operations.request(http.MethodPost, path+"/mutations", projectsitemap.EditorMutation{
 			Operation: "replace-source", ExpectedRevision: revision,
-			Source: &projectsitemap.SourceUpdate{SourceID: projectsitemap.OwnerSourceID, Expected: expected, Rules: rules},
+			Source: &projectsitemap.EditorSourceUpdate{Expected: expected, Rules: rules},
 		}, http.StatusOK, map[string]string{"Idempotency-Key": key}), &result)
 		if result.Ref.Revision == nil {
 			t.Fatal("source replacement returned no exact revision")
 		}
 		return result
 	}
-	read := func() projectsitemap.View {
+	read := func(revision string) projectsitemap.Document {
 		t.Helper()
-		var view projectsitemap.View
-		h.decode(t, h.operations.request(http.MethodGet, path, nil, http.StatusOK, nil), &view)
-		return view
+		var document projectsitemap.Document
+		endpoint := "/v1/projects/" + project.ProjectID + "/artifacts/sitemap/map?revision=" + revision
+		h.decode(t, h.operations.request(http.MethodGet, endpoint, nil, http.StatusOK, nil), &document)
+		return document
 	}
-	rule := projectsitemap.Rule{SourceID: projectsitemap.OwnerSourceID, Origin: "https://example.test", Method: "GET", Path: "/before-clear", Parameters: []string{}, Structural: []projectsitemap.StructuralParameter{}}
-	first := replace("absent", nil, []projectsitemap.Rule{rule}, "metadata-source-create")
-	view := read()
-	if len(view.Document.Sources) != 1 || view.Document.Sources[0].Generation != 1 || len(view.Document.Groups) != 1 {
+	rule := projectsitemap.EditorRule{Origin: "https://example.test", Method: "GET", Path: "/before-clear", Parameters: []string{}, Structural: []projectsitemap.StructuralParameter{}}
+	first := replace("absent", nil, []projectsitemap.EditorRule{rule}, "metadata-source-create")
+	view := read(*first.Ref.Revision)
+	if len(view.Sources) != 1 || view.Sources[0].Generation != 1 || len(view.Groups) != 1 {
 		t.Fatalf("initial grouping source: %+v", view)
 	}
-	cleared := replace(*first.Ref.Revision, &view.Document.Sources[0], []projectsitemap.Rule{}, "metadata-source-clear")
-	view = read()
-	if len(view.Document.Groups) != 0 || len(view.Document.Rules) != 0 || len(view.Document.Sources) != 1 || view.Document.Sources[0].Generation != 2 {
+	cleared := replace(*first.Ref.Revision, &view.Sources[0], []projectsitemap.EditorRule{}, "metadata-source-clear")
+	view = read(*cleared.Ref.Revision)
+	if len(view.Groups) != 0 || len(view.Rules) != 0 || len(view.Sources) != 1 || view.Sources[0].Generation != 2 {
 		t.Fatalf("cleared source did not retain its generation in an empty map: %+v", view)
 	}
 	input := []byte(`{"workflow":"sitemap-metadata@1","parameters":{},"artifacts":{}}`)
@@ -180,15 +181,15 @@ func assertEmptySitemapMetadataAcrossProcesses(t *testing.T, h *placementProcess
 	}
 	var expected projectsitemap.Source
 	h.decode(t, result.Observation.Entries[0].Value, &expected)
-	if !reflect.DeepEqual(expected, view.Document.Sources[0]) {
+	if !reflect.DeepEqual(expected, view.Sources[0]) {
 		t.Fatalf("Runtime metadata lost the complete source precondition: %+v", expected)
 	}
 	// Reuse the exact Source received from the real Runtime, without refreshing
 	// its generation or policy digest from a direct store read.
 	rule.Path = "/after-metadata-read"
-	reconfigured := replace(result.Observation.Revision, &expected, []projectsitemap.Rule{rule}, "metadata-source-reconfigure")
-	view = read()
-	if view.Revision != *reconfigured.Ref.Revision || len(view.Document.Sources) != 1 || view.Document.Sources[0].Generation != 3 || len(view.Document.Groups) != 1 || view.Document.Groups[0].Route != rule.Path {
+	reconfigured := replace(result.Observation.Revision, &expected, []projectsitemap.EditorRule{rule}, "metadata-source-reconfigure")
+	view = read(*reconfigured.Ref.Revision)
+	if len(view.Sources) != 1 || view.Sources[0].Generation != 3 || len(view.Groups) != 1 || view.Groups[0].Route != rule.Path {
 		t.Fatalf("metadata source precondition was not usable for reconfiguration: %+v", view)
 	}
 }

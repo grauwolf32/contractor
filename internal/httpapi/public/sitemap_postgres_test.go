@@ -55,16 +55,27 @@ func TestPostgresPublicProjectSitemap(t *testing.T) {
 	if err := json.Unmarshal(send("POST", endpoint+"/mutations", "create", create, 200), &first); err != nil {
 		t.Fatal(err)
 	}
-	read := func() projectsitemap.View {
+	read := func() struct {
+		Revision string
+		Document projectsitemap.Document
+	} {
 		t.Helper()
-		var view projectsitemap.View
-		data := send("GET", endpoint, "", "", 200)
+		var metadata artifactMetadataResponse
+		if err := json.Unmarshal(send("GET", "/v1/projects/project-one/artifacts/sitemap/map/metadata", "", "", 200), &metadata); err != nil {
+			t.Fatal(err)
+		}
+		data := send("GET", "/v1/projects/project-one/artifacts/sitemap/map?revision="+*metadata.Ref.Revision, "", "", 200)
 		if strings.Contains(string(data), "query-canary") {
 			t.Fatal("unsafe URL value reached public map")
 		}
-		if err := json.Unmarshal(data, &view); err != nil {
+		document, err := projectsitemap.Decode(data)
+		if err != nil {
 			t.Fatal(err)
 		}
+		view := struct {
+			Revision string
+			Document projectsitemap.Document
+		}{*metadata.Ref.Revision, document}
 		return view
 	}
 	view := read()
@@ -96,10 +107,23 @@ func TestPostgresPublicProjectSitemap(t *testing.T) {
 	if !replay.Replayed || !replay.Ref.SameExact(first.Ref) {
 		t.Fatal("public replay followed latest")
 	}
-	send("GET", endpoint+"?revision="+*first.Ref.Revision, "", "", 404)
-	send("GET", "/v1/projects/project-foreign/sitemap", "", "", 404)
+	send("GET", "/v1/projects/project-one/artifacts/sitemap/map?revision="+*first.Ref.Revision, "", "", 404)
+	send("GET", "/v1/projects/project-foreign/artifacts/sitemap/map", "", "", 404)
 	send("POST", endpoint+"/mutations", "forged-source", `{"operation":"replace-source","source":{"sourceId":"http-transport","rules":[]}}`, 400)
+	send("POST", endpoint+"/mutations", "forged-owner-source", `{"operation":"replace-source","source":{"sourceId":"owner","rules":[]}}`, 400)
+	send("POST", endpoint+"/mutations", "forged-rule-source", `{"operation":"replace-source","source":{"rules":[{"sourceId":"owner","origin":"https://example.test","method":"GET","path":"/users/{id}","pointer":"","parameters":["id"],"structural":[]}]}}`, 400)
 	send("POST", endpoint+"/mutations", "forged", `{"operation":"observe","observations":[{"url":"https://example.test/forged","method":"GET","outcome":"response","status":200,"at":"2026-10-26T00:00:00Z"}]}`, 400)
+	view = read()
+	expectedSource, err := json.Marshal(view.Document.Sources[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	grouping := fmt.Sprintf(`{"operation":"replace-source","expectedRevision":%q,"source":{"expected":%s,"rules":[{"origin":"https://example.test","method":"GET","path":"/users/{id}","pointer":"","parameters":["id"],"structural":[]}]}}`, view.Revision, expectedSource)
+	send("POST", endpoint+"/mutations", "grouping", grouping, 200)
+	view = read()
+	if len(view.Document.Rules) != 1 || view.Document.Rules[0].SourceID != projectsitemap.OwnerSourceID || view.Document.Sources[0].Provenance.SourceID != projectsitemap.OwnerSourceID {
+		t.Fatal("owner grouping did not use trusted source identity")
+	}
 	// The ordinary public Artifact writer must not replace domain bytes.
 	view = read()
 	request := newPublicContractRequest(http.MethodPut, "/v1/projects/project-one/artifacts/sitemap/map", []byte(`{}`)).WithContext(ctx)

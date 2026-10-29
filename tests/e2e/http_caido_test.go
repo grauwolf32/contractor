@@ -213,9 +213,9 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 					return false
 				}
 				switch {
-				case matchesCurrentRuntimeAdapters(item.SupportedRuntimeAdapters, "http-proxy@1"):
+				case supportsRuntimeAdapters(item.SupportedRuntimeAdapters, "http-proxy@1"):
 					foundHTTP = true
-				case matchesCurrentRuntimeAdapters(item.SupportedRuntimeAdapters, "caido-graphql@1"):
+				case supportsRuntimeAdapters(item.SupportedRuntimeAdapters, "caido-graphql@1"):
 					foundCaido = true
 				}
 			}
@@ -345,16 +345,14 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 			t.Fatal("collector publication failure was not diagnosed")
 		}
 		publicationProxy.verify(t)
-		data := operations.request(http.MethodGet, "/v1/projects/"+projectID+"/sitemap", nil, 200, nil)
-		var view struct {
-			Document projectsitemap.Document `json:"document"`
-		}
-		if err := json.Unmarshal(data, &view); err != nil {
+		data := operations.request(http.MethodGet, "/v1/projects/"+projectID+"/artifacts/sitemap/map", nil, 200, nil)
+		var document projectsitemap.Document
+		if err := json.Unmarshal(data, &document); err != nil {
 			t.Fatal(err)
 		}
-		assertUnifiedSitemapGroups(t, view.Document)
+		assertUnifiedSitemapGroups(t, document)
 		editedManual := false
-		for _, group := range view.Document.Groups {
+		for _, group := range document.Groups {
 			for _, member := range group.Members {
 				if member.Path == "/manual-canary" && slices.ContainsFunc(member.Annotations, func(annotation projectsitemap.Annotation) bool { return annotation.Note == "unified-editor" }) {
 					editedManual = true
@@ -508,7 +506,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 			t.Fatal("missing Runtime report claimed complete execution telemetry")
 		}
 
-		committed := operations.request(http.MethodGet, "/v1/projects/"+projectID+"/sitemap", nil, 200, nil)
+		committed := operations.request(http.MethodGet, "/v1/projects/"+projectID+"/artifacts/sitemap/map", nil, 200, nil)
 		if !bytes.Contains(committed, []byte(httpInitial.RunID)) {
 			t.Fatal("Runtime crash erased committed Project observations")
 		}

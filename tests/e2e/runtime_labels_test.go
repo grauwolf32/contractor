@@ -194,9 +194,9 @@ func TestLabelDrivenRuntimeConfigurationAcrossProcesses(t *testing.T) {
 					return false
 				}
 				switch {
-				case matchesCurrentRuntimeAdapters(item.SupportedRuntimeAdapters, "http-proxy@1"):
+				case supportsRuntimeAdapters(item.SupportedRuntimeAdapters, "http-proxy@1"):
 					foundProxyOnly = true
-				case matchesCurrentRuntimeAdapters(item.SupportedRuntimeAdapters, "otlp-http@1"):
+				case supportsRuntimeAdapters(item.SupportedRuntimeAdapters, "otlp-http@1"):
 					foundTelemetry = true
 				}
 			}
@@ -752,12 +752,10 @@ func principalWithAdapters(
 	adapters ...string,
 ) observedRuntimePrincipal {
 	t.Helper()
-	for _, principal := range principals {
-		if principal.Live != nil && matchesCurrentRuntimeAdapters(principal.Live.SupportedRuntimeAdapters, adapters...) {
-			return principal
-		}
+	if principal, ok := findPrincipalWithAdapters(principals, adapters...); ok {
+		return principal
 	}
-	t.Fatalf("no Runtime Agent principal advertises %v: %+v", adapters, principals)
+	t.Fatalf("expected exactly one live Runtime Agent principal advertising %v: %+v", adapters, principals)
 	return observedRuntimePrincipal{}
 }
 

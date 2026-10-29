@@ -37,7 +37,6 @@ def test_shared_sitemap_private_wire() -> None:
     from private_schemas import private_validator
 
     from contractor_runtime.contracts.sitemap import (
-        SitemapAccess,
         SitemapMutationResponse,
         SitemapSnapshotResponse,
     )
@@ -48,7 +47,6 @@ def test_shared_sitemap_private_wire() -> None:
     models = {
         model.__name__: model
         for model in (
-            SitemapAccess,
             SitemapMutationResponse,
             SitemapSnapshotResponse,
         )
@@ -68,7 +66,14 @@ def test_shared_sitemap_private_wire() -> None:
     assert cases["collectorLimits"]["attempts"] == MAX_ATTEMPTS
     assert cases["collectorLimits"]["flushBudgetSeconds"] == FLUSH_BUDGET_SECONDS
     assert cases["collectorLimits"]["flushIntervalSeconds"] == FLUSH_INTERVAL_SECONDS
-    assert len(cases["valid"]) == 6 and len(cases["invalid"]) >= 15
+    assert {case["type"] for case in cases["valid"]} == {
+        "SitemapMutationRequest",
+        "SitemapMutationResponse",
+        "SitemapSnapshotRequest",
+        "SitemapSnapshotResponse",
+        "SitemapCollectionRequest",
+    }
+    assert len(cases["invalid"]) >= 15
     for valid, group in ((True, cases["valid"]), (False, cases["invalid"])):
         for case in group:
             validator = private_validator("project-sitemap.schema.json#/$defs/" + case["type"])

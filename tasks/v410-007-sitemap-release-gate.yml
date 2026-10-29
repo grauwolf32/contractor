@@ -18,6 +18,7 @@ depends_on:
 - V410-019
 - V410-020
 - V410-021
+- V410-022
 languages:
 - go
 - python

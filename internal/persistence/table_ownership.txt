@@ -212,8 +212,6 @@ internal/projectlifecycle    workflow_runs                  Project deletion can
 internal/projectstore        eval_experiments               Project lists leave out Eval workspace Projects.
 internal/projectstore        eval_submissions               Project lists leave out Eval workspace Projects.
 
-internal/projectsitemap      workflow_runs                  Allocation access derives owner and Project from its durable Run
-    in the same read-only transaction; the caller cannot select another Project.
 internal/projectsitemap      projects                       Sitemap access checks owner and active lifecycle; mutations fence
     Project deletion FOR SHARE in the same transaction as Artifact publication and receipt writes.
 

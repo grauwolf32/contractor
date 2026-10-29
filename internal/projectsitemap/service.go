@@ -25,10 +25,6 @@ type Service struct{ pool *pgxpool.Pool }
 
 func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
 
-type View struct {
-	Revision string   `json:"revision"`
-	Document Document `json:"document"`
-}
 type Result struct {
 	Ref      contracts.ArtifactRef `json:"artifact"`
 	Replayed bool                  `json:"replayed"`
@@ -56,51 +52,6 @@ func checkProject(ctx context.Context, db postgres.DBTX, ownerID, projectID stri
 		return projectstore.ErrDeleting
 	}
 	return nil
-}
-
-// Read returns empty only for a missing binding, never for malformed content.
-// revision selects exact retained history and never falls back to current.
-func (s *Service) Read(ctx context.Context, ownerID, projectID, revision string) (View, error) {
-	ctx, cancel := context.WithTimeout(ctx, OperationTimeout)
-	defer cancel()
-	var view View
-	err := postgres.InTx(ctx, s.pool, pgx.TxOptions{AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		if err := checkProject(ctx, tx, ownerID, projectID, false); err != nil {
-			return err
-		}
-		admitted, release, err := artifacts.AcquireTransfer(ctx)
-		if err != nil {
-			return err
-		}
-		defer release()
-		ctx = admitted
-		store, err := artifacts.NewService(artifacts.NewPostgresRepository(tx)).Project(projectID)
-		if err != nil {
-			return err
-		}
-		ref := mapRef()
-		if revision != "" {
-			ref.Revision = &revision
-		}
-		read, err := store.Read(ctx, ref)
-		if errors.Is(err, artifacts.ErrArtifactNotFound) && revision == "" {
-			view = View{Document: Empty()}
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if read.Payload.MediaType != MediaType {
-			return ErrInvalid
-		}
-		document, err := Decode(read.Payload.Data)
-		if err != nil {
-			return err
-		}
-		view = View{Revision: *read.Ref.Revision, Document: document}
-		return nil
-	})
-	return view, err
 }
 
 // Mutate reconciles retries through the existing keyed receipt, even when its

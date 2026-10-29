@@ -227,6 +227,16 @@
       "rule": "LIM-SMT-11"
     },
     {
+      "schema": "SitemapEditorRule",
+      "path": [
+        "properties",
+        "parameters",
+        "items"
+      ],
+      "maxBytes": 64,
+      "rule": "LIM-SMT-11"
+    },
+    {
       "schema": "SitemapRule",
       "path": [
         "properties",

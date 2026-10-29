@@ -36,6 +36,8 @@ REQUIRED = {
 REQUIRED_CASES = {(PREFIX + "internal/projectsitemap", case) for case in REQUIRED} | {
     (PREFIX + "internal/httpapi/privateartifacts", "TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence"),
     (PREFIX + "internal/controlplane", "TestSitemapGrantPinsSelectedOperationsAndNeverAliasesPolicy"),
+    (PREFIX + "internal/httpapi/privateartifacts", "TestPostgresPrivateProjectArtifactReadsUseConcreteTargetAndNoCacheHolds"),
+    (PREFIX + "internal/runstore", "TestPostgresRunProjectContextUsesCallerTransaction"),
     (PREFIX + "internal/artifacts", "TestPostgresDescribeForkRevisionsPreservesTargetsAndBoundsWork"),
     (PREFIX + "internal/httpapi/public", "TestPostgresPublicArtifactUploadAvailability"),
     (PREFIX + "internal/httpapi/public", "TestPostgresRepeatArtifactUploadAvailabilityFollowsSourceProject"),
