@@ -1562,6 +1562,58 @@ existing Run/Audit/Project retention and purge rules (LIFE-FND-6). Validation
 does not change triage, proposal severity, duplicate identity or collection
 format and does not assert that authored descriptions are secret-free.
 
+
+## Audit finding exports
+
+**FND-R197.** An owner creates one synchronous export of explicit finding IDs
+and exact revisions from one Audit. The public route supplies Audit authority;
+foreign/missing findings and non-member presentation receipts return the existing
+non-disclosing not-found class, stale revisions conflict. Empty selects none;
+there is no implicit whole-Audit or cross-Audit selection. The closed request
+selects `format: sarif`, `profile: generic`, `clientKey` and `findings`, with
+optional `includeDuplicates` defaulting to false. Limits are LIM-FND-49.
+
+**FND-R198.** The frozen snapshot retains every selected finding, its complete
+contribution membership, explicit presentation receipt (default first receipt),
+its own current decision/rating/assessment, qualified primary correlation key
+and policy, resolved native analysis, exact original and retained evidence
+identities and trusted Git origin. Supporting contributions do not replace
+presentation fields or inherit another finding's rating. HTTP projections omit
+headers, bodies, query, userinfo and fragments; raw evidence remains subject to
+existing Artifact authority. The snapshot records schema, time, exporter and
+policy versions plus normalized request digest. Rendering consults this snapshot
+alone and calls no model, network or store.
+
+**FND-R199.** `includeDuplicates: false` emits one selected representative per
+connected group of qualified primary-key equality and explicit same-Audit manual
+duplicate links. Prefer a selected non-duplicate, then the lexically first
+finding ID. Shared targets outside the selection may connect selected siblings,
+but neither targets nor peers are selected implicitly. Similar text, titles,
+weak candidates and overlapping contributions never establish equality. The
+representative retains its own triage and presentation; all selected member IDs
+remain in output properties, and all independent decisions remain in the
+snapshot. `true` emits every selected finding. The option does not change native
+Audit state, and `resultCount` may be below `selectedCount`.
+
+**FND-R200.** Snapshot, SARIF, diagnostics and replay receipt publish atomically
+as frozen bindings in the existing ProjectScope namespace of the owning Audit;
+no new table or independent lifecycle is introduced (LIFE-FND-7). The
+Audit-local `clientKey` and normalized request determine export identity. Omitted
+and explicit false duplicate inclusion normalize identically; changing the
+option or selection with the same key returns permanent `idempotency_conflict`.
+Replay verifies immutable descriptors/digests and returns original bytes before
+reading live findings, source evidence or current reviews (FAIL-FND-8).
+
+**FND-R201.** The public collection is
+`POST /v1/audits/{auditId}/findings/exports`. It returns 201 for publication,
+200 for replay and `Location` pointing to
+`GET /v1/audits/{auditId}/findings/exports/{exportId}/content`.
+The `/snapshot` and `/diagnostics` sibling resources download the original JSON.
+All downloads check current Audit ownership/deletion state, serve attachments
+with Artifact transfer/storage/write budgets and never regenerate content.
+The OpenAPI document owns exact fields, headers and classified errors, including
+retryable 503 `storage_transaction_conflict` with `Retry-After`.
+
 ## Interfaces
 
 - `finding`: the model-visible tool of each creation facade, with the

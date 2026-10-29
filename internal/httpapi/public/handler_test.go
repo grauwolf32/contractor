@@ -812,6 +812,7 @@ func newHandlerFixtureWithAuth(
 		Audits:                 &fakeAuditManagement{},
 		FindingProposals:       missingFindingProposals{},
 		FindingCollections:     missingFindingCollections{},
+		FindingExports:         missingFindingExports{},
 		Evals:                  unservedEvals{},
 		EvalNotifier:           &countingWaker{},
 		GitImports:             unavailableGitImports{},

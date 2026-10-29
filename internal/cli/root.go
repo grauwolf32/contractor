@@ -63,7 +63,7 @@ func (c *CLI) Run(ctx context.Context, args []string) error {
 	}
 	if command != "context" && command != "contexts" && command != "workflow" && command != "workflows" &&
 		command != "project" && command != "projects" && command != "artifact" && command != "artifacts" &&
-		command != "source" && command != "run" && command != "runs" && command != "queue" &&
+		command != "audit" && command != "source" && command != "run" && command != "runs" && command != "queue" &&
 		command != "ops" && command != "operations" && command != "check" && command != "scan-sweep" {
 		return &UsageError{Message: fmt.Sprintf("unknown command %q", command)}
 	}
@@ -82,6 +82,8 @@ func (c *CLI) Run(ctx context.Context, args []string) error {
 		return err
 	}
 	switch command {
+	case "audit":
+		return c.runAudit(ctx, client, printer, commandArgs)
 	case "workflow", "workflows":
 		return c.runWorkflow(ctx, client, printer, commandArgs)
 	case "project", "projects":
@@ -127,6 +129,8 @@ func transferCommand(command string, args []string) bool {
 		return false
 	}
 	switch command {
+	case "audit":
+		return len(args) > 1 && args[0] == "findings" && (args[1] == "export" || args[1] == "download")
 	case "source":
 		return args[0] == "push"
 	case "artifact", "artifacts":
@@ -259,6 +263,7 @@ Commands:
   workflow    List and inspect published Workflows
   project     Manage Projects and Project-scoped resources
   scan-sweep  Local manifest sweeps and durable server sweeps (remote)
+  audit       Export and download Audit findings as SARIF
   artifact    Manage User, Project, and Run Artifacts
   source      Package and upload a source directory
   run         Create, inspect, watch, cancel, and download Run outputs

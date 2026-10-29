@@ -31,6 +31,10 @@ func NewCollectionPublisher(pool *pgxpool.Pool, reviews CollectionReviews) (*Col
 	return &CollectionPublisher{pool: pool, reviews: reviews}, nil
 }
 
+// collectionObserver consumes one receipt after exact-byte and optional analysis
+// validation, in the same repeatable-read capture as the collection selection.
+type collectionObserver func(Receipt, auditdomain.FindingProposal, auditdomain.FindingCollectionDocument, []auditdomain.FindingCollectionDocument, map[string]auditdomain.FindingCollectionDocument, map[string][]byte, map[string]*artifacts.GitSource, *findinganalysis.Resolved) error
+
 type collectionPublication struct {
 	Schema        string        `json:"schema"`
 	RequestDigest string        `json:"request_digest"`
@@ -70,7 +74,7 @@ func (p *CollectionPublisher) PublishCollection(ctx context.Context, params Publ
 		if err := tx.QueryRow(ctx, `SELECT transaction_timestamp()`).Scan(&captured); err != nil {
 			return err
 		}
-		value, contents, err := p.captureCollection(ctx, tx, params.OwnerID, request, captured)
+		value, contents, err := p.captureCollection(ctx, tx, params.OwnerID, request, captured, nil)
 		if err != nil {
 			return err
 		}
@@ -166,7 +170,7 @@ func readCollectionReplay(ctx context.Context, user artifacts.ScopedStore, key, 
 // an Audit source's selected findings, FND-R159), then the selected
 // receipts, their holds, the Audits of those holds and the source Runs in one
 // statement each, and the documents in exact-read batches.
-func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, ownerID string, request PublishCollectionRequest, captured time.Time) (auditdomain.FindingCollection, map[string][]byte, error) {
+func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, ownerID string, request PublishCollectionRequest, captured time.Time, observe collectionObserver) (auditdomain.FindingCollection, map[string][]byte, error) {
 	value := auditdomain.FindingCollection{
 		Schema: auditdomain.FindingCollectionSchema, SnapshotAt: captured.UTC().Format(time.RFC3339Nano),
 		Sources: []auditdomain.FindingCollectionSource{}, Entries: []auditdomain.FindingCollectionEntry{}, Documents: []auditdomain.FindingCollectionDocument{},
@@ -219,11 +223,21 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
-	reviews, err := p.reviews.ReadCollectionReviews(ctx, tx, ownerID, ids)
-	if err != nil {
-		return fail(err)
+	reviews := map[string][]auditdomain.FindingCollectionReview{}
+	if observe == nil {
+		reviews, err = p.reviews.ReadCollectionReviews(ctx, tx, ownerID, ids)
+		if err != nil {
+			return fail(err)
+		}
 	}
-	receipts, err := readCollectionReceipts(ctx, tx, ownerID, ids)
+	auditScope := ""
+	if observe != nil {
+		if len(request.Sources) != 1 || request.Sources[0].Kind != "audit" {
+			return fail(ErrInvalid)
+		}
+		auditScope = request.Sources[0].ID
+	}
+	receipts, err := readCollectionReceipts(ctx, tx, ownerID, ids, auditScope)
 	if err != nil {
 		return fail(err)
 	}
@@ -245,7 +259,7 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 	}
 	builder := collectionDocuments{
 		repository: artifacts.NewPostgresRepository(tx),
-		documents:  map[string]auditdomain.FindingCollectionDocument{}, contents: map[string][]byte{},
+		documents:  map[string]auditdomain.FindingCollectionDocument{}, contents: map[string][]byte{}, git: map[string]*artifacts.GitSource{},
 	}
 	planned := make([]plannedCollectionEntry, 0, len(ids))
 	for _, id := range ids {
@@ -331,8 +345,14 @@ func (p *CollectionPublisher) captureCollection(ctx context.Context, tx pgx.Tx, 
 			}
 			origins[id] = origin
 		}
-		if _, err := analysisResolver.Resolve(ctx, decoded.ClientKey, evidenceDocuments, builder.contents, origins); err != nil {
+		analysis, err := analysisResolver.Resolve(ctx, decoded.ClientKey, evidenceDocuments, builder.contents, origins)
+		if err != nil {
 			return fail(err)
+		}
+		if observe != nil {
+			if err := observe(receipt, decoded, builder.documents[entry.ProposalDocumentID], evidenceDocuments, origins, builder.contents, builder.git, analysis); err != nil {
+				return fail(err)
+			}
 		}
 		sort.Slice(entry.Evidence, func(i, j int) bool { return entry.Evidence[i].EvidenceID < entry.Evidence[j].EvidenceID })
 		value.Entries = append(value.Entries, entry)
@@ -418,7 +438,7 @@ func authorizedCollectionReceipts(ctx context.Context, tx pgx.Tx, ownerID string
 
 // readCollectionReceipts reads the selected receipts of the owner with every
 // Audit hold of each.
-func readCollectionReceipts(ctx context.Context, tx pgx.Tx, ownerID string, ids []string) (map[string]Receipt, error) {
+func readCollectionReceipts(ctx context.Context, tx pgx.Tx, ownerID string, ids []string, auditScope string) (map[string]Receipt, error) {
 	receipts := make(map[string]Receipt, len(ids))
 	if len(ids) == 0 {
 		return receipts, nil
@@ -431,7 +451,16 @@ func readCollectionReceipts(ctx context.Context, tx pgx.Tx, ownerID string, ids 
 	if err != nil {
 		return nil, err
 	}
-	holds, err := readRunAuditHoldsBatch(ctx, tx, ids)
+	var holds map[string][]AuditHold
+	if auditScope == "" {
+		holds, err = readRunAuditHoldsBatch(ctx, tx, ids)
+	} else {
+		var rows pgx.Rows
+		rows, err = tx.Query(ctx, readExportAuditHoldsSQL, ids, auditScope)
+		if err == nil {
+			holds, err = scanAuditHoldsBatch(rows, len(ids))
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -489,6 +518,7 @@ type collectionDocuments struct {
 	repository *artifacts.PostgresRepository
 	documents  map[string]auditdomain.FindingCollectionDocument
 	contents   map[string][]byte
+	git        map[string]*artifacts.GitSource
 	planned    []plannedCollectionDocument
 	size       int64
 }
@@ -558,6 +588,10 @@ func (b *collectionDocuments) read(ctx context.Context) error {
 				return artifacts.ErrArtifactIntegrity
 			}
 			b.contents[batch[index].id] = read.Payload.Data
+			if b.git == nil {
+				b.git = map[string]*artifacts.GitSource{}
+			}
+			b.git[batch[index].id] = read.GitSource
 		}
 	}
 	return nil

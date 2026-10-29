@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
 	"sync"
@@ -51,7 +52,7 @@ func newCollectionTestPublisher(t *testing.T, pool *pgxpool.Pool) *findingintake
 	return publisher
 }
 
-func seedCollectionRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID string) {
+func seedCollectionRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID string, projects ...string) {
 	t.Helper()
 	snapshot, err := configload.Load("../config/testdata/valid")
 	if err != nil {
@@ -65,9 +66,13 @@ func seedCollectionRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ow
 	if err != nil {
 		t.Fatal(err)
 	}
+	var projectID *string
+	if len(projects) == 1 {
+		projectID = &projects[0]
+	}
 	_, err = runstoretest.CreateRun(ctx, runstore.NewPostgresStore(pool), runstore.CreateRunParams{
 		LaneClass: resolved.LaneClassModel,
-		RunID:     runID, OwnerID: owner, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
+		RunID:     runID, OwnerID: owner, ProjectID: projectID, WorkflowName: workflow.Ref.Name, WorkflowVersion: workflow.Ref.Version,
 		WorkflowSchemaVersion: contracts.APIVersion, WorkflowSnapshot: encoded, Parameters: map[string]string{}, RuntimeConfig: runtimeconfigtest.BuiltInRunSnapshot(),
 	})
 
@@ -76,7 +81,7 @@ func seedCollectionRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ow
 	}
 }
 
-func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID, suffix string, missingEvidence bool) {
+func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID, suffix string, missingEvidence bool, extra ...findingintake.ExactArtifact) {
 	t.Helper()
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	run, err := service.Run(runID)
@@ -100,10 +105,14 @@ func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.P
 		}
 		evidence.Ref = lost.Ref
 	}
+	evidenceIDs := make([]string, 1+len(extra))
+	for i := range evidenceIDs {
+		evidenceIDs[i] = fmt.Sprintf("evidence-%d", i+1)
+	}
 	proposal := auditdomain.FindingProposal{
 		Schema: auditdomain.FindingProposalSchema, ClientKey: suffix, Title: suffix, Description: "A generic observation.",
 		Subject: &auditdomain.FindingSubject{Kind: "function", Key: "shared"}, Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
-		EvidenceIDs: []string{"evidence-1"}, ProposedChecks: []auditdomain.ProposedCheck{}, Limitations: []string{},
+		EvidenceIDs: evidenceIDs, ProposedChecks: []auditdomain.ProposedCheck{}, Limitations: []string{},
 	}
 	body, err := auditdomain.EncodeFindingProposal(proposal)
 	if err != nil {
@@ -119,7 +128,7 @@ func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.P
 		t.Fatal(err)
 	}
 	ref, _ := json.Marshal(written.Ref)
-	evidenceJSON, _ := json.Marshal([]findingintake.ExactArtifact{evidence})
+	evidenceJSON, _ := json.Marshal(append([]findingintake.ExactArtifact{evidence}, extra...))
 	_, err = pool.Exec(ctx, `INSERT INTO finding_proposal_receipts (
 receipt_id, proposal_id, allocation_id, runtime_agent_id, runtime_instance_id, stage_execution_id, logical_agent_name,
 invocation_id, submission_id, client_key, request_digest, run_id, owner_id, workflow_name, workflow_version,

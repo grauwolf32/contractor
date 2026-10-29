@@ -27,11 +27,12 @@ type ResolvedHTTP struct {
 	Origin string `json:"origin"`
 }
 
-func resolveHTTP(exchange HTTPExchange, doc auditdomain.FindingCollectionDocument, data []byte) (ResolvedHTTP, error) {
+// ProjectHTTP decodes one exact selected exchange without accessing its source.
+func ProjectHTTP(exchange HTTPExchange, doc auditdomain.FindingCollectionDocument, data []byte) (ResolvedHTTP, error) {
 	result := ResolvedHTTP{ID: exchange.ID, Origin: "producer-asserted", Omitted: []string{"bodies", "headers", "query", "fragment", "userinfo"}}
 	if exchange.Decoder == "http-response-body/v1" {
 		// A body carries no method, request URI, status or session identity.
-		result.ContentType = doc.MediaType
+		result.ContentType, _, _ = mime.ParseMediaType(doc.MediaType)
 		return result, nil
 	}
 	if exchange.Decoder != "contractor-http-exchange/v1" || doc.MediaType != auditdomain.HTTPExchangeMediaType {

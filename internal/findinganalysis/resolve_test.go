@@ -77,6 +77,9 @@ func TestResolveExactFileAndUnicodeRegion(t *testing.T) {
 	if err != nil || len(result.Sources) != 1 || len(result.Sources[0].RootKey) != 64 {
 		t.Fatalf("resolve: %+v, %v", result, err)
 	}
+	if err := result.Validate(); err != nil {
+		t.Fatalf("invalid frozen projection: %v", err)
+	}
 	end = 6
 	if _, err := resolvedFixture(t, value, map[string][]byte{doc.ID: source}, doc); err == nil {
 		t.Fatal("accepted out-of-file Unicode column")
@@ -214,6 +217,9 @@ func TestHTTPProjectionUsesActualCaptureAndOmitsPrivateFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := result.Validate(); err != nil {
+		t.Fatalf("invalid HTTP projection: %v", err)
+	}
 	projection := result.HTTP[0]
 	if projection.URI != "https://example.test/check" || projection.Method != "POST" || projection.Status == nil || *projection.Status != 201 {
 		t.Fatalf("projection: %+v", projection)
@@ -230,12 +236,12 @@ func TestHTTPProjectionUsesActualCaptureAndOmitsPrivateFields(t *testing.T) {
 	trusted := doc
 	trusted.Ref.Namespace = "finding-proposals"
 	trusted.Ref.Name = "http.exchange.proposal"
-	projection, err = resolveHTTP(exchange, trusted, payload)
+	projection, err = ProjectHTTP(exchange, trusted, payload)
 	if err != nil || projection.Origin != "runtime-capture" {
 		t.Fatalf("trusted saved capture: %+v %v", projection, err)
 	}
 	invalid := bytes.Replace(payload, []byte(`"receipt_id":"receipt"`), []byte(`"receipt_id":""`), 1)
-	if _, err := resolveHTTP(exchange, doc, invalid); err == nil {
+	if _, err := ProjectHTTP(exchange, doc, invalid); err == nil {
 		t.Fatal("accepted invalid capture provenance")
 	}
 }
@@ -287,5 +293,13 @@ func TestResolverExpandsSharedArchiveOnceAcross256Receipts(t *testing.T) {
 	}
 	if resolver.expanded != uint64(len("source\nsink")) || len(resolver.archives) != 1 || len(resolver.archives[source.ID].files) != 1 {
 		t.Fatalf("repeated source expansion: %+v", resolver)
+	}
+}
+
+func TestHTTPResponseBodyProjectionDropsMediaTypeParameters(t *testing.T) {
+	doc := auditdomain.FindingCollectionDocument{MediaType: "application/json; private=parameter"}
+	value, err := ProjectHTTP(HTTPExchange{ID: "body", EvidenceRef: doc.Ref, Decoder: "http-response-body/v1"}, doc, []byte("{}"))
+	if err != nil || value.ContentType != "application/json" || value.Validate() != nil {
+		t.Fatalf("unsafe body projection: %+v %v", value, err)
 	}
 }

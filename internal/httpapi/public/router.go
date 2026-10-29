@@ -116,14 +116,14 @@ func NewHandler(dependencies Dependencies) (http.Handler, error) {
 	}
 
 	mux := http.NewServeMux()
-	register(mux, contexts.routes())
+	routeAllowed := register(mux, contexts.routes())
 
 	// Incoming requests pass API version, request ID, origin policy,
 	// authentication, Operations authorization and error diagnostics in that
 	// order.
 	diagnostics := withErrorDiagnostics(mux)
 	authenticated := session.authenticate(requireOperationsRoutes(diagnostics))
-	originChecked := session.cors(authenticated, mux)
+	originChecked := session.cors(authenticated, routeAllowed)
 	return withAPIVersion(requestid.Middleware(originChecked, requestid.Options{
 		Generator: dependencies.NewRequestID,
 		Logger:    dependencies.Logger, Boundary: "public-api",

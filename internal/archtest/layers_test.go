@@ -125,6 +125,7 @@ var layers = []layerSpec{
 		packages: []string{
 			"internal/auditdomain",
 			"internal/findinganalysis",
+			"internal/findingexport/...",
 			"internal/auditpriority",
 			"internal/evaldomain",
 			"internal/scanplan",

@@ -91,7 +91,7 @@ func scanExactReadBatch(rows pgx.Rows, requests []ExactReadRequest) ([]ReadResul
 		var revision string
 		if err := rows.Scan(&ordinal, &revision, &result.Payload.MediaType,
 			&object.Backend, &objectKey, &object.Inline, &object.Digest, &object.Size,
-			&result.BindingCreatedAt, &result.RevisionCreatedAt, &totalBytes); err != nil {
+			&result.BindingCreatedAt, &result.RevisionCreatedAt, &totalBytes, &result.GitSource); err != nil {
 			return nil, nil, fmt.Errorf("scan exact artifact batch: %w", err)
 		}
 		if totalBytes > MaxPayloadSize {

@@ -7252,6 +7252,94 @@
         "method": { "type": "string", "minLength": 1, "maxLength": 160 }
       }
     },
+    "FindingExportContent": {
+      "type": "string",
+      "format": "binary",
+      "maxLength": 16777216
+    },
+    "FindingExportDiagnosticsContent": {
+      "type": "string",
+      "format": "binary",
+      "maxLength": 4194304
+    },
+    "FindingExportId": {
+      "type": "string",
+      "minLength": 71,
+      "maxLength": 71,
+      "pattern": "^export-[0-9a-f]{64}$"
+    },
+    "FindingExportSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findingId", "revision"],
+      "properties": {
+        "findingId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCollectionIdentity"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "presentationReceiptId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCollectionIdentity"
+        }
+      }
+    },
+    "PublishFindingExportRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clientKey", "format", "profile", "findings"],
+      "properties": {
+        "clientKey": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
+        },
+        "format": { "type": "string", "enum": ["sarif"] },
+        "profile": { "type": "string", "enum": ["generic"] },
+        "includeDuplicates": { "type": "boolean", "default": false },
+        "findings": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExportSelection"
+          }
+        }
+      }
+    },
+    "PublishedFindingExport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "exportId",
+        "snapshot",
+        "artifact",
+        "diagnostics",
+        "snapshotAt",
+        "selectedCount",
+        "resultCount",
+        "warningCount",
+        "replayed"
+      ],
+      "properties": {
+        "exportId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExportId"
+        },
+        "snapshot": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
+        },
+        "artifact": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
+        },
+        "diagnostics": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingExactArtifact"
+        },
+        "snapshotAt": { "type": "string", "format": "date-time" },
+        "selectedCount": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "resultCount": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "warningCount": { "type": "integer", "minimum": 0, "maximum": 4096 },
+        "replayed": { "type": "boolean" }
+      }
+    },
     "FindingCollectionIdentity": {
       "type": "string",
       "minLength": 1,

@@ -12,7 +12,7 @@ SELECT input.ordinality, revision.revision, version.media_type,
        blob.backend, blob.object_key,
        CASE WHEN sum(blob.size_bytes) OVER () <= $6 THEN blob.payload END,
        blob.sha256, blob.size_bytes, binding.created_at, revision.created_at,
-       sum(blob.size_bytes) OVER ()
+       sum(blob.size_bytes) OVER (), ` + gitSourceProjection + `
   FROM unnest($1::text[], $2::text[], $3::text[], $4::text[], $5::text[])
        WITH ORDINALITY AS input(scope_kind, scope_id, namespace, name, revision, ordinality)
   JOIN artifact_binding_revisions AS revision

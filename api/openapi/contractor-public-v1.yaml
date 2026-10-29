@@ -2903,6 +2903,136 @@ paths:
     }
   }
   # END GENERATED MANAGED EVAL PATHS
+  /v1/audits/{auditId}/findings/exports:
+    post:
+      operationId: publishAuditFindingExport
+      tags: [Audits]
+      summary: Freeze and export an explicit selection from one Audit
+      description: |
+        Publishes a complete immutable snapshot, SARIF and diagnostics in this
+        Audit's ProjectScope Artifact namespace. Exact selected revisions and
+        contributing presentation receipts are validated together. The optional
+        includeDuplicates defaults to false: one selected representative per
+        qualified automatic-key/manual-duplicate group. True retains every
+        selected result. The snapshot always retains all independent reviews.
+        The same clientKey and normalized request replay the original bytes;
+        changed input, including includeDuplicates, is idempotency_conflict.
+        Ownership is checked without disclosing other Audits. Storage conflicts
+        return retryable 503 storage_transaction_conflict with Retry-After.
+      x-max-request-body-bytes: 1048576
+      parameters:
+        - $ref: '#/components/parameters/AuditId'
+        - $ref: '#/components/parameters/OptionalOrigin'
+        - $ref: '#/components/parameters/OptionalCSRFToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PublishFindingExportRequest'}
+      responses:
+        '200':
+          description: Original immutable export replayed
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+            Location:
+              description: Audit-local SARIF download URL ending in /content
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PublishedFindingExport'}
+        '201':
+          description: Snapshot, SARIF, diagnostics and replay receipt published atomically
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+            Location:
+              description: Audit-local SARIF download URL ending in /content
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PublishedFindingExport'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/PayloadTooLarge'}
+        '422': {$ref: '#/components/responses/UnprocessableEntity'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+  /v1/audits/{auditId}/findings/exports/{exportId}/content:
+    get:
+      operationId: downloadAuditFindingExport
+      tags: [Audits]
+      summary: Download the immutable Audit finding export SARIF
+      description: |
+        Checks ownership and all immutable publication bindings before serving
+        the original bytes as an attachment. Does not refresh current findings
+        or rerender. Retryable storage conflicts return 503
+        storage_transaction_conflict with Retry-After.
+      parameters:
+        - $ref: '#/components/parameters/AuditId'
+        - name: exportId
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/FindingExportId'}
+      responses:
+        '200': {$ref: '#/components/responses/FindingExportBytes'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+  /v1/audits/{auditId}/findings/exports/{exportId}/snapshot:
+    get:
+      operationId: downloadAuditFindingExportSnapshot
+      tags: [Audits]
+      summary: Download the immutable Audit finding export frozen snapshot
+      description: |
+        Checks ownership and all immutable publication bindings before serving
+        the original bytes as an attachment. Does not refresh current findings
+        or rerender. Retryable storage conflicts return 503
+        storage_transaction_conflict with Retry-After.
+      parameters:
+        - $ref: '#/components/parameters/AuditId'
+        - name: exportId
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/FindingExportId'}
+      responses:
+        '200': {$ref: '#/components/responses/FindingExportBytes'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
+  /v1/audits/{auditId}/findings/exports/{exportId}/diagnostics:
+    get:
+      operationId: downloadAuditFindingExportDiagnostics
+      tags: [Audits]
+      summary: Download the immutable Audit finding export diagnostics
+      description: |
+        Checks ownership and all immutable publication bindings before serving
+        the original bytes as an attachment. Does not refresh current findings
+        or rerender. Retryable storage conflicts return 503
+        storage_transaction_conflict with Retry-After.
+      parameters:
+        - $ref: '#/components/parameters/AuditId'
+        - name: exportId
+          in: path
+          required: true
+          schema: {$ref: '#/components/schemas/FindingExportId'}
+      responses:
+        '200': {$ref: '#/components/responses/FindingExportDiagnosticsBytes'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/ArtifactUnavailable'}
   /v1/finding-collections:
     post:
       operationId: publishFindingCollection
@@ -7121,6 +7251,32 @@ components:
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ArtifactWriteResponse'}
+    FindingExportBytes:
+      description: Original immutable Audit export bytes
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+        Cache-Control: {$ref: '#/components/headers/NoStore'}
+        ETag: {$ref: '#/components/headers/ETag'}
+        Content-Length:
+          required: true
+          schema: {type: integer, minimum: 0, maximum: 16777216}
+        Content-Disposition: {$ref: '#/components/headers/ContentDisposition'}
+      content:
+        '*/*':
+          schema: {$ref: '#/components/schemas/FindingExportContent'}
+    FindingExportDiagnosticsBytes:
+      description: Original immutable Audit export bytes
+      headers:
+        X-Request-ID: {$ref: '#/components/headers/RequestId'}
+        Cache-Control: {$ref: '#/components/headers/NoStore'}
+        ETag: {$ref: '#/components/headers/ETag'}
+        Content-Length:
+          required: true
+          schema: {type: integer, minimum: 0, maximum: 4194304}
+        Content-Disposition: {$ref: '#/components/headers/ContentDisposition'}
+      content:
+        '*/*':
+          schema: {$ref: '#/components/schemas/FindingExportDiagnosticsContent'}
     ArtifactBytes:
       description: Original artifact bytes
       headers:
@@ -14133,6 +14289,58 @@ components:
       properties:
         objective: {type: string, minLength: 1, maxLength: 65536}
         method: {type: string, minLength: 1, maxLength: 160}
+    FindingExportContent:
+      type: string
+      format: binary
+      maxLength: 16777216
+    FindingExportDiagnosticsContent:
+      type: string
+      format: binary
+      maxLength: 4194304
+    FindingExportId:
+      type: string
+      minLength: 71
+      maxLength: 71
+      pattern: '^export-[0-9a-f]{64}$'
+    FindingExportSelection:
+      type: object
+      additionalProperties: false
+      required: [findingId, revision]
+      properties:
+        findingId: {$ref: '#/components/schemas/FindingCollectionIdentity'}
+        revision: {type: integer, minimum: 1, maximum: 9007199254740991}
+        presentationReceiptId: {$ref: '#/components/schemas/FindingCollectionIdentity'}
+    PublishFindingExportRequest:
+      type: object
+      additionalProperties: false
+      required: [clientKey, format, profile, findings]
+      properties:
+        clientKey: {$ref: '#/components/schemas/ArtifactName'}
+        format: {type: string, enum: [sarif]}
+        profile: {type: string, enum: [generic]}
+        includeDuplicates:
+          type: boolean
+          default: false
+          description: False emits one selected representative per duplicate group; true emits all selected findings. Always frozen in the snapshot and replay identity.
+        findings:
+          type: array
+          maxItems: 256
+          description: Explicit exact finding revisions from the route's Audit; IDs must be unique. Empty selects none. Contributions expand within the existing collection limits.
+          items: {$ref: '#/components/schemas/FindingExportSelection'}
+    PublishedFindingExport:
+      type: object
+      additionalProperties: false
+      required: [exportId, snapshot, artifact, diagnostics, snapshotAt, selectedCount, resultCount, warningCount, replayed]
+      properties:
+        exportId: {$ref: '#/components/schemas/FindingExportId'}
+        snapshot: {$ref: '#/components/schemas/FindingExactArtifact'}
+        artifact: {$ref: '#/components/schemas/FindingExactArtifact'}
+        diagnostics: {$ref: '#/components/schemas/FindingExactArtifact'}
+        snapshotAt: {type: string, format: date-time}
+        selectedCount: {type: integer, minimum: 0, maximum: 256}
+        resultCount: {type: integer, minimum: 0, maximum: 256}
+        warningCount: {type: integer, minimum: 0, maximum: 4096}
+        replayed: {type: boolean}
     FindingCollectionIdentity:
       type: string
       minLength: 1

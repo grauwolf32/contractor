@@ -16,6 +16,7 @@ import (
 
 	"github.com/oapi-codegen/nullable"
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 // Defines values for ActiveChecksPolicy.
@@ -1905,6 +1906,36 @@ func (e ProjectLifecycle) Valid() bool {
 	case Active:
 		return true
 	case Deleting:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PublishFindingExportRequestFormat.
+const (
+	Sarif PublishFindingExportRequestFormat = "sarif"
+)
+
+// Valid indicates whether the value is a known member of the PublishFindingExportRequestFormat enum.
+func (e PublishFindingExportRequestFormat) Valid() bool {
+	switch e {
+	case Sarif:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PublishFindingExportRequestProfile.
+const (
+	Generic PublishFindingExportRequestProfile = "generic"
+)
+
+// Valid indicates whether the value is a known member of the PublishFindingExportRequestProfile enum.
+func (e PublishFindingExportRequestProfile) Valid() bool {
+	switch e {
+	case Generic:
 		return true
 	default:
 		return false
@@ -6170,6 +6201,22 @@ type FindingExactArtifact struct {
 	SizeBytes int              `json:"sizeBytes"`
 }
 
+// FindingExportContent defines model for FindingExportContent.
+type FindingExportContent = openapi_types.File
+
+// FindingExportDiagnosticsContent defines model for FindingExportDiagnosticsContent.
+type FindingExportDiagnosticsContent = openapi_types.File
+
+// FindingExportId defines model for FindingExportId.
+type FindingExportId = string
+
+// FindingExportSelection defines model for FindingExportSelection.
+type FindingExportSelection struct {
+	FindingId             FindingCollectionIdentity  `json:"findingId"`
+	PresentationReceiptId *FindingCollectionIdentity `json:"presentationReceiptId,omitempty"`
+	Revision              int                        `json:"revision"`
+}
+
 // FindingFingerprintProjection Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest.
 type FindingFingerprintProjection struct {
 	union json.RawMessage
@@ -7198,12 +7245,44 @@ type PublishFindingCollectionRequest struct {
 	Sources []FindingCollectionSourceSelection `json:"sources"`
 }
 
+// PublishFindingExportRequest defines model for PublishFindingExportRequest.
+type PublishFindingExportRequest struct {
+	ClientKey ArtifactName `json:"clientKey"`
+
+	// Findings Explicit exact finding revisions from the route's Audit; IDs must be unique. Empty selects none. Contributions expand within the existing collection limits.
+	Findings []FindingExportSelection          `json:"findings"`
+	Format   PublishFindingExportRequestFormat `json:"format"`
+
+	// IncludeDuplicates False emits one selected representative per duplicate group; true emits all selected findings. Always frozen in the snapshot and replay identity.
+	IncludeDuplicates *bool                              `json:"includeDuplicates,omitempty"`
+	Profile           PublishFindingExportRequestProfile `json:"profile"`
+}
+
+// PublishFindingExportRequestFormat defines model for PublishFindingExportRequest.Format.
+type PublishFindingExportRequestFormat string
+
+// PublishFindingExportRequestProfile defines model for PublishFindingExportRequest.Profile.
+type PublishFindingExportRequestProfile string
+
 // PublishedFindingCollection defines model for PublishedFindingCollection.
 type PublishedFindingCollection struct {
 	Artifact   FindingExactArtifact `json:"artifact"`
 	EntryCount int                  `json:"entryCount"`
 	Replayed   bool                 `json:"replayed"`
 	SnapshotAt time.Time            `json:"snapshotAt"`
+}
+
+// PublishedFindingExport defines model for PublishedFindingExport.
+type PublishedFindingExport struct {
+	Artifact      FindingExactArtifact `json:"artifact"`
+	Diagnostics   FindingExactArtifact `json:"diagnostics"`
+	ExportId      FindingExportId      `json:"exportId"`
+	Replayed      bool                 `json:"replayed"`
+	ResultCount   int                  `json:"resultCount"`
+	SelectedCount int                  `json:"selectedCount"`
+	Snapshot      FindingExactArtifact `json:"snapshot"`
+	SnapshotAt    time.Time            `json:"snapshotAt"`
+	WarningCount  int                  `json:"warningCount"`
 }
 
 // RequestId defines model for RequestId.
@@ -8875,6 +8954,15 @@ type ListAuditFindingsParams struct {
 	Severity      *AuditFindingSeverity `form:"severity,omitempty" json:"severity,omitempty"`
 }
 
+// PublishAuditFindingExportParams defines parameters for PublishAuditFindingExport.
+type PublishAuditFindingExportParams struct {
+	// Origin Required with exact allowlist match when sessionCookie authenticates an unsafe request.
+	Origin *OptionalOrigin `json:"Origin,omitempty"`
+
+	// XCSRFToken Required for sessionCookie authentication; omitted for bearerAuth.
+	XCSRFToken *OptionalCSRFToken `json:"X-CSRF-Token,omitempty"`
+}
+
 // ListFindingDuplicateCandidatesParams defines parameters for ListFindingDuplicateCandidates.
 type ListFindingDuplicateCandidatesParams struct {
 	Limit           *int        `form:"limit,omitempty" json:"limit,omitempty"`
@@ -9846,6 +9934,9 @@ type ImportGitArtifactJSONRequestBody = GitImportRequest
 
 // ImportAuditFindingProposalJSONRequestBody defines body for ImportAuditFindingProposal for application/json ContentType.
 type ImportAuditFindingProposalJSONRequestBody = ImportFindingProposalRequest
+
+// PublishAuditFindingExportJSONRequestBody defines body for PublishAuditFindingExport for application/json ContentType.
+type PublishAuditFindingExportJSONRequestBody = PublishFindingExportRequest
 
 // CreateAuditFindingReviewJSONRequestBody defines body for CreateAuditFindingReview for application/json ContentType.
 type CreateAuditFindingReviewJSONRequestBody = CreateAuditFindingReviewRequest
@@ -15055,6 +15146,72 @@ type ClientInterface interface {
 	// Corresponds with GET /v1/audits/{auditId}/findings (the `ListAuditFindings` operationId).
 	ListAuditFindings(ctx context.Context, auditId AuditId, params *ListAuditFindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PublishAuditFindingExportWithBody Freeze and export an explicit selection from one Audit
+	//
+	// Publishes a complete immutable snapshot, SARIF and diagnostics in this
+	// Audit's ProjectScope Artifact namespace. Exact selected revisions and
+	// contributing presentation receipts are validated together. The optional
+	// includeDuplicates defaults to false: one selected representative per
+	// qualified automatic-key/manual-duplicate group. True retains every
+	// selected result. The snapshot always retains all independent reviews.
+	// The same clientKey and normalized request replay the original bytes;
+	// changed input, including includeDuplicates, is idempotency_conflict.
+	// Ownership is checked without disclosing other Audits. Storage conflicts
+	// return retryable 503 storage_transaction_conflict with Retry-After.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /v1/audits/{auditId}/findings/exports (the `PublishAuditFindingExport` operationId).
+	PublishAuditFindingExportWithBody(ctx context.Context, auditId AuditId, params *PublishAuditFindingExportParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PublishAuditFindingExport Freeze and export an explicit selection from one Audit
+	//
+	// Publishes a complete immutable snapshot, SARIF and diagnostics in this
+	// Audit's ProjectScope Artifact namespace. Exact selected revisions and
+	// contributing presentation receipts are validated together. The optional
+	// includeDuplicates defaults to false: one selected representative per
+	// qualified automatic-key/manual-duplicate group. True retains every
+	// selected result. The snapshot always retains all independent reviews.
+	// The same clientKey and normalized request replay the original bytes;
+	// changed input, including includeDuplicates, is idempotency_conflict.
+	// Ownership is checked without disclosing other Audits. Storage conflicts
+	// return retryable 503 storage_transaction_conflict with Retry-After.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /v1/audits/{auditId}/findings/exports (the `PublishAuditFindingExport` operationId).
+	PublishAuditFindingExport(ctx context.Context, auditId AuditId, params *PublishAuditFindingExportParams, body PublishAuditFindingExportJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DownloadAuditFindingExport Download the immutable Audit finding export SARIF
+	//
+	// Checks ownership and all immutable publication bindings before serving
+	// the original bytes as an attachment. Does not refresh current findings
+	// or rerender. Retryable storage conflicts return 503
+	// storage_transaction_conflict with Retry-After.
+	//
+	// Corresponds with GET /v1/audits/{auditId}/findings/exports/{exportId}/content (the `DownloadAuditFindingExport` operationId).
+	DownloadAuditFindingExport(ctx context.Context, auditId AuditId, exportId FindingExportId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DownloadAuditFindingExportDiagnostics Download the immutable Audit finding export diagnostics
+	//
+	// Checks ownership and all immutable publication bindings before serving
+	// the original bytes as an attachment. Does not refresh current findings
+	// or rerender. Retryable storage conflicts return 503
+	// storage_transaction_conflict with Retry-After.
+	//
+	// Corresponds with GET /v1/audits/{auditId}/findings/exports/{exportId}/diagnostics (the `DownloadAuditFindingExportDiagnostics` operationId).
+	DownloadAuditFindingExportDiagnostics(ctx context.Context, auditId AuditId, exportId FindingExportId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DownloadAuditFindingExportSnapshot Download the immutable Audit finding export frozen snapshot
+	//
+	// Checks ownership and all immutable publication bindings before serving
+	// the original bytes as an attachment. Does not refresh current findings
+	// or rerender. Retryable storage conflicts return 503
+	// storage_transaction_conflict with Retry-After.
+	//
+	// Corresponds with GET /v1/audits/{auditId}/findings/exports/{exportId}/snapshot (the `DownloadAuditFindingExportSnapshot` operationId).
+	DownloadAuditFindingExportSnapshot(ctx context.Context, auditId AuditId, exportId FindingExportId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetAuditFinding Get one exact finding revision and its current assessment and analyst rating
 	//
 	// Corresponds with GET /v1/audits/{auditId}/findings/{findingId} (the `GetAuditFinding` operationId).
@@ -16564,6 +16721,122 @@ func (c *Client) ListAuditFindingProposals(ctx context.Context, auditId AuditId,
 // Corresponds with GET /v1/audits/{auditId}/findings (the `ListAuditFindings` operationId).
 func (c *Client) ListAuditFindings(ctx context.Context, auditId AuditId, params *ListAuditFindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListAuditFindingsRequest(c.Server, auditId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PublishAuditFindingExportWithBody Freeze and export an explicit selection from one Audit
+//
+// Publishes a complete immutable snapshot, SARIF and diagnostics in this
+// Audit's ProjectScope Artifact namespace. Exact selected revisions and
+// contributing presentation receipts are validated together. The optional
+// includeDuplicates defaults to false: one selected representative per
+// qualified automatic-key/manual-duplicate group. True retains every
+// selected result. The snapshot always retains all independent reviews.
+// The same clientKey and normalized request replay the original bytes;
+// changed input, including includeDuplicates, is idempotency_conflict.
+// Ownership is checked without disclosing other Audits. Storage conflicts
+// return retryable 503 storage_transaction_conflict with Retry-After.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /v1/audits/{auditId}/findings/exports (the `PublishAuditFindingExport` operationId).
+func (c *Client) PublishAuditFindingExportWithBody(ctx context.Context, auditId AuditId, params *PublishAuditFindingExportParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishAuditFindingExportRequestWithBody(c.Server, auditId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PublishAuditFindingExport Freeze and export an explicit selection from one Audit
+//
+// Publishes a complete immutable snapshot, SARIF and diagnostics in this
+// Audit's ProjectScope Artifact namespace. Exact selected revisions and
+// contributing presentation receipts are validated together. The optional
+// includeDuplicates defaults to false: one selected representative per
+// qualified automatic-key/manual-duplicate group. True retains every
+// selected result. The snapshot always retains all independent reviews.
+// The same clientKey and normalized request replay the original bytes;
+// changed input, including includeDuplicates, is idempotency_conflict.
+// Ownership is checked without disclosing other Audits. Storage conflicts
+// return retryable 503 storage_transaction_conflict with Retry-After.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /v1/audits/{auditId}/findings/exports (the `PublishAuditFindingExport` operationId).
+func (c *Client) PublishAuditFindingExport(ctx context.Context, auditId AuditId, params *PublishAuditFindingExportParams, body PublishAuditFindingExportJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPublishAuditFindingExportRequest(c.Server, auditId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DownloadAuditFindingExport Download the immutable Audit finding export SARIF
+//
+// Checks ownership and all immutable publication bindings before serving
+// the original bytes as an attachment. Does not refresh current findings
+// or rerender. Retryable storage conflicts return 503
+// storage_transaction_conflict with Retry-After.
+//
+// Corresponds with GET /v1/audits/{auditId}/findings/exports/{exportId}/content (the `DownloadAuditFindingExport` operationId).
+func (c *Client) DownloadAuditFindingExport(ctx context.Context, auditId AuditId, exportId FindingExportId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDownloadAuditFindingExportRequest(c.Server, auditId, exportId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DownloadAuditFindingExportDiagnostics Download the immutable Audit finding export diagnostics
+//
+// Checks ownership and all immutable publication bindings before serving
+// the original bytes as an attachment. Does not refresh current findings
+// or rerender. Retryable storage conflicts return 503
+// storage_transaction_conflict with Retry-After.
+//
+// Corresponds with GET /v1/audits/{auditId}/findings/exports/{exportId}/diagnostics (the `DownloadAuditFindingExportDiagnostics` operationId).
+func (c *Client) DownloadAuditFindingExportDiagnostics(ctx context.Context, auditId AuditId, exportId FindingExportId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDownloadAuditFindingExportDiagnosticsRequest(c.Server, auditId, exportId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// DownloadAuditFindingExportSnapshot Download the immutable Audit finding export frozen snapshot
+//
+// Checks ownership and all immutable publication bindings before serving
+// the original bytes as an attachment. Does not refresh current findings
+// or rerender. Retryable storage conflicts return 503
+// storage_transaction_conflict with Retry-After.
+//
+// Corresponds with GET /v1/audits/{auditId}/findings/exports/{exportId}/snapshot (the `DownloadAuditFindingExportSnapshot` operationId).
+func (c *Client) DownloadAuditFindingExportSnapshot(ctx context.Context, auditId AuditId, exportId FindingExportId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDownloadAuditFindingExportSnapshotRequest(c.Server, auditId, exportId)
 	if err != nil {
 		return nil, err
 	}
@@ -21026,6 +21299,202 @@ func NewListAuditFindingsRequest(server string, auditId AuditId, params *ListAud
 			rawQueryFragments = append(rawQueryFragments, encoded)
 		}
 		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewPublishAuditFindingExportRequest calls the generic PublishAuditFindingExport builder with application/json body
+func NewPublishAuditFindingExportRequest(server string, auditId AuditId, params *PublishAuditFindingExportParams, body PublishAuditFindingExportJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPublishAuditFindingExportRequestWithBody(server, auditId, params, "application/json", bodyReader)
+}
+
+// NewPublishAuditFindingExportRequestWithBody constructs an http.Request for the PublishAuditFindingExport method, with any body, and a specified content type
+func NewPublishAuditFindingExportRequestWithBody(server string, auditId AuditId, params *PublishAuditFindingExportParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/findings/exports", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.Origin != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Origin", *params.Origin, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: "uri"})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Origin", headerParam0)
+		}
+
+		if params.XCSRFToken != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "X-CSRF-Token", *params.XCSRFToken, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("X-CSRF-Token", headerParam1)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewDownloadAuditFindingExportRequest constructs an http.Request for the DownloadAuditFindingExport method
+func NewDownloadAuditFindingExportRequest(server string, auditId AuditId, exportId FindingExportId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "exportId", exportId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/findings/exports/%s/content", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDownloadAuditFindingExportDiagnosticsRequest constructs an http.Request for the DownloadAuditFindingExportDiagnostics method
+func NewDownloadAuditFindingExportDiagnosticsRequest(server string, auditId AuditId, exportId FindingExportId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "exportId", exportId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/findings/exports/%s/diagnostics", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDownloadAuditFindingExportSnapshotRequest constructs an http.Request for the DownloadAuditFindingExportSnapshot method
+func NewDownloadAuditFindingExportSnapshotRequest(server string, auditId AuditId, exportId FindingExportId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "auditId", auditId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "exportId", exportId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/v1/audits/%s/findings/exports/%s/snapshot", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -30587,6 +31056,78 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /v1/audits/{auditId}/findings (the `ListAuditFindings` operationId).
 	ListAuditFindingsWithResponse(ctx context.Context, auditId AuditId, params *ListAuditFindingsParams, reqEditors ...RequestEditorFn) (*ListAuditFindingsResponse, error)
 
+	// PublishAuditFindingExportWithBodyWithResponse Freeze and export an explicit selection from one Audit
+	//
+	// Publishes a complete immutable snapshot, SARIF and diagnostics in this
+	// Audit's ProjectScope Artifact namespace. Exact selected revisions and
+	// contributing presentation receipts are validated together. The optional
+	// includeDuplicates defaults to false: one selected representative per
+	// qualified automatic-key/manual-duplicate group. True retains every
+	// selected result. The snapshot always retains all independent reviews.
+	// The same clientKey and normalized request replay the original bytes;
+	// changed input, including includeDuplicates, is idempotency_conflict.
+	// Ownership is checked without disclosing other Audits. Storage conflicts
+	// return retryable 503 storage_transaction_conflict with Retry-After.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/audits/{auditId}/findings/exports (the `PublishAuditFindingExport` operationId).
+	PublishAuditFindingExportWithBodyWithResponse(ctx context.Context, auditId AuditId, params *PublishAuditFindingExportParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishAuditFindingExportResponse, error)
+
+	// PublishAuditFindingExportWithResponse Freeze and export an explicit selection from one Audit
+	//
+	// Publishes a complete immutable snapshot, SARIF and diagnostics in this
+	// Audit's ProjectScope Artifact namespace. Exact selected revisions and
+	// contributing presentation receipts are validated together. The optional
+	// includeDuplicates defaults to false: one selected representative per
+	// qualified automatic-key/manual-duplicate group. True retains every
+	// selected result. The snapshot always retains all independent reviews.
+	// The same clientKey and normalized request replay the original bytes;
+	// changed input, including includeDuplicates, is idempotency_conflict.
+	// Ownership is checked without disclosing other Audits. Storage conflicts
+	// return retryable 503 storage_transaction_conflict with Retry-After.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /v1/audits/{auditId}/findings/exports (the `PublishAuditFindingExport` operationId).
+	PublishAuditFindingExportWithResponse(ctx context.Context, auditId AuditId, params *PublishAuditFindingExportParams, body PublishAuditFindingExportJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishAuditFindingExportResponse, error)
+
+	// DownloadAuditFindingExportWithResponse Download the immutable Audit finding export SARIF
+	//
+	// Checks ownership and all immutable publication bindings before serving
+	// the original bytes as an attachment. Does not refresh current findings
+	// or rerender. Retryable storage conflicts return 503
+	// storage_transaction_conflict with Retry-After.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/audits/{auditId}/findings/exports/{exportId}/content (the `DownloadAuditFindingExport` operationId).
+	DownloadAuditFindingExportWithResponse(ctx context.Context, auditId AuditId, exportId FindingExportId, reqEditors ...RequestEditorFn) (*DownloadAuditFindingExportResponse, error)
+
+	// DownloadAuditFindingExportDiagnosticsWithResponse Download the immutable Audit finding export diagnostics
+	//
+	// Checks ownership and all immutable publication bindings before serving
+	// the original bytes as an attachment. Does not refresh current findings
+	// or rerender. Retryable storage conflicts return 503
+	// storage_transaction_conflict with Retry-After.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/audits/{auditId}/findings/exports/{exportId}/diagnostics (the `DownloadAuditFindingExportDiagnostics` operationId).
+	DownloadAuditFindingExportDiagnosticsWithResponse(ctx context.Context, auditId AuditId, exportId FindingExportId, reqEditors ...RequestEditorFn) (*DownloadAuditFindingExportDiagnosticsResponse, error)
+
+	// DownloadAuditFindingExportSnapshotWithResponse Download the immutable Audit finding export frozen snapshot
+	//
+	// Checks ownership and all immutable publication bindings before serving
+	// the original bytes as an attachment. Does not refresh current findings
+	// or rerender. Retryable storage conflicts return 503
+	// storage_transaction_conflict with Retry-After.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /v1/audits/{auditId}/findings/exports/{exportId}/snapshot (the `DownloadAuditFindingExportSnapshot` operationId).
+	DownloadAuditFindingExportSnapshotWithResponse(ctx context.Context, auditId AuditId, exportId FindingExportId, reqEditors ...RequestEditorFn) (*DownloadAuditFindingExportSnapshotResponse, error)
+
 	// GetAuditFindingWithResponse Get one exact finding revision and its current assessment and analyst rating
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -34956,6 +35497,593 @@ func (r ListAuditFindingsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListAuditFindingsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// PublishAuditFindingExportResponse200Headers the declared response headers of an HTTP 200 response for PublishAuditFindingExport
+type PublishAuditFindingExportResponse200Headers struct {
+	CacheControl string
+	Location     *string
+	XRequestID   RequestId
+}
+
+// PublishAuditFindingExportResponse201Headers the declared response headers of an HTTP 201 response for PublishAuditFindingExport
+type PublishAuditFindingExportResponse201Headers struct {
+	CacheControl string
+	Location     *string
+	XRequestID   RequestId
+}
+
+// PublishAuditFindingExportResponse400Headers the declared response headers of an HTTP 400 response for PublishAuditFindingExport
+type PublishAuditFindingExportResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditFindingExportResponse401Headers the declared response headers of an HTTP 401 response for PublishAuditFindingExport
+type PublishAuditFindingExportResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// PublishAuditFindingExportResponse403Headers the declared response headers of an HTTP 403 response for PublishAuditFindingExport
+type PublishAuditFindingExportResponse403Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditFindingExportResponse404Headers the declared response headers of an HTTP 404 response for PublishAuditFindingExport
+type PublishAuditFindingExportResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditFindingExportResponse409Headers the declared response headers of an HTTP 409 response for PublishAuditFindingExport
+type PublishAuditFindingExportResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditFindingExportResponse413Headers the declared response headers of an HTTP 413 response for PublishAuditFindingExport
+type PublishAuditFindingExportResponse413Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditFindingExportResponse422Headers the declared response headers of an HTTP 422 response for PublishAuditFindingExport
+type PublishAuditFindingExportResponse422Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditFindingExportResponse500Headers the declared response headers of an HTTP 500 response for PublishAuditFindingExport
+type PublishAuditFindingExportResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// PublishAuditFindingExportResponse503Headers the declared response headers of an HTTP 503 response for PublishAuditFindingExport
+type PublishAuditFindingExportResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type PublishAuditFindingExportResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PublishedFindingExport
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *PublishedFindingExport
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *Forbidden
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *PayloadTooLarge
+	// JSON422 the response for an HTTP 422 `application/json` response
+	JSON422 *UnprocessableEntity
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *PublishAuditFindingExportResponse200Headers
+	// Headers201 the parsed response headers for an HTTP 201 response
+	Headers201 *PublishAuditFindingExportResponse201Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *PublishAuditFindingExportResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *PublishAuditFindingExportResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *PublishAuditFindingExportResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *PublishAuditFindingExportResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *PublishAuditFindingExportResponse409Headers
+	// Headers413 the parsed response headers for an HTTP 413 response
+	Headers413 *PublishAuditFindingExportResponse413Headers
+	// Headers422 the parsed response headers for an HTTP 422 response
+	Headers422 *PublishAuditFindingExportResponse422Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *PublishAuditFindingExportResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *PublishAuditFindingExportResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PublishAuditFindingExportResponse) GetJSON200() *PublishedFindingExport {
+	return r.JSON200
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r PublishAuditFindingExportResponse) GetJSON201() *PublishedFindingExport {
+	return r.JSON201
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PublishAuditFindingExportResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r PublishAuditFindingExportResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PublishAuditFindingExportResponse) GetJSON403() *Forbidden {
+	return r.JSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PublishAuditFindingExportResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r PublishAuditFindingExportResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r PublishAuditFindingExportResponse) GetJSON413() *PayloadTooLarge {
+	return r.JSON413
+}
+
+// GetJSON422 returns the response for an HTTP 422 `application/json` response
+func (r PublishAuditFindingExportResponse) GetJSON422() *UnprocessableEntity {
+	return r.JSON422
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r PublishAuditFindingExportResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r PublishAuditFindingExportResponse) GetJSON503() *ArtifactUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r PublishAuditFindingExportResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PublishAuditFindingExportResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PublishAuditFindingExportResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PublishAuditFindingExportResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// DownloadAuditFindingExportResponse200Headers the declared response headers of an HTTP 200 response for DownloadAuditFindingExport
+type DownloadAuditFindingExportResponse200Headers struct {
+	CacheControl       string
+	ContentDisposition *string
+	ContentLength      int
+	ETag               string
+	XRequestID         RequestId
+}
+
+// DownloadAuditFindingExportResponse400Headers the declared response headers of an HTTP 400 response for DownloadAuditFindingExport
+type DownloadAuditFindingExportResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// DownloadAuditFindingExportResponse401Headers the declared response headers of an HTTP 401 response for DownloadAuditFindingExport
+type DownloadAuditFindingExportResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// DownloadAuditFindingExportResponse404Headers the declared response headers of an HTTP 404 response for DownloadAuditFindingExport
+type DownloadAuditFindingExportResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// DownloadAuditFindingExportResponse409Headers the declared response headers of an HTTP 409 response for DownloadAuditFindingExport
+type DownloadAuditFindingExportResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// DownloadAuditFindingExportResponse500Headers the declared response headers of an HTTP 500 response for DownloadAuditFindingExport
+type DownloadAuditFindingExportResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// DownloadAuditFindingExportResponse503Headers the declared response headers of an HTTP 503 response for DownloadAuditFindingExport
+type DownloadAuditFindingExportResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type DownloadAuditFindingExportResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *DownloadAuditFindingExportResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *DownloadAuditFindingExportResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *DownloadAuditFindingExportResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *DownloadAuditFindingExportResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *DownloadAuditFindingExportResponse409Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *DownloadAuditFindingExportResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *DownloadAuditFindingExportResponse503Headers
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r DownloadAuditFindingExportResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DownloadAuditFindingExportResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DownloadAuditFindingExportResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DownloadAuditFindingExportResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r DownloadAuditFindingExportResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DownloadAuditFindingExportResponse) GetJSON503() *ArtifactUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r DownloadAuditFindingExportResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DownloadAuditFindingExportResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DownloadAuditFindingExportResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DownloadAuditFindingExportResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// DownloadAuditFindingExportDiagnosticsResponse200Headers the declared response headers of an HTTP 200 response for DownloadAuditFindingExportDiagnostics
+type DownloadAuditFindingExportDiagnosticsResponse200Headers struct {
+	CacheControl       string
+	ContentDisposition *string
+	ContentLength      int
+	ETag               string
+	XRequestID         RequestId
+}
+
+// DownloadAuditFindingExportDiagnosticsResponse400Headers the declared response headers of an HTTP 400 response for DownloadAuditFindingExportDiagnostics
+type DownloadAuditFindingExportDiagnosticsResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// DownloadAuditFindingExportDiagnosticsResponse401Headers the declared response headers of an HTTP 401 response for DownloadAuditFindingExportDiagnostics
+type DownloadAuditFindingExportDiagnosticsResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// DownloadAuditFindingExportDiagnosticsResponse404Headers the declared response headers of an HTTP 404 response for DownloadAuditFindingExportDiagnostics
+type DownloadAuditFindingExportDiagnosticsResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// DownloadAuditFindingExportDiagnosticsResponse409Headers the declared response headers of an HTTP 409 response for DownloadAuditFindingExportDiagnostics
+type DownloadAuditFindingExportDiagnosticsResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// DownloadAuditFindingExportDiagnosticsResponse500Headers the declared response headers of an HTTP 500 response for DownloadAuditFindingExportDiagnostics
+type DownloadAuditFindingExportDiagnosticsResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// DownloadAuditFindingExportDiagnosticsResponse503Headers the declared response headers of an HTTP 503 response for DownloadAuditFindingExportDiagnostics
+type DownloadAuditFindingExportDiagnosticsResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type DownloadAuditFindingExportDiagnosticsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *DownloadAuditFindingExportDiagnosticsResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *DownloadAuditFindingExportDiagnosticsResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *DownloadAuditFindingExportDiagnosticsResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *DownloadAuditFindingExportDiagnosticsResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *DownloadAuditFindingExportDiagnosticsResponse409Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *DownloadAuditFindingExportDiagnosticsResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *DownloadAuditFindingExportDiagnosticsResponse503Headers
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r DownloadAuditFindingExportDiagnosticsResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DownloadAuditFindingExportDiagnosticsResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DownloadAuditFindingExportDiagnosticsResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DownloadAuditFindingExportDiagnosticsResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r DownloadAuditFindingExportDiagnosticsResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DownloadAuditFindingExportDiagnosticsResponse) GetJSON503() *ArtifactUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r DownloadAuditFindingExportDiagnosticsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DownloadAuditFindingExportDiagnosticsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DownloadAuditFindingExportDiagnosticsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DownloadAuditFindingExportDiagnosticsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// DownloadAuditFindingExportSnapshotResponse200Headers the declared response headers of an HTTP 200 response for DownloadAuditFindingExportSnapshot
+type DownloadAuditFindingExportSnapshotResponse200Headers struct {
+	CacheControl       string
+	ContentDisposition *string
+	ContentLength      int
+	ETag               string
+	XRequestID         RequestId
+}
+
+// DownloadAuditFindingExportSnapshotResponse400Headers the declared response headers of an HTTP 400 response for DownloadAuditFindingExportSnapshot
+type DownloadAuditFindingExportSnapshotResponse400Headers struct {
+	XRequestID RequestId
+}
+
+// DownloadAuditFindingExportSnapshotResponse401Headers the declared response headers of an HTTP 401 response for DownloadAuditFindingExportSnapshot
+type DownloadAuditFindingExportSnapshotResponse401Headers struct {
+	WWWAuthenticate       *string
+	XContractorAPIVersion string
+	XRequestID            RequestId
+}
+
+// DownloadAuditFindingExportSnapshotResponse404Headers the declared response headers of an HTTP 404 response for DownloadAuditFindingExportSnapshot
+type DownloadAuditFindingExportSnapshotResponse404Headers struct {
+	XRequestID RequestId
+}
+
+// DownloadAuditFindingExportSnapshotResponse409Headers the declared response headers of an HTTP 409 response for DownloadAuditFindingExportSnapshot
+type DownloadAuditFindingExportSnapshotResponse409Headers struct {
+	XRequestID RequestId
+}
+
+// DownloadAuditFindingExportSnapshotResponse500Headers the declared response headers of an HTTP 500 response for DownloadAuditFindingExportSnapshot
+type DownloadAuditFindingExportSnapshotResponse500Headers struct {
+	XRequestID RequestId
+}
+
+// DownloadAuditFindingExportSnapshotResponse503Headers the declared response headers of an HTTP 503 response for DownloadAuditFindingExportSnapshot
+type DownloadAuditFindingExportSnapshotResponse503Headers struct {
+	XRequestID RequestId
+}
+
+type DownloadAuditFindingExportSnapshotResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON409 the response for an HTTP 409 `application/json` response
+	JSON409 *Conflict
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *ArtifactUnavailable
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *DownloadAuditFindingExportSnapshotResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *DownloadAuditFindingExportSnapshotResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *DownloadAuditFindingExportSnapshotResponse401Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *DownloadAuditFindingExportSnapshotResponse404Headers
+	// Headers409 the parsed response headers for an HTTP 409 response
+	Headers409 *DownloadAuditFindingExportSnapshotResponse409Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *DownloadAuditFindingExportSnapshotResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *DownloadAuditFindingExportSnapshotResponse503Headers
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r DownloadAuditFindingExportSnapshotResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r DownloadAuditFindingExportSnapshotResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r DownloadAuditFindingExportSnapshotResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON409 returns the response for an HTTP 409 `application/json` response
+func (r DownloadAuditFindingExportSnapshotResponse) GetJSON409() *Conflict {
+	return r.JSON409
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r DownloadAuditFindingExportSnapshotResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r DownloadAuditFindingExportSnapshotResponse) GetJSON503() *ArtifactUnavailable {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r DownloadAuditFindingExportSnapshotResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DownloadAuditFindingExportSnapshotResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DownloadAuditFindingExportSnapshotResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DownloadAuditFindingExportSnapshotResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -54346,6 +55474,108 @@ func (c *ClientWithResponses) ListAuditFindingsWithResponse(ctx context.Context,
 	return ParseListAuditFindingsResponse(rsp)
 }
 
+// PublishAuditFindingExportWithBodyWithResponse Freeze and export an explicit selection from one Audit
+//
+// Publishes a complete immutable snapshot, SARIF and diagnostics in this
+// Audit's ProjectScope Artifact namespace. Exact selected revisions and
+// contributing presentation receipts are validated together. The optional
+// includeDuplicates defaults to false: one selected representative per
+// qualified automatic-key/manual-duplicate group. True retains every
+// selected result. The snapshot always retains all independent reviews.
+// The same clientKey and normalized request replay the original bytes;
+// changed input, including includeDuplicates, is idempotency_conflict.
+// Ownership is checked without disclosing other Audits. Storage conflicts
+// return retryable 503 storage_transaction_conflict with Retry-After.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/audits/{auditId}/findings/exports (the `PublishAuditFindingExport` operationId).
+func (c *ClientWithResponses) PublishAuditFindingExportWithBodyWithResponse(ctx context.Context, auditId AuditId, params *PublishAuditFindingExportParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PublishAuditFindingExportResponse, error) {
+	rsp, err := c.PublishAuditFindingExportWithBody(ctx, auditId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishAuditFindingExportResponse(rsp)
+}
+
+// PublishAuditFindingExportWithResponse Freeze and export an explicit selection from one Audit
+//
+// Publishes a complete immutable snapshot, SARIF and diagnostics in this
+// Audit's ProjectScope Artifact namespace. Exact selected revisions and
+// contributing presentation receipts are validated together. The optional
+// includeDuplicates defaults to false: one selected representative per
+// qualified automatic-key/manual-duplicate group. True retains every
+// selected result. The snapshot always retains all independent reviews.
+// The same clientKey and normalized request replay the original bytes;
+// changed input, including includeDuplicates, is idempotency_conflict.
+// Ownership is checked without disclosing other Audits. Storage conflicts
+// return retryable 503 storage_transaction_conflict with Retry-After.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /v1/audits/{auditId}/findings/exports (the `PublishAuditFindingExport` operationId).
+func (c *ClientWithResponses) PublishAuditFindingExportWithResponse(ctx context.Context, auditId AuditId, params *PublishAuditFindingExportParams, body PublishAuditFindingExportJSONRequestBody, reqEditors ...RequestEditorFn) (*PublishAuditFindingExportResponse, error) {
+	rsp, err := c.PublishAuditFindingExport(ctx, auditId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePublishAuditFindingExportResponse(rsp)
+}
+
+// DownloadAuditFindingExportWithResponse Download the immutable Audit finding export SARIF
+//
+// Checks ownership and all immutable publication bindings before serving
+// the original bytes as an attachment. Does not refresh current findings
+// or rerender. Retryable storage conflicts return 503
+// storage_transaction_conflict with Retry-After.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/audits/{auditId}/findings/exports/{exportId}/content (the `DownloadAuditFindingExport` operationId).
+func (c *ClientWithResponses) DownloadAuditFindingExportWithResponse(ctx context.Context, auditId AuditId, exportId FindingExportId, reqEditors ...RequestEditorFn) (*DownloadAuditFindingExportResponse, error) {
+	rsp, err := c.DownloadAuditFindingExport(ctx, auditId, exportId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDownloadAuditFindingExportResponse(rsp)
+}
+
+// DownloadAuditFindingExportDiagnosticsWithResponse Download the immutable Audit finding export diagnostics
+//
+// Checks ownership and all immutable publication bindings before serving
+// the original bytes as an attachment. Does not refresh current findings
+// or rerender. Retryable storage conflicts return 503
+// storage_transaction_conflict with Retry-After.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/audits/{auditId}/findings/exports/{exportId}/diagnostics (the `DownloadAuditFindingExportDiagnostics` operationId).
+func (c *ClientWithResponses) DownloadAuditFindingExportDiagnosticsWithResponse(ctx context.Context, auditId AuditId, exportId FindingExportId, reqEditors ...RequestEditorFn) (*DownloadAuditFindingExportDiagnosticsResponse, error) {
+	rsp, err := c.DownloadAuditFindingExportDiagnostics(ctx, auditId, exportId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDownloadAuditFindingExportDiagnosticsResponse(rsp)
+}
+
+// DownloadAuditFindingExportSnapshotWithResponse Download the immutable Audit finding export frozen snapshot
+//
+// Checks ownership and all immutable publication bindings before serving
+// the original bytes as an attachment. Does not refresh current findings
+// or rerender. Retryable storage conflicts return 503
+// storage_transaction_conflict with Retry-After.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /v1/audits/{auditId}/findings/exports/{exportId}/snapshot (the `DownloadAuditFindingExportSnapshot` operationId).
+func (c *ClientWithResponses) DownloadAuditFindingExportSnapshotWithResponse(ctx context.Context, auditId AuditId, exportId FindingExportId, reqEditors ...RequestEditorFn) (*DownloadAuditFindingExportSnapshotResponse, error) {
+	rsp, err := c.DownloadAuditFindingExportSnapshot(ctx, auditId, exportId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDownloadAuditFindingExportSnapshotResponse(rsp)
+}
+
 // GetAuditFindingWithResponse Get one exact finding revision and its current assessment and analyst rating
 //
 // Returns a wrapper object for the known response body format(s).
@@ -60378,6 +61608,785 @@ func ParseListAuditFindingsResponse(rsp *http.Response) (*ListAuditFindingsRespo
 		response.Headers500 = &headers
 	case rsp.StatusCode == 503:
 		var headers ListAuditFindingsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParsePublishAuditFindingExportResponse parses an HTTP response from a PublishAuditFindingExportWithResponse call
+func ParsePublishAuditFindingExportResponse(rsp *http.Response) (*PublishAuditFindingExportResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PublishAuditFindingExportResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PublishedFindingExport
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest PublishedFindingExport
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Forbidden
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest UnprocessableEntity
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers PublishAuditFindingExportResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Location"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Location", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.Location = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 201:
+		var headers PublishAuditFindingExportResponse201Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Location"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Location", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.Location = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers201 = &headers
+	case rsp.StatusCode == 400:
+		var headers PublishAuditFindingExportResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers PublishAuditFindingExportResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers PublishAuditFindingExportResponse403Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers PublishAuditFindingExportResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers PublishAuditFindingExportResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 413:
+		var headers PublishAuditFindingExportResponse413Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers413 = &headers
+	case rsp.StatusCode == 422:
+		var headers PublishAuditFindingExportResponse422Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers422 = &headers
+	case rsp.StatusCode == 500:
+		var headers PublishAuditFindingExportResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers PublishAuditFindingExportResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseDownloadAuditFindingExportResponse parses an HTTP response from a DownloadAuditFindingExportWithResponse call
+func ParseDownloadAuditFindingExportResponse(rsp *http.Response) (*DownloadAuditFindingExportResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DownloadAuditFindingExportResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers DownloadAuditFindingExportResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Content-Disposition"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Content-Disposition", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ContentDisposition = &value
+		}
+		if values := rsp.Header.Values("Content-Length"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Content-Length", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ContentLength = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers DownloadAuditFindingExportResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers DownloadAuditFindingExportResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers DownloadAuditFindingExportResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers DownloadAuditFindingExportResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 500:
+		var headers DownloadAuditFindingExportResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers DownloadAuditFindingExportResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseDownloadAuditFindingExportDiagnosticsResponse parses an HTTP response from a DownloadAuditFindingExportDiagnosticsWithResponse call
+func ParseDownloadAuditFindingExportDiagnosticsResponse(rsp *http.Response) (*DownloadAuditFindingExportDiagnosticsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DownloadAuditFindingExportDiagnosticsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers DownloadAuditFindingExportDiagnosticsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Content-Disposition"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Content-Disposition", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ContentDisposition = &value
+		}
+		if values := rsp.Header.Values("Content-Length"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Content-Length", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ContentLength = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers DownloadAuditFindingExportDiagnosticsResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers DownloadAuditFindingExportDiagnosticsResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers DownloadAuditFindingExportDiagnosticsResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers DownloadAuditFindingExportDiagnosticsResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 500:
+		var headers DownloadAuditFindingExportDiagnosticsResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers DownloadAuditFindingExportDiagnosticsResponse503Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers503 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseDownloadAuditFindingExportSnapshotResponse parses an HTTP response from a DownloadAuditFindingExportSnapshotWithResponse call
+func ParseDownloadAuditFindingExportSnapshotResponse(rsp *http.Response) (*DownloadAuditFindingExportSnapshotResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DownloadAuditFindingExportSnapshotResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Conflict
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ArtifactUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers DownloadAuditFindingExportSnapshotResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = value
+		}
+		if values := rsp.Header.Values("Content-Disposition"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Content-Disposition", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ContentDisposition = &value
+		}
+		if values := rsp.Header.Values("Content-Length"); len(values) > 0 {
+			var value int
+			if err := runtime.BindStyledParameterWithOptions("simple", "Content-Length", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ContentLength = value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.ETag = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers DownloadAuditFindingExportSnapshotResponse400Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers DownloadAuditFindingExportSnapshotResponse401Headers
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Contractor-API-Version"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Contractor-API-Version", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XContractorAPIVersion = value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 404:
+		var headers DownloadAuditFindingExportSnapshotResponse404Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 409:
+		var headers DownloadAuditFindingExportSnapshotResponse409Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers409 = &headers
+	case rsp.StatusCode == 500:
+		var headers DownloadAuditFindingExportSnapshotResponse500Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value RequestId
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.XRequestID = value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers DownloadAuditFindingExportSnapshotResponse503Headers
 		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
 			var value RequestId
 			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true, Type: "string", Format: ""}); err != nil {

@@ -235,7 +235,7 @@ func (r *Resolver) Resolve(ctx context.Context, clientKey string, documents []au
 		if !ok || doc.MediaType == MediaType {
 			return nil, errInvalid
 		}
-		http, err := resolveHTTP(exchange, doc, data)
+		http, err := ProjectHTTP(exchange, doc, data)
 		if err != nil {
 			return nil, err
 		}

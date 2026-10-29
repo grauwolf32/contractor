@@ -117,7 +117,7 @@ func configureHTTP(
 		ScanSweeps: publicapi.ScanSweepDependencies{Sweeps: sweeps},
 		Audits:     publicapi.AuditDependencies{Audits: audits.service, Projects: projects, NewID: randomid.New},
 		Findings: publicapi.FindingDependencies{
-			FindingProposals: catalogs.findings, FindingCollections: collectionPublisher,
+			FindingProposals: catalogs.findings, FindingCollections: collectionPublisher, FindingExports: collectionPublisher,
 			Audits: audits.service, Runs: runStore,
 		},
 		Evals: publicapi.EvalDependencies{

@@ -90,6 +90,7 @@ func TestPostgresPublicRunInitializationAndFrozenOutput(t *testing.T) {
 		Audits:                  &fakeAuditManagement{},
 		FindingProposals:        missingFindingProposals{},
 		FindingCollections:      missingFindingCollections{},
+		FindingExports:          missingFindingExports{},
 		Evals:                   unservedEvals{}, EvalNotifier: &countingWaker{},
 		GitImports: unavailableGitImports{}, GitKeys: unavailableGitKeys{},
 		GatewayRecovery: noGatewayWait{}, RunNotifier: &recordingRunNotifier{},

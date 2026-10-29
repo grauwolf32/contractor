@@ -11,6 +11,7 @@
     "tool-parameter-binding-cases.json": {"readers": ["go", "python", "ui"]},
     "public/artifact-storage-timestamps.json": {"readers": ["go", "ui"]},
     "public/finding-correlation-cases.json": {"readers": ["go", "ui"]},
+    "public/finding-export-cases.json": {"readers": ["go", "ui"]},
     "finding-analysis-cases.json": {"readers": ["go", "python"]},
     "finding-anchor-cases.json": {"readers": ["go", "python"]},
     "finding-fingerprint-cases.json": {"readers": ["go", "python"]},

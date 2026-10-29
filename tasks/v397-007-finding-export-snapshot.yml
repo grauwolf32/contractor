@@ -5,7 +5,7 @@ milestone: finding-sarif-export-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V397-003
 - V397-006
@@ -15,8 +15,20 @@ languages:
 - typescript
 - markdown
 goal: Deliver this proposal 0028 SARIF stage through production callers with deterministic bounded work, exact evidence and every selected finding
-  retained.
+  retained in the snapshot; SARIF duplicate expansion is controlled by includeDuplicates.
 context:
+  audit_export_authority: >-
+    User direction on 2026-10-29: separate export and download by Audit.
+    One request, snapshot and SARIF belong to exactly one owner-authorized Audit;
+    never combine findings or decisions from different Audits in one file.
+    Audit identity comes from the route, not a caller-supplied source list.
+  duplicate_export_authority: >-
+    User direction on 2026-10-30: make duplicate inclusion a parameter.
+    includeDuplicates defaults to false; true exports all selected findings.
+    Group only selected identities by the existing qualified automatic key or
+    explicit same-Audit manual duplicate links; preserve all independent
+    decisions and evidence in the immutable snapshot and never select peers
+    from another Audit or infer equality from similar text.
   request: User requested SARIF work on 2026-10-22 alongside deterministic correlation.
   proposal:
   - docs/proposals/0028-finding-analysis-and-sarif.md#frozen-selection-presentation-and-identity
@@ -39,19 +51,22 @@ context:
     still pending.
 scope:
   in:
-  - Explicit authorized receipt/finding/revision/contribution/presentation selection through existing collection boundaries.
+  - Audit-scoped snapshot identity and publication lifecycle; exact current decisions come only from this Audit.
+  - A minimal reachable generic export API and CLI caller for the frozen snapshot; full structured rendering and schema conformance remain V397-008, UI delivery and CLI documentation V397-009.
+  - Explicit authorized finding/revision/contribution/presentation selection within one Audit through existing collection boundaries.
   - Immutable exact-input snapshot of resolved analysis, native keys, automatic correlation scope/policy and independent applicable decisions/ratings.
   out:
-  - Model tool schema changes, automatic review mutations, dropping duplicate selected identities, global issue/receipt stores and model-authored
+  - Cross-Audit combined files and ordinary-Run/direct-receipt export outside an Audit; contributions remain supporting evidence of selected Audit findings.
+  - Model tool schema changes, automatic review mutations, content-based heuristic merging, global issue/receipt stores and model-authored
     export assembly.
   - GitHub upload/profile, source maps, suppression/fix sync, security-score classification and complete-scan/remediation inference.
 requirements:
 - id: R1
-  text: Explicit authorized receipt/finding/revision/contribution/presentation selection through existing collection boundaries.
+  text: Explicit authorized finding/revision/contribution/presentation selection within one Audit through existing collection boundaries.
 - id: R2
   text: Immutable exact-input snapshot of resolved analysis, native keys, automatic correlation scope/policy and independent applicable decisions/ratings.
 - id: R3
-  text: Preserve every selected typed result and independent Audit triage/rating/origin, keep all Worker tool declarations/results unchanged and
+  text: Preserve every selected identity and independent Audit triage/rating/origin in the snapshot; includeDuplicates defaults to false and emits one selected representative per explicit duplicate group, while true emits every selected result; keep all Worker tool declarations/results unchanged and
     use exact frozen evidence without guessed joins.
 - id: R4
   text: Update owning contracts/shared fixtures and add a production caller for every export in the same change; pure rendering never performs
@@ -78,7 +93,7 @@ acceptance_criteria:
 - id: A1
   given: Authorized code/HTTP/no-analysis findings, duplicate observations and independent Audit results.
   when: The production stage resolves, freezes, renders or publishes its specified inputs.
-  then: Every selected typed identity survives with exact evidence and separate ratings; no LLM or Worker schema/result change occurs.
+  then: Every selected typed identity survives in the snapshot with exact evidence and separate ratings, while the frozen includeDuplicates option controls SARIF result grouping; no LLM or Worker schema/result change occurs.
 - id: A2
   given: Invalid/foreign/stale inputs, maximum sizes, concurrent changes, cancellation and lost publication responses.
   when: Real store/process paths handle each outcome.
@@ -88,13 +103,14 @@ acceptance_criteria:
   when: All required gates run with a disposable PostgreSQL URL.
   then: Deterministic output, production callers and public operation coverage are proved, without skipped database tests.
 tests:
-- command: go test -count=1 ./internal/auditdomain ./internal/findingintake ./internal/auditservice ./internal/httpapi/public ./internal/publicclient/...
-    ./internal/cli
+- command: cd runtime && uv run pytest -W error tests/test_finding_analysis.py tests/test_text_artifacts_toolset.py tests/test_http_capture.py tests/test_security_findings_toolset.py tests/test_findings_reader_toolset.py tests/test_finding_facades.py tests/test_finding_tool_contracts.py
+  covers: [A1, A2, A3]
+- command: go test -tags=integration -p=2 -count=1 -timeout=20m ./internal/artifacts ./internal/auditdomain ./internal/findinganalysis ./internal/findingexport/... ./internal/findingintake ./internal/auditservice ./internal/auditstore/... ./internal/httpapi/... ./internal/publicclient/... ./internal/cli ./internal/app
   covers:
   - A1
   - A2
   - A3
-- command: make test-runtime test-wire-cross-language test-findings-e2e verify-public-api
+- command: make test-wire-cross-language test-findings-e2e verify-public-api
   covers:
   - A1
   - A2
@@ -106,3 +122,17 @@ tests:
 - command: make lint
   covers:
   - A3
+
+verification_scope:
+  authority: "User decision on 2026-10-29: continue SARIF with complete checks of touched packages; record the full Runtime gate as a limitation."
+  full_runtime: "The macOS full run was interrupted after 11 failures, 3257 passes and 5 skips; failures were outside SARIF, including known V401-007 platform cases and pentest identity socket tests. No complete Runtime pass is claimed."
+  linux_attempt: "A local Podman VM was available, but package repositories returned HTTP 403 while preparing an isolated Linux runner; no Linux pass is claimed."
+
+implementation_evidence: tasks/evidence/v397-007-verification.json
+implementation_notes:
+  - "Each Audit owns four frozen Artifact bindings in its existing ProjectScope namespace: snapshot, SARIF, diagnostics and replay receipt. Existing bounded purge removes them; no new table or lifecycle is introduced."
+  - "The frozen includeDuplicates flag defaults to false. Grouping uses selected qualified primary-key equality and explicit same-Audit duplicate links; the chosen member keeps its own triage and presentation. True emits all selected results, and every identity remains in the snapshot."
+  - "The selection-local grouping basis and member IDs are frozen. Global Project representatives/revisions are not queried or used: unselected peers do not affect this export. Revisit that boundary only for an explicitly requested comparison export with a versioned policy."
+  - "POST /v1/audits/{auditId}/findings/exports returns a separate exportId and Location ending in /content; /snapshot and /diagnostics download immutable siblings. The content suffix avoids wildcard crossover with duplicate-candidates."
+  - "Resource-first method dispatch is required for the literal exports collection beside findings/{findingId}; the same read-only method map serves CORS, and existing HEAD/405 and diagnostic patterns remain intact."
+  - "CLI production consumers accompany publication so the new endpoints are reachable. Full structured SARIF rendering and the UI remain dependent stages; the base projection reports pending structured mapping explicitly."

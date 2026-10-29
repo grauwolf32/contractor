@@ -197,7 +197,7 @@ func (h *sessionHandlers) authenticate(next http.Handler) http.Handler {
 	})
 }
 
-func (h *sessionHandlers) cors(next http.Handler, routes *http.ServeMux) http.Handler {
+func (h *sessionHandlers) cors(next http.Handler, routeAllowed func(*http.Request) bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/v1/auth/") {
 			w.Header().Set("Cache-Control", "no-store")
@@ -229,7 +229,7 @@ func (h *sessionHandlers) cors(next http.Handler, routes *http.ServeMux) http.Ha
 			next.ServeHTTP(w, r)
 			return
 		}
-		if !validPreflight(r, routes) {
+		if !validPreflight(r, routeAllowed) {
 			writeError(w, apierror.Forbidden, "CORS preflight is not allowed")
 			return
 		}
@@ -242,15 +242,14 @@ func (h *sessionHandlers) cors(next http.Handler, routes *http.ServeMux) http.Ha
 	})
 }
 
-func validPreflight(r *http.Request, routes *http.ServeMux) bool {
+func validPreflight(r *http.Request, routeAllowed func(*http.Request) bool) bool {
 	methods := r.Header.Values("Access-Control-Request-Method")
-	if len(methods) != 1 || !containsFold(corsMethods, methods[0]) || routes == nil {
+	if len(methods) != 1 || !containsFold(corsMethods, methods[0]) || routeAllowed == nil {
 		return false
 	}
 	probe := r.Clone(r.Context())
 	probe.Method = strings.ToUpper(methods[0])
-	_, pattern := routes.Handler(probe)
-	if !strings.HasPrefix(pattern, probe.Method+" ") {
+	if !routeAllowed(probe) {
 		return false
 	}
 	headers := r.Header.Values("Access-Control-Request-Headers")

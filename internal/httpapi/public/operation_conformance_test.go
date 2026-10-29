@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
+	"github.com/grauwolf32/contractor/internal/findingexport"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
@@ -205,9 +207,11 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 		},
 		SnapshotAt: now.Format(time.RFC3339Nano), EntryCount: 1,
 	}}
+	exports := &publishedFindingExports{published: findingintake.PublishedExport{ExportID: "export-" + strings.Repeat("a", 64), Snapshot: collections.published.Artifact, Artifact: collections.published.Artifact, Diagnostics: collections.published.Artifact, SnapshotAt: now.Format(time.RFC3339Nano), SelectedCount: 1, ResultCount: 1, WarningCount: 0}, read: artifacts.ReadResult{Ref: collections.published.Artifact.Ref, Payload: artifacts.Payload{MediaType: "application/json", Data: []byte(`{"version":"2.1.0"}`)}}}
 	fixture := newHandlerFixtureWithAuth(
 		t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil,
 		func(services *testServices) {
+			services.FindingExports = exports
 			services.Audits, services.FindingProposals = management, proposals
 			services.FindingCollections = collections
 		},
@@ -264,6 +268,19 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 	call(jsonContractRequest(http.MethodPost, "/v1/finding-collections",
 		`{"clientKey":"collection-one","sources":[{"kind":"run","id":"run-one","receiptIds":["receipt-one"],"findings":[]}]}`),
 		http.StatusCreated)
+	for _, include := range []string{"false", "true"} {
+		call(jsonContractRequest(http.MethodPost, "/v1/audits/audit-one/findings/exports",
+			`{"clientKey":"export-one","format":"sarif","profile":"generic","includeDuplicates":`+include+`,"findings":[{"findingId":"finding-one","revision":1}]}`), http.StatusCreated)
+		if exports.request.IncludeDuplicates != (include == "true") {
+			t.Fatal("duplicate parameter lost")
+		}
+	}
+	exports.published.Replayed = true
+	call(jsonContractRequest(http.MethodPost, "/v1/audits/audit-one/findings/exports",
+		`{"clientKey":"export-one","format":"sarif","profile":"generic","findings":[]}`), http.StatusOK)
+	for _, part := range []string{"content", "snapshot", "diagnostics"} {
+		call(jsonContractRequest(http.MethodGet, "/v1/audits/audit-one/findings/exports/"+exports.published.ExportID+"/"+part, ""), http.StatusOK)
+	}
 	call(jsonContractRequest(http.MethodPost, "/v1/audits/audit-one/findings/finding-one/reviews", `{}`,
 		"Idempotency-Key", "review-finding", "If-Match", `"1"`), http.StatusCreated)
 
@@ -474,4 +491,20 @@ func conformEvalOperations(t *testing.T, router routers.Router) {
 				operation.method, operation.path, response.Code, response.Body.String())
 		}
 	}
+}
+
+// publishedFindingExports supplies immutable output while conformance probes
+// both option values and each download operation through the public handlers.
+type publishedFindingExports struct {
+	published findingintake.PublishedExport
+	read      artifacts.ReadResult
+	request   findingexport.Request
+}
+
+func (e *publishedFindingExports) PublishFindingExport(_ context.Context, _, _ string, r findingexport.Request) (findingintake.PublishedExport, error) {
+	e.request = r
+	return e.published, nil
+}
+func (e *publishedFindingExports) ReadFindingExport(context.Context, string, string, string, string) (findingintake.ExportDownload, error) {
+	return findingintake.ExportDownload{Read: e.read}, nil
 }

@@ -27,6 +27,7 @@ type AuditReader interface {
 type FindingDependencies struct {
 	FindingProposals   FindingProposalManagement
 	FindingCollections FindingCollectionManagement
+	FindingExports     FindingExportManagement
 	Audits             AuditReader
 	Runs               RunGetter
 }
