@@ -1,6 +1,6 @@
 schema_version: '1.0'
 id: V410-005
-title: Reconcile exact OpenAPI declarations with live sitemap members
+title: Join exact OpenAPI and sitemap artifacts in a server operation stage
 milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
@@ -16,8 +16,8 @@ languages:
 - json
 - yaml
 - markdown
-goal: Reuse the existing source-import operation and shared Runtime OpenAPI decoding to add guarded declarations/grouping
-  and a bounded reconciliation result.
+goal: Run a server-side operation stage that joins exact OpenAPI and sitemap artifacts using existing Go decoding,
+  guarded domain reduction and ordinary ArtifactStore publication, without allocating a Runtime Worker.
 context:
   authority: 'User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
     this task records planned work, not implementation or verification evidence. User review on 2026-10-27 supersedes
@@ -40,9 +40,16 @@ context:
   - docs/spec/tools/scanners.md
   - docs/spec/execution/worker.md
   - docs/spec/tools/toolsets.md
+  - docs/spec/configuration/workflows.md
+  - docs/spec/execution/planners.md
+  - docs/spec/execution/scheduler.md
   boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
     proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64 work.
   code:
+  - internal/operations
+  - internal/config/resolved
+  - internal/scheduler
+  - internal/app
   - internal/scanplan/prepare.go
   - internal/scanplan/operation.go
   - internal/scanplan/references.go
@@ -53,11 +60,12 @@ context:
   - api/testdata
 scope:
   in:
-  - Extract the existing Runtime OpenAPI document decoder into toolsets.common with both authoring and sitemap adapters
-    as production callers. Source-specific extraction stays in Runtime; shared fixtures keep applicable OpenAPI rules
-    aligned with scan preparation. Server accepts normalized source replacements without parsing OpenAPI bytes.
-  - Extend the existing import_sitemap_source dispatcher with exact OpenAPI reconciliation, callable from tool@1;
-    reuse policy/grants instead of inventing another tool or independent import protocol.
+  - Add a small common Server operation execution path through the existing Stage/Planner lifecycle, with exact inputs,
+    declared outputs, deadline, cancellation and existing session recovery, accepting no Worker bindings.
+  - Put operation adapters in internal/operations and its per-operation modules; keep the actual join algorithm and
+    sitemap-specific storage behavior in internal/projectsitemap. Composition registers the concrete adapter.
+  - Reuse the existing Go OpenAPI source decoder and bounded local-reference semantics. OpenAPI is an API contract
+    artifact used by a domain operation, not a provider-ingestion format or an extension of import_sitemap_source.
   - Return a bounded result naming exact inputs and actual publication ref. Materialize an exact context artifact
     only for a declared Workflow/Audit consumer; do not require an enriched-map copy, patch artifact and separate
     report all at once.
@@ -69,7 +77,7 @@ scope:
   - Generating or rewriting OpenAPI, remote reference fetching, guessed origins, new semantic Audit steps or vulnerability
     verdicts.
   - Recovering discarded concrete members or widening suppressed/manual selections during regrouping.
-  - Shipped Workflow/Audit catalog composition (V410-006).
+  - Shipped Workflow/Audit catalog composition (V410-006), Runtime parser duplication and a Runtime round trip for join.
   - Unconsumed output copies, default patch artifacts, another reconciliation/import tool surface or collection-completeness
     states.
 requirements:
@@ -166,11 +174,10 @@ acceptance_criteria:
     regardless of that flag, preserving existing frozen-context replay. Ordinary owner-selected inputs remain usable
     in full; no missing file is silently replaced with current content.
 deliverables:
-- path: runtime/src/contractor_runtime/toolsets/common
-  description: Reuse the existing bounded OpenAPI JSON/YAML decoder for both authoring and source reconciliation.
-- path: runtime/src/contractor_runtime/toolsets/sitemap
-  description: OpenAPI support in the existing source-import dispatcher, with bounded results and only caller-required
-    exact artifact outputs.
+- path: internal/operations
+  description: Common Server-operation Stage adapter and the concrete sitemap join module, without duplicating domain algorithms.
+- path: internal/projectsitemap
+  description: Join exact OpenAPI and sitemap artifacts using existing Go decoding, deterministic grouping and shared Artifact lifecycle mechanisms.
 - path: api/testdata
   description: Cross-language canonical, source-conflict, grouping and safe-output fixtures.
 tests:
@@ -219,8 +226,16 @@ execution:
   branch: codex/v410-005-sitemap-openapi
   claimed_on: '2026-10-29'
   note: Started after V410-004 and the user-requested module-boundary guidance landed in main. The earlier Go-parser
-    plan is superseded by the explicit Runtime preprocessing decision; no Server OpenAPI parser is added.
+    source-import plan is superseded by the user's explicit distinction between external-provider adaptation and
+    domain operations over existing artifacts. Implementation follows the server-operation design below.
 implementation_decisions:
+- date: '2026-10-29'
+  decision: The user clarified that OpenAPI is an API contract artifact and join is a Server domain operation, requested
+    an explicit Stage and a separate folder of operation modules with the actual body in sitemap. This supersedes
+    both previous import_sitemap_source plans. Use internal/operations for the generic executor and thin concrete
+    adapter modules; reuse the existing Planner registry/session and Stage result lifecycle. The scheduler does not
+    parse OpenAPI or branch on sitemap operation names. Server execution permits zero Workers only for its registered
+    model-free operation runner. The join algorithm remains in internal/projectsitemap and reuses Go source decoding.
 - date: '2026-10-29'
   decision: Runtime owns OpenAPI document decoding, local-reference extraction and bounded comparison. Server receives
     normalized declarations through its existing guarded source-replacement/reducer and ordinary Artifact metadata,

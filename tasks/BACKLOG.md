@@ -15,7 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | projects-artifacts | feature | P1 | Reconcile exact OpenAPI declarations with live sitemap members |
+| [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | projects-artifacts | feature | P1 | Join exact OpenAPI and sitemap artifacts in a server operation stage |
 
 ## Pending
 
