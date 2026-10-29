@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-120 open tasks: 8 in progress, 101 pending, 11 deferred. 1188 finished: 1178 completed, 10 archived.
+121 open tasks: 9 in progress, 101 pending, 11 deferred. 1188 finished: 1178 completed, 10 archived.
 
 ## In progress
 
@@ -19,6 +19,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-004](v411-004-controlled-http-conformance.yml) | http-tools | chore | P1 | Verify controlled HTTP transport against an independent denial and fault matrix |
 | [V411-022](v411-022-validate-redirect-reference-before-resolution.yml) | http-tools | defect | P1 | Reject invalid redirect references before URL resolution can normalize them |
 | [V411-023](v411-023-public-artifact-e2e-contract.yml) | projects-artifacts | chore | P2 | Use current public Artifact metadata in end-to-end consumers |
+| [V411-024](v411-024-runtime-capability-process-fixtures.yml) | runtime-config | chore | P2 | Align heterogeneous Runtime process fixtures with the controlled HTTP capability |
 
 ## Pending
 
@@ -223,7 +224,7 @@ tasks in `introduced_by`.
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 4 | 41 | 56 | 20 | 84 |
 | Planners and the Worker model boundary (`planner-worker`) | 12 | 34 | 47 | 28 | 64 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 4 | 43 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 11 | 26 | 13 | 5 | 43 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
@@ -233,7 +234,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 8 | 17 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 33 | 10 | 52 |
-| Audits (`audits`) | 26 | 67 | 82 | 32 | 114 |
+| Audits (`audits`) | 26 | 67 | 82 | 32 | 115 |
 | Evaluations (`evals`) | 7 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 66 | 14 | 59 |

@@ -1,0 +1,61 @@
+schema_version: '1.0'
+id: V411-024
+title: Align heterogeneous Runtime process fixtures with the controlled HTTP capability
+milestone: autonomous-http-pentest-2026-10
+epic: runtime-config
+kind: chore
+introduced_by: V411-003
+priority: P2
+status: in_progress
+depends_on: [V411-003]
+languages: [go]
+goal: Preserve real heterogeneous placement assertions after Runtime gained its built-in controlled
+  HTTP capability, without confusing advertised capabilities with resolved RuntimeConfig adapters.
+context:
+  authority: Repair mandatory HTTP/Caido and related process-gate failures found while verifying
+    the user-authorized V411-004 task on 2026-10-29.
+  specification:
+  - docs/spec/execution/control-plane.md#CTL-R168
+  - docs/spec/execution/control-plane.md#CTL-R73
+  - docs/spec/configuration/runtime-config.md
+  finding: >-
+    tests/e2e/http_caido_test.go:215 compares the entire advertisement with one-element
+    http-proxy@1 or caido-graphql@1 strings. V411-003 added pentest-target-http@1 to the
+    actual Runtime advertisement, so healthy idle Runtimes never satisfy the fixture.
+    Both TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses and the shared sitemap HTTP
+    fixture time out before any target traffic. runtime_labels_test.go:196,757 contains
+    sibling exact-inventory assumptions that need the same review.
+  siblings: >-
+    Review every real-process SupportedRuntimeAdapters comparison and selector, including
+    Runtime label placement and shared HTTP/sitemap fixtures. Keep allocation RuntimeConfig
+    provenance checks exact: the built-in controlled capability is not a configured adapter.
+scope:
+  in:
+  - Update real Runtime advertisement expectations using a shared test helper or exact current
+    sets, preserving checks that HTTP and Caido specializations remain distinct and available.
+  - Verify shared built-in capability presence without broadening RuntimeConfig provenance.
+  - Exercise every affected parent process test and the complete canonical process union.
+  out:
+  - No production capability, placement, RuntimeConfig, timeout or compatibility change.
+acceptance_criteria:
+- id: A1
+  text: Healthy HTTP and Caido Runtimes satisfy the fixture only with their expected specialization
+    and controlled HTTP capability; the real HTTP/Caido and sitemap HTTP scenarios execute.
+- id: A2
+  text: Label-driven fixtures and sibling selectors use the current advertisement while allocation
+    provenance retains only the actually configured adapters.
+- id: A3
+  text: Tests continue to reject missing or wrong capabilities, and all affected process owners pass
+    without arbitrary timeout increases or permissive unknown-capability filtering.
+tests:
+- command: go test -count=1 ./tests/e2e
+  covers: [A1, A2, A3]
+- command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestLabelDrivenRuntimeConfigurationAcrossProcesses)$'
+  covers: [A1, A2, A3]
+- command: make test-release-process-e2e
+  covers: [A1, A2, A3]
+- command: make lint
+  covers: [A1, A2, A3]
+assignment:
+  branch: codex/v411-004-http-conformance
+  claimed: '2026-10-29'
