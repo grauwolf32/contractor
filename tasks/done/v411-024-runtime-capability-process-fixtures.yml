@@ -6,7 +6,7 @@ epic: runtime-config
 kind: chore
 introduced_by: V411-003
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V411-003]
 languages: [go]
 goal: Preserve real heterogeneous placement assertions after Runtime gained its built-in controlled
@@ -77,3 +77,24 @@ integration_decision:
     every deterministic process root, including main's additive-capability regression and our HTTP
     matrix; no process case is omitted. The earlier unsharded run exhausted its aggregate 50-minute
     allowance after 33 successful parents and is retained as an incomplete diagnostic, not a pass.
+
+implementation_commit: 9e7c9254af30b56c308f1f309576168354ce4dde
+
+verification:
+  date: '2026-10-29'
+  source: bc99bfa8e9f64144a0ab0c41bd0b21904d3e29cf
+  results:
+  - The final code reuses the V410-023 selector from main. Required capabilities use subset matching
+    under CTL-R73/R74; missing requirements and multiple matching live principals are rejected.
+    Allocation RuntimeConfig provenance remains exact. The duplicate inventory helper is removed.
+  - Full untagged tests/e2e passed, and the complete tagged package compiled. The exact standalone
+    three-parent HTTP/Caido, sitemap HTTP and label-driven selection passed in 256.091s.
+  - All three canonical process shards passed on the same source; their disjoint union executed
+    all 36 required parents and 123 results including subtests with zero skips/failures. The main
+    additive-capability regression and every affected real-process parent are present in that report.
+  - Full integrated lint passed, including the release graph and its exact process ownership checks.
+  reports:
+    focused_regressions: /private/tmp/v411004-evidence/integrated-focused-repairs.log
+    process_union: /private/tmp/v411004-evidence/integrated-process-summary.json
+    untagged: /private/tmp/v411004-evidence/integrated-e2e-unit.log
+    lint: /private/tmp/v411004-evidence/integrated-lint.log
