@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V410-001
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V410-003, V410-019, V410-022]
 languages: [go, python, yaml, markdown, typescript]
 goal: Preserve useful bounded endpoint behavior across repeated Runs without retaining execution attribution or inventing user identity.
@@ -80,3 +80,29 @@ tests:
   covers: [A4]
 - command: make lint
   covers: [A4, A5]
+implementation_commit: ca9dbf0ed3494bc41d81b9dfd5c8cb8b487c4cfa
+verification:
+  date: '2026-10-29'
+  result: passed
+  tested_commit: ca9dbf0ed3494bc41d81b9dfd5c8cb8b487c4cfa
+  commands:
+  - command: make test-project-sitemap-postgres
+    result: Passed all 14 complete packages and 28 mandatory cases with real PostgreSQL and zero mandatory skips, including 32 sequential producers, later novel behavior, manual metadata coalescing and cross-Run receipt isolation.
+  - command: make test-project-sitemap-tools-e2e
+    result: Passed both mandatory Server/Runtime/PostgreSQL scenarios with zero skips; live map and retained snapshot bytes pass strict domain decoding, and committed behavior survives Runtime crash.
+  - command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_http_*.py
+    result: Passed 204 tests on the integrated implementation, including changing actual bearer/cookie sessions and preserving request tags without metadata attribution.
+  - command: make test-wire-cross-language
+    result: Passed 426 shared fixtures with 360 Go and 246 Python shared readers, 1519 Python shared tests and the complete 468-test Runtime contract selection.
+  - command: make verify-public-api
+    result: Passed registry validation and complete public-operation contract coverage on the integrated implementation.
+  - command: make ui-verify
+    result: Passed generated checks, lint, typecheck and build; 2525 UI tests passed with one pre-existing expected failure and 17 Node server tests. Integrated UI bytes match the verified contracts-lane commit.
+  - command: make lint
+    result: Passed generated checks, Go vet/staticcheck/testonlyexports, tasks/specs/fixtures, release/deployment checks, Ruff and Runtime import-layer contracts.
+  notes:
+  - Initial concurrent database suites exhausted the temporary PostgreSQL lock table; final complete gates passed with max_locks_per_transaction=1024 and bounded Go package parallelism. No production budget was changed.
+  - The current collector supplies no trusted user identity. Removing its allocation-random session marker and unused identity branches does not establish principal equality or authentication state.
+  - Sixteen summaries per member remain bounded sets of source/deployment and behavior. Genuine new-variant overflow still preserves accepted summaries; known variants continue updating timestamps at capacity.
+  - No compatibility reader, Run attribution history, persistent table, lease, cache or ArtifactStore-specific branch was added. Removed fields fail strict decode; exact Evidence.runId and ordinary Run/snapshot authority remain.
+  - Independent review found no production blockers. Its manual-source test-selection finding was corrected before the final complete PostgreSQL gate.
