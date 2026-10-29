@@ -88,8 +88,8 @@ func TestPostgresSitemapHTTPCollectionProjectionAndReceipt(t *testing.T) {
 		t.Fatal("evicted bytes were revived")
 	}
 	access.Policy.CollectObservations = false
-	if _, err = s.CollectAllocation(ctx, access, "denied", input); err == nil {
-		t.Fatal("reader gained collection authority")
+	if _, err = s.CollectAllocation(ctx, access, "explicit", input); err != nil {
+		t.Fatal("domain incorrectly required automatic collection policy for an authorized explicit batch")
 	}
 }
 

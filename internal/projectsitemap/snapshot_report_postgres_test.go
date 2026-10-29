@@ -19,13 +19,13 @@ func TestPostgresSitemapSnapshotRebindsReportEvidenceToAuthorizedOriginalInput(t
 	ctx := t.Context()
 	service := NewService(pool)
 	stores := artifacts.NewService(artifacts.NewPostgresRepository(pool))
-	payload := scannerFixture(t, "ffuf")
+	payload := []byte("opaque observation evidence\x00\xff")
 	var report contracts.ArtifactRef
 	for _, runID := range []string{"producer", "repeat-producer"} {
 		createSitemapRun(t, ctx, pool, runID)
-		published := writeScannerReport(t, ctx, pool, runID, "report", payload)
-		access := importAccess(t, ctx, service, runID)
-		if _, err := service.ImportAllocation(ctx, access, runID, ImportSelection{Format: "ffuf-report@1", Artifact: published.Ref}); err != nil {
+		published := writeObservationEvidence(t, ctx, pool, runID, "report", payload)
+		access := collectionAccess(t, ctx, service, runID)
+		if _, err := service.CollectAllocation(ctx, access, runID, preparedEvidenceBatch(published, "/users")); err != nil {
 			t.Fatal(err)
 		}
 		if runID == "producer" {
@@ -44,7 +44,7 @@ func TestPostgresSitemapSnapshotRebindsReportEvidenceToAuthorizedOriginalInput(t
 	}
 	producerScope, _ := artifacts.RunScope("producer")
 	projectScope, _ := artifacts.ProjectScope("project")
-	publication, err := stores.Fork(ctx, artifacts.Fork{Kind: artifacts.LineageProjectOutputPublish, Source: producerScope, SourceRef: output.TargetRef, SourceFrozen: true, Target: projectScope, TargetRef: contracts.ArtifactRef{Namespace: "reports", Name: "ffuf"}})
+	publication, err := stores.Fork(ctx, artifacts.Fork{Kind: artifacts.LineageProjectOutputPublish, Source: producerScope, SourceRef: output.TargetRef, SourceFrozen: true, Target: projectScope, TargetRef: contracts.ArtifactRef{Namespace: "reports", Name: "evidence"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestPostgresSitemapSnapshotRebindsReportEvidenceToAuthorizedOriginalInput(t
 		t.Fatal("test requires two producer locators for identical content")
 	}
 	selection := SnapshotSelection{Revision: view.Revision, Groups: []string{view.Document.Groups[0].ID}, RequireReferencedInputs: true}
-	ungranted := importAccess(t, ctx, service, "consumer")
+	ungranted := collectionAccess(t, ctx, service, "consumer")
 	if _, err := service.SnapshotAllocation(ctx, ungranted, "no-input", selection); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 		t.Fatalf("unselected report became authorized: %v", err)
 	}

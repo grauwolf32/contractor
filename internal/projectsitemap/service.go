@@ -66,15 +66,15 @@ func (s *Service) Mutate(ctx context.Context, a Authority, idempotencyKey string
 	if m.ExpectedRevision != "" && !contracts.ValidResourceID(m.ExpectedRevision) {
 		return Result{}, ErrInvalid
 	}
+	if m.Artifact != nil {
+		if m.Operation != "observe" || m.Artifact.ValidateExact() != nil {
+			return Result{}, ErrInvalid
+		}
+		if artifactpolicy.IsRunSystemNamespace(m.Artifact.Namespace) {
+			return Result{}, artifacts.ErrReservedNamespace
+		}
+	}
 	appendCompatible := m.Operation == "observe" || m.Operation == "replace-source" && m.ExpectedRevision == ""
-	return s.mutationTransaction(ctx, appendCompatible, func(ctx context.Context, tx pgx.Tx) (Result, error) {
-		return mutateTransaction(ctx, tx, a, idempotencyKey, m)
-	})
-}
-
-// mutationTransaction is shared by metadata commands and exact report imports.
-// Both retain the same operation deadline, CAS allowance and maintenance owner.
-func (s *Service) mutationTransaction(ctx context.Context, appendCompatible bool, operation func(context.Context, pgx.Tx) (Result, error)) (Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, OperationTimeout)
 	defer cancel()
 	var result Result
@@ -82,7 +82,7 @@ func (s *Service) mutationTransaction(ctx context.Context, appendCompatible bool
 	for attempt := 0; attempt < MaxAttempts; attempt++ {
 		err = postgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			var inner error
-			result, inner = operation(ctx, tx)
+			result, inner = mutateTransaction(ctx, tx, a, idempotencyKey, m)
 			return inner
 		})
 		if errors.Is(err, postgres.ErrReceiptMismatch) {
@@ -190,9 +190,26 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 				return postgres.Receipt{}, err
 			}
 		}
-		_, data, err := Reduce(current, m, a)
+		next, data, err := Reduce(current, m, a)
 		if err != nil {
 			return postgres.Receipt{}, err
+		}
+		if m.Artifact != nil {
+			consumer, err := service.Run(a.RunID)
+			if err != nil {
+				return postgres.Receipt{}, err
+			}
+			// Exact metadata confirms the authorized locator; adapters already read
+			// and prepared its bytes. Replay never resolves it or the map again.
+			metadata, err := consumer.Metadata(ctx, *m.Artifact)
+			if err != nil {
+				return postgres.Receipt{}, err
+			}
+			attachEvidence(&next, m.Observations, a.SourceID, Evidence{RunID: a.RunID, Artifact: metadata.Exact()})
+			data, err = encode(next)
+			if err != nil {
+				return postgres.Receipt{}, err
+			}
 		}
 		result, err := publishMap(ctx, service, a.ProjectID, read, data)
 		if err != nil {

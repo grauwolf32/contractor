@@ -336,7 +336,7 @@ func Reduce(current Document, mutation Mutation, authority Authority) (Document,
 	}
 	switch mutation.Operation {
 	case "observe":
-		if !authority.CanObserve || len(mutation.Observations) == 0 && len(mutation.Gaps) == 0 || len(mutation.Observations) > MaxBatch || len(mutation.Gaps) > 16 || !onlyFields(mutation, "observe") {
+		if !authority.CanObserve || len(mutation.Observations) > MaxBatch || len(mutation.Gaps) > 16 || !onlyFields(mutation, "observe") {
 			return Document{}, nil, ErrInvalid
 		}
 		for _, observation := range mutation.Observations {
@@ -386,7 +386,7 @@ func onlyFields(m Mutation, op string) bool {
 	clean := Mutation{Operation: m.Operation, ExpectedRevision: m.ExpectedRevision}
 	switch op {
 	case "observe":
-		clean.Observations, clean.Gaps = m.Observations, m.Gaps
+		clean.Observations, clean.Gaps, clean.Artifact = m.Observations, m.Gaps, m.Artifact
 	case "declare":
 		clean.URL, clean.Method = m.URL, m.Method
 	case "annotate":
@@ -676,7 +676,7 @@ func routeFor(rules []Rule, origin, method, path string) (string, bool) {
 }
 
 func replaceSource(d *Document, u SourceUpdate, a Authority) error {
-	if !contracts.ValidResourceID(u.SourceID) || u.SourceID != a.SourceID || len(u.Rules) > MaxRules || a.Kind == "http" {
+	if !contracts.ValidResourceID(u.SourceID) || u.SourceID != a.SourceID || len(u.Rules) > MaxRules || observedKind(a.Kind) {
 		return ErrInvalid
 	}
 	if u.Artifact != nil && u.Artifact.Validate() != nil {
