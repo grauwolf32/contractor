@@ -260,3 +260,15 @@ implementation_decisions:
     model-free Workers can invoke it. No nested-argument engine is added. The existing common
     256-KiB encoded command admission bound also applies after report projection; a pathological
     report exceeding it fails permanently instead of adding continuation or widening shared limits.
+- date: '2026-10-29'
+  decision: >-
+    User boundary correction supersedes the earlier Server report parser and Caido projection decision:
+    all provider/report preprocessing belongs to Runtime tool adapters. Server accepts one strict
+    normalized observation batch for any source identifier, without provider enums, format switches,
+    source-specific row repair or report-payload reads. Domain grouping, canonical identities, validation,
+    rights, exact Artifact metadata verification, keyed receipts and publication stay on Server.
+    Runtime reads selected exact reports through ArtifactClient, prepares a bounded batch once and
+    retries the same bytes/key. Receipt replay of that prepared batch works after source eviction;
+    a new explicit import invocation must read its exact input and fails if those bytes disappeared.
+    No new receipt-lookup endpoint or source-specific durable checkpoint is introduced to reproduce
+    the superseded selection-only replay guarantee. Source labels affect provenance, not algorithms.
