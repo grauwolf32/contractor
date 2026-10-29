@@ -7,14 +7,14 @@ import copy
 import json
 import logging
 import time
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from uuid import uuid4
 
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
 from contractor_runtime.contracts import ArtifactRef
-from contractor_runtime.sitemap import REPORT_FORMATS, SitemapClient
+from contractor_runtime.sitemap import SitemapClient
 
 _LOGGER = logging.getLogger(__name__)
 MAX_ITEMS = 100
@@ -22,6 +22,7 @@ MAX_BYTES = 256 << 10
 FLUSH_INTERVAL_SECONDS = 5.0
 FLUSH_BUDGET_SECONDS = 15.0
 MAX_ATTEMPTS = 3
+MAX_GAP_COUNT = 2**53 - 1
 _REPORT_REJECTION_CODES = frozenset(
     {"invalid_request", "artifact_not_found", "artifact_access_denied"}
 )
@@ -41,16 +42,16 @@ _LOG_FAILURE_CODES = frozenset(
 )
 
 
-def _wire_bytes(kind: str, value: dict) -> int:
+def _wire_bytes(kind: str | None, value: dict) -> int:
     # This is only private transport sizing, never a sitemap identity/hash.
     return len(
         json.dumps(
             {
                 "apiVersion": "contractor/v1alpha1",
                 **(
-                    {"selection": value, "automatic": True}
-                    if kind == "report"
-                    else {"input": {"kind": kind, "observations": [value]}}
+                    {"report": value}
+                    if kind is None
+                    else {"input": {"kind": kind, **value}, "automatic": True}
                 ),
             },
             ensure_ascii=False,
@@ -61,7 +62,7 @@ def _wire_bytes(kind: str, value: dict) -> int:
 
 @dataclass(frozen=True, slots=True)
 class _Pending:
-    kind: str
+    kind: str | None
     value: dict
     size: int
 
@@ -71,11 +72,15 @@ class SitemapCollector:
         self,
         client: SitemapClient,
         *,
+        report_projector: Callable[[str, ArtifactRef], Awaitable[dict]] | None = None,
+        report_formats: Mapping[str, str] | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         wait: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._client, self._clock, self._sleep, self._wait = client, clock, sleep, wait
+        self._reports = report_projector
+        self._report_formats = dict(report_formats or {})
         self._pending: list[_Pending] = []
         self._bytes = 0
         self._since = clock()
@@ -88,31 +93,39 @@ class SitemapCollector:
         self._failure: ArtifactAPIError | None = None
         self._buffer_warning = False
 
-    async def receive(self, observations: Sequence[dict]) -> None:
+    async def receive(self, observations: Sequence[dict], *, gaps: Sequence[dict] = ()) -> None:
         """Admit HTTP attempt metadata without awaiting storage or network I/O."""
-        self._receive_observations("http", observations)
+        self._receive_observations("http", observations, gaps)
 
-    async def receive_caido(self, observations: Sequence[dict]) -> None:
+    async def receive_caido(
+        self, observations: Sequence[dict], *, gaps: Sequence[dict] = ()
+    ) -> None:
         """Admit selected Caido metadata into the same bounded pending queue."""
-        self._receive_observations("caido", observations)
+        self._receive_observations("caido", observations, gaps)
 
     async def receive_report(self, tool: str, artifact: ArtifactRef) -> None:
         """Queue an already-published report reference without reading its bytes."""
-        format_ = REPORT_FORMATS.get(tool)
-        if format_ is not None:
+        format_ = self._report_formats.get(tool)
+        if format_ is not None and self._reports is not None:
             self._admit(
-                "report",
+                None,
                 {"format": format_, "artifact": artifact.require_exact().model_dump(by_alias=True)},
             )
 
-    def _receive_observations(self, kind: str, observations: Sequence[dict]) -> None:
-        if self._closed or self._closing or self._disabled or not observations:
+    def _receive_observations(
+        self, kind: str, observations: Sequence[dict], gaps: Sequence[dict]
+    ) -> None:
+        if self._closed or self._closing or self._disabled:
             return
+        if gaps:
+            self._admit(kind, {"observations": [], "gaps": list(gaps[:16])})
+            if len(gaps) > 16:
+                self._warn_full()
         # A selected provider page is at most 100 rows, but may exceed one
         # publication's byte bound. Admit rows separately: a large page or one
         # oversized row must not discard every representable observation.
         for observation in observations[:MAX_ITEMS]:
-            self._admit(kind, observation)
+            self._admit(kind, {"observations": [observation]})
         if len(observations) > MAX_ITEMS:
             self._warn_full()
 
@@ -121,7 +134,7 @@ class SitemapCollector:
             _LOGGER.warning("sitemap collection buffer full")
             self._buffer_warning = True
 
-    def _admit(self, kind: str, value: dict) -> None:
+    def _admit(self, kind: str | None, value: dict) -> None:
         if self._closed or self._closing or self._disabled:
             return
         try:
@@ -189,16 +202,26 @@ class SitemapCollector:
             return
         kind = self._pending[0].kind
         count = 1
-        if kind != "report":
+        if kind is not None:
             while count < len(self._pending) and self._pending[count].kind == kind:
                 count += 1
         selected, self._pending = self._pending[:count], self._pending[count:]
         self._bytes -= sum(item.size for item in selected)
-        payload = (
-            selected[0].value
-            if kind == "report"
-            else {"kind": kind, "observations": [item.value for item in selected]}
-        )
+        if kind is None:
+            payload = selected[0].value
+        else:
+            gaps: dict[str, int] = {}
+            rows = []
+            for item in selected:
+                rows.extend(item.value["observations"])
+                for gap in item.value.get("gaps", ()):
+                    reason = gap["reason"]
+                    gaps[reason] = min(MAX_GAP_COUNT, gaps.get(reason, 0) + gap["count"])
+            payload = {"kind": kind, "observations": rows}
+            if gaps:
+                payload["gaps"] = [
+                    {"reason": reason, "count": count} for reason, count in gaps.items()
+                ]
         deadline = min(
             [
                 self._clock() + FLUSH_BUDGET_SECONDS,
@@ -209,18 +232,23 @@ class SitemapCollector:
             self._publish(kind, payload, deadline), name="sitemap-publisher"
         )
 
-    async def _publish(self, kind: str, payload: dict, deadline: float) -> None:
+    async def _publish(self, kind: str | None, payload: dict, deadline: float) -> None:
         key = str(uuid4())
         try:
             async with asyncio.timeout(max(0.0, deadline - self._clock())):
+                if kind is None:
+                    if self._reports is None:
+                        raise RuntimeError("report projector is not installed")
+                    # Exact reads and source parsing happen once. Retry only
+                    # this prepared batch, including after source eviction.
+                    payload = await self._reports(
+                        payload["format"], ArtifactRef.model_validate(payload["artifact"])
+                    )
                 for attempt in range(MAX_ATTEMPTS):
                     if self._clock() >= deadline:
                         raise TimeoutError
                     try:
-                        if kind == "report":
-                            await self._client.import_source(payload, key, automatic=True)
-                        else:
-                            await self._client.collect(payload, key)
+                        await self._client.collect(payload, key)
                         self._failure = None
                         return
                     except (ArtifactAPIError, ArtifactTransportError) as error:
@@ -240,7 +268,7 @@ class SitemapCollector:
                         await self._sleep(delay)
         except (Exception, asyncio.CancelledError) as error:
             self._disabled = not (
-                kind == "report"
+                kind is None
                 and isinstance(error, ArtifactAPIError)
                 and not error.retryable
                 and error.code in _REPORT_REJECTION_CODES

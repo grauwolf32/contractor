@@ -1,11 +1,15 @@
-"""Actual scanner normalizers produce the reports consumed by the Go importer."""
+"""Scanner producers, Runtime adapters and process fixtures share one report contract."""
 
 import json
 from pathlib import Path
 
+from contractor_runtime.sitemap_collection import MAX_GAP_COUNT
+from contractor_runtime.toolsets.common import report_observations
+from contractor_runtime.toolsets.scan import ffuf, katana
 from contractor_runtime.toolsets.scan.ffuf import ffuf_observation
 from contractor_runtime.toolsets.scan.katana import katana_observation
 from contractor_runtime.toolsets.scan.process import ProcessResult
+from contractor_runtime.worker.tool_runtime import MAX_REPORT_BYTES
 
 
 def test_shared_sitemap_scanner_report_producers() -> None:
@@ -65,3 +69,19 @@ def test_shared_sitemap_scanner_report_producers() -> None:
     assert targets == b"https://example.test/users?expand=profile\n"
     assert actual == katana["observation"]
     assert katana["schemaVersion"] == 1 and katana["tool"] == "scan_katana"
+
+
+def test_shared_report_adapter_bounds_and_process_fixtures_match_producers():
+    root = Path(__file__).parents[2]
+    assert report_observations.MAX_REPORT_BYTES == MAX_REPORT_BYTES
+    assert report_observations.MAX_COUNT == MAX_GAP_COUNT
+    assert report_observations.MAX_RESULTS == ffuf.MAX_FFUF_RESULTS == katana.MAX_TARGETS
+    assert (
+        report_observations.MAX_RESULT_BYTES
+        == ffuf.MAX_FFUF_RESULTS_BYTES
+        == katana.MAX_TARGET_BYTES
+    )
+    for kind in ("ffuf", "katana"):
+        source = (root / "api/testdata/sitemap-reports" / f"{kind}-report.json").read_bytes()
+        process = (root / "tests/e2e/testdata/sitemap/reports" / f"{kind}-report.json").read_bytes()
+        assert source == process

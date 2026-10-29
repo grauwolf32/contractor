@@ -33,7 +33,6 @@ MAX_SITEMAP_BYTES = 32 << 20
 MAX_SITEMAP_COMMAND_BYTES = 256 << 10
 MAX_SITEMAP_METADATA_BYTES = 16 << 10
 SITEMAP_MEDIA_TYPE = "application/vnd.contractor.project-sitemap+json"
-REPORT_FORMATS = {"scan_ffuf": "ffuf-report@1", "scan_katana": "katana-report@1"}
 
 
 class SitemapClient:
@@ -41,8 +40,10 @@ class SitemapClient:
         self._root = allocation_path(client.allocation_id, "sitemap")
         self._transport = client.transport
 
-    async def collect(self, batch: Mapping[str, object], key: str) -> SitemapMutationResult:
-        response = await self._post("observations", batch, key)
+    async def collect(
+        self, batch: Mapping[str, object], key: str, *, automatic: bool = True
+    ) -> SitemapMutationResult:
+        response = await self._post("observations", batch, key, automatic=automatic)
         return decode_private(SitemapMutationResponse, response).result
 
     async def mutate(self, command: Mapping[str, object], key: str) -> SitemapMutationResult:
@@ -52,12 +53,6 @@ class SitemapClient:
     async def snapshot(self, selection: Mapping[str, object], key: str) -> SitemapSnapshotResult:
         response = await self._post("snapshots", selection, key)
         return decode_private(SitemapSnapshotResponse, response).result
-
-    async def import_source(
-        self, selection: Mapping[str, object], key: str, *, automatic: bool = False
-    ) -> SitemapMutationResult:
-        response = await self._post("imports", selection, key, automatic=automatic)
-        return decode_private(SitemapMutationResponse, response).result
 
     async def _post(
         self, operation: str, value: Mapping[str, object], key: str, *, automatic: bool = False
@@ -70,9 +65,8 @@ class SitemapClient:
                         "mutations": "mutation",
                         "snapshots": "selection",
                         "observations": "input",
-                        "imports": "selection",
                     }[operation]: value,
-                    **({"automatic": automatic} if operation == "imports" else {}),
+                    **({"automatic": automatic} if operation == "observations" else {}),
                 },
                 ensure_ascii=False,
                 sort_keys=True,
@@ -82,12 +76,12 @@ class SitemapClient:
             name="sitemap-command-encode",
         )
         if len(body) > MAX_SITEMAP_COMMAND_BYTES:
-            raise ValueError("sitemap command exceeds its byte bound")
+            raise ArtifactAPIError(400, "invalid_request", False)
         # Reconcile one ambiguous transport loss with the same bytes and key.
         # The Server owns storage retry budgets and definite API failures.
         async with asyncio.timeout(15):
             response = None
-            collected = operation == "observations" or automatic
+            collected = automatic
             for attempt in range(1 if collected else 2):
                 try:
                     response = await self._transport.request(

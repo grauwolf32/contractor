@@ -14,19 +14,20 @@ from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.redaction import runtime_secrets
-from contractor_runtime.sitemap import REPORT_FORMATS, SitemapClient
+from contractor_runtime.sitemap import SitemapClient
 from contractor_runtime.toolsets.common.artifact_visibility import require_model_visible_binding
 from contractor_runtime.toolsets.common.artifacts import ArtifactClientFactory, _unconfigured_client
 from contractor_runtime.toolsets.common.factory import require_metrics, require_selected_tools
+from contractor_runtime.toolsets.common.report_observations import REPORT_FORMATS, prepare_report
 from contractor_runtime.toolsets.common.tool_base import SessionArtifactTool
 from contractor_runtime.toolsets.sitemap.session import SitemapSession
 from contractor_runtime.workspace import AllocationWorkspace
 
-ImportDispatcher = Callable[[SitemapClient, Mapping[str, Any], str], Awaitable[dict[str, Any]]]
+ImportDispatcher = Callable[[ArtifactClient, Mapping[str, Any], str], Awaitable[dict[str, Any]]]
 
 
 async def import_sitemap_report(
-    client: SitemapClient, selection: Mapping[str, Any], key: str
+    client: ArtifactClient, selection: Mapping[str, Any], key: str
 ) -> dict[str, Any]:
     if (
         not isinstance(selection, Mapping)
@@ -39,9 +40,8 @@ async def import_sitemap_report(
         require_model_visible_binding(artifact.namespace, artifact.name)
     except (ValueError, TypeError):
         raise ToolInputError("artifact must be an accessible exact current-Run ref") from None
-    result = await client.import_source(
-        {"format": selection["format"], "artifact": artifact.model_dump(by_alias=True)}, key
-    )
+    batch = await prepare_report(client, selection["format"], artifact)
+    result = await SitemapClient(client).collect(batch, key, automatic=False)
     return result.model_dump(by_alias=True)
 
 
@@ -456,13 +456,16 @@ class ImportSitemapSource(_SitemapTool):
     name = "import_sitemap_source"
     description = """Import an explicitly selected exact source through an installed format adapter.
 
+    Each invocation reads the exact selected revision. Transport retries reuse
+    the prepared observations; a new invocation fails if its source was removed.
+
     Args:
         format: ffuf-report@1 or katana-report@1.
         artifact_ref: Exact current-Run artifact with namespace, name and revision.
         idempotency_key: Reuse only for an identical ambiguous operation.
 
     Returns:
-        Classified import result, accepted map reference and gaps.
+        Import outcome and accepted map reference.
     """
 
     async def __call__(
@@ -474,9 +477,7 @@ class ImportSitemapSource(_SitemapTool):
             if self._dispatcher is None:
                 raise RuntimeError("sitemap import adapter is not installed")
             return await self._session.dispatch_import(
-                lambda: self._dispatcher(
-                    self._session.client, selection, idempotency_key or str(uuid4())
-                )
+                lambda: self._dispatcher(self._client, selection, idempotency_key or str(uuid4()))
             )
 
         return await self._invoke(
