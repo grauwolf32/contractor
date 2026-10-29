@@ -346,6 +346,12 @@ class AllocationService:
                         tools,
                         adapter_deadline,
                     )
+                # Target identity credentials belong only to the preflight
+                # owner. The ordinary Worker/summarizer must not copy them
+                # into its own long-lived redaction or model state.
+                worker_settings = spec.runtime_settings.model_copy(
+                    update={"pentest_identities": None}
+                )
                 worker = await runtime_factory.create(
                     WorkerBuildContext(
                         allocation_id=spec.allocation_id,
@@ -368,7 +374,7 @@ class AllocationService:
                         tools=tools,
                         state=worker_state,
                         a2a_base_url=self._a2a_base_url,
-                        runtime_settings=spec.runtime_settings,
+                        runtime_settings=worker_settings,
                         sensitive_output_tools=self._factories.sensitive_output_tools,
                         summarizer=(
                             spec.agent_template.summarizer.model_copy(
@@ -637,6 +643,7 @@ class AllocationService:
             completedSeeds=summary.completed,
             failedSeeds=summary.failed,
             unknownSeeds=summary.unknown,
+            identities=list(summary.identities),
         )
 
     async def finalize(self, request: FinalizeAllocationRequest) -> AllocationFinalResponse:

@@ -26,6 +26,8 @@ EXPECTED_PROCESS_TESTS = {
     "TestPentestHTTPRouteMatrixAcrossProcesses",
     "TestPentestHTTPBoundsAcrossProcesses",
     "TestPentestHTTPLifecycleAcrossProcesses",
+    "TestPentestIdentitySessionsAcrossProcesses",
+    "TestPentestIdentityLifecycleAcrossProcesses",
     "TestNucleiWebWithDeterministicScannerAcrossProcesses",
     "TestAgentSkillsMVPProcesses",
     "TestArtifactHistoryAcrossProductionProcesses",

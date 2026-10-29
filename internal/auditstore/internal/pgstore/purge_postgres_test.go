@@ -359,7 +359,7 @@ func seedPurgePentestRows(t *testing.T, f collectingAuditFixture) {
 	t.Helper()
 	actionID := pentestID("pa-", f.audit.AuditID+":0")
 	attemptID := pentestID("pt-", actionID+":0")
-	if _, err := f.pool.Exec(f.ctx, `INSERT INTO audit_actions(action_id,audit_id,seed_index) VALUES($1,$2,0)`, actionID, f.audit.AuditID); err != nil {
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO audit_actions(action_id,audit_id,allocation_id,identity_id,generation,phase,step_index) VALUES($1,$2,'purge-allocation','anonymous',0,'seed',0)`, actionID, f.audit.AuditID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := f.pool.Exec(f.ctx, `INSERT INTO audit_action_attempts(attempt_id,audit_id,action_id,attempt_ordinal,redirect_hop,retry_ordinal,request_digest,target_digest,origin,method,action_class,identity_id,allocation_id,run_id,stage_execution_id,runtime_agent_id,runtime_instance_id,state,outcome) VALUES($1,$2,$3,0,0,0,$4,$4,'https://target.example','GET','read','anonymous','purge-allocation',$5,'purge-stage',$6,'purge-instance','cancelled_before_send','{"kind":"cancelled_before_send","responseBytes":0,"truncated":false,"reason":"cancelled"}')`, attemptID, f.audit.AuditID, actionID, testDigest("d"), *f.execution.RunID, strings.Repeat("a", 64)); err != nil {

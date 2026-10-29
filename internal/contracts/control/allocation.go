@@ -117,6 +117,36 @@ type AllocationSpec struct {
 }
 
 func (s AllocationSpec) Validate() error {
+	if len(s.RuntimeSettings.PentestIdentities) > 0 && (s.PentestEngagement == nil || s.PentestEngagement.Preflight == nil) {
+		return contracts.Invalidf("pentest material requires an assigned identity")
+	}
+	if s.PentestEngagement != nil && s.PentestEngagement.Preflight != nil {
+		expected := 0
+		for _, identity := range s.PentestEngagement.Preflight.Identities {
+			if identity.Credential == nil {
+				continue
+			}
+			expected++
+			material, ok := s.RuntimeSettings.PentestIdentities[identity.ID]
+			if !ok || material.Credential != *identity.Credential {
+				return contracts.Invalidf("pentest private credential differs from assignment")
+			}
+			if recipe, ok := s.PentestEngagement.Preflight.LoginRecipes[identity.ID]; ok && material.Credential.Kind == runtimesettings.RuntimeCredentialTargetLogin {
+				if len(recipe.SecretFields) != len(material.Fields) {
+					return contracts.Invalidf("pentest private fields differ from recipe")
+				}
+				for _, name := range recipe.SecretFields {
+					if _, ok := material.Fields[name]; !ok {
+						return contracts.Invalidf("pentest private fields differ from recipe")
+					}
+				}
+			}
+		}
+		if expected != len(s.RuntimeSettings.PentestIdentities) {
+			return contracts.Invalidf("unassigned pentest private material")
+		}
+	}
+
 	if s.PentestEngagement != nil {
 		if err := s.PentestEngagement.Validate(); err != nil {
 			return err
