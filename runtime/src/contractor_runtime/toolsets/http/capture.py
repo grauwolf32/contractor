@@ -31,7 +31,6 @@ class CapturedAttempt:
             datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f").rstrip("0").rstrip(".") + "Z"
         )
     )
-    session_generation: str = ""
     timed_out: bool = False
     status: int | None = None
     response_headers: list[dict[str, str]] = field(default_factory=list, repr=False)

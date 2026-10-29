@@ -9,7 +9,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/artifacts"
 )
 
-func TestPostgresSitemapHTTPCollectionProjectionSessionsAndReceipt(t *testing.T) {
+func TestPostgresSitemapHTTPCollectionProjectionAndReceipt(t *testing.T) {
 	pool := sitemapPool(t)
 	ctx := t.Context()
 	createSitemapRun(t, ctx, pool, "http-consumer")
@@ -20,22 +20,22 @@ func TestPostgresSitemapHTTPCollectionProjectionSessionsAndReceipt(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := CollectionIngress{Observations: []HTTPObservation{}}
+	input := CollectionIngress{Observations: []Observation{}}
 	for _, row := range []struct {
-		path, outcome, generation string
-		status                    int
+		path, outcome string
+		status        int
 	}{
-		{"/safe?q=query-canary&token=query-canary&password=query-canary", "response", "session-one", 200},
-		{"/safe?q=other-query-value", "timeout", "session-two", 0},
-		{"/session/short-password", "response", "session-one", 200},
-		{"/users/short%252Dpassword", "response", "session-one", 200},
-		{"/opaque/ABCDEFGHIJKLMNOPQRSTUVWXYZ123456", "response", "session-one", 200},
-		{"/redirect", "response", "session-one", 302},
+		{"/safe?q=query-canary&token=query-canary&password=query-canary", "response", 200},
+		{"/safe?q=other-query-value", "timeout", 0},
+		{"/session/short-password", "response", 200},
+		{"/users/short%252Dpassword", "response", 200},
+		{"/opaque/ABCDEFGHIJKLMNOPQRSTUVWXYZ123456", "response", 200},
+		{"/redirect", "response", 302},
 	} {
 		o := observation(row.path)
 		o.URL = "https://api.example.test" + row.path
 		o.Outcome, o.Status = row.outcome, row.status
-		input.Observations = append(input.Observations, HTTPObservation{Observation: o, SessionGeneration: row.generation})
+		input.Observations = append(input.Observations, o)
 	}
 	committed, err := s.CollectHTTPAllocation(ctx, access, "http-first", input)
 	if err != nil {
@@ -59,28 +59,23 @@ func TestPostgresSitemapHTTPCollectionProjectionSessionsAndReceipt(t *testing.T)
 	if len(view.Document.Groups) != 5 {
 		t.Fatalf("unexpected visited routes: %+v", view.Document.Groups)
 	}
-	contexts := map[string]bool{}
 	for _, group := range view.Document.Groups {
 		for _, member := range group.Members {
 			for _, summary := range member.Summaries {
-				if summary.Provenance.RunID != "http-consumer" || summary.Provenance.Kind != "http" {
+				if summary.Provenance.SourceID != key("http", "") || summary.Provenance.Kind != "http" {
 					t.Fatal("forged provenance")
 				}
 				if summary.Outcome == "timeout" && summary.Status != 0 {
 					t.Fatal("invented response")
 				}
-				contexts[summary.Context] = true
 			}
 		}
-	}
-	if len(contexts) != 2 {
-		t.Fatal("unknown sessions were merged")
 	}
 	history, _ := artifacts.NewHistoryPolicy(2, artifacts.DefaultHistoryMaxBytes)
 	ctx = artifacts.WithHistoryPolicy(ctx, history)
 	for n := range 4 {
 		next := input
-		next.Observations = []HTTPObservation{{Observation: observation(fmt.Sprintf("/next/%d", n)), SessionGeneration: "session-one"}}
+		next.Observations = []Observation{observation(fmt.Sprintf("/next/%d", n))}
 		if _, err = s.CollectHTTPAllocation(ctx, access, fmt.Sprintf("next-%d", n), next); err != nil {
 			t.Fatal(err)
 		}
@@ -114,7 +109,7 @@ func TestPostgresSitemapRetainsCredentialNamedMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.CollectHTTPAllocation(ctx, access, "observe", CollectionIngress{Observations: []HTTPObservation{{Observation: observation("/dispatch?token=short-password&password=excluded-query-value"), SessionGeneration: "session-one"}}})
+	_, err = service.CollectHTTPAllocation(ctx, access, "observe", CollectionIngress{Observations: []Observation{observation("/dispatch?token=short-password&password=excluded-query-value")}})
 	if err != nil {
 		t.Fatal(err)
 	}

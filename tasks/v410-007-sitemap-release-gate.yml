@@ -102,7 +102,7 @@ requirements:
     is one option. Numeric policy changes require explicit user approval, not a silent increase.
 - id: R4
   text: 'All reviewed sitemap failure classes specified by proposal 0042 for this slice have explicit executable coverage:
-    bounded metadata normalization, trusted source provenance, context namespaces, stale source replacement, bounded members/suppression,
+    bounded metadata normalization, trusted source/deployment provenance, Run-independent coalescing, stale source replacement, bounded members/suppression,
     and shared retained-history policy bypass paths.'
 - id: R5
   text: Run full touched-package suites and existing affected HTTP/Caido, OpenAPI/scan preparation and Audit composition
@@ -135,7 +135,7 @@ failure_outcomes:
   timeout: Record elapsed time diagnostically; correctness depends on deterministic work/budget counters and completion
     outcomes.
 cardinality:
-- collection: Map, members, examples, sources, markers, contexts and accumulated publication history
+- collection: Map, members, examples, sources, markers, behavior summaries and accumulated publication history
   expected: Typical proposal workload plus each independent ceiling
   maximum: Proposal section 10 map/nested limits and V410-010 ordinary per-binding history limits, with ten concurrent
     writers and independently bounded logical artifacts
@@ -168,12 +168,12 @@ acceptance_criteria:
     cases prove scan/delete limits and generic backpressure without payload/all-JSON scans. Mixed pins, all pins and
     former-current replacement preserve every legitimate retention obligation.
 - id: A3
-  given: Credential-like metadata, excluded fields, source-kind/identity/source-CAS/member-overflow fixtures and owner-selected inputs
+  given: Credential-like metadata, excluded fields, source-kind/deployment/source-CAS/member-overflow fixtures and owner-selected inputs
   when: Every ingress and consumer surface is exercised
   then: Valid metadata survives without secret matching or matching-secret transport. Fields outside the map model
     stay excluded, permitted dedicated readers see the same shared map and ordinary owner-selected inputs remain
     complete. Current operation grants and exact snapshot-file permissions remain enforced without view policy digests.
-    General telemetry redaction is unchanged; no old-source rollback or principal conflation occurs, and
+    General telemetry redaction is unchanged; no old-source rollback or principal attribution is introduced, and
     split/merge/suppression uncertainty remains truthful.
 - id: A4
   given: Lost replies, evicted receipt results, pin/delete/publication races, shared blobs, direct bypass attempts

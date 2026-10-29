@@ -224,7 +224,19 @@
           "type": "integer"
         },
         "reason": {
-          "maxLength": 8192,
+          "enum": [
+            "structural",
+            "members",
+            "groups",
+            "summaries",
+            "examples",
+            "regrouping",
+            "incomplete",
+            "parameters",
+            "source-unavailable",
+            "ambiguous",
+            "projection"
+          ],
           "type": "string"
         },
         "sourceId": {
@@ -391,9 +403,6 @@
     "SitemapProvenance": {
       "additionalProperties": false,
       "properties": {
-        "credentialRevision": {
-          "$ref": "#/components/schemas/ResourceId"
-        },
         "deployment": {
           "$ref": "#/components/schemas/ResourceId"
         },
@@ -408,12 +417,6 @@
             "openapi"
           ],
           "type": "string"
-        },
-        "runId": {
-          "$ref": "#/components/schemas/ResourceId"
-        },
-        "sessionGeneration": {
-          "$ref": "#/components/schemas/ResourceId"
         },
         "sourceId": {
           "$ref": "#/components/schemas/ResourceId"
@@ -557,11 +560,6 @@
     "SitemapSummary": {
       "additionalProperties": false,
       "properties": {
-        "context": {
-          "maxLength": 64,
-          "pattern": "^[0-9a-f]{64}$",
-          "type": "string"
-        },
         "first": {
           "maxLength": 8192,
           "type": "string"
@@ -593,7 +591,6 @@
       },
       "required": [
         "provenance",
-        "context",
         "outcome",
         "status",
         "parameters",

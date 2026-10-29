@@ -54,7 +54,7 @@ scope:
     source checkpoint state through the existing map/source mutation boundary.
   - Handle provider deletion/expiry/gaps, missing or unstable continuation, restart/lost replies and repeated pages
     without claiming complete history.
-  - Preserve metadata normalization, correlation, source-kind/context provenance, quota accounting and separate target
+  - Preserve metadata normalization, correlation, source-kind/deployment provenance, quota accounting and separate target
     versus collection outcomes from the first slice.
   - Add a mandatory optional-feature gate and usage documentation without adding a requirement to HTTP/OpenAPI profiles.
   out:
@@ -83,7 +83,9 @@ requirements:
 - id: R6
   text: Provider/source and per-operation limits remain independent of the automatic common per-binding Artifact
     history policy. ArtifactStore owns admission/accounting/eviction; receipts/checkpoints alone do not pin history.
-    No custom cumulative Run publication quota applies. Protected-capacity conflicts preserve accepted map/checkpoint.
+    No custom cumulative Run publication quota applies. Importing Run or provider-session changes do not create
+    another behavior summary; metadata carries no principal/authentication attribution. Protected-capacity conflicts
+    preserve accepted map/checkpoint.
 failure_outcomes:
 - operation: Fetch selected Caido history page
   permanent: Unsupported continuation/selection, invalid provider response or expired cursor returns a stable source-specific
@@ -109,7 +111,7 @@ cardinality:
   bound: One bounded page/batch per checkpoint and bounded discovery of provider gaps.
 - collection: Checkpoint/source state and deduplication attribution
   expected: One current checkpoint per selected source generation
-  maximum: Existing source-registry/provenance/context bounds
+  maximum: Existing source-registry/summary/evidence bounds
   bound: Retain bounded source state rather than a per-request durable event journal.
 lifecycle:
 - entity: Selected Caido history source and checkpoint

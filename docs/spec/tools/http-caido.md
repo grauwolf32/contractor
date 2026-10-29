@@ -1136,7 +1136,9 @@ outcomes are domain results, not error codes (HTP-R91, HTP-R111).
 
 **HTP-R135.** HTTP capture may notify an optional transport-neutral allocation
 subscriber before evidence-buffer admission. Observation frames carry bounded
-attempt metadata only, with no matching-secret list. HTTP tools do not own sitemap
+attempt metadata only, with no matching-secret list or sitemap-only session
+generation. The subscriber does not infer identity or authentication state; actual
+HTTP credentials, cookies and sessions retain their existing behavior. HTTP tools do not own sitemap
 projection, persistence, retry or drain. The automatic subscriber cannot add
 sitemap failure fields to HTTP results, repeat target traffic or replace its
 outcome. Caller cancellation remains joined. [SMT-R18](../artifacts/project-sitemap.md)

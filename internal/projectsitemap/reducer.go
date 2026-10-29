@@ -173,7 +173,7 @@ func validateDocument(d Document) error {
 				return ErrInvalid
 			}
 		}
-		contexts, examples := map[string]bool{}, 0
+		examples := 0
 		for _, m := range g.Members {
 			if m.Summaries == nil || m.Examples == nil || m.Evidence == nil || m.Annotations == nil ||
 				m.ID != memberID(g.Origin, g.Method, m.Path, g.Structural...) || members[m.ID] ||
@@ -184,11 +184,10 @@ func validateDocument(d Document) error {
 			members[m.ID] = true
 			seenSummaries := map[string]bool{}
 			for _, s := range m.Summaries {
-				if s.Parameters == nil || !observedKind(s.Provenance.Kind) || !admittedProvenance(s.Provenance, sources) || !hashPattern.MatchString(s.Context) || seenSummaries[summaryKey(s)] || !validOutcome(s.Outcome, s.Status) ||
+				if s.Parameters == nil || !observedKind(s.Provenance.Kind) || !admittedProvenance(s.Provenance, sources) || seenSummaries[summaryKey(s)] || !validOutcome(s.Outcome, s.Status) ||
 					!validTime(s.First) || !validTime(s.Last) || timeBefore(s.Last, s.First) || !validNames(s.Parameters) {
 					return ErrInvalid
 				}
-				contexts[s.Context] = true
 				seenSummaries[summaryKey(s)] = true
 			}
 			examples += len(m.Examples)
@@ -209,7 +208,7 @@ func validateDocument(d Document) error {
 				}
 			}
 		}
-		if len(contexts) > MaxContexts || examples > MaxExamples {
+		if examples > MaxExamples {
 			return ErrInvalid
 		}
 		for _, declaration := range g.Declarations {
@@ -239,7 +238,7 @@ func validateDocument(d Document) error {
 	for _, gap := range d.Gaps {
 		id := gap.SourceID + "/" + gap.Reason
 		if gapIDs[id] || gap.Count > MaxOmissionCount || (gap.SourceID != "" && !contracts.ValidResourceID(gap.SourceID)) ||
-			!slices.Contains([]string{"structural", "members", "groups", "summaries", "contexts", "examples", "regrouping", "incomplete", "parameters", "source-unavailable", "ambiguous", "projection"}, gap.Reason) {
+			!slices.Contains([]string{"structural", "members", "groups", "summaries", "examples", "regrouping", "incomplete", "parameters", "source-unavailable", "ambiguous", "projection"}, gap.Reason) {
 			return ErrInvalid
 		}
 		gapIDs[id] = true
@@ -248,7 +247,7 @@ func validateDocument(d Document) error {
 }
 
 func validProvenance(p Provenance) bool {
-	return (Authority{SourceID: p.SourceID, Kind: p.Kind, RunID: p.RunID, Deployment: p.Deployment, CredentialRevision: p.CredentialRevision, SessionGeneration: p.SessionGeneration}).validate() == nil
+	return (Authority{SourceID: p.SourceID, Kind: p.Kind, Deployment: p.Deployment}).validate() == nil
 }
 func admittedProvenance(p Provenance, sources map[string]Source) bool {
 	source, found := sources[p.SourceID]
@@ -323,7 +322,6 @@ func Reduce(current Document, mutation Mutation, authority Authority) (Document,
 	next := cloneDocument(current)
 	if mutation.Operation != "replace-source" {
 		provenance := authority.provenance()
-		provenance.RunID, provenance.CredentialRevision, provenance.SessionGeneration = "", "", ""
 		index := slices.IndexFunc(next.Sources, func(s Source) bool { return s.Provenance.SourceID == authority.SourceID })
 		if index < 0 {
 			if len(next.Sources) == MaxSources {
@@ -331,9 +329,7 @@ func Reduce(current Document, mutation Mutation, authority Authority) (Document,
 			}
 			next.Sources = append(next.Sources, Source{Provenance: provenance, Generation: 1, PolicyDigest: key(Projection)})
 		} else {
-			stable := next.Sources[index].Provenance
-			stable.RunID, stable.CredentialRevision, stable.SessionGeneration = "", "", ""
-			if stable != provenance {
+			if next.Sources[index].Provenance != provenance {
 				return Document{}, nil, ErrConflict
 			}
 		}
@@ -343,18 +339,8 @@ func Reduce(current Document, mutation Mutation, authority Authority) (Document,
 		if !authority.CanObserve || len(mutation.Observations) == 0 || len(mutation.Observations) > MaxBatch || !onlyFields(mutation, "observe") {
 			return Document{}, nil, ErrInvalid
 		}
-		if mutation.sessionGenerations != nil && len(mutation.sessionGenerations) != len(mutation.Observations) {
-			return Document{}, nil, ErrInvalid
-		}
-		for index, observation := range mutation.Observations {
-			context := authority
-			if mutation.sessionGenerations != nil {
-				context.SessionGeneration = mutation.sessionGenerations[index]
-				if !contracts.ValidResourceID(context.SessionGeneration) {
-					return Document{}, nil, ErrInvalid
-				}
-			}
-			if err := observe(&next, observation, context); err != nil {
+		for _, observation := range mutation.Observations {
+			if err := observe(&next, observation, authority); err != nil {
 				return Document{}, nil, err
 			}
 		}
@@ -395,7 +381,6 @@ func onlyFields(m Mutation, op string) bool {
 	switch op {
 	case "observe":
 		clean.Observations = m.Observations
-		clean.sessionGenerations = m.sessionGenerations
 	case "declare":
 		clean.URL, clean.Method = m.URL, m.Method
 	case "annotate":
@@ -567,7 +552,7 @@ func observe(d *Document, o Observation, a Authority) error {
 		addGap(d, a.SourceID, "members", 1)
 		return nil
 	}
-	summary := Summary{Provenance: a.provenance(), Context: a.contextKey(), Outcome: o.Outcome, Status: o.Status, Parameters: parameters, First: o.At, Last: o.At}
+	summary := Summary{Provenance: a.provenance(), Outcome: o.Outcome, Status: o.Status, Parameters: parameters, First: o.At, Last: o.At}
 	for i := range m.Summaries {
 		if summaryKey(m.Summaries[i]) == summaryKey(summary) {
 			if timeBefore(o.At, m.Summaries[i].First) {
@@ -579,18 +564,9 @@ func observe(d *Document, o Observation, a Authority) error {
 			return nil
 		}
 	}
-	contexts := map[string]bool{}
 	examples := 0
 	for _, member := range g.Members {
 		examples += len(member.Examples)
-		for _, s := range member.Summaries {
-			contexts[s.Context] = true
-		}
-	}
-	if !contexts[summary.Context] && len(contexts) == MaxContexts {
-		m.Omitted = saturated(m.Omitted, 1)
-		addGap(d, a.SourceID, "contexts", 1)
-		return nil
 	}
 	if len(m.Summaries) == MaxSummaries {
 		m.Omitted = saturated(m.Omitted, 1)

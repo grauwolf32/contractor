@@ -33,6 +33,7 @@ func TestSharedProjectSitemapCases(t *testing.T) {
 	var fixture struct {
 		Version    string          `json:"version"`
 		Empty      json.RawMessage `json:"empty"`
+		Observed   json.RawMessage `json:"observed"`
 		Invalid    []string        `json:"invalid"`
 		Projection []struct {
 			URL        string   `json:"url"`
@@ -50,6 +51,9 @@ func TestSharedProjectSitemapCases(t *testing.T) {
 	document, err := Decode(fixture.Empty)
 	if err != nil || !reflect.DeepEqual(document, Empty()) {
 		t.Fatalf("empty: %v", err)
+	}
+	if observed, err := Decode(fixture.Observed); err != nil || len(observed.Groups) != 1 || len(observed.Groups[0].Members[0].Summaries) != 1 {
+		t.Fatalf("observed: %v", err)
 	}
 	for _, invalid := range fixture.Invalid {
 		if _, err := Decode([]byte(invalid)); err == nil {
@@ -117,7 +121,7 @@ func TestSharedSitemapTextBoundsCountUTF8Bytes(t *testing.T) {
 	}
 }
 
-func TestReducerKeepsIdentityContextsAndSetSummaries(t *testing.T) {
+func TestReducerKeepsSourceAndBehaviorSummaries(t *testing.T) {
 	d := Empty()
 	a := httpAuthority("first-run")
 	d = applyObservations(t, d, a, observation("/Users/%2F/"), observation("/Users/%2F/?x=one"))
@@ -133,30 +137,15 @@ func TestReducerKeepsIdentityContextsAndSetSummaries(t *testing.T) {
 	if !bytes.Equal(first, second) {
 		t.Fatal("repeated set observation changed map")
 	}
-	a.RunID, a.SourceID = "second-run", "second-run"
+	a.RunID = "second-run"
 	d = applyObservations(t, d, a, observation("/Users/%2F/"))
-	if len(d.Groups[0].Members[0].Summaries) != 3 {
+	if len(d.Groups[0].Members[0].Summaries) != 2 {
 		t.Fatalf("summary diversity: %+v", d.Groups[0])
 	}
-	contexts := map[string]bool{}
-	for _, s := range d.Groups[0].Members[0].Summaries {
-		contexts[s.Context] = true
-	}
-	if len(contexts) != 2 {
-		t.Fatal("ordinary Runs conflated")
-	}
-	a.Engagement = "engagement-one"
-	a.IdentityID = "user-a"
-	firstContext := a.contextKey()
-	a.Engagement = "engagement-two"
-	if firstContext == a.contextKey() {
-		t.Fatal("engagement-local labels conflated")
-	}
-	a.IdentityID = ""
-	firstContext = a.contextKey()
-	a.RunID = "another-unknown-run"
-	if firstContext == a.contextKey() {
-		t.Fatal("unknown engagement actors conflated across Runs")
+	a.SourceID = "second-source"
+	d = applyObservations(t, d, a, observation("/Users/%2F/"))
+	if len(d.Groups[0].Members[0].Summaries) != 3 {
+		t.Fatal("different sources were conflated")
 	}
 }
 
@@ -205,12 +194,20 @@ func TestReducerRegroupsRetainedMembersAndKeepsSuppression(t *testing.T) {
 func TestReducerOverflowNeverInventsMembership(t *testing.T) {
 	a := httpAuthority("traffic")
 	d := Empty()
-	for i := 0; i < MaxContexts+2; i++ {
-		a.IdentityID = fmt.Sprint("principal-", i)
-		d = applyObservations(t, d, a, observation("/users/me"))
+	for i := 0; i < MaxSummaries+2; i++ {
+		o := observation("/users/me")
+		o.Status += i
+		d = applyObservations(t, d, a, o)
 	}
-	if len(d.Groups[0].Members[0].Summaries) != MaxContexts || d.Groups[0].Members[0].Omitted != 2 {
-		t.Fatal("context overflow was attributed to a shared principal")
+	if len(d.Groups[0].Members[0].Summaries) != MaxSummaries || d.Groups[0].Members[0].Omitted != 2 {
+		t.Fatal("summary overflow did not preserve accepted behavior")
+	}
+	o := observation("/users/me")
+	o.At = "2026-10-27T00:00:00Z"
+	a.RunID = "later-run"
+	d = applyObservations(t, d, a, o)
+	if d.Groups[0].Members[0].Omitted != 2 || !slices.ContainsFunc(d.Groups[0].Members[0].Summaries, func(s Summary) bool { return s.Status == 200 && s.Last == o.At }) {
+		t.Fatal("known behavior stopped updating at capacity")
 	}
 	// A template retains only the concrete inventory, independent of examples.
 	rules := []Rule{{SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/items/{id}", Parameters: []string{}}}
@@ -263,15 +260,15 @@ func TestReducerStructuralSelectionAndSuppressionConflict(t *testing.T) {
 	}
 }
 
-func TestReducerSequentialRunsUseStableSourceAndDistinctContexts(t *testing.T) {
+func TestReducerSequentialRunsShareBehaviorSummaries(t *testing.T) {
 	d := Empty()
 	for i := range 200 {
 		a := httpAuthority(fmt.Sprintf("run-%d", i))
 		a.SourceID = "http-transport"
 		d = applyObservations(t, d, a, observation("/shared"))
 	}
-	if len(d.Sources) != 1 || len(d.Groups[0].Members[0].Summaries) != MaxContexts || d.Groups[0].Members[0].Omitted != 200-MaxContexts {
-		t.Fatalf("sequential Runs consumed a per-Run source registry or merged contexts: %+v", d)
+	if len(d.Sources) != 1 || len(d.Groups[0].Members[0].Summaries) != 1 || d.Groups[0].Members[0].Omitted != 0 || len(d.Gaps) != 0 {
+		t.Fatalf("sequential Runs consumed map capacity: %+v", d)
 	}
 }
 

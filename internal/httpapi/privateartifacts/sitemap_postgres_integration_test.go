@@ -161,8 +161,11 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 	var expectedSource *projectsitemap.Source
 	manualSource := ""
 	for _, group := range editedMap.Groups {
+		if group.Route != "/manual" {
+			continue
+		}
 		for _, declaration := range group.Declarations {
-			if declaration.Provenance.RunID == "run-a" {
+			if declaration.Provenance.Kind == "manual" {
 				manualSource = declaration.Provenance.SourceID
 			}
 		}
@@ -184,7 +187,11 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/sitemap/mutations", "forged-source", forged), 400, "invalid_request", false)
 	setTools()
 	registry.grant.SitemapPolicy.CollectObservations = true
-	ingress := sitemapCollectionRequest{APIVersion: contracts.APIVersion, Input: projectsitemap.CollectionIngress{Observations: []projectsitemap.HTTPObservation{{Observation: projectsitemap.Observation{URL: "https://example.test/session/short-password?token=query-canary&password=query-canary", Method: "POST", Outcome: "response", Status: 201, At: "2026-10-26T00:00:00Z"}, SessionGeneration: "session-one"}}}}
+	obsolete := map[string]any{"apiVersion": contracts.APIVersion, "input": map[string]any{"observations": []any{
+		map[string]any{"url": "https://example.test/obsolete", "method": "GET", "outcome": "response", "status": 200, "at": "2026-10-26T00:00:00Z", "sessionGeneration": "old-session"},
+	}}}
+	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/sitemap/observations", "obsolete-session", obsolete), 400, "invalid_request", false)
+	ingress := sitemapCollectionRequest{APIVersion: contracts.APIVersion, Input: projectsitemap.CollectionIngress{Observations: []projectsitemap.Observation{{URL: "https://example.test/session/short-password?token=query-canary&password=query-canary", Method: "POST", Outcome: "response", Status: 201, At: "2026-10-26T00:00:00Z"}}}}
 	for range 2 {
 		if response := request(http.MethodPost, "/sitemap/observations", "http-publish", ingress); response.Code != 200 {
 			t.Fatalf("collection: %d %s", response.Code, response.Body.String())
