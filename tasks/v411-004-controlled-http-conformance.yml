@@ -136,7 +136,7 @@ tests:
 - command: go test -count=1 ./tests/e2e
   covers:
   - A5
-- command: make test-release-process-e2e
+- command: make test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
   covers:
   - A1
   - A2
@@ -198,3 +198,12 @@ applicability:
 - V411-024 repairs sibling HTTP/Caido and label process assertions that still expected a single
   advertised adapter after V411-003 added the built-in controlled HTTP capability. It changes no
   production placement or RuntimeConfig provenance; all affected process owners must pass.
+
+process_verification_execution:
+  reason: The sequential canonical process invocation reached its aggregate 50-minute timeout after
+    33 successful parents; it remains a failed/incomplete diagnostic. While it ran, main delivered
+    shared Artifact reads and one additional adapter-selector regression.
+  final_command: make test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
+  guarantee: Execute all three existing CI shards on the same integrated source. Their exact union
+    is the complete 36-root canonical deterministic process selection; no test is dropped, no
+    prerequisite or skip check is relaxed, and each shard retains its existing timeout/report gate.
