@@ -1,0 +1,83 @@
+schema_version: '1.0'
+id: V410-022
+title: Route sitemap reads through shared allocation Artifact access
+milestone: project-sitemap-2026-10
+epic: projects-artifacts
+kind: chore
+introduced_by: V410-002
+priority: P2
+status: in_progress
+depends_on: [V410-019, V410-020, V410-021]
+languages: [go, python, typescript, yaml, markdown]
+goal: Remove sitemap-specific read transport while preserving domain processing and immutable allocation-local read views over shared Artifact APIs.
+context:
+  authority: On 2026-10-29 the user approved replacing dedicated sitemap reads with generic artifact access and requested a detailed explanation of the local read cache.
+  finding: internal/httpapi/privateartifacts/sitemap_handlers.go:65 and :90 duplicate read transport and access verification because generic private artifact reads bind only the current Run; runtime/src/contractor_runtime/sitemap.py:53 and :68 implement separate access/view protocols; public sitemap GET and CLI duplicate ordinary Project artifact reads.
+  siblings: Public owner artifact reads, private raw and metadata reads, Control Plane grant cloning/fencing, Runtime artifact client and cached pages, grouping source identity, CLI and both generated clients, strict shared wire fixtures and process gates.
+  specification:
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/project-sitemap.md
+  - docs/spec/execution/control-plane.md
+  - docs/spec/execution/runtime-agent.md
+scope:
+  in:
+  - Extend the existing allocation grant with bounded explicit read targets for concrete bindings in the owning Run's Project, deriving scope identity on the Server.
+  - Reuse generic raw/metadata Artifact reads and ETag; add a shared authority-only check for cached reads using the existing allocation gate, without reading artifact payload or lineage.
+  - Remove private sitemap GET/access, public sitemap GET, special revision headers and obsolete response contracts end to end; preserve the CLI get command through ordinary artifact reads and domain decoding.
+  - Keep domain normalization, strict map decoding/indexing, command processing and snapshot selection in sitemap; assign manual grouping source identity inside the trusted mutation instead of fetching it through a read endpoint.
+  - Preserve immutable read views, bounded indexing/pages, explicit refresh, per-page current-operation checks, eviction-independent cached reads and exact-source snapshot semantics.
+  - Update owning specs, API schemas, shared fixtures, generated clients, architecture boundaries and required regression gates.
+  out:
+  - Arbitrary Project/User scope selectors, Project-wide listing, generic Project writes, new tables, tokens, leases or cache synchronization protocols.
+  - Changes to mutation/reducer, collection failure policy, history limits, original-input ownership or snapshot retention semantics.
+failure_outcomes:
+- operation: Generic allocation Project artifact read and cached-read authorization
+  success: Resolve only the granted binding and owning Project; return ordinary bytes/metadata or confirm current operation authority without artifact I/O.
+  permanent: Reject foreign identities, ungranted bindings/operations, malformed selectors, deleting Project and fenced/lost/released allocation before content access. Exact missing revision remains unavailable; only absent current sitemap becomes an empty domain view.
+  retryable: Preserve existing storage and transport classification and deadlines; no new retry loop.
+  cancelled: Existing allocation gate and joined Runtime work serialize release with reads and indexing.
+- operation: Local immutable read view
+  success: First read or refresh downloads one exact complete map; subsequent pages use its bytes and index after current Server authorization.
+  permanent: Invalidated cursor fails explicitly; revoked access prevents cached output. Source history eviction alone does not expire an existing view or create a hold.
+  timeout: Retain separately bounded collector flush, lock and read allowances.
+cardinality:
+- collection: Allocation Project read targets
+  expected: One concrete sitemap/map binding with only the selected read/snapshot operations.
+  bound: Generated from bounded pinned configuration; no wildcard targets, Project listing or full artifact collection scans.
+- collection: Runtime view and pages
+  maximum: Existing 32 MiB encoded document, 128 MiB total view and 100 rows / 256 KiB per page.
+  bound: One immutable view per allocation; parsing/indexing off the event loop; no additional full-map cache or duplicated payload.
+lifecycle:
+- entity: Existing allocation-local view and grant
+  retention: View lasts until refresh/replacement/release, without TTL or Artifact hold.
+  delete: Existing release joins in-flight work and clears the view; current fence/loss/Project lifecycle is checked before every cached page.
+acceptance_criteria:
+- id: A1
+  given: An owner or a permitted allocation reading sitemap/map
+  when: Current or exact content is requested
+  then: Ordinary Artifact API and client carry bytes and revision; no dedicated sitemap read endpoint/header remains, and arbitrary Project reads stay unavailable.
+- id: A2
+  given: A cached map whose source was updated or evicted
+  when: Pages are read, refreshed, fenced or released
+  then: Existing pages remain on the original view while authority is valid; refresh invalidates cursors, revocation prevents output, and no hold or snapshot reconstruction is introduced.
+- id: A3
+  given: Grouping edits, snapshots, manual commands and automatic observations
+  when: They execute after read transport removal
+  then: Trusted source identity, preconditions, idempotency, original-input resolution and existing failure semantics remain intact.
+- id: A4
+  given: Final specs, schemas, generated clients and every read consumer
+  when: Complete affected-package, shared-wire and real-process gates execute
+  then: The contracts agree and every mandatory case executes without skip; no compatibility shim or sitemap-specific branch exists in generic artifact read handling.
+tests:
+- command: make test-project-sitemap-postgres
+  covers: [A1, A2, A3, A4]
+- command: make test-project-sitemap-tools-e2e
+  covers: [A1, A2, A3]
+- command: make test-wire-cross-language
+  covers: [A1, A4]
+- command: make test-runtime
+  covers: [A1, A2, A3]
+- command: make verify-public-api
+  covers: [A1, A4]
+- command: make lint
+  covers: [A4]
