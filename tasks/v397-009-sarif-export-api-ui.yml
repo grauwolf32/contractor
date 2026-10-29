@@ -5,17 +5,27 @@ milestone: finding-sarif-export-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on:
 - V397-008
 languages:
-- go
-- python
 - typescript
 - markdown
 goal: Deliver this proposal 0028 SARIF stage through production callers with deterministic bounded work, exact evidence and every selected finding
-  retained.
+  retained in the snapshot; SARIF duplicate expansion is controlled by includeDuplicates.
 context:
+  audit_export_authority: >-
+    User direction on 2026-10-29: separate export and download by Audit.
+    One request, snapshot and SARIF belong to exactly one owner-authorized Audit;
+    never combine findings or decisions from different Audits in one file.
+    Audit identity comes from the route, not a caller-supplied source list.
+  duplicate_export_authority: >-
+    User direction on 2026-10-30: make duplicate inclusion a parameter.
+    includeDuplicates defaults to false; true exports all selected findings.
+    Group only selected identities by the existing qualified automatic key or
+    explicit same-Audit manual duplicate links; preserve all independent
+    decisions and evidence in the immutable snapshot and never select peers
+    from another Audit or infer equality from similar text.
   request: User requested SARIF work on 2026-10-22 alongside deterministic correlation.
   proposal:
   - docs/proposals/0028-finding-analysis-and-sarif.md#service-and-publication-contract
@@ -28,28 +38,35 @@ context:
   - docs/spec/platform/limits.md
   - docs/spec/api/public-api.md
   revalidated: >-
-    2026-10-24 on b523ae77: accurate; api/openapi/contractor-public-v1.yaml
-    has no /v1/finding-exports operation and neither the CLI nor the UI has
-    an export flow. Proposal 0028's #service-and-publication-contract is
-    unchanged and the dependency V397-008 is still pending. This task
-    remains the exit task of milestone finding-sarif-export-2026-10.
+    2026-10-30 after V397-008 (428f9556bc1261684dd88b11a6bd0158ccee7623):
+    Audit-local atomic API publication/download and CLI are complete in
+    V397-007; structured generic rendering and offline validation are complete.
+    This exit task delivers the UI selection, duplicate toggle and frozen
+    download/retry flow with UI release and real-browser coverage.
+  verification_boundary: >-
+    This task changes UI consumers and browser fixtures, not Runtime tools,
+    Go implementation or public field shapes. Run the full UI suites, real
+    Server/Runtime/PostgreSQL browser stack, shared/public contracts and lint.
+    V397-007/008 retain the full unchanged Go/Runtime evidence.
 scope:
   in:
-  - POST /v1/finding-exports and shared CLI/UI explicit selection/download with generated clients and UI patch bump.
+  - Audit-local export/download API and UI action; finding selection and publication keys are scoped to that Audit, with no cross-Audit source list.
+  - POST /v1/audits/{auditId}/findings/exports and shared CLI/UI explicit selection/download with generated clients and UI patch bump.
   - Atomic snapshot/SARIF/diagnostics/publication receipt using existing Artifact bindings, replay before live reads and strict changed/corrupt
     publication failures.
   out:
-  - Model tool schema changes, automatic review mutations, dropping duplicate selected identities, global issue/receipt stores and model-authored
+  - Cross-Audit combined files and ordinary-Run/direct-receipt export outside an Audit; contributions remain supporting evidence of selected Audit findings.
+  - Model tool schema changes, automatic review mutations, content-based heuristic merging, global issue/receipt stores and model-authored
     export assembly.
   - GitHub upload/profile, source maps, suppression/fix sync, security-score classification and complete-scan/remediation inference.
 requirements:
 - id: R1
-  text: POST /v1/finding-exports and shared CLI/UI explicit selection/download with generated clients and UI patch bump.
+  text: POST /v1/audits/{auditId}/findings/exports and shared CLI/UI explicit selection/download with generated clients and UI patch bump.
 - id: R2
   text: Atomic snapshot/SARIF/diagnostics/publication receipt using existing Artifact bindings, replay before live reads and strict changed/corrupt
     publication failures.
 - id: R3
-  text: Preserve every selected typed result and independent Audit triage/rating/origin, keep all Worker tool declarations/results unchanged and
+  text: Preserve every selected identity and independent Audit triage/rating/origin in the snapshot; includeDuplicates defaults to false and emits one selected representative per explicit duplicate group, while true emits every selected result; keep all Worker tool declarations/results unchanged and
     use exact frozen evidence without guessed joins.
 - id: R4
   text: Update owning contracts/shared fixtures and add a production caller for every export in the same change; pure rendering never performs
@@ -76,7 +93,7 @@ acceptance_criteria:
 - id: A1
   given: Authorized code/HTTP/no-analysis findings, duplicate observations and independent Audit results.
   when: The production stage resolves, freezes, renders or publishes its specified inputs.
-  then: Every selected typed identity survives with exact evidence and separate ratings; no LLM or Worker schema/result change occurs.
+  then: Every selected typed identity survives in the snapshot with exact evidence and separate ratings, while the frozen includeDuplicates option controls SARIF result grouping; no LLM or Worker schema/result change occurs.
 - id: A2
   given: Invalid/foreign/stale inputs, maximum sizes, concurrent changes, cancellation and lost publication responses.
   when: Real store/process paths handle each outcome.
@@ -86,21 +103,14 @@ acceptance_criteria:
   when: All required gates run with a disposable PostgreSQL URL.
   then: Deterministic output, production callers and public operation coverage are proved, without skipped database tests.
 tests:
-- command: go test -count=1 ./internal/auditdomain ./internal/findingintake ./internal/auditservice ./internal/httpapi/public ./internal/publicclient/...
-    ./internal/cli
-  covers:
-  - A1
-  - A2
-  - A3
-- command: make test-runtime test-wire-cross-language test-findings-e2e verify-public-api
-  covers:
-  - A1
-  - A2
-  - A3
 - command: make ui-verify test-ui-stack
-  covers:
-  - A1
-  - A3
+  covers: [A1, A2, A3]
+- command: make test-wire-cross-language verify-public-api
+  covers: [A1, A2, A3]
 - command: make lint
-  covers:
-  - A3
+  covers: [A3]
+
+verification_scope:
+  authority: "User decision on 2026-10-29: continue SARIF with complete checks of touched packages; record the full Runtime gate as a limitation."
+  full_runtime: "The macOS full run was interrupted after 11 failures, 3257 passes and 5 skips; failures were outside SARIF, including known V401-007 platform cases and pentest identity socket tests. No complete Runtime pass is claimed."
+  linux_attempt: "A local Podman VM was available, but package repositories returned HTTP 403 while preparing an isolated Linux runner; no Linux pass is claimed."
