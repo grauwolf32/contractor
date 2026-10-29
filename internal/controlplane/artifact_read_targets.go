@@ -8,14 +8,14 @@ import (
 )
 
 // projectArtifactReadTargets composes concrete read authority from the pinned
-// configuration. Today there is at most one target with three operations; the
+// configuration. Today there is at most one target with two operations; the
 // generic Artifact handler does not interpret toolset identities or policies.
 func projectArtifactReadTargets(grant AllocationGrant) []ProjectArtifactReadTarget {
 	if grant.SitemapPolicy == nil || grant.SitemapPolicy.Validate() != nil {
 		return nil
 	}
 	operations := []string{}
-	for _, operation := range []string{contracts.SitemapListTool, contracts.SitemapReadTool, contracts.SitemapSnapshotTool} {
+	for _, operation := range []string{contracts.SitemapListTool, contracts.SitemapReadTool} {
 		if slices.Contains(grant.SitemapTools, operation) {
 			operations = append(operations, operation)
 		}

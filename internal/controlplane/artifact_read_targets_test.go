@@ -16,7 +16,7 @@ func TestProjectArtifactReadsDeriveOnlyPinnedReaders(t *testing.T) {
 	for _, operation := range contracts.SitemapToolNames() {
 		grant.SitemapTools = []string{operation}
 		got := projectArtifactReadTargets(grant)
-		reader := slices.Contains([]string{contracts.SitemapListTool, contracts.SitemapReadTool, contracts.SitemapSnapshotTool}, operation)
+		reader := slices.Contains([]string{contracts.SitemapListTool, contracts.SitemapReadTool}, operation)
 		if reader && (len(got) != 1 || len(got[0].Operations) != 1 || got[0].Operations[0] != operation) || !reader && len(got) != 0 {
 			t.Fatalf("operation %s: %+v", operation, got)
 		}

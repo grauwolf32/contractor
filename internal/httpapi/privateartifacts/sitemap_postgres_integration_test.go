@@ -48,7 +48,7 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 		registry.grant.SitemapTools = tools
 		registry.grant.ProjectArtifactReads = nil
 		for _, operation := range tools {
-			if operation == contracts.SitemapListTool || operation == contracts.SitemapReadTool || operation == contracts.SitemapSnapshotTool {
+			if operation == contracts.SitemapListTool || operation == contracts.SitemapReadTool {
 				registry.grant.ProjectArtifactReads = append(registry.grant.ProjectArtifactReads, controlplane.ProjectArtifactReadTarget{Namespace: "sitemap", Name: "map", Operations: []string{operation}})
 			}
 		}
@@ -122,6 +122,8 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 	selection := sitemapSnapshotRequest{APIVersion: contracts.APIVersion, Selection: projectsitemap.SnapshotSelection{Revision: revision, Groups: []string{document.Groups[0].ID, document.Groups[1].ID}}}
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/sitemap/snapshots", "denied-snapshot", selection), 403, "sitemap_access_denied", false)
 	setTools(contracts.SitemapSnapshotTool)
+	// Snapshot has domain authority but no unused generic map-read grant.
+	assertPrivateErrorEnvelope(t, request(http.MethodGet, "/artifacts/sitemap/map?scope=project&operation=snapshot_sitemap_context", "", nil), 403, "artifact_access_denied", false)
 	registry.grant.WritePolicy = ""
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/sitemap/snapshots", "no-write", selection), 403, "sitemap_access_denied", false)
 	registry.grant.WritePolicy = controlplane.WriteInputsAndIntermediates

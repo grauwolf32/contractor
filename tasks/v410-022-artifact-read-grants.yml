@@ -42,7 +42,7 @@ failure_outcomes:
   timeout: Retain separately bounded collector flush, lock and read allowances.
 cardinality:
 - collection: Allocation Project read targets
-  expected: One concrete sitemap/map binding with only the selected read/snapshot operations.
+  expected: One concrete sitemap/map binding with only the selected list/read operations.
   bound: Generated from bounded pinned configuration; no wildcard targets, Project listing or full artifact collection scans.
 - collection: Runtime view and pages
   maximum: Existing 32 MiB encoded document, 128 MiB total view and 100 rows / 256 KiB per page.

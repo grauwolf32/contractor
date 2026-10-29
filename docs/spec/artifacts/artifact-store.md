@@ -1534,7 +1534,7 @@ meaning of uploading a replacement revision.
 **ART-R135.** The existing allocation grant may contain concrete Project artifact
 read targets: namespace, name and permitted operation names. Trusted composition
 builds a bounded target list from pinned configuration; the first production
-consumer has one binding and at most three selected read operations. There are
+consumer has one binding and at most two selected read operations. There are
 no wildcard targets, Project listings or generic Project writes. The raw and
 metadata endpoints accept exactly the pair `scope=project` and `operation`, plus
 an optional exact `revision`; without that pair they retain current-Run behavior.

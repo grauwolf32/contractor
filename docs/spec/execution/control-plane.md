@@ -1737,7 +1737,7 @@ A restarted process or uncertain stop cannot release an outstanding hold.
 
 **CTL-R170.** Allocation grants may include immutable concrete Project artifact
 read targets under ART-R135. Composition derives one sitemap/map target from the
-pinned sitemap policy and selected list/read/snapshot operations; generic grant
+pinned sitemap policy and selected list/read operations; generic grant
 execution knows no sitemap namespace or tool identity. Every returned grant,
 reservation and callback clones its nested targets/operation lists. Read and
 cached-read admission use the existing allocation gate and fence/loss/release
