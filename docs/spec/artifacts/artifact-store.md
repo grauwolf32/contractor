@@ -448,9 +448,11 @@ trusted Server operation can provide.
 **ART-R107.** Workers may read declared outputs produced by earlier accepted
 Stages.
 
-**ART-R38.** Generic Worker grants never cross a Run. Of a Project's or an
-Audit's artifacts, Workers see only the exact versions forked into RunScope
-`inputs`; they have no Audit or Project Artifact authority
+**ART-R38.** Baseline generic Worker grants never cross a Run. Generic model
+tools see Project/Audit artifacts only through exact versions forked into RunScope
+`inputs`. A trusted domain adapter may additionally read a concrete Project binding
+under an explicit allocation read target (ART-R135); this grants no listing, write
+or arbitrary Project authority
 ([Review and reports](../audits/review-and-reports.md)).
 
 **ART-R39.** RunScope `skills` bindings are exact forks from the
@@ -474,8 +476,9 @@ public Artifact behaviour and is not model authority.
 
 **ART-R40.** The Server's private Artifact API authenticates
 the Runtime Agent through mTLS, binds each request to its active allocation and
-that allocation's RunScope, enforces the hard Run boundary, reserved-Namespace
-policy, grants, byte limits and write preconditions, and streams bytes.
+that allocation's RunScope or explicit Project read target (ART-R135), enforces
+the selected scope boundary, reserved-Namespace policy, grants, byte limits and
+write preconditions, and streams bytes.
 
 **ART-R41.** An allocated Runtime Agent uses the private
 Artifact API with its existing mTLS identity and active allocation ID; it
@@ -496,7 +499,9 @@ against the mTLS principal-bound grant before reading a request body.
 
 **ART-R44.** The allocation ID is the only
 authority-bearing path value of the private API: neither URL nor body accepts
-a Run or User scope selector. Neither the public nor the private interface lets
+a Run, User or Project scope ID. The optional relation `scope=project` is resolved
+by the Server through the current allocation's durable Run, under ART-R135.
+Neither the public nor the private interface lets
 its caller supply an arbitrary scope ID.
 
 **ART-R45.** The private HTTP binding has one unambiguous
@@ -576,7 +581,7 @@ The key grants no authority and only the eligible Runtime archive callers may
 reuse bytes under [RTA-R119](../execution/runtime-agent.md).
 
 **ART-R120.** The private allocation API serves exactly its routes: the
-Artifact list, raw read, metadata read and write of this section, finding
+Artifact list, raw read, metadata read, authority-only read check and write of this section, finding
 proposal submission ([FND-R56](../findings/findings.md)) and Gateway recovery
 participation ([SCH-R168](../execution/scheduler.md)). Another method on one
 of their paths is `405 method_not_allowed`, and any other path is
@@ -1174,8 +1179,9 @@ ART-R56, ART-R116, ART-R120):
 | Authentication | mTLS Runtime Agent principal plus `X-Contractor-Runtime-Instance-ID` |
 | Path identity | `allocationID` |
 | List | `GET /private/v1/allocations/{allocationID}/artifacts` with `limit` and optional `namespace` and `cursor` (model-visible pages), or `limit` with `namespace` and `namePrefix` |
-| Raw read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}` with optional `revision` |
-| Metadata read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata` with optional `revision`; JSON `ArtifactReadResult` (ART-R116) |
+| Raw read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}` with optional `revision`; explicit Project targets add `scope=project` and `operation` (ART-R135) |
+| Metadata read | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/metadata` with optional `revision` and the same Project-target selectors; JSON `ArtifactMetadataResult` (ART-R116) |
+| Cached-read authorization | `GET /private/v1/allocations/{allocationID}/artifacts/{namespace}/{name}/access?scope=project&operation=...`; `204` with no body, no revision or content lookup (ART-R135) |
 | Other methods | `HEAD` and any undeclared method on a route's path: `405 method_not_allowed` before the grant check; any other path: `404 not_found` (ART-R120) |
 | Create precondition | `If-None-Match: *` |
 | Update precondition | exactly one quoted strong `If-Match: "<revision>"` |
@@ -1309,7 +1315,8 @@ These properties follow from the cited requirements, which are authoritative.
 4. Every required input is forked at an exact revision before the Run is
    schedulable; Run mutations never modify the source binding
    (ART-R76, ART-R77).
-5. Generic Worker grants never cross a Run, cannot write `outputs` and cannot
+5. Baseline generic Worker grants stay within a Run; explicit Project read targets
+   follow ART-R135. Workers cannot write `outputs` and cannot
    create a binding in `inputs` (ART-R37, ART-R38).
 6. Allocation writes are rejected from the durable transition to `finalizing`
    or `aborting`, independently of Worker shutdown and allocation release
@@ -1521,3 +1528,39 @@ projection. This is a snapshot of availability, never a write grant: uploads
 still recheck owner, lifecycle, namespace and exact CAS admission. The Artifact
 API owns this guarantee; revisit it only if a new generic mutation changes the
 meaning of uploading a replacement revision.
+
+### Explicit allocation Project reads
+
+**ART-R135.** The existing allocation grant may contain concrete Project artifact
+read targets: namespace, name and permitted operation names. Trusted composition
+builds a bounded target list from pinned configuration; the first production
+consumer has one binding and at most three selected read operations. There are
+no wildcard targets, Project listings or generic Project writes. The raw and
+metadata endpoints accept exactly the pair `scope=project` and `operation`, plus
+an optional exact `revision`; without that pair they retain current-Run behavior.
+Scope aliases, incomplete pairs, duplicate/unknown selectors and invalid names
+are rejected. Operations use the shared Name grammar. The Server derives owner
+and Project from the allocation's durable Run; clients never choose a scope ID.
+
+The shared read boundary checks Runtime principal/instance/allocation identity,
+current read grant, the exact target and operation, fence/loss/release and active
+Project through the existing allocation gate. It never dispatches on a domain's
+namespace, media type, payload or tool name. Unavailable Project authority is an
+access failure, distinct from an absent artifact binding. Existing bytes, ETag,
+timestamp headers, metadata and transfer budgets apply unchanged. Such reads do
+not become current-Run artifact observations merely because namespace/name match
+a Run binding. They create no hold, input fork or retained evidence.
+
+The same binding's `/access` endpoint requires the Project-target pair and no
+revision, and returns `204` with no body after the same authority checks. It reads
+no artifact metadata, payload or lineage and does not require the binding or an
+old revision to exist. Domain paging uses it before serving each local cached
+page. Publication and history eviction therefore do not revoke a previously
+loaded immutable view; loss of authority does. Ordinary raw/exact reads still
+require their selected stored bytes. The check grants no retention and cannot
+materialize an evicted revision from a cache.
+
+Artifact access owns this contract. It replaces domain read transports without
+introducing another token, lease, table or synchronization protocol. Reconsider
+its target form only when a concrete additional consumer needs a bounded access
+shape that cannot be expressed as a binding and selected operation.

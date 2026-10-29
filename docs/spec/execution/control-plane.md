@@ -1734,3 +1734,13 @@ proof before generic release. An absent allocation may bypass that proof only
 when the Registry write fence has joined admission and a durable indexed read
 proves that no prepared/held attempt exists; no stop marker is fabricated.
 A restarted process or uncertain stop cannot release an outstanding hold.
+
+**CTL-R170.** Allocation grants may include immutable concrete Project artifact
+read targets under ART-R135. Composition derives one sitemap/map target from the
+pinned sitemap policy and selected list/read/snapshot operations; generic grant
+execution knows no sitemap namespace or tool identity. Every returned grant,
+reservation and callback clones its nested targets/operation lists. Read and
+cached-read admission use the existing allocation gate and fence/loss/release
+lifecycle; no second lock, lease or persistent grant registry is introduced.
+Project identity resolves from the durable Run at use time. Domain mutations and
+snapshot creation independently retain their write authority checks.

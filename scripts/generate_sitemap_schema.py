@@ -61,11 +61,7 @@ def generated_wire() -> str:
                 visit(child)
 
     visit({"$ref": "#/components/schemas/SitemapMutation"})
-    # The owner HTTP API fixes sourceId to owner. Allocation identity instead
-    # comes from authenticated pinned policy; it is still a Server hash ID.
-    selected["SitemapSourceUpdate"]["properties"]["sourceId"] = {
-        "type": "string", "pattern": "^[0-9a-f]{64}$"
-    }
+    # Public and allocation editor commands both derive source identity on the Server.
     document["$defs"].update(selected)
     return json.dumps(document, indent=2) + "\n"
 
