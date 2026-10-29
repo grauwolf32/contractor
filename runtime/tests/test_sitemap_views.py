@@ -11,7 +11,7 @@ from fakes.sitemap import SitemapTransport, document, identity
 import contractor_runtime.toolsets.sitemap.index as index_module
 import contractor_runtime.toolsets.sitemap.session as session_module
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactClient, ArtifactTransportError
-from contractor_runtime.sitemap import MAX_SITEMAP_BYTES, SitemapClient
+from contractor_runtime.sitemap import MAX_SITEMAP_BYTES
 from contractor_runtime.toolsets.sitemap.index import MAX_PAGE_BYTES, MAX_VIEW_BYTES, ViewIndex
 from contractor_runtime.toolsets.sitemap.session import SitemapSession
 
@@ -24,6 +24,125 @@ def test_shared_sitemap_document_wire_shape() -> None:
     for raw in cases["invalid"]:
         with pytest.raises(ArtifactTransportError):
             ViewIndex(raw.encode())
+
+
+def test_shared_absent_current_map_is_local_empty_after_authority_and_not_run_provenance():
+    async def scenario():
+        transport = SitemapTransport()
+        transport.read_error = (404, "artifact_not_found", False)
+        artifacts = ArtifactClient("allocation", transport)
+        session = SitemapSession(artifacts)
+        options = dict(
+            cursor=None,
+            refresh=False,
+            limit=100,
+            method=None,
+            origin=None,
+            path_prefix=None,
+            include_suppressed=False,
+        )
+        first = await session.list(**options)
+        assert first == {"revision": "absent", "entries": [], "nextCursor": None}
+        cases = json.loads(
+            (Path(__file__).parents[2] / "api/testdata/project-sitemap-cases.json").read_text()
+        )
+        assert json.loads(session._view.data) == cases["empty"]
+        assert artifacts.known_exact_refs == () and artifacts.observation_cursor == 0
+        assert len(transport.requests) == 2 and "/access?" in transport.requests[-1][1]
+        # A later publication does not silently replace the empty view.
+        transport.read_error = None
+        assert await session.list(**options) == first
+        populated = await session.list(**{**options, "refresh": True})
+        assert populated["entries"] and populated["revision"] == "revision-original"
+        assert artifacts.known_exact_refs == () and artifacts.observation_cursor == 0
+        assert session._view is not None
+        await session.close()
+
+    asyncio.run(scenario())
+
+
+def test_sitemap_domain_rejects_non_sitemap_media_on_shared_artifact_read():
+    class WrongMedia(SitemapTransport):
+        async def request(self, method, path, **kwargs):
+            from dataclasses import replace
+
+            response = await super().request(method, path, **kwargs)
+            return replace(response, headers={**response.headers, "content-type": "text/plain"})
+
+    async def scenario():
+        session = SitemapSession(ArtifactClient("allocation", WrongMedia()))
+        with pytest.raises(ArtifactTransportError, match="invalid media type"):
+            await session.list(
+                cursor=None,
+                refresh=False,
+                limit=100,
+                method=None,
+                origin=None,
+                path_prefix=None,
+                include_suppressed=False,
+            )
+        assert session._view is None
+        await session.close()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        (403, "artifact_access_denied", False),
+        (409, "project_deleting", False),
+        (404, "not_found", False),
+        (503, "storage_transaction_conflict", True),
+    ],
+)
+def test_current_map_missing_fallback_never_hides_authority_or_project_errors(failure):
+    async def scenario():
+        transport = SitemapTransport()
+        transport.read_error = failure
+        session = SitemapSession(ArtifactClient("allocation", transport))
+        with pytest.raises(ArtifactAPIError) as caught:
+            await session.list(
+                cursor=None,
+                refresh=False,
+                limit=100,
+                method=None,
+                origin=None,
+                path_prefix=None,
+                include_suppressed=False,
+            )
+        assert caught.value.code == failure[1]
+        assert session._view is None and len(transport.requests) == 1
+        await session.close()
+
+    asyncio.run(scenario())
+
+
+def test_empty_view_still_requires_current_authority_before_output():
+    class RevokedAfterRead(SitemapTransport):
+        async def request(self, method, path, **kwargs):
+            response = await super().request(method, path, **kwargs)
+            if "/map?" in path:
+                self.access_error = (403, "artifact_access_denied", False)
+            return response
+
+    async def scenario():
+        transport = RevokedAfterRead()
+        transport.read_error = (404, "artifact_not_found", False)
+        session = SitemapSession(ArtifactClient("allocation", transport))
+        with pytest.raises(ArtifactAPIError, match="artifact_access_denied"):
+            await session.list(
+                cursor=None,
+                refresh=False,
+                limit=100,
+                method=None,
+                origin=None,
+                path_prefix=None,
+                include_suppressed=False,
+            )
+        await session.close()
+
+    asyncio.run(scenario())
 
 
 def test_generated_sitemap_wire_schema_matches_owner() -> None:
@@ -42,7 +161,7 @@ def test_generated_sitemap_wire_schema_matches_owner() -> None:
 def test_cached_pages_survive_publication_and_eviction_but_not_refresh_or_revocation() -> None:
     async def scenario():
         transport = SitemapTransport(document(205))
-        session = SitemapSession(SitemapClient(ArtifactClient("allocation", transport)))
+        session = SitemapSession(ArtifactClient("allocation", transport))
         options = dict(
             cursor=None,
             refresh=False,
@@ -65,12 +184,16 @@ def test_cached_pages_survive_publication_and_eviction_but_not_refresh_or_revoca
         third = await session.list(**{**options, "cursor": second["nextCursor"]})
         original.update(row["id"] for row in second["entries"] + third["entries"])
         assert len(original) == 205 and third["nextCursor"] is None
-        assert sum(path.endswith("/sitemap") for _, path, _, _ in transport.requests) == 1
+        assert sum("/map?" in path for _, path, _, _ in transport.requests) == 1
         assert second["revision"] == "revision-original"
         access_paths = [path for _, path, _, _ in transport.requests if "/access" in path]
         assert (
             access_paths
-            == ["/allocations/allocation/sitemap/access?operation=list_sitemap_entries"] * 3
+            == [
+                "/allocations/allocation/artifacts/sitemap/map/access"
+                "?scope=project&operation=list_sitemap_entries"
+            ]
+            * 3
         )
         for tampered in [first["nextCursor"] + "x", "garbage"]:
             with pytest.raises(ArtifactAPIError, match="sitemap_cursor_expired"):
@@ -104,7 +227,7 @@ def test_read_pages_concrete_parts_suppression_and_exact_snapshot_request() -> N
         }
         value["markers"] = [marker]
         transport = SitemapTransport(value)
-        session = SitemapSession(SitemapClient(ArtifactClient("allocation", transport)))
+        session = SitemapSession(ArtifactClient("allocation", transport))
         page = await session.read(
             entry["id"], cursor=None, refresh=False, limit=1, include_suppressed=False
         )
@@ -185,7 +308,7 @@ def test_metadata_pages_bound_work_bytes_and_cursor_authority_without_entry_repe
 
     async def scenario():
         transport = SitemapTransport(value)
-        session = SitemapSession(SitemapClient(ArtifactClient("allocation", transport)))
+        session = SitemapSession(ArtifactClient("allocation", transport))
         options = dict(
             cursor=None,
             refresh=False,
@@ -266,7 +389,7 @@ def test_maximum_encoded_view_realistic_index_memory_and_bounded_page_work(monke
 
     async def bounded_pages():
         transport = SitemapTransport()
-        session = SitemapSession(SitemapClient(ArtifactClient("allocation", transport)))
+        session = SitemapSession(ArtifactClient("allocation", transport))
         session._view = view
         session._identity = "maximum-view"
         session._revision = "exact-revision"
@@ -329,7 +452,7 @@ def test_cancelled_indexing_and_release_join_the_single_worker(monkeypatch) -> N
     monkeypatch.setattr(session_module, "ViewIndex", held)
 
     async def scenario():
-        session = SitemapSession(SitemapClient(ArtifactClient("allocation", SitemapTransport())))
+        session = SitemapSession(ArtifactClient("allocation", SitemapTransport()))
         reading = asyncio.create_task(
             session.read(
                 identity("group-0"), cursor=None, refresh=False, limit=100, include_suppressed=False

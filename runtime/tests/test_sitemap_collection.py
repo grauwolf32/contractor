@@ -243,7 +243,7 @@ def test_fresh_read_keeps_its_allowance_after_automatic_flush_exhaustion(operati
         else:
             assert result["status"] == "failed"
             assert result["error"] == {"code": read_error[1], "retryable": read_error[2]}
-        assert any(path.endswith("/sitemap") for _, path, _, _ in transport.requests)
+        assert any("/artifacts/sitemap/map?" in path for _, path, _, _ in transport.requests)
         assert collector._disabled and collector._publisher is None
         await tool(refresh=True, **arguments)
         assert len(client.calls) == 1

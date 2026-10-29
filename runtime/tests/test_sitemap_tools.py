@@ -218,14 +218,16 @@ def test_empty_map_metadata_supplies_complete_source_precondition_to_editor():
                 "structural": [],
             }
         ]
+        before = len(transport.requests)
         result = await tools["configure_sitemap_grouping"](
             first["revision"], rules, expected_source=first["entries"][0]["value"]
         )
         assert result["status"] == "completed"
-        assert transport.requests[-2][1].endswith("/access?operation=configure_sitemap_grouping")
+        assert len(transport.requests) == before + 1
         command = json.loads(transport.requests[-1][3])["mutation"]
         assert command["source"]["expected"] == source
-        assert command["source"]["rules"] == [{**rules[0], "sourceId": identity("manual")}]
+        assert command["source"]["rules"] == rules
+        assert set(command["source"]) == {"rules", "expected"}
         for tool in tools.values():
             await tool.close()
 
@@ -259,8 +261,7 @@ def test_import_dispatch_seam_is_explicit_and_uses_same_allocation_client():
         calls = []
 
         async def dispatcher(client, selection, key):
-            access = await client.access("import_sitemap_source")
-            calls.append((selection, key, access.manual_source_id))
+            calls.append((selection, key, client))
             return {"ok": True, "gaps": []}
 
         transport = SitemapTransport()
@@ -276,8 +277,8 @@ def test_import_dispatch_seam_is_explicit_and_uses_same_allocation_client():
             result == {"ok": True, "gaps": [], "status": "completed"}
             and calls[0][1] == "import-key"
         )
-        assert transport.requests[-1][1].endswith("/access?operation=import_sitemap_source")
-        assert all("foreign" not in path for _, path, _, _ in transport.requests)
+        assert calls[0][2] is tools["import_sitemap_source"]._session.client
+        assert transport.requests == []
         await tools["import_sitemap_source"].close()
 
     asyncio.run(scenario())
@@ -333,16 +334,14 @@ def test_cached_page_rechecks_its_exact_operation_when_only_editor_and_collectio
         first = await tools[operation](**arguments)
         assert first["status"] == "completed" and first["nextCursor"]
         transport.access_operations = {"configure_sitemap_grouping"}
-        access = await tools[operation]._session.client.access("configure_sitemap_grouping")
-        assert access.policy.collect_observations is True
         rejected = await tools[operation](**arguments, cursor=first["nextCursor"])
         assert rejected == {
             "status": "failed",
             "ok": False,
-            "error": {"code": "sitemap_access_denied", "retryable": False},
+            "error": {"code": "artifact_access_denied", "retryable": False},
         }
-        assert transport.requests[-1][1].endswith("/access?operation=" + operation)
-        assert sum(path.endswith("/sitemap") for _, path, _, _ in transport.requests) == 1
+        assert transport.requests[-1][1].endswith("/access?scope=project&operation=" + operation)
+        assert sum("/map?" in path for _, path, _, _ in transport.requests) == 1
         for tool in tools.values():
             await tool.close()
 

@@ -1,7 +1,7 @@
 """An encoded-backed immutable view, indexed once without a document object graph.
 
 The generated schema validates wire shape only. The Server owns URL/context
-identity, source filtering and reduction. Index records contain byte spans and
+identity, grouping and reduction. Index records contain byte spans and
 opaque Server IDs, never another route grouping policy.
 """
 

@@ -13,7 +13,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 from urllib.parse import quote, urlsplit
 
 from pydantic import Field, ValidationError
@@ -32,7 +32,7 @@ from contractor_runtime.contracts import (
     validate_media_type,
 )
 from contractor_runtime.contracts.artifacts import MAX_ARTIFACT_BYTES
-from contractor_runtime.contracts.base import is_blank, trim_whitespace
+from contractor_runtime.contracts.base import NAME_PATTERN, is_blank, trim_whitespace
 
 if TYPE_CHECKING:
     from contractor_runtime.archive_cache import ImmutableArchiveCache
@@ -123,6 +123,20 @@ class ArtifactWriteValue(ArtifactWriteResult):
     revision_created_at: datetime = Field(exclude=True)
 
 
+@dataclass(frozen=True, slots=True)
+class ArtifactReadTarget:
+    """An explicitly selected Project operation; its scope ID stays on the Server."""
+
+    scope: Literal["project"]
+    operation: str
+
+    def __post_init__(self) -> None:
+        if self.scope != "project" or (
+            type(self.operation) is not str or NAME_PATTERN.fullmatch(self.operation) is None
+        ):
+            raise ValueError("artifact read target is invalid")
+
+
 def allocation_path(allocation_id: str, resource: str) -> str:
     """Return the private API path of one resource of an allocation."""
 
@@ -132,7 +146,11 @@ def allocation_path(allocation_id: str, resource: str) -> str:
 
 
 class ArtifactClient:
-    """Exposes only the RunScope implied by one active allocation ID."""
+    """Read the allocation's Run or an explicitly granted Project binding.
+
+    Listing and writing always use the current Run. Project reads do not enter
+    the Run's exact-reference provenance journal.
+    """
 
     def __init__(
         self,
@@ -261,7 +279,9 @@ class ArtifactClient:
                 "Artifact API returned an invalid list response"
             ) from error
 
-    async def read_artifact_metadata(self, ref: ArtifactRef) -> ArtifactMetadataResult:
+    async def read_artifact_metadata(
+        self, ref: ArtifactRef, *, target: ArtifactReadTarget | None = None
+    ) -> ArtifactMetadataResult:
         """Return the exact revision, media type and size ``read_artifact`` of
         ``ref`` would return, without downloading the payload (ART-R116).
 
@@ -269,9 +289,7 @@ class ArtifactClient:
         the exact revision for invocation provenance.
         """
 
-        path = f"{self._root}/{quote(ref.namespace, safe='')}/{quote(ref.name, safe='')}/metadata"
-        if ref.revision is not None:
-            path += f"?revision={quote(ref.revision, safe='')}"
+        path = self._ref_path(ref, target=target, suffix="/metadata")
         response = await self._transport.request(
             "GET",
             path,
@@ -298,11 +316,15 @@ class ArtifactClient:
         return result
 
     async def read_artifact(
-        self, ref: ArtifactRef, *, max_bytes: int = MAX_ARTIFACT_BYTES
+        self,
+        ref: ArtifactRef,
+        *,
+        max_bytes: int = MAX_ARTIFACT_BYTES,
+        target: ArtifactReadTarget | None = None,
     ) -> ArtifactValue:
         if type(max_bytes) is not int or not 0 < max_bytes <= MAX_ARTIFACT_BYTES:
             raise ValueError("artifact read byte limit is invalid")
-        path = self._ref_path(ref)
+        path = self._ref_path(ref, target=target)
         response = await self._transport.request(
             "GET",
             path,
@@ -332,7 +354,8 @@ class ArtifactClient:
             raise ArtifactTransportError(
                 "Artifact API returned invalid artifact metadata"
             ) from error
-        self._remember(exact)
+        if target is None:
+            self._remember(exact)
         return ArtifactValue(
             artifact=exact,
             media_type=media_type,
@@ -340,6 +363,24 @@ class ArtifactClient:
             binding_created_at=binding_created_at,
             revision_created_at=revision_created_at,
         )
+
+    async def check_artifact_access(self, ref: ArtifactRef, *, target: ArtifactReadTarget) -> None:
+        """Recheck current operation authority without resolving content/history."""
+
+        if not isinstance(target, ArtifactReadTarget):
+            raise ValueError("artifact read target is invalid")
+        if ref.revision is not None:
+            raise ValueError("artifact access target must be versionless")
+        response = await self._transport.request(
+            "GET",
+            self._ref_path(ref, target=target, suffix="/access"),
+            headers={"Accept": "application/json"},
+            body=b"",
+            max_response_bytes=MAX_ARTIFACT_JSON_BYTES,
+        )
+        raise_for_status(response)
+        if response.status_code != 204 or response.body:
+            raise ArtifactTransportError("Artifact API returned an invalid access response")
 
     async def write_artifact(
         self,
@@ -409,10 +450,23 @@ class ArtifactClient:
         self._known_exact_refs[(ref.namespace, ref.name)] = ref
         self._observed_exact_refs.append(ref)
 
-    def _ref_path(self, ref: ArtifactRef) -> str:
-        path = f"{self._root}/{quote(ref.namespace, safe='')}/{quote(ref.name, safe='')}"
+    def _ref_path(
+        self,
+        ref: ArtifactRef,
+        *,
+        target: ArtifactReadTarget | None = None,
+        suffix: str = "",
+    ) -> str:
+        path = f"{self._root}/{quote(ref.namespace, safe='')}/{quote(ref.name, safe='')}{suffix}"
+        query = []
+        if target is not None:
+            if not isinstance(target, ArtifactReadTarget):
+                raise ValueError("artifact read target is invalid")
+            query.extend((("scope", target.scope), ("operation", target.operation)))
         if ref.revision is not None:
-            path += f"?revision={quote(ref.revision, safe='')}"
+            query.append(("revision", ref.revision))
+        if query:
+            path += "?" + "&".join(f"{key}={quote(value, safe='')}" for key, value in query)
         return path
 
 
