@@ -1155,19 +1155,31 @@ Shared rules are in
 - The other deferred Audit capabilities are listed in
   [audits](audits.md#non-goals).
 
-### Controlled anonymous target preflight
+### Controlled target identity preflight
 
 **AUX-R104.** `POST /private/v1/allocations/{allocationId}/pentest-actions`
 accepts the closed `prepare`, `grant`, `sending`, `started` and `settle`
 commands. The Server derives Audit, owner, Project, Run, Stage and Runtime
 process from the authenticated allocation; request data cannot select them.
-Preparation binds one seed index and a physical attempt ordinal (redirect hop
-plus retry ordinal) to a canonical URL digest. Every mutation uses the existing
+Preparation selects an assigned `identityId`, closed `phase`, `stepIndex` and
+`generation`, plus a physical attempt ordinal (redirect hop plus retry ordinal).
+Phases are `seed`, `login`, `control`, `auth-check`, `refresh` and
+`refresh-control`; the Server derives method/action class and static request
+slot from the pinned seed or recipe, never from caller-selected method fields.
+The semantic action key includes Audit, allocation, identity, generation, phase
+and index. Request/target digests contain only the non-secret slot identity and
+canonical URL, never expanded private headers/body. Every mutation uses the existing
 Audit-owned `KeyedMutation` receipt with a Server-derived semantic key and
 separate command digest. Exact replay cannot charge twice; changed bytes are
-`pentest_action_conflict`. A later authorized allocation may read a settled
-seed outcome without acquiring the original allocation's write authority.
-An unresolved prior allocation prevents replacement work.
+`pentest_action_conflict`. A new allocation cannot reuse an earlier allocation's
+completed authentication or seed execution as its own session. Pending or
+unknown held traffic for that identity in a prior allocation prevents replacement
+work. Anonymous uses only generation-zero seed slots. Login/control use the
+initial generation; refresh/refresh-control use the single next generation.
+Generation advance requires a completed seed 401/403 and its completed
+control check, never a held or unknown predecessor. Login/control/auth-check
+logical actions share the pinned per-identity/allocation/generation login
+allowance and all physical sends charge the ordinary cumulative target budget.
 
 Preparation atomically reserves the action intent. Grant atomically charges a
 physical request and concurrency against the pinned Audit caps. A waiting
@@ -1211,12 +1223,16 @@ foreign key. Audit ownership governs bounded journal purge. Child deletion
 is blocked until pending actions reconcile, so it cannot erase necessary
 stop evidence. Individual actions cannot be deleted by callers.
 
-**AUX-R106.** Preflight operates once per semantic seed/attempt. Safe completed
-outcomes can be reused by later child allocations; an unknown outcome is an
-explicit gap and never causes a replacement send. The run RPC returns only
-bounded counts backed by the action journal. If no seed completes, preparation
+**AUX-R106.** Preflight operates once per assigned allocation invocation;
+redelivery joins that cached work and reuses its existing action receipts.
+A replacement allocation creates fresh session state and action identity,
+subject to the unresolved-traffic fence in AUX-R105. An unknown outcome is an
+explicit gap and never authorizes a replacement send. The run RPC returns only
+bounded seed counts and safe identity summaries under HTP-R145, backed by the
+action journal. If no seed completes, preparation
 fails rather than reporting empty successful discovery. Raw response buffers,
 headers, credentials and redirect query values are not stored in the journal.
-A canonical redirect-target digest authorizes only the matching next prepare.
+A canonical redirect-target digest authorizes only the matching next prepare
+within HTP-R139's permitted subset; login/control/refresh emit no such digest.
 The containing allocation owns and joins all preflight work before release;
 no network call occurs while an Audit transaction or Registry mutex is held.

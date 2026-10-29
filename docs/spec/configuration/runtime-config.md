@@ -990,6 +990,14 @@ kind for a synchronous consumer and wipes the plaintext when the consumer
 returns, fails or is cancelled. The Server, the Runtime, the private schema
 and the public API are held to these rules by
 [`target-credential-cases.json`](../../../api/testdata/v1alpha1/target-credential-cases.json).
+Target identity material is delivered only after placement through the existing
+private allocation settings (CTL-R168). Basic/login fields retain their UTF-8
+secret grammar on this wire; only the Bearer token uses the HTTP field-value
+grammar. A login recipe names fields, never plaintext. The private consumer
+requires the exact declared field set for HTTP-login and preserves immutable
+credential references independently of RuntimeConfig labels. Public preflight
+never decrypts credentials. Session establishment and refresh are owned by
+[HTP-R140–146](../tools/http-caido.md), not by this credential store.
 
 **RCF-R115.** Runtime-credential read projections expose only the credential
 ID, kind and creation metadata.

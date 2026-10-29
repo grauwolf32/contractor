@@ -306,6 +306,18 @@ assignment. Controlled preflight requires the explicit `pentest-target-http@1`
 capability in the immutable policy and the selected Runtime advertisement; it
 is independent of RuntimeConfig adapter provenance. Both wire validators and
 Runtime prepare reject an execution assignment whose enforcement is absent.
+The assignment requires `identities` and a `loginRecipes` map (empty allowed).
+After placement and trusted baseline resolution, composition decrypts only the
+exact held references through the existing synchronous credential consumer,
+with its independent LIM-CTL-19 lookup deadline. It sends a secret-typed
+`runtimeSettings.pentestIdentities` map keyed by assigned identity, separate
+from non-secret engagement attribution. Every entry's exact credential ID/kind
+must match its assignment; missing, extra or mismatched entries/fields fail
+prepare before target I/O. The grant is checked again after resolution and
+materialization. Plaintext buffers are wiped on every exit, and copied material
+is dropped immediately after checking the prepare response's Agent Card,
+before target preflight. The Runtime keeps only allocation-local private state
+under [HTP-R140](../tools/http-caido.md); this adds no credential endpoint.
 
 **CTL-R7.** There is no parallel legacy model, `V2` alias,
 conversion fallback or separate `privateProtocolVersion` negotiation, and the
@@ -1725,7 +1737,10 @@ avoids silently narrowing authority after a sending acknowledgement; action
 admission and every grant enforce the fixed bound. Before returning its Worker handle to
 the Scheduler, the Server calls `pentest-preflight` with mode `run`, allocation
 ID and expected Runtime instance. Concurrent or repeated calls join the same
-cached task; they cannot launch another target pass. The allocation lock only
+cached task; they cannot launch another target pass. The result accounts for
+every assigned identity/seed combination and carries the bounded identity
+summary in HTP-R145, without principal or response bytes. Successful credential
+configuration is not reported as verified authentication. The allocation lock only
 registers/joins ownership, never surrounds target I/O. Abort, finalize, lease
 expiry and release cancel and join the resource before cleaning its clients.
 Mode `stop` proves termination only for that exact instance and known

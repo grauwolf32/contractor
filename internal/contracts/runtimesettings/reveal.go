@@ -20,20 +20,22 @@ func (s RuntimeSettings) RevealJSON() ([]byte, error) {
 	type plain RuntimeSettings
 	return json.Marshal(struct {
 		plain
-		LLMGatewayToken  *string                   `json:"llmGatewayToken,omitempty"`
-		Telemetry        *revealedTelemetry        `json:"telemetry,omitempty"`
-		HTTPProxy        *revealedHTTPProxy        `json:"httpProxy,omitempty"`
-		Caido            *revealedCaido            `json:"caido,omitempty"`
-		Interactsh       *revealedInteractsh       `json:"interactsh,omitempty"`
-		HTTPOriginTarget *revealedHTTPOriginTarget `json:"httpOriginTarget,omitempty"`
+		PentestIdentities map[string]revealedPentestIdentity `json:"pentestIdentities,omitempty"`
+		LLMGatewayToken   *string                            `json:"llmGatewayToken,omitempty"`
+		Telemetry         *revealedTelemetry                 `json:"telemetry,omitempty"`
+		HTTPProxy         *revealedHTTPProxy                 `json:"httpProxy,omitempty"`
+		Caido             *revealedCaido                     `json:"caido,omitempty"`
+		Interactsh        *revealedInteractsh                `json:"interactsh,omitempty"`
+		HTTPOriginTarget  *revealedHTTPOriginTarget          `json:"httpOriginTarget,omitempty"`
 	}{
-		plain:            plain(s),
-		LLMGatewayToken:  revealSecret(s.LLMGatewayToken),
-		Telemetry:        revealTelemetry(s.Telemetry),
-		HTTPProxy:        revealHTTPProxy(s.HTTPProxy),
-		Caido:            revealCaido(s.Caido),
-		Interactsh:       revealInteractsh(s.Interactsh),
-		HTTPOriginTarget: revealHTTPOriginTarget(s.HTTPOriginTarget),
+		plain:             plain(s),
+		PentestIdentities: revealPentestIdentities(s.PentestIdentities),
+		LLMGatewayToken:   revealSecret(s.LLMGatewayToken),
+		Telemetry:         revealTelemetry(s.Telemetry),
+		HTTPProxy:         revealHTTPProxy(s.HTTPProxy),
+		Caido:             revealCaido(s.Caido),
+		Interactsh:        revealInteractsh(s.Interactsh),
+		HTTPOriginTarget:  revealHTTPOriginTarget(s.HTTPOriginTarget),
 	})
 }
 
@@ -142,4 +144,24 @@ func revealHTTPOriginTarget(settings *HTTPOriginTargetSettings) *revealedHTTPOri
 		BasicAuth:             revealBasicAuth(settings.BasicAuth),
 		BearerToken:           revealSecret(settings.BearerToken),
 	}
+}
+
+type revealedPentestIdentity struct {
+	Credential RuntimeCredentialRef `json:"credential"`
+	Fields     map[string]string    `json:"fields"`
+}
+
+func revealPentestIdentities(source map[string]PentestIdentityMaterial) map[string]revealedPentestIdentity {
+	if source == nil {
+		return nil
+	}
+	result := make(map[string]revealedPentestIdentity, len(source))
+	for id, material := range source {
+		fields := make(map[string]string, len(material.Fields))
+		for name, value := range material.Fields {
+			fields[name] = value.Reveal()
+		}
+		result[id] = revealedPentestIdentity{Credential: material.Credential, Fields: fields}
+	}
+	return result
 }
