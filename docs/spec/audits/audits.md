@@ -1929,7 +1929,13 @@ reasons additionally include `pentest_capability_unsupported`,
 **AUD-R247.** Start extends its immutable baseline with the versioned
 `contractor.audit.pentest-baseline.v1` engagement snapshot: the exact artifact,
 validated document, policy digest, trusted authorizing owner, authorization
-time and a required `loginRecipes` map of validated non-secret recipe bodies.
+time and, when HTTP recipes are assigned, a nonempty `loginRecipes` map of
+validated non-secret recipe bodies. Without HTTP recipe references the map is
+omitted; an explicitly empty map is invalid. Browser-only metadata does not
+acquire an HTTP recipe body. This conditional shape is canonical for current
+admission and leaves recipe-free baseline bytes and their evidence digests
+unchanged. A stored HTTP recipe reference without its validated body is invalid;
+readers never resolve a newer artifact or synthesize the body.
 Admission reads each exact HTTP/control recipe with its media type, digest, byte
 bound and closed schema; it verifies identity/origin/scope binding before
 freezing the body. Allocation and action admission consume that snapshot

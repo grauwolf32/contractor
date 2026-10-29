@@ -167,7 +167,6 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 		return nil, fmt.Errorf("%w: pentest engagement failed validation", ErrInvalid)
 	}
 	selected.document = document
-	selected.loginRecipes = map[string]pentestcontract.LoginRecipe{}
 	if len(document.Inputs) > auditprofile.MaxAuditProfileInputs {
 		return nil, fmt.Errorf("%w: engagement inputs exceed Audit input limit", ErrInvalid)
 	}
@@ -232,6 +231,9 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 					recipe, decodeErr := pentestcontract.DecodeLoginRecipe(read.Payload.Data)
 					if decodeErr != nil || recipe.ValidateIdentity(identity, document) != nil {
 						return nil, fmt.Errorf("%w: invalid login recipe artifact", ErrInvalid)
+					}
+					if selected.loginRecipes == nil {
+						selected.loginRecipes = map[string]pentestcontract.LoginRecipe{}
 					}
 					selected.loginRecipes[identity.ID] = recipe
 				}
@@ -377,7 +379,7 @@ func validateEngagementBaseline(baseline BaselineSnapshot) error {
 	if err != nil || engagement.PolicyDigest != digest {
 		return fmt.Errorf("%w: engagement policy digest differs", ErrInvalid)
 	}
-	if engagement.LoginRecipes == nil || len(engagement.LoginRecipes) > 7 {
+	if engagement.LoginRecipes != nil && len(engagement.LoginRecipes) == 0 || len(engagement.LoginRecipes) > 7 {
 		return fmt.Errorf("%w: missing login recipe snapshots", ErrInvalid)
 	}
 	for id, recipe := range engagement.LoginRecipes {
@@ -410,7 +412,9 @@ func cloneEngagement(source *auditbaseline.EngagementSnapshot) *auditbaseline.En
 	}
 	result := *source
 	result.Artifact = source.Artifact.Clone()
-	result.LoginRecipes = map[string]pentestcontract.LoginRecipe{}
+	if source.LoginRecipes != nil {
+		result.LoginRecipes = map[string]pentestcontract.LoginRecipe{}
+	}
 	for id, recipe := range source.LoginRecipes {
 		encoded, _ := json.Marshal(recipe)
 		copy, _ := pentestcontract.DecodeLoginRecipe(encoded)

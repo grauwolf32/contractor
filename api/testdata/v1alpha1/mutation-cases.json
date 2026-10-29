@@ -2042,6 +2042,66 @@
         "/ref"
       ]
     },
+    "pentest-action-auth-check-identity.json": {
+      "enum": [
+        "/apiVersion",
+        "/operation",
+        "/prepare/phase",
+        "/prepare/redirectHop"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/prepare/url",
+          "maxLength": 8192
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/prepare/url",
+          "maxLength": 8192,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/prepare"
+      ],
+      "duplicateKey": [
+        "",
+        "/prepare"
+      ]
+    },
+    "pentest-action-control-identity.json": {
+      "enum": [
+        "/apiVersion",
+        "/operation",
+        "/prepare/generation",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/stepIndex"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/prepare/url",
+          "maxLength": 8192
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/prepare/url",
+          "maxLength": 8192,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/prepare"
+      ],
+      "duplicateKey": [
+        "",
+        "/prepare"
+      ]
+    },
     "pentest-action-grant.json": {
       "enum": [
         "/apiVersion",
@@ -2076,10 +2136,131 @@
         ""
       ]
     },
+    "pentest-action-login-identity.json": {
+      "enum": [
+        "/apiVersion",
+        "/operation",
+        "/prepare/generation",
+        "/prepare/phase",
+        "/prepare/redirectHop"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/prepare/url",
+          "maxLength": 8192
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/prepare/url",
+          "maxLength": 8192,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/prepare"
+      ],
+      "duplicateKey": [
+        "",
+        "/prepare"
+      ]
+    },
     "pentest-action-prepare.json": {
       "enum": [
         "/apiVersion",
-        "/operation"
+        "/operation",
+        "/prepare/generation",
+        "/prepare/phase"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/prepare/url",
+          "maxLength": 8192
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/prepare/url",
+          "maxLength": 8192,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/prepare"
+      ],
+      "duplicateKey": [
+        "",
+        "/prepare"
+      ]
+    },
+    "pentest-action-refresh-control-identity.json": {
+      "enum": [
+        "/apiVersion",
+        "/operation",
+        "/prepare/generation",
+        "/prepare/phase",
+        "/prepare/redirectHop",
+        "/prepare/stepIndex"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/prepare/url",
+          "maxLength": 8192
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/prepare/url",
+          "maxLength": 8192,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/prepare"
+      ],
+      "duplicateKey": [
+        "",
+        "/prepare"
+      ]
+    },
+    "pentest-action-refresh-identity.json": {
+      "enum": [
+        "/apiVersion",
+        "/operation",
+        "/prepare/generation",
+        "/prepare/phase",
+        "/prepare/redirectHop"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/prepare/url",
+          "maxLength": 8192
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/prepare/url",
+          "maxLength": 8192,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/prepare"
+      ],
+      "duplicateKey": [
+        "",
+        "/prepare"
+      ]
+    },
+    "pentest-action-seed-identity.json": {
+      "enum": [
+        "/apiVersion",
+        "/operation",
+        "/prepare/phase"
       ],
       "maxLength": [
         {
@@ -3258,9 +3439,63 @@
         "/runtimeSettings"
       ]
     },
+    "pentest-preflight-identities.json": {
+      "enum": [
+        "/apiVersion",
+        "/identities/0/identityId",
+        "/identities/0/state",
+        "/identities/1/state",
+        "/identities/2/state"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/allocationId",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/identities/2/verifiedOrigin",
+          "maxLength": 320
+        },
+        {
+          "pointer": "/runtimeInstanceId",
+          "maxLength": 256
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/allocationId",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/identities/2/verifiedOrigin",
+          "maxLength": 320,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeInstanceId",
+          "maxLength": 256,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/identities/0",
+        "/identities/1",
+        "/identities/2"
+      ],
+      "duplicateKey": [
+        "",
+        "/identities/0",
+        "/identities/1",
+        "/identities/2"
+      ]
+    },
     "pentest-preflight-response.json": {
       "enum": [
-        "/apiVersion"
+        "/apiVersion",
+        "/identities/0/identityId",
+        "/identities/0/state"
       ],
       "maxLength": [
         {
@@ -3285,10 +3520,12 @@
         }
       ],
       "unknownMember": [
-        ""
+        "",
+        "/identities/0"
       ],
       "duplicateKey": [
-        ""
+        "",
+        "/identities/0"
       ]
     },
     "pentest-preflight-run.json": {
