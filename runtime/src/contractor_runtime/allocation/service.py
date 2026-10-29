@@ -627,6 +627,7 @@ class AllocationService:
             completedSeeds=summary.completed,
             failedSeeds=summary.failed,
             unknownSeeds=summary.unknown,
+            identities=list(summary.identities),
         )
 
     async def finalize(self, request: FinalizeAllocationRequest) -> AllocationFinalResponse:

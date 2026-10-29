@@ -60,6 +60,8 @@ def runtime_secrets(settings: RuntimeSettings) -> tuple[str, ...]:
             )
         if target.bearer_token is not None:
             values.append(target.bearer_token.get_secret_value())
+    for material in (settings.pentest_identities or {}).values():
+        values.extend(field.get_secret_value() for field in material.fields.values())
     return tuple(value for value in values if value)
 
 

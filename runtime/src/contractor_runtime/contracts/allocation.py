@@ -147,6 +147,25 @@ class AllocationSpec(VersionedWireModel):
 
     @model_validator(mode="after")
     def validate_spec(self) -> Self:
+        assignment = self.pentestEngagement.preflight if self.pentestEngagement else None
+        materials = self.runtime_settings.pentest_identities or {}
+        identities = assignment.identities if assignment else []
+        expected = {identity.id for identity in identities if identity.credential is not None}
+        if set(materials) != expected:
+            raise ValueError("pentest private material differs from assignment")
+        for identity in identities:
+            if identity.credential is None:
+                continue
+            material = materials[identity.id]
+            if material.credential != identity.credential:
+                raise ValueError("pentest private credential differs from assignment")
+            recipe = assignment.login_recipes.get(identity.id)
+            if (
+                identity.kind == "http-login"
+                and recipe is not None
+                and set(recipe.secret_fields) != set(material.fields)
+            ):
+                raise ValueError("pentest private fields differ from recipe")
         if (
             self.pentestEngagement is not None
             and self.pentestEngagement.access_mode == "blackbox"
