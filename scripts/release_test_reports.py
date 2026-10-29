@@ -302,12 +302,14 @@ def verify_runtime(report: Path) -> None:
     source = ET.parse(report).getroot()
     audit = gate("test-audit-completion-e2e.py")
     findings = gate("test-findings-e2e.py")
+    pentest = gate("test-pentest-http-process.py")
     selections = (
         (audit, {name.split("::", 1)[0] for name in audit["matrix"]()["python"]}),
         (
             findings,
             {name.removesuffix(".py").replace("/", ".") for name in findings["PYTHON_FILES"]},
         ),
+        (pentest, {name.split("::", 1)[0] for name in pentest["matrix"]()["python"]}),
     )
     with tempfile.TemporaryDirectory(prefix="release-runtime-report-") as directory:
         for index, (module, modules) in enumerate(selections):
@@ -335,7 +337,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "action",
-        choices=("run", "verify-runtime", "verify-audit", "verify-findings", "findings-pattern",
+        choices=("run", "verify-runtime", "verify-audit", "verify-findings", "verify-pentest-accounting", "findings-pattern",
                  "verify-iterative-postgres", "verify-iterative-process", "iterative-pattern"),
     )
     parser.add_argument("--report", type=Path)
@@ -370,6 +372,8 @@ def main() -> int:
         gate("test-audit-iterative.py")["verify"](args.report, args.action.removeprefix("verify-iterative-"))
     elif args.action == "verify-runtime":
         verify_runtime(args.report)
+    elif args.action == "verify-pentest-accounting":
+        gate("test-pentest-http-process.py")["verify_accounting_report"](args.report)
     else:
         verify_go(args.report, "audit-completion" if args.action == "verify-audit" else "findings")
     return 0

@@ -23,6 +23,9 @@ MODULE = "github.com/grauwolf32/contractor/"
 # Union of the process e2e names selected by release-verify before V155.
 EXPECTED_PROCESS_TESTS = {
     "TestPentestActionAcrossProductionProcesses",
+    "TestPentestHTTPRouteMatrixAcrossProcesses",
+    "TestPentestHTTPBoundsAcrossProcesses",
+    "TestPentestHTTPLifecycleAcrossProcesses",
     "TestNucleiWebWithDeterministicScannerAcrossProcesses",
     "TestAgentSkillsMVPProcesses",
     "TestArtifactHistoryAcrossProductionProcesses",
@@ -471,6 +474,19 @@ def script_go_tests(relative: str, command: str = "") -> list[GoTest]:
         return [GoTest(relative, frozenset({"integration"}), tuple("./" + name for name in module.PACKAGES), None)]
     if relative == "scripts/test-pentest-action-process.py":
         return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), "^(" + "|".join(module.PROCESS_TESTS) + ")$")]
+    if relative == "scripts/test-pentest-http-process.py":
+        if "--verify-" in command:
+            return []
+        process = module.process_cases()
+        accounting = module.matrix()["accounting"]
+        return [
+            GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",),
+                   module.reports.pattern(process[module.PACKAGE])),
+            GoTest(relative, frozenset({"integration"}),
+                   tuple("./" + package.removeprefix(MODULE) for package in accounting),
+                   module.reports.pattern(case for cases in accounting.values() for case in cases),
+                   race=True),
+        ]
     if relative == "scripts/test-project-sitemap-tools-e2e.py":
         return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), "^(" + "|".join(module.PROCESS_TESTS) + ")$")]
     if relative == "scripts/test-findings-e2e.py":

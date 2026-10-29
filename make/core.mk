@@ -36,6 +36,7 @@ test-release-config-fixtures: runtime-venv
 test-release-shared-fixtures: RELEASE_CONSOLIDATED := 1
 test-release-shared-fixtures: test-go test-runtime-hardening
 	python3 scripts/shared_fixture_gate.py --go-report "$(RELEASE_REPORTS)/go-unit.jsonl" --runtime-log "$(SHARED_FIXTURE_LOG)"
+	python3 scripts/release_test_reports.py verify-pentest-accounting --report "$(RELEASE_REPORTS)/go-unit.jsonl"
 
 test-hardening-matrices: runtime-venv
 	$(call run-family-test,go test -count=1 ./tests/e2e)

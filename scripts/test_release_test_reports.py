@@ -26,6 +26,10 @@ class ReportReuseTest(unittest.TestCase):
         for name, count in findings["PYTHON_CASES"].items():
             for index in range(count):
                 ET.SubElement(suite, "testcase", classname=classname, name=f"{name}[{index}]")
+        pentest = reports.gate("test-pentest-http-process.py")
+        for identity in pentest["matrix"]()["python"]:
+            classname, name = identity.rsplit("::", 1)
+            ET.SubElement(suite, "testcase", classname=classname, name=name)
         # Optional tests outside both focused scopes did not fail their old gates.
         ET.SubElement(
             ET.SubElement(suite, "testcase", classname="tests.optional", name="test_optional"),

@@ -88,12 +88,12 @@ available through a tag or a manual full-gate run before a PR is merged.
 | `release-verify-race` | The deduplicated Go race pass over the platform packages named in `make/release.mk` |
 | `release-verify-race-discovered` | The Go race pass over every other package with tests, discovered by [`scripts/release_race_packages.py`](../../scripts/release_race_packages.py), so a new package is raced automatically |
 | `release-verify-integration` | Every PostgreSQL-only integration-tagged Go test and the Audit completion/iterative selections under the race detector, with their required cases verified from one canonical report, a pass without it for packages whose tests relax a budget under the race detector, such as the 10-second finding-collection deadline, and every package whose tests take their Artifact blob backend from `CONTRACTOR_TEST_ARTIFACT_BACKEND`, run whole on the filesystem backend (`make test-artifact-filesystem`) |
-| `release-verify-process-a` | The first shard of the 30 process e2e tests, including all iterative Audit cases and their required-case report check |
-| `release-verify-process-b` | The second shard of the 30 process e2e tests |
-| `release-verify-process-c` | The third shard of the 30 process e2e tests, including the four findings process tests and their required-case report check |
+| `release-verify-process-a` | The first shard of the canonical process e2e tests, including all iterative Audit cases and their required-case report check |
+| `release-verify-process-b` | The second shard of the canonical process e2e tests |
+| `release-verify-process-c` | The third shard of the canonical process e2e tests, including the four findings process tests and their required-case report check |
 
 The process and browser shards run on separate CI runners. `make test-e2e`
-still runs all 30 process tests in one local command, and `make test-ui-stack`
+still runs all canonical process tests in one local command, and `make test-ui-stack`
 still runs the full browser stack locally. The release-graph guard checks that
 each selected process and browser test runs exactly once.
 
@@ -296,6 +296,7 @@ make release-verify
 | Worker session modes and lockstep rollout | [Runtime upgrades](../operations/runtime-configuration.md#worker-session-mode-upgrade) |
 | Audit programs | `make test-audit-program-library-e2e`; [Audit walkthrough](../guides/audits.md) |
 | Findings producer/collection/reader | `make test-findings-e2e`; [contract](../spec/findings/findings.md) |
+| Controlled anonymous HTTP preflight | `make test-pentest-http-process`; [independent process, socket and accounting evidence](pentest-http-conformance.md) |
 | Performance collection and profiling | [Operations performance](../operations/performance.md) |
 | Podman execution | [Podman provisioning and verification](../../deploy/podman/README.md) |
 | Runtime host provisioning (Ansible role) | `make test-ansible` (also in `make lint`; needs `uv`); [Ansible guide](../../deploy/ansible/README.md) |
