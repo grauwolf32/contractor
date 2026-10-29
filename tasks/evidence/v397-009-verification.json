@@ -44,7 +44,8 @@
     {
       "command": "make lint",
       "outcome": "passed",
-      "log": "/private/tmp/sarif-v397-019-lint-final.log"
+      "log": "/private/tmp/sarif-final-closed-lint.log",
+      "includes": "Final closed task files, final generated documentation graph and the complete combined SARIF implementation."
     }
   ],
   "regressions": [
