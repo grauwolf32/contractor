@@ -2042,66 +2042,6 @@
         "/ref"
       ]
     },
-    "pentest-action-auth-check-identity.json": {
-      "enum": [
-        "/apiVersion",
-        "/operation",
-        "/prepare/phase",
-        "/prepare/redirectHop"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/prepare"
-      ],
-      "duplicateKey": [
-        "",
-        "/prepare"
-      ]
-    },
-    "pentest-action-control-identity.json": {
-      "enum": [
-        "/apiVersion",
-        "/operation",
-        "/prepare/generation",
-        "/prepare/phase",
-        "/prepare/redirectHop",
-        "/prepare/stepIndex"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/prepare"
-      ],
-      "duplicateKey": [
-        "",
-        "/prepare"
-      ]
-    },
     "pentest-action-grant.json": {
       "enum": [
         "/apiVersion",
@@ -2136,36 +2076,6 @@
         ""
       ]
     },
-    "pentest-action-login-identity.json": {
-      "enum": [
-        "/apiVersion",
-        "/operation",
-        "/prepare/generation",
-        "/prepare/phase",
-        "/prepare/redirectHop"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/prepare"
-      ],
-      "duplicateKey": [
-        "",
-        "/prepare"
-      ]
-    },
     "pentest-action-prepare.json": {
       "enum": [
         "/apiVersion",
@@ -2195,71 +2105,11 @@
         "/prepare"
       ]
     },
-    "pentest-action-refresh-control-identity.json": {
-      "enum": [
-        "/apiVersion",
-        "/operation",
-        "/prepare/generation",
-        "/prepare/phase",
-        "/prepare/redirectHop",
-        "/prepare/stepIndex"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/prepare"
-      ],
-      "duplicateKey": [
-        "",
-        "/prepare"
-      ]
-    },
-    "pentest-action-refresh-identity.json": {
-      "enum": [
-        "/apiVersion",
-        "/operation",
-        "/prepare/generation",
-        "/prepare/phase",
-        "/prepare/redirectHop"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/prepare"
-      ],
-      "duplicateKey": [
-        "",
-        "/prepare"
-      ]
-    },
     "pentest-action-seed-identity.json": {
       "enum": [
         "/apiVersion",
         "/operation",
+        "/prepare/generation",
         "/prepare/phase"
       ],
       "maxLength": [
@@ -2735,7 +2585,7 @@
         "/runtimeSettings/pentestIdentities/account-a/fields"
       ]
     },
-    "pentest-allocation-http-login.json": {
+    "pentest-allocation-cookies.json": {
       "enum": [
         "/apiVersion",
         "/pentestEngagement/accessMode",
@@ -2750,13 +2600,6 @@
         "/pentestEngagement/preflight/identities/0/kind",
         "/pentestEngagement/preflight/identities/1/credential/kind",
         "/pentestEngagement/preflight/identities/1/kind",
-        "/pentestEngagement/preflight/loginRecipes/account-a/schema",
-        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/actionClass",
-        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/encoding",
-        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/method",
-        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control/actionClass",
-        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control/method",
-        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/kind",
         "/pentestEngagement/preflight/routes/0/actionClasses/0",
         "/pentestEngagement/preflight/routes/0/actionClasses/1",
         "/pentestEngagement/preflight/routes/0/methods/0",
@@ -2804,50 +2647,6 @@
         {
           "pointer": "/pentestEngagement/preflight/identities/1/origins/0",
           "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/identityId",
-          "maxLength": 64
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/secretFields/0",
-          "maxLength": 64
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/secretFields/1",
-          "maxLength": 64
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/password/variable",
-          "maxLength": 64
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/username/variable",
-          "maxLength": 64
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/id",
-          "maxLength": 64
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/url",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control/id",
-          "maxLength": 64
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control/url",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/expected",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/pointer",
-          "maxLength": 256
         },
         {
           "pointer": "/pentestEngagement/preflight/protectedDestinations/0/addresses/0",
@@ -2898,11 +2697,7 @@
           "maxLength": 128
         },
         {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/password",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/username",
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/session",
           "maxLength": 8192
         }
       ],
@@ -2950,61 +2745,6 @@
         {
           "pointer": "/pentestEngagement/preflight/identities/1/origins/0",
           "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/identityId",
-          "maxLength": 64,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/secretFields/0",
-          "maxLength": 64,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/secretFields/1",
-          "maxLength": 64,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/password/variable",
-          "maxLength": 64,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/username/variable",
-          "maxLength": 64,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/id",
-          "maxLength": 64,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/url",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control/id",
-          "maxLength": 64,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control/url",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/expected",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/pointer",
-          "maxLength": 256,
           "verdict": "reject"
         },
         {
@@ -3068,12 +2808,7 @@
           "verdict": "reject"
         },
         {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/password",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/username",
+          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/session",
           "maxLength": 8192,
           "verdict": "reject"
         }
@@ -3099,15 +2834,6 @@
         "/pentestEngagement/preflight/identities/0",
         "/pentestEngagement/preflight/identities/1",
         "/pentestEngagement/preflight/identities/1/credential",
-        "/pentestEngagement/preflight/identities/1/loginRecipe",
-        "/pentestEngagement/preflight/identities/1/loginRecipe/ref",
-        "/pentestEngagement/preflight/loginRecipes/account-a",
-        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0",
-        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body",
-        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/password",
-        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/username",
-        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate",
-        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control",
         "/pentestEngagement/preflight/protectedDestinations/0",
         "/pentestEngagement/preflight/routes/0",
         "/resolvedRuntimeConfigProvenance",
@@ -3147,17 +2873,6 @@
         "/pentestEngagement/preflight/identities/0",
         "/pentestEngagement/preflight/identities/1",
         "/pentestEngagement/preflight/identities/1/credential",
-        "/pentestEngagement/preflight/identities/1/loginRecipe",
-        "/pentestEngagement/preflight/identities/1/loginRecipe/ref",
-        "/pentestEngagement/preflight/loginRecipes",
-        "/pentestEngagement/preflight/loginRecipes/account-a",
-        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0",
-        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body",
-        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields",
-        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/password",
-        "/pentestEngagement/preflight/loginRecipes/account-a/steps/0/body/fields/username",
-        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate",
-        "/pentestEngagement/preflight/loginRecipes/account-a/successPredicate/control",
         "/pentestEngagement/preflight/protectedDestinations/0",
         "/pentestEngagement/preflight/routes/0",
         "/resolvedRuntimeConfigProvenance",
@@ -3453,10 +3168,6 @@
           "maxLength": 256
         },
         {
-          "pointer": "/identities/2/verifiedOrigin",
-          "maxLength": 320
-        },
-        {
           "pointer": "/runtimeInstanceId",
           "maxLength": 256
         }
@@ -3465,11 +3176,6 @@
         {
           "pointer": "/allocationId",
           "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/identities/2/verifiedOrigin",
-          "maxLength": 320,
           "verdict": "reject"
         },
         {

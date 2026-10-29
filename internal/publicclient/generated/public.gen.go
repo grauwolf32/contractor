@@ -353,13 +353,13 @@ func (e CreateRuntimeCredentialRequest8Kind) Valid() bool {
 
 // Defines values for CreateRuntimeCredentialRequest9Kind.
 const (
-	TargetLogin1 CreateRuntimeCredentialRequest9Kind = "target-login@1"
+	TargetCookies1 CreateRuntimeCredentialRequest9Kind = "target-cookies@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest9Kind enum.
 func (e CreateRuntimeCredentialRequest9Kind) Valid() bool {
 	switch e {
-	case TargetLogin1:
+	case TargetCookies1:
 		return true
 	default:
 		return false
@@ -4624,7 +4624,7 @@ type CreateRuntimeCredentialRequest8Kind string
 type CreateRuntimeCredentialRequest9 struct {
 	CredentialId RuntimeCredentialId                 `json:"credentialId"`
 	Kind         CreateRuntimeCredentialRequest9Kind `json:"kind"`
-	Material     *TargetLoginMaterial                `json:"material,omitempty"`
+	Material     *TargetCookiesMaterial              `json:"material,omitempty"`
 }
 
 // CreateRuntimeCredentialRequest9Kind defines model for CreateRuntimeCredentialRequest.9.Kind.
@@ -8090,10 +8090,10 @@ type TargetBearerMaterial struct {
 	Token *string `json:"token,omitempty"`
 }
 
-// TargetLoginMaterial defines model for TargetLoginMaterial.
-type TargetLoginMaterial struct {
-	// Fields Named login secret fields (RCF-R184); each value is at most 8,192 UTF-8 bytes without control characters, and the values total at most 16 KiB.
-	Fields *map[string]string `json:"fields,omitempty"`
+// TargetCookiesMaterial defines model for TargetCookiesMaterial.
+type TargetCookiesMaterial struct {
+	// Cookies Ready user supplied cookies (RCF-R184); at most 128 cookies with token names, at most 8192 ASCII cookie octets per value and at most 16 KiB of names and values combined. Empty values are allowed. Runtime does not log in or refresh the session.
+	Cookies *map[string]string `json:"cookies,omitempty"`
 }
 
 // TerminationError defines model for TerminationError.

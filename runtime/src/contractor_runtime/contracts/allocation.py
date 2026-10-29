@@ -159,13 +159,6 @@ class AllocationSpec(VersionedWireModel):
             material = materials[identity.id]
             if material.credential != identity.credential:
                 raise ValueError("pentest private credential differs from assignment")
-            recipe = assignment.login_recipes.get(identity.id)
-            if (
-                identity.kind == "http-login"
-                and recipe is not None
-                and set(recipe.secret_fields) != set(material.fields)
-            ):
-                raise ValueError("pentest private fields differ from recipe")
         if (
             self.pentestEngagement is not None
             and self.pentestEngagement.access_mode == "blackbox"

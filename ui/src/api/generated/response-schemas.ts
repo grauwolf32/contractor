@@ -412,7 +412,7 @@ export type PublicSchemaName =
   | "HTTPOriginBearerMaterial"
   | "TargetBasicMaterial"
   | "TargetBearerMaterial"
-  | "TargetLoginMaterial"
+  | "TargetCookiesMaterial"
   | "CreateRuntimeCredentialRequest"
   | "PinnedRuntimeConfig"
   | "RunRuntimeConfiguration"

@@ -1163,23 +1163,18 @@ commands. The Server derives Audit, owner, Project, Run, Stage and Runtime
 process from the authenticated allocation; request data cannot select them.
 Preparation selects an assigned `identityId`, closed `phase`, `stepIndex` and
 `generation`, plus a physical attempt ordinal (redirect hop plus retry ordinal).
-Phases are `seed`, `login`, `control`, `auth-check`, `refresh` and
-`refresh-control`; the Server derives method/action class and static request
-slot from the pinned seed or recipe, never from caller-selected method fields.
-The semantic action key includes Audit, allocation, identity, generation, phase
-and index. Request/target digests contain only the non-secret slot identity and
-canonical URL, never expanded private headers/body. Every mutation uses the existing
-Audit-owned `KeyedMutation` receipt with a Server-derived semantic key and
-separate command digest. Exact replay cannot charge twice; changed bytes are
-`pentest_action_conflict`. A new allocation cannot reuse an earlier allocation's
-completed authentication or seed execution as its own session. Pending or
-unknown held traffic for that identity in a prior allocation prevents replacement
-work. Anonymous uses only generation-zero seed slots. Login/control use the
-initial generation; refresh/refresh-control use the single next generation.
-Generation advance requires a completed seed 401/403 and its completed
-control check, never a held or unknown predecessor. Login/control/auth-check
-logical actions share the pinned per-identity/allocation/generation login
-allowance and all physical sends charge the ordinary cumulative target budget.
+The only phase is `seed` and the only generation is zero. The Server derives
+GET/read and the canonical request slot from the assigned pinned seed, never
+from caller-selected method fields. The semantic action key includes Audit,
+allocation, identity, generation, phase and index. Request/target digests contain
+only non-secret slot identity and canonical URL, never expanded private headers.
+Every mutation uses the existing Audit-owned `KeyedMutation` receipt with a
+Server-derived semantic key and separate command digest. Exact replay cannot
+charge twice; changed bytes are `pentest_action_conflict`. A new allocation
+cannot reuse an earlier allocation's completed seed execution as its session.
+Pending or unknown held traffic for that identity in a prior allocation prevents
+replacement work. Every physical send charges the cumulative target budget.
+
 
 Preparation atomically reserves the action intent. Grant atomically charges a
 physical request and concurrency against the pinned Audit caps. A waiting
@@ -1233,6 +1228,6 @@ action journal. If no seed completes, preparation
 fails rather than reporting empty successful discovery. Raw response buffers,
 headers, credentials and redirect query values are not stored in the journal.
 A canonical redirect-target digest authorizes only the matching next prepare
-within HTP-R139's permitted subset; login/control/refresh emit no such digest.
+within HTP-R139's permitted subset.
 The containing allocation owns and joins all preflight work before release;
 no network call occurs while an Audit transaction or Registry mutex is held.

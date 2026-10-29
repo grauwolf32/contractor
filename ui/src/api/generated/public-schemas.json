@@ -9780,7 +9780,7 @@
         "http-origin-bearer@1",
         "target-basic@1",
         "target-bearer@1",
-        "target-login@1"
+        "target-cookies@1"
       ]
     },
     "RuntimeCredentialMetadata": {
@@ -9962,21 +9962,21 @@
         }
       }
     },
-    "TargetLoginMaterial": {
+    "TargetCookiesMaterial": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["fields"],
+      "required": ["cookies"],
       "properties": {
-        "fields": {
+        "cookies": {
           "type": "object",
           "minProperties": 1,
-          "maxProperties": 16,
-          "propertyNames": { "pattern": "^[a-z][a-z0-9_-]{0,63}$" },
+          "maxProperties": 128,
+          "propertyNames": { "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,256}$" },
           "additionalProperties": {
             "type": "string",
-            "minLength": 1,
+            "minLength": 0,
             "maxLength": 8192,
-            "pattern": "^[^\\x00-\\x1F\\x7F]+$",
+            "pattern": "^[\\x21\\x23-\\x2B\\x2D-\\x3A\\x3C-\\x5B\\x5D-\\x7E]*$",
             "writeOnly": true
           },
           "writeOnly": true
@@ -10128,9 +10128,9 @@
             "credentialId": {
               "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
             },
-            "kind": { "type": "string", "const": "target-login@1" },
+            "kind": { "type": "string", "const": "target-cookies@1" },
             "material": {
-              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/TargetLoginMaterial",
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/TargetCookiesMaterial",
               "writeOnly": true
             }
           }

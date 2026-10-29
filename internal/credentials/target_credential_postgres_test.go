@@ -38,12 +38,12 @@ func targetCredentialMaterials(t *testing.T, canary string) map[RuntimeCredentia
 	if err != nil {
 		t.Fatal(err)
 	}
-	login, err := NewTargetLoginCredential(map[string]string{"username": "alice", "password": canary + "-login"})
+	login, err := NewTargetCookiesCredential(map[string]string{"username": "alice", "password": canary + "-login"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	materials := map[RuntimeCredentialKind]RuntimeCredentialMaterial{
-		RuntimeCredentialTargetBasic: basic, RuntimeCredentialTargetBearer: bearer, RuntimeCredentialTargetLogin: login,
+		RuntimeCredentialTargetBasic: basic, RuntimeCredentialTargetBearer: bearer, RuntimeCredentialTargetCookies: login,
 	}
 	t.Cleanup(func() {
 		for _, material := range materials {
@@ -54,7 +54,7 @@ func targetCredentialMaterials(t *testing.T, canary string) map[RuntimeCredentia
 }
 
 func targetKindsInOrder() []RuntimeCredentialKind {
-	return []RuntimeCredentialKind{RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetLogin}
+	return []RuntimeCredentialKind{RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetCookies}
 }
 
 func newTargetCredentialService(t *testing.T, pool *pgxpool.Pool, audits RuntimeCredentialAuditHoldLookup) *RuntimeCredentialService {
@@ -144,8 +144,8 @@ func TestTargetCredentialPostgresCreateListResolveAndPrivateUse(t *testing.T) {
 			}
 		}
 		wrongKind := ref
-		wrongKind.Kind = runtimesettings.RuntimeCredentialTargetLogin
-		if ref.Kind == runtimesettings.RuntimeCredentialTargetLogin {
+		wrongKind.Kind = runtimesettings.RuntimeCredentialTargetCookies
+		if ref.Kind == runtimesettings.RuntimeCredentialTargetCookies {
 			wrongKind.Kind = runtimesettings.RuntimeCredentialTargetBasic
 		}
 		for name, check := range map[string]struct {
@@ -293,12 +293,12 @@ func TestTargetCredentialPostgresUseWipesMaterialOnFailureAndCancellation(t *tes
 	const canary = "canary-target-a5-3f8c"
 	materials := targetCredentialMaterials(t, canary)
 	if _, err := service.Create(ctx, RuntimeCredentialCreateRequest{
-		CredentialID: "wiped-login", Material: materials[RuntimeCredentialTargetLogin],
+		CredentialID: "wiped-login", Material: materials[RuntimeCredentialTargetCookies],
 		IdempotencyKey: "create-wiped-login", ActorID: targetCredentialOwner,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	kinds := []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialTargetLogin}
+	kinds := []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialTargetCookies}
 	for _, test := range []struct {
 		name    string
 		consume func(context.CancelFunc) error

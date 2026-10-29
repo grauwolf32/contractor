@@ -41,7 +41,7 @@ const KIND_LABELS: Record<CredentialKind, string> = {
   "http-origin-bearer@1": "HTTP origin bearer token",
   "target-basic@1": "Pentest target basic auth",
   "target-bearer@1": "Pentest target bearer token",
-  "target-login@1": "Pentest target login fields",
+  "target-cookies@1": "Pentest target cookies",
 };
 
 interface HeaderDraft {
@@ -75,8 +75,8 @@ export function RuntimeCredentialCreateForm({
     kind === "http-proxy-basic@1" ||
     kind === "http-origin-basic@1" ||
     kind === "target-basic@1";
-  const named = kind === "otlp-headers@1" || kind === "target-login@1";
-  const fieldNoun = kind === "target-login@1" ? "Login field" : "Header";
+  const named = kind === "otlp-headers@1" || kind === "target-cookies@1";
+  const fieldNoun = kind === "target-cookies@1" ? "Cookie" : "Header";
   const basicNoun =
     kind === "http-origin-basic@1"
       ? "Origin"
@@ -118,17 +118,15 @@ export function RuntimeCredentialCreateForm({
         ? new Error("Provide unique non-empty OTLP header names and values.")
         : { credentialId, kind, material: { headers: material } };
     }
-    if (kind === "target-login@1") {
+    if (kind === "target-cookies@1") {
       const material = Object.fromEntries(
         headers.map((header) => [header.name.trim(), header.value]),
       );
       return headers.length === 0 ||
         Object.keys(material).length !== headers.length ||
-        Object.entries(material).some(
-          ([name, value]) => name === "" || value === "",
-        )
-        ? new Error("Provide unique non-empty login field names and values.")
-        : { credentialId, kind, material: { fields: material } };
+        Object.keys(material).some((name) => name === "")
+        ? new Error("Provide unique non-empty cookie names.")
+        : { credentialId, kind, material: { cookies: material } };
     }
     if (
       kind === "http-proxy-basic@1" ||
@@ -225,8 +223,8 @@ export function RuntimeCredentialCreateForm({
                   const next = event.target.value as CredentialKind;
                   setKind(next);
                   setHeaders(
-                    (next === "target-login@1"
-                      ? ["username", "password"]
+                    (next === "target-cookies@1"
+                      ? ["session"]
                       : ["Authorization"]
                     ).map((name) => ({
                       id: nextHeaderID.current++,

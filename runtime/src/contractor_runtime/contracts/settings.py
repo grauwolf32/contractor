@@ -39,7 +39,11 @@ from contractor_runtime.contracts.base import (
     _require_url,
     trim_whitespace,
 )
-from contractor_runtime.contracts.fields import is_credential_field_value
+from contractor_runtime.contracts.fields import (
+    is_credential_field_value,
+    valid_cookie_name,
+    valid_cookie_value,
+)
 from contractor_runtime.contracts.sitemap import ProjectSitemapPolicy
 from contractor_runtime.contracts.tool_execution import ToolExecutionConfig
 
@@ -605,11 +609,23 @@ def default_source_archive_limits() -> SourceArchiveLimits:
 
 class PentestIdentityMaterial(WireModel):
     credential: RuntimeCredentialRef
-    fields: dict[str, SecretStr] = Field(min_length=1, max_length=16)
+    fields: dict[str, SecretStr] = Field(min_length=1, max_length=128)
 
     @model_validator(mode="after")
     def validate_material(self) -> Self:
         values = {name: field.get_secret_value() for name, field in self.fields.items()}
+        if self.credential.kind == "target-cookies@1":
+            if (
+                any(
+                    not valid_cookie_name(name)
+                    or not valid_cookie_value(value)
+                    or len(value) > 8192
+                    for name, value in values.items()
+                )
+                or sum(len(name) + len(value) for name, value in values.items()) > 16384
+            ):
+                raise ValueError("pentest cookie material is invalid")
+            return self
         if (
             any(
                 re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", name) is None
@@ -630,7 +646,7 @@ class PentestIdentityMaterial(WireModel):
         elif self.credential.kind == "target-bearer@1":
             if set(values) != {"token"} or not is_credential_field_value(values["token"]):
                 raise ValueError("pentest bearer material is invalid")
-        elif self.credential.kind != "target-login@1":
+        else:
             raise ValueError("pentest credential kind is invalid")
         return self
 

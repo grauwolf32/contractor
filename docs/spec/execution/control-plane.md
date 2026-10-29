@@ -306,7 +306,8 @@ assignment. Controlled preflight requires the explicit `pentest-target-http@1`
 capability in the immutable policy and the selected Runtime advertisement; it
 is independent of RuntimeConfig adapter provenance. Both wire validators and
 Runtime prepare reject an execution assignment whose enforcement is absent.
-The assignment requires `identities` and a `loginRecipes` map (empty allowed).
+The assignment requires `identities`; non-anonymous entries select exact held
+Basic, Bearer or supplied-cookie credentials.
 After placement and trusted baseline resolution, composition decrypts only the
 exact held references through the existing synchronous credential consumer,
 with its independent LIM-CTL-19 lookup deadline. It sends a secret-typed

@@ -15401,7 +15401,7 @@ components:
       properties:
         config: {$ref: '#/components/schemas/RuntimeConfigRef'}
     RuntimeCredentialKind:
-      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1, interactsh-token@1, http-origin-basic@1, http-origin-bearer@1, target-basic@1, target-bearer@1, target-login@1]
+      enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1, interactsh-token@1, http-origin-basic@1, http-origin-bearer@1, target-basic@1, target-bearer@1, target-cookies@1]
     RuntimeCredentialMetadata:
       type: object
       additionalProperties: false
@@ -15528,24 +15528,24 @@ components:
           pattern: '^[!-~]+(?:[ \t]+[!-~]+)*$'
           writeOnly: true
           description: An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them.
-    TargetLoginMaterial:
+    TargetCookiesMaterial:
       type: object
       additionalProperties: false
-      required: [fields]
+      required: [cookies]
       properties:
-        fields:
+        cookies:
           type: object
           minProperties: 1
-          maxProperties: 16
-          propertyNames: {pattern: '^[a-z][a-z0-9_-]{0,63}$'}
+          maxProperties: 128
+          propertyNames: {pattern: "^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,256}$"}
           additionalProperties:
             type: string
-            minLength: 1
+            minLength: 0
             maxLength: 8192
-            pattern: '^[^\x00-\x1F\x7F]+$'
+            pattern: '^[\x21\x23-\x2B\x2D-\x3A\x3C-\x5B\x5D-\x7E]*$'
             writeOnly: true
           writeOnly: true
-          description: Named login secret fields (RCF-R184); each value is at most 8,192 UTF-8 bytes without control characters, and the values total at most 16 KiB.
+          description: Ready user supplied cookies (RCF-R184); at most 128 cookies with token names, at most 8192 ASCII cookie octets per value and at most 16 KiB of names and values combined. Empty values are allowed. Runtime does not log in or refresh the session.
     CreateRuntimeCredentialRequest:
       oneOf:
         - type: object
@@ -15616,8 +15616,8 @@ components:
           required: [credentialId, kind, material]
           properties:
             credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
-            kind: {type: string, const: target-login@1}
-            material: {$ref: '#/components/schemas/TargetLoginMaterial', writeOnly: true}
+            kind: {type: string, const: target-cookies@1}
+            material: {$ref: '#/components/schemas/TargetCookiesMaterial', writeOnly: true}
     PinnedRuntimeConfig:
       type: object
       additionalProperties: false

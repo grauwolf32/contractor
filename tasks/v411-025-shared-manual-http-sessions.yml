@@ -1,0 +1,104 @@
+schema_version: '1.0'
+id: V411-025
+title: Share HTTP session state and accept user supplied pentest cookies without automatic login
+milestone: autonomous-http-pentest-2026-10
+epic: http-tools
+kind: feature
+priority: P1
+status: in_progress
+depends_on: [V411-005]
+languages: [go, python, sql, json, yaml, typescript]
+goal: >-
+  Ordinary HTTP and controlled pentest use one bounded cookie/session implementation.
+  Pentest consumes explicitly supplied Basic, bearer or cookie identities and never
+  attempts login, principal verification or refresh on the user's behalf.
+context:
+  authority: >-
+    User request on 2026-10-29 during the main V411 review to separate automatic
+    authentication, use supplied credentials/cookies, share existing HTTP session
+    code, and implement the refactoring immediately.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R137
+  - docs/spec/tools/http-caido.md#HTP-R140
+  - docs/spec/audits/execution.md#AUX-R104
+  - docs/spec/configuration/runtime-config.md#RCF-R184
+  finding: >-
+    runtime/src/contractor_runtime/adapters/pentest_target.py:254 repeats identity
+    controls on ordinary 403 responses, exhausts login allowance and falsely declares
+    expiry; :473 follows redirects after an invalid cookie update. The automatic
+    recipe subsystem also duplicates ordinary HTTP session state.
+scope:
+  in:
+  - Extract a lower-layer shared cookie/session core used by ordinary HTTP and pentest.
+  - Replace automatic login identities with explicitly selected encrypted target cookie credentials.
+  - Remove recipe execution, identity assertions, refresh and their active wire surface end to end.
+  - Preserve controlled permits, exact-origin isolation, stop proof and safe response accounting.
+  - Update normative contracts, shared fixtures, generated clients and the credential form.
+  out:
+  - A future automatic authentication component, browser login, proof replay and new transport capabilities.
+  - Sharing mutable identity jars, inheriting Project credentials, or interpreting every 401/403 as expiry.
+requirements:
+- id: R1
+  text: User selected Basic/bearer/cookie material remains private; configured credentials establish no observed principal.
+- id: R2
+  text: Every target request uses the existing ledger. No login/control/refresh request is emitted; 401/403 remains an HTTP response.
+- id: R3
+  text: Shared cookie validation, matching, expiry and limits have one implementation. Identity jars and transport policy remain separate.
+failure_outcomes:
+- operation: Resolve and inject a supplied identity
+  permanent: Invalid/missing/foreign exact credentials use existing safe validation or not-found errors; no anonymous fallback.
+  retryable: Only existing bounded storage conflicts retry under the original key and deadline.
+  ambiguous: Existing allocation receipts and action identities reconcile; no new target request is inferred.
+  cancelled: Join all owned work before erasing supplied material, jars and handles.
+  timeout: Credential resolution, control protocol and target request retain their separate bounded deadlines.
+- operation: Apply response cookies
+  permanent: Invalid or oversized prospective state fails the traversal and blocks any redirect continuation; preserve the completed physical outcome.
+  retryable: No target retry follows a possibly sent response or a cookie-state error.
+  ambiguous: No cookie checkpoint or second receipt family is introduced for pentest.
+  cancelled: Cookie parsing is joined before session ownership is released.
+  timeout: Existing request and allocation deadlines bound parsing and cleanup.
+cardinality:
+- collection: Assigned identity sessions
+  expected: Anonymous plus accounts A and B
+  maximum: Eight identities and 128 seed URLs
+  bound: Existing action/request/rate/concurrency caps; at most 1024 logical seed results.
+- collection: Supplied cookie material and prospective jars
+  expected: A few session cookies
+  maximum: 128 supplied cookies within the existing 32 KiB encrypted envelope; runtime jars at most 128 cookies and 65536 encoded bytes
+  bound: Validate the whole prospective state before publishing it; reject framing characters and invalid Cookie pairs.
+lifecycle:
+- entity: Identity credential and private session
+  delete: Existing credential holds prevent deletion while selected by an Audit; no caller deletes individual journal actions.
+  cascade: Allocation stop joins transport then erases all private state; user cookie credentials follow existing encrypted-store lifecycle.
+  retention: Public metadata and action outcomes contain no cookie values or secret hashes; pentest jars are memory only.
+acceptance_criteria:
+- id: A1
+  given: Supplied anonymous, Basic, bearer and cookie identities
+  when: Controlled seeds and ordinary HTTP session operations execute
+  then: Both paths use the shared cookie core; controlled GET/read seeds retain the selected identity and isolate mutable jars by identity and origin.
+- id: A2
+  given: A sequence of 401, 403 and 200 responses, and malformed or oversized cookies on a redirect
+  when: Preflight traverses the seeds
+  then: Each received status is a completed physical outcome, later seeds retain their supplied cookies, and a failed cookie update stops the redirect.
+- id: A3
+  given: Strict shared contract cases, a real PostgreSQL credential store and allocation cancellation
+  when: Credentials are created, pinned, projected and destroyed
+  then: All language/schema readers agree, holds and receipts remain correct, and no secret survives public projections or joined stop.
+tests:
+- command: make lint
+  covers: [A1, A2, A3]
+- command: make verify-public-api test-wire-cross-language
+  covers: [A1, A3]
+- command: make ui-verify
+  covers: [A1, A3]
+- command: go test -tags=integration -count=1 ./internal/credentials/... ./internal/contracts/... ./internal/auditservice ./internal/auditstore/internal/pgstore ./internal/controlplane ./internal/httpapi/public ./internal/persistence/postgres
+  covers: [A1, A2, A3]
+- command: make test-http-caido-runtime test-pentest-http-process
+  covers: [A1, A2, A3]
+implementation_notes:
+- The common core owns CookieJar encoding, validation, matching, expiry and Basic header construction. Ordinary HTTP retains its checkpoint adapter; controlled pentest retains its memory-only transport owner.
+- Identity ID selects an explicit credential reference and independent exact-origin jars. Even two identities referencing the same immutable credential cannot share response-cookie updates.
+- Supplied-cookie initialization and response updates validate the aggregate jar bounds. IPv6 hosts use CookieJar's effective-host representation and the same host-only filter as ordinary HTTP.
+- A received 401/403/200 sequence is tested as current transport behavior with the same selected cookies. Obsolete login-budget, principal-control and refresh scenarios were removed rather than preserved as absence tests.
+- Automatic-login credentials and immutable engagement pins have no honest conversion to ready cookies. Migration 59 refuses them before changing data; Operations must explicitly resolve such records before upgrading. No working or demo database was migrated.
+- Future authentication automation belongs to a separate component only when a concrete caller and bounded contract exist; this change creates no unused provider or framework.

@@ -140,7 +140,7 @@ func TestTargetCredentialCreateReturnsOnlySafeMetadata(t *testing.T) {
 	}{
 		{"target-basic", "target-basic@1", `{"username":"alice","password":"` + canary + `"}`},
 		{"target-bearer", "target-bearer@1", `{"token":"` + canary + `"}`},
-		{"target-login", "target-login@1", `{"fields":{"username":"alice","password":"` + canary + `"}}`},
+		{"target-cookies", "target-cookies@1", `{"cookies":{"session":"` + canary + `"}}`},
 	} {
 		body := fmt.Sprintf(`{"credentialId":%q,"kind":%q,"material":%s}`, tc.id, tc.kind, tc.material)
 		response := httptest.NewRecorder()
@@ -162,14 +162,14 @@ func TestTargetCredentialCreateReturnsOnlySafeMetadata(t *testing.T) {
 			t.Fatalf("%s: created = %+v, %v: %s", tc.kind, created, err, response.Body.String())
 		}
 	}
-	fields := make([]string, 0, 17)
-	for i := range 17 {
+	fields := make([]string, 0, 129)
+	for i := range 129 {
 		fields = append(fields, fmt.Sprintf(`"f%d":"%s"`, i, canary))
 	}
-	body := `{"credentialId":"target-login-oversized","kind":"target-login@1","material":{"fields":{` + strings.Join(fields, ",") + `}}}`
+	body := `{"credentialId":"target-cookies-oversized","kind":"target-cookies@1","material":{"cookies":{` + strings.Join(fields, ",") + `}}}`
 	response := httptest.NewRecorder()
 	fixture.handler.ServeHTTP(response, runtimeMutationRequest(
-		t, http.MethodPost, "/v1/operations/runtime-credentials", body, "target-login-oversized", "", "",
+		t, http.MethodPost, "/v1/operations/runtime-credentials", body, "target-cookies-oversized", "", "",
 	))
 	if response.Code != http.StatusBadRequest || strings.Contains(response.Body.String(), canary) {
 		t.Fatalf("oversized login create = %d: %s", response.Code, response.Body.String())

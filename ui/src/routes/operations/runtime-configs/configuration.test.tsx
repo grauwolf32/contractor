@@ -134,8 +134,8 @@ function setupWithCreate() {
       "POST /v1/operations/runtime-credentials": () =>
         json(
           conforming("RuntimeCredentialMetadata", {
-            credentialId: "alice-login",
-            kind: "target-login@1",
+            credentialId: "alice-cookies",
+            kind: "target-cookies@1",
             createdBy: "user_local",
             createdAt: CREATED,
           }),
@@ -423,8 +423,8 @@ describe("Runtime configuration hub navigation", () => {
     );
   });
 
-  it("creates a pentest target login credential from named fields", async () => {
-    const secret = "target-login-secret";
+  it("creates a ready pentest cookie credential without exposing values", async () => {
+    const secret = "target-cookie-secret";
     const { user, server } = setupWithCreate();
     await user.click(
       await screen.findByRole("button", { name: "Add Runtime credential" }),
@@ -434,20 +434,19 @@ describe("Runtime configuration hub navigation", () => {
     });
     await user.type(
       within(dialog).getByLabelText("Runtime credential ID"),
-      "alice-login",
+      "alice-cookies",
     );
     await user.selectOptions(
       within(dialog).getByLabelText("Credential kind"),
-      "Pentest target login fields",
+      "Pentest target cookies",
     );
-    const values = within(dialog).getAllByLabelText(/Login field value/);
+    const values = within(dialog).getAllByLabelText(/Cookie value/);
     expect(
       within(dialog)
-        .getAllByLabelText("Login field name")
+        .getAllByLabelText("Cookie name")
         .map((input) => (input as HTMLInputElement).value),
-    ).toEqual(["username", "password"]);
-    await user.type(values[0]!, "alice");
-    await user.type(values[1]!, secret);
+    ).toEqual(["session"]);
+    await user.type(values[0]!, secret);
     await user.click(
       within(dialog).getByRole("button", {
         name: "Create active Runtime credential",
@@ -456,15 +455,15 @@ describe("Runtime configuration hub navigation", () => {
     expect(
       await within(dialog).findByText(/Created safe metadata/),
     ).toBeInTheDocument();
-    for (const value of within(dialog).getAllByLabelText(/Login field value/)) {
+    for (const value of within(dialog).getAllByLabelText(/Cookie value/)) {
       expect(value).toHaveValue("");
     }
     expect(document.body.textContent).not.toContain(secret);
     const [sent] = server.sent("POST", "/v1/operations/runtime-credentials");
     expect(await sent!.json()).toEqual({
-      credentialId: "alice-login",
-      kind: "target-login@1",
-      material: { fields: { username: "alice", password: secret } },
+      credentialId: "alice-cookies",
+      kind: "target-cookies@1",
+      material: { cookies: { session: secret } },
     });
   });
 

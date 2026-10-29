@@ -131,16 +131,6 @@ func (s AllocationSpec) Validate() error {
 			if !ok || material.Credential != *identity.Credential {
 				return contracts.Invalidf("pentest private credential differs from assignment")
 			}
-			if recipe, ok := s.PentestEngagement.Preflight.LoginRecipes[identity.ID]; ok && material.Credential.Kind == runtimesettings.RuntimeCredentialTargetLogin {
-				if len(recipe.SecretFields) != len(material.Fields) {
-					return contracts.Invalidf("pentest private fields differ from recipe")
-				}
-				for _, name := range recipe.SecretFields {
-					if _, ok := material.Fields[name]; !ok {
-						return contracts.Invalidf("pentest private fields differ from recipe")
-					}
-				}
-			}
 		}
 		if expected != len(s.RuntimeSettings.PentestIdentities) {
 			return contracts.Invalidf("unassigned pentest private material")

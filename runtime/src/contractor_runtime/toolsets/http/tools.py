@@ -33,6 +33,7 @@ from contractor_runtime.adapters.http_proxy import (
 from contractor_runtime.adapters.otlp_retry import retry_after_seconds
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.contracts.fields import is_field_value
+from contractor_runtime.core.http_session import extract_sendable_cookies, matching_cookies
 from contractor_runtime.core.target_policy import (
     TargetDenied,
     TargetPolicy,
@@ -80,8 +81,6 @@ from contractor_runtime.toolsets.common.http_observations import (
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
 from contractor_runtime.toolsets.http.cookies import (
     CookieCheckpoint,
-    extract_sendable_cookies,
-    matching_cookies,
 )
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.http.fields import is_cookie_pair
