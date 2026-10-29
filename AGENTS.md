@@ -281,6 +281,31 @@ designs at a component boundary, record the guarantee, the alternatives, the
 evidence and the reversal condition in the spec or the task, so the next agent
 does not argue it again.
 
+### 3.11 Keep source details at their boundary
+
+Before implementation, identify who owns source interpretation, domain rules,
+authority and persistence; record that boundary under 3.10. For tool-produced
+observations and reports, provider-specific parsing, field mapping and malformed
+row handling belong in the owning Runtime adapter. Server validates the common
+normalized input and enforces authorization, domain invariants, bounds, canonical
+identities, grouping and receipts. Adding or replacing a provider should require
+an adapter and composition changes, without new Server branches to interpret its
+format. Provider labels are provenance; enums expressing actual domain rules
+remain appropriate.
+
+Build artifact-based features on the ordinary Artifact read, metadata, revision,
+publication and retention mechanisms. Keep domain transformations in their owning
+module. When a concrete caller needs a missing shared capability, extend the
+existing owner rather than introducing a parallel feature-specific store or API;
+the caller requirement in 3.7 still applies. This does not justify a speculative
+plugin framework or a new abstraction for hypothetical future providers.
+
+When requirements change, first identify old paths, states and contracts that
+can be deleted. Passing tests establish behavior under those tests, not the need
+for the architecture. Review responsibilities and existing mechanisms before
+building and testing an additional one; do not preserve an unnecessary mechanism
+merely because it is already implemented and covered by tests.
+
 ## 4. Tasks
 
 `tasks/` is the project tracker (`gh` is not available). The rules are in
@@ -476,6 +501,8 @@ Notes:
       were run (3.5).
 - [ ] Sibling paths of a fixed defect are fixed or ruled out (3.6).
 - [ ] Nothing new is without a production caller (3.7).
+- [ ] Source details stay in adapters, shared mechanisms are reused, and
+      superseded paths are removed (3.11).
 - [ ] `make lint` and the tests for every touched package pass; you report
       exactly what you ran.
 - [ ] The task file is updated (status, commit hash, moved to `tasks/done/`
