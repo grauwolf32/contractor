@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-121 open tasks: 9 in progress, 101 pending, 11 deferred. 1188 finished: 1178 completed, 10 archived.
+120 open tasks: 8 in progress, 101 pending, 11 deferred. 1189 finished: 1179 completed, 10 archived.
 
 ## In progress
 
@@ -17,7 +17,6 @@ the epics are in [epics.yml](epics.yml).
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
 | [V411-004](v411-004-controlled-http-conformance.yml) | http-tools | chore | P1 | Verify controlled HTTP transport against an independent denial and fault matrix |
-| [V411-022](v411-022-validate-redirect-reference-before-resolution.yml) | http-tools | defect | P1 | Reject invalid redirect references before URL resolution can normalize them |
 | [V411-023](v411-023-public-artifact-e2e-contract.yml) | projects-artifacts | chore | P2 | Use current public Artifact metadata in end-to-end consumers |
 | [V411-024](v411-024-runtime-capability-process-fixtures.yml) | runtime-config | chore | P2 | Align heterogeneous Runtime process fixtures with the controlled HTTP capability |
 
@@ -229,7 +228,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
-| HTTP and Caido tools (`http-tools`) | 10 | 20 | 23 | 6 | 19 |
+| HTTP and Caido tools (`http-tools`) | 9 | 20 | 23 | 6 | 19 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 8 | 17 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |

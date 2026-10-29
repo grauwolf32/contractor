@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V411-003
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V411-003
 languages: [python, json, markdown]
@@ -84,3 +84,29 @@ tests:
 assignment:
   branch: codex/v411-004-http-conformance
   claimed: '2026-10-29'
+
+implementation_commit: 92a7d79d8856c262ba8757e808be883925899b19
+verification:
+  date: '2026-10-29'
+  results:
+  - Native TCP and actual Server/Runtime regressions reproduced raw absolute and relative dot-segment
+    redirects before the fix; forbidden targets received requests. The same cases pass after repair
+    with zero prohibited target writes. Canonical absolute-URL and ordinary HTTP behavior stay unchanged.
+  - make test-wire-cross-language test-runtime test-http-caido-runtime passed on native Linux.
+    Shared fixtures verified 425 cases with 359 Go and 244 Python shared tests. Full Runtime had
+    5590 passed and 55 existing optional integration skips; all mandatory conformance cases ran.
+    Ordinary HTTP/Caido Runtime regressions passed all 208 tests.
+  - make test-pentest-http-process passed on a fresh Linux container with real Server/Runtime,
+    sockets and PostgreSQL; 38 process identities, two accounting cases and 31 Runtime socket cases,
+    zero selected skips. Raw Location forms, canonical targets and original request charges agree.
+  - make lint passed on final code 9cc2645801bfed9527bd0added24d6d6c290b485.
+  source_comparison: Runtime tests ran at 8ece6b535b61a9fb43669c7a05bd29dab8a7022b; all production
+    and Runtime test bytes match the final code. Later changes only fix sibling Go process fixtures
+    and isolate cold-cache dependency setup from JSON reports.
+  reports:
+    before_socket: /private/tmp/v411004-evidence/redirect-socket-before-fix.log
+    before_process: /private/tmp/v411004-evidence/redirect-process-before-fix.log
+    runtime_wire_and_http: /private/tmp/v411004-evidence/runtime-final.log
+    runtime_junit: /private/tmp/v411004-evidence/runtime.xml
+    process_gate: /private/tmp/v411004-evidence/focused-gate-final.log
+    lint: /private/tmp/v411004-evidence/lint-code-final.log
