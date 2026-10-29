@@ -6,7 +6,8 @@ epic: http-tools
 kind: defect
 introduced_by: V411-005
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 55984ad7340d2a837af6942dbcbff10e437c9849
 depends_on: [V411-025]
 languages: [python]
 goal: Expired cookies leave the live jar and cannot cause false count exhaustion in controlled or ordinary HTTP sessions.
@@ -52,3 +53,11 @@ implementation_notes:
 - Ordinary HTTP uses the same injected clock for its session and checkpoint; request snapshots, session merges and projections prune live state without adding storage writes to reads.
 - Six regressions failed on the original code, covering the real controlled httpcore traversal, ordinary direct/proxy views and merges, and source-jar encoding. They pass with controlled clocks; genuine overflow and lifecycle tests remain active.
 - Identity order and the mandatory seed preflight remain unchanged; their product purpose is a separate design question raised by the user.
+verification:
+  date: '2026-10-30'
+  results:
+  - Six new regression cases failed on the original implementation and passed after the fix; they use controlled clocks without timing assertions or waits.
+  - make test-http-caido-runtime passed all 213 tests, including direct/proxy checkpoint, cancellation and cookie-bound regressions.
+  - cd runtime && uv run pytest -W error tests/test_pentest*.py passed all 149 tests, including real-socket conformance and the controlled httpcore expiry regression.
+  - make lint passed all formatting, static analysis, task/spec/ERD, release-graph and import-layer checks.
+  delivery: Committed on codex/v411-shared-http-session; not merged into main. Identity scheduling and mandatory seed preflight were not changed.
