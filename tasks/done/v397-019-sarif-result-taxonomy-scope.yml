@@ -6,7 +6,7 @@ epic: findings
 kind: defect
 introduced_by: V397-008
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V397-008]
 languages: [go, markdown]
 goal: Preserve exact result classifications without claiming unsupported rule-level taxonomy relationships.
@@ -58,3 +58,4 @@ implementation_notes:
 - Revisit supportedTaxonomies only when a native versioned rule mapping explicitly declares rule relationships; result classifications alone never satisfy that contract.
 
 implementation_evidence: tasks/evidence/v397-019-verification.json
+implementation_commit: 843bb1e2b6f528bd94796640a84f95c74e282785
