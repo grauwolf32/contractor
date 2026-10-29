@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: chore
 introduced_by: V410-021
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V410-021]
 languages: [go]
 goal: Restore strict end-to-end verification of public Artifact responses without confusing them
@@ -63,3 +63,25 @@ process_verification_execution:
   guarantee: Execute all three existing CI shards on the same integrated source. Their exact union
     is the complete 36-root canonical deterministic process selection; no test is dropped, no
     prerequisite or skip check is relaxed, and each shard retains its existing timeout/report gate.
+
+implementation_commit: 3d6844f97fd0f748449db1511fc971190e3e1afb
+
+verification:
+  date: '2026-10-29'
+  source: bc99bfa8e9f64144a0ab0c41bd0b21904d3e29cf
+  results:
+  - Current and historical Skills and Git Run consumers use the generated public metadata types;
+    strict response validation is retained. Public ArtifactMetadata and ArtifactPage were unchanged
+    by the concurrent shared-read integration.
+  - Full untagged tests/e2e passed 36 top-level tests and 149 results including subtests, zero skips.
+    The complete tagged package compiled; compilation is not counted as execution of opt-in tests.
+  - The separately invoked real Skills regression passed on the integrated source in 162.838s.
+    All three canonical process shards also passed; their disjoint union ran all 36 roots, including
+    Skills, with 123 passing results and zero skips/failures.
+  - make verify-public-api and make lint passed after integrating main shared Artifact reads.
+    The original environment/aggregate-timeout diagnostics are retained and are not counted as passes.
+  reports:
+    focused_regressions: /private/tmp/v411004-evidence/integrated-focused-repairs.log
+    process_union: /private/tmp/v411004-evidence/integrated-process-summary.json
+    untagged_and_public_api: /private/tmp/v411004-evidence/integrated-host-status.json
+    lint: /private/tmp/v411004-evidence/integrated-lint.log
