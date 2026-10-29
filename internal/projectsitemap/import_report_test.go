@@ -178,3 +178,44 @@ func TestSharedSitemapScannerReports(t *testing.T) {
 		}
 	}
 }
+
+func TestScannerReportHonorsCommonProjectedCommandByteBound(t *testing.T) {
+	// The producer uses unescaped UTF-8 JSON. A legal bounded result array can
+	// still exceed the common command's encoding bound after HTML escaping.
+	data := editScannerFixture(t, "ffuf", func(envelope, report map[string]any) {
+		report["wordlistEntries"], report["payloadsAttempted"] = 20, 20
+		sample := report["results"].([]any)[0].(map[string]any)
+		rows := make([]any, 20)
+		for index := range rows {
+			row := make(map[string]any, len(sample))
+			for field, value := range sample {
+				row[field] = value
+			}
+			row["position"] = index + 1
+			row["url"] = "https://example.test/" + strings.Repeat("&", 6000) + fmt.Sprint(index)
+			rows[index] = row
+		}
+		report["results"] = rows
+	})
+	data = bytes.ReplaceAll(data, []byte(`\u0026`), []byte("&"))
+	var envelope scannerEnvelope
+	if err := json.Unmarshal(data, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	var report ffufReport
+	if err := json.Unmarshal(envelope.Observation, &report); err != nil {
+		t.Fatal(err)
+	}
+	var rows []ffufMatch
+	if len(data) > maxScannerReportBytes || decodeReportRows(report.Results, &rows) != nil || len(rows) != 20 {
+		t.Fatal("test report exceeds owning scanner bounds")
+	}
+	for _, row := range rows {
+		if !validScannerURL(row.URL) {
+			t.Fatal("test URL is invalid before command admission")
+		}
+	}
+	if _, err := scannerReport(data, "ffuf", "2026-10-29T12:00:00Z", "scanner"); err == nil {
+		t.Fatal("projected command bypassed common byte bound")
+	}
+}
