@@ -1,0 +1,82 @@
+schema_version: '1.0'
+id: V410-024
+title: Aggregate sitemap behavior independently of producer Runs and transport sessions
+milestone: project-sitemap-2026-10
+epic: projects-artifacts
+kind: defect
+introduced_by: V410-001
+priority: P1
+status: in_progress
+depends_on: [V410-003, V410-019, V410-022]
+languages: [go, python, yaml, markdown, typescript]
+goal: Preserve useful bounded endpoint behavior across repeated Runs without retaining execution attribution or inventing user identity.
+context:
+  authority: User approved removing Run attribution from sitemap summaries and reconsidering Run-dependent contexts on 2026-10-29.
+  severity: medium
+  finding: >-
+    internal/projectsitemap/reducer.go:121 includes all provenance and context fields in summary identity.
+    internal/projectsitemap/projection.go:115 hashes Run and session generations into unknown contexts.
+    Sixteen identical observations from separate Runs can exhaust the sixteen-summary limit and discard a later new status.
+    Runtime HTTP session generations are allocation-random and preserve this fragmentation even if only runId is removed.
+  siblings: >-
+    The shared provenance type also serves sources, declarations, annotations and markers. Private HTTP ingress,
+    receipt projection, public and generated wire schemas, Runtime capture, shared fixtures, lifecycle and process tests
+    must agree. Exact Evidence.runId, allocation authority, snapshot destinations and receipt producer identity remain.
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  - docs/spec/platform/limits.md
+  - docs/spec/tools/http-caido.md
+scope:
+  in:
+  - Remove persisted Run, credential revision, session generation and unused context identity metadata from the sitemap model.
+  - Aggregate observations by source, deployment, endpoint, outcome, status and parameter names, retaining minimum and maximum times.
+  - Remove sitemap-only HTTP session tracking and collection fields; preserve actual HTTP authentication, sessions and request tags.
+  - Remove unused known-identity Authority branches and the context quota. Metadata has no principal/authentication attribution.
+  - Preserve Run identity explicitly in mutation receipts and exact evidence; retain existing generic Artifact storage and snapshots.
+  - Update specs, pending acceptance, schema generators, both generated clients and shared strict-negative fixtures without compatibility paths.
+  out:
+  - New attribution histories, tables, credential inference, principal equivalence, retention policies or higher summary limits.
+  - Incremental Caido ingestion and changes to bounded overflow handling for genuinely distinct summaries.
+failure_outcomes:
+- operation: Observation merge and publication
+  success: Identical behavior across Runs updates existing timestamps; different behavior remains separate within current bounds.
+  permanent: Removed fields fail strict decode. Existing invalid input, capacity, CAS and lifecycle errors retain their classifications.
+  retryable: Existing bounded storage transaction and collection retries remain unchanged.
+  ambiguous: Existing Project mutation receipts reconcile the identical producer request; a different Run cannot replay its receipt.
+  cancelled: Existing joined collector and allocation cleanup apply; no new work or queue is introduced.
+  timeout: Existing operation and flush deadlines remain unchanged.
+cardinality:
+- collection: Endpoint summaries and Project map
+  maximum: Sixteen summaries per member; all other map/member/source/page/batch byte and count limits remain unchanged.
+  bound: Repeated Runs do not add summaries solely through execution or session identity; sources and deployments still distinguish observations.
+lifecycle:
+- entity: Sitemap, snapshots and collection
+  delete: Existing Project and Run deletion and allocation release remain authoritative.
+  retention: Ordinary Artifact history, snapshot holds and exact evidence references are unchanged.
+  cascade: No new persistent entity, lease or receipt mechanism.
+acceptance_criteria:
+- id: A1
+  text: At least 32 real-store producer Runs observing identical endpoint behavior retain one summary with correct first/last times; a later new status is retained, with no spurious omission.
+- id: A2
+  text: Source, deployment, status, outcome and parameter differences remain meaningful; true summary overflow preserves accepted data and reports omissions. No current metadata claims principal equality.
+- id: A3
+  text: Repeated Runs using one manual source coalesce declarations and update annotations; exact evidence, snapshot publication and producer-scoped receipt replay retain their existing authority.
+- id: A4
+  text: All schema consumers reject removed provenance/context/collection fields, generated outputs agree, and the real HTTP-to-Artifact process remains functional without session tracking.
+- id: A5
+  text: The owning spec and remaining tasks state the simplified contract and no new execution-attribution mechanism or dead context capability remains.
+tests:
+- command: make test-project-sitemap-postgres
+  covers: [A1, A2, A3]
+- command: make test-project-sitemap-tools-e2e
+  covers: [A3, A4]
+- command: uv run --project runtime pytest runtime/tests/test_sitemap_*.py runtime/tests/test_http_*.py
+  covers: [A2, A4]
+- command: make test-wire-cross-language
+  covers: [A4]
+- command: make verify-public-api
+  covers: [A4]
+- command: make ui-verify
+  covers: [A4]
+- command: make lint
+  covers: [A4, A5]
