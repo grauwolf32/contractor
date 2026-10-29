@@ -126,15 +126,10 @@
         },
         "kind": {
           "type": "string",
-          "enum": [
-            "manual",
-            "http",
-            "caido",
-            "ffuf",
-            "katana",
-            "dirsearch",
-            "openapi"
-          ]
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+          "description": "Source label using the shared name grammar. Observed sources are extensible; manual and openapi identify domain editing and declaration provenance."
         },
         "deployment": {
           "$ref": "#/$defs/ResourceId"
@@ -465,7 +460,14 @@
           "maximum": 599
         },
         "at": {
-          "$ref": "common.schema.json#/$defs/timestamp"
+          "allOf": [
+            {
+              "$ref": "common.schema.json#/$defs/timestamp"
+            },
+            {
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{0,8}[1-9])?Z$"
+            }
+          ]
         },
         "parameters": {
           "type": "array",
@@ -474,7 +476,10 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 64,
-            "x-maxBytes": 64
+            "x-maxBytes": 64,
+            "not": {
+              "pattern": "[\u0000-\u001f\u007f-\u009f]"
+            }
           }
         }
       },
@@ -484,6 +489,31 @@
         "outcome",
         "status",
         "at"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "outcome": {
+                "const": "response"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "minimum": 100
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "status": {
+                "const": 0
+              }
+            }
+          }
+        }
       ]
     },
     "SitemapCollectionRequest": {
@@ -499,21 +529,221 @@
           "properties": {
             "observations": {
               "type": "array",
-              "minItems": 1,
               "maxItems": 100,
               "items": {
                 "$ref": "#/$defs/SitemapHTTPObservation"
               }
+            },
+            "kind": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/SitemapProvenance/properties/kind"
+                },
+                {
+                  "not": {
+                    "enum": [
+                      "manual",
+                      "openapi"
+                    ]
+                  }
+                }
+              ]
+            },
+            "artifact": {
+              "$ref": "#/$defs/ExactArtifactRef"
+            },
+            "gaps": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "reason",
+                  "count"
+                ],
+                "properties": {
+                  "reason": {
+                    "$ref": "#/$defs/SitemapGap/properties/reason"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                }
+              },
+              "allOf": [
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "structural"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "members"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "groups"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "summaries"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "examples"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "regrouping"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "incomplete"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "parameters"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "source-unavailable"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "ambiguous"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "projection"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "report-truncated"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "request-errors"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                },
+                {
+                  "contains": {
+                    "properties": {
+                      "reason": {
+                        "const": "evidence"
+                      }
+                    }
+                  },
+                  "minContains": 0,
+                  "maxContains": 1
+                }
+              ]
             }
           },
           "required": [
+            "kind",
             "observations"
           ]
+        },
+        "automatic": {
+          "type": "boolean"
         }
       },
       "required": [
         "apiVersion",
-        "input"
+        "input",
+        "automatic"
       ]
     },
     "SitemapEditorRule": {
@@ -562,6 +792,52 @@
           }
         }
       }
+    },
+    "SitemapGap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceId",
+        "reason",
+        "count"
+      ],
+      "properties": {
+        "sourceId": {
+          "oneOf": [
+            {
+              "type": "string",
+              "const": ""
+            },
+            {
+              "$ref": "#/$defs/ResourceId"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "structural",
+            "members",
+            "groups",
+            "summaries",
+            "examples",
+            "regrouping",
+            "incomplete",
+            "parameters",
+            "source-unavailable",
+            "ambiguous",
+            "projection",
+            "report-truncated",
+            "request-errors",
+            "evidence"
+          ]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
     }
   },
   "oneOf": [
@@ -576,6 +852,9 @@
     },
     {
       "$ref": "#/$defs/SitemapSnapshotResponse"
+    },
+    {
+      "$ref": "#/$defs/SitemapCollectionRequest"
     }
   ]
 }

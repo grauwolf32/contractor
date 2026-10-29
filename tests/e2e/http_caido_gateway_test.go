@@ -140,6 +140,36 @@ func httpCaidoCaidoGatewayStage(name, scopeName string) domainGatewayStage {
 	}
 }
 
+// Explicit selected reads exercise collection without asking the collector to
+// inspect another page or issue any additional provider/target operation.
+func sitemapCaidoGatewayStage(stage domainGatewayStage, instance string) domainGatewayStage {
+	var steps []domainGatewayStep
+	for _, step := range stage.steps {
+		if step.tool == "caido_history" {
+			step.arguments = fixedArguments(map[string]any{"filter": "", "limit": 1, "offset": 0})
+		}
+		if step.tool == "caido_scope" {
+			step.validate = composeGatewayValidation(step.validate, requireToolOutput("native-sitemap-only"))
+		}
+		steps = append(steps, step)
+		if step.tool != "caido_history" {
+			continue
+		}
+		detail := toolGatewayStep("caido_request_detail", fixedArguments(map[string]any{"request_id": "detail-" + instance}))
+		detail.validate = requireToolOutput("/observed")
+		replay := toolGatewayStep("caido_replay", fixedArguments(map[string]any{
+			"raw_request": "POST /replayed?password=unretained-value HTTP/1.1\r\nHost: target.example\r\nContent-Length: 0\r\n\r\n",
+			"host":        "target.example", "port": 443, "is_tls": true, "wait": true,
+		}))
+		replay.validate = requireToolOutput("/detail-only")
+		native := toolGatewayStep("caido_sitemap", fixedArguments(map[string]any{"parent_id": "domain-" + instance}))
+		native.validate = requireToolOutput("completed")
+		steps = append(steps, detail, replay, native)
+	}
+	stage.steps = steps
+	return stage
+}
+
 func requireNoToolOutput(fragment string) func(map[string]any) error {
 	return func(request map[string]any) error {
 		messages, ok := request["messages"].([]any)

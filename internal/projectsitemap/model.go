@@ -153,16 +153,18 @@ type Gap struct {
 // Mutation is a typed command, never a replacement document. ExpectedRevision
 // is mandatory for edits; observation batches rebase the same intent on CAS.
 type Mutation struct {
-	Operation        string        `json:"operation" strictjson:"required"`
-	ExpectedRevision string        `json:"expectedRevision,omitempty"`
-	Observations     []Observation `json:"observations,omitempty"`
-	URL              string        `json:"url,omitempty"`
-	Method           string        `json:"method,omitempty"`
-	MemberIDs        []string      `json:"memberIds,omitempty"`
-	Note             string        `json:"note,omitempty"`
-	Tags             []string      `json:"tags,omitempty"`
-	MarkerID         string        `json:"markerId,omitempty"`
-	Source           *SourceUpdate `json:"source,omitempty"`
+	Operation        string                 `json:"operation" strictjson:"required"`
+	ExpectedRevision string                 `json:"expectedRevision,omitempty"`
+	Observations     []Observation          `json:"observations,omitempty"`
+	Gaps             []Gap                  `json:"gaps,omitempty"`
+	Artifact         *contracts.ArtifactRef `json:"artifact,omitempty"`
+	URL              string                 `json:"url,omitempty"`
+	Method           string                 `json:"method,omitempty"`
+	MemberIDs        []string               `json:"memberIds,omitempty"`
+	Note             string                 `json:"note,omitempty"`
+	Tags             []string               `json:"tags,omitempty"`
+	MarkerID         string                 `json:"markerId,omitempty"`
+	Source           *SourceUpdate          `json:"source,omitempty"`
 }
 
 // UnmarshalJSON closes optional values too: omission is allowed, typed null is

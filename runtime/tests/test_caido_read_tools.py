@@ -173,6 +173,7 @@ async def create_tools(
     selected: set[str] | frozenset[str] | None = None,
     factory: CaidoToolsetFactory | None = None,
     runtime_settings: RuntimeSettings | None = None,
+    observation_sink: Any = None,
 ) -> tuple[dict[str, Any], WorkerState, CaidoGraphQLClient]:
     metrics = RuntimeAdapterMetricsState()
     handle = CaidoGraphQLClient(
@@ -196,6 +197,7 @@ async def create_tools(
         requestTimeoutSeconds=10,
     )
     state = WorkerState()
+    state.caido_observation_sink = observation_sink
     factory = factory or CaidoToolsetFactory(lambda _allocation, _settings: artifacts)
     selected_tools = selected or {
         "caido_automate_results",

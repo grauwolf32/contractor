@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 )
 
 // Finding: an unexported SecretString field and no Format, so fmt prints the
@@ -175,4 +176,16 @@ type genericBox[T any] struct {
 // Finding: an instantiation that holds a secret in the box's unexported field.
 type boxedSecret struct {
 	box genericBox[contracts.SecretString]
+}
+
+// Accepted: the precise production field exception follows the actual recipe
+// through an unexported holder; SecretFields contains validated variable names.
+type loginRecipeMetadata struct {
+	loginRecipes []pentestcontract.LoginRecipe
+}
+
+// Finding: an identically named field on a different holder contains secret
+// values. The LoginRecipe exception must not exempt the field name generally.
+type plainSecretFields struct {
+	SecretFields []string
 }

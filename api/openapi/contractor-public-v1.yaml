@@ -7474,14 +7474,10 @@ components:
           $ref: '#/components/schemas/ResourceId'
         kind:
           type: string
-          enum:
-          - manual
-          - http
-          - caido
-          - ffuf
-          - katana
-          - dirsearch
-          - openapi
+          minLength: 1
+          maxLength: 128
+          pattern: '^[A-Za-z0-9][A-Za-z0-9_.-]*$'
+          description: Source label using the shared name grammar. Observed sources are extensible; manual and openapi identify domain editing and declaration provenance.
         deployment:
           $ref: '#/components/schemas/ResourceId'
     SitemapSummary:
@@ -7715,6 +7711,9 @@ components:
           - source-unavailable
           - ambiguous
           - projection
+          - report-truncated
+          - request-errors
+          - evidence
         count:
           type: integer
           minimum: 0

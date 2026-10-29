@@ -61,8 +61,16 @@ def generated_wire() -> str:
                 visit(child)
 
     visit({"$ref": "#/components/schemas/SitemapMutation"})
+    visit({"$ref": "#/components/schemas/SitemapGap"})
     # Public and allocation editor commands both derive source identity on the Server.
     document["$defs"].update(selected)
+    # A batch reports each domain omission reason at most once. Derive these
+    # constraints from the owning enum so private and public reasons cannot drift.
+    gaps = document["$defs"]["SitemapCollectionRequest"]["properties"]["input"]["properties"]["gaps"]
+    gaps["allOf"] = [
+        {"contains": {"properties": {"reason": {"const": reason}}}, "minContains": 0, "maxContains": 1}
+        for reason in selected["SitemapGap"]["properties"]["reason"]["enum"]
+    ]
     return json.dumps(document, indent=2) + "\n"
 
 

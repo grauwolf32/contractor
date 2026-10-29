@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-116 open tasks: 5 in progress, 100 pending, 11 deferred. 1196 finished: 1186 completed, 10 archived.
+115 open tasks: 4 in progress, 100 pending, 11 deferred. 1198 finished: 1188 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
 
 ## Pending
 
@@ -56,7 +55,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V386-004](v386-004-caido-catalog-cardinality.yml) | defect | P2 | — | Keep Caido catalog selection usable above one hundred entries |
-| [V410-008](v410-008-sitemap-caido-history.yml) | feature | P2 | V410-004, V410-007 | Import selected Caido history incrementally with durable checkpoints |
+| [V410-008](v410-008-sitemap-caido-history.yml) | feature | P2 | V410-007 | Import selected Caido history incrementally with durable checkpoints |
 | [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
 | [V411-009](v411-009-http-recipes-predicates.yml) | feature | P1 | V411-007, V411-008 | Execute frozen HTTP recipes and evaluate trusted three-valued predicates |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | V411-007, V411-008, V411-010 | Add a managed browser with isolated contexts and enforced target transport |
@@ -68,7 +67,7 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020, V410-004 | Gate controlled ffuf execution through the pentest transport |
+| [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020 | Gate controlled ffuf execution through the pentest transport |
 
 ### Findings tools and collections (`findings`)
 
@@ -90,7 +89,7 @@ the epics are in [epics.yml](epics.yml).
 | [V372-013](v372-013-planner-facts-one-source.yml) | chore | P3 | — | Take Planner refs and facts from the descriptor registry in Go, the composition and Studio |
 | [V372-014](v372-014-execution-config-patch-strict-decode.yml) | chore | P3 | — | Decode executionConfig patch members with strictjson |
 | [V372-015](v372-015-config-split-leftovers.yml) | chore | P3 | — | Stop locals from shadowing imported packages and drop config's copy of clone.Map |
-| [V410-006](v410-006-sitemap-workflow-composition.yml) | feature | P1 | V410-004, V410-005 | Ship ordinary sitemap discovery and reconciliation Workflows |
+| [V410-006](v410-006-sitemap-workflow-composition.yml) | feature | P1 | V410-005 | Ship ordinary sitemap discovery and reconciliation Workflows |
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-007, V410-006 | Discover URL-only targets and retain bounded source-aware surfaces |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-012, V411-013, V411-014, V411-011, V411-010, V411-016 | Publish exact HTTP API pentest Workflows and source-mode presets |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-002, V411-020, V410-009 | Publish optional browser programs behind their independent release gate |
@@ -99,7 +98,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | V410-004 | Reconcile exact OpenAPI declarations with live sitemap members |
+| [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | — | Reconcile exact OpenAPI declarations with live sitemap members |
 
 ### Audits (`audits`)
 
@@ -224,8 +223,8 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
-| HTTP and Caido tools (`http-tools`) | 7 | 20 | 24 | 6 | 19 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
+| HTTP and Caido tools (`http-tools`) | 7 | 20 | 24 | 7 | 20 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 8 | 17 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 36 | 34 | 11 | 54 |

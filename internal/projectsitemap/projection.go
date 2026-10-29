@@ -114,7 +114,7 @@ func (a Authority) provenance() Provenance {
 
 func (a Authority) validate() error {
 	if !contracts.ValidResourceID(a.SourceID) ||
-		!slices.Contains([]string{"manual", "http", "caido", "ffuf", "katana", "dirsearch", "openapi"}, a.Kind) {
+		!contracts.ValidName(a.Kind) {
 		return ErrInvalid
 	}
 	for _, value := range []string{a.RunID, a.Deployment} {
@@ -132,5 +132,5 @@ func (a Authority) validate() error {
 }
 
 func observedKind(kind string) bool {
-	return slices.Contains([]string{"http", "caido", "ffuf", "katana", "dirsearch"}, kind)
+	return contracts.ValidName(kind) && kind != "manual" && kind != "openapi"
 }

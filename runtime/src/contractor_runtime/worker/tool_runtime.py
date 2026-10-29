@@ -31,6 +31,7 @@ from contractor_runtime.contracts import (
 from contractor_runtime.contracts.artifacts import MEMORY_ARTIFACT_PREFIX
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.digests import jcs_digest, sha256_digest
+from contractor_runtime.toolsets.common.report_publications import notify_report_publication
 
 if TYPE_CHECKING:
     from contractor_runtime.factories import WorkerBuildContext
@@ -502,6 +503,9 @@ class ToolWorkerRuntime:
                         report = published.artifact
                 except Exception:
                     raise ToolWorkerError("tool_report_failed") from None
+                await notify_report_publication(
+                    self._state.report_publication_sink, self._execution.tool, report
+                )
                 if observation["status"] == "failed":
                     raise ToolWorkerError("tool_execution_failed")
         except asyncio.CancelledError:

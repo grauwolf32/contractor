@@ -59,7 +59,9 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	t.Cleanup(gateway.close)
 	if collection {
 		gateway.stages[0] = sitemapHTTPGatewayStage(gateway.stages[0])
+		gateway.stages[1] = sitemapCaidoGatewayStage(gateway.stages[1], "old")
 		gateway.stages[2] = sitemapHTTPGatewayStage(gateway.stages[2])
+		gateway.stages[3] = sitemapCaidoGatewayStage(gateway.stages[3], "new")
 	}
 
 	configRoot := stageE2EConfiguration(
@@ -74,6 +76,15 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 			t.Fatal(err)
 		}
 		data = bytes.Replace(data, []byte("  toolsets:"), []byte("  sitemap: {version: sitemap-access@1, collectObservations: true}\n  toolsets:\n    - ref: sitemap@1\n      tools: [list_sitemap_entries, read_sitemap_entry, upsert_sitemap_entry, snapshot_sitemap_context]"), 1)
+		if err := os.WriteFile(path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		path = filepath.Join(configRoot, "agent-templates", "caido_analyst_v3_memory.yaml")
+		data, err = os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data = bytes.Replace(data, []byte("  toolsets:"), []byte("  sitemap: {version: sitemap-access@1, collectObservations: true}\n  toolsets:"), 1)
 		if err := os.WriteFile(path, data, 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -265,9 +276,8 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	caidoPrincipal := principalWithAdapters(t, principals, "caido-graphql@1")
 	caidoPrincipal = operations.replacePrincipalLabels(caidoPrincipal, []string{"agent-caido"})
 
-	projectID := ""
+	projectID := createProjectResource(t, publicClient, publicBaseURL).ProjectID
 	if collection {
-		projectID = createProjectResource(t, publicClient, publicBaseURL).ProjectID
 		seedUnifiedSitemap(t, ctx, pool, operations, userID, projectID, forwardProxy.TargetURL())
 	}
 	httpInitial := createHTTPCaidoRun(
@@ -288,7 +298,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 
 	oldRun := createHTTPCaidoRun(
 		operations, "security-analysis@4", "http-caido-old-run", "target.example",
-		[]string{"caido"},
+		[]string{"caido"}, projectID,
 	)
 	select {
 	case <-oldCaido.first:
@@ -351,6 +361,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 			t.Fatal(err)
 		}
 		assertUnifiedSitemapGroups(t, document)
+		assertSelectedCaidoSitemap(t, document)
 		editedManual := false
 		for _, group := range document.Groups {
 			for _, member := range group.Members {
@@ -364,7 +375,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 		}
 		assertUnifiedSitemapSnapshot(t, operations, httpInitial.RunID)
 		assertUnifiedSitemapSnapshot(t, operations, httpUnrelated.RunID)
-		for _, canary := range []string{httpCaidoSessionCanary, httpCaidoRawCanary, httpCaidoProxyCanary} {
+		for _, canary := range []string{httpCaidoSessionCanary, httpCaidoRawCanary, httpCaidoProxyCanary, httpCaidoTokenCanary} {
 			if bytes.Contains(data, []byte(canary)) {
 				t.Fatal("HTTP collection persisted private traffic")
 			}
@@ -391,7 +402,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 
 	newRun := createHTTPCaidoRun(
 		operations, "security-analysis@4", "http-caido-new-run", "target.example",
-		[]string{"caido"},
+		[]string{"caido"}, projectID,
 	)
 	newStatus := waitForRunAcross(
 		t, ctx, server, runtimes, gateway, publicClient, publicBaseURL, newRun.RunID,
@@ -404,6 +415,16 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	assertHTTPCaidoReport(
 		t, operations, publicClient, publicBaseURL, newStatus, "security_report", httpCaidoCaidoReport,
 	)
+	if collection {
+		data := operations.request(http.MethodGet, "/v1/projects/"+projectID+"/artifacts/sitemap/map", nil, 200, nil)
+		document, err := projectsitemap.Decode(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertSelectedCaidoSitemap(t, document)
+	} else {
+		operations.request(http.MethodGet, "/v1/projects/"+projectID+"/artifacts/sitemap/map", nil, http.StatusNotFound, nil)
+	}
 
 	finalAgents, finalSnapshot := waitForObservedRuntimeAgents(
 		t, ctx, server, runtimes, publicClient, publicBaseURL,
@@ -432,10 +453,14 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 	if calls, failures := forwardProxy.snapshot(); calls != 2 || len(failures) != 0 {
 		t.Fatalf("forward proxy = calls:%d failures:%v", calls, failures)
 	}
-	if oldOperations, failures := oldCaido.snapshot(); !slices.Equal(oldOperations, []string{"RequestsByOffset", "CreateScope"}) || len(failures) != 0 {
+	wantCaidoOperations := []string{"RequestsByOffset", "CreateScope"}
+	if collection {
+		wantCaidoOperations = []string{"RequestsByOffset", "RequestDetail", "CreateReplaySession", "StartReplayTask", "ReplayEntry", "SitemapDescendants", "CreateScope"}
+	}
+	if oldOperations, failures := oldCaido.snapshot(); !slices.Equal(oldOperations, wantCaidoOperations) || len(failures) != 0 {
 		t.Fatalf("old Caido operations = %v failures=%v", oldOperations, failures)
 	}
-	if newOperations, failures := newCaido.snapshot(); !slices.Equal(newOperations, []string{"RequestsByOffset", "CreateScope"}) || len(failures) != 0 {
+	if newOperations, failures := newCaido.snapshot(); !slices.Equal(newOperations, wantCaidoOperations) || len(failures) != 0 {
 		t.Fatalf("new Caido operations = %v failures=%v", newOperations, failures)
 	}
 	if drops, failures := releaseProxy.snapshot(); drops == 0 || len(failures) != 0 {
@@ -512,6 +537,7 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 			t.Fatal(err)
 		}
 		assertUnifiedSitemapGroups(t, committedMap)
+		assertSelectedCaidoSitemap(t, committedMap)
 		if calls, failures := target.snapshot(); calls != 3 || len(failures) != 0 {
 			t.Fatalf("crash repeated target traffic: %d %v", calls, failures)
 		}
@@ -554,6 +580,52 @@ func createHTTPCaidoRun(
 			result, replayed, err)
 	}
 	return result
+}
+
+func assertSelectedCaidoSitemap(t *testing.T, document projectsitemap.Document) {
+	t.Helper()
+	type selected struct {
+		method, outcome, at string
+		status              int
+		parameters          []string
+	}
+	want := map[string]selected{
+		"/observed":    {method: "GET", outcome: "response", at: "2026-09-01T00:00:00Z", status: 500},
+		"/detail-only": {method: "DELETE", outcome: "attempt", at: "2026-09-01T00:01:00Z", status: 0},
+		"/replayed":    {method: "POST", outcome: "response", at: "2026-09-01T00:02:00.123Z", status: 201, parameters: []string{"password"}},
+	}
+	found := map[string]bool{}
+	for _, group := range document.Groups {
+		for _, member := range group.Members {
+			if strings.Contains(member.Path, "native-sitemap-only") || strings.Contains(member.Path, "unselected-history") {
+				t.Fatalf("unselected/native Caido node manufactured an observation: %s", member.Path)
+			}
+			for _, summary := range member.Summaries {
+				if summary.Provenance.Kind != "caido" {
+					continue
+				}
+				expected, ok := want[member.Path]
+				if !ok || found[member.Path] {
+					t.Fatalf("unexpected or duplicated Caido summary: %+v", member)
+				}
+				found[member.Path] = true
+				if group.Origin != "https://target.example" || group.Method != expected.method ||
+					summary.Outcome != expected.outcome || summary.Status != expected.status ||
+					summary.First != expected.at || summary.Last != expected.at ||
+					!slices.Equal(summary.Parameters, expected.parameters) || len(member.Evidence) != 0 {
+					t.Fatalf("Caido selected observation lost provider facts or invented evidence: group=%+v member=%+v", group, member)
+				}
+			}
+		}
+	}
+	if len(found) != len(want) {
+		t.Fatalf("selected Caido observations missing: got %v, want %v", found, want)
+	}
+	for _, source := range document.Sources {
+		if source.Provenance.Kind == "caido" && source.Artifact != nil {
+			t.Fatal("Caido provider ID became an Artifact reference")
+		}
+	}
 }
 
 func assertHTTPCaidoAllocation(

@@ -8,6 +8,7 @@ import os
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
+from functools import partial
 from typing import Any
 
 from pydantic import ValidationError
@@ -73,11 +74,21 @@ from contractor_runtime.sitemap_collection import SitemapCollector
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.telemetry.resources import ProcessReading, ResourceCollector
 from contractor_runtime.threads import consume_task_exception
+from contractor_runtime.toolsets.common.report_observations import REPORT_FORMATS, prepare_report
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import FindingsError
 from contractor_runtime.worker.adk_caches import release_adk_tool_caches
 from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
+
+
+class _SourceObservationSink:
+    def __init__(self, collector: SitemapCollector, kind: str) -> None:
+        self._collector = collector
+        self._kind = kind
+
+    async def receive(self, observations: Sequence[dict], *, gaps: Sequence[dict] = ()) -> None:
+        await self._collector.receive_source(self._kind, observations, gaps=gaps)
 
 
 class AllocationService:
@@ -311,14 +322,17 @@ class AllocationService:
                         raise RuntimeError(
                             "automatic collection requires the allocation Artifact transport"
                         )
-                    collector = SitemapCollector(
-                        SitemapClient(
-                            self._factories.artifact_client_factory(
-                                spec.allocation_id, spec.runtime_settings
-                            )
-                        )
+                    collection_artifacts = self._factories.artifact_client_factory(
+                        spec.allocation_id, spec.runtime_settings
                     )
-                    worker_state.http_observation_sink = collector
+                    collector = SitemapCollector(
+                        SitemapClient(collection_artifacts),
+                        report_projector=partial(prepare_report, collection_artifacts),
+                        report_formats=REPORT_FORMATS,
+                    )
+                    worker_state.http_observation_sink = _SourceObservationSink(collector, "http")
+                    worker_state.caido_observation_sink = _SourceObservationSink(collector, "caido")
+                    worker_state.report_publication_sink = collector
                     worker_state.sitemap_read_flush = collector.checkpoint
                     worker_state.before_completion = collector.checkpoint
                 if execution is not None:

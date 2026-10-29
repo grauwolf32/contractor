@@ -2553,8 +2553,8 @@ export interface components {
         };
         SitemapProvenance: {
             sourceId: components["schemas"]["ResourceId"];
-            /** @enum {string} */
-            kind: "manual" | "http" | "caido" | "ffuf" | "katana" | "dirsearch" | "openapi";
+            /** @description Source label using the shared name grammar. Observed sources are extensible; manual and openapi identify domain editing and declaration provenance. */
+            kind: string;
             deployment?: components["schemas"]["ResourceId"];
         };
         SitemapSummary: {
@@ -2611,7 +2611,7 @@ export interface components {
         SitemapGap: {
             sourceId: "" | components["schemas"]["ResourceId"];
             /** @enum {string} */
-            reason: "structural" | "members" | "groups" | "summaries" | "examples" | "regrouping" | "incomplete" | "parameters" | "source-unavailable" | "ambiguous" | "projection";
+            reason: "structural" | "members" | "groups" | "summaries" | "examples" | "regrouping" | "incomplete" | "parameters" | "source-unavailable" | "ambiguous" | "projection" | "report-truncated" | "request-errors" | "evidence";
             count: number;
         };
         SitemapMutation: {

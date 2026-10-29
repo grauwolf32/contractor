@@ -27,6 +27,7 @@ type sitemapPublicationProxy struct {
 	server          *httptest.Server
 	upstream        *url.URL
 	clients         map[string]*http.Client
+	faultIdentity   string
 	mu              sync.Mutex
 	reject          bool
 	dropped         bool
@@ -48,6 +49,9 @@ func newSitemapPublicationProxy(t *testing.T, target, caFile string, runtimeIden
 			t.Fatal(err)
 		}
 		proxy.clients[string(pair.Certificate[0])] = newMTLSClient(t, caFile, identity)
+		if proxy.faultIdentity == "" {
+			proxy.faultIdentity = string(pair.Certificate[0])
+		}
 	}
 	certificate, err := tls.LoadX509KeyPair(controlIdentity.Certificate, controlIdentity.PrivateKey)
 	if err != nil {
@@ -80,7 +84,10 @@ func (p *sitemapPublicationProxy) rejectPublications() {
 }
 
 func (p *sitemapPublicationProxy) serveHTTP(w http.ResponseWriter, r *http.Request) {
-	publication := r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/sitemap/observations")
+	// Only the first Runtime's publication is faulted. Other Runtime slots
+	// share this advertised Artifact API and must retain independent collection.
+	publication := r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/sitemap/observations") &&
+		r.TLS != nil && len(r.TLS.PeerCertificates) > 0 && string(r.TLS.PeerCertificates[0].Raw) == p.faultIdentity
 	p.mu.Lock()
 	reject := publication && p.reject
 	if publication {

@@ -16,6 +16,8 @@ from contractor_runtime.contracts import (
 )
 from contractor_runtime.contracts.base import json_byte_size
 from contractor_runtime.telemetry.metrics import MetricsState
+from contractor_runtime.toolsets.common.http_observations import HTTPObservationSink
+from contractor_runtime.toolsets.common.report_publications import ReportPublicationSink
 from contractor_runtime.worker.execution import WorkerExecutionState
 from contractor_runtime.worker.observations import validate_workspace_observation
 
@@ -88,7 +90,9 @@ class WorkerStateStore:
         # Private allocation-owned resource, excluded from JSON/model state.
         self.http_session: Any = None
         self.http_captures: Any = None
-        self.http_observation_sink: Any = None
+        self.http_observation_sink: HTTPObservationSink | None = None
+        self.caido_observation_sink: HTTPObservationSink | None = None
+        self.report_publication_sink: ReportPublicationSink | None = None
         self.sitemap_read_flush: Any = None
         self.before_completion: Any = None
         self._lock = asyncio.Lock()

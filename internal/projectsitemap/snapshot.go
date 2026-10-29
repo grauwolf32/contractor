@@ -244,7 +244,7 @@ func selectSnapshot(view Document, selection SnapshotSelection, runID string, in
 			continue
 		}
 		index := slices.IndexFunc(inputs, func(input contracts.ExactArtifact) bool {
-			return input.Digest == source.Artifact.Digest && input.MediaType == source.Artifact.MediaType && input.SizeBytes == source.Artifact.SizeBytes
+			return sameArtifactContent(input, *source.Artifact)
 		})
 		if index < 0 {
 			source.Artifact = nil
@@ -257,13 +257,25 @@ func selectSnapshot(view Document, selection SnapshotSelection, runID string, in
 	for i := range view.Groups {
 		for j := range view.Groups[i].Members {
 			member := &view.Groups[i].Members[j]
-			before := len(member.Evidence)
-			member.Evidence = slices.DeleteFunc(member.Evidence, func(e Evidence) bool {
-				return e.RunID != runID || !slices.ContainsFunc(inputs, func(input contracts.ExactArtifact) bool {
-					return input.Ref.SameExact(e.Artifact.Ref) && input.Digest == e.Artifact.Digest && input.MediaType == e.Artifact.MediaType && input.SizeBytes == e.Artifact.SizeBytes
+			retained := []Evidence{}
+			unavailable := false
+			for _, evidence := range member.Evidence {
+				// A configured original input authorizes these exact bytes even
+				// when its ordinary fork has a different Run and revision locator.
+				index := slices.IndexFunc(inputs, func(input contracts.ExactArtifact) bool {
+					return sameArtifactContent(input, evidence.Artifact)
 				})
-			})
-			if len(member.Evidence) != before {
+				if index < 0 {
+					unavailable = true
+					continue
+				}
+				input := inputs[index]
+				if !slices.ContainsFunc(retained, func(existing Evidence) bool { return existing.Artifact.Ref.SameExact(input.Ref) }) {
+					retained = append(retained, Evidence{RunID: runID, Artifact: input})
+				}
+			}
+			member.Evidence = retained
+			if unavailable {
 				addGap(&view, "", "source-unavailable", 1)
 			}
 		}
@@ -330,4 +342,8 @@ func retainSnapshotInputs(ctx context.Context, repository *artifacts.PostgresTxR
 		}
 	}
 	return view, retained, nil
+}
+
+func sameArtifactContent(left, right contracts.ExactArtifact) bool {
+	return left.Digest == right.Digest && left.MediaType == right.MediaType && left.SizeBytes == right.SizeBytes
 }
