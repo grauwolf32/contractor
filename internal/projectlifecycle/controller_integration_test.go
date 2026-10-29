@@ -64,12 +64,20 @@ func TestProducerRunDeletionPreservesProjectSitemapAndReceipt(t *testing.T) {
 	if _, err := runs.GetRun(ctx, producer.RunID); !errors.Is(err, runstore.ErrNotFound) {
 		t.Fatalf("producer still exists: %v", err)
 	}
-	view, err := service.Read(ctx, project.OwnerID, project.ProjectID, "")
+	projectArtifacts, err := artifacts.NewService(artifacts.NewPostgresRepository(pool)).Project(project.ProjectID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if view.Revision != *accepted.Ref.Revision || len(view.Document.Groups) != 1 ||
-		view.Document.Groups[0].Members[0].Summaries[0].Provenance.RunID != producer.RunID {
+	read, err := projectArtifacts.Read(ctx, contracts.ArtifactRef{Namespace: accepted.Ref.Namespace, Name: accepted.Ref.Name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := projectsitemap.Decode(read.Payload.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !read.Ref.SameExact(accepted.Ref) || len(document.Groups) != 1 ||
+		document.Groups[0].Members[0].Summaries[0].Provenance.RunID != producer.RunID {
 		t.Fatal("Run deletion changed self-contained Project metadata")
 	}
 	replay, err := service.Mutate(ctx, authority, "collect", command)
