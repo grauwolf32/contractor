@@ -5,7 +5,7 @@ milestone: finding-sarif-export-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V397-003
 - V397-006
@@ -136,3 +136,5 @@ implementation_notes:
   - "POST /v1/audits/{auditId}/findings/exports returns a separate exportId and Location ending in /content; /snapshot and /diagnostics download immutable siblings. The content suffix avoids wildcard crossover with duplicate-candidates."
   - "Resource-first method dispatch is required for the literal exports collection beside findings/{findingId}; the same read-only method map serves CORS, and existing HEAD/405 and diagnostic patterns remain intact."
   - "CLI production consumers accompany publication so the new endpoints are reachable. Full structured SARIF rendering and the UI remain dependent stages; the base projection reports pending structured mapping explicitly."
+
+implementation_commit: c37fa36c2527f504707a13a7c4b374566cd726f6
