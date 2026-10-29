@@ -1845,8 +1845,9 @@ still apply.
 `callbackDestinations`. Each route has an `origin`, `pathPrefixes`, `methods`,
 `actionClasses` and canonical network `addressRanges`. An identity has a unique
 `id`, `kind`, `origins`, optional `role`/`tenant`, and an exact non-secret
-`credential` reference for authenticated kinds; login kinds may also name an
-exact `loginRecipe`. Exactly one identity is `anonymous`, with no credential
+`credential` reference for authenticated kinds. HTTP-login requires an exact
+`loginRecipe`; Basic/Bearer may name a control-only recipe under
+[HTP-R141](../tools/http-caido.md). Exactly one identity is `anonymous`, with no credential
 or login recipe. Kinds are `anonymous`, `basic`, `bearer`, `http-login` and
 capability-selected `browser-login`. Credential kinds must match the identity
 and reuse RCF-R184; the immutable ID is the revision, never a secret digest.
@@ -1927,8 +1928,12 @@ reasons additionally include `pentest_capability_unsupported`,
 
 **AUD-R247.** Start extends its immutable baseline with the versioned
 `contractor.audit.pentest-baseline.v1` engagement snapshot: the exact artifact,
-validated document, policy digest, trusted authorizing owner and authorization
-time. Exact nested input/login-recipe refs and credential revisions are
+validated document, policy digest, trusted authorizing owner, authorization
+time and a required `loginRecipes` map of validated non-secret recipe bodies.
+Admission reads each exact HTTP/control recipe with its media type, digest, byte
+bound and closed schema; it verifies identity/origin/scope binding before
+freezing the body. Allocation and action admission consume that snapshot
+without repeated Artifact I/O. Exact nested input/login-recipe refs and credential revisions are
 validated and held through existing Artifact links and credential dispatch
 holds in the start transaction. Profile, Workflow, Skill and RuntimeConfig
 pins retain their existing ownership. Project policy or draft changes racing
@@ -1946,12 +1951,16 @@ Audit: pause blocks new child admission while existing Runs drain; Run
 cancellation, Project deletion and the allocation grant retain their existing
 dispatch fences. The projection contains immutable engagement/policy attribution and finite
 budgets. Metadata-only allocations omit `preflight`. Explicitly requiring
-`pentest-target-http@1` supplies the typed anonymous GET/read seed assignment,
-its routes/exclusions and the trusted infrastructure denyset. The Server
+`pentest-target-http@1` supplies typed GET/read seeds, assigned identities and
+inline non-secret login recipes, its routes/exclusions and the trusted
+infrastructure denyset. The Server
 selects an advertising Runtime before placement and completes its separate
 preflight call before the Planner starts. Neither mutable Project settings,
-physical labels nor Worker arguments can widen this assignment. Credentials,
-login inputs, model-visible target tools and response bodies are absent.
+physical labels nor Worker arguments can widen this assignment. Raw credentials, private variables, model-visible target tools and response
+bodies are absent from the projection. Exact held credential references are
+materialized separately only on the private prepare wire (CTL-R168); identity
+execution and observed-authentication semantics belong to
+[HTP-R140–146](../tools/http-caido.md).
 The existing private protocol and allocation lifecycle own validation,
 cancellation and release ([CTL-R169](../execution/control-plane.md)).
 
@@ -1967,7 +1976,7 @@ cancellation and release ([CTL-R169](../execution/control-plane.md)).
   external broker without demonstrated need are deferred.
 - Partial durable completion of items inside a still-running batch is deferred
   until its own receipt/pin protocol exists.
-- Authenticated pentest execution, trusted captures, proof/replay-specific recipes
+- Trusted captures, general proof/replay recipes, browser login
   and optional finding-review extensions remain capability-gated designs in
   [proposal 0033: autonomous pentest Audits](../../proposals/0033-autonomous-pentest-audits.md).
   Generic registered proposed-check routing is specified above; those future
