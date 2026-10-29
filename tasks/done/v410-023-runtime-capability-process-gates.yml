@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V411-003
 priority: P1
-status: in_progress
+status: completed
 depends_on: [V411-003]
 languages: [go]
 goal: >-
@@ -64,3 +64,17 @@ tests:
     covers: [A1, A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: c0c1312886470e1bea84884ce91e99a00aa65e54
+verification:
+  date: '2026-10-29'
+  result: passed
+  tested_commit: c0c1312886470e1bea84884ce91e99a00aa65e54
+  commands:
+    - command: go test -tags=e2e -count=1 ./tests/e2e -run '^TestRuntimeAdapterSelectionAllowsAdditionalCapabilities$'
+      result: Passed deterministic required-subset, ordering, missing and ambiguous principal regression; also executed by the Runtime-label process gate.
+    - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-http-caido-e2e test-runtime-labels-e2e test-project-sitemap-tools-e2e
+      result: Passed HTTP/Caido (75.139s), Runtime labels and adapter regression (115.999s), and both mandatory sitemap Server/Runtime/PostgreSQL scenarios with zero skips.
+    - command: make lint
+      result: Passed generated contracts, UI gates, Go and Runtime checks, task/spec validation and complete release graph including the new deterministic regression.
+  notes:
+    - This is a test-harness correction for additive advertised capabilities introduced by V411-003; configured allocation provenance remains exact.
