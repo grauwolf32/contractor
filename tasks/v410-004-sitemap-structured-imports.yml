@@ -9,6 +9,7 @@ status: in_progress
 depends_on:
 - V410-002
 - V410-003
+- V410-024
 languages:
 - go
 - python
@@ -135,10 +136,10 @@ acceptance_criteria:
   then: Valid records retain factual source limitations; explicit malformed imports return classified errors. No scanner
     process is launched, and automatic map publication cannot replace the scanner report/result.
 - id: A2
-  given: Many records spanning batches, a lost acknowledgement and eviction of an accepted revision
-  when: The import resumes or repeats with the same source
-  then: Each continuation step is bounded, accepted observations are not duplicated and receipt replay does not append
-    another revision or republish evicted history; unavailable exact bytes never fall back to latest.
+  given: Exact reports at the 100-result boundary, a lost acknowledgement and eviction of an accepted map or source revision
+  when: The same keyed import is retried
+  then: One report is one bounded batch; receipt replay occurs before rereading source bytes and does not append
+    another revision or republish evicted history. A new import of unavailable exact bytes never falls back to latest.
 - id: A3
   given: Selected Caido results plus unrelated traffic in the same provider
   when: A selected tool inspects/generates requests
@@ -198,9 +199,13 @@ test_prerequisites:
   test-scan-e2e is unnecessary for import-only changes; if implementation also changes scanner execution, its existing
   execution gate becomes required.
 execution:
-  branch: codex/v410-sitemap
-  claimed_on: '2026-10-27'
-  note: Resumed after the reviewed V410-003 implementation and its main merge. V410-005 through V410-007 remain pending until their own implementation starts.
+  branch: codex/v410-004-sitemap-imports
+  claimed_on: '2026-10-29'
+  note: >-
+    Resumed here after the user's request to continue sitemap delivery. The earlier V410 lane's last turn
+    is completed, its checkout is clean and its last commit only claimed this task; no implementation
+    is being taken from an active worker. Start from main including V410-024. V410-005 through V410-009
+    remain pending until their declared prerequisites and individual work are complete.
 implementation_decisions:
 - date: 2026-10-26
   decision: Preserve the user-requested isolation between tools and sitemap. Scanner execution and Caido tools retain
@@ -213,3 +218,18 @@ implementation_decisions:
     subsystem. Defer new dirsearch format work until a concrete caller/contract exists.
 - date: '2026-10-27'
   decision: Existing normalized ffuf and Katana reports each retain at most 100 results and 128 KiB. Validate those owning bounds and import one exact report as one bounded batch through existing receipts. No continuation cursor or durable import checkpoint is needed for these concrete callers; reopen only when a selected versioned format exceeds the shared batch bound.
+- date: '2026-10-29'
+  decision: >-
+    The 128 KiB limit applies to retained result arrays; the existing schemaVersion 1 tool report envelope
+    is bounded by 512 KiB. Read exact current-Run report metadata and bytes through ArtifactStore,
+    strictly validate the existing ffuf/Katana formats in Go, and reuse the common Project receipt and
+    publication transaction. Receipt identity binds the exact ref, format and authenticated Run before
+    reading source bytes. Missing HTTP timestamps use immutable report revision publication time,
+    explicitly described as report time rather than precise exchange time. Stable kind/deployment
+    sources aggregate behavior; existing bounded member Evidence stores exact report file locators.
+- date: '2026-10-29'
+  decision: >-
+    Generic report-publication notifications originate after the tool Worker writes its ordinary report;
+    scanner tools do not acquire another report writer. Allocation composition connects optional bounded
+    subscribers. Selected Caido metadata is emitted before model-output redaction and without extra
+    provider/target requests; native sitemap nodes lacking methods do not manufacture GET observations.
