@@ -5,7 +5,7 @@ milestone: finding-sarif-export-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V397-007
 languages:
@@ -121,3 +121,4 @@ verification_scope:
 
 verification_evidence:
 - tasks/evidence/v397-008-verification.json
+implementation_commit: 428f9556bc1261684dd88b11a6bd0158ccee7623
