@@ -77,9 +77,6 @@
         "expected": {
           "$ref": "#/$defs/SitemapSource"
         },
-        "artifact": {
-          "$ref": "#/$defs/SitemapExactArtifact"
-        },
         "rules": {
           "type": "array",
           "maxItems": 256,
