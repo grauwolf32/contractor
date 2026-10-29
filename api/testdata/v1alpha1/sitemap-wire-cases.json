@@ -69,8 +69,7 @@
               "method": "GET",
               "outcome": "response",
               "status": 200,
-              "at": "2026-10-26T00:00:00Z",
-              "sessionGeneration": "session-one"
+              "at": "2026-10-26T00:00:00Z"
             }
           ]
         }
@@ -310,8 +309,7 @@
               "method": "GET",
               "outcome": "response",
               "status": 200,
-              "at": "2026-10-26T00:00:00Z",
-              "sessionGeneration": "session-one"
+              "at": "2026-10-26T00:00:00Z"
             }
           ]
         }
@@ -328,8 +326,7 @@
               "method": "GET",
               "outcome": "response",
               "status": 200,
-              "at": "2026-10-26T00:00:00Z",
-              "sessionGeneration": "session-one"
+              "at": "2026-10-26T00:00:00Z"
             }
           ]
         }
@@ -346,8 +343,7 @@
               "method": "GET",
               "outcome": "response",
               "status": 200,
-              "at": "2026-10-26T00:00:00Z",
-              "sessionGeneration": "session-one"
+              "at": "2026-10-26T00:00:00Z"
             }
           ],
           "secrets": []
@@ -488,6 +484,90 @@
                 "structural": null
               }
             ]
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z",
+              "sessionGeneration": "session-one"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "replace-source",
+          "expectedRevision": "rev-map",
+          "source": {
+            "expected": {
+              "provenance": {
+                "sourceId": "owner",
+                "kind": "manual",
+                "runId": "producer-run"
+              },
+              "generation": 1,
+              "policyDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "rules": []
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "replace-source",
+          "expectedRevision": "rev-map",
+          "source": {
+            "expected": {
+              "provenance": {
+                "sourceId": "owner",
+                "kind": "manual",
+                "credentialRevision": "credentials-one"
+              },
+              "generation": 1,
+              "policyDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "rules": []
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapMutationRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "mutation": {
+          "operation": "replace-source",
+          "expectedRevision": "rev-map",
+          "source": {
+            "expected": {
+              "provenance": {
+                "sourceId": "owner",
+                "kind": "manual",
+                "sessionGeneration": "session-one"
+              },
+              "generation": 1,
+              "policyDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "rules": []
           }
         }
       }

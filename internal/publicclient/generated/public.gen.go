@@ -7892,12 +7892,9 @@ type SitemapMutationOperation string
 
 // SitemapProvenance defines model for SitemapProvenance.
 type SitemapProvenance struct {
-	CredentialRevision *ResourceId           `json:"credentialRevision,omitempty"`
-	Deployment         *ResourceId           `json:"deployment,omitempty"`
-	Kind               SitemapProvenanceKind `json:"kind"`
-	RunId              *ResourceId           `json:"runId,omitempty"`
-	SessionGeneration  *ResourceId           `json:"sessionGeneration,omitempty"`
-	SourceId           ResourceId            `json:"sourceId"`
+	Deployment *ResourceId           `json:"deployment,omitempty"`
+	Kind       SitemapProvenanceKind `json:"kind"`
+	SourceId   ResourceId            `json:"sourceId"`
 }
 
 // SitemapProvenanceKind defines model for SitemapProvenance.Kind.

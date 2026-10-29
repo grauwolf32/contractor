@@ -7482,20 +7482,13 @@ components:
           - katana
           - dirsearch
           - openapi
-        runId:
-          $ref: '#/components/schemas/ResourceId'
         deployment:
-          $ref: '#/components/schemas/ResourceId'
-        credentialRevision:
-          $ref: '#/components/schemas/ResourceId'
-        sessionGeneration:
           $ref: '#/components/schemas/ResourceId'
     SitemapSummary:
       type: object
       additionalProperties: false
       required:
       - provenance
-      - context
       - outcome
       - status
       - parameters
@@ -7504,10 +7497,6 @@ components:
       properties:
         provenance:
           $ref: '#/components/schemas/SitemapProvenance'
-        context:
-          type: string
-          pattern: ^[0-9a-f]{64}$
-          maxLength: 64
         outcome:
           type: string
           maxLength: 8192
@@ -7714,7 +7703,18 @@ components:
           - $ref: '#/components/schemas/ResourceId'
         reason:
           type: string
-          maxLength: 8192
+          enum:
+          - structural
+          - members
+          - groups
+          - summaries
+          - examples
+          - regrouping
+          - incomplete
+          - parameters
+          - source-unavailable
+          - ambiguous
+          - projection
         count:
           type: integer
           minimum: 0

@@ -136,16 +136,7 @@
             "openapi"
           ]
         },
-        "runId": {
-          "$ref": "#/$defs/ResourceId"
-        },
         "deployment": {
-          "$ref": "#/$defs/ResourceId"
-        },
-        "credentialRevision": {
-          "$ref": "#/$defs/ResourceId"
-        },
-        "sessionGeneration": {
           "$ref": "#/$defs/ResourceId"
         }
       }
@@ -495,59 +486,6 @@
         "at"
       ]
     },
-    "SitemapCollectionAttempt": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "url": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 8192,
-          "x-maxBytes": 8192
-        },
-        "method": {
-          "type": "string",
-          "pattern": "^[A-Z]{1,16}$"
-        },
-        "outcome": {
-          "enum": [
-            "response",
-            "timeout",
-            "transport-error",
-            "attempt"
-          ]
-        },
-        "status": {
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 599
-        },
-        "at": {
-          "$ref": "common.schema.json#/$defs/timestamp"
-        },
-        "parameters": {
-          "type": "array",
-          "maxItems": 100,
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 64,
-            "x-maxBytes": 64
-          }
-        },
-        "sessionGeneration": {
-          "$ref": "#/$defs/ResourceId"
-        }
-      },
-      "required": [
-        "url",
-        "method",
-        "outcome",
-        "status",
-        "at",
-        "sessionGeneration"
-      ]
-    },
     "SitemapCollectionRequest": {
       "type": "object",
       "additionalProperties": false,
@@ -564,7 +502,7 @@
               "minItems": 1,
               "maxItems": 100,
               "items": {
-                "$ref": "#/$defs/SitemapCollectionAttempt"
+                "$ref": "#/$defs/SitemapHTTPObservation"
               }
             }
           },

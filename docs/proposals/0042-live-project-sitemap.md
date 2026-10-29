@@ -26,6 +26,16 @@ confirmed that ordinary owner-selected Run inputs authorize their complete
 selected content. General credential handling, HTTP evidence redaction and
 telemetry redaction are unchanged.
 
+Observation-aggregation decision, 2026-10-29: the user removed execution and
+principal attribution from sitemap metadata. Current summaries aggregate source,
+deployment, parameter names and HTTP outcome/status with first/last timestamps;
+Run, credential revision, session generation and identity/context fields are not
+retained and do not consume summary capacity. There is no context quota. Runs
+remain operation/receipt authority and exact evidence file locators. Actual HTTP
+and browser authentication/session isolation remains owned by their transports.
+This decision supersedes any earlier attribution/context wording in this proposal;
+[SMT-R5](../spec/artifacts/project-sitemap.md#smt-r5) is normative.
+
 Shared-map decision, 2026-10-28: the user removed the earlier sitemap
 blackbox/source-assisted split. All permitted readers see the same accumulated
 Project metadata; source availability and observed-versus-declared provenance
@@ -154,7 +164,7 @@ normalized origin + HTTP method + route key + configured structural values
 
 The route key is an exact concrete path until an explicit OpenAPI path or
 configured path-template rule supplies a justified grouping. Parameter-name
-sets, body media types, identities and outcomes remain bounded variants under
+sets and outcomes remain bounded variants under
 the group. They are available to the pentester without multiplying a node for
 every input value.
 
@@ -163,7 +173,7 @@ every input value.
 | Origin, method, route | Stable operation grouping, with its grouping rule provenance. |
 | Parameter shapes | Observed names, locations, multiplicity and body content types; declarations stay distinguishable. |
 | Declarations | Exact OpenAPI revision and operation pointer, or an explicit manual declaration. |
-| Observations | Trusted source/context keys, producer Run/invocation, observation time, HTTP outcome and deployment/session attribution when known. |
+| Observations | Trusted source ID/kind and deployment, parameter names, HTTP outcome/status and minimum/maximum observation times. No Run or principal attribution. |
 | Concrete members | A separately bounded inventory of concrete operation keys and their observation summaries; representative examples are not this inventory. |
 | Examples | A bounded selection of concrete request descriptors and exact retained evidence refs when available. |
 | Manual metadata | Notes, tags, grouping overrides and exclusion state. |
@@ -171,20 +181,11 @@ every input value.
 
 Store declarations and observations separately. A schema operation can be
 declared and never observed; a live endpoint can be observed and undeclared.
-Unknown authentication context stays unknown rather than being labelled
-anonymous. User A and user B remain separate observation contexts.
-
-An engagement identity context is keyed by its trusted baseline/engagement
-identity plus `identityId`, which is unique only within that engagement.
-Ordinary Runs use Run-scoped identity contexts or an explicit Run-scoped unknown
-context. Names, roles, credential aliases and matching `user-a` labels never
-establish cross-Run equivalence. Equivalence requires an explicit trusted
-principal mapping; it does not erase original context keys or credential
-revision provenance. Preserve deployment attribution and relevant session/state
-generation separately. Unknown deployment or identity is not a match to a known
-one. When context limits are reached, record overflow and retain an unknown
-aggregate containing only omitted counts/gaps, never outcomes attributed to a
-synthetic shared principal; do not combine principals to fit the limit.
+Sitemap observations carry no principal or authentication assertion. Repeated
+Runs and sessions observing the same source/deployment and behavior update its
+time range. Actual identity and session isolation remain transport concerns;
+adding a synthetic unknown-user key would reintroduce unnecessary fragmentation.
+Different source/deployment and HTTP behavior remain distinct bounded summaries.
 
 Normalize origins using the project's shared URL rules and preserve concrete
 path case, trailing slashes and encoded reserved characters. Grouping never
@@ -230,7 +231,7 @@ as a side effect of sitemap import.
 
 For example, importing `GET /users/{id}` lets observed `/users/123` and
 `/users/456` appear under that operation while retaining concrete examples and
-their identity contexts. A declared concrete route such as `/users/me` takes
+their source/deployment summaries. A declared concrete route such as `/users/me` takes
 precedence over a compatible template. Ambiguous template matches remain
 separate/ambiguous until resolved; the model does not choose their identity.
 
@@ -358,7 +359,7 @@ exact inputs and reconcile publication acknowledgements without target calls.
    Rules can retain these values in the operation key. Do not ignore all
    query values globally or infer structural meaning from a name alone.
 4. **Preserve useful diversity.** Select representative examples across
-   identity contexts, parameter shapes and outcomes. Response-body equality
+   source/deployment attribution, parameter shapes and outcomes. Response-body equality
    does not prove equal authorization or endpoint behavior.
    Keep a bounded concrete-member inventory independently of the eight examples.
    When its limit is reached, preserve accepted members, summarize omitted
@@ -505,8 +506,7 @@ only with the implementation. They are not current platform limits:
 | Current map | 10,000 groups or 32 MiB encoded JSON, whichever comes first |
 | Concrete members | 64 per group and 50,000 per map; each member key at most 8 KiB |
 | Examples | 8 bounded request descriptors per group; at most 2 KiB each |
-| Context summaries | 16 named/unknown observation contexts per group |
-| Member summaries/provenance | 16 source/context/outcome summaries and 8 exact provenance refs per retained member |
+| Member summaries/evidence | 16 source/deployment/shape/outcome summaries and 8 exact evidence refs per retained member |
 | Source registry / grouping rules / suppression markers | 128 / 256 / 10,000 per map; all count toward the encoded map bound |
 | Manual notes/tags | 4 KiB and 16 tags of at most 64 bytes per group/member; all count toward the map bound |
 | Batch | 100 normalized observations or 256 KiB |
@@ -777,7 +777,8 @@ remain outside the metadata model and that general telemetry redaction remains
 unchanged. Exercise the same shared map through every permitted reader, current
 operation denial on cached pages, and snapshots with available, missing or
 advanced original input bindings. Check complete owner-selected ordinary inputs,
-repeated identity labels across baselines, reversed concurrent schema replacements, regrouping after
+repeated Runs and sessions with identical behavior, distinct source/deployment summaries,
+reversed concurrent schema replacements, regrouping after
 inventory overflow/discarded incoming members, suppression across split/merge,
 and every metadata bound.
 Shared artifact/retention tests cover concurrent last-slot admission, mixed and

@@ -2555,14 +2555,10 @@ export interface components {
             sourceId: components["schemas"]["ResourceId"];
             /** @enum {string} */
             kind: "manual" | "http" | "caido" | "ffuf" | "katana" | "dirsearch" | "openapi";
-            runId?: components["schemas"]["ResourceId"];
             deployment?: components["schemas"]["ResourceId"];
-            credentialRevision?: components["schemas"]["ResourceId"];
-            sessionGeneration?: components["schemas"]["ResourceId"];
         };
         SitemapSummary: {
             provenance: components["schemas"]["SitemapProvenance"];
-            context: string;
             outcome: string;
             status: number;
             parameters: string[];
@@ -2614,7 +2610,8 @@ export interface components {
         };
         SitemapGap: {
             sourceId: "" | components["schemas"]["ResourceId"];
-            reason: string;
+            /** @enum {string} */
+            reason: "structural" | "members" | "groups" | "summaries" | "examples" | "regrouping" | "incomplete" | "parameters" | "source-unavailable" | "ambiguous" | "projection";
             count: number;
         };
         SitemapMutation: {

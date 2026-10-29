@@ -82,7 +82,7 @@ requirements:
   text: Concrete declarations such as /users/me precede templates. Ambiguous matches remain unresolved, source-derived
     declarations stay labelled, and observation confidence is not upgraded by a schema.
 - id: R4
-  text: Regroup only retained concrete members. Preserve their applicable context/evidence/manual metadata and exclusions,
+  text: Regroup only retained concrete members. Preserve their applicable summaries/evidence/manual metadata and exclusions,
     and retain unknown aggregate/gaps for discarded members.
 - id: R5
   text: Publication preserves concurrent append observations but compares expected source generation/ref/digest/policy
@@ -145,7 +145,7 @@ acceptance_criteria:
   then: Concrete precedence, separate declarations/observations and parameter differences are correct without manufactured
     coverage.
 - id: A3
-  given: Suppressed members, identity contexts and discarded incoming members at inventory limits
+  given: Suppressed members, distinct source/deployment summaries and discarded incoming members at inventory limits
   when: A schema regroups the map
   then: Retained provenance/edits survive, no suppression widens and unavailable old membership remains an explicit
     gap.

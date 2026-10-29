@@ -21,6 +21,7 @@ def test_shared_sitemap_document_wire_shape() -> None:
         (Path(__file__).parents[2] / "api/testdata/project-sitemap-cases.json").read_text()
     )
     assert ViewIndex(json.dumps(cases["empty"]).encode()).entries == {}
+    assert ViewIndex(json.dumps(cases["observed"]).encode()).entries
     for raw in cases["invalid"]:
         with pytest.raises(ArtifactTransportError):
             ViewIndex(raw.encode())
@@ -291,7 +292,6 @@ def test_metadata_pages_bound_work_bytes_and_cursor_authority_without_entry_repe
         "members",
         "groups",
         "summaries",
-        "contexts",
         "examples",
         "regrouping",
         "incomplete",

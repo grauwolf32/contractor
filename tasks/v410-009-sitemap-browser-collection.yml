@@ -17,7 +17,7 @@ languages:
 - yaml
 - markdown
 goal: Add optional BrowserContext-level request/response/failure metadata collection through the managed browser
-  adapter while preserving identity separation, safe shared context and independent HTTP availability.
+  adapter while preserving managed browser isolation, shared metadata and independent HTTP availability.
 context:
   authority: User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
     this task records planned work, not implementation or verification evidence. The 2026-10-28 user decision makes
@@ -53,8 +53,8 @@ scope:
   in:
   - Subscribe at managed BrowserContext scope to request, response and failure events, including new tabs in the
     same identity context, using the actual adapter lifecycle.
-  - Translate events to the common safe observation format with trusted identity/session/deployment/source provenance
-    and available correlation tags.
+  - Translate events to the common observation format with trusted source/deployment provenance and available
+    correlation tags; omit Run, credential/session and principal identifiers from sitemap metadata.
   - Coalesce and flush through the bounded collector; distinguish request/response/failure/redirect outcomes and
     report unavailable/truncated evidence explicitly.
   - Join event handlers, parser threads and publishers before context/browser/allocation cleanup; stop accepting
@@ -71,8 +71,9 @@ requirements:
   text: Collect only for explicitly selected managed browser/collector grants; an installed browser or generic sandbox
     script does not imply managed capture.
 - id: R2
-  text: Browser identity context includes trusted engagement/baseline plus local identity and session/state provenance;
-    ordinary supported contexts remain Run-scoped. Tabs inherit only their owning managed context.
+  text: Managed browser identity/session isolation remains owned by the browser adapter. Tabs inherit only their
+    owning managed context. Sitemap records source/deployment and behavior without principal or authentication
+    attribution; repeated Runs and sessions do not consume another summary for identical observations.
 - id: R3
   text: Apply shared metadata normalization before constructing map keys/examples. Valid paths, names and finite
     structural values remain intact regardless of keywords, opaque appearance or known-credential matches; userinfo,
@@ -80,7 +81,7 @@ requirements:
     matching-secret list. Shared correlation preserves attribution, while absent correlation does not imply an exact
     physical request count.
 - id: R4
-  text: Use common pending/batch/context/member/provenance/publication bounds. A failed navigation/request is not
+  text: Use common pending/batch/member/summary/evidence/publication bounds. A failed navigation/request is not
     a received HTTP response and a response event does not imply complete retained body evidence.
 - id: R5
   text: Reading flushes the caller collector; cancellation/context close and allocation release join event/publisher
@@ -90,7 +91,7 @@ requirements:
     HTTP/OpenAPI catalog; busy capacity is handled by the browser execution owner, not labelled absence here.
 failure_outcomes:
 - operation: Managed browser event capture and metadata normalization
-  permanent: Unsupported event/projection, unknown identity context or unavailable browser capability reports a
+  permanent: Unsupported event/projection or unavailable browser capability reports a
     stable source gap; no fabricated response/evidence.
   retryable: Browser execution retries remain owned by V412-001; collector code does not repeat actions to obtain
     metadata.
@@ -110,7 +111,7 @@ failure_outcomes:
 cardinality:
 - collection: Browser contexts, pages and network events
   expected: A few managed identities/tabs and coalesced request batches
-  maximum: Managed browser context/page limits from V412-001 plus shared sitemap pending/batch/member/context limits
+  maximum: Managed browser context/page limits from V412-001 plus shared sitemap pending/batch/member/summary limits
   bound: Subscribe once per owned context, coalesce bounded events and do not retain a DOM/journey or all-response
     graph.
 - collection: Published browser metadata and exact references
@@ -127,8 +128,9 @@ acceptance_criteria:
 - id: A1
   given: Managed anonymous/A/B contexts with new tabs, redirects and failed requests
   when: A controlled local browser application generates network events
-  then: Context-level capture retains correct distinct identity/session/outcome provenance and does not confuse
-    failure with response.
+  then: Context-level capture respects the browser adapter's isolation while publishing source/deployment/outcome
+    summaries without principal or session attribution, coalesces identical observations across Runs and does not
+    confuse failure with response.
 - id: A2
   given: Credential-like and opaque URL metadata, excluded URL/header/body fields and mixed source-kind contributions
   when: Events reach map publication and permitted dedicated readers or snapshots

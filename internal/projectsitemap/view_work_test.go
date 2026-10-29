@@ -17,7 +17,7 @@ func BenchmarkSitemapAllocationDocumentRead(b *testing.B) {
 		group := Group{ID: groupID("https://example.test", "GET", route), Origin: "https://example.test", Method: "GET", Route: route, Structural: []StructuralValue{}, Members: []Member{}, Declarations: []Declaration{}}
 		for j := range MaxMembers / MaxGroups {
 			path := fmt.Sprintf("/items/%d/%d", i, j)
-			group.Members = append(group.Members, Member{ID: memberID(group.Origin, group.Method, path), Path: path, Summaries: []Summary{{Provenance: a.provenance(), Context: a.contextKey(), Outcome: "response", Status: 200, Parameters: []string{}, First: "2026-10-26T00:00:00Z", Last: "2026-10-26T00:00:00Z"}}, Examples: []string{}, Evidence: []Evidence{}, Annotations: []Annotation{}})
+			group.Members = append(group.Members, Member{ID: memberID(group.Origin, group.Method, path), Path: path, Summaries: []Summary{{Provenance: a.provenance(), Outcome: "response", Status: 200, Parameters: []string{}, First: "2026-10-26T00:00:00Z", Last: "2026-10-26T00:00:00Z"}}, Examples: []string{}, Evidence: []Evidence{}, Annotations: []Annotation{}})
 		}
 		document.Groups = append(document.Groups, group)
 	}

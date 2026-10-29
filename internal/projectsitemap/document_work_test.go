@@ -43,17 +43,17 @@ func TestReducerWorkerManualSourcesDoNotMultiplyAcrossRuns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(d.Sources) != 1 || d.Sources[0].Provenance.RunID != "" {
+	if len(d.Sources) != 1 || d.Sources[0].Provenance.SourceID != a.SourceID {
 		t.Fatal("manual Worker Run consumed another logical source")
 	}
-	seen := map[string]bool{}
-	for _, group := range d.Groups {
-		for _, declaration := range group.Declarations {
-			seen[declaration.Provenance.RunID] = true
-		}
+	d, _, err = Reduce(d, Mutation{Operation: "declare", URL: "https://example.test/one", Method: "GET"}, a)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !seen["first-run"] || !seen["second-run"] {
-		t.Fatal("declaration lost real producer identity")
+	for _, group := range d.Groups {
+		if len(group.Declarations) != 1 || group.Declarations[0].Provenance != a.provenance() {
+			t.Fatal("another Run duplicated a declaration or changed its source")
+		}
 	}
 }
 
@@ -220,7 +220,7 @@ func BenchmarkSitemapDocumentMutation(b *testing.B) {
 				group := Group{ID: groupID("https://example.test", "GET", route), Origin: "https://example.test", Method: "GET", Route: route, Structural: []StructuralValue{}, Members: []Member{}, Declarations: []Declaration{}}
 				for j := range count / 10000 {
 					path := fmt.Sprintf("/items/%d/%d", i, j)
-					group.Members = append(group.Members, Member{ID: memberID(group.Origin, group.Method, path), Path: path, Summaries: []Summary{{Provenance: a.provenance(), Context: a.contextKey(), Outcome: "response", Status: 200, Parameters: []string{}, First: "2026-10-26T00:00:00Z", Last: "2026-10-26T00:00:00Z"}}, Examples: []string{}, Evidence: []Evidence{}, Annotations: []Annotation{}})
+					group.Members = append(group.Members, Member{ID: memberID(group.Origin, group.Method, path), Path: path, Summaries: []Summary{{Provenance: a.provenance(), Outcome: "response", Status: 200, Parameters: []string{}, First: "2026-10-26T00:00:00Z", Last: "2026-10-26T00:00:00Z"}}, Examples: []string{}, Evidence: []Evidence{}, Annotations: []Annotation{}})
 				}
 				document.Groups = append(document.Groups, group)
 			}

@@ -937,7 +937,7 @@ its owning requirement.
 | `LIM-SMT-1` | 10,000 groups and 32 MiB encoded JSON | One current map | projectsitemap reducer and strict reader | [SMT-R2](../artifacts/project-sitemap.md), [SMT-R5](../artifacts/project-sitemap.md) |
 | `LIM-SMT-2` | 64 members per group, 50,000 per map, 8 KiB concrete key | Concrete inventory | projectsitemap reducer | [SMT-R5](../artifacts/project-sitemap.md) |
 | `LIM-SMT-3` | 8 examples per group, 2 KiB each | Representative descriptors | projectsitemap reducer and regrouping | [SMT-R5](../artifacts/project-sitemap.md) |
-| `LIM-SMT-4` | 16 contexts per group; 16 summaries and 8 exact provenance refs per member | Observations | projectsitemap reducer | [SMT-R5](../artifacts/project-sitemap.md) |
+| `LIM-SMT-4` | 16 behavior summaries and 8 exact evidence refs per member | Observations | projectsitemap reducer | [SMT-R5](../artifacts/project-sitemap.md) |
 | `LIM-SMT-5` | 128 sources, 256 rules, 10,000 suppression markers; at most 64 selected members per marker | One map | projectsitemap reducer | [SMT-R6](../artifacts/project-sitemap.md), [SMT-R7](../artifacts/project-sitemap.md) |
 | `LIM-SMT-6` | 4 KiB note; 16 tags with the small-label byte bound; at most 128 provenance-scoped annotations per member | Manual metadata | projectsitemap projection and reducer | [SMT-R4](../artifacts/project-sitemap.md) |
 | `LIM-SMT-7` | 100 observations and 256 KiB per command; 16 structural selectors, each with at most 16 values subject to the small-label byte bound | One ingress batch or configured rule | domain service and public body bound | [SMT-R4](../artifacts/project-sitemap.md), [SMT-R8](../artifacts/project-sitemap.md) |

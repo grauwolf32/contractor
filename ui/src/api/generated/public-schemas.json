@@ -175,16 +175,7 @@
             "openapi"
           ]
         },
-        "runId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
         "deployment": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "credentialRevision": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "sessionGeneration": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         }
       }
@@ -194,7 +185,6 @@
       "additionalProperties": false,
       "required": [
         "provenance",
-        "context",
         "outcome",
         "status",
         "parameters",
@@ -204,11 +194,6 @@
       "properties": {
         "provenance": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapProvenance"
-        },
-        "context": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$",
-          "maxLength": 64
         },
         "outcome": { "type": "string", "maxLength": 8192 },
         "status": { "type": "integer", "minimum": 0 },
@@ -402,7 +387,22 @@
             }
           ]
         },
-        "reason": { "type": "string", "maxLength": 8192 },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "structural",
+            "members",
+            "groups",
+            "summaries",
+            "examples",
+            "regrouping",
+            "incomplete",
+            "parameters",
+            "source-unavailable",
+            "ambiguous",
+            "projection"
+          ]
+        },
         "count": {
           "type": "integer",
           "minimum": 0,

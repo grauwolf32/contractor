@@ -89,8 +89,9 @@ requirements:
 - id: R6
   text: Imports use the same metadata normalization as HTTP. Valid paths, parameter names, finite structural values,
     notes and tags retain credential-like words, opaque values and known-credential matches. Userinfo, fragments,
-    nonstructural query values, raw headers and bodies remain outside the map model. Imports preserve trusted source kind,
-    producer, deployment and context without manufacturing observations. All permitted readers see the same map; exact
+    nonstructural query values, raw headers and bodies remain outside the map model. Imports preserve trusted source ID, kind
+    and deployment without Run, credential/session or principal attribution and without manufacturing observations.
+    Repeated importing Runs coalesce the same source/deployment and behavior. All permitted readers see the same map; exact
     source-file authority and general evidence/telemetry redaction retain their existing owners.
 failure_outcomes:
 - operation: Read and parse exact structured report

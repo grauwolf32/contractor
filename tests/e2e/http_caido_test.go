@@ -346,8 +346,8 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 		}
 		publicationProxy.verify(t)
 		data := operations.request(http.MethodGet, "/v1/projects/"+projectID+"/artifacts/sitemap/map", nil, 200, nil)
-		var document projectsitemap.Document
-		if err := json.Unmarshal(data, &document); err != nil {
+		document, err := projectsitemap.Decode(data)
+		if err != nil {
 			t.Fatal(err)
 		}
 		assertUnifiedSitemapGroups(t, document)
@@ -507,9 +507,11 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 		}
 
 		committed := operations.request(http.MethodGet, "/v1/projects/"+projectID+"/artifacts/sitemap/map", nil, 200, nil)
-		if !bytes.Contains(committed, []byte(httpInitial.RunID)) {
-			t.Fatal("Runtime crash erased committed Project observations")
+		committedMap, err := projectsitemap.Decode(committed)
+		if err != nil {
+			t.Fatal(err)
 		}
+		assertUnifiedSitemapGroups(t, committedMap)
 		if calls, failures := target.snapshot(); calls != 3 || len(failures) != 0 {
 			t.Fatalf("crash repeated target traffic: %d %v", calls, failures)
 		}
