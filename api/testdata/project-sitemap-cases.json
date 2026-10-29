@@ -152,7 +152,7 @@
               {
                 "provenance": {
                   "sourceId": "http-source",
-                  "kind": "ffuf",
+                  "kind": "custom-scanner.v2",
                   "deployment": "test"
                 },
                 "outcome": "response",
@@ -180,7 +180,7 @@
       {
         "provenance": {
           "sourceId": "http-source",
-          "kind": "ffuf",
+          "kind": "custom-scanner.v2",
           "deployment": "test"
         },
         "generation": 1,

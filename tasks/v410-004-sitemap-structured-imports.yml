@@ -72,14 +72,14 @@ scope:
     first slice. Generic collection-completeness states or required automatic import checks are excluded.
 requirements:
 - id: R1
-  text: An import reads only an exact authorized artifact under an explicit format/version and source/deployment binding;
+  text: A Runtime import adapter reads only an exact authorized artifact under an explicit format/version and source/deployment binding;
     unknown formats fail permanently and never execute embedded instructions.
 - id: R2
   text: Keep existing ffuf/Katana limits and observed-response restrictions. Preserve concrete limitations already
     declared by the report (such as discarded matches); do not invent a generic source-complete/incomplete state.
 - id: R3
-  text: Process one bounded exact report and reuse the existing shared receipt for replay.
-    The same exact ref and keyed batch cannot append again after result eviction. Add no independent durable import
+  text: Prepare one bounded normalized batch from an exact report in Runtime and reuse the existing shared receipt for replay.
+    The same prepared keyed batch cannot append again after source or result eviction; a fresh tool invocation must still read its exact source. Add no independent durable import
     checkpoint mechanism.
 - id: R4
   text: Selected Caido request/detail results are not durable exchange refs; their IDs remain provenance unless actual
@@ -99,8 +99,8 @@ failure_outcomes:
   permanent: Unknown format/version, inaccessible ref, malformed envelope or incompatible records return permanent
     classified outcomes; accepted valid records from a documented partial format carry exact gaps.
   retryable: Only Artifact/provider transport failures retry within owning read/import deadline.
-  ambiguous: Replay the same exact report identity and key; do not choose current/latest source or rerun the scanner.
-  cancelled: Join off-thread parser work and preserve accepted keyed batches before allocation release.
+  ambiguous: Replay the already prepared normalized batch and key; do not reread a report between publication retries, choose current/latest source or rerun the scanner.
+  cancelled: Join Runtime off-thread parser work and in-flight publication before allocation release.
   timeout: The existing operation deadline bounds exact reads, parsing and publication; no continuation state is created.
 - operation: Selected Caido projection and map publication
   permanent: Provider invalidity, absent raw exchange or collection denial never fabricate HTTP success; no raw HTTP
@@ -133,13 +133,13 @@ acceptance_criteria:
 - id: A1
   given: Exact ffuf and Katana reports with partial/malformed/oversized cases
   when: The production importer processes them
-  then: Valid records retain factual source limitations; explicit malformed imports return classified errors. No scanner
+  then: Runtime adapters retain factual source limitations and reject malformed reports before submitting normalized data. Server accepts any valid source label through one common contract and never parses provider reports or repairs provider rows. No scanner
     process is launched, and automatic map publication cannot replace the scanner report/result.
 - id: A2
   given: Exact reports at the 100-result boundary, a lost acknowledgement and eviction of an accepted map or source revision
   when: The same keyed import is retried
-  then: One report is one bounded batch; receipt replay occurs before rereading source bytes and does not append
-    another revision or republish evicted history. A new import of unavailable exact bytes never falls back to latest.
+  then: One report is prepared once as one bounded batch in Runtime. Retrying that prepared batch uses receipt replay without rereading evidence metadata and does not append
+    another revision or republish evicted history. A fresh explicit import of unavailable exact bytes fails its ordinary read and never falls back to latest.
 - id: A3
   given: Selected Caido results plus unrelated traffic in the same provider
   when: A selected tool inspects/generates requests

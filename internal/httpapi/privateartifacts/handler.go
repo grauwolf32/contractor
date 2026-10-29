@@ -100,7 +100,6 @@ func (h *handler) routes() []httpx.Route {
 		{Method: http.MethodPost, Path: allocation + "/sitemap/mutations", Handler: h.mutateSitemap},
 		{Method: http.MethodPost, Path: allocation + "/sitemap/snapshots", Handler: h.snapshotSitemap},
 		{Method: http.MethodPost, Path: allocation + "/sitemap/observations", Handler: h.collectSitemapObservations},
-		{Method: http.MethodPost, Path: allocation + "/sitemap/imports", Handler: h.importSitemapSource},
 	}
 }
 

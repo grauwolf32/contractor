@@ -32,6 +32,10 @@ are unambiguous. URL userinfo, fragments and nonstructural query values do not
 participate in these hashes because they are outside the metadata model.
 
 Every contribution records trusted source ID, source kind and optional deployment.
+Source kinds use the shared name grammar (1–128 ASCII characters), rather than a
+provider registry. `manual` and `openapi` are reserved for domain editing and
+declarations; any other valid label may identify an observation producer. The
+label is provenance data and must not select a Server parsing or repair algorithm.
 Metadata provenance carries no producer Run, credential revision or session
 generation; summaries carry no principal/context identifier. An observation summary is the set of source and
 deployment, outcome, response status and parameter names for a concrete member,
@@ -309,10 +313,13 @@ in the same batch.
 metadata and already published report references. Observation frames and private collection requests contain no
 matching-secret list; no separate secret-count limit applies. No headers, bodies,
 persistent queue, URL identity or receipt digest are constructed there. One
-background private batch request invokes the existing Go normalizer before
-sitemap identities, receipt hashing and Artifact publication; the existing
-reducer owns coalescing. Server code derives the Project, source and deployment
-from the allocation. Run identity remains in operation authority and receipt
+background private batch request carries normalized observations and bounded
+omission facts. Runtime tool adapters own provider formats, timestamp conversion,
+row selection and malformed-provider-row handling. Server strictly validates the
+common batch and applies only source-independent domain projection, grouping,
+identities, receipt hashing and coalescing. Server code derives Project and
+deployment from the allocation and stable source identity from the supplied
+producer label and deployment. Run identity remains in operation authority and receipt
 intent, outside published metadata. Collection frames contain no session generation,
 credential revision or principal/context identifier; HTTP tools add no tracking
 state solely for sitemap. Actual authentication, cookies, sessions and request tags
@@ -350,9 +357,11 @@ reopen the design only when a concrete consumer requires durable zero-loss
 collection and supplies the decision that depends on it.
 
 **SMT-R22.** Structured imports accept an explicit `ffuf-report@1` or
-`katana-report@1` format and an exact current-Run ArtifactRef. The Server reads
-metadata and exact bytes through ArtifactStore in the caller-owned transaction;
-there is no import-specific file store, raw-file API or Runtime parser. The
+`katana-report@1` format and an exact current-Run ArtifactRef at the Runtime tool
+boundary. Runtime reads exact bytes through the ordinary ArtifactClient and
+performs bounded parsing off the event loop. Server knows neither report formats
+nor provider payloads; it receives the same normalized batch as any other producer.
+There is no import-specific file store, raw-file API or Server report parser. The
 `application/json` schemaVersion 1 tool report is limited to 512 KiB by SCN-R41;
 its retained results obey the owning 100-record and 128-KiB limits. The projected
 command must also fit the existing LIM-SMT-7 byte bound, including JSON escaping.
@@ -360,14 +369,19 @@ One admitted report is one bounded reducer operation. Unknown formats, mismatche
 envelopes or invalid normalized records fail permanently without publication.
 No import executes a scanner, follows a redirect or substitutes a latest revision.
 
-**SMT-R23.** Import receipts bind the format, exact ref and authenticated Run
-through the existing Project keyed-mutation receipt. Accepted replay checks the
-receipt before reading source bytes and returns the accepted exact map ref,
-even after source or result history eviction. A changed selection or Run under
-the same key conflicts. Source identity remains stable by scanner kind and
+**SMT-R23.** Runtime prepares one normalized batch before publication retries.
+The existing Project mutation receipt binds its projected domain intent, omission
+facts, optional exact evidence ref and authenticated Run. Replaying that same
+prepared batch returns the accepted map ref without rereading source metadata or
+map bytes, even after source or result eviction. Changed accepted intent, evidence
+or Run under the same key conflicts. A fresh explicit tool invocation reads its
+selected exact input again and fails if it is unavailable; it does not query a
+second receipt API or reconstruct the source. Source identity remains stable by producer label and
 deployment; importing Runs and report revisions do not create summary variants.
 Existing bounded member evidence stores exact report locators without acquiring
-holds. Evidence overflow does not discard behavior. Snapshot authorization and
+holds. Server resolves an optional evidence ref through current-Run Artifact
+metadata inside the new mutation transaction, without reading or interpreting
+payload bytes. Ordinary namespace and scope rules apply. Evidence overflow does not discard behavior. Snapshot authorization and
 retention continue to follow SMT-R16. Reports contain no exchange timestamp, so
 their immutable Artifact revision publication time supplies first/last; these
 times describe reports, not the exact time of individual HTTP requests.
@@ -391,8 +405,9 @@ physical-traffic counters; replaying one accepted key never adds them again.
 after ordinary report publication, including a valid report of a failed tool.
 Composition selects supported scanner reports and enqueues exact refs without
 reading their bytes. One pending queue and one publisher serve HTTP, Caido and
-reports within LIM-SMT-14; each publication contains one source-kind observation
-batch or one report ref. Automatic report import requires collection/write
+reports within LIM-SMT-14. A pending report ref is read and preprocessed by its
+Runtime adapter before publication; every Server request contains one normalized
+source batch. Automatic publication requires collection/write
 authority and the publishing allocation namespace; explicit import requires the
 selected import operation and ordinary current-Run read authority.
 
@@ -401,9 +416,17 @@ contribute only metadata already returned by those operations, before model
 output redaction or evidence-buffer eviction. No additional provider request is
 made for collection. Native sitemap nodes lacking methods and other projections
 lacking factual origin/time do not manufacture observations. A missing response
-is an `attempt` with status zero. Go normalizes valid timestamps; unsupported or
+is an `attempt` with status zero. Runtime normalizes valid timestamps; unsupported or
 invalid selected rows become bounded `projection` gaps without rejecting other
-valid rows. Caido provider IDs never become invented durable ArtifactRefs.
+valid rows. Caido provider IDs never become invented durable ArtifactRefs. Server
+rejects an invalid normalized batch uniformly, regardless of producer label.
+
+Rationale (user decision, 2026-10-29): replacing Caido or adding another tool must
+require a Runtime adapter, without adding a Server provider enum, endpoint,
+format parser or special case. The sitemap domain owns shared grouping and
+storage invariants; Runtime tools own all source preprocessing. Reconsider this
+boundary only for an explicitly selected producer outside Runtime with a defined
+trust and transport contract.
 
 ## Interfaces
 
@@ -425,13 +448,14 @@ replacement map document.
 
 The allocation collector uses
 `POST /private/v1/allocations/{allocationId}/sitemap/observations` with
-`{apiVersion, input}` and `Idempotency-Key`. Transient input contains a composition-selected
-`kind` (`http` or `caido`) and bounded attempt metadata. Existing mTLS allocation fencing and the
+`{apiVersion, input, automatic}` and `Idempotency-Key`. Transient input contains a
+Runtime-selected `kind`, required `observations` (zero to 100), optional `gaps`
+(at most 16 distinct reasons with positive bounded counts) and optional exact
+`artifact` evidence ref. Empty batches register the source without manufacturing
+an observation. Existing mTLS allocation fencing and the
 [private wire schema](../../../api/v1alpha1/project-sitemap.schema.json) apply.
 Explicit allocation commands retain their mutation/snapshot operations.
-`POST /private/v1/allocations/{allocationId}/sitemap/imports` accepts
-`{apiVersion, selection: {format, artifact}, automatic}` with the same key and
-mutation result envelope. The required `automatic` transport flag belongs to
+There is no separate Server report-import endpoint. The required `automatic` transport flag belongs to
 composition and is absent from model tool arguments. All store-reaching routes
 preserve retryable `503 storage_transaction_conflict`.
 The model-facing `import_sitemap_source(format, artifact_ref, idempotency_key)`

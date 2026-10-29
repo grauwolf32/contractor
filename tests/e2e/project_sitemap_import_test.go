@@ -52,7 +52,7 @@ func TestProjectSitemapReportImportsAcrossProductionProcesses(t *testing.T) {
 	}
 	runs := map[string]bool{}
 	for _, kind := range []string{"ffuf", "katana"} {
-		payload, err := os.ReadFile(filepath.Join(root, "internal/projectsitemap/testdata", kind+"-report.json"))
+		payload, err := os.ReadFile(filepath.Join(root, "tests/e2e/testdata/sitemap/reports", kind+"-report.json"))
 		if err != nil {
 			t.Fatal(err)
 		}

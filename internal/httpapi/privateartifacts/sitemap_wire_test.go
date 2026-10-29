@@ -32,10 +32,11 @@ func TestSharedSitemapPrivateWire(t *testing.T) {
 			t.Fatalf("collector limit %s differs: %d want %d", name, cases.CollectorLimits[name], want)
 		}
 	}
-	if len(cases.Valid) != 9 || len(cases.Invalid) < 26 {
+	if len(cases.Valid) < 9 || len(cases.Invalid) < 26 {
 		t.Fatal("incomplete private sitemap cases")
 	}
 	compiler := jsonschema.NewCompiler()
+	compiler.AssertFormat()
 	paths, err := filepath.Glob(contractstest.Path(t, "api", "v1alpha1", "*.schema.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -91,16 +92,9 @@ func TestSharedSitemapPrivateWire(t *testing.T) {
 			case "SitemapCollectionRequest":
 				var input sitemapCollectionRequest
 				err := strictjson.DecodeNonNull(c.Value, &input)
-				valid := err == nil && input.APIVersion == contracts.APIVersion && (input.Input.Kind == "http" || input.Input.Kind == "caido")
+				valid := err == nil && input.APIVersion == contracts.APIVersion && input.Input.Validate() == nil
 				if valid != group.valid {
 					t.Fatalf("collection command valid=%t: %s: %v", group.valid, c.Value, err)
-				}
-			case "SitemapImportRequest":
-				var input sitemapImportRequest
-				err := strictjson.DecodeNonNull(c.Value, &input)
-				valid := err == nil && input.APIVersion == contracts.APIVersion && input.Selection.Validate() == nil
-				if valid != group.valid {
-					t.Fatalf("import command valid=%t: %s: %v", group.valid, c.Value, err)
 				}
 			case "SitemapSnapshotRequest":
 				var input sitemapSnapshotRequest

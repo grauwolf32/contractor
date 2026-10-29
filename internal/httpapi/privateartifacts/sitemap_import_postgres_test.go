@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifactpolicy"
@@ -25,17 +24,14 @@ func TestPostgresPrivateSitemapImportAuthorityAndExactSources(t *testing.T) {
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-import", "run-import")
 	createPrivateSitemapProjectRun(t, ctx, pool, "project-foreign", "run-foreign")
 	artifactService := artifacts.NewService(artifacts.NewPostgresRepository(pool))
-	payload, err := os.ReadFile("../../projectsitemap/testdata/ffuf-report.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	payload := []byte("opaque evidence from an arbitrary source")
 	create := func(runID, namespace string) contracts.ArtifactRef {
 		t.Helper()
 		scope, err := artifacts.RunScope(runID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		written, err := artifactService.Create(ctx, scope, contracts.ArtifactRef{Namespace: namespace, Name: "report"}, artifacts.Payload{MediaType: "application/json", Data: payload})
+		written, err := artifactService.Create(ctx, scope, contracts.ArtifactRef{Namespace: namespace, Name: "report"}, artifacts.Payload{MediaType: "application/octet-stream", Data: payload})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -56,14 +52,14 @@ func TestPostgresPrivateSitemapImportAuthorityAndExactSources(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		r := trustedRequest(http.MethodPost, "/private/v1/allocations/allocation-1/sitemap/imports", bytes.NewReader(data))
+		r := trustedRequest(http.MethodPost, "/private/v1/allocations/allocation-1/sitemap/observations", bytes.NewReader(data))
 		r.Header.Set("Content-Type", "application/json")
 		r.Header.Set("Idempotency-Key", key)
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, r)
 		return response
 	}
-	input := sitemapImportRequest{APIVersion: contracts.APIVersion, Selection: projectsitemap.ImportSelection{Format: "ffuf-report@1", Artifact: own}}
+	input := sitemapCollectionRequest{APIVersion: contracts.APIVersion, Input: projectsitemap.CollectionIngress{Kind: "custom-scanner.v2", Artifact: &own, Observations: []projectsitemap.Observation{{URL: "https://example.test/selected", Method: "GET", Outcome: "response", Status: 200, At: "2026-10-29T00:00:00Z"}}}}
 	assertPrivateErrorEnvelope(t, request("denied", input), 403, "sitemap_access_denied", false)
 	registry.grant.SitemapTools = []string{contracts.SitemapImportTool}
 	first := request("explicit", input)
@@ -80,15 +76,17 @@ func TestPostgresPrivateSitemapImportAuthorityAndExactSources(t *testing.T) {
 	if err := json.Unmarshal(replay.Body.Bytes(), &replayed); err != nil || replay.Code != http.StatusOK || !replayed.Result.Replayed || !accepted.Result.Ref.SameExact(replayed.Result.Ref) {
 		t.Fatalf("exact import replay: %d %s %v", replay.Code, replay.Body.String(), err)
 	}
-	input.Selection.Artifact = foreign
+	input.Input.Artifact = &foreign
 	assertPrivateErrorEnvelope(t, request("foreign", input), 404, "artifact_not_found", false)
-	input.Selection.Artifact = own
-	input.Selection.Format = "katana-report@1"
+	input.Input.Artifact = &own
+	input.Input.Observations[0].Status = 700
 	assertPrivateErrorEnvelope(t, request("mismatch", input), 400, "invalid_request", false)
-	input.Selection.Format = "ffuf-report@1"
-	input.Selection.Artifact.Namespace = artifactpolicy.RunSystemNamespace
+	input.Input.Observations[0].Status = 200
+	system := own
+	system.Namespace = artifactpolicy.RunSystemNamespace
+	input.Input.Artifact = &system
 	assertPrivateErrorEnvelope(t, request("system", input), 403, "artifact_access_denied", false)
-	input.Selection.Artifact = otherNamespace
+	input.Input.Artifact = &otherNamespace
 	if response := request("other-explicit", input); response.Code != http.StatusOK {
 		t.Fatalf("ordinary current-Run report access: %d %s", response.Code, response.Body.String())
 	}
@@ -97,7 +95,7 @@ func TestPostgresPrivateSitemapImportAuthorityAndExactSources(t *testing.T) {
 	registry.grant.SitemapTools = nil
 	registry.grant.SitemapPolicy.CollectObservations = true
 	assertPrivateErrorEnvelope(t, request("auto-other-namespace", input), 403, "sitemap_access_denied", false)
-	input.Selection.Artifact = own
+	input.Input.Artifact = &own
 	if response := request("automatic", input); response.Code != http.StatusOK {
 		t.Fatalf("automatic report without explicit tool grant: %d %s", response.Code, response.Body.String())
 	}

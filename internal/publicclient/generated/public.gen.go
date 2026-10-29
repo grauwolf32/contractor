@@ -2322,39 +2322,6 @@ func (e SitemapMutationOperation) Valid() bool {
 	}
 }
 
-// Defines values for SitemapProvenanceKind.
-const (
-	Caido     SitemapProvenanceKind = "caido"
-	Dirsearch SitemapProvenanceKind = "dirsearch"
-	Ffuf      SitemapProvenanceKind = "ffuf"
-	Http      SitemapProvenanceKind = "http"
-	Katana    SitemapProvenanceKind = "katana"
-	Manual    SitemapProvenanceKind = "manual"
-	Openapi   SitemapProvenanceKind = "openapi"
-)
-
-// Valid indicates whether the value is a known member of the SitemapProvenanceKind enum.
-func (e SitemapProvenanceKind) Valid() bool {
-	switch e {
-	case Caido:
-		return true
-	case Dirsearch:
-		return true
-	case Ffuf:
-		return true
-	case Http:
-		return true
-	case Katana:
-		return true
-	case Manual:
-		return true
-	case Openapi:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for StageContentResultApiVersion.
 const (
 	StageContentResultApiVersionContractorv1alpha1 StageContentResultApiVersion = "contractor/v1alpha1"
@@ -7892,13 +7859,12 @@ type SitemapMutationOperation string
 
 // SitemapProvenance defines model for SitemapProvenance.
 type SitemapProvenance struct {
-	Deployment *ResourceId           `json:"deployment,omitempty"`
-	Kind       SitemapProvenanceKind `json:"kind"`
-	SourceId   ResourceId            `json:"sourceId"`
-}
+	Deployment *ResourceId `json:"deployment,omitempty"`
 
-// SitemapProvenanceKind defines model for SitemapProvenance.Kind.
-type SitemapProvenanceKind string
+	// Kind Source label using the shared name grammar. Observed sources are extensible; manual and openapi identify domain editing and declaration provenance.
+	Kind     string     `json:"kind"`
+	SourceId ResourceId `json:"sourceId"`
+}
 
 // SitemapResult defines model for SitemapResult.
 type SitemapResult struct {

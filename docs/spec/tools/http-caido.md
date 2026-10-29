@@ -1155,8 +1155,10 @@ for notification; native sitemap nodes without methods do not imply GET requests
 Observation frames carry bounded
 attempt metadata only, with no matching-secret list or sitemap-only session
 generation. The subscriber does not infer identity or authentication state; actual
-HTTP credentials, cookies and sessions retain their existing behavior. HTTP and Caido tools do not own sitemap
-projection, persistence, retry or drain. The automatic subscriber cannot add
+HTTP credentials, cookies and sessions retain their existing behavior. Runtime tools own source
+preprocessing into the shared normalized observation contract, including UTC timestamps and bounded
+omission facts for invalid provider rows. They do not own sitemap domain grouping,
+persistence, publication retry or drain. The automatic subscriber cannot add
 sitemap failure fields to tool results, repeat target traffic or replace its
 outcome. Caller cancellation remains joined. [SMT-R18](../artifacts/project-sitemap.md)
 through [SMT-R25](../artifacts/project-sitemap.md) own collector and selected-source behavior.

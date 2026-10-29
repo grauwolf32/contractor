@@ -165,15 +165,9 @@
         },
         "kind": {
           "type": "string",
-          "enum": [
-            "manual",
-            "http",
-            "caido",
-            "ffuf",
-            "katana",
-            "dirsearch",
-            "openapi"
-          ]
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
         },
         "deployment": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"

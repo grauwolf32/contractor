@@ -410,15 +410,10 @@
           "$ref": "#/components/schemas/ResourceId"
         },
         "kind": {
-          "enum": [
-            "manual",
-            "http",
-            "caido",
-            "ffuf",
-            "katana",
-            "dirsearch",
-            "openapi"
-          ],
+          "description": "Source label using the shared name grammar. Observed sources are extensible; manual and openapi identify domain editing and declaration provenance.",
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
           "type": "string"
         },
         "sourceId": {

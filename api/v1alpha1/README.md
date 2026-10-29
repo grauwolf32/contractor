@@ -1,10 +1,12 @@
 # Contractor private wire contracts v1alpha1
 
 `project-sitemap.schema.json` includes allocation-only typed mutations, snapshot
-commands and exact report imports. `SitemapImportRequest` carries a pinned format,
-an exact current-Run ArtifactRef and a required composition-owned `automatic`
-flag; both import modes return `SitemapMutationResponse`. Collection input names
-its composition-selected `http` or `caido` kind. The shared direction-aware
+commands and one source-independent normalized collection command. Runtime tools
+preprocess source reports and provider metadata. `SitemapCollectionRequest`
+carries `input` (source label, observations, optional omission counts and an exact
+current-Run evidence ArtifactRef) and a required composition-owned `automatic`
+flag. Automatic collection and explicit imports both return `SitemapMutationResponse`.
+Server has no report-format enum or provider-specific import endpoint. The shared direction-aware
 `sitemap-wire-cases.json` exercises these wrappers; domain document definitions
 are generated from the public owning schema.
 

@@ -191,7 +191,7 @@ func TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence(t *testing.T) {
 		map[string]any{"url": "https://example.test/obsolete", "method": "GET", "outcome": "response", "status": 200, "at": "2026-10-26T00:00:00Z", "sessionGeneration": "old-session"},
 	}}}
 	assertPrivateErrorEnvelope(t, request(http.MethodPost, "/sitemap/observations", "obsolete-session", obsolete), 400, "invalid_request", false)
-	ingress := sitemapCollectionRequest{APIVersion: contracts.APIVersion, Input: projectsitemap.CollectionIngress{Kind: "http", Observations: []projectsitemap.Observation{{URL: "https://example.test/session/short-password?token=query-canary&password=query-canary", Method: "POST", Outcome: "response", Status: 201, At: "2026-10-26T00:00:00Z"}}}}
+	ingress := sitemapCollectionRequest{APIVersion: contracts.APIVersion, Automatic: true, Input: projectsitemap.CollectionIngress{Kind: "http", Observations: []projectsitemap.Observation{{URL: "https://example.test/session/short-password?token=query-canary&password=query-canary", Method: "POST", Outcome: "response", Status: 201, At: "2026-10-26T00:00:00Z"}}}}
 	for range 2 {
 		if response := request(http.MethodPost, "/sitemap/observations", "http-publish", ingress); response.Code != 200 {
 			t.Fatalf("collection: %d %s", response.Code, response.Body.String())

@@ -72,13 +72,14 @@ def test_shared_sitemap_private_wire() -> None:
         "SitemapSnapshotRequest",
         "SitemapSnapshotResponse",
         "SitemapCollectionRequest",
-        "SitemapImportRequest",
     }
     assert len(cases["invalid"]) >= 15
     for valid, group in ((True, cases["valid"]), (False, cases["invalid"])):
         for case in group:
             validator = private_validator("project-sitemap.schema.json#/$defs/" + case["type"])
             assert validator.is_valid(case["value"]) == valid
+            if valid:
+                assert private_validator("project-sitemap.schema.json").is_valid(case["value"])
             if case["type"] in models:
                 if valid:
                     decode_private(models[case["type"]], json.dumps(case["value"]))
