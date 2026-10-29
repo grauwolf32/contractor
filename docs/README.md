@@ -44,6 +44,12 @@ proposes advice from an explicitly pinned tool-free model within the same
 Worker, with shared budgets, bounded context and repeated comparative Eval.
 It remains a proposal without implementation tasks or activation.
 
+[OpenCode and retained Audit environments](proposals/0048-opencode-audit-environments.md)
+proposes an autonomous OpenCode backend behind the existing A2A boundary,
+an Audit-owned writable Podman environment, placement on `local` or a concrete
+cloud VM, and named service publications across Runs. It is a draft; session
+retention, lifecycle details and port forwarding still require contract decisions.
+
 Accepted contracts belong in the specification; implementation status belongs
 in [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml).
 The following are non-normative, and a historical report does not establish
