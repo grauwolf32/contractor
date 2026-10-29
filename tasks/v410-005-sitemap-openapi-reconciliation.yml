@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V410-002
 - V55-007
@@ -16,7 +16,7 @@ languages:
 - json
 - yaml
 - markdown
-goal: Reuse the existing source-import operation and Go OpenAPI normalization to add guarded declarations/grouping
+goal: Reuse the existing source-import operation and shared Runtime OpenAPI decoding to add guarded declarations/grouping
   and a bounded reconciliation result.
 context:
   authority: 'User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
@@ -53,8 +53,9 @@ context:
   - api/testdata
 scope:
   in:
-  - Reuse/extract the existing Go normalized OpenAPI operation/reference logic with callers retained in both scan
-    preparation and sitemap reconciliation; do not implement a second Runtime parser.
+  - Extract the existing Runtime OpenAPI document decoder into toolsets.common with both authoring and sitemap adapters
+    as production callers. Source-specific extraction stays in Runtime; shared fixtures keep applicable OpenAPI rules
+    aligned with scan preparation. Server accepts normalized source replacements without parsing OpenAPI bytes.
   - Extend the existing import_sitemap_source dispatcher with exact OpenAPI reconciliation, callable from tool@1;
     reuse policy/grants instead of inventing another tool or independent import protocol.
   - Return a bounded result naming exact inputs and actual publication ref. Materialize an exact context artifact
@@ -165,9 +166,8 @@ acceptance_criteria:
     regardless of that flag, preserving existing frozen-context replay. Ordinary owner-selected inputs remain usable
     in full; no missing file is silently replaced with current content.
 deliverables:
-- path: internal/scanplan
-  description: Reuse the existing normalization/reference authority; extract common lower-layer types only with both
-    production callers and architecture classification.
+- path: runtime/src/contractor_runtime/toolsets/common
+  description: Reuse the existing bounded OpenAPI JSON/YAML decoder for both authoring and source reconciliation.
 - path: runtime/src/contractor_runtime/toolsets/sitemap
   description: OpenAPI support in the existing source-import dispatcher, with bounded results and only caller-required
     exact artifact outputs.
@@ -216,11 +216,17 @@ test_prerequisites:
 - Register deterministic reconciliation process cases in the sitemap gate. No target network, installed scanner, browser
   or external model is needed. PostgreSQL-backed source races and receipt/quota cases are mandatory.
 execution:
-  released_on: '2026-10-26'
-  previous_branch: codex/v410-sitemap
-  note: Returned to pending at the user's request to finish V410-002 and pause. Implementation of this task has not
-    started; the prior batch reservation is released.
+  branch: codex/v410-005-sitemap-openapi
+  claimed_on: '2026-10-29'
+  note: Started after V410-004 and the user-requested module-boundary guidance landed in main. The earlier Go-parser
+    plan is superseded by the explicit Runtime preprocessing decision; no Server OpenAPI parser is added.
 implementation_decisions:
+- date: '2026-10-29'
+  decision: Runtime owns OpenAPI document decoding, local-reference extraction and bounded comparison. Server receives
+    normalized declarations through its existing guarded source-replacement/reducer and ordinary Artifact metadata,
+    receipt and publication mechanisms. Exact caller-selected map context fixes the expected source predecessor;
+    retries never refresh it. Shared source-file locators use current-Run Artifact authority and snapshotInputs retains
+    only the original inputs needed by an explicitly selected snapshot. No parallel report store or import journal.
 - date: '2026-10-27'
   decision: 'Reconciliation has a concrete consumer: it supplies declarations/grouping for the current map and exact
     selected context when a Workflow/Audit requests it. Reuse import_sitemap_source and the Go operation/reference

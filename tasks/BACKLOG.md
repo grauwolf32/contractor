@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-115 open tasks: 4 in progress, 100 pending, 11 deferred. 1198 finished: 1188 completed, 10 archived.
+115 open tasks: 5 in progress, 99 pending, 11 deferred. 1198 finished: 1188 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
+| [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | projects-artifacts | feature | P1 | Reconcile exact OpenAPI declarations with live sitemap members |
 
 ## Pending
 
@@ -93,12 +94,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-007, V410-006 | Discover URL-only targets and retain bounded source-aware surfaces |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-012, V411-013, V411-014, V411-011, V411-010, V411-016 | Publish exact HTTP API pentest Workflows and source-mode presets |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-002, V411-020, V410-009 | Publish optional browser programs behind their independent release gate |
-
-### Projects, artifacts and lifecycle controls (`projects-artifacts`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V410-005](v410-005-sitemap-openapi-reconciliation.yml) | feature | P1 | — | Reconcile exact OpenAPI declarations with live sitemap members |
 
 ### Audits (`audits`)
 
