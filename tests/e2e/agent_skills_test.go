@@ -28,6 +28,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	publicevents "github.com/grauwolf32/contractor/internal/httpapi/public/events"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -144,8 +145,8 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	restartedA := assertAgentSkillCatalogAPI(
 		t, publicClient, publicBaseURL, fixture.SkillName, packageA, 1, bundledNames,
 	)
-	if seedA.Ref.Revision == nil || restartedA.Ref.Revision == nil ||
-		*seedA.Ref.Revision != *restartedA.Ref.Revision {
+	if seedA.Artifact.Revision == "" || restartedA.Artifact.Revision == "" ||
+		seedA.Artifact.Revision != restartedA.Artifact.Revision {
 		t.Fatalf("Server restart advanced the bundled Skill revision")
 	}
 	assertPrivateTLSRejectsUnauthenticated(
@@ -237,18 +238,18 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	)
 	store := runstore.NewPostgresStore(pool)
 	assertPendingAgentSkillSelection(
-		t, ctx, store, oldRunID, *seedA.Ref.Revision, packageA,
+		t, ctx, store, oldRunID, seedA.Artifact.Revision, packageA,
 	)
 
 	updatedB := putAgentSkillPackage(
-		t, publicClient, publicBaseURL, fixture.SkillName, packageB.payload, *seedA.Ref.Revision,
+		t, publicClient, publicBaseURL, fixture.SkillName, packageB.payload, seedA.Artifact.Revision,
 	)
-	if updatedB.Revision == nil || *updatedB.Revision == *seedA.Ref.Revision {
+	if updatedB.Revision == nil || *updatedB.Revision == seedA.Artifact.Revision {
 		t.Fatal("ordinary Artifact PUT did not advance the Skill binding")
 	}
 	assertAgentSkillCatalogAPI(t, publicClient, publicBaseURL, fixture.SkillName, packageB, 2, bundledNames)
 	oldExactURL := publicBaseURL + "/v1/artifacts/skills/" + url.PathEscape(fixture.SkillName) +
-		"?revision=" + url.QueryEscape(*seedA.Ref.Revision)
+		"?revision=" + url.QueryEscape(seedA.Artifact.Revision)
 	oldExact, oldExactMedia := download(t, publicClient, oldExactURL)
 	if !bytes.Equal(oldExact, packageA.payload) || oldExactMedia != agentskills.MediaType {
 		t.Fatal("pinned owner package A was not retained after package B update")
@@ -296,7 +297,7 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 	assertAgentSkillAttemptSequence(t, newStatus, false)
 	oldEvidence := assertAgentSkillRunEvidence(
 		t, ctx, store, telemetry.NewRepository(pool), publicClient, publicBaseURL, oldRunID,
-		*seedA.Ref.Revision, packageA, fixture,
+		seedA.Artifact.Revision, packageA, fixture,
 	)
 	newEvidence := assertAgentSkillRunEvidence(
 		t, ctx, store, telemetry.NewRepository(pool), publicClient, publicBaseURL, newRunID,
@@ -483,21 +484,15 @@ func assertAgentSkillCatalogAPI(
 	want agentSkillPackageVariant,
 	wantVersions int,
 	bundledNames []string,
-) artifacts.Metadata {
+) publicapi.ArtifactMetadata {
 	t.Helper()
-	var items []artifacts.Metadata
+	var items []publicapi.ArtifactMetadata
 	cursor := ""
 	for pages := 0; ; pages++ {
 		if pages >= agentskills.MaximumBundledSkills {
 			t.Fatal("bundled Skill pagination exceeded its catalog bound")
 		}
-		var page struct {
-			Items []artifacts.Metadata `json:"items"`
-			Page  struct {
-				HasMore    bool    `json:"hasMore"`
-				NextCursor *string `json:"nextCursor,omitempty"`
-			} `json:"page"`
-		}
+		var page publicapi.ArtifactPage
 		target := baseURL + "/v1/artifacts?namespace=skills&limit=2"
 		if cursor != "" {
 			target += "&cursor=" + url.QueryEscape(cursor)
@@ -525,15 +520,17 @@ func assertAgentSkillCatalogAPI(
 	for _, bundledName := range bundledNames {
 		expected[bundledName] = true
 	}
-	var selected *artifacts.Metadata
+	var selected *publicapi.ArtifactMetadata
 	for index := range items {
 		item := &items[index]
-		if item.Ref.Namespace != "skills" || !expected[item.Ref.Name] ||
-			item.Ref.Revision == nil || item.MediaType != agentskills.MediaType || !item.Current {
+		mediaType, err := item.MediaType.AsMediaType1()
+		if err != nil || item.Artifact.Namespace != "skills" || !expected[item.Artifact.Name] ||
+			item.Artifact.Revision == "" || mediaType != agentskills.MediaType || !item.Current ||
+			!item.CanUploadNewVersion {
 			t.Fatalf("bundled Skill Artifact %d = %+v", index, item)
 		}
-		delete(expected, item.Ref.Name)
-		if item.Ref.Name == name {
+		delete(expected, item.Artifact.Name)
+		if item.Artifact.Name == name {
 			selected = item
 		}
 	}
@@ -543,13 +540,15 @@ func assertAgentSkillCatalogAPI(
 	if selected == nil {
 		t.Fatalf("bundled Skill Artifact list omits %q", name)
 	}
-	var metadata artifacts.Metadata
+	var metadata publicapi.ArtifactMetadata
 	getAuthenticatedJSON(
 		t, client, baseURL+"/v1/artifacts/skills/"+url.PathEscape(name)+"/metadata", &metadata,
 	)
-	if !sameAgentSkillArtifactRef(metadata.Ref, selected.Ref) ||
-		metadata.MediaType != agentskills.MediaType ||
-		metadata.Size != int64(len(want.payload)) || !metadata.Current || metadata.Frozen {
+	metadataMediaType, err := metadata.MediaType.AsMediaType1()
+	if err != nil || metadata.Artifact != selected.Artifact ||
+		metadataMediaType != agentskills.MediaType ||
+		metadata.Size != len(want.payload) || !metadata.Current || metadata.Frozen ||
+		!metadata.CanUploadNewVersion {
 		t.Fatalf("bundled Skill metadata = %+v", metadata)
 	}
 	payload, mediaType := download(
@@ -559,18 +558,20 @@ func assertAgentSkillCatalogAPI(
 		digestAgentSkillPayload(payload) != want.digest {
 		t.Fatal("bundled Skill bytes, media type, or digest differ from the canonical package")
 	}
-	var versions struct {
-		Items []artifacts.Metadata `json:"items"`
-		Page  json.RawMessage      `json:"page"`
-	}
+	var versions publicapi.ArtifactPage
 	getAuthenticatedJSON(
 		t, client, baseURL+"/v1/artifacts/skills/"+url.PathEscape(name)+"/versions?limit=100",
 		&versions,
 	)
 	if len(versions.Items) != wantVersions ||
-		!sameAgentSkillArtifactRef(versions.Items[0].Ref, metadata.Ref) ||
+		versions.Items[0].Artifact != metadata.Artifact ||
 		!versions.Items[0].Current {
 		t.Fatalf("bundled Skill version history = %+v, want %d versions", versions.Items, wantVersions)
+	}
+	for index, version := range versions.Items {
+		if version.CanUploadNewVersion != (index == 0) {
+			t.Fatalf("Skill revision %s upload availability = %t, want current revision only", version.Artifact.Revision, version.CanUploadNewVersion)
+		}
 	}
 	return metadata
 }

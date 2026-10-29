@@ -21,9 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/gitimport"
 	"github.com/grauwolf32/contractor/internal/localpki"
+	publicapi "github.com/grauwolf32/contractor/internal/publicclient/generated"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"golang.org/x/crypto/ssh/knownhosts"
 )
 
@@ -181,12 +182,15 @@ func TestGitArtifactsProductionContainers(t *testing.T) {
 				t.Fatal("Runtime did not edit the exact Git snapshot")
 			}
 			metadata := call("GET", "/v1/runs/"+run.RunID+"/artifacts/inputs/source/metadata", nil, 200)
-			var input artifacts.Metadata
-			if err := json.Unmarshal(metadata, &input); err != nil {
+			var input publicapi.ArtifactMetadata
+			if err := strictjson.Decode(metadata, &input); err != nil {
 				t.Fatal(err)
 			}
 			if input.GitSource == nil || input.GitSource.ResolvedCommit != commit {
 				t.Fatal("Run backtrace lost Git commit")
+			}
+			if input.CanUploadNewVersion {
+				t.Fatal("Run input metadata offered ordinary upload")
 			}
 			runtimeProcess.stop(t)
 			// A 63 MiB expanded snapshot with incompressible files stays below both
