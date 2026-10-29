@@ -77,7 +77,7 @@ func TestProducerRunDeletionPreservesProjectSitemapAndReceipt(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !read.Ref.SameExact(accepted.Ref) || len(document.Groups) != 1 ||
-		document.Groups[0].Members[0].Summaries[0].Provenance.RunID != producer.RunID {
+		document.Groups[0].Members[0].Summaries[0].Provenance.SourceID != authority.SourceID {
 		t.Fatal("Run deletion changed self-contained Project metadata")
 	}
 	replay, err := service.Mutate(ctx, authority, "collect", command)

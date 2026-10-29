@@ -22,7 +22,6 @@ const (
 	MaxMemberKeyBytes        = 8 << 10
 	MaxExamples              = 8
 	MaxExampleBytes          = 2 << 10
-	MaxContexts              = 16
 	MaxSummaries             = 16
 	MaxProvenance            = 8
 	MaxSources               = 128
@@ -72,18 +71,16 @@ type Member struct {
 	Omitted     uint64       `json:"omitted" strictjson:"required"`
 }
 
+// Provenance identifies the metadata source, not an execution or principal.
 type Provenance struct {
-	SourceID           string `json:"sourceId" strictjson:"required"`
-	Kind               string `json:"kind" strictjson:"required"`
-	RunID              string `json:"runId,omitempty"`
-	Deployment         string `json:"deployment,omitempty"`
-	CredentialRevision string `json:"credentialRevision,omitempty"`
-	SessionGeneration  string `json:"sessionGeneration,omitempty"`
+	SourceID   string `json:"sourceId" strictjson:"required"`
+	Kind       string `json:"kind" strictjson:"required"`
+	Deployment string `json:"deployment,omitempty"`
 }
 
+// Summary aggregates observed behavior without attributing it to a user or session.
 type Summary struct {
 	Provenance Provenance `json:"provenance" strictjson:"required"`
-	Context    string     `json:"context" strictjson:"required"`
 	Outcome    string     `json:"outcome" strictjson:"required"`
 	Status     int        `json:"status" strictjson:"required"`
 	Parameters []string   `json:"parameters" strictjson:"required"`
@@ -156,17 +153,16 @@ type Gap struct {
 // Mutation is a typed command, never a replacement document. ExpectedRevision
 // is mandatory for edits; observation batches rebase the same intent on CAS.
 type Mutation struct {
-	sessionGenerations []string      // trusted allocation contexts; never public JSON
-	Operation          string        `json:"operation" strictjson:"required"`
-	ExpectedRevision   string        `json:"expectedRevision,omitempty"`
-	Observations       []Observation `json:"observations,omitempty"`
-	URL                string        `json:"url,omitempty"`
-	Method             string        `json:"method,omitempty"`
-	MemberIDs          []string      `json:"memberIds,omitempty"`
-	Note               string        `json:"note,omitempty"`
-	Tags               []string      `json:"tags,omitempty"`
-	MarkerID           string        `json:"markerId,omitempty"`
-	Source             *SourceUpdate `json:"source,omitempty"`
+	Operation        string        `json:"operation" strictjson:"required"`
+	ExpectedRevision string        `json:"expectedRevision,omitempty"`
+	Observations     []Observation `json:"observations,omitempty"`
+	URL              string        `json:"url,omitempty"`
+	Method           string        `json:"method,omitempty"`
+	MemberIDs        []string      `json:"memberIds,omitempty"`
+	Note             string        `json:"note,omitempty"`
+	Tags             []string      `json:"tags,omitempty"`
+	MarkerID         string        `json:"markerId,omitempty"`
+	Source           *SourceUpdate `json:"source,omitempty"`
 }
 
 // UnmarshalJSON closes optional values too: omission is allowed, typed null is
@@ -201,17 +197,13 @@ type Observation struct {
 
 // Authority comes from the authenticated owner/allocation, never mutation JSON.
 type Authority struct {
-	OwnerID            string
-	ProjectID          string
-	RunID              string
-	SourceID           string
-	Kind               string
-	Deployment         string
-	Engagement         string
-	IdentityID         string
-	CredentialRevision string
-	SessionGeneration  string
-	CanObserve         bool
+	OwnerID    string
+	ProjectID  string
+	RunID      string
+	SourceID   string
+	Kind       string
+	Deployment string
+	CanObserve bool
 }
 
 func Empty() Document {

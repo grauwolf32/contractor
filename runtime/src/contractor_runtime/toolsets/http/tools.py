@@ -344,8 +344,6 @@ class _HTTPSession:
         self._checkpoint = checkpoint
         self._observation_sink = observation_sink
         self._deployment_marker = deployment_marker
-        self._session_generation = 1
-        self._observation_context: tuple = ()
 
     async def restore(self, *, deadline: float | None = None) -> None:
         self._cookies = await self._checkpoint.restore(deadline=deadline)
@@ -540,7 +538,6 @@ class _HTTPSession:
                                 "outcome": outcome,
                                 "status": status,
                                 "at": attempt.at,
-                                "sessionGeneration": attempt.session_generation,
                             }
                         )
                     await notify_http_observations(self._observation_sink, observations)
@@ -750,15 +747,6 @@ class _HTTPSession:
                 # Session cookies or auth grew the block past what finding
                 # evidence retains; refuse before anything is sent.
                 raise HTTPToolError("http_request_invalid")
-            context = tuple(
-                (row["name"].lower(), row["value"])
-                for row in captured.headers
-                if row["name"].lower() in {"authorization", "cookie"}
-            )
-            if context != self._observation_context:
-                self._session_generation += 1
-                self._observation_context = context
-            captured.session_generation = f"{self._nonce}-{self._session_generation}"
             attempt = captured
             attempts.append(attempt)
 
@@ -957,7 +945,6 @@ class _HTTPSession:
             if selected_auth is not None:
                 self._erase_auth()
                 self._auth_kind, self._auth_username, self._auth_secret = selected_auth
-            self._session_generation += 1
             return self._session_projection()
 
     async def get_session(self) -> dict[str, Any]:
@@ -982,7 +969,6 @@ class _HTTPSession:
                     self._clear_mutable_session()
                 raise
             self._clear_mutable_session()
-            self._session_generation += 1
             return self._session_projection()
 
     async def _save_cookies(
@@ -1054,7 +1040,6 @@ class _HTTPSession:
         self._cookies.clear()
         self._history.clear()
         self._captures.clear("http")
-        self._observation_context = ()
         self._cached_body = None
         self._erase_auth()
 

@@ -109,20 +109,7 @@ func projectAnnotation(note string, tags []string, a Authority) (Annotation, err
 }
 
 func (a Authority) provenance() Provenance {
-	return Provenance{SourceID: a.SourceID, Kind: a.Kind, RunID: a.RunID, Deployment: a.Deployment, CredentialRevision: a.CredentialRevision, SessionGeneration: a.SessionGeneration}
-}
-
-func (a Authority) contextKey() string {
-	if a.IdentityID == "" {
-		if a.SessionGeneration != "" {
-			return key("unknown-session", a.Engagement, a.RunID, a.SessionGeneration)
-		}
-		return key("unknown", a.Engagement, a.RunID)
-	}
-	if a.Engagement != "" {
-		return key("engagement", a.Engagement, a.IdentityID)
-	}
-	return key("run", a.RunID, a.IdentityID)
+	return Provenance{SourceID: a.SourceID, Kind: a.Kind, Deployment: a.Deployment}
 }
 
 func (a Authority) validate() error {
@@ -130,7 +117,7 @@ func (a Authority) validate() error {
 		!slices.Contains([]string{"manual", "http", "caido", "ffuf", "katana", "dirsearch", "openapi"}, a.Kind) {
 		return ErrInvalid
 	}
-	for _, value := range []string{a.RunID, a.Deployment, a.Engagement, a.IdentityID, a.CredentialRevision, a.SessionGeneration} {
+	for _, value := range []string{a.RunID, a.Deployment} {
 		if value != "" && !contracts.ValidResourceID(value) {
 			return ErrInvalid
 		}

@@ -156,6 +156,11 @@ func assertUnifiedSitemapSnapshot(t *testing.T, operations *runtimeOperations, r
 		if err := json.Unmarshal(data, &raw); err != nil {
 			t.Fatal(err)
 		}
+		document, err := projectsitemap.Decode(raw["document"])
+		if err != nil {
+			t.Fatal(err)
+		}
+		snapshot.Document = document
 		if raw["policy"] != nil || raw["policyDigest"] != nil || len(snapshot.Inputs) != 0 {
 			t.Fatalf("snapshot retained obsolete policy or ungranted input bytes: %s", data)
 		}

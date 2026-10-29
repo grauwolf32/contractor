@@ -26,7 +26,6 @@ def observation(number=0):
         "outcome": "response",
         "status": 200,
         "at": "2026-10-27T00:00:00Z",
-        "sessionGeneration": "session-one",
     }
 
 
@@ -181,7 +180,7 @@ def test_http_collection_sends_only_attempt_metadata_and_preserves_credential_li
             assert set(request["input"]) == {"observations"}
             rows = request["input"]["observations"]
             assert len(rows) == 1 and rows[0]["url"] == url
-            assert set(rows[0]) == {"url", "method", "outcome", "status", "at", "sessionGeneration"}
+            assert set(rows[0]) == {"url", "method", "outcome", "status", "at"}
             for excluded in (
                 "header-only-token",
                 "request-body-only",
@@ -190,6 +189,80 @@ def test_http_collection_sends_only_attempt_metadata_and_preserves_credential_li
             ):
                 assert excluded.encode() not in body
             assert url not in repr(state.metrics.tool_calls)
+        finally:
+            await tools["http_request"].close()
+            await collector.close()
+
+    asyncio.run(scenario())
+
+
+def test_collection_keeps_http_sessions_and_request_tags_without_identity_metadata(tmp_path):
+    async def scenario():
+        client = Client()
+        collector = SitemapCollector(client, wait=no_timer)
+        requests = []
+
+        async def handler(request):
+            requests.append(request)
+            return httpx.Response(200, request=request)
+
+        state = WorkerState()
+        state.http_observation_sink = collector
+        factory = HTTPToolsetFactory(
+            lambda: httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        )
+        tools = await factory.create_selected(
+            selected=["http_request", "http_session_set", "http_session_clear"],
+            allocation_id="allocation",
+            run_id="run",
+            namespace="research",
+            runtime_settings=RuntimeSettings(
+                artifactApiUrl="https://control.example",
+                requestTimeoutSeconds=10,
+                httpOriginTarget={"url": "https://target.example"},
+            ),
+            workspace=AllocationWorkspace(tmp_path, tmp_path / "allocation"),
+            state=state,
+        )
+        try:
+            url = "https://target.example/resource"
+            await tools["http_request"](url)
+            for identity in ("alice", "bob"):
+                await tools["http_session_set"](
+                    auth={"kind": "bearer", "token": identity}, cookies={"sid": identity}
+                )
+                await tools["http_request"](url)
+            await tools["http_session_clear"]()
+            await tools["http_request"](url)
+            await collector.checkpoint()
+
+            assert [request.headers.get("authorization") for request in requests] == [
+                None,
+                "Bearer alice",
+                "Bearer bob",
+                None,
+            ]
+            assert [request.headers.get("cookie") for request in requests] == [
+                None,
+                "sid=alice",
+                "sid=bob",
+                None,
+            ]
+            tags = [request.headers["x-request-id"] for request in requests]
+            assert len(set(tags)) == 4
+            assert [tag.rsplit("-", 1)[1] for tag in tags] == [
+                "h000001",
+                "h000002",
+                "h000003",
+                "h000004",
+            ]
+            observations = [row for payload, _ in client.calls for row in payload["observations"]]
+            assert len(observations) == 4
+            for row in observations:
+                assert set(row) == {"url", "method", "outcome", "status", "at"}
+                assert row["url"] == url and row["status"] == 200
+            assert "alice" not in json.dumps(observations)
+            assert "bob" not in json.dumps(observations)
         finally:
             await tools["http_request"].close()
             await collector.close()

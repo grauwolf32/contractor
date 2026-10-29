@@ -102,7 +102,6 @@ type receiptRecord struct {
 }
 type projectedRequest struct {
 	Observations            []projectedObservation `json:"observations"`
-	SessionGenerations      []string               `json:"sessionGenerations,omitempty"`
 	ManualLocationsOmitted  bool                   `json:"manualLocationsOmitted"`
 	ManualStructural        []StructuralValue      `json:"manualStructural"`
 	ManualParameters        []string               `json:"manualParameters"`
@@ -163,16 +162,17 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 		policy = current.Rules
 	}
 	intent, observations, replayPolicy, err := projectIntent(m, a, policy)
-	observations.SessionGenerations = slices.Clone(m.sessionGenerations)
 	if err != nil {
 		return Result{}, err
 	}
+	// Run identity belongs to the operation receipt, not the shared map. Equal
+	// observations from different producers must not replay one another's calls.
 	digest, err := contentdigest.JSON(struct {
-		Mutation   Mutation
-		Projection projectedRequest
-		Provenance Provenance
-		Context    string
-	}{intent, observations, a.provenance(), a.contextKey()})
+		Mutation    Mutation
+		Projection  projectedRequest
+		Provenance  Provenance
+		ProducerRun string
+	}{intent, observations, a.provenance(), a.RunID})
 	if err != nil {
 		return Result{}, err
 	}

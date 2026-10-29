@@ -1,6 +1,6 @@
 """An encoded-backed immutable view, indexed once without a document object graph.
 
-The generated schema validates wire shape only. The Server owns URL/context
+The generated schema validates wire shape only. The Server owns endpoint
 identity, grouping and reduction. Index records contain byte spans and
 opaque Server IDs, never another route grouping policy.
 """

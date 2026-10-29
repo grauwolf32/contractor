@@ -5,15 +5,15 @@ Requirement prefix: `SMT` · [Specification index](../README.md)
 ## Purpose and scope
 
 The sitemap owns shared HTTP surface metadata in a Project: concrete
-members, observed contexts, declarations, grouping, member annotations and
+members, observed behavior, declarations, grouping, member annotations and
 reversible suppression. It is research context. It does not establish Audit
 coverage, physical request counts, retained HTTP exchanges or verified findings.
 
 [ArtifactStore](artifact-store.md) owns scope authorization, immutable revisions,
 CAS, transfer admission, retained history and exact input forks. [Projects](projects.md)
 owns the owner boundary; [retention and deletion](retention-and-deletion.md)
-owns fencing, scope purge and retention dependencies. A producer Run is provenance,
-not the owner of Project metadata.
+owns fencing, scope purge and retention dependencies. Runs authorize operations and
+retain execution history; they do not own or identify accumulated Project metadata.
 
 ## Model
 
@@ -31,16 +31,21 @@ Keys use SHA-256 over length-prefixed UTF-8 components, so component boundaries
 are unambiguous. URL userinfo, fragments and nonstructural query values do not
 participate in these hashes because they are outside the metadata model.
 
-Every contribution records trusted source kind, deployment and,
-when known, producer Run, credential revision and session generation. Context
-keys use the trusted engagement plus its local identity ID, or the ordinary
-Run plus its local identity ID. Empty identity is a Run-local unknown context.
-Matching identity labels across engagements or Runs do not establish equivalence.
+Every contribution records trusted source ID, source kind and optional deployment.
+Metadata provenance carries no producer Run, credential revision or session
+generation; summaries carry no principal/context identifier. An observation summary is the set of source and
+deployment, outcome, response status and parameter names for a concrete member,
+with the minimum and maximum observation timestamps. Matching observations from
+later Runs or HTTP sessions extend that time range without adding another summary.
+This aggregation makes no assertion about authentication, principal equivalence
+or which execution produced a particular observation. Exact execution history and
+HTTP authentication/session state remain with their existing owners.
 
 A source records its accepted generation, exact source descriptor when available
-and code-computed grouping policy digest. An automatic transport source can be
-shared by sequential Runs; each member summary still retains the real producer
-and context. A source registry entry is not a retention hold.
+and code-computed grouping policy digest. An automatic transport source is stable
+across sequential Runs that use the same configured source and deployment. A
+source registry entry is not a retention hold. An exact evidence reference keeps
+its Run ID solely to identify the retained file through the ordinary Artifact API.
 
 ## Requirements
 
@@ -86,11 +91,23 @@ General credential handling and telemetry redaction remain with their existing
 owners. The sitemap area owns this separation; reconsider it only for a concrete,
 explicitly requested metadata-disclosure policy.
 
-**SMT-R5.** Observations must be bounded sets of source, context, shape and
-outcome summaries with minimum and maximum timestamps. A timeout or transport
-error must not acquire a response status. Overflow must preserve accepted
-members and report discarded membership or contexts without inventing a shared
-principal. Representative examples must not serve as the member inventory.
+**SMT-R5.** Observations must be bounded sets of source, deployment, parameter-name
+shape and outcome summaries with minimum and maximum timestamps. Run and session
+changes alone must not create another summary; no principal attribution or context
+quota exists. A timeout or transport error must not acquire a response status.
+Overflow must preserve accepted members and summaries and report discarded
+membership or distinct summaries. Already retained summaries continue to update
+their time ranges when the bound is full. Representative examples must not serve
+as the member inventory.
+
+Rationale (user decision, 2026-10-29): execution attribution consumed the same
+sixteen-summary allowance as useful HTTP behavior. Repeated Runs could fill that
+allowance with identical results and suppress a later new status. Remove this
+attribution from the map instead of adding a second Run-history mechanism. HTTP
+credentials and sessions remain execution concerns; sitemap metadata proves no
+identity or authentication state. The sitemap area owns this boundary; reconsider
+principal attribution only for a concrete consumer with trusted identity inputs
+and a decision that needs them. No current caller supplies those inputs.
 
 **SMT-R6.** A manual edit, declaration, remove or restore must name its expected
 map revision, with `absent` for conditional creation. Suppression and annotation
@@ -134,14 +151,16 @@ changes without hashing excluded URL components. It must preserve structural
 values for declarations and observations, including selector multiplicity and
 order, and unconditional omission under conflicting policies even when a
 selector is absent. Changed accepted structural intent must conflict on replay.
-The receipt's policy is not another map or retained-history mechanism.
+The receipt's policy is not another map or retained-history mechanism. Receipt
+intent separately retains the authenticated producer Run identity: removing Run
+attribution from published metadata must not let another Run replay its mutation.
 
 **SMT-R10.** The map must consume ordinary automatic per-binding ArtifactStore
 history policy, admission, maintenance and shared errors. It must not register
 an artifact family, own retention SQL or accounting, retain all predecessors or
 impose a cumulative producer-Run publication quota. The generic RunScope lifetime
-insert contract applies only to RunScope, not to a Project write with producer
-Run provenance.
+insert contract applies only to RunScope, not to a Project write performed by a
+Run.
 
 **SMT-R11.** Durable selected context and proof must use existing authorized
 exact-reference retention or input-fork lifecycles, atomically against history
@@ -287,9 +306,12 @@ matching-secret list; no separate secret-count limit applies. No headers, bodies
 persistent queue, URL identity or receipt digest are constructed there. One
 background private batch request invokes the existing Go normalizer before
 sitemap identities, receipt hashing and Artifact publication; the existing
-reducer owns coalescing. Server code assigns Project,
-source, Run and deployment from the allocation; Runtime's session generation
-distinguishes unknown sessions without claiming an authenticated principal.
+reducer owns coalescing. Server code derives the Project, source and deployment
+from the allocation. Run identity remains in operation authority and receipt
+intent, outside published metadata. Collection frames contain no session generation,
+credential revision or principal/context identifier; HTTP tools add no tracking
+state solely for sitemap. Actual authentication, cookies, sessions and request tags
+remain owned by the HTTP transport.
 
 **SMT-R20.** Pending and in-flight batches obey LIM-SMT-14; count, byte and time
 boundaries trigger publication. Overflow may drop metadata with bounded technical
@@ -369,7 +391,7 @@ alone creates no such dependency.
 
 ## Limits, failures and errors
 
-Source, producer and context identifiers reuse the shared ResourceId grammar
+Source and deployment identifiers reuse the shared ResourceId grammar
 (LIM-API-19); manual owner mutation cannot choose a transport source identity.
 The numeric contract is LIM-SMT-1 through LIM-SMT-14 in the
 [limits registry](../platform/limits.md). Common artifact history and maintenance
@@ -388,15 +410,17 @@ the existing public/private not-found mapping and distinct content-missing error
 
 The owner may read the complete map and explicitly select it as ordinary Run
 context. Dedicated operations retain current Project/allocation grants and
-fencing, while artifact bytes retain their own exact-read authority. Source kind,
-producer, deployment and observation context remain trusted provenance; public
-commands cannot classify imported facts as observed traffic. Sitemap normalization
-does not classify or redact metadata content. General credential storage, HTTP evidence
-redaction and telemetry policies retain their existing owners and guarantees.
+fencing, while artifact bytes retain their own exact-read authority. Source ID,
+kind and deployment remain trusted provenance; public commands cannot classify
+imported facts as observed traffic. Summaries contain no principal or authentication
+claim. Sitemap normalization does not classify or redact metadata content. General
+credential storage, HTTP evidence redaction and telemetry policies retain their
+existing owners and guarantees.
 
 ## Invariants
 
 The reducer operates on a private copy and leaves accepted content unchanged on
-failure. ArtifactStore owns atomic pointer/accounting/hold effects. Context IDs
-and member IDs survive route regrouping; a changed structural selection creates
-an explicitly distinct member and cannot silently widen a suppression.
+failure. ArtifactStore owns atomic pointer/accounting/hold effects. Member IDs
+and their retained summaries survive route regrouping; a changed structural
+selection creates an explicitly distinct member and cannot silently widen a
+suppression.

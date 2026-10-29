@@ -17,7 +17,9 @@ PACKAGES = (
 )
 REQUIRED = {
     "TestPostgresSitemapReceiptsOwnershipAndHistory",
-    "TestPostgresSitemapHTTPCollectionProjectionSessionsAndReceipt",
+    "TestPostgresSitemapHTTPCollectionProjectionAndReceipt",
+    "TestPostgresSitemapRepeatedRunsAggregateBehavior",
+    "TestPostgresSitemapManualRunsShareMetadataAndIsolateReceipts",
     "TestPostgresSitemapSharedMapSnapshotAndReplay",
     "TestPostgresSitemapEditorsShareMembersAndDeriveProjectAuthority",
     "TestPostgresSitemapReadsDoNotResolveSnapshotInputs",
