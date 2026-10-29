@@ -6,7 +6,7 @@ epic: http-tools
 kind: chore
 introduced_by: V411-005
 priority: P3
-status: in_progress
+status: completed
 depends_on:
 - V411-005
 languages:
@@ -50,4 +50,16 @@ tests:
 execution:
   branch: codex/v411-025-login-field-metadata
   claimed_on: '2026-10-29'
-  note: Root assigned this bounded guard repair after the merged-main verification; task remains in progress until the integrated lint gate succeeds.
+  note: Root assigned this bounded guard repair after the merged-main verification; the integrated lint gate and the complete affected Go packages passed before closure.
+
+implementation_commit: ad86f8f2bbc4b8708d4d6494c20fa69d7b8c7b4c
+verification:
+  date: '2026-10-29'
+  result: passed
+  commands:
+  - command: go test ./internal/archtest ./internal/contracts/pentestcontract -count=1
+    result: Passed both complete packages on the isolated implementation; the integrated PostgreSQL gate repeated the full archtest package successfully.
+  - command: make lint
+    result: Passed on the integrated branch, including the exact-field regression, typed secret-holder guard, static checks, spec/task checks and release graph.
+  notes:
+  - Only validated variable-name metadata is exempted; the typed fixture still reports a different holder with actual secret values under the same field name.
