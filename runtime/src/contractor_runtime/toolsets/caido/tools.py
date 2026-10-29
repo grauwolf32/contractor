@@ -61,11 +61,9 @@ from contractor_runtime.toolsets.common.http_capture import (
     RecentHTTPCaptures,
     allocation_http_captures,
 )
-from contractor_runtime.toolsets.common.http_observations import (
-    HTTPObservationSink,
-    notify_http_observations,
-)
+from contractor_runtime.toolsets.common.http_observations import HTTPObservationSink
 from contractor_runtime.toolsets.common.observation_metadata import normalize_http_observations
+from contractor_runtime.toolsets.common.subscribers import notify_subscriber
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_PAGE_SIZE = 100
@@ -400,13 +398,22 @@ class _CaidoSession:
     def redact_result(self, value: Any) -> Any:
         return self._redaction.result(value)
 
-    async def _notify_observations(self, observations: list[dict]) -> None:
-        if self._observation_sink is None:
+    async def _notify_observations(self, observations: Callable[[], list[dict]]) -> None:
+        sink = self._observation_sink
+        if sink is None:
             return
-        accepted, gaps = await threads.to_thread_until_done(
-            normalize_http_observations, observations, name="caido-observation-metadata"
-        )
-        await notify_http_observations(self._observation_sink, accepted, gaps=gaps)
+
+        async def prepare_and_notify() -> None:
+            accepted, gaps = await threads.to_thread_until_done(
+                lambda: normalize_http_observations(observations()),
+                name="caido-observation-metadata",
+            )
+            if gaps:
+                await sink.receive(accepted, gaps=gaps)
+            elif accepted:
+                await sink.receive(accepted)
+
+        await notify_subscriber(prepare_and_notify, name="caido-observation")
 
     def _require_target(self, host: str, port: int) -> None:
         try:
@@ -480,7 +487,7 @@ class _CaidoSession:
             )
             if self._observation_sink is not None:
                 await self._notify_observations(
-                    [_request_observation(row, row["status_code"]) for row in requests],
+                    lambda: [_request_observation(row, row["status_code"]) for row in requests],
                 )
             return result
 
@@ -502,7 +509,9 @@ class _CaidoSession:
             response = request["response"]
             if self._observation_sink is not None:
                 await self._notify_observations(
-                    [_request_observation(request, response["status_code"] if response else None)],
+                    lambda: [
+                        _request_observation(request, response["status_code"] if response else None)
+                    ],
                 )
             await self._remember_exchange(
                 request["id"],
@@ -643,7 +652,7 @@ class _CaidoSession:
                     created_at = observation.pop("_created_at")
                     if self._observation_sink is not None:
                         await self._notify_observations(
-                            [
+                            lambda observation=observation, created_at=created_at: [
                                 _request_observation(
                                     {
                                         "method": observation["method"],

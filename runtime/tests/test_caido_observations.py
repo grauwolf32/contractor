@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import threading
 from copy import deepcopy
 
 import httpx
@@ -15,6 +16,8 @@ from test_caido_read_tools import (
     representative_responses,
     request_summary,
 )
+
+import contractor_runtime.toolsets.caido.tools as caido_tools
 
 
 class RecordingSink:
@@ -145,6 +148,98 @@ def test_all_invalid_selected_metadata_still_notifies_bounded_gaps(tmp_path):
             assert sink.rows == [] and sink.gaps == [{"reason": "projection", "count": 3}]
             assert calls == ["RequestsByOffset"]
         finally:
+            await close_tools(tools)
+            await handle.close()
+
+    asyncio.run(scenario())
+
+
+def test_optional_preprocessing_failure_preserves_selected_tool_result(tmp_path, monkeypatch):
+    def broken(_observations):
+        raise RuntimeError("optional metadata preprocessing failed")
+
+    monkeypatch.setattr(caido_tools, "normalize_http_observations", broken)
+
+    async def scenario():
+        async def handler(request):
+            return httpx.Response(
+                200,
+                json={
+                    "data": {
+                        "requestsByOffset": {"count": {"value": 1}, "nodes": [request_summary()]}
+                    }
+                },
+            )
+
+        sink = RecordingSink()
+        tools, _, handle = await create_tools(
+            tmp_path,
+            handler,
+            FakeArtifactClient(),
+            selected={"caido_history"},
+            observation_sink=sink,
+        )
+        try:
+            result = await tools["caido_history"]()
+            assert result["requests"][0]["status_code"] == 200
+            assert sink.rows == [] and sink.gaps == []
+        finally:
+            await close_tools(tools)
+            await handle.close()
+
+    asyncio.run(scenario())
+
+
+def test_preprocessing_cancellation_joins_thread_and_subscriber_before_cleanup(
+    tmp_path, monkeypatch
+):
+    async def scenario():
+        entered, joined = asyncio.Event(), asyncio.Event()
+        release = threading.Event()
+        loop = asyncio.get_running_loop()
+        normalize = caido_tools.normalize_http_observations
+
+        def held(observations):
+            loop.call_soon_threadsafe(entered.set)
+            release.wait()
+            result = normalize(observations)
+            loop.call_soon_threadsafe(joined.set)
+            return result
+
+        monkeypatch.setattr(caido_tools, "normalize_http_observations", held)
+
+        async def handler(request):
+            return httpx.Response(
+                200,
+                json={
+                    "data": {
+                        "requestsByOffset": {"count": {"value": 1}, "nodes": [request_summary()]}
+                    }
+                },
+            )
+
+        sink = RecordingSink()
+        tools, _, handle = await create_tools(
+            tmp_path,
+            handler,
+            FakeArtifactClient(),
+            selected={"caido_history"},
+            observation_sink=sink,
+        )
+        try:
+            reading = asyncio.create_task(tools["caido_history"]())
+            await entered.wait()
+            reading.cancel()
+            closing = asyncio.create_task(close_tools(tools))
+            await asyncio.sleep(0)
+            assert not reading.done() and not closing.done() and not joined.is_set()
+            release.set()
+            with pytest.raises(asyncio.CancelledError):
+                await reading
+            await closing
+            assert joined.is_set() and len(sink.rows) == 1
+        finally:
+            release.set()
             await close_tools(tools)
             await handle.close()
 
