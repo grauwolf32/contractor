@@ -132,7 +132,8 @@ _STATIC_OPERATIONS: Mapping[str, _StaticOperation] = MappingProxyType(
             operation_name="ReplayEntry",
             document=(
                 "query ReplayEntry($id: ID!) { replayEntry(id: $id) { id raw error request { id "
-                "method host path query response { statusCode length roundtripTime raw } } } }"
+                "method host path query createdAt response { statusCode length roundtripTime "
+                "raw } } } }"
             ),
         ),
         "run_active_workflow": _StaticOperation(

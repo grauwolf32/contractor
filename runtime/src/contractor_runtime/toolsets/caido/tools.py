@@ -61,6 +61,10 @@ from contractor_runtime.toolsets.common.http_capture import (
     RecentHTTPCaptures,
     allocation_http_captures,
 )
+from contractor_runtime.toolsets.common.http_observations import (
+    HTTPObservationSink,
+    notify_http_observations,
+)
 from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_PAGE_SIZE = 100
@@ -335,6 +339,7 @@ class CaidoToolsetFactory:
             sleep=self._sleep,
             monotonic=self._monotonic,
             captures=allocation_http_captures(state),
+            observation_sink=getattr(state, "caido_observation_sink", None),
         )
         builders: dict[str, Callable[[], _CaidoTool]] = {
             "caido_scope": lambda: CaidoScopeTool(session, metrics),
@@ -364,6 +369,7 @@ class _CaidoSession:
         sleep: Callable[[float], Awaitable[None]],
         monotonic: Callable[[], float],
         captures: RecentHTTPCaptures,
+        observation_sink: HTTPObservationSink | None = None,
     ) -> None:
         self._handle: CaidoGraphQLClient | None = handle
         self._artifact_client: ArtifactClient | None = artifact_client
@@ -379,6 +385,7 @@ class _CaidoSession:
         self._lock = asyncio.Lock()
         self._closed = False
         self._captures = captures
+        self._observation_sink = observation_sink
         self._sitemap_snapshot: _SitemapSnapshot | None = None
 
     @property
@@ -455,13 +462,19 @@ class _CaidoSession:
             data = await self._execute("requests_by_offset", variables)
             connection = _connection(data, "requestsByOffset", selected_limit)
             requests = [_request_summary(node) for node in connection["nodes"]]
-            return _bounded_result(
+            result = _bounded_result(
                 {
                     "count": connection["count"],
                     "offset": selected_offset,
                     "requests": requests,
                 }
             )
+            if self._observation_sink is not None:
+                await notify_http_observations(
+                    self._observation_sink,
+                    [_request_observation(row, row["status_code"]) for row in requests],
+                )
+            return result
 
     async def request_detail(
         self, request_id: str, invocation_id: str | None = None
@@ -479,6 +492,11 @@ class _CaidoSession:
                 name="caido-request-detail",
             )
             response = request["response"]
+            if self._observation_sink is not None:
+                await notify_http_observations(
+                    self._observation_sink,
+                    [_request_observation(request, response["status_code"] if response else None)],
+                )
             await self._remember_exchange(
                 request["id"],
                 request["method"],
@@ -615,6 +633,25 @@ class _CaidoSession:
                         return _bounded_result({**base_result, "status": "failed"})
                     raw_response = observation.pop("_raw_response")
                     raw_replayed_request = observation.pop("_raw_request")
+                    created_at = observation.pop("_created_at")
+                    if self._observation_sink is not None:
+                        await notify_http_observations(
+                            self._observation_sink,
+                            [
+                                _request_observation(
+                                    {
+                                        "method": observation["method"],
+                                        "host": connection["host"],
+                                        "port": connection["port"],
+                                        "is_tls": connection["isTLS"],
+                                        "path": observation["path"],
+                                        "query": observation["query"],
+                                        "created_at": created_at,
+                                    },
+                                    observation["status_code"],
+                                )
+                            ],
+                        )
                     await self._remember_exchange(
                         observation["request_id"],
                         observation["method"],
@@ -1132,6 +1169,7 @@ class _CaidoSession:
             self._monotonic = _closed_monotonic
             self._closed = True
             self._captures.clear("caido")
+            self._observation_sink = None
             self._sitemap_snapshot = None
 
     async def _execute(
@@ -1682,7 +1720,9 @@ def _replay_observation(data: object, expected_entry_id: str) -> dict[str, Any] 
         return {"status": "failed"}
     if entry["request"] is None:
         return None
-    request = _exact_object(entry["request"], {"id", "method", "host", "path", "query", "response"})
+    request = _exact_object(
+        entry["request"], {"id", "method", "host", "path", "query", "createdAt", "response"}
+    )
     if request["response"] is None:
         return None
     response = _exact_object(request["response"], {"statusCode", "length", "roundtripTime", "raw"})
@@ -1696,6 +1736,7 @@ def _replay_observation(data: object, expected_entry_id: str) -> dict[str, Any] 
         "status_code": _nullable_integer(response["statusCode"], minimum=100, maximum=999),
         "response_length": _nullable_integer(response["length"], minimum=0),
         "roundtrip_ms": _nullable_number(response["roundtripTime"], minimum=0),
+        "_created_at": _timestamp(request["createdAt"]),
         "_raw_request": raw_request,
         "_raw_response": _blob(response["raw"]),
     }
@@ -1906,6 +1947,25 @@ def _captured_url(host: str, port: int | None, is_tls: bool, path: str, query: s
     return urlunsplit(
         ("https" if is_tls else "http", authority, path or "/", query.lstrip("?"), "")
     )
+
+
+def _request_observation(request: Mapping[str, Any], status: int | None) -> dict[str, Any]:
+    """Forward selected provider facts before model-output redaction.
+
+    The subscriber owns normalization and acceptance. In particular, keep an
+    unsupported response status or textual timestamp intact instead of inventing
+    an attempt, success or read-time observation. No raw exchange or provider ID
+    becomes an observation or an Artifact reference here.
+    """
+    return {
+        "url": _captured_url(
+            request["host"], request["port"], request["is_tls"], request["path"], request["query"]
+        ),
+        "method": request["method"],
+        "outcome": "attempt" if status is None else "response",
+        "status": 0 if status is None else status,
+        "at": request["created_at"],
+    }
 
 
 def _request_detail(value: object) -> dict[str, Any]:
