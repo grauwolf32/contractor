@@ -1614,6 +1614,76 @@ with Artifact transfer/storage/write budgets and never regenerate content.
 The OpenAPI document owns exact fields, headers and classified errors, including
 retryable 503 `storage_transaction_conflict` with `Retry-After`.
 
+### Generic SARIF rendering
+
+**FND-R202.** The `generic/1` policy renders one SARIF 2.1.0 run for the
+owning Audit from its frozen snapshot, without network, model, filesystem or
+store discovery. Exporter version `1.1.0` identifies the structured renderer.
+The actual output bytes must pass the embedded official OASIS Errata 01 JSON
+Schema (SHA-256 `c3b4bb2d6093897483348925aaa73af03b3e3f4bd4ca38cef26dcb4212a2682e`)
+and independent semantic checks before publication. Schema loading cannot fetch
+external resources. Snapshot and SARIF remain bounded to 16 MiB each;
+diagnostics remain bounded to 4 MiB and 4096 items. Construction accounts for
+repeated locations, flows and presentations before accumulating oversized output.
+
+**FND-R203.** Only the selected presentation receipt supplies a result's
+physical locations, rule, flows and classifications. Supporting receipt
+identities, exact proposal/evidence descriptors and origins remain in result
+properties; every selected contribution and independent decision remains in the
+snapshot. Properties preserve the presentation's native analysis and the
+selected group's independent findings. Results, registries and diagnostics
+have deterministic ordering; canonical JSON output ends in one newline.
+
+**FND-R204.** Explicit source roots derive from the verified original exact
+source identity, kind and digest. A relative path is escaped segment by segment
+under its own `contractor-source://<root>/` base; the same path in distinct roots
+never identifies one file. Artifacts carry the exact member/file SHA-256.
+Regions retain validated Unicode code-point columns and exclusive ends,
+with `columnKind: unicodeCodePoints`; missing regions remain file-level.
+Only an explicit native primary location becomes `locations`; other native
+locations become `relatedLocations`. Symbols retain names, kinds, language and
+signature. Neither a flow endpoint nor a proposal's unverified path implies a
+primary location. Git provenance requires retained trusted Git metadata for the
+exact selected repository archive; metadata on an independently named file
+cannot establish a repository-relative mapping.
+
+**FND-R205.** A native flow emits separate located segments, each with at least
+two points, split at every explicit gap, missing location or missing region.
+No projected adjacency may cross a native gap or skip a native step. Original
+step order, edge relation, argument binding, roles, value state, claimed
+completeness and gaps remain distinguishable from projected execution order.
+Call paths, data flows and execution traces retain their native kinds. Partial
+projections are labelled and diagnosed. Complete data-flow claims with missing
+coordinates fail rendering. Until a trusted code-relation decoder exists,
+relations remain producer-asserted and `tool-reported` claims fail; sanitizer,
+validation and clean-state claims do not imply safety or whole-program coverage.
+
+**FND-R206.** Versioned native rule definitions become driver rules; absent
+rules use `contractor/unclassified` with a warning, and conflicting definitions
+under one rule ID fail rendering. Classification adapters project only exact
+`CWE@4.20`, `asvs@4.0.3` and `owasp-asvs@5.0.0` tuples already admitted at intake;
+other tuples remain native properties with `classification_unmapped`. Export
+does not infer aliases or fetch a taxonomy. Qualified registered automatic
+keys alone become fingerprints; absent keys yield a warning, without a weak
+text or location fallback.
+
+**FND-R207.** The selected finding's own frozen review determines SARIF rating:
+confirmed findings use `kind: fail`, with high/critical → error, medium → warning,
+and low/informational → note; unrated confirmed findings use warning and an
+explicit diagnostic. Other review states use `kind: review`, `level: none`.
+Proposal severity remains a separately labelled suggestion. Grouping never
+borrows another member's rating or implies baseline state, suppression, fix,
+remediation, complete-scan coverage or a numeric security score.
+
+**FND-R208.** Only the explicitly selected safe HTTP projection supplies
+`webRequest` and `webResponse`: method, sanitized target URI, known status and
+base response Content-Type. Request/response bodies, other headers, URI query,
+fragment and userinfo are omitted with a diagnostic; raw Caido and structured
+HTTP captures follow the same policy. Exact OpenAPI operation pointers remain
+native provenance, without inferred code locations. A finding without native
+analysis still exports its identity, text and independent review, with
+`analysis_missing`; it never acquires a synthetic file, source line or flow.
+
 ## Interfaces
 
 - `finding`: the model-visible tool of each creation facade, with the
@@ -1809,5 +1879,5 @@ The end-to-end path of a proposal from an ordinary Run to an Audit is shown in
   FND-R28, FND-R66); qualified automatic labels retain every observation.
 - Collection-specific recursive input handling (FND-R119).
 - Live CWE taxonomy lookup (FND-R31).
-- SARIF export, which remains a separate draft
-  ([proposal 0028](../../proposals/0028-finding-analysis-and-sarif.md)).
+- GitHub-specific upload/profile, source maps and remediation inference. Generic
+  Audit-local SARIF export is specified by FND-R197 through FND-R208.
