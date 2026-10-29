@@ -5,7 +5,7 @@ milestone: autonomous-http-pentest-2026-10
 epic: http-tools
 kind: chore
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V411-003
 languages:
@@ -17,8 +17,8 @@ goal: Prove the existing V411-003 controlled HTTP production path rejects prohib
   action/accounting/lifecycle guarantees under real transport faults before identities and model-visible
   tools rely on it.
 context:
-  authority: User request on 2026-10-24 to decompose the updated proposals into implementation tasks.
-    This record authorizes no implementation during planning and does not reactivate deferred work.
+  authority: User request on 2026-10-29 to verify applicability, implement V411-004, run the required
+    checks, close the task and merge it into main under the project rules.
   proposal:
   - docs/proposals/0033-autonomous-pentest-audits.md#41-route-policy
   - docs/proposals/0033-autonomous-pentest-audits.md#42-initial-http-enforcement-implementation
@@ -27,6 +27,12 @@ context:
   specification:
   - docs/spec/tools/http-caido.md#HTP-R1
   - docs/spec/tools/http-caido.md#HTP-R115
+  - docs/spec/tools/http-caido.md#HTP-R137
+  - docs/spec/tools/http-caido.md#HTP-R138
+  - docs/spec/tools/http-caido.md#HTP-R139
+  - docs/spec/audits/execution.md#AUX-R104
+  - docs/spec/audits/execution.md#AUX-R105
+  - docs/spec/execution/control-plane.md#CTL-R169
   - docs/spec/execution/control-plane.md#CTL-R4
   - docs/spec/execution/control-plane.md#CTL-R6
   code:
@@ -164,3 +170,14 @@ verification_requirements:
 - This task adds test-pentest-http-process with deterministic real target servers and Server/Runtime
   processes, using the already complete V411-003 preflight caller. Register all selections with release-verify
   and assert nonzero selected cases; later feature tasks extend the same gate.
+
+assignment:
+  branch: codex/v411-004-http-conformance
+  claimed: '2026-10-29'
+  base: b93e307b7830ea6b55d04dca4169e68179064cb9
+applicability:
+- V411-003 is completed on main and provides the real controlled transport, action ledger and two
+  process fault scenarios. V411-004 remains applicable because the independent route-denial, resource,
+  lifecycle and restart conformance matrix and its non-skippable release gate are not yet present.
+- This task changes tests and their gate only. A discovered production defect is tracked and repaired
+  separately before its conformance case can pass; the production policy is never weakened by a fixture.

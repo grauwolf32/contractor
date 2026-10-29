@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-118 open tasks: 5 in progress, 102 pending, 11 deferred. 1188 finished: 1178 completed, 10 archived.
+118 open tasks: 6 in progress, 101 pending, 11 deferred. 1188 finished: 1178 completed, 10 archived.
 
 ## In progress
 
@@ -16,6 +16,7 @@ the epics are in [epics.yml](epics.yml).
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
+| [V411-004](v411-004-controlled-http-conformance.yml) | http-tools | chore | P1 | Verify controlled HTTP transport against an independent denial and fault matrix |
 
 ## Pending
 
@@ -58,7 +59,6 @@ the epics are in [epics.yml](epics.yml).
 | [V386-004](v386-004-caido-catalog-cardinality.yml) | defect | P2 | — | Keep Caido catalog selection usable above one hundred entries |
 | [V410-008](v410-008-sitemap-caido-history.yml) | feature | P2 | V410-004, V410-007 | Import selected Caido history incrementally with durable checkpoints |
 | [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
-| [V411-004](v411-004-controlled-http-conformance.yml) | chore | P1 | — | Verify controlled HTTP transport against an independent denial and fault matrix |
 | [V411-005](v411-005-identity-sessions-http-login.yml) | feature | P1 | V411-004 | Isolate target identities and execute bounded private HTTP login recipes |
 | [V411-009](v411-009-http-recipes-predicates.yml) | feature | P1 | V411-005, V411-007, V411-008 | Execute frozen HTTP recipes and evaluate trusted three-valued predicates |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | V411-007, V411-008, V411-010 | Add a managed browser with isolated contexts and enforced target transport |
