@@ -490,6 +490,51 @@ describe("Workflow overview and Run drawer", () => {
 });
 
 describe("Workflow routes", () => {
+  it("shows a Server operation without synthetic Planner or Worker details", async () => {
+    const native = conforming("WorkflowResource", {
+      ...workflow,
+      stages: {
+        build: {
+          objective: "Join selected artifacts",
+          operation: {
+            ref: "sitemap-openapi-join@1",
+            arguments: {
+              contract: { source: "literal", value: "api" },
+              origin: { source: "literal", value: "https://example.test" },
+            },
+          },
+          session: "isolated",
+          agents: {},
+          executionConfig: { agents: {} },
+          contextArtifacts: {},
+          resultArtifacts: {},
+          workflowOutputs: {},
+          on: {
+            succeeded: { kind: "succeed" },
+            failed: { kind: "fail" },
+            interrupted: { kind: "fail" },
+          },
+        },
+      },
+    });
+    renderApplication(workflowRoute, {
+      server: workflowRoutes({ [WORKFLOW]: () => json(native) }),
+    });
+    await userEvent
+      .setup()
+      .click(
+        await screen.findByText("Agents, execution settings and transitions"),
+      );
+    expect(
+      await screen.findByText("Server · sitemap-openapi-join@1"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Server operation")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Logical Workers" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Instructions")).not.toBeInTheDocument();
+  });
+
   it.each([workflowDisplayName, "View workflow"])(
     "preserves Workflow search and return state through the %s link",
     async (linkName) => {

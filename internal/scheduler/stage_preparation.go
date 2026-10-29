@@ -146,6 +146,9 @@ func missingRequiredContext(execution runstore.StageExecution) string {
 // prepareAndPlan retains one Stage deadline across allocation and Planner phases.
 func (s *Scheduler) prepareAndPlan(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution) error {
 	deadline := s.stageDeadline(execution, workflow.stage)
+	if workflow.stage.Operation != nil {
+		return s.executeServerOperation(ctx, run, workflow, execution, deadline)
+	}
 	prepared, err := s.prepareStageWorkers(ctx, run, workflow, execution, deadline)
 	if err != nil || prepared == nil {
 		return err

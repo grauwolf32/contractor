@@ -25,7 +25,7 @@ func (c LaneClass) Valid() bool {
 // Retries and escalations change only model selections, never the Planner or
 // the Worker templates, so every attempt of a Stage has the same class.
 func StageLaneClass(stage ResolvedStage) LaneClass {
-	if IsModelFreePlanner(stage.Planner) && StageToolWorkersOnly(stage) {
+	if IsModelFreeStage(stage) && StageToolWorkersOnly(stage) {
 		return LaneClassTool
 	}
 	return LaneClassModel

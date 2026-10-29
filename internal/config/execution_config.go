@@ -103,7 +103,7 @@ func (l *loader) applyExecutionConfigPatch(
 	plannerApplied := false
 	for _, stageName := range slices.Sorted(maps.Keys(workflow.Stages)) {
 		stage := workflow.Stages[stageName]
-		if patch.Planner != nil && !resolved.IsModelFreePlanner(stage.Planner) {
+		if patch.Planner != nil && !resolved.IsModelFreeStage(stage) {
 			if err := l.applyPlannerSelection(
 				&stage, *patch.Planner, originPrefix+".planner",
 			); err != nil {
@@ -171,7 +171,7 @@ func (l *loader) applyPlannerSelection(
 	origin string,
 ) error {
 	ref := stage.Planner.PlannerID + "@" + stage.Planner.Version
-	if resolved.IsModelFreePlanner(stage.Planner) {
+	if resolved.IsModelFreeStage(*stage) {
 		return fmt.Errorf("%s does not accept Planner model configuration", ref)
 	}
 	if stage.ExecutionConfig.Planner == nil {

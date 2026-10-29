@@ -185,7 +185,16 @@ func (e ToolExecutionConfig) Validate() error {
 		!validToolBindingName(e.ResultArtifact) || e.TimeoutSeconds < 1 || e.TimeoutSeconds > 3600 {
 		return Invalidf("invalid tool execution selector, bindings or deadline")
 	}
-	for key, binding := range e.Arguments {
+	return ValidateArgumentBindings(e.Arguments, true)
+}
+
+// ValidateArgumentBindings owns the shared scalar/literal binding grammar.
+// Server operations pass artifacts through pinned Stage context instead.
+func ValidateArgumentBindings(arguments map[string]ToolArgumentBinding, allowArtifacts bool) error {
+	if arguments == nil || len(arguments) > 32 {
+		return Invalidf("argument bindings must be a non-null map of at most 32 entries")
+	}
+	for key, binding := range arguments {
 		if err := binding.validateParameterOptions(); err != nil {
 			return err
 		}
@@ -194,6 +203,9 @@ func (e ToolExecutionConfig) Validate() error {
 		}
 		switch binding.Source {
 		case "parameter", "artifact":
+			if binding.Source == "artifact" && !allowArtifacts {
+				return Invalidf("artifact arguments use Stage context")
+			}
 			if !validToolBindingName(binding.Name) || binding.Value != nil {
 				return Invalidf("invalid tool argument source binding")
 			}

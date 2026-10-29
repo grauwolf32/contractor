@@ -226,31 +226,44 @@ func (l *loader) resolveStage(
 	workflowOutputs map[string]resolved.ArtifactSlot,
 	allStages map[string]stageSource,
 ) (resolved.ResolvedStage, error) {
-	if strings.TrimSpace(source.Objective) == "" {
+	if strings.TrimSpace(source.Objective) == "" && (source.Operation == nil || source.Objective != "") {
 		return resolved.ResolvedStage{}, fmt.Errorf("objective must not be empty or whitespace-only")
 	}
 	session, err := resolveWorkerSessionMode(source.Session)
 	if err != nil {
 		return resolved.ResolvedStage{}, fmt.Errorf("session: %w", err)
 	}
-	instructions, err := l.resolveInstructions(source.Instructions)
+	var instructions contracts.ResolvedInstructions
+	if source.Operation == nil {
+		instructions, err = l.resolveInstructions(source.Instructions)
+	} else if source.Instructions != nil {
+		return resolved.ResolvedStage{}, fmt.Errorf("Server operation forbids instructions")
+	}
 	if err != nil {
 		return resolved.ResolvedStage{}, fmt.Errorf("instructions: %w", err)
 	}
-	planner, err := resolved.ParseSelector(source.Planner)
+	var planner resolved.Selector
+	if source.Operation == nil {
+		planner, err = resolved.ParseSelector(source.Planner)
+	}
 	if err != nil {
 		return resolved.ResolvedStage{}, fmt.Errorf("planner: %w", err)
 	}
 	plannerRef := resolved.PlannerRef{PlannerID: planner.ID, Version: planner.Version}
-	if !resolved.KnownPlanner(plannerRef) {
+	if source.Operation == nil && !resolved.KnownPlanner(plannerRef) {
 		return resolved.ResolvedStage{}, fmt.Errorf("planner selects unknown PlannerFactory %q", planner)
 	}
-	agents, err := l.resolveAgentBindings(source.Agents)
+	agents := map[string]resolved.ResolvedAgentBinding{}
+	if source.Operation == nil || len(source.Agents) != 0 {
+		agents, err = l.resolveAgentBindings(source.Agents)
+	}
 	if err != nil {
 		return resolved.ResolvedStage{}, err
 	}
-	if err := resolved.ValidatePlannerAgents(plannerRef, len(agents)); err != nil {
-		return resolved.ResolvedStage{}, err
+	if source.Operation == nil {
+		if err := resolved.ValidatePlannerAgents(plannerRef, len(agents)); err != nil {
+			return resolved.ResolvedStage{}, err
+		}
 	}
 	context, err := resolveStageContext(source.Context)
 	if err != nil {
@@ -263,7 +276,7 @@ func (l *loader) resolveStage(
 	if err := resolved.ValidateStageWorkspace(context, result, agents); err != nil {
 		return resolved.ResolvedStage{}, err
 	}
-	if plannerRef != (resolved.PlannerRef{PlannerID: "scan-plan", Version: "1"}) {
+	if source.Operation == nil && plannerRef != (resolved.PlannerRef{PlannerID: "scan-plan", Version: "1"}) {
 		if err := validateStageResultBindings(result, context.Workspace, agents); err != nil {
 			return resolved.ResolvedStage{}, err
 		}
@@ -280,6 +293,7 @@ func (l *loader) resolveStage(
 	// The decoded source belongs to this load alone and the Snapshot keeps
 	// deep copies, so the Stage takes the scan policies without copying them.
 	stage := resolved.ResolvedStage{
+		Operation:       source.Operation,
 		Objective:       source.Objective,
 		Instructions:    instructions,
 		Planner:         plannerRef,
@@ -291,6 +305,15 @@ func (l *loader) resolveStage(
 		Result:          result,
 		WorkflowOutputs: mappings,
 		On:              transitions,
+	}
+	if source.Operation != nil && source.Planner != "" {
+		return resolved.ResolvedStage{}, fmt.Errorf("Stage must select exactly one of planner or operation")
+	}
+	if stage.Operation != nil && stage.Objective == "" {
+		stage.Objective = stage.Operation.Ref
+	}
+	if err := resolved.ValidateStageExecutor(stage); err != nil {
+		return resolved.ResolvedStage{}, err
 	}
 	if err := resolved.ValidateScanPlanStage(stage); err != nil {
 		return resolved.ResolvedStage{}, err

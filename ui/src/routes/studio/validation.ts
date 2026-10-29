@@ -138,8 +138,31 @@ export function validateDraft(draft: Draft): Problem[] {
     for (const [name, value] of Object.entries(stages)) {
       const stage = record(value),
         p: Path = ["spec", "stages", name];
-      requiredString([...p, "objective"]);
-      selector([...p, "planner"]);
+      const operation = stage.operation !== undefined;
+      if (operation) {
+        if (
+          stage.planner !== undefined ||
+          stage.instructions !== undefined ||
+          stage.session === "shared" ||
+          Object.keys(record(stage.agents)).length
+        )
+          error(
+            p,
+            "A server operation cannot select a planner, instructions, Workers or a shared session.",
+          );
+        if (
+          !["sitemap-openapi-join@1", "sitemap-apply-openapi@1"].includes(
+            textValue(record(stage.operation).ref),
+          )
+        )
+          error(
+            [...p, "operation", "ref"],
+            "Select a registered server operation.",
+          );
+      } else {
+        requiredString([...p, "objective"]);
+        selector([...p, "planner"]);
+      }
       if (
         stage.session !== undefined &&
         !["isolated", "shared"].includes(textValue(stage.session))
@@ -148,9 +171,12 @@ export function validateDraft(draft: Draft): Problem[] {
       const agents = record(stage.agents),
         count = Object.keys(agents).length;
       if (
-        !count ||
-        (["passthrough@1", "streamline@1"].includes(textValue(stage.planner)) &&
-          count !== 1)
+        !operation &&
+        (!count ||
+          (["passthrough@1", "streamline@1"].includes(
+            textValue(stage.planner),
+          ) &&
+            count !== 1))
       )
         error(
           [...p, "agents"],
@@ -174,6 +200,7 @@ export function validateDraft(draft: Draft): Problem[] {
               "Runtime workspace exports must omit from.",
             );
         } else if (
+          !operation &&
           stage.planner !== "scan-plan@1" &&
           (!textValue(from.name) ||
             !namespaces.includes(textValue(from.namespace)))

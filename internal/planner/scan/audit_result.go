@@ -8,7 +8,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditscan"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 )
 
 func (p *execution) finishAudit(ctx context.Context, identity planner.ScanSessionIdentity, history []planner.ScanAttempt) (stageresult.StageContentResult, error) {

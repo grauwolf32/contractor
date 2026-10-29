@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 )
 
 // ValidateWorkerCompletion enforces the trusted request correlation again at

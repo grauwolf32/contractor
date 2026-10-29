@@ -16,7 +16,7 @@ const contractsImportPath = "github.com/grauwolf32/contractor/internal/contracts
 
 // stageResultImportPath holds the Stage result bounds, which count the same
 // compact encoding as the wire bounds.
-const stageResultImportPath = "github.com/grauwolf32/contractor/internal/planner/stageresult"
+const stageResultImportPath = "github.com/grauwolf32/contractor/internal/stageresult"
 
 var contractByteLimit = regexp.MustCompile(`^Max[A-Za-z0-9]*Bytes$`)
 
@@ -78,7 +78,7 @@ import (
 	"encoding/json"
 	wire "github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 )
 
 func rejected(value any) bool {
@@ -117,7 +117,7 @@ func wireBound(value any) bool {
 	}
 	for _, inPackage := range []struct{ source, path string }{
 		{"package contracts\n\nimport \"encoding/json\"\n\nfunc bounded(value any) bool {\n\tencoded, _ := json.Marshal(value)\n\treturn len(encoded) >= MaxWorkerCompletionBytes\n}\n", "internal/contracts/bounded.go"},
-		{"package stageresult\n\nimport \"encoding/json\"\n\nfunc bounded(value any) bool {\n\tencoded, _ := json.Marshal(value)\n\treturn len(encoded) >= MaxStageResultBytes\n}\n", "internal/planner/stageresult/bounded.go"},
+		{"package stageresult\n\nimport \"encoding/json\"\n\nfunc bounded(value any) bool {\n\tencoded, _ := json.Marshal(value)\n\treturn len(encoded) >= MaxStageResultBytes\n}\n", "internal/stageresult/bounded.go"},
 	} {
 		file, err = parser.ParseFile(fset, "bounded.go", inPackage.source, parser.SkipObjectResolution)
 		if err != nil {
@@ -134,7 +134,7 @@ func wireBound(value any) bool {
 
 // marshalLimitViolations reports comparisons of len(x), where x was assigned
 // from json.Marshal in the same function, with a Max*Bytes constant of a
-// package under internal/contracts or of internal/planner/stageresult, which
+// package under internal/contracts or of internal/stageresult, which
 // holds the Stage result bounds.
 func marshalLimitViolations(fset *token.FileSet, file *ast.File, relative string) []string {
 	jsonName := ""
@@ -158,7 +158,7 @@ func marshalLimitViolations(fset *token.FileSet, file *ast.File, relative string
 	if jsonName == "" {
 		return nil
 	}
-	inContracts := strings.HasPrefix(relative, "internal/contracts/") || strings.HasPrefix(relative, "internal/planner/stageresult/")
+	inContracts := strings.HasPrefix(relative, "internal/contracts/") || strings.HasPrefix(relative, "internal/stageresult/")
 	isLimit := func(expression ast.Expr) bool {
 		found := false
 		ast.Inspect(expression, func(node ast.Node) bool {

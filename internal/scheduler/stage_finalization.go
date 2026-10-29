@@ -18,15 +18,15 @@ import (
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 )
 
 // enterFinalizing validates and fences before the atomic candidate transition.
 func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRun, workflow executableWorkflow, execution runstore.StageExecution, reservations []controlplane.Reservation, candidate stageresult.StageContentResult) error {
 	if err := s.validateCandidate(ctx, run.RunID, workflow, candidate); err != nil {
 		failure := planner.Failure{
-			Code: "result_contract_violation", Message: "Planner candidate violates the Stage result contract", Retryable: false,
+			Code: "result_contract_violation", Message: "Stage candidate violates the Stage result contract", Retryable: false,
 		}
 		var unavailable *candidateVerificationError
 		if errors.As(err, &unavailable) {
@@ -75,13 +75,17 @@ func (s *Scheduler) enterFinalizing(ctx context.Context, run runstore.WorkflowRu
 	}
 	deadline := s.now().Add(s.options.FinalizationTimeout)
 	transitionContext, cancelTransition := context.WithTimeout(ctx, s.options.OperationTimeout)
+	completionCode := "planner_completed"
+	if workflow.stage.Operation != nil {
+		completionCode = "server_operation_completed"
+	}
 	err = s.persistence.EnterFinalizingWithResult(transitionContext, runstore.EnterFinalizingParams{
 		StageExecutionID:    execution.StageExecutionID,
 		ResultSchemaVersion: contracts.APIVersion,
 		Candidate:           candidate,
 		FinalizationID:      finalizationID,
 		Deadline:            deadline,
-		Reason:              runstore.Reason{Code: "planner_completed"},
+		Reason:              runstore.Reason{Code: completionCode},
 	})
 	cancelTransition()
 	if err != nil {

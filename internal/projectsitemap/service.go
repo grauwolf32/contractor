@@ -75,30 +75,37 @@ func (s *Service) Mutate(ctx context.Context, a Authority, idempotencyKey string
 		}
 	}
 	appendCompatible := m.Operation == "observe" || m.Operation == "replace-source" && m.ExpectedRevision == ""
+	var result Result
+	err := s.mutationTransaction(ctx, appendCompatible, func(ctx context.Context, tx pgx.Tx) error {
+		var err error
+		result, err = mutateTransaction(ctx, tx, a, idempotencyKey, m)
+		return err
+	})
+	return result, err
+}
+
+// mutationTransaction is shared by map commands and artifact join operations.
+// It retains one deadline and the existing receipt/CAS/maintenance owners.
+func (s *Service) mutationTransaction(ctx context.Context, appendCompatible bool, action func(context.Context, pgx.Tx) error) error {
 	ctx, cancel := context.WithTimeout(ctx, OperationTimeout)
 	defer cancel()
-	var result Result
 	var err error
-	for attempt := 0; attempt < MaxAttempts; attempt++ {
-		err = postgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			var inner error
-			result, inner = mutateTransaction(ctx, tx, a, idempotencyKey, m)
-			return inner
-		})
+	for range MaxAttempts {
+		err = postgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return action(ctx, tx) })
 		if errors.Is(err, postgres.ErrReceiptMismatch) {
-			return Result{}, contracts.ErrIdempotencyConflict
+			return contracts.ErrIdempotencyConflict
 		}
 		if errors.Is(err, artifacts.ErrHistoryMaintenancePending) {
-			return Result{}, artifacts.NewPostgresRepository(s.pool).MaintainHistory(ctx, err)
+			return artifacts.NewPostgresRepository(s.pool).MaintainHistory(ctx, err)
 		}
 		if err == nil || (!postgres.IsTransactionConflict(err) && !(appendCompatible && errors.Is(err, artifacts.ErrArtifactConflict))) {
-			return result, err
+			return err
 		}
 		if ctx.Err() != nil {
-			return Result{}, ctx.Err()
+			return ctx.Err()
 		}
 	}
-	return Result{}, err
+	return err
 }
 
 // receiptRecord keeps only the bounded selector choices and policy conflicts

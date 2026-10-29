@@ -192,7 +192,7 @@ func (p *preparer) preparePathItem(set *scan.HTTPRequestSet, path string, raw an
 	return found
 }
 
-func supportedOpenAPIVersion(version string) bool {
+func SupportsOpenAPIVersion(version string) bool {
 	parts := strings.Split(version, ".")
 	if len(parts) != 3 || parts[0] != "3" || (parts[1] != "0" && parts[1] != "1") || parts[2] == "" {
 		return false
