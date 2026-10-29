@@ -5,7 +5,7 @@ milestone: autonomous-http-pentest-2026-10
 epic: http-tools
 kind: chore
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V411-003
 languages:
@@ -207,3 +207,77 @@ process_verification_execution:
   guarantee: Execute all three existing CI shards on the same integrated source. Their exact union
     is the complete 36-root canonical deterministic process selection; no test is dropped, no
     prerequisite or skip check is relaxed, and each shard retains its existing timeout/report gate.
+
+implementation_commit: 9cc2645801bfed9527bd0added24d6d6c290b485
+
+implementation_notes:
+- Independent actual Server/Runtime, native TCP/TLS and real PostgreSQL observers cover forbidden
+  routes, DNS/peer/SNI/proxy boundaries, first-byte ordering, duplicate receipts, bounded bodies and
+  headers, safe retries, cancellation, lease loss and process restarts. No fake target write stands
+  in for transport evidence. The process matrix includes the original dropped-reply/expired-grant cases.
+- Exact injected-clock store tests cover multiple allocations, persisted cooldown, reconstruction,
+  the eight-slot capacity ceiling and the five-field stop proof. Unknown sends keep their charge and
+  capacity. Temporary production mutations removing cooldown or accepting a wrong Runtime instance
+  made the real-store regressions fail and were restored before verification.
+- The process restart observer and real-store replacement-admission tests are complementary. The
+  process fixture alone is not claimed to observe a newly authorized replacement allocation. Direct
+  controlled HTTP does not gain an upstream proxy capability from ordinary HTTP configuration.
+- One manifest requires 38 process identities, two accounting cases and 31 exact parametrized Runtime
+  cases. Empty/missing/skipped/failed/duplicate results are rejected. Unique bounded report directories
+  record executed identities and report/manifest digests only after success. Cold-cache Go dependency
+  setup is separate from the strictly parsed test event stream.
+- The same cases belong to canonical process shard B, the full Runtime report and full Go unit report.
+  The release graph verifies ownership; gate/report/graph unit tests cover broken selections. The
+  independently discovered production redirect defect is fixed separately in V411-022. V411-023 fixes
+  stale public Artifact DTOs; V411-024 reuses the concurrent V410-023 selector instead of duplicating it.
+verification:
+  date: '2026-10-29'
+  source: bc99bfa8e9f64144a0ab0c41bd0b21904d3e29cf
+  main_integrated: 08a6b8310213283269da338536ea49bcf64e6153
+  results:
+  - All three canonical process shards passed on the same integrated source. A ran 11 parents,
+    B ran 12 and C ran 13; their disjoint union exactly equals all 36 canonical roots. All 123
+    results including subtests passed, zero skips/failures; the report validators passed.
+  - make test-pentest-http-process and make test-pentest-action-process passed again after integration.
+    The new gate verified all 38 process identities, two real PostgreSQL cases and 31 native socket
+    cases with zero selected skips. The standalone ordinary HTTP/Caido process regression passed.
+  - make test-runtime passed 5606 tests in 571.35s, with 55 existing optional integration skips.
+    verify-runtime passed and every mandatory socket case ran. Skips require separate rootless
+    Podman (34), optional scanners (16), live Gateway (3), real Go Audit API (1) or Interactsh (1).
+    make test-http-caido-runtime passed all 208 tests. No live-model quality or external-engine claim
+    is made by this deterministic conformance gate.
+  - make test-wire-cross-language passed 426 shared fixtures with 360 Go and 246 Python shared
+    readers; the Runtime shared selection passed 1519 cases and the contracts selection passed 468.
+  - Complete controlplane, privateartifacts, runstore, app, public, projectsitemap, auditservice and
+    pgstore packages passed with -race -tags=integration -count=1 and disposable PostgreSQL; 903
+    top-level tests and 2534 results including subtests, eight package passes and zero skips/failures.
+    The original complete auditservice/pgstore race suites and mutation checks also passed.
+  - Full untagged tests/e2e passed 36 tests and 149 results including subtests, with zero skips/failures.
+    The tagged package compiled, and make verify-public-api passed. The three focused capability
+    process parents and the separate Skills regression passed after integration.
+  - make lint passed on the integrated source. The 77 focused gate/report/release-graph unit tests
+    passed; final lint includes the complete script suites and actual release-graph inspection.
+  - The earlier unfiltered opt-in run, aggregate 50-minute unsharded timeout and host harness
+    PGCONNECT_TIMEOUT configuration error are diagnostic failures, not successful evidence. The
+    final complete process union and clean-environment real-store run above supersede them without
+    dropping scenarios, relaxing policy or suppressing skip/error checks.
+  linux_snapshot:
+    image: localhost/contractor-v421-runtime-base:1
+    source_commit: bc99bfa8e9f64144a0ab0c41bd0b21904d3e29cf
+    archive_sha256: c2ce3a67a2e793c92f7ee482fc6b23fae3d8a5118fe8950d321c484d2d1717f8
+    environment: Native Linux, ordinary contractor-test user, locked dependencies, clean environment,
+      separate disposable databases, GOMAXPROCS=2, GOFLAGS=-p=1 and CI=true.
+    final_tree_comparison: All production code, tests, contracts and gate scripts match this source.
+      Later commits only record task completion, generated backlog and the proposal task link.
+  reports:
+    process_union: /private/tmp/v411004-evidence/integrated-process-summary.json
+    process_a: /private/tmp/v411004-evidence/integrated-process-a.jsonl
+    process_b: /private/tmp/v411004-evidence/integrated-process-b.jsonl
+    process_c: /private/tmp/v411004-evidence/integrated-process-c.jsonl
+    runtime_wire_http: /private/tmp/v411004-evidence/integrated-runtime.log
+    runtime_reports: /private/tmp/v411004-evidence/integrated-runtime-reports
+    go_public_api: /private/tmp/v411004-evidence/integrated-host-status.json
+    focused_repairs: /private/tmp/v411004-evidence/integrated-focused-repairs.log
+    negative_cooldown: /private/tmp/v411004-evidence/negative-cooldown.log
+    negative_stop_proof: /private/tmp/v411004-evidence/negative-stop-proof.log
+    lint: /private/tmp/v411004-evidence/integrated-lint.log
