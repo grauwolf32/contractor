@@ -16,7 +16,11 @@ import (
 // Table ownership independently bars the domain's direct artifact-table SQL.
 func TestSitemapUsesSharedArtifactMechanisms(t *testing.T) {
 	files := 0
-	for _, directory := range []string{"internal/artifacts", "internal/persistence/postgres", "internal/projectlifecycle"} {
+	for _, directory := range []string{
+		"internal/artifacts", "internal/persistence/postgres", "internal/projectlifecycle",
+		"internal/httpapi/privateartifacts/artifact_handlers.go",
+		"internal/httpapi/privateartifacts/artifact_read_access.go",
+	} {
 		err := filepath.WalkDir(filepath.Join("..", "..", directory), func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
 				return err

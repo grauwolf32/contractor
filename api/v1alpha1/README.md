@@ -132,10 +132,20 @@ characters, never on an empty page) continues a paged listing and is absent on
 the last page and from a `namePrefix` listing; the listing limit and cursor
 grammar are pinned by `api/testdata/v1alpha1/artifact-list-cases.json`, which
 also lists the bindings the paged listing hides from model tools.
-`ArtifactReadOrWriteResult` is the body of a private write and of the private
-metadata read `GET …/artifacts/{namespace}/{name}/metadata`, which answers the
-exact revision, media type and size of a current or exact ref without the
-payload.
+`ArtifactReadOrWriteResult` is the body of a private write. The private
+metadata read `GET …/artifacts/{namespace}/{name}/metadata` returns
+`ArtifactMetadataResult` with the exact revision, media type, size and opaque
+content cache key of a current or exact ref without the payload.
+
+Raw and metadata reads default to the current Run. The exact query pair
+`scope=project&operation=<Name>` selects an explicitly granted concrete binding
+in its owning Project; the Server derives that Project from the durable Run.
+`artifact-read-target-cases.json` holds the shared strict selector cases. The
+same binding's `/access` endpoint accepts only this pair and returns `204` with
+no body after current authority checks, without reading artifact content, metadata
+or lineage. It allows domain-owned immutable views to check authority after
+source history eviction; it creates no hold and cannot recover an evicted revision.
+The owning contract is ART-R135.
 
 `AllocationSpec.agentTemplate.modelPolicy` remains the immutable template
 default covered by the AgentTemplate digest. The separate required
@@ -227,8 +237,9 @@ source/provenance mismatch. Generic Artifact writes have no producer authority.
 `ArtifactMetadataResult`. Its required opaque `contentCacheKey` identifies the
 immutable Server version across fork bindings, grants no access and is absent
 from `ArtifactRef`, shared read/write results, public APIs and model tools.
-Every Runtime cache hit first authorizes the consuming exact ref through this
-strict response. The golden metadata fixture and invalid key fixtures test
+The shared exact-content cache authorizes the consuming exact ref through this
+strict response. Domain read views use the authority-only `/access` check described
+above when retention-independent paging is required. The golden metadata fixture and invalid key fixtures test
 both language readers; generated required-member and mutation cases cover
 missing, duplicate, unknown and overlong members.
 

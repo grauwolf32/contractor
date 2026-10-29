@@ -361,8 +361,8 @@ contractor project sitemap mutate PROJECT --file command.json --idempotency-key 
 ```
 
 An owner can select the exact sitemap binding as an ordinary declared input
-when creating a Project Run. This deliberate selection and permitted dedicated
-sitemap reads expose the complete selected map. Dedicated snapshots select
+when creating a Project Run. This deliberate selection and permitted allocation
+artifact reads expose the complete selected map. Dedicated snapshots select
 entries from an exact map revision and retain only explicitly permitted needed
 input files. The existing input fork retains the selected source; a live read
 alone creates no such dependency.
