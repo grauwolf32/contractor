@@ -4,6 +4,7 @@
     "public/tool-diagnostic-values.json": {"readers": ["go", "ui"]},
     "public/runtime-diagnostic-decimals.json": {"readers": ["go", "ui"]},
     "project-sitemap-cases.json": {"readers": ["go", "python"]},
+    "sitemap-reports/": {"readers": ["go", "python"]},
     "pentest-action-maximum-url.json": {"readers": ["go", "python"]},
     "audit-web-scan-settings.json": {"readers": ["go", "ui"]},
     "nuclei-package-manifest.json": {"readers": ["go", "python"]},

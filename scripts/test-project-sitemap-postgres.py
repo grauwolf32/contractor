@@ -19,6 +19,12 @@ REQUIRED = {
     "TestPostgresSitemapReceiptsOwnershipAndHistory",
     "TestPostgresSitemapHTTPCollectionProjectionAndReceipt",
     "TestPostgresSitemapRepeatedRunsAggregateBehavior",
+    "TestPostgresSitemapScannerImportReplaysAfterReportAndMapEviction",
+    "TestPostgresSitemapScannerImportsAggregateAcrossRunsAndBoundEvidence",
+    "TestPostgresSitemapScannerImportBoundaryAndRejectedReportRollback",
+    "TestPostgresSitemapScannerImportVisibilityAndProjectLifecycle",
+    "TestPostgresSitemapSnapshotRebindsReportEvidenceToAuthorizedOriginalInput",
+    "TestPostgresSitemapCaidoCollectionSkipsOnlyInvalidRows",
     "TestPostgresSitemapManualRunsShareMetadataAndIsolateReceipts",
     "TestPostgresSitemapSharedMapSnapshotAndReplay",
     "TestPostgresSitemapEditorsShareMembersAndDeriveProjectAuthority",
@@ -37,6 +43,7 @@ REQUIRED = {
 
 REQUIRED_CASES = {(PREFIX + "internal/projectsitemap", case) for case in REQUIRED} | {
     (PREFIX + "internal/httpapi/privateartifacts", "TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence"),
+    (PREFIX + "internal/httpapi/privateartifacts", "TestPostgresPrivateSitemapImportAuthorityAndExactSources"),
     (PREFIX + "internal/controlplane", "TestSitemapGrantPinsSelectedOperationsAndNeverAliasesPolicy"),
     (PREFIX + "internal/httpapi/privateartifacts", "TestPostgresPrivateProjectArtifactReadsUseConcreteTargetAndNoCacheHolds"),
     (PREFIX + "internal/runstore", "TestPostgresRunProjectContextUsesCallerTransaction"),

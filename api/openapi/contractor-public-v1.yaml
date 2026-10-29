@@ -7715,6 +7715,9 @@ components:
           - source-unavailable
           - ambiguous
           - projection
+          - report-truncated
+          - request-errors
+          - evidence
         count:
           type: integer
           minimum: 0

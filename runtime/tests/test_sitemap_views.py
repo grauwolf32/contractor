@@ -22,6 +22,7 @@ def test_shared_sitemap_document_wire_shape() -> None:
     )
     assert ViewIndex(json.dumps(cases["empty"]).encode()).entries == {}
     assert ViewIndex(json.dumps(cases["observed"]).encode()).entries
+    assert ViewIndex(json.dumps(cases["reported"]).encode()).entries
     for raw in cases["invalid"]:
         with pytest.raises(ArtifactTransportError):
             ViewIndex(raw.encode())

@@ -32,7 +32,7 @@ func TestSharedSitemapPrivateWire(t *testing.T) {
 			t.Fatalf("collector limit %s differs: %d want %d", name, cases.CollectorLimits[name], want)
 		}
 	}
-	if len(cases.Valid) != 6 || len(cases.Invalid) < 15 {
+	if len(cases.Valid) != 9 || len(cases.Invalid) < 26 {
 		t.Fatal("incomplete private sitemap cases")
 	}
 	compiler := jsonschema.NewCompiler()
@@ -49,6 +49,10 @@ func TestSharedSitemapPrivateWire(t *testing.T) {
 		if err := compiler.AddResource(id, document); err != nil {
 			t.Fatal(err)
 		}
+	}
+	rootSchema, err := compiler.Compile("https://contractor.local/schema/v1alpha1/project-sitemap.schema.json")
+	if err != nil {
+		t.Fatal(err)
 	}
 	for _, group := range []struct {
 		valid bool
@@ -69,6 +73,11 @@ func TestSharedSitemapPrivateWire(t *testing.T) {
 			if err := schema.Validate(value); (err == nil) != group.valid {
 				t.Fatalf("%s schema valid=%t: %s: %v", c.Type, group.valid, c.Value, err)
 			}
+			if group.valid {
+				if err := rootSchema.Validate(value); err != nil {
+					t.Fatalf("%s is missing from the root schema: %v", c.Type, err)
+				}
+			}
 			// Only requests are consumed by the Server. Replies are schema-checked
 			// above and exercised as actual production bytes by the PostgreSQL cases.
 			switch c.Type {
@@ -82,9 +91,16 @@ func TestSharedSitemapPrivateWire(t *testing.T) {
 			case "SitemapCollectionRequest":
 				var input sitemapCollectionRequest
 				err := strictjson.DecodeNonNull(c.Value, &input)
-				valid := err == nil && input.APIVersion == contracts.APIVersion
+				valid := err == nil && input.APIVersion == contracts.APIVersion && (input.Input.Kind == "http" || input.Input.Kind == "caido")
 				if valid != group.valid {
 					t.Fatalf("collection command valid=%t: %s: %v", group.valid, c.Value, err)
+				}
+			case "SitemapImportRequest":
+				var input sitemapImportRequest
+				err := strictjson.DecodeNonNull(c.Value, &input)
+				valid := err == nil && input.APIVersion == contracts.APIVersion && input.Selection.Validate() == nil
+				if valid != group.valid {
+					t.Fatalf("import command valid=%t: %s: %v", group.valid, c.Value, err)
 				}
 			case "SitemapSnapshotRequest":
 				var input sitemapSnapshotRequest

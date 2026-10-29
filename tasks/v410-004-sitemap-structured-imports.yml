@@ -61,7 +61,7 @@ scope:
     errors.
   - Preserve report provenance/timestamps, response availability, wildcard/soft-404 caveats, truncation and discarded-match
     gaps; validate every accepted record.
-  - Bound each import step with the existing exact input/cursor and shared keyed mutation receipts. Add no autonomous
+  - Bound each exact-report import with shared keyed mutation receipts. Add no autonomous
     import job, checkpoint journal or generic sync framework without a real caller.
   - Normalize imported URLs, examples and metadata under the shared syntax/byte and content-kind contract before
     map identity or publication; do not add sitemap secret matching or matching-secret transport.
@@ -78,7 +78,7 @@ requirements:
   text: Keep existing ffuf/Katana limits and observed-response restrictions. Preserve concrete limitations already
     declared by the report (such as discarded matches); do not invent a generic source-complete/incomplete state.
 - id: R3
-  text: Process a bounded exact report step and reuse the existing cursor/receipt mechanisms for continuation/replay.
+  text: Process one bounded exact report and reuse the existing shared receipt for replay.
     The same exact ref and keyed batch cannot append again after result eviction. Add no independent durable import
     checkpoint mechanism.
 - id: R4
@@ -99,9 +99,9 @@ failure_outcomes:
   permanent: Unknown format/version, inaccessible ref, malformed envelope or incompatible records return permanent
     classified outcomes; accepted valid records from a documented partial format carry exact gaps.
   retryable: Only Artifact/provider transport failures retry within owning read/import deadline.
-  ambiguous: Resume the same exact report identity and bounded continuation position; do not choose current/latest source or rerun the scanner.
+  ambiguous: Replay the same exact report identity and key; do not choose current/latest source or rerun the scanner.
   cancelled: Join off-thread parser work and preserve accepted keyed batches before allocation release.
-  timeout: A bounded import-step deadline limits parsing and publication; incomplete continuation remains explicit.
+  timeout: The existing operation deadline bounds exact reads, parsing and publication; no continuation state is created.
 - operation: Selected Caido projection and map publication
   permanent: Provider invalidity, absent raw exchange or collection denial never fabricate HTTP success; no raw HTTP
     exchange is retained as sitemap metadata. Generic Artifact admission rejection or history filled by protected revisions
@@ -116,18 +116,18 @@ cardinality:
 - collection: Source report and selected Caido result pages
   expected: Small normalized reports and selected tool results
   maximum: Existing scanner/provider input bounds plus proposal section 10 batch/map/member quotas
-  bound: Bound input bytes before parse, process one page/batch per step with bounded continuation instead of rescanning the full report.
+  bound: Bound input bytes before parse; each report has at most 100 rows and fits one batch, while Caido contributes only selected page/detail metadata.
 - collection: Rejected/omitted records and provenance
   expected: A few source-specific gaps
   maximum: Shared source registry/provenance/gap representation limits
   bound: Use aggregate counts and bounded examples; do not append one durable gap per invalid input row.
 lifecycle:
-- entity: Import source, continuation position and selected-result attribution
+- entity: Import source and selected-result attribution
   delete: Allocation cleanup removes transient parsers; Project purge removes its durable map source metadata.
   cascade: Deleting source Run bytes leaves safe map metadata and explicit unavailable evidence, not dangling claimed
     readable exchanges.
   retention: Exact report inputs selected for proof acquire ordinary holds before acceptance, atomically against eviction.
-    Metadata refs/cursors/receipts alone do not pin history; the collector never performs eviction and metadata-only
+    Metadata refs/receipts alone do not pin history; the collector never performs eviction and metadata-only
     import does not preserve all raw traffic.
 acceptance_criteria:
 - id: A1
@@ -194,6 +194,12 @@ tests:
   - A3
   - A4
   - A5
+- command: make test-wire-cross-language
+  covers: [A1, A4, A5]
+- command: make verify-public-api
+  covers: [A4]
+- command: make ui-verify
+  covers: [A4]
 test_prerequisites:
 - Use controlled report/provider fixtures, real Artifact storage and production process boundaries. Installed-engine
   test-scan-e2e is unnecessary for import-only changes; if implementation also changes scanner execution, its existing
@@ -233,3 +239,24 @@ implementation_decisions:
     scanner tools do not acquire another report writer. Allocation composition connects optional bounded
     subscribers. Selected Caido metadata is emitted before model-output redaction and without extra
     provider/target requests; native sitemap nodes lacking methods do not manufacture GET observations.
+- date: '2026-10-29'
+  decision: >-
+    Keep one bounded mixed collector queue and one publisher for HTTP, selected Caido rows and exact
+    report notifications. A definite invalid/unavailable report drops only its own item; allocation,
+    storage and retry-budget failures retain the existing whole-collector stop semantics. Closing
+    never chains a new publisher after cancellation; cleanup joins the active work before returning.
+- date: '2026-10-29'
+  decision: >-
+    The new evidence writer exposed a snapshot mismatch: an explicitly selected original consumer
+    input can contain the exact producer report under a different Run/ref. Match only configured
+    original-input descriptors by digest/media/size, rebind and deduplicate evidence, then use the
+    existing ordinary frozen forks. Foreign provenance alone never authorizes a read. Real-store
+    verification deletes both producer Runs before snapshot creation and preserves retained bytes
+    after consumer working-history eviction. Empty-result reports retain source gaps without inventing
+    a member evidence locator.
+- date: '2026-10-29'
+  decision: >-
+    Import tool arguments are format and artifact_ref so ordinary scalar and Artifact bindings in
+    model-free Workers can invoke it. No nested-argument engine is added. The existing common
+    256-KiB encoded command admission bound also applies after report projection; a pathological
+    report exceeding it fails permanently instead of adding continuation or widening shared limits.

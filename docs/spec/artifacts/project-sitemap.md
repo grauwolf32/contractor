@@ -261,6 +261,11 @@ explicit change to frozen-context replay semantics. Preserve omission details
 for selected sources and whole-map gaps in the selected context.
 Unneeded missing input names do not invalidate metadata reads or snapshots.
 Foreign provenance alone grants no byte read.
+Report evidence may match a permitted original input by its exact content
+descriptor (digest, media type and size), even when the producer Run/ref differs.
+The snapshot rebinds it to that consumer input and deduplicates equivalent
+locators before ordinary retention. It never reads the producer's scope to
+resolve a provenance mention.
 
 The derived frozen context, required forks and ordinary exact-reference
 protection commit atomically or roll back together. A lost map-revision eviction
@@ -289,19 +294,19 @@ and SMT-R4, without sitemap-specific secret matching. Import capability is
 advertised only when its format dispatcher is installed. The private command wrappers carry the private API version; the
 domain command schemas are generated from the public owning schema.
 
-**SMT-R18.** Allocation composition connects selected HTTP capture to an optional
+**SMT-R18.** Allocation composition connects selected HTTP and Caido capture to an optional
 transport-neutral observation sink. It receives minimal metadata for actual
 attempts, including each physical retry/redirect and negative outcome, before
 evidence-buffer admission/eviction. It never follows a Location. Submission does
 not await network or storage I/O. Subscriber errors cannot replace a target
-result; caller cancellation is preserved and joined. HTTP tools own no collector
+result; caller cancellation is preserved and joined. HTTP and Caido tools own no collector
 flush, retry or cleanup. An invalid target response status is represented as a
 transport-error observation with status zero, while the HTTP tool retains its
 original protocol error. It must not invalidate otherwise valid observations
 in the same batch.
 
-**SMT-R19.** Runtime retains only a bounded private in-memory batch of attempt
-metadata. Observation frames and private collection requests contain no
+**SMT-R19.** Runtime retains one bounded private in-memory queue of attempt
+metadata and already published report references. Observation frames and private collection requests contain no
 matching-secret list; no separate secret-count limit applies. No headers, bodies,
 persistent queue, URL identity or receipt digest are constructed there. One
 background private batch request invokes the existing Go normalizer before
@@ -320,7 +325,9 @@ one original three-request/15-second allowance. Definite protected-history
 refusal is permanent. A Server-exhausted transaction conflict receives no new
 Runtime transaction retry allowance. Refusal or budget exhaustion disables
 further automatic publication for the allocation; later reads and drain cannot
-renew that allowance. `Retry-After` applies only inside the remaining budget.
+renew that allowance. A definite invalid or unavailable source report drops only
+that report with technical diagnostics; subsequent valid contributions may continue.
+`Retry-After` applies only inside the remaining budget.
 A fresh live view attempts the caller's local flush and then reads committed
 data, including when automatic publication failed. Existing paged views remain
 immutable. Explicit read authorization/storage errors retain their own contract.
@@ -332,7 +339,7 @@ still joins publication and view construction before propagating.
 **SMT-R21.** Composition attempts a bounded infrastructure checkpoint before
 returning the Worker result, while allocation writes are still permitted.
 Server finalization fences writes before calling Runtime finalize, so finalize
-is never the first flush boundary. Composition closes HTTP producers before
+is never the first flush boundary. Composition closes producers before
 joining collector work at finalize, abort, fence, release and prepare rollback.
 No publisher survives release. Automatic failures, exhausted publication,
 overflow and crash may lose the bounded private batch; they produce no Run or
@@ -341,6 +348,62 @@ completion policy. Explicit imports, mutations and snapshots report their own
 operation failures. The HTTP-tools area owns this best-effort limitation;
 reopen the design only when a concrete consumer requires durable zero-loss
 collection and supplies the decision that depends on it.
+
+**SMT-R22.** Structured imports accept an explicit `ffuf-report@1` or
+`katana-report@1` format and an exact current-Run ArtifactRef. The Server reads
+metadata and exact bytes through ArtifactStore in the caller-owned transaction;
+there is no import-specific file store, raw-file API or Runtime parser. The
+`application/json` schemaVersion 1 tool report is limited to 512 KiB by SCN-R41;
+its retained results obey the owning 100-record and 128-KiB limits. The projected
+command must also fit the existing LIM-SMT-7 byte bound, including JSON escaping.
+One admitted report is one bounded reducer operation. Unknown formats, mismatched tools, malformed
+envelopes or invalid normalized records fail permanently without publication.
+No import executes a scanner, follows a redirect or substitutes a latest revision.
+
+**SMT-R23.** Import receipts bind the format, exact ref and authenticated Run
+through the existing Project keyed-mutation receipt. Accepted replay checks the
+receipt before reading source bytes and returns the accepted exact map ref,
+even after source or result history eviction. A changed selection or Run under
+the same key conflicts. Source identity remains stable by scanner kind and
+deployment; importing Runs and report revisions do not create summary variants.
+Existing bounded member evidence stores exact report locators without acquiring
+holds. Evidence overflow does not discard behavior. Snapshot authorization and
+retention continue to follow SMT-R16. Reports contain no exchange timestamp, so
+their immutable Artifact revision publication time supplies first/last; these
+times describe reports, not the exact time of individual HTTP requests.
+Reports with no retained members can contribute source gaps but have no member
+evidence locator; the caller retains its selected exact report ref independently.
+
+**SMT-R24.** ffuf contributes accepted GET matches and their response statuses;
+it does not establish route existence beyond a returned response or distinguish
+wildcard/soft-404 matches. Katana contributes only observed same-origin GET
+responses. Its bounded crawl, extension filter, response-size limit and
+unverified exhaustion remain inherent limitations; detailed per-report facts
+remain in the exact source report. The map preserves known discarded-result
+counts as `members`, invalid/skipped observations as `projection`, request-error
+counts as `request-errors`, and known execution incompleteness as `incomplete`.
+`report-truncated` counts reports declaring truncation or output overflow, not
+an invented count of discarded rows. `evidence` counts omitted exact report
+locators. These are bounded source facts, not a collector completion status or
+physical-traffic counters; replaying one accepted key never adds them again.
+
+**SMT-R25.** The generic tool Worker notifies an optional report subscriber only
+after ordinary report publication, including a valid report of a failed tool.
+Composition selects supported scanner reports and enqueues exact refs without
+reading their bytes. One pending queue and one publisher serve HTTP, Caido and
+reports within LIM-SMT-14; each publication contains one source-kind observation
+batch or one report ref. Automatic report import requires collection/write
+authority and the publishing allocation namespace; explicit import requires the
+selected import operation and ordinary current-Run read authority.
+
+Selected Caido history pages, request details and completed replay entries may
+contribute only metadata already returned by those operations, before model
+output redaction or evidence-buffer eviction. No additional provider request is
+made for collection. Native sitemap nodes lacking methods and other projections
+lacking factual origin/time do not manufacture observations. A missing response
+is an `attempt` with status zero. Go normalizes valid timestamps; unsupported or
+invalid selected rows become bounded `projection` gaps without rejecting other
+valid rows. Caido provider IDs never become invented durable ArtifactRefs.
 
 ## Interfaces
 
@@ -362,10 +425,18 @@ replacement map document.
 
 The allocation collector uses
 `POST /private/v1/allocations/{allocationId}/sitemap/observations` with
-`{apiVersion, input}` and `Idempotency-Key`. Transient input contains only bounded
-attempt metadata. Existing mTLS allocation fencing and the
+`{apiVersion, input}` and `Idempotency-Key`. Transient input contains a composition-selected
+`kind` (`http` or `caido`) and bounded attempt metadata. Existing mTLS allocation fencing and the
 [private wire schema](../../../api/v1alpha1/project-sitemap.schema.json) apply.
 Explicit allocation commands retain their mutation/snapshot operations.
+`POST /private/v1/allocations/{allocationId}/sitemap/imports` accepts
+`{apiVersion, selection: {format, artifact}, automatic}` with the same key and
+mutation result envelope. The required `automatic` transport flag belongs to
+composition and is absent from model tool arguments. All store-reaching routes
+preserve retryable `503 storage_transaction_conflict`.
+The model-facing `import_sitemap_source(format, artifact_ref, idempotency_key)`
+uses ordinary scalar and Artifact argument bindings, including in `tool@1`
+Workflows; it does not require nested argument construction by the Worker.
 
 Allocation reads use the common Artifact raw/metadata API with `scope=project`
 and the exact selected operation (ART-R135). Before every cached list/read page,

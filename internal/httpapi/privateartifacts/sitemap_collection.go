@@ -43,7 +43,7 @@ func (h *handler) collectSitemapObservations(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	err = h.withSitemapGrant(r, sitemapCollector, func(ctx context.Context, access projectsitemap.AllocationAccess) error {
-		result, err := h.dependencies.Sitemap.CollectHTTPAllocation(ctx, access, keys[0], input.Input)
+		result, err := h.dependencies.Sitemap.CollectAllocation(ctx, access, keys[0], input.Input)
 		if err != nil {
 			return err
 		}

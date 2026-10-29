@@ -72,6 +72,7 @@ def test_shared_sitemap_private_wire() -> None:
         "SitemapSnapshotRequest",
         "SitemapSnapshotResponse",
         "SitemapCollectionRequest",
+        "SitemapImportRequest",
     }
     assert len(cases["invalid"]) >= 15
     for valid, group in ((True, cases["valid"]), (False, cases["invalid"])):

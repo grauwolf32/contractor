@@ -346,6 +346,12 @@ fields.
 **SCN-R41.** The report is `application/json`, at most 512 KiB (LIM-SCN-10),
 and contains `schemaVersion` 1, `tool`, `inputDigest`, the exact
 `inputArtifacts` and the unchanged bounded tool response under `observation`.
+After ordinary publication the tool Worker may notify a generic optional report
+subscriber with the tool name and exact ref, including when the report describes
+a failed invocation. Subscriber failure never replaces the report or tool outcome;
+the caller joins cancellation. Allocation composition owns subscriber selection
+and cleanup. Structured sitemap imports are specified by
+[SMT-R22](../artifacts/project-sitemap.md) through [SMT-R25](../artifacts/project-sitemap.md).
 
 **SCN-R42.** Report publication is create-only to the supplied output binding.
 Runtime must not overwrite an existing report or infer its ownership by name

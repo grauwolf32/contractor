@@ -2611,7 +2611,7 @@ export interface components {
         SitemapGap: {
             sourceId: "" | components["schemas"]["ResourceId"];
             /** @enum {string} */
-            reason: "structural" | "members" | "groups" | "summaries" | "examples" | "regrouping" | "incomplete" | "parameters" | "source-unavailable" | "ambiguous" | "projection";
+            reason: "structural" | "members" | "groups" | "summaries" | "examples" | "regrouping" | "incomplete" | "parameters" | "source-unavailable" | "ambiguous" | "projection" | "report-truncated" | "request-errors" | "evidence";
             count: number;
         };
         SitemapMutation: {

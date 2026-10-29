@@ -1134,15 +1134,18 @@ outcomes are domain results, not error codes (HTP-R91, HTP-R111).
 - Header removal from retained metrics (HTP-R61).
 - The adapter owns its safe metrics (HTP-R16).
 
-**HTP-R135.** HTTP capture may notify an optional transport-neutral allocation
-subscriber before evidence-buffer admission. Observation frames carry bounded
+**HTP-R135.** HTTP capture and selected Caido history/detail/completed replay
+results may notify an optional transport-neutral allocation subscriber before
+model-output redaction and evidence-buffer admission. Caido adds no provider call
+for notification; native sitemap nodes without methods do not imply GET requests.
+Observation frames carry bounded
 attempt metadata only, with no matching-secret list or sitemap-only session
 generation. The subscriber does not infer identity or authentication state; actual
-HTTP credentials, cookies and sessions retain their existing behavior. HTTP tools do not own sitemap
+HTTP credentials, cookies and sessions retain their existing behavior. HTTP and Caido tools do not own sitemap
 projection, persistence, retry or drain. The automatic subscriber cannot add
-sitemap failure fields to HTTP results, repeat target traffic or replace its
+sitemap failure fields to tool results, repeat target traffic or replace its
 outcome. Caller cancellation remains joined. [SMT-R18](../artifacts/project-sitemap.md)
-through [SMT-R21](../artifacts/project-sitemap.md) own collector behavior.
+through [SMT-R25](../artifacts/project-sitemap.md) own collector and selected-source behavior.
 
 **HTP-R136.** The private recent Runtime HTTP capture retains its first captured request-attempt's
 start timestamp and optional pinned deployment marker with the same

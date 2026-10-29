@@ -71,7 +71,8 @@
               "status": 200,
               "at": "2026-10-26T00:00:00Z"
             }
-          ]
+          ],
+          "kind": "http"
         }
       }
     },
@@ -93,6 +94,54 @@
                 "structural": []
               }
             ]
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "caido"
+        }
+      }
+    },
+    {
+      "type": "SitemapImportRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "automatic": false,
+        "selection": {
+          "format": "ffuf-report@1",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapImportRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "automatic": true,
+        "selection": {
+          "format": "katana-report@1",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
           }
         }
       }
@@ -311,7 +360,8 @@
               "status": 200,
               "at": "2026-10-26T00:00:00Z"
             }
-          ]
+          ],
+          "kind": "http"
         }
       }
     },
@@ -328,7 +378,8 @@
               "status": 200,
               "at": "2026-10-26T00:00:00Z"
             }
-          ]
+          ],
+          "kind": "http"
         }
       }
     },
@@ -346,7 +397,8 @@
               "at": "2026-10-26T00:00:00Z"
             }
           ],
-          "secrets": []
+          "secrets": [],
+          "kind": "http"
         }
       }
     },
@@ -502,7 +554,8 @@
               "at": "2026-10-26T00:00:00Z",
               "sessionGeneration": "session-one"
             }
-          ]
+          ],
+          "kind": "http"
         }
       }
     },
@@ -568,6 +621,164 @@
               "policyDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
             },
             "rules": []
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "http-proxy"
+        }
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": ""
+        }
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "SitemapImportRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "selection": {
+          "format": "katana-report@1",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapImportRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "automatic": true
+      }
+    },
+    {
+      "type": "SitemapImportRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "automatic": true,
+        "selection": {
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapImportRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "automatic": true,
+        "selection": {
+          "format": "katana-report@1"
+        }
+      }
+    },
+    {
+      "type": "SitemapImportRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "automatic": true,
+        "selection": {
+          "format": "katana-report@2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapImportRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "automatic": true,
+        "selection": {
+          "format": "katana-report@1",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report"
+          }
+        }
+      }
+    },
+    {
+      "type": "SitemapImportRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "automatic": true,
+        "selection": {
+          "format": "katana-report@1",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "runId": "forged"
+        }
+      }
+    },
+    {
+      "type": "SitemapImportRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "automatic": null,
+        "selection": {
+          "format": "katana-report@1",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
           }
         }
       }

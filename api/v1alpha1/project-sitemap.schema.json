@@ -504,9 +504,16 @@
               "items": {
                 "$ref": "#/$defs/SitemapHTTPObservation"
               }
+            },
+            "kind": {
+              "enum": [
+                "http",
+                "caido"
+              ]
             }
           },
           "required": [
+            "kind",
             "observations"
           ]
         }
@@ -562,6 +569,42 @@
           }
         }
       }
+    },
+    "SitemapImportRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": {
+          "const": "contractor/v1alpha1"
+        },
+        "automatic": {
+          "type": "boolean"
+        },
+        "selection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "format": {
+              "enum": [
+                "ffuf-report@1",
+                "katana-report@1"
+              ]
+            },
+            "artifact": {
+              "$ref": "#/$defs/ExactArtifactRef"
+            }
+          },
+          "required": [
+            "format",
+            "artifact"
+          ]
+        }
+      },
+      "required": [
+        "apiVersion",
+        "selection",
+        "automatic"
+      ]
     }
   },
   "oneOf": [
@@ -576,6 +619,12 @@
     },
     {
       "$ref": "#/$defs/SitemapSnapshotResponse"
+    },
+    {
+      "$ref": "#/$defs/SitemapCollectionRequest"
+    },
+    {
+      "$ref": "#/$defs/SitemapImportRequest"
     }
   ]
 }

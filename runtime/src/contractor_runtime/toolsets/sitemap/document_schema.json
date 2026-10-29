@@ -235,7 +235,10 @@
             "parameters",
             "source-unavailable",
             "ambiguous",
-            "projection"
+            "projection",
+            "report-truncated",
+            "request-errors",
+            "evidence"
           ],
           "type": "string"
         },
