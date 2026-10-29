@@ -5,7 +5,7 @@ milestone: finding-sarif-export-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on:
 - V397-001
 - V397-002
@@ -124,3 +124,5 @@ implementation_notes:
   - "The exact-analysis resolver is consumed by existing collection publication without changing the proposal or collection format."
   - "A trusted original-ref mapping preserves source identity and capture provenance through Audit-retained copies after source Run deletion."
   - "HTTP capture decoding now uses its declared HTTP/private-submission bounds instead of the smaller generic Audit document/string limits; maximum-body regressions failed before the fix."
+
+implementation_commit: bf453550e44ffbbbc5a76c2811fa399324ea2c10
