@@ -33,29 +33,47 @@ scope:
   in:
   - Update real Runtime advertisement expectations using a shared test helper or exact current
     sets, preserving checks that HTTP and Caido specializations remain distinct and available.
-  - Verify shared built-in capability presence without broadening RuntimeConfig provenance.
+  - Preserve required-capability subset selection and unique live-principal lookup without
+    broadening exact RuntimeConfig provenance. Controlled HTTP independently requires its builtin.
   - Exercise every affected parent process test and the complete canonical process union.
   out:
   - No production capability, placement, RuntimeConfig, timeout or compatibility change.
 acceptance_criteria:
 - id: A1
-  text: Healthy HTTP and Caido Runtimes satisfy the fixture only with their expected specialization
-    and controlled HTTP capability; the real HTTP/Caido and sitemap HTTP scenarios execute.
+  text: Healthy HTTP and Caido Runtimes satisfy the fixture when their required specialization
+    is available; unrelated advertised capabilities remain valid under CTL-R73/R74. The real
+    HTTP/Caido and sitemap HTTP scenarios execute.
 - id: A2
   text: Label-driven fixtures and sibling selectors use the current advertisement while allocation
     provenance retains only the actually configured adapters.
 - id: A3
-  text: Tests continue to reject missing or wrong capabilities, and all affected process owners pass
-    without arbitrary timeout increases or permissive unknown-capability filtering.
+  text: Selectors reject missing requirements and ambiguous matching live principals, preserve
+    exact configured RuntimeConfig provenance, and all affected process owners pass without
+    arbitrary timeout increases or a second inventory-validation rule.
 tests:
 - command: go test -count=1 ./tests/e2e
   covers: [A1, A2, A3]
 - command: go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestLabelDrivenRuntimeConfigurationAcrossProcesses)$'
   covers: [A1, A2, A3]
-- command: make test-release-process-e2e
+- command: make test-release-process-e2e-a test-release-process-e2e-b test-release-process-e2e-c
   covers: [A1, A2, A3]
 - command: make lint
   covers: [A1, A2, A3]
 assignment:
   branch: codex/v411-004-http-conformance
   claimed: '2026-10-29'
+
+integration_decision:
+  current_main: 08a6b8310213283269da338536ea49bcf64e6153
+  resolved_by: V410-023
+  guarantee: CTL-R73/R74 define selection by required capabilities, allowing additional advertised
+    capabilities without configuring them. CTL-R168 separately requires the controlled HTTP builtin
+    for preflight. RuntimeConfig provenance remains exact.
+  decision: Main independently repaired the same fixtures while this branch was being verified.
+    Reuse its single subset selector and unique-live-principal lookup; remove this branch's duplicate
+    exact-inventory helper. Complete inventory equality was an unnecessary internal assumption in
+    this task, not the protocol contract. No production capability or placement behavior changes.
+  verification: Run all three canonical process shards on the integrated source. Their union includes
+    every deterministic process root, including main's additive-capability regression and our HTTP
+    matrix; no process case is omitted. The earlier unsharded run exhausted its aggregate 50-minute
+    allowance after 33 successful parents and is retained as an incomplete diagnostic, not a pass.
