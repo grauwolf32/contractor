@@ -11,6 +11,7 @@ depends_on:
 languages:
 - go
 - python
+- json
 - yaml
 - markdown
 goal: Prove the existing V411-003 controlled HTTP production path rejects prohibited traffic and preserves
@@ -94,8 +95,9 @@ cardinality:
   bound: V411-003 reserves every physical send; response streaming stops at bounded bytes, and connection
     attempts remain bounded by the shared resolver limit.
 - collection: One request/response and route policy
-  expected: 64 KiB request and 256 KiB response
-  maximum: 1 MiB each, 64 headers/32 KiB aggregate, 8,192-byte URL; 128 routes/exclusions and 16 origins
+  expected: Anonymous GET/read without a request body and a 256 KiB response.
+  maximum: Response at most 1 MiB or the lower engagement cap, 64 headers/32 KiB aggregate,
+    8,192-byte URL; 128 routes/exclusions and 16 origins. Private action requests are at most 64 KiB.
   bound: Reject or stream-truncate before unbounded buffering; capture truncation metadata and no
     hidden retry.
 lifecycle:
@@ -131,7 +133,10 @@ acceptance_criteria:
   then: Zero cases/unexpected skips fail, every new scenario has a release owner and ordinary HTTP
     behavior remains unchanged.
 tests:
-- command: go test -tags=e2e -count=1 -timeout=60m ./tests/e2e
+- command: go test -count=1 ./tests/e2e
+  covers:
+  - A5
+- command: make test-release-process-e2e
   covers:
   - A1
   - A2
@@ -181,3 +186,15 @@ applicability:
   lifecycle and restart conformance matrix and its non-skippable release gate are not yet present.
 - This task changes tests and their gate only. A discovered production defect is tracked and repaired
   separately before its conformance case can pass; the production policy is never weakened by a fixture.
+- The original unfiltered e2e-tagged command also runs the project's explicitly opt-in real scanner
+  and Podman/container tests. The baseline diagnostic demonstrated missing external prerequisites;
+  it is not counted as a pass. Required verification uses the full untagged e2e package plus the
+  canonical release process union, which includes every deterministic tagged process case and
+  preserves the existing opt-in ownership in scripts/check_release_verify_graph.py.
+- Independent TCP and Server/Runtime observers confirmed raw dot-segment redirects were normalized
+  before admission; V411-022 repairs that production defect. The existing Skills process baseline
+  also found a stale public Artifact response DTO introduced by V410-021; V411-023 repairs its
+  test consumers without changing production behavior. Both repairs must pass before this task closes.
+- V411-024 repairs sibling HTTP/Caido and label process assertions that still expected a single
+  advertised adapter after V411-003 added the built-in controlled HTTP capability. It changes no
+  production placement or RuntimeConfig provenance; all affected process owners must pass.
