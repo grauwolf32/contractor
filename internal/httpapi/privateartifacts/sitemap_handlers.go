@@ -2,15 +2,12 @@ package privateartifacts
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
-	"strconv"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
-	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
 )
 
@@ -19,11 +16,9 @@ var (
 	errSitemapUnavailable  = errors.New("sitemap service is unavailable")
 )
 
-const sitemapRevisionHeader = "X-Contractor-Sitemap-Revision"
-
 type sitemapMutationRequest struct {
-	APIVersion string                  `json:"apiVersion" strictjson:"required"`
-	Mutation   projectsitemap.Mutation `json:"mutation" strictjson:"required"`
+	APIVersion string                        `json:"apiVersion" strictjson:"required"`
+	Mutation   projectsitemap.EditorMutation `json:"mutation" strictjson:"required"`
 }
 type sitemapSnapshotRequest struct {
 	APIVersion string                           `json:"apiVersion" strictjson:"required"`
@@ -56,81 +51,6 @@ func (h *handler) withSitemapGrant(r *http.Request, allowed func(controlplane.Al
 		}
 		return operation(ctx, access)
 	})
-}
-
-func sitemapReader(grant controlplane.AllocationGrant) bool {
-	return slices.Contains(grant.SitemapTools, contracts.SitemapListTool) || slices.Contains(grant.SitemapTools, contracts.SitemapReadTool) || slices.Contains(grant.SitemapTools, contracts.SitemapSnapshotTool)
-}
-
-func (h *handler) getSitemapAccess(w http.ResponseWriter, r *http.Request) {
-	query, err := exactQuery(r.URL.RawQuery, "operation")
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	operation := query.Get("operation")
-	if !slices.Contains(contracts.SitemapToolNames(), operation) {
-		h.handleError(w, errInvalidRequest)
-		return
-	}
-	err = h.withSitemapGrant(r, func(grant controlplane.AllocationGrant) bool {
-		if !slices.Contains(grant.SitemapTools, operation) {
-			return false
-		}
-		return operation == contracts.SitemapListTool || operation == contracts.SitemapReadTool || grant.WritePolicy == controlplane.WriteInputsAndIntermediates
-	}, func(_ context.Context, access projectsitemap.AllocationAccess) error {
-		writeJSON(w, http.StatusOK, access)
-		return nil
-	})
-	if err != nil {
-		h.handleError(w, err)
-	}
-}
-
-func (h *handler) getSitemap(w http.ResponseWriter, r *http.Request) {
-	query, err := exactQuery(r.URL.RawQuery, "revision")
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	if revision := query.Get("revision"); revision != "" && !contracts.ValidResourceID(revision) {
-		h.handleError(w, errInvalidRequest)
-		return
-	}
-	err = h.withSitemapGrant(r, sitemapReader, func(ctx context.Context, access projectsitemap.AllocationAccess) error {
-		admitted, transfer, err := artifacttransfer.Acquire(w, r.WithContext(ctx))
-		if err != nil {
-			return err
-		}
-		defer transfer.Close()
-		ctx, cancel := artifacttransfer.StorageContext(admitted.Context())
-		defer cancel()
-		view, err := h.dependencies.Sitemap.ReadAllocation(ctx, access, query.Get("revision"))
-		if err != nil {
-			transfer.ReleaseBeforeWrite(0)
-			return err
-		}
-		body, err := json.Marshal(view.Document)
-		if err != nil || len(body) > projectsitemap.MaxDocumentBytes {
-			transfer.ReleaseBeforeWrite(0)
-			return projectsitemap.ErrInvalid
-		}
-		transfer.BoundWrite(int64(len(body)))
-		w.Header().Set("Content-Type", projectsitemap.MediaType)
-		w.Header().Set("Content-Length", strconv.Itoa(len(body)))
-		w.Header().Set("Cache-Control", "no-store")
-		revision := view.Revision
-		if revision == "" {
-			revision = "absent"
-		}
-		w.Header().Set(sitemapRevisionHeader, revision)
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(body)
-		return nil
-	})
-	if err != nil {
-		h.handleError(w, err)
-	}
 }
 
 func (h *handler) mutateSitemap(w http.ResponseWriter, r *http.Request) {

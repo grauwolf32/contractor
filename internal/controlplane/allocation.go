@@ -78,23 +78,33 @@ type PinnedReservationConfig struct {
 }
 
 type AllocationGrant struct {
-	AllocationID      string
-	RuntimeAgentID    string
-	RuntimeInstanceID string
-	RunID             string
-	StageExecutionID  string
-	LogicalAgentName  string
-	Namespace         string
-	ReadPolicy        ArtifactReadPolicy
-	WritePolicy       ArtifactWritePolicy
-	WriteFenced       bool
-	Lost              bool
-	SitemapPolicy     *contracts.ProjectSitemapPolicy
-	SitemapTools      []string
+	AllocationID         string
+	RuntimeAgentID       string
+	RuntimeInstanceID    string
+	RunID                string
+	StageExecutionID     string
+	LogicalAgentName     string
+	Namespace            string
+	ReadPolicy           ArtifactReadPolicy
+	WritePolicy          ArtifactWritePolicy
+	WriteFenced          bool
+	Lost                 bool
+	SitemapPolicy        *contracts.ProjectSitemapPolicy
+	SitemapTools         []string
+	ProjectArtifactReads []ProjectArtifactReadTarget
 	// LossReason records why the grant was lost. It is set together with Lost
 	// so a consumer that detects the loss through the grant can report the
 	// specific reason instead of collapsing every loss into one code.
 	LossReason AllocationLossReason
+}
+
+// ProjectArtifactReadTarget grants selected operations access to one concrete
+// binding in the durable Run's owning Project. It never carries a scope ID or
+// authorizes a listing, wildcard or write.
+type ProjectArtifactReadTarget struct {
+	Namespace  string
+	Name       string
+	Operations []string
 }
 
 type AllocationLossReason string

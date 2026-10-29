@@ -42,7 +42,7 @@ func TestPostgresSitemapDeclarationObservationSharePlacement(t *testing.T) {
 						t.Fatalf("%s: %v", mutation.Operation, err)
 					}
 					revision = *result.Ref.Revision
-					view, err := service.Read(ctx, "owner", "project", revision)
+					view, err := readSitemap(service, ctx, "project", revision)
 					if err != nil {
 						t.Fatalf("read committed %s: %v", mutation.Operation, err)
 					}

@@ -1,6 +1,7 @@
 package privateartifacts
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -105,86 +106,57 @@ func (h *handler) listArtifacts(w http.ResponseWriter, r *http.Request) {
 // getArtifact takes a transfer slot only after the request and the allocation
 // grant are accepted, and holds it while the payload is read and written.
 func (h *handler) getArtifact(w http.ResponseWriter, r *http.Request) {
-	store, ref, err := h.readTarget(r)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	r, transfer, err := artifacttransfer.Acquire(w, r)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	defer transfer.Close()
-	ctx, cancel := artifacttransfer.StorageContext(r.Context())
-	defer cancel()
-	result, err := store.Read(ctx, ref)
-	if err != nil {
-		transfer.ReleaseBeforeWrite(0)
-		h.handleError(w, err)
-		return
-	}
-	transfer.BoundWrite(int64(len(result.Payload.Data)))
-	w.Header().Set("Content-Type", result.Payload.MediaType)
-	w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
-	setArtifactTimestampHeaders(w.Header(), result.BindingCreatedAt, result.RevisionCreatedAt)
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(result.Payload.Data)))
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(result.Payload.Data)
-}
-
-// getArtifactMetadata answers what the raw read of the same ref would return,
-// its exact revision, media type and size, without reading or sending the
-// payload, so a reader can refuse or reuse content before downloading it
-// (ART-R116).
-func (h *handler) getArtifactMetadata(w http.ResponseWriter, r *http.Request) {
-	store, ref, err := h.readTarget(r)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	ctx, cancel := artifacttransfer.StorageContext(r.Context())
-	defer cancel()
-	metadata, err := store.Metadata(ctx, ref)
-	if err != nil {
-		h.handleError(w, err)
-		return
-	}
-	response := contracts.ArtifactMetadataResult{
-		APIVersion: contracts.APIVersion, Artifact: metadata.Ref,
-		MediaType: metadata.MediaType, Size: metadata.Size, ContentCacheKey: metadata.ContentCacheKey,
-	}
-	if err := response.Validate(); err != nil {
-		h.handleError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, response)
-}
-
-// readTarget validates a raw or metadata read of one current or exact ref and
-// resolves the allocation's RunScope for it.
-func (h *handler) readTarget(r *http.Request) (artifacts.ScopedStore, contracts.ArtifactRef, error) {
-	query, err := exactQuery(r.URL.RawQuery, "revision")
-	if err != nil {
-		return artifacts.ScopedStore{}, contracts.ArtifactRef{}, err
-	}
-	ref := contracts.ArtifactRef{Namespace: r.PathValue("namespace"), Name: r.PathValue("name")}
-	if values, present := query["revision"]; present {
-		if values[0] == "" {
-			return artifacts.ScopedStore{}, contracts.ArtifactRef{},
-				fmt.Errorf("%w: revision must not be empty", errInvalidRequest)
+	err := h.withReadTarget(r, false, func(ctx context.Context, store artifacts.ScopedStore, ref contracts.ArtifactRef) error {
+		admitted, transfer, err := artifacttransfer.Acquire(w, r.WithContext(ctx))
+		if err != nil {
+			return err
 		}
-		ref.Revision = &values[0]
-	}
-	store, err := h.runStore(r, false)
+		defer transfer.Close()
+		ctx, cancel := artifacttransfer.StorageContext(admitted.Context())
+		defer cancel()
+		result, err := store.Read(ctx, ref)
+		if err != nil {
+			transfer.ReleaseBeforeWrite(0)
+			return err
+		}
+		transfer.BoundWrite(int64(len(result.Payload.Data)))
+		w.Header().Set("Content-Type", result.Payload.MediaType)
+		w.Header().Set("ETag", httpx.QuotedETag(result.Ref.Revision))
+		setArtifactTimestampHeaders(w.Header(), result.BindingCreatedAt, result.RevisionCreatedAt)
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(result.Payload.Data)))
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(result.Payload.Data)
+		return nil
+	})
 	if err != nil {
-		return artifacts.ScopedStore{}, contracts.ArtifactRef{}, err
+		h.handleError(w, err)
 	}
-	if artifactpolicy.IsRunSystemNamespace(ref.Namespace) {
-		return artifacts.ScopedStore{}, contracts.ArtifactRef{}, artifacts.ErrReservedNamespace
+}
+
+// getArtifactMetadata resolves an exact revision without reading its payload,
+// under the same scope and operation authority as the ordinary raw read.
+func (h *handler) getArtifactMetadata(w http.ResponseWriter, r *http.Request) {
+	err := h.withReadTarget(r, false, func(ctx context.Context, store artifacts.ScopedStore, ref contracts.ArtifactRef) error {
+		ctx, cancel := artifacttransfer.StorageContext(ctx)
+		defer cancel()
+		metadata, err := store.Metadata(ctx, ref)
+		if err != nil {
+			return err
+		}
+		response := contracts.ArtifactMetadataResult{
+			APIVersion: contracts.APIVersion, Artifact: metadata.Ref,
+			MediaType: metadata.MediaType, Size: metadata.Size, ContentCacheKey: metadata.ContentCacheKey,
+		}
+		if err := response.Validate(); err != nil {
+			return err
+		}
+		writeJSON(w, http.StatusOK, response)
+		return nil
+	})
+	if err != nil {
+		h.handleError(w, err)
 	}
-	return store, ref, nil
 }
 
 // putArtifact takes a transfer slot after the request and allocation checks,

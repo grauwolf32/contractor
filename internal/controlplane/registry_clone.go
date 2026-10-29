@@ -81,6 +81,10 @@ func cloneAllocationGrant(source AllocationGrant) AllocationGrant {
 	result := source
 	result.SitemapPolicy = source.SitemapPolicy.Clone()
 	result.SitemapTools = append([]string(nil), source.SitemapTools...)
+	result.ProjectArtifactReads = append([]ProjectArtifactReadTarget(nil), source.ProjectArtifactReads...)
+	for i := range result.ProjectArtifactReads {
+		result.ProjectArtifactReads[i].Operations = append([]string(nil), source.ProjectArtifactReads[i].Operations...)
+	}
 	return result
 }
 

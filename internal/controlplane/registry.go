@@ -529,6 +529,7 @@ func (r *InMemoryRegistry) reserveAll(
 				grant.SitemapTools = append([]string(nil), selection.Tools...)
 			}
 		}
+		grant.ProjectArtifactReads = projectArtifactReadTargets(grant)
 		reservation := Reservation{
 			PlacementLabels:        append([]string{}, entry.registration.PlacementLabels...),
 			CompletionContract:     contracts.CloneWorkerCompletionContract(binding.CompletionContract),

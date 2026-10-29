@@ -53,7 +53,7 @@ func TestPostgresSitemapSnapshotMissingContentReportsStorageFailure(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	view, err := service.ReadAllocation(ctx, access, "")
+	view, err := readSitemap(service, ctx, access.ProjectID, "")
 	if err != nil || len(view.Document.Groups) != 1 || view.Document.Groups[0].Route != "/declared" {
 		t.Fatalf("missing source bytes hid map knowledge: %v", err)
 	}

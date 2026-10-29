@@ -1,5 +1,5 @@
-// Package privateartifacts exposes allocation-bound RunScope artifact access
-// to mTLS-authenticated Runtime Agents.
+// Package privateartifacts exposes allocation-bound RunScope access and
+// explicitly granted Project Artifact reads to mTLS-authenticated Runtime Agents.
 package privateartifacts
 
 import (
@@ -17,7 +17,9 @@ import (
 	"github.com/grauwolf32/contractor/internal/httpapi/httpx"
 	"github.com/grauwolf32/contractor/internal/mtls"
 	"github.com/grauwolf32/contractor/internal/projectsitemap"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/requestid"
+	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
 const RuntimeInstanceHeader = "X-Contractor-Runtime-Instance-ID"
@@ -36,6 +38,16 @@ type Dependencies struct {
 	NewRequestID    func() (string, error)
 	Logger          *slog.Logger
 	Sitemap         *projectsitemap.Service
+	RunProjects     RunProjectReader
+	Projects        ProjectReader
+}
+
+type RunProjectReader interface {
+	ProjectContext(context.Context, string) (runstore.ProjectContext, error)
+}
+
+type ProjectReader interface {
+	Get(context.Context, string, string) (projectstore.Project, error)
 }
 
 type FindingIntake interface {
@@ -82,10 +94,9 @@ func (h *handler) routes() []httpx.Route {
 		{Method: http.MethodGet, Path: allocation + "/artifacts", Handler: h.listArtifacts},
 		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.getArtifact},
 		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}/metadata", Handler: h.getArtifactMetadata},
+		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}/access", Handler: h.getArtifactAccess},
 		{Method: http.MethodPut, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.putArtifact},
 		{Method: http.MethodPost, Path: allocation + "/finding-proposals", Handler: h.postFindingProposal},
-		{Method: http.MethodGet, Path: allocation + "/sitemap/access", Handler: h.getSitemapAccess},
-		{Method: http.MethodGet, Path: allocation + "/sitemap", Handler: h.getSitemap},
 		{Method: http.MethodPost, Path: allocation + "/sitemap/mutations", Handler: h.mutateSitemap},
 		{Method: http.MethodPost, Path: allocation + "/sitemap/snapshots", Handler: h.snapshotSitemap},
 		{Method: http.MethodPost, Path: allocation + "/sitemap/observations", Handler: h.collectSitemapObservations},

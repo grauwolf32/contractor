@@ -81,7 +81,7 @@ func TestPostgresSitemapSingleRunExceedsRemovedPublicationCaps(t *testing.T) {
 	if retained != 2 || retainedBytes > policy.MaxBytes() {
 		t.Fatalf("common history exceeded: %d / %d", retained, retainedBytes)
 	}
-	if _, err := service.Read(ctx, "owner", "project", *first.Ref.Revision); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+	if _, err := readSitemap(service, ctx, "project", *first.Ref.Revision); !errors.Is(err, artifacts.ErrArtifactNotFound) {
 		t.Fatalf("old unpinned source: %v", err)
 	}
 	t.Logf("single producer Run: accepted=257, encoded_publication_bytes=%d, retained_revisions=%d, retained_bytes=%d", bytesPublished, retained, retainedBytes)
