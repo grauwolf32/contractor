@@ -1,0 +1,66 @@
+schema_version: "1.0"
+id: V410-023
+title: "Match required Runtime adapters in heterogeneous process gates"
+milestone: autonomous-http-pentest-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V411-003
+priority: P1
+status: in_progress
+depends_on: [V411-003]
+languages: [go]
+goal: >-
+  Keep HTTP/Caido, sitemap collection and Runtime-label process gates valid when
+  a Runtime advertises additional independent adapter capabilities.
+context:
+  specification:
+    - docs/spec/tools/http-caido.md#HTP-R14
+  severity: medium
+  finding: >-
+    tests/e2e/http_caido_test.go:215 and tests/e2e/runtime_labels_test.go:196
+    compare the whole advertised adapter list with one adapter, and
+    tests/e2e/runtime_labels_test.go:757 repeats this assumption while selecting
+    principals. V411-003 commit 85892fd1eb8378b34b6073cdb0e984da02c5201d adds
+    the always-available pentest-target-http@1 capability. Healthy processes
+    therefore never satisfy the registration waits, including the shared
+    sitemap collection process gate, and time out after 300 seconds.
+  siblings: >-
+    Fix both registration waits and their common principal selector. Preserve
+    assertHTTPCaidoAllocation's exact comparison of resolved configuration
+    provenance: this records selected routes, not every advertised capability.
+    The taint process test already checks adapter membership. Other fixed-list
+    assertions use synthetic contract fixtures rather than live capabilities.
+scope:
+  in:
+    - "Use one required-subset matcher for advertised adapter capabilities."
+    - "Reject ambiguous principal selection instead of silently selecting the first match."
+    - "Cover additional adapters, ordering and missing requirements with a deterministic regression."
+    - "Run the existing real-process HTTP/Caido, Runtime-label and sitemap collection gates."
+  out:
+    - "Production capabilities, placement, RuntimeConfig resolution and public or private contracts."
+    - "Weakening exact assertions about allocation placement or configured adapter provenance."
+acceptance_criteria:
+  - id: A1
+    text: >-
+      HTTP/Caido and sitemap collection process tests discover the two intended
+      Runtime principals with pentest-target-http@1 advertised and retain their
+      allocation identity and exact configured-route checks.
+  - id: A2
+    text: >-
+      The Runtime-label process test selects the intended proxy and telemetry
+      principals with additional advertised capabilities and completes its
+      label binding, placement and prepare rejection checks.
+  - id: A3
+    text: >-
+      The shared matcher accepts required adapters in any order with additional
+      capabilities, rejects a missing required adapter, and principal selection
+      requires a unique live match. The deterministic test is included in the
+      release gate; the process regressions fail with the previous exact-list
+      expectations.
+tests:
+  - command: "go test -tags=e2e -count=1 ./tests/e2e -run '^TestRuntimeAdapterSelectionAllowsAdditionalCapabilities$'"
+    covers: [A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-http-caido-e2e test-runtime-labels-e2e test-project-sitemap-tools-e2e"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A1, A2, A3]

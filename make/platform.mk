@@ -43,7 +43,7 @@ test-run-metadata-labels-e2e: require-database test-run-metadata-labels-hardenin
 	$(call run-family-test,go test -tags=e2e -count=1 -timeout=5m ./tests/e2e -run '^TestRunMetadataLabelsAcrossProcesses$$')
 
 test-runtime-labels-e2e: require-database runtime-venv
-	$(call run-family-test,go test -tags=e2e -count=1 -timeout=7m ./tests/e2e -run '^TestLabelDrivenRuntimeConfigurationAcrossProcesses$$')
+	$(call run-family-test,go test -tags=e2e -count=1 -timeout=7m ./tests/e2e -run '^Test(LabelDrivenRuntimeConfigurationAcrossProcesses|RuntimeAdapterSelectionAllowsAdditionalCapabilities)$$')
 
 # The process test uses model-free Workers; the real-store companion covers
 # Audit preparation, checks, later rounds and trusted inheritance boundaries.

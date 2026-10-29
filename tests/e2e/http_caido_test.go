@@ -212,10 +212,10 @@ func testHTTPAndCaidoProcesses(t *testing.T, collection bool) {
 				if item.SlotState != "idle" || item.ConfirmedLeaseUntil == nil {
 					return false
 				}
-				switch strings.Join(item.SupportedRuntimeAdapters, ",") {
-				case "http-proxy@1":
+				switch {
+				case supportsRuntimeAdapters(item.SupportedRuntimeAdapters, "http-proxy@1"):
 					foundHTTP = true
-				case "caido-graphql@1":
+				case supportsRuntimeAdapters(item.SupportedRuntimeAdapters, "caido-graphql@1"):
 					foundCaido = true
 				}
 			}
