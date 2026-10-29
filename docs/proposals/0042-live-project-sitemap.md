@@ -838,8 +838,8 @@ unimplemented until those records are completed with evidence.
 | [V410-001](../../tasks/done/v410-001-project-sitemap-store.yml) | Publish a bounded Project sitemap through one authorized reducer | V410-010 |
 | [V410-002](../../tasks/done/v410-002-project-sitemap-toolset.yml) | Expose authorized live sitemap tools to Project allocations | V410-001 |
 | [V410-003](../../tasks/done/v410-003-http-sitemap-collection.yml) | Collect HTTP observations into the live Project sitemap | V410-002 |
-| [V410-004](../../tasks/v410-004-sitemap-structured-imports.yml) | Import bounded scanner and selected Caido observations | V410-002 |
-| [V410-005](../../tasks/v410-005-sitemap-openapi-reconciliation.yml) | Reconcile exact OpenAPI declarations with live sitemap members | V410-002, V55-007 |
+| [V410-004](../../tasks/done/v410-004-sitemap-structured-imports.yml) | Import bounded scanner and selected Caido observations | V410-002 |
+| [V410-005](../../tasks/done/v410-005-sitemap-openapi-reconciliation.yml) | Reconcile exact OpenAPI declarations with live sitemap members | V410-002, V55-007 |
 | [V410-006](../../tasks/v410-006-sitemap-workflow-composition.yml) | Ship ordinary sitemap discovery and reconciliation Workflows | V410-003, V410-004, V410-005, V55-003, V62-004 |
 | [V410-007](../../tasks/v410-007-sitemap-release-gate.yml) | Verify the first sitemap slice across scale and lifecycle boundaries | V410-006 |
 | [V410-008](../../tasks/v410-008-sitemap-caido-history.yml) | Import selected Caido history incrementally with durable checkpoints | V410-004, V410-007 |

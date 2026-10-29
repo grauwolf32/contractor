@@ -5,7 +5,7 @@ milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V410-002
 - V55-007
@@ -269,3 +269,36 @@ implementation_decisions:
     selected context when a Workflow/Audit requests it. Reuse import_sitemap_source and the Go operation/reference
     parser. Remove mandatory parallel enriched-map/patch/report outputs that have no separate consumer; preserve guarded
     source replacement and immutable exact input selection.'
+
+implementation_commit: a7eea66277f28e135d5c4c231313b0ae77b86c45
+verification:
+  date: '2026-10-30'
+  result: passed
+  tested_commit: a7eea66277f28e135d5c4c231313b0ae77b86c45
+  commands:
+  - command: go test -count=1 -timeout=15m ./...
+    result: Passed all Go packages with PostgreSQL enabled. The final output-selection refinement was followed by complete owner-package and PostgreSQL suites below.
+  - command: go test ./internal/config/... ./internal/operations/... ./internal/stageresult/... ./internal/scheduler/... ./internal/runstore/... ./internal/scanplan/... ./internal/contracts/... ./internal/projectsitemap/...
+    result: Passed complete owner-package suites on the final implementation with PostgreSQL enabled.
+  - command: make test-project-sitemap-postgres
+    result: Passed 17 complete packages and 40 mandatory cases with zero mandatory skips on a dedicated database. Covers native lifecycle, claim ownership, replay, cancellation, append preservation, manual conflicts, atomic rollback and optional materialization, plus all prior Artifact/sitemap lifecycle and scale cases.
+  - command: make test-project-sitemap-tools-e2e
+    result: Passed all four mandatory process scenarios with zero skips. The new Server-only scenario exercises public Workflow/Run creation, pure join, apply, apply without a Run copy and permanent remote-reference rejection without any Runtime process or Gateway.
+  - command: make test-wire-cross-language
+    result: Passed 455 shared fixtures with 363 Go and 271 Python shared tests, 1619 selected Python fixture tests and 504 Runtime contract/performance tests. The new operation-mode fixture is shared by Server and Studio; Runtime never receives operation stages.
+  - command: uv run --project runtime pytest runtime/tests/test_openapi_toolset.py runtime/tests/test_sitemap_*.py
+    result: Passed all 197 selected Runtime regressions.
+  - command: make verify-public-api
+    result: Passed error registry, public policy/example checks and complete operation coverage, including the operation projection and generated Go client without synthetic Planner fields.
+  - command: make ui-verify
+    result: Passed generation, lint, typecheck, build and server checks; 205 test files, 2536 tests passed with one existing expected failure, and 17 Node tests passed.
+  - command: make verify-architecture
+    result: Passed the updated LikeC4 model. Package layer and contracts importer checks also pass in the Go/lint gates.
+  - command: make lint
+    result: Passed generation, dependency graph, vet, staticcheck, test-only exports, release graph, task/spec/fixture checks, deployment checks, Ruff and all four Runtime import-layer contracts.
+  notes:
+  - No new table, operation journal, receipt/claim family, Runtime parser or ArtifactStore-specific branch was introduced. Migration 000059 adds the native execution alternative to existing Stage state invariants.
+  - Source/manual intent remains pinned while appended observations survive. A lost finalization acknowledgement replays the existing Project receipt without republishing; unrequested map/report copies are absent.
+  - Media/body/security validation is explicitly unavailable in this metadata comparison. Ambiguous declarations remain unresolved, and retained-member/report limits are explicit.
+  - Pure and apply operations currently require a Project Run to reuse its existing receipt and deletion owner. Shipped Workflow/Audit composition remains V410-006.
+  - An initial PostgreSQL gate lacked tests in the new thin adapter package; adapter boundary tests were added. A later parallel gate collided with another check's database-wide Server lease; the final isolated-database gate passed all packages. Neither failed run is counted as passing evidence.
