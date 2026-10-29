@@ -147,7 +147,7 @@ class AllocationSpec(VersionedWireModel):
 
     @model_validator(mode="after")
     def validate_spec(self) -> Self:
-        assignment = self.pentestEngagement.preflight if self.pentestEngagement else None
+        assignment = self.pentestEngagement.http if self.pentestEngagement else None
         materials = self.runtime_settings.pentest_identities or {}
         identities = assignment.identities if assignment else []
         expected = {identity.id for identity in identities if identity.credential is not None}

@@ -142,6 +142,7 @@ def validate_spec(
             status_code=422,
         )
     required_infrastructure_channels: set[str] = set()
+    uncontrolled_channels: set[str] = set()
     for selection in spec.agent_template.toolsets:
         toolset_ref = f"{selection.ref.toolset_id}@{selection.ref.version}"
         if not capabilities.has_toolset(toolset_ref):
@@ -160,11 +161,20 @@ def validate_spec(
             )
         factory = factories.toolsets.get(toolset_ref)
         if factory is not None:
-            required_infrastructure_channels.update(
+            channels = {
                 channel
                 for tool in selection.tools
                 for channel in factory.infrastructure_channels.get(tool, frozenset())
-            )
+            }
+            required_infrastructure_channels.update(channels)
+            if (
+                toolset_ref == "http-tools@1"
+                and spec.pentestEngagement is not None
+                and spec.pentestEngagement.http is not None
+            ):
+                uncontrolled_channels.update(channels - {"runtime-http-client"})
+            else:
+                uncontrolled_channels.update(channels)
         if getattr(factory, "requires_workspace", False) and spec.workspace is None:
             raise AllocationError(
                 "workspace_required",
@@ -185,8 +195,7 @@ def validate_spec(
             )
 
     if spec.pentestEngagement is not None and (
-        required_infrastructure_channels - {"sandbox-execution"}
-        or sandbox_ref == "podman-network@1"
+        uncontrolled_channels - {"sandbox-execution"} or sandbox_ref == "podman-network@1"
     ):
         raise AllocationError(
             "unsupported_toolset",
@@ -195,9 +204,9 @@ def validate_spec(
             status_code=422,
         )
 
-    if spec.pentestEngagement is not None and spec.pentestEngagement.preflight is not None:
+    if spec.pentestEngagement is not None and spec.pentestEngagement.http is not None:
         factory = factories.pentest_target_factory
-        adapter = spec.pentestEngagement.preflight.adapter
+        adapter = spec.pentestEngagement.http.adapter
         if (
             factory is None
             or factory.ref != adapter

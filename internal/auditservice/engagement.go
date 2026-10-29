@@ -261,7 +261,11 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 	for _, binding := range profile.Workflows {
 		for _, stage := range binding.Workflow.Stages {
 			for _, agent := range stage.Agents {
-				network = network || resolved.TemplateRequiresNetwork(agent.Template)
+				if slices.Contains(selected.document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterPentestTargetHTTP)) {
+					network = network || resolved.TemplateRequiresUncontrolledNetwork(agent.Template)
+				} else {
+					network = network || resolved.TemplateRequiresNetwork(agent.Template)
+				}
 			}
 		}
 	}
@@ -352,7 +356,6 @@ func cloneEngagement(source *auditbaseline.EngagementSnapshot) *auditbaseline.En
 	result.Artifact = source.Artifact.Clone()
 	d := &result.Document
 	d.Target.Origins = slices.Clone(d.Target.Origins)
-	d.Target.SeedURLs = slices.Clone(d.Target.SeedURLs)
 	if d.Target.Deployment != nil {
 		value := *d.Target.Deployment
 		d.Target.Deployment = &value

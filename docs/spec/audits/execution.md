@@ -1155,23 +1155,26 @@ Shared rules are in
 - The other deferred Audit capabilities are listed in
   [audits](audits.md#non-goals).
 
-### Controlled target identity preflight
+### Model-driven controlled Audit HTTP
 
 **AUX-R104.** `POST /private/v1/allocations/{allocationId}/pentest-actions`
 accepts the closed `prepare`, `grant`, `sending`, `started` and `settle`
 commands. The Server derives Audit, owner, Project, Run, Stage and Runtime
 process from the authenticated allocation; request data cannot select them.
-Preparation selects an assigned `identityId`, closed `phase`, `stepIndex` and
-`generation`, plus a physical attempt ordinal (redirect hop plus retry ordinal).
-The only phase is `seed` and the only generation is zero. The Server derives
-GET/read and the canonical request slot from the assigned pinned seed, never
-from caller-selected method fields. The semantic action key includes Audit,
-allocation, identity, generation, phase and index. Request/target digests contain
-only non-secret slot identity and canonical URL, never expanded private headers.
+Preparation carries the explicitly selected assigned identityId, phase=request,
+generation=0 and an allocation-local stepIndex in 0..99999, bounded by the
+existing actionIntents cap, plus method, requestBodyBytes, requestFingerprint,
+targetDigest, URL and physical redirect/retry ordinals. Method determines the
+action class under HTP-R137; Server independently checks route/credential scope
+and the body-byte cap. Runtime uses an allocation-random HMAC key for opaque
+request/target identities. The request fingerprint covers method, URL, expanded
+headers and body; targetDigest covers the exact canonical URL. Server persists
+only origin and these opaque identities, not raw private URL/body/header hashes.
+The action key includes Audit, allocation, identity, generation, phase and index.
 Every mutation uses the existing Audit-owned `KeyedMutation` receipt with a
 Server-derived semantic key and separate command digest. Exact replay cannot
 charge twice; changed bytes are `pentest_action_conflict`. A new allocation
-cannot reuse an earlier allocation's completed seed execution as its session.
+cannot reuse an earlier allocation's completed invocation as its session.
 Pending or unknown held traffic for that identity in a prior allocation prevents
 replacement work. Every physical send charges the cumulative target budget.
 
@@ -1218,16 +1221,13 @@ foreign key. Audit ownership governs bounded journal purge. Child deletion
 is blocked until pending actions reconcile, so it cannot erase necessary
 stop evidence. Individual actions cannot be deleted by callers.
 
-**AUX-R106.** Preflight operates once per assigned allocation invocation;
-redelivery joins that cached work and reuses its existing action receipts.
-A replacement allocation creates fresh session state and action identity,
-subject to the unresolved-traffic fence in AUX-R105. An unknown outcome is an
-explicit gap and never authorizes a replacement send. The run RPC returns only
-bounded seed counts and safe identity summaries under HTP-R145, backed by the
-action journal. If no seed completes, preparation
-fails rather than reporting empty successful discovery. Raw response buffers,
-headers, credentials and redirect query values are not stored in the journal.
-A canonical redirect-target digest authorizes only the matching next prepare
-within HTP-R139's permitted subset.
-The containing allocation owns and joins all preflight work before release;
-no network call occurs while an Audit transaction or Registry mutex is held.
+**AUX-R106.** Allocation preparation and ready replay perform no target work.
+Only an explicit model HTTP tool call creates an invocation. Within that
+invocation, lost control replies reconcile the same action/attempt receipts;
+unknown sending outcomes never authorize another send. A replacement allocation
+creates fresh private state, subject to AUX-R105's unresolved-traffic fence.
+The stop-only RPC and exact process acknowledgement follow CTL-R169. Raw response
+buffers, headers, credential values and redirect queries stay outside the journal.
+Keyed target identity permits only the matching redirect continuation; target
+scope is independently checked. All target work is owned/joined by the allocation;
+no network call occurs under an Audit transaction or Registry mutex.

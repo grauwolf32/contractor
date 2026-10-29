@@ -117,12 +117,12 @@ type AllocationSpec struct {
 }
 
 func (s AllocationSpec) Validate() error {
-	if len(s.RuntimeSettings.PentestIdentities) > 0 && (s.PentestEngagement == nil || s.PentestEngagement.Preflight == nil) {
+	if len(s.RuntimeSettings.PentestIdentities) > 0 && (s.PentestEngagement == nil || s.PentestEngagement.HTTP == nil) {
 		return contracts.Invalidf("pentest material requires an assigned identity")
 	}
-	if s.PentestEngagement != nil && s.PentestEngagement.Preflight != nil {
+	if s.PentestEngagement != nil && s.PentestEngagement.HTTP != nil {
 		expected := 0
-		for _, identity := range s.PentestEngagement.Preflight.Identities {
+		for _, identity := range s.PentestEngagement.HTTP.Identities {
 			if identity.Credential == nil {
 				continue
 			}

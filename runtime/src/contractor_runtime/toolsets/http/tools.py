@@ -148,6 +148,8 @@ class HTTPToolsetFactory:
             "http_session_set",
             "http_session_get",
             "http_session_clear",
+            "http_credentials",
+            "http_credential_read",
         }
     )
     infrastructure_channels = MappingProxyType({"http_request": frozenset({"runtime-http-client"})})
@@ -195,10 +197,20 @@ class HTTPToolsetFactory:
         project_workspace: Any = None,
         preparation_deadline: float | None = None,
         deployment_marker: str | None = None,
+        controlled_http: Any = None,
     ) -> Mapping[str, Any]:
         del run_id, workspace, project_workspace
         require_selected_tools(selected, self.exported_tools)
         metrics = require_metrics(state, "http-tools@1")
+
+        if controlled_http is not None:
+            from contractor_runtime.toolsets.http.controlled import ControlledHTTPSession
+
+            session = ControlledHTTPSession(
+                controlled_http, runtime_settings.request_timeout_seconds
+            )
+            state.http_session = session
+            return _selected_http_tools(selected, session, metrics)
 
         proxy = adapter_handles.tool_http
         request_selected = "http_request" in selected
@@ -239,15 +251,7 @@ class HTTPToolsetFactory:
             await session.close()
             raise
         state.http_session = session
-        builders: dict[str, Callable[[], _HTTPTool]] = {
-            "http_request": lambda: HTTPRequestTool(session, metrics),
-            "http_read_body": lambda: HTTPReadBodyTool(session, metrics),
-            "http_history": lambda: HTTPHistoryTool(session, metrics),
-            "http_session_set": lambda: HTTPSessionSetTool(session, metrics),
-            "http_session_get": lambda: HTTPSessionGetTool(session, metrics),
-            "http_session_clear": lambda: HTTPSessionClearTool(session, metrics),
-        }
-        return {name: builders[name]() for name in selected}
+        return _selected_http_tools(selected, session, metrics)
 
     def _new_direct_client(self, policy: TargetPolicy) -> httpx.AsyncClient:
         if self._direct_client_factory is not None:
@@ -311,6 +315,12 @@ class _RequestRecord:
 
 
 class _HTTPSession:
+    def credential_catalog(self):
+        return []
+
+    def credential_values(self, credential_id):
+        raise HTTPToolError("http_credential_unavailable")
+
     def __init__(
         self,
         *,
@@ -375,7 +385,10 @@ class _HTTPSession:
         timeout_seconds: int | float | None,
         follow_redirects: bool,
         invocation_id: str | None = None,
+        credential_id: str | None = None,
     ) -> dict[str, Any]:
+        if credential_id is not None:
+            raise HTTPToolError("http_credential_unavailable")
         async with self._lock:
             self._require_open()
             self._checkpoint.require_confirmed()
@@ -1101,7 +1114,12 @@ class HTTPRequestTool(_HTTPTool):
     description = """Send an HTTP/HTTPS request and retain its exchange in the recent buffer.
 
     Only a bounded text preview is returned inline. Use http_read_body to inspect
-    more text or binary content. Use finding with request_id to save evidence.
+    more text or binary content. Ordinary HTTP exchanges can be saved with finding.
+    Controlled Audit HTTP keeps a private response buffer; it does not create trusted
+    pentest proof. Audit limits may be lower (at most 1 MiB response and 32 KiB headers).
+    Audit calls use only explicit credential_id, never Project target credentials.
+    http_request_unknown_outcome is nonretryable: report the gap without repeating
+    the request. Audit cookie state is allocation-only, without artifact checkpoints.
     Request bodies are limited to 1 MiB and response
     bodies to 16 MiB. Target cookies persist within the same Run and Namespace.
     If cookie_checkpoint is unconfirmed, keep this HTTP outcome and call
@@ -1127,10 +1145,13 @@ class HTTPRequestTool(_HTTPTool):
             retry and the complete response body), within the configured runtime
             cap; omit to use that cap.
         follow_redirects: Follow redirects up to the request limit; defaults to true.
+        credential_id: Optional exact credential from http_credentials for this
+            Audit request. Omit to avoid applying an Audit credential. It does
+            not select a credential by URL or change the default session.
 
     Returns:
         Request ID, response status and headers, body kind and preview, timing,
-        redirect/retry counts. Finding saves selected exchanges as artifacts.
+        redirect/retry counts. Ordinary HTTP finding saves selected exchanges.
     """
 
     async def __call__(
@@ -1143,6 +1164,7 @@ class HTTPRequestTool(_HTTPTool):
         body_type: str = "none",
         timeout: int | float | None = None,
         follow_redirects: bool = True,
+        credential_id: str | None = None,
         tool_context: ToolContext | None = None,
     ) -> dict[str, Any]:
         safe_arguments = {
@@ -1169,6 +1191,7 @@ class HTTPRequestTool(_HTTPTool):
                 body=body,
                 timeout_seconds=timeout,
                 follow_redirects=follow_redirects,
+                credential_id=credential_id,
                 invocation_id=tool_context.invocation_id if tool_context is not None else None,
             )
             call.succeed(
@@ -1243,6 +1266,8 @@ class HTTPSessionSetTool(_HTTPTool):
     by default; replacement flags clear their collections before applying values.
     Cookies are saved for continuation in this Run and Namespace. Headers and
     basic/bearer auth remain local to this allocation.
+    Controlled Audits support only non-auth default headers here; cookies, auth
+    and replace_cookies are invalid. Select credential_id per request instead.
 
     Args:
         cookies: Cookie name-to-string-value mapping.
@@ -1295,6 +1320,8 @@ class HTTPSessionGetTool(_HTTPTool):
 
     Also reconcile an unconfirmed cookie checkpoint without sending another
     request to the target. Call this after cookie_checkpoint reports a failure.
+    Controlled Audits return separate credential cookie summaries, without
+    secret values or checkpoint persistence.
 
     Returns:
         A redacted view of cookies, default headers and auth_kind.
@@ -1311,7 +1338,9 @@ class HTTPSessionClearTool(_HTTPTool):
     name = "http_session_clear"
     description = """Clear HTTP session cookies, default headers, authentication and history.
 
-    Commits the empty cookie jar before returning, so continuation stays cleared.
+    Ordinary HTTP commits the empty jar before returning. Controlled Audits clear
+    allocation-local jars and block cleared cookie credentials; Basic/Bearer
+    credentials remain available for explicit selection by credential_id.
 
     Returns:
         The cleared session view. Previously saved finding evidence remains stored.
@@ -1322,6 +1351,58 @@ class HTTPSessionClearTool(_HTTPTool):
             result = await self._session.clear_session()
             call.succeed({"cleared": True})
             return result
+
+
+class HTTPCredentialsTool(_HTTPTool):
+    name = "http_credentials"
+    description = """List credentials authorized for this Audit's HTTP requests.
+
+    Returns:
+        Exact credential IDs, authentication kinds, permitted origins and declared roles.
+        This tool returns no secret values and performs no target request.
+    """
+
+    async def __call__(self) -> list[dict[str, Any]]:
+        with self._recorded({}) as call:
+            result = self._session.credential_catalog()
+            call.succeed({})
+            return result
+
+
+class HTTPCredentialReadTool(_HTTPTool):
+    name = "http_credential_read"
+    description = """Read values of one exact credential authorized for this Audit.
+
+    Prefer credential_id in http_request when raw values are unnecessary. Do not
+    copy secret values into reports, logs or published artifacts.
+
+    Args:
+        credential_id: Exact ID returned by http_credentials.
+
+    Returns:
+        The credential's authentication kind and secret values for explicit use.
+        Missing or unassigned credentials are unavailable; this never sends HTTP.
+    """
+
+    async def __call__(self, credential_id: str) -> dict[str, Any]:
+        with self._recorded({}) as call:
+            result = self._session.credential_values(credential_id)
+            call.succeed({})
+            return result
+
+
+def _selected_http_tools(selected, session, metrics):
+    builders = {
+        "http_request": HTTPRequestTool,
+        "http_read_body": HTTPReadBodyTool,
+        "http_history": HTTPHistoryTool,
+        "http_session_set": HTTPSessionSetTool,
+        "http_session_get": HTTPSessionGetTool,
+        "http_session_clear": HTTPSessionClearTool,
+        "http_credentials": HTTPCredentialsTool,
+        "http_credential_read": HTTPCredentialReadTool,
+    }
+    return {name: builders[name](session, metrics) for name in selected}
 
 
 def _direct_client(policy: TargetPolicy) -> httpx.AsyncClient:

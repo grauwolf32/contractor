@@ -82,8 +82,8 @@ func revealingCodecFor[T contracts.Validatable](reveal func(T) ([]byte, error)) 
 var fixtureCodecs = map[string]fixtureCodec{
 	"PentestActionCommand":            codecFor[pentestcontract.ActionCommand](),
 	"PentestActionReply":              codecFor[pentestcontract.ActionReply](),
-	"PentestPreflightRequest":         codecFor[control.PentestPreflightRequest](),
-	"PentestPreflightResponse":        codecFor[control.PentestPreflightResponse](),
+	"PentestTransportRequest":         codecFor[control.PentestTransportRequest](),
+	"PentestTransportResponse":        codecFor[control.PentestTransportResponse](),
 	"AbortAllocationRequest":          codecFor[control.AbortAllocationRequest](),
 	"AgentHeartbeat":                  codecFor[control.AgentHeartbeat](),
 	"AgentRegistration":               codecFor[control.AgentRegistration](),

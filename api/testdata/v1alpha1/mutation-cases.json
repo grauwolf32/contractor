@@ -2081,6 +2081,7 @@
         "/apiVersion",
         "/operation",
         "/prepare/generation",
+        "/prepare/method",
         "/prepare/phase"
       ],
       "maxLength": [
@@ -2105,11 +2106,12 @@
         "/prepare"
       ]
     },
-    "pentest-action-seed-identity.json": {
+    "pentest-action-request-identity.json": {
       "enum": [
         "/apiVersion",
         "/operation",
         "/prepare/generation",
+        "/prepare/method",
         "/prepare/phase"
       ],
       "maxLength": [
@@ -2272,19 +2274,19 @@
       "enum": [
         "/apiVersion",
         "/pentestEngagement/accessMode",
+        "/pentestEngagement/http/adapter",
+        "/pentestEngagement/http/identities/0/id",
+        "/pentestEngagement/http/identities/0/kind",
+        "/pentestEngagement/http/identities/1/credential/kind",
+        "/pentestEngagement/http/identities/1/kind",
+        "/pentestEngagement/http/routes/0/actionClasses/0",
+        "/pentestEngagement/http/routes/0/methods/0",
         "/pentestEngagement/policy/activeChecks",
         "/pentestEngagement/policy/replayPolicy",
         "/pentestEngagement/policy/requiredCapabilities/0",
         "/pentestEngagement/policy/requiredCapabilities/1",
         "/pentestEngagement/policy/retryPolicy",
         "/pentestEngagement/policy/version",
-        "/pentestEngagement/preflight/adapter",
-        "/pentestEngagement/preflight/identities/0/id",
-        "/pentestEngagement/preflight/identities/0/kind",
-        "/pentestEngagement/preflight/identities/1/credential/kind",
-        "/pentestEngagement/preflight/identities/1/kind",
-        "/pentestEngagement/preflight/routes/0/actionClasses/0",
-        "/pentestEngagement/preflight/routes/0/methods/0",
         "/pentestEngagement/schema",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
@@ -2310,44 +2312,40 @@
           "maxLength": 128
         },
         {
+          "pointer": "/pentestEngagement/http/identities/0/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/http/identities/1/credential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/http/identities/1/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/http/protectedDestinations/0/addresses/0",
+          "maxLength": 45
+        },
+        {
+          "pointer": "/pentestEngagement/http/protectedDestinations/0/hostname",
+          "maxLength": 253
+        },
+        {
+          "pointer": "/pentestEngagement/http/routes/0/origin",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/http/routes/0/pathPrefixes/0",
+          "maxLength": 8192
+        },
+        {
           "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
           "maxLength": 256
         },
         {
           "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
           "maxLength": 256
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/0/origins/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/1/credential/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/1/origins/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/addresses/0",
-          "maxLength": 45
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/hostname",
-          "maxLength": 253
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/routes/0/origin",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/routes/0/pathPrefixes/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/seedUrls/0",
-          "maxLength": 8192
         },
         {
           "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
@@ -2408,6 +2406,41 @@
           "verdict": "reject"
         },
         {
+          "pointer": "/pentestEngagement/http/identities/0/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/identities/1/credential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/identities/1/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/protectedDestinations/0/addresses/0",
+          "maxLength": 45,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/protectedDestinations/0/hostname",
+          "maxLength": 253,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/routes/0/origin",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/routes/0/pathPrefixes/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
           "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
           "maxLength": 256,
           "verdict": "reject"
@@ -2415,46 +2448,6 @@
         {
           "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
           "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/0/origins/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/1/credential/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/1/origins/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/addresses/0",
-          "maxLength": 45,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/hostname",
-          "maxLength": 253,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/routes/0/origin",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/routes/0/pathPrefixes/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/seedUrls/0",
-          "maxLength": 8192,
           "verdict": "reject"
         },
         {
@@ -2519,13 +2512,13 @@
         "/pentestEngagement",
         "/pentestEngagement/budgets",
         "/pentestEngagement/engagement",
+        "/pentestEngagement/http",
+        "/pentestEngagement/http/identities/0",
+        "/pentestEngagement/http/identities/1",
+        "/pentestEngagement/http/identities/1/credential",
+        "/pentestEngagement/http/protectedDestinations/0",
+        "/pentestEngagement/http/routes/0",
         "/pentestEngagement/policy",
-        "/pentestEngagement/preflight",
-        "/pentestEngagement/preflight/identities/0",
-        "/pentestEngagement/preflight/identities/1",
-        "/pentestEngagement/preflight/identities/1/credential",
-        "/pentestEngagement/preflight/protectedDestinations/0",
-        "/pentestEngagement/preflight/routes/0",
         "/resolvedRuntimeConfigProvenance",
         "/resolvedRuntimeConfigProvenance/agentLabels/0",
         "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
@@ -2558,13 +2551,13 @@
         "/pentestEngagement",
         "/pentestEngagement/budgets",
         "/pentestEngagement/engagement",
+        "/pentestEngagement/http",
+        "/pentestEngagement/http/identities/0",
+        "/pentestEngagement/http/identities/1",
+        "/pentestEngagement/http/identities/1/credential",
+        "/pentestEngagement/http/protectedDestinations/0",
+        "/pentestEngagement/http/routes/0",
         "/pentestEngagement/policy",
-        "/pentestEngagement/preflight",
-        "/pentestEngagement/preflight/identities/0",
-        "/pentestEngagement/preflight/identities/1",
-        "/pentestEngagement/preflight/identities/1/credential",
-        "/pentestEngagement/preflight/protectedDestinations/0",
-        "/pentestEngagement/preflight/routes/0",
         "/resolvedRuntimeConfigProvenance",
         "/resolvedRuntimeConfigProvenance/agentLabels/0",
         "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
@@ -2589,21 +2582,21 @@
       "enum": [
         "/apiVersion",
         "/pentestEngagement/accessMode",
+        "/pentestEngagement/http/adapter",
+        "/pentestEngagement/http/identities/0/id",
+        "/pentestEngagement/http/identities/0/kind",
+        "/pentestEngagement/http/identities/1/credential/kind",
+        "/pentestEngagement/http/identities/1/kind",
+        "/pentestEngagement/http/routes/0/actionClasses/0",
+        "/pentestEngagement/http/routes/0/actionClasses/1",
+        "/pentestEngagement/http/routes/0/methods/0",
+        "/pentestEngagement/http/routes/0/methods/1",
         "/pentestEngagement/policy/activeChecks",
         "/pentestEngagement/policy/replayPolicy",
         "/pentestEngagement/policy/requiredCapabilities/0",
         "/pentestEngagement/policy/requiredCapabilities/1",
         "/pentestEngagement/policy/retryPolicy",
         "/pentestEngagement/policy/version",
-        "/pentestEngagement/preflight/adapter",
-        "/pentestEngagement/preflight/identities/0/id",
-        "/pentestEngagement/preflight/identities/0/kind",
-        "/pentestEngagement/preflight/identities/1/credential/kind",
-        "/pentestEngagement/preflight/identities/1/kind",
-        "/pentestEngagement/preflight/routes/0/actionClasses/0",
-        "/pentestEngagement/preflight/routes/0/actionClasses/1",
-        "/pentestEngagement/preflight/routes/0/methods/0",
-        "/pentestEngagement/preflight/routes/0/methods/1",
         "/pentestEngagement/schema",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
@@ -2629,44 +2622,40 @@
           "maxLength": 128
         },
         {
+          "pointer": "/pentestEngagement/http/identities/0/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/http/identities/1/credential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/pentestEngagement/http/identities/1/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/http/protectedDestinations/0/addresses/0",
+          "maxLength": 45
+        },
+        {
+          "pointer": "/pentestEngagement/http/protectedDestinations/0/hostname",
+          "maxLength": 253
+        },
+        {
+          "pointer": "/pentestEngagement/http/routes/0/origin",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/http/routes/0/pathPrefixes/0",
+          "maxLength": 8192
+        },
+        {
           "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
           "maxLength": 256
         },
         {
           "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
           "maxLength": 256
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/0/origins/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/1/credential/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/1/origins/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/addresses/0",
-          "maxLength": 45
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/hostname",
-          "maxLength": 253
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/routes/0/origin",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/routes/0/pathPrefixes/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/seedUrls/0",
-          "maxLength": 8192
         },
         {
           "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
@@ -2723,6 +2712,41 @@
           "verdict": "reject"
         },
         {
+          "pointer": "/pentestEngagement/http/identities/0/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/identities/1/credential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/identities/1/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/protectedDestinations/0/addresses/0",
+          "maxLength": 45,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/protectedDestinations/0/hostname",
+          "maxLength": 253,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/routes/0/origin",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/routes/0/pathPrefixes/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
           "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
           "maxLength": 256,
           "verdict": "reject"
@@ -2730,46 +2754,6 @@
         {
           "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
           "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/0/origins/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/1/credential/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/1/origins/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/addresses/0",
-          "maxLength": 45,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/hostname",
-          "maxLength": 253,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/routes/0/origin",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/routes/0/pathPrefixes/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/seedUrls/0",
-          "maxLength": 8192,
           "verdict": "reject"
         },
         {
@@ -2829,13 +2813,13 @@
         "/pentestEngagement",
         "/pentestEngagement/budgets",
         "/pentestEngagement/engagement",
+        "/pentestEngagement/http",
+        "/pentestEngagement/http/identities/0",
+        "/pentestEngagement/http/identities/1",
+        "/pentestEngagement/http/identities/1/credential",
+        "/pentestEngagement/http/protectedDestinations/0",
+        "/pentestEngagement/http/routes/0",
         "/pentestEngagement/policy",
-        "/pentestEngagement/preflight",
-        "/pentestEngagement/preflight/identities/0",
-        "/pentestEngagement/preflight/identities/1",
-        "/pentestEngagement/preflight/identities/1/credential",
-        "/pentestEngagement/preflight/protectedDestinations/0",
-        "/pentestEngagement/preflight/routes/0",
         "/resolvedRuntimeConfigProvenance",
         "/resolvedRuntimeConfigProvenance/agentLabels/0",
         "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
@@ -2868,13 +2852,13 @@
         "/pentestEngagement",
         "/pentestEngagement/budgets",
         "/pentestEngagement/engagement",
+        "/pentestEngagement/http",
+        "/pentestEngagement/http/identities/0",
+        "/pentestEngagement/http/identities/1",
+        "/pentestEngagement/http/identities/1/credential",
+        "/pentestEngagement/http/protectedDestinations/0",
+        "/pentestEngagement/http/routes/0",
         "/pentestEngagement/policy",
-        "/pentestEngagement/preflight",
-        "/pentestEngagement/preflight/identities/0",
-        "/pentestEngagement/preflight/identities/1",
-        "/pentestEngagement/preflight/identities/1/credential",
-        "/pentestEngagement/preflight/protectedDestinations/0",
-        "/pentestEngagement/preflight/routes/0",
         "/resolvedRuntimeConfigProvenance",
         "/resolvedRuntimeConfigProvenance/agentLabels/0",
         "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
@@ -2899,17 +2883,17 @@
       "enum": [
         "/apiVersion",
         "/pentestEngagement/accessMode",
+        "/pentestEngagement/http/adapter",
+        "/pentestEngagement/http/identities/0/id",
+        "/pentestEngagement/http/identities/0/kind",
+        "/pentestEngagement/http/routes/0/actionClasses/0",
+        "/pentestEngagement/http/routes/0/methods/0",
         "/pentestEngagement/policy/activeChecks",
         "/pentestEngagement/policy/replayPolicy",
         "/pentestEngagement/policy/requiredCapabilities/0",
         "/pentestEngagement/policy/requiredCapabilities/1",
         "/pentestEngagement/policy/retryPolicy",
         "/pentestEngagement/policy/version",
-        "/pentestEngagement/preflight/adapter",
-        "/pentestEngagement/preflight/identities/0/id",
-        "/pentestEngagement/preflight/identities/0/kind",
-        "/pentestEngagement/preflight/routes/0/actionClasses/0",
-        "/pentestEngagement/preflight/routes/0/methods/0",
         "/pentestEngagement/schema",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
@@ -2934,36 +2918,32 @@
           "maxLength": 128
         },
         {
+          "pointer": "/pentestEngagement/http/identities/0/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/http/protectedDestinations/0/addresses/0",
+          "maxLength": 45
+        },
+        {
+          "pointer": "/pentestEngagement/http/protectedDestinations/0/hostname",
+          "maxLength": 253
+        },
+        {
+          "pointer": "/pentestEngagement/http/routes/0/origin",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/pentestEngagement/http/routes/0/pathPrefixes/0",
+          "maxLength": 8192
+        },
+        {
           "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
           "maxLength": 256
         },
         {
           "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
           "maxLength": 256
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/0/origins/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/addresses/0",
-          "maxLength": 45
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/hostname",
-          "maxLength": 253
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/routes/0/origin",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/routes/0/pathPrefixes/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/seedUrls/0",
-          "maxLength": 8192
         },
         {
           "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
@@ -3012,6 +2992,31 @@
           "verdict": "reject"
         },
         {
+          "pointer": "/pentestEngagement/http/identities/0/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/protectedDestinations/0/addresses/0",
+          "maxLength": 45,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/protectedDestinations/0/hostname",
+          "maxLength": 253,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/routes/0/origin",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/pentestEngagement/http/routes/0/pathPrefixes/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
           "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
           "maxLength": 256,
           "verdict": "reject"
@@ -3019,36 +3024,6 @@
         {
           "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
           "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/identities/0/origins/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/addresses/0",
-          "maxLength": 45,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/protectedDestinations/0/hostname",
-          "maxLength": 253,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/routes/0/origin",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/routes/0/pathPrefixes/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/preflight/seedUrls/0",
-          "maxLength": 8192,
           "verdict": "reject"
         },
         {
@@ -3098,11 +3073,11 @@
         "/pentestEngagement",
         "/pentestEngagement/budgets",
         "/pentestEngagement/engagement",
+        "/pentestEngagement/http",
+        "/pentestEngagement/http/identities/0",
+        "/pentestEngagement/http/protectedDestinations/0",
+        "/pentestEngagement/http/routes/0",
         "/pentestEngagement/policy",
-        "/pentestEngagement/preflight",
-        "/pentestEngagement/preflight/identities/0",
-        "/pentestEngagement/preflight/protectedDestinations/0",
-        "/pentestEngagement/preflight/routes/0",
         "/resolvedRuntimeConfigProvenance",
         "/resolvedRuntimeConfigProvenance/agentLabels/0",
         "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
@@ -3133,11 +3108,11 @@
         "/pentestEngagement",
         "/pentestEngagement/budgets",
         "/pentestEngagement/engagement",
+        "/pentestEngagement/http",
+        "/pentestEngagement/http/identities/0",
+        "/pentestEngagement/http/protectedDestinations/0",
+        "/pentestEngagement/http/routes/0",
         "/pentestEngagement/policy",
-        "/pentestEngagement/preflight",
-        "/pentestEngagement/preflight/identities/0",
-        "/pentestEngagement/preflight/protectedDestinations/0",
-        "/pentestEngagement/preflight/routes/0",
         "/resolvedRuntimeConfigProvenance",
         "/resolvedRuntimeConfigProvenance/agentLabels/0",
         "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
@@ -3152,154 +3127,6 @@
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
         "/runMetadataLabels",
         "/runtimeSettings"
-      ]
-    },
-    "pentest-preflight-identities.json": {
-      "enum": [
-        "/apiVersion",
-        "/identities/0/identityId",
-        "/identities/0/state",
-        "/identities/1/state",
-        "/identities/2/state"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/allocationId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/runtimeInstanceId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/allocationId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runtimeInstanceId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/identities/0",
-        "/identities/1",
-        "/identities/2"
-      ],
-      "duplicateKey": [
-        "",
-        "/identities/0",
-        "/identities/1",
-        "/identities/2"
-      ]
-    },
-    "pentest-preflight-response.json": {
-      "enum": [
-        "/apiVersion",
-        "/identities/0/identityId",
-        "/identities/0/state"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/allocationId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/runtimeInstanceId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/allocationId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runtimeInstanceId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/identities/0"
-      ],
-      "duplicateKey": [
-        "",
-        "/identities/0"
-      ]
-    },
-    "pentest-preflight-run.json": {
-      "enum": [
-        "/apiVersion",
-        "/mode"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/allocationId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/expectedRuntimeInstanceId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/allocationId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/expectedRuntimeInstanceId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        ""
-      ],
-      "duplicateKey": [
-        ""
-      ]
-    },
-    "pentest-preflight-stop.json": {
-      "enum": [
-        "/apiVersion",
-        "/mode"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/allocationId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/expectedRuntimeInstanceId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/allocationId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/expectedRuntimeInstanceId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        ""
-      ],
-      "duplicateKey": [
-        ""
       ]
     },
     "pentest-reply-authorized.json": {
@@ -3700,6 +3527,72 @@
         },
         {
           "pointer": "/attemptId",
+          "maxLength": 256,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        ""
+      ],
+      "duplicateKey": [
+        ""
+      ]
+    },
+    "pentest-transport-stop.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/allocationId",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/expectedRuntimeInstanceId",
+          "maxLength": 256
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/allocationId",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/expectedRuntimeInstanceId",
+          "maxLength": 256,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        ""
+      ],
+      "duplicateKey": [
+        ""
+      ]
+    },
+    "pentest-transport-stopped.json": {
+      "enum": [
+        "/apiVersion"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/allocationId",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runtimeInstanceId",
+          "maxLength": 256
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/allocationId",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeInstanceId",
           "maxLength": 256,
           "verdict": "reject"
         }

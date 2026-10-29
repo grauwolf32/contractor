@@ -509,6 +509,8 @@ Assembled from every document.
 | `http_cookie_state_conflict` | — | no | Different current cookie revision; explicit session inspection resolves it without repeating HTTP | [ERR-R13](errors.md), [HTP-R130](../tools/http-caido.md) |
 | `http_cookie_write_denied` | — | no | Permanent Artifact rejection, including fenced allocation or revision budget | [ERR-R13](errors.md), [HTP-R131](../tools/http-caido.md) |
 | `http_cookie_storage_unavailable` | — | yes | Cookie storage timeout or unconfirmed transient operation; retry storage through session inspection | [ERR-R13](errors.md), [HTP-R131](../tools/http-caido.md) |
+| `http_credential_unavailable` | — | no | Credential is absent from the current Audit assignment or unavailable to this HTTP session; no target action is created | [HTP-R140](../tools/http-caido.md) |
+| `http_request_unknown_outcome` | — | no | Controlled HTTP may have sent bytes; report uncertainty without repeating the request | [HTP-R144](../tools/http-caido.md) |
 | `http_request_failed` | — | yes | HTTP tool request failed: a transport failure of the target exchange (an httpx error or OSError, including a TLS record failure) or a `tool-http` route failure, after the bounded retries of an idempotent send (FAIL-HTP-1, HTP-R55, HTP-R133); more redirects than LIM-HTP-7 allows; or expiry of the call deadline (HTP-R30) | [ERR-R13](errors.md), [HTP-R30](../tools/http-caido.md), [HTP-R133](../tools/http-caido.md) |
 | `http_request_invalid` | — | no | Invalid HTTP tool request, rejected as invalid input before it is sent (SEC-R67, HTP-R25) | [ERR-R13](errors.md), [HTP-R25](../tools/http-caido.md) |
 | `http_response_invalid` | — | not specified | Invalid HTTP response | [ERR-R13](errors.md), [HTP-R58](../tools/http-caido.md) |

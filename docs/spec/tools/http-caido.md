@@ -217,7 +217,7 @@ flowchart TD
 ### Scope and authority
 
 **HTP-R1.** The controlled `pentest-target-http@1` adapter implements only the
-isolated-identity preflight with supplied credentials in HTP-R137–146
+model-driven controlled HTTP with explicit credentials in HTP-R137–146
 and AUX-R104–106. It does not
 upgrade the guarantees of `http-tools@1` or `caido@1` described here. Ordinary
 HTTP/Caido tool behavior remains independently governed by this document.
@@ -1039,7 +1039,7 @@ Toolset call counters and Runtime adapter metrics remain the only ones.
 - Controlled identity assignment:
   [`pentest-allocation.schema.json`](../../../api/v1alpha1/pentest-allocation.schema.json);
   private material follows CTL-R168, action commands AUX-R104 and safe results
-  HTP-R145. The preflight resource adds no model-facing tool.
+  HTP-R145. Model-facing HTTP tools choose requests and credentials explicitly.
 - Headers: the request tag `X-Request-Id` (HTP-R98).
 - Configuration: `worker.caido` and the `tool-http` route of `http-proxy@1`,
   specified in [Runtime configuration](../configuration/runtime-config.md);
@@ -1077,7 +1077,7 @@ Limits ([registry](../platform/limits.md)):
 - LIM-HTP-37 — 128 cookies and 65536 encoded cookie-session bytes (HTP-R128).
 - LIM-HTP-36 — one bounded indexed sitemap snapshot per allocation (HTP-R87, HTP-R126).
 - LIM-HTP-38–41 — retired automatic-authentication limits (HTP-R142).
-- LIM-HTP-42 — safe preflight summary bounds (HTP-R145).
+- LIM-HTP-42 — retired preflight summary bounds (HTP-R145).
 - The generic Artifact payload limit (LIM-ART-4) belongs to
   [Artifact store](../artifacts/artifact-store.md); the host-name bounds and
   the allowed-target-network count belong to
@@ -1233,132 +1233,163 @@ A complete `worker.caido` RuntimeConfig example is in
 - UI-specific Caido panels or an HTTP history browser.
 - Reconciling Caido findings into a separate Contractor domain model.
 
-### Controlled preflight transport and identities
+### Controlled Audit HTTP and explicit credentials
 
-**HTP-R137.** A preflight request uses the same canonical URL for scope matching
-and transmission: exact origin, segment prefixes and exclusions winning,
-an assigned identity and the Server-derived method/action class of its pinned
-GET/read seed slot. Every resolved address
-must pass the route CIDRs and protected destination checks; one denied answer
-rejects the whole set. Loopback, link-local, unspecified, multicast and metadata
-addresses remain forbidden even where ordinary HTTP allows them. The Server
-supplies its resolved Artifact, Control, LLM, telemetry, Caido, proxy and
-callback infrastructure hostname/address-port denyset; Runtime resolves those
-aliases again in its own network and denies the union. Unknown protected
-resolution fails closed. A fresh connection pins the selected numeric address,
-preserves canonical Host and SNI, verifies TLS certificates and verifies the
+**HTP-R137.** A model-selected request uses the same canonical URL for scope
+matching and transmission: exact origin, segment prefixes, exclusions winning,
+and assigned credential origins. The Server derives the action class from the
+explicit method: GET/HEAD/OPTIONS are read, POST is probe, PUT/PATCH/DELETE are
+test-data-write. Every resolved address must pass route CIDRs and protected
+checks; one denied answer rejects the whole set. Loopback, link-local,
+unspecified, multicast and metadata addresses remain forbidden. Server supplies
+its infrastructure hostname/address-port denyset; Runtime resolves those aliases
+again and denies the union. Unknown protected resolution fails closed. A fresh
+connection pins a numeric address, preserves Host and SNI, verifies TLS and the
 connected peer. It never silently uses a proxy or ordinary HTTP fallback.
 
 **HTP-R138.** After DNS/connect/verified TLS and a durable start grant, the
-adapter commits `sending`, checks its original remaining allowance, writes
-exactly the first application byte, and commits `started` before writing the
-remainder. The TLS handshake itself is not a target request. Missing write or
-started acknowledgement leaves an unknown charged attempt; it never repeats
-the write. Pool ownership is per allocation/engagement/identity/origin/policy
-and local session epoch. Each physical attempt uses a fresh HTTP/1 transport
-without connection reuse; private identity state follows HTP-R140. Anonymous
-requests carry no inherited cookies or authorization. The Runtime rereads its existing monotonic control-lease authority at each
-connect/TLS/read/write boundary, including after the sending acknowledgement
-and immediately before the first application byte. Expiry denies that byte
-even before the watchdog callback runs. A separate 120-second whole-preflight
-ceiling is anchored at allocation preparation; it cannot renew through replay.
-All tasks, streams and clients are joined and closed on cancellation or release.
+adapter commits sending, checks its original allowance, writes exactly the first
+application byte and commits started before writing the remainder. TLS is not a
+target request. Missing write/start acknowledgement leaves an unknown charged
+attempt, never an automatic repeat. Each physical attempt uses fresh HTTP/1.
+The existing monotonic control lease is checked at connect/TLS/read/write,
+after sending acknowledgement and immediately before the first byte. Expiry
+blocks that byte even before the watchdog callback. Request timeout is clipped
+to allocation lease and admitted Stage/Audit active authority. Prepare retains
+its shorter operation context; it does not impose a startup-sweep deadline on
+later tool calls. Cancellation and release join all streams and tasks.
 
-**HTP-R139.** Every redirect and retry obtains fresh policy admission and a
-physical-request permit. The raw redirect reference is validated before
-resolution can erase forbidden syntax: relative dot segments or parser-stripped
-controls cannot become an apparently valid absolute target. Valid relative
-references preserve the exact canonical path and query used for admission,
-the continuation digest and transmission. At most five redirects and one additional retry are
-allowed for one logical request, subject to the narrower redirect rule below.
-The retry is only for an explicit GET/read failure proven
-before any application byte (connect or TLS); received HTTP 500 is not a retry
-condition. Request lifetime defaults to 30 seconds, never exceeds 120 seconds,
-and is clipped to remaining active time and all enclosing deadlines. Response
-headers are bounded before buffering at 64 fields/32 KiB and the body at the
-lower of 1 MiB and the engagement cap. Body data is streamed and discarded,
-without decompression or persistence. Only bounded counts, status, truncation,
-safe reason and optional canonical redirect digest reach the journal. There is
-no model-visible HTTP result or trusted capture in this adapter. A non-anonymous
-seed may follow only an exact pinned seed URL at an assigned origin. Other 3xx
-responses remain completed outcomes without a digest or automatic follow.
-Anonymous seed redirects retain the canonical scope rule above.
+**HTP-R139.** Every redirect/retry obtains fresh policy admission and a physical
+permit. Validate the raw Location before resolution can erase forbidden syntax.
+Preserve canonical path/query for admission, keyed continuation identity and
+transmission. One logical request permits at most five redirects and one
+additional pre-send GET connect/TLS retry. Received HTTP status never triggers
+transport retry. The whole call (including queue wait, redirects, retries and
+body read) never exceeds 120 seconds or narrower authority. Response headers
+are bounded before buffering at 64 fields/32 KiB and body at the lower of 1 MiB
+and the Audit cap. Return bounded response data to the model; do not decompress.
+Each next origin must satisfy scope and the selected credential's origins.
+Strip manual Cookie/Authorization on origin change. 303 and POST 301/302 change
+the next method to GET and drop body/content headers. Journal only counts,
+status, truncation, safe reasons and keyed opaque digests; never raw Location.
 
-**HTP-R140.** Controlled preflight keeps target sessions separate by allocation,
-assigned identity and exact origin. The supported identities are anonymous,
-Basic, Bearer and supplied cookies. They never import Project authorization,
-ordinary HTTP checkpoints or another identity's mutable jar. Credential material
-arrives only through private prepare (CTL-R168). Basic/Bearer headers and supplied
-cookies apply only at the identity's explicitly assigned origins. Supplied cookies
-start as host-only cookies at each assigned exact origin. A response Domain
-attribute cannot authorize a sibling origin. The common HTTP session core owns
-cookie encoding, validation, matching, expiry and limits for ordinary HTTP and
-pentest; their persistence adapters and mutable sessions remain separate. Pentest
-writes no cookie checkpoint. The aggregate of one identity's jars obeys LIM-HTP-37.
+**HTP-R140.** `http_request` has a separate optional `credential_id`. The exact
+ID selects one immutable credential assigned to this Audit. Omission applies
+no Audit credential and uses the anonymous cookie jar; no URL-based selection
+or Project auth/checkpoint inheritance occurs. Selected credentials cannot be
+combined with manual Cookie/Authorization. Missing/foreign IDs fail before
+action reservation or target bytes, without fallback. HTTP tools share the
+allocation-owned controlled transport and isolate jars by credential and exact
+origin. Credential material arrives only via private prepare (CTL-R168).
+Supplied cookies start host-only; response Domain cannot authorize sibling
+origins. The common HTTP session core owns matching, encoding, validation,
+expiry and bounds; controlled Audit writes no cookie checkpoint.
 
-**HTP-R141.** A non-anonymous identity starts as `credential_configured`.
-This states only that the user supplied material; it proves no observed principal.
-Declared `role` and `tenant` remain declarations. Responses 401 and 403 are
-completed HTTP outcomes, just like other received status codes; a completed
-transport outcome does not mean access was granted. They do not infer expiry or
-change the selected identity. Other assigned identities retain independent state.
+**HTP-R141.** Configured material proves no observed principal. Role/tenant
+remain declarations. 401/403 and other received statuses are completed HTTP
+outcomes; they neither prove expiry nor choose another credential. Every other
+assigned credential retains independent state.
 
-**HTP-R142.** The current closed engagement and allocation contracts accept only
-anonymous, Basic, Bearer and supplied-cookie identities. They contain no login
-recipe, extraction, principal control or refresh operation. Unsupported fields
-and kinds fail strict admission before target I/O. Automatic authentication is
-deferred until a production caller requires a separately specified component,
-explicit failure outcomes and bounded execution; no unused auth framework is
-introduced in its place.
+**HTP-R142.** Closed contracts accept anonymous, Basic, Bearer and supplied
+cookies. No login recipe, extraction, control request or refresh operation is
+supported. Unsupported fields/kinds fail strict admission before target I/O.
+Automatic authentication needs a separately specified production caller.
 
-**HTP-R143.** Supplied cookies satisfy RCF-R184. Initial exact-origin jars and
-every prospective response update discard expired entries from all origin jars
-before checking the aggregate cookie count and encoded-byte bounds. Only then
-may the state be published or used by a request.
-Response-cookie parsing uses the common HTTP session core. Credentials, cookies,
-response bodies and hashes derived from private values never enter artifacts,
-model inputs, telemetry, Agent Cards, public errors or the durable action journal.
-Safe errors identify only the assigned identity and a bounded outcome.
+**HTP-R143.** Supplied cookies satisfy RCF-R184. Initial jars and prospective
+updates remove expired entries from every origin before aggregate cookie/byte
+bounds and before publishing or sending state. `http_credentials` lists only
+a bounded Audit-assigned catalog (ID, kind, declared role/tenant and origins).
+`http_credential_read(credential_id)` explicitly returns those credential values
+to the model when needed; it cannot read outside this allocation's assignment.
+Automatic transport projections, Agent Cards, public errors, telemetry and the
+durable journal contain no credential values. Tool instrumentation remains
+content-free. Explicit raw-value access discloses secrets to the Worker context;
+the Worker must not copy them into reports or artifacts. Once disclosed, arbitrary
+model-authored content cannot provide an origin-bound secret-use guarantee.
+The Audit author owns this explicit access decision; revisit it if credentials
+must remain outside model context. Prefer credential_id for ordinary requests.
+No private service credential API is added.
 
-**HTP-R144.** An invalid or oversized cookie update fails the logical traversal,
-clears the identity's jars and prevents redirect continuation. The journal retains
-the completed physical response. A supplied-cookie identity becomes `blocked`
-after such a failure or when no sendable cookie remains; it cannot silently send
-an anonymous request. Basic/Bearer and anonymous slots may continue later distinct
-seeds after clearing invalid cookies. An unknown seed is charged and never
-repeated automatically; AUX-R105 retains unresolved holds. The only transport
-retry is the pre-send GET/read connect/TLS retry in HTP-R139. The user must supply
-new material for a later allocation when a session no longer works; the current
-invocation neither logs in nor refreshes it.
+**HTP-R144.** Invalid/oversized cookie updates clear that credential's jars and
+stop redirect continuation; the completed physical response stays settled.
+A cookie credential becomes blocked when no sendable cookies remain, without
+anonymous fallback. Basic/Bearer and anonymous calls may continue independently.
+`http_session_clear` drops learned cookies and blocks cleared cookie credentials;
+it cannot restore supplied material. Controlled session defaults permit only
+non-auth headers; raw auth values can be supplied per request without
+credential_id. `http_request_unknown_outcome` is nonretryable and requires an
+explicit reported gap, never an automatic repeat. Users supply replacement
+material for a later allocation; no login or refresh runs.
 
-**HTP-R145.** Preflight executes only assigned GET/read seed slots through the
-existing action journal, scope admission, cumulative target/rate/concurrency caps
-and fixed enclosing deadlines in AUX-R104. The supported selector is `phase=seed`
-and `generation=0`. A new allocation creates fresh private session memory from
-its selected immutable credentials. Unresolved traffic for that identity still
-blocks unsafe replacement sends. The safe result contains seed counts and one
-summary per assigned identity: `anonymous`, `credential_configured` or `blocked`.
-No observed-principal assertion is returned. Counts obey LIM-HTP-42.
+**HTP-R145.** Prepare is passive: no target DNS, connection, discovery or
+identity/URL sweep. The LLM chooses requests from available materials/tools,
+including OpenAPI/sitemap; no seed field exists. Each invocation gets a new
+allocation-local ordinal under the existing action-intent bound, phase=request
+and generation=0. Every physical attempt uses AUX-R104 accounting, scope and
+cumulative target/rate/concurrency caps. A fresh allocation has fresh jars;
+unresolved earlier traffic blocks unsafe replacement. Interactive bodies,
+history and read_body remain private allocation buffers, without trusted
+pentest capture/proof status or finding evidence authority. There is no startup
+result or identity-summary RPC; LIM-HTP-42 is retired.
 
 **HTP-R146.** Abort, finalize, cancellation, lease loss, failed preparation and
-release join identity tasks and close every owned stream/client before clearing
-cookies, credentials and internal handles. Handles and cookie-update epochs are
-allocation-local and never exported as public capabilities. Replacement cannot
-reuse them. The exact stop proof in CTL-R169 is issued only after owned work has
-joined and private state is gone. Cleanup failure keeps the allocation fenced;
-neither timeout nor generic release settles an unknown action. LIFE-HTP-7 owns
-this memory-only lifecycle.
+release join owned tasks and streams before clearing cookies, credentials and
+handles. Epochs and handles are allocation-local. CTL-R169 issues exact stop
+proof only after join and erasure. Cleanup failure keeps the allocation fenced;
+expiry and generic release cannot settle unknown actions. LIFE-HTP-7 owns this
+memory-only lifecycle.
 
-Rationale: identities extend the placed controlled transport and the existing
-private prepare, action receipts and stop proof. A separate credential-fetch
-endpoint would duplicate allocation authority checks; ordinary Project HTTP
-sessions would mix credentials and durable cookies; a general recipe interpreter
-would broaden the execution contract without a caller. Revisit private fetch
-only if a production caller needs credentials after preparation, and revisit
-the recipe language only with a separately specified caller, bounded execution
-and the same evidence/stop guarantees. No alternative may transfer an observed
-principal across origins or infer safe replay from a lost response. The exact
-seed-URL restriction for credential-bearing redirects avoids hashing or persisting a
-token-bearing Location. Reopen it only with a safe declarative redirect target
-representation that preserves scope and identity binding without private URL
-bytes or secret-derived hashes.
+Rationale: explicit optional credential selection makes authentication visible
+to the model and caller, while one acknowledged transport enforces every send.
+A startup seed sweep makes requests without model intent and duplicates
+OpenAPI/sitemap discovery. Separate HTTP clients would bypass existing permits
+or duplicate mutable cookie state. Explicit raw-value access is needed for
+custom authorized requests; content-free instrumentation constrains its durable
+exposure. Revisit this boundary only for a production caller requiring another
+bounded auth mechanism, with the same scope, receipt and joined-stop guarantees.
+
+```mermaid
+flowchart LR
+    U[User credentials and scope] --> A[Pinned Audit]
+    A --> P[Private allocation prepare]
+    P --> S[Controlled HTTP session]
+    M[OpenAPI / sitemap / artifacts] --> L[LLM chooses request]
+    L --> C[http_credentials]
+    C --> L
+    L --> R[http_request: optional credential_id]
+    R --> S
+    S --> I{Explicit credential_id?}
+    I -->|omitted| N[Anonymous origin-local jar]
+    I -->|assigned ID| K[Selected credential and isolated jars]
+    N --> G[Scope / DNS / TLS / budgets / action ledger]
+    K --> G
+    G --> T[Target]
+    T --> B[Bounded response and cookie update]
+    B --> L
+```
+
+```mermaid
+sequenceDiagram
+    participant L as LLM
+    participant H as HTTP tool / session
+    participant S as Server action ledger
+    participant T as Target
+    L->>H: http_request(url, credential_id?)
+    H->>H: Resolve explicit selection; validate scope and body
+    H->>S: prepare(method, byte count, opaque fingerprints)
+    S-->>H: action and attempt
+    H->>S: grant
+    S-->>H: Original bounded allowance
+    H->>T: Connect, pin peer, verify TLS
+    H->>S: sending
+    S-->>H: Accepted
+    H->>T: First application byte
+    H->>S: started
+    S-->>H: Accepted
+    H->>T: Remaining request
+    T-->>H: Response
+    H->>S: settle(safe outcome)
+    S-->>H: Receipt
+    H-->>L: Bounded response; cookie updates stay in selected jar
+    Note over H,S: Cancel / release joins requests and erases private state before exact stop acknowledgement
+```

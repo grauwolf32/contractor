@@ -301,8 +301,8 @@ original model names, with one schema and fixture catalog
 resolved by the composition-owned Audit reader from the trusted Run/Stage
 reservation, outside Registry locks. It follows [AUD-R248](../audits/audits.md):
 exact immutable attribution, no secret material, and only task-assigned routes,
-identities and inputs. Metadata-only preparation omits the typed `preflight`
-assignment. Controlled preflight requires the explicit `pentest-target-http@1`
+identities and inputs. Metadata-only preparation omits the typed `http`
+assignment. Controlled HTTP requires the explicit `pentest-target-http@1`
 capability in the immutable policy and the selected Runtime advertisement; it
 is independent of RuntimeConfig adapter provenance. Both wire validators and
 Runtime prepare reject an execution assignment whose enforcement is absent.
@@ -317,8 +317,8 @@ must match its assignment; missing, extra or mismatched entries/fields fail
 prepare before target I/O. The grant is checked again after resolution and
 materialization. Plaintext buffers are wiped on every exit, and copied material
 is dropped immediately after checking the prepare response's Agent Card,
-before target preflight. The Runtime keeps only allocation-local private state
-under [HTP-R140](../tools/http-caido.md); this adds no credential endpoint.
+before any later target tool call. The Runtime keeps only allocation-local private state
+under [HTP-R140](../tools/http-caido.md); explicit model credential tools follow HTP-R143.
 
 **CTL-R7.** There is no parallel legacy model, `V2` alias,
 conversion fallback or separate `privateProtocolVersion` negotiation, and the
@@ -1729,22 +1729,27 @@ CTL-R75).
 - Concurrent Tasks inside one Worker allocation (CTL-R113).
 - Dynamic Planner expansion of the Worker pool: see [planners](planners.md).
 
-**CTL-R169.** Ordinary prepare constructs the allocation-owned controlled
-preflight resource without target I/O. Before target preparation, the Server persists the lower of its admitted
-Stage deadline and batch prepare deadline on the exact allocation. The first
+**CTL-R169.** Ordinary prepare constructs the allocation-owned controlled HTTP
+resource without target I/O. The model starts target work only through an explicit
+HTTP tool call. Before target preparation, the Server persists its admitted
+Stage deadline on the exact allocation. Prepare RPC and storage operations keep
+their separate original context deadline; persisting Stage authority never extends
+that context. Each later HTTP tool request is separately clipped to its call timeout,
+confirmed allocation lease, grant and active Audit budget. The first
 recorded deadline is immutable: equal or later proposals keep it; an earlier
 proposal conflicts and requires joined cleanup before a new allocation. This
 avoids silently narrowing authority after a sending acknowledgement; action
-admission and every grant enforce the fixed bound. Before returning its Worker handle to
-the Scheduler, the Server calls `pentest-preflight` with mode `run`, allocation
-ID and expected Runtime instance. Concurrent or repeated calls join the same
-cached task; they cannot launch another target pass. The result accounts for
-every assigned identity/seed combination and carries the bounded identity
-summary in HTP-R145, without principal or response bytes. Successful credential
-configuration is not reported as verified authentication. The allocation lock only
+admission and every grant enforce the fixed bound. Preparing or replaying a Worker
+handle never starts a target pass. The private transport RPC is stop-only: its
+request contains `apiVersion`, `allocationId` and `expectedRuntimeInstanceId`;
+its response contains `apiVersion`, `allocationId`, `runtimeInstanceId` and
+`stopped: true`. It contains no counters or identity summaries: accounting belongs
+to the existing action journal and cannot authorize cleanup. The exact principal
+is authenticated by mTLS; allocation/process IDs must match the reservation.
+The allocation lock only
 registers/joins ownership, never surrounds target I/O. Abort, finalize, lease
 expiry and release cancel and join the resource before cleaning its clients.
-Mode `stop` proves termination only for that exact instance and known
+The stop RPC proves termination only for that exact instance and known
 allocation (or its existing bounded released tombstone). Server persists the
 proof before generic release. An absent allocation may bypass that proof only
 when the Registry write fence has joined admission and a durable indexed read

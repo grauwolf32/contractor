@@ -1840,7 +1840,7 @@ The shared Go/Python/schema fixtures define the same acceptance boundary.
 The document byte limit is LIM-AUD-31; tighter package and Audit input limits
 still apply.
 
-`target` contains exact `origins`, `seedUrls` and optional `deployment.marker`.
+`target` contains exact `origins` and optional `deployment.marker`.
 `scope` contains `routes`, `exclusions`, `actionClasses` and
 `callbackDestinations`. Each route has an `origin`, `pathPrefixes`, `methods`,
 `actionClasses` and canonical network `addressRanges`. An identity has a unique
@@ -1848,7 +1848,9 @@ still apply.
 `credential` reference for non-anonymous kinds. Exactly one identity is
 `anonymous`, with no credential. Kinds are `anonymous`, `basic`, `bearer` and
 `cookies`; Basic/Bearer/cookies use the corresponding RCF-R184 credential kinds.
-The immutable credential ID is its revision, never a secret digest.
+Each non-anonymous credential ID occurs only once in an engagement, so explicit
+selection is unambiguous. The immutable credential ID is its revision, never a
+secret digest.
 
 
 Input entries are `{id, role, artifact, contentDigest}` with exact ArtifactRefs
@@ -1877,8 +1879,8 @@ expiry cannot clear their holds ([AUX-R105](execution.md)).
 **AUD-R243.** Engagement URLs accept absolute HTTP(S) with ASCII DNS A-labels
 or canonical IPv4/IPv6, an optional query and no userinfo or fragment. Origins
 are exact scheme/host/effective-port triples without wildcard hosts. Wire
-origins and seed URLs must already be canonical: lowercase DNS labels and
-omitted default ports; literal IP seeds must lie within an allowed route
+origins and requested URLs must already be canonical: lowercase DNS labels and
+omitted default ports; literal IP requests must lie within an allowed route
 address range. Reject
 ambiguous authorities, alternate numeric IP spellings, zones, control bytes,
 backslashes and malformed escapes. Canonical paths are shared by validation,
@@ -1948,14 +1950,14 @@ before dispatch. The immutable baseline lookup does not require an active
 Audit: pause blocks new child admission while existing Runs drain; Run
 cancellation, Project deletion and the allocation grant retain their existing
 dispatch fences. The projection contains immutable engagement/policy attribution and finite
-budgets. Metadata-only allocations omit `preflight`. Explicitly requiring
-`pentest-target-http@1` supplies typed GET/read seeds, assigned identities and
-its routes/exclusions and the trusted
-infrastructure denyset. The Server
-selects an advertising Runtime before placement and completes its separate
-preflight call before the Planner starts. Neither mutable Project settings,
-physical labels nor Worker arguments can widen this assignment. Raw credentials, private variables, model-visible target tools and response
-bodies are absent from the projection. Exact held credential references are
+budgets. Metadata-only allocations omit `http`. Explicitly requiring
+`pentest-target-http@1` supplies typed routes/exclusions, assigned identities
+and the trusted infrastructure denyset. The Server selects an advertising
+Runtime before placement. Preparation performs no target discovery or startup
+request. The Worker chooses requests through HTTP tools with an optional explicit
+credential_id (HTP-R140). Neither mutable Project settings, physical labels nor
+Worker arguments widen this assignment. Raw credentials, private variables and
+response bodies are absent from the projection. Exact held credential references are
 materialized separately only on the private prepare wire (CTL-R168); identity
 execution and configured-session semantics belong to
 [HTP-R140–146](../tools/http-caido.md).
