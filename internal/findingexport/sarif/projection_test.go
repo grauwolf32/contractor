@@ -196,6 +196,9 @@ func TestRenderCodeGoldensAndNativeClaims(t *testing.T) {
 			data, document, diagnostics := rendered(t, snapshot)
 			golden(t, name, data)
 			run, result := runResult(document)
+			if _, exists := obj(obj(run["tool"])["driver"])["supportedTaxonomies"]; exists {
+				t.Fatal("result classifications advertised as shared rule taxonomy support")
+			}
 			if len(array(result["codeFlows"])) != count || len(array(run["artifacts"])) != 1 || len(array(run["versionControlProvenance"])) != 1 || len(array(result["taxa"])) != 3 || result["level"] != "error" {
 				t.Fatal("lost code mapping")
 			}
@@ -274,6 +277,9 @@ func TestSemanticValidatorRejectsSchemaValidFabrication(t *testing.T) {
 	snapshot := codeSnapshot(t, true)
 	original, _, _ := rendered(t, snapshot)
 	cases := map[string]func(object, object){
+		"unsupported-driver-classification": func(run, result object) {
+			obj(obj(run["tool"])["driver"])["supportedTaxonomies"] = []any{object{"name": "CWE@4.20", "index": 0}}
+		},
 		"unused-root": func(run, result object) {
 			obj(run["originalUriBaseIds"])["HOST"] = object{"uri": "file:///private/source/"}
 		},

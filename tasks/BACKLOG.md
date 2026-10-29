@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-113 open tasks: 6 in progress, 96 pending, 11 deferred. 1199 finished: 1189 completed, 10 archived.
+114 open tasks: 7 in progress, 96 pending, 11 deferred. 1199 finished: 1189 completed, 10 archived.
 
 ## In progress
 
@@ -15,6 +15,7 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V397-009](v397-009-sarif-export-api-ui.yml) | findings | feature | P2 | Publish and download generic SARIF through API CLI and UI |
+| [V397-019](v397-019-sarif-result-taxonomy-scope.yml) | findings | defect | P2 | Keep SARIF classifications scoped to individual results |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
 | [V410-004](v410-004-sitemap-structured-imports.yml) | scan-tools | feature | P1 | Import bounded scanner and selected Caido observations |
 
@@ -223,7 +224,7 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 7 | 20 | 24 | 6 | 19 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 16 | 9 | 9 | 18 |
-| Findings tools and collections (`findings`) | 5 | 17 | 7 | 8 | 12 |
+| Findings tools and collections (`findings`) | 6 | 17 | 8 | 8 | 13 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 36 | 34 | 11 | 54 |
 | Audits (`audits`) | 26 | 67 | 82 | 32 | 116 |

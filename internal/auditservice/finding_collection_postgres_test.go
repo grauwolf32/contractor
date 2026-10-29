@@ -83,6 +83,11 @@ func seedCollectionRun(t *testing.T, ctx context.Context, pool *pgxpool.Pool, ow
 
 func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID, suffix string, missingEvidence bool, extra ...findingintake.ExactArtifact) {
 	t.Helper()
+	seedCollectionRunReceiptDocument(t, ctx, pool, owner, runID, suffix, missingEvidence, nil, extra...)
+}
+
+func seedCollectionRunReceiptDocument(t *testing.T, ctx context.Context, pool *pgxpool.Pool, owner, runID, suffix string, missingEvidence bool, edit func(*auditdomain.FindingProposal), extra ...findingintake.ExactArtifact) {
+	t.Helper()
 	service := artifacts.NewService(artifacts.NewPostgresRepository(pool))
 	run, err := service.Run(runID)
 	if err != nil {
@@ -113,6 +118,9 @@ func seedCollectionRunReceipt(t *testing.T, ctx context.Context, pool *pgxpool.P
 		Schema: auditdomain.FindingProposalSchema, ClientKey: suffix, Title: suffix, Description: "A generic observation.",
 		Subject: &auditdomain.FindingSubject{Kind: "function", Key: "shared"}, Preconditions: []string{}, StandardRefs: []auditdomain.StandardReference{},
 		EvidenceIDs: evidenceIDs, ProposedChecks: []auditdomain.ProposedCheck{}, Limitations: []string{},
+	}
+	if edit != nil {
+		edit(&proposal)
 	}
 	body, err := auditdomain.EncodeFindingProposal(proposal)
 	if err != nil {

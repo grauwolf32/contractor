@@ -177,7 +177,6 @@ func (r *registry) metadata() (object, error) {
 		files = append(files, r.files[key])
 	}
 	taxonomies := make([]any, 0, len(r.taxa))
-	supported := make([]any, 0, len(r.taxa))
 	for index, key := range sortedKeys(r.taxa) {
 		r.taxIndex[key] = index
 		entries := make([]any, 0, len(r.taxa[key]))
@@ -191,7 +190,6 @@ func (r *registry) metadata() (object, error) {
 		}
 		component["taxa"] = entries
 		taxonomies = append(taxonomies, component)
-		supported = append(supported, object{"name": key, "index": index})
 	}
 	vcs := make([]any, 0, len(r.git))
 	for _, root := range sortedKeys(r.git) {
@@ -203,9 +201,9 @@ func (r *registry) metadata() (object, error) {
 		vcs = append(vcs, entry)
 	}
 	driver := object{"name": "Contractor", "version": findingexport.ExporterVersion}
-	if len(supported) > 0 {
-		driver["supportedTaxonomies"] = supported
-	}
+	// Classifications belong to results. SARIF 3.19.26 couples an optional
+	// supportedTaxonomies claim to rule relationships, which native rules do
+	// not declare. Do not infer those relationships from result tuples.
 	if err := r.budget.add(driver); err != nil {
 		return nil, err
 	}

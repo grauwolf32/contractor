@@ -254,7 +254,9 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 		t.Fatal(err)
 	}
 	native := write("native-analysis", findinganalysis.MediaType, encoded)
-	seedCollectionRunReceipt(t, ctx, pool, "owner", "source-run", "native", false, source, capture, native)
+	seedCollectionRunReceiptDocument(t, ctx, pool, "owner", "source-run", "native", false, func(proposal *auditdomain.FindingProposal) {
+		proposal.StandardRefs = []auditdomain.StandardReference{{Scheme: "CWE", Version: "4.20", RequirementID: "CWE-89"}}
+	}, source, capture, native)
 	intake, err := findingintake.New(pool)
 	if err != nil {
 		t.Fatal(err)
@@ -308,6 +310,30 @@ func TestFindingExportRetainsResolvedCodeAndSafeHTTPAfterSourceDeletion(t *testi
 	}
 	if bytes.Contains(downloaded.Read.Payload.Data, []byte("private-")) || bytes.Contains(downloaded.Read.Payload.Data, []byte("private=parameter")) {
 		t.Fatal("snapshot copied private HTTP data")
+	}
+	content, err := publisher.ReadFindingExport(ctx, "owner", "audit", result.ExportID, "export")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sarif struct {
+		Runs []struct {
+			Tool struct {
+				Driver map[string]json.RawMessage `json:"driver"`
+			} `json:"tool"`
+			Taxonomies []json.RawMessage `json:"taxonomies"`
+			Results    []struct {
+				Taxa []json.RawMessage `json:"taxa"`
+			} `json:"results"`
+		} `json:"runs"`
+	}
+	if err := json.Unmarshal(content.Read.Payload.Data, &sarif); err != nil {
+		t.Fatal(err)
+	}
+	if len(sarif.Runs) != 1 || len(sarif.Runs[0].Taxonomies) != 1 || len(sarif.Runs[0].Results) != 1 || len(sarif.Runs[0].Results[0].Taxa) != 1 {
+		t.Fatal("lost exact result classification")
+	}
+	if _, exists := sarif.Runs[0].Tool.Driver["supportedTaxonomies"]; exists {
+		t.Fatal("result classification became a shared rule claim")
 	}
 	for _, e := range r.Evidence {
 		if e.Original.Scope.Kind != "run" || e.Retained.Scope.Kind != "project" || e.Retained.Ref.Namespace != auditdomain.ArtifactNamespace("audit") {

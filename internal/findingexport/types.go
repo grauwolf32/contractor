@@ -11,7 +11,7 @@ import (
 const (
 	SnapshotSchema      = "contractor.findings.export-snapshot.v1"
 	DiagnosticsSchema   = "contractor.findings.export-diagnostics.v1"
-	ExporterVersion     = "1.1.0"
+	ExporterVersion     = "1.1.1"
 	PolicyVersion       = "generic/1"
 	MaxBytes            = 16 << 20
 	MaxDiagnosticsBytes = 4 << 20

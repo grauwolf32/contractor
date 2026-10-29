@@ -43,7 +43,8 @@ It leaves to other documents:
 - AgentTemplate Toolset selection:
   [agent templates](../configuration/agent-templates.md); Workflow input
   slots: [workflows](../configuration/workflows.md).
-- SARIF export:
+- Generic Audit-local SARIF export: FND-R197 through FND-R208 below. Future
+  consumer-specific profiles:
   [proposal 0028](../../proposals/0028-finding-analysis-and-sarif.md);
   redacted evidence for autonomous pentest Audits:
   [proposal 0033](../../proposals/0033-autonomous-pentest-audits.md).
@@ -1618,7 +1619,7 @@ retryable 503 `storage_transaction_conflict` with `Retry-After`.
 
 **FND-R202.** The `generic/1` policy renders one SARIF 2.1.0 run for the
 owning Audit from its frozen snapshot, without network, model, filesystem or
-store discovery. Exporter version `1.1.0` identifies the structured renderer.
+store discovery. Exporter version `1.1.1` identifies the structured renderer.
 The actual output bytes must pass the embedded official OASIS Errata 01 JSON
 Schema (SHA-256 `c3b4bb2d6093897483348925aaa73af03b3e3f4bd4ca38cef26dcb4212a2682e`)
 and independent semantic checks before publication. Schema loading cannot fetch
@@ -1662,9 +1663,12 @@ validation and clean-state claims do not imply safety or whole-program coverage.
 rules use `contractor/unclassified` with a warning, and conflicting definitions
 under one rule ID fail rendering. Classification adapters project only exact
 `CWE@4.20`, `asvs@4.0.3` and `owasp-asvs@5.0.0` tuples already admitted at intake;
-other tuples remain native properties with `classification_unmapped`. Export
-does not infer aliases or fetch a taxonomy. Qualified registered automatic
-keys alone become fingerprints; absent keys yield a warning, without a weak
+other tuples remain native properties with `classification_unmapped`. Run
+taxonomy definitions and result taxa do not establish a rule-wide mapping.
+The driver omits `supportedTaxonomies` and rule taxonomy relationships until
+an explicit versioned native rule mapping exists; result tuples cannot supply
+that mapping (SARIF Errata 01 section 3.19.26). Export does not infer aliases
+or fetch a taxonomy. Qualified registered automatic keys alone become fingerprints; absent keys yield a warning, without a weak
 text or location fallback.
 
 **FND-R207.** The selected finding's own frozen review determines SARIF rating:

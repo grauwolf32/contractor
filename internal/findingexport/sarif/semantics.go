@@ -129,16 +129,13 @@ func validateSemantics(document object, snapshot findingexport.Snapshot) error {
 		seenGit[root] = true
 	}
 	taxonomies := array(run["taxonomies"])
-	supported := array(driver["supportedTaxonomies"])
-	if len(supported) != len(taxonomies) {
+	if _, exists := driver["supportedTaxonomies"]; exists {
 		return fail
 	}
-	for i, value := range taxonomies {
+	for _, value := range taxonomies {
 		taxonomy := obj(value)
 		name, version, found := strings.Cut(str(taxonomy["name"]), "@")
-		ref := obj(supported[i])
-		ti, ok := index(ref["index"], len(taxonomies))
-		if !found || !ok || ti != i || str(ref["name"]) != str(taxonomy["name"]) || str(taxonomy["version"]) != version || str(contractor(taxonomy)["scheme"]) != name || taxonomy["isComprehensive"] != false {
+		if !found || str(taxonomy["version"]) != version || str(contractor(taxonomy)["scheme"]) != name || taxonomy["isComprehensive"] != false {
 			return fail
 		}
 	}
