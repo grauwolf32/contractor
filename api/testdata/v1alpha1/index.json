@@ -1172,7 +1172,7 @@
     "pentest-preflight-invalid-origin-path.json": {
       "type": "PentestPreflightResponse",
       "strict": true,
-      "reason": "schema"
+      "reason": "invariant"
     },
     "pentest-preflight-invalid-anonymous-auth.json": {
       "type": "PentestPreflightResponse",

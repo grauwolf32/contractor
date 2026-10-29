@@ -1357,6 +1357,13 @@ identity; it never starts a refresh loop. Any possibly sent or unknown action
 blocks automatic replay, refresh and replacement sends under AUX-R105. The
 only transport retry remains the pre-send GET/read connect/TLS retry in
 HTP-R139; a login POST is never retried after possible transmission.
+An unknown seed is charged and never repeated automatically. Anonymous and
+credential-configured identities without a recipe continue later distinct seed
+slots. A failed cookie-state update fails that traversal and clears its private
+jars. Verified recipe sessions stop further seeds after unknown transport or an
+invalid private-state update, with `unknown` or `blocked` identity state. When
+the HTTP response completed but its cookie update failed, the journal retains
+the completed physical response while the logical traversal is failed.
 
 **HTP-R145.** Preflight executes only the identities and seeds assigned by the
 Server. Login, control, auth-check, refresh and seed sends all pass through the
