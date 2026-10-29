@@ -284,14 +284,27 @@ does not argue it again.
 ### 3.11 Keep source details at their boundary
 
 Before implementation, identify who owns source interpretation, domain rules,
-authority and persistence; record that boundary under 3.10. For tool-produced
-observations and reports, provider-specific parsing, field mapping and malformed
-row handling belong in the owning Runtime adapter. Server validates the common
-normalized input and enforces authorization, domain invariants, bounds, canonical
+authority and persistence; record that boundary under 3.10. First distinguish
+external-provider adaptation from a domain operation over existing artifacts.
+An artifact's producer does not determine where its consumers execute: a
+tool-generated OpenAPI document is still an API contract artifact. Joining it
+with a sitemap is a domain transformation, not another provider ingestion path.
+
+For tool-produced observations and reports, provider-specific parsing, field
+mapping and malformed row handling belong in the owning Runtime adapter. Server
+validates the common normalized input and enforces authorization, domain invariants, bounds, canonical
 identities, grouping and receipts. Adding or replacing a provider should require
 an adapter and composition changes, without new Server branches to interpret its
 format. Provider labels are provenance; enums expressing actual domain rules
 remain appropriate.
+
+Place artifact transformations with the module that owns their domain rules,
+reusing existing parsers and algorithms; they may execute on Server. A separate
+Workflow stage defines sequencing and inputs/outputs, not execution location.
+Inspect the actual stage execution path before choosing its integration. Do not
+add a Runtime round trip, duplicate a parser or introduce a model merely to fit
+an existing tool Worker. If a concrete operation needs a missing execution
+capability, extend the common mechanism while keeping domain logic in its owner.
 
 Build artifact-based features on the ordinary Artifact read, metadata, revision,
 publication and retention mechanisms. Keep domain transformations in their owning
