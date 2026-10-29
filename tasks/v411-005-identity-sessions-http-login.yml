@@ -186,3 +186,118 @@ applicability:
 - Reuse the current controlled transport, action ledger and private exact-credential authority.
   Coordinate assignment/action/schema changes before Runtime implementation; do not add a general
   recipe executor, another receipt mechanism or Project session inheritance.
+
+implementation_notes:
+- Placed preflight is the production caller for anonymous, Basic, bearer and HTTP-login identities.
+  Existing private allocation preparation carries exactly bound credentials; no new credential
+  endpoint, model-facing session export, receipt family or journal table is introduced. Ordinary
+  Workers and their summarizers receive RuntimeSettings without target credential material.
+- Admission reads and validates exact pinned HTTP recipe bodies once. The immutable baseline omits
+  loginRecipes when no supported HTTP recipe is assigned, and requires its nonempty exact map when
+  one is assigned. This is the canonical current shape, preserving recipe-free baseline bytes and
+  existing evidence digests; no reader resolves old aliases or synthesizes missing bodies.
+- The closed recipe permits static GET/read and POST/probe requests, flat JSON/form bindings,
+  bounded private extraction and an explicit identityEquals control. Basic/bearer without a recipe
+  report credential_configured; optional control-only recipes can establish authenticated status.
+  HTTP 200, cookies, declared roles and tenants alone establish no observed principal.
+- The existing Audit action journal now keys actions by allocation, identity, phase, generation and
+  slot. Method/action class are server-derived from the frozen slot. Same-allocation replay uses
+  existing receipts; pending traffic for an identity blocks another allocation until joined proof.
+  Every physical request keeps the original shared request/rate/capacity/deadline charge. Login
+  actions and refresh generations additionally consume the pinned identity allowance.
+- Refresh is allowed once after a seed 401/403 and a completed fresh control. A successful control
+  means ordinary access denial; unknown transport never enables automatic retry or refresh. The
+  only transport retry is one proven pre-send GET/read connect/TLS failure. Anonymous/configured
+  identities can continue distinct seed slots without repeating an unknown slot; verified recipe
+  sessions instead stop after uncertain transport or invalid private session state.
+- Login/control/refresh never process Location or persist its digest. Authenticated seed redirects
+  may use only exact pinned seed URLs at the permitted origin; the journal independently rejects
+  other authenticated redirect digests. This bounded subset avoids private URL interpolation and
+  secret-derived hashes; a general replay executor remains outside this task.
+- Sessions own exact-origin memory-only cookie jars, private variables and generation handles.
+  Stop joins every active stream and parsing task, clears shared allocation target material and
+  drops faulted-task tracebacks before acknowledging stop. No session or token is persisted as an
+  Artifact, and failed authentication never becomes an anonymous request.
+- Migration 58 preserves journal identities, outcomes, request charges and attribution. It refuses
+  atomically if an earlier HTTP-login baseline lacks a validated recipe snapshot, or a partially
+  purged journal no longer has the original attempt needed for attribution. It changes no data in
+  either case. Pending purge must finish on the previous revision; unsupported recipe snapshots
+  require explicit operator resolution. SQL does not invent recipe bodies or rewrite evidence
+  digests, and a filesystem-backed artifact cannot be assumed to have a PostgreSQL payload.
+- Process tests observe real Server/Runtime/TCP/PostgreSQL boundaries and raw canaries before log
+  truncation/redaction. The replacement process case starts a fresh allocation in another Audit;
+  same-Audit budget/receipt replacement is separately verified on real PostgreSQL, while native
+  Runtime tests prove old internal handles fail and new allocation sessions log in independently.
+  These complementary checks are not presented as a general PoC replay implementation.
+
+process_verification_execution:
+  command: make release-verify-process-a release-verify-process-b release-verify-process-c
+  guarantee: Run all three existing canonical CI shards against production_source in separate native
+    Linux containers and databases, then repeat B on reviewed_test_source. Their disjoint union is
+    all 38 deterministic process roots
+    (A 11, B 14, C 13); 36 untagged unit roots and eight configuration fixture roots are checked
+    separately by make test-hardening-matrices. Eight existing opt-in external-engine/container
+    roots remain explicitly allowlisted and are not claimed as executed.
+
+verification:
+  date: '2026-10-29'
+  production_source: 7a62bc934040a6c514ab03207e58894f6d6cc8d9
+  reviewed_test_source: 53a04dc07d33a1608bd812a8e08cd7dfd5db8e14
+  source_equivalence: The final review changes only the three identity process test files, giving
+    configured and verified Basic identities distinct credentials and checking exact seed outcome
+    counts. Production code, canonical A/C tests and their helpers are unchanged. The full canonical
+    B shard is repeated on the final reviewed test source.
+  results:
+  - The exact task-listed Go command passed with integration tags, count=1 and disposable PostgreSQL
+    for credentials, all contracts, controlplane and auditservice.
+  - Complete credentials, controlplane, auditservice, pgstore, persistence/postgres, privateartifacts
+    and app packages passed with race detection and integration tags. The same broad invocation
+    failed only the contracts error-class fixture; after correcting structural versus semantic
+    validation, the complete contracts packages passed again with race detection and count=1.
+    The earlier failed invocation is retained as diagnostic evidence, not counted as a gate pass.
+  - make test-wire-cross-language passed all 452 shared fixtures, 362 Go and 247 Python shared readers;
+    the Runtime shared selection passed 1556 cases and the contract/performance selection passed 504.
+  - make test-pentest-http-process passed all 46 required process identities, two real PostgreSQL
+    accounting cases with race detection and 65 native Runtime cases, with zero selected skips.
+    Both identity process roots also passed after the final distinct-credential and exact-count
+    assertions were added, covering all eight expected identity cases.
+  - make test-hardening-matrices passed the complete untagged tests/e2e package and all eight tagged
+    configuration fixture roots. This complements the canonical deterministic process union.
+  - All three canonical release process shards passed on production_source; shard B passed again
+    on reviewed_test_source. The final A/B/C union contains exactly 38 unique roots (11/14/13),
+    131 passing results including subtests, zero missing/extra/duplicate roots and zero selected
+    skips or failures. All mandatory report validators passed. Raw report hashes and the final
+    union were independently checked by the coordinator before test-container cleanup.
+  - make docs-dependencies and make docs-erd regenerated the derived documents; the ERD was read
+    from a freshly migrated disposable database at migration 58, with 76 tables and 106 foreign keys.
+  - The earlier direct full pytest run passed 5676 cases with 55 optional skips, but omitted
+    warnings-as-errors, JUnit output and the required report validator. It is diagnostic evidence
+    only and does not establish a successful make test-runtime gate.
+  - The exact make test-runtime gate subsequently passed on reviewed_test_source in native Linux,
+    with warnings-as-errors and the mandatory verify-runtime validator. The preserved JUnit report
+    records 5676 passed, 55 existing optional skips, zero errors and zero failures in 508.38s;
+    all 171 pentest cases ran without skips. Optional skips require rootless Podman (34), external
+    scanner binaries (16), live Gateway (3), a separately launched Go Audit API (1) or Interactsh (1).
+    The coordinator independently reran verify-runtime against the copied final report.
+  - make test-http-caido-runtime passed all 208 cases with warnings-as-errors. The later controlled
+    pentest adapter changes do not change ordinary HTTP/Caido source; those tests also ran in the
+    final full Runtime gate. No live-model quality or optional external-engine execution is claimed.
+  reports:
+    source_manifest: /private/tmp/v411005-evidence/source-manifest.json
+    required_go: /private/tmp/v411005-required-go.log
+    broad_go_diagnostic: /private/tmp/v411005-go-full.log
+    final_contracts_race: /private/tmp/v411005-contracts-race-final.log
+    wire: /private/tmp/v411005-wire-final.log
+    focused: /private/tmp/v411005-evidence/focused-7a62/result.json
+    reviewed_identity_roots: /private/tmp/v411005-identity-proof-review.jsonl
+    unit_configuration: /private/tmp/v411005-e2e-unit-config.log
+    process_union: /private/tmp/v411005-evidence/canonical-union.json
+    process_validators: /private/tmp/v411005-evidence/validators.log
+    process_a: /private/tmp/v411005-evidence/shard-a-7a62/go-process-a.jsonl
+    process_b: /private/tmp/v411005-evidence/shard-b-53a/go-process-b.jsonl
+    process_c: /private/tmp/v411005-evidence/shard-c-7a62/go-process-c.jsonl
+    runtime: /private/tmp/v411005-evidence/runtime-final/evidence-summary.json
+    runtime_log: /private/tmp/v411005-evidence/runtime-final/make-test-runtime.log
+    runtime_junit: /private/tmp/v411005-evidence/runtime-final/runtime.xml
+    runtime_shared: /private/tmp/v411005-evidence/runtime-final/shared-fixture-reads.log
+    http_and_runtime_diagnostic: /private/tmp/v411005-runtime-validation-7a62bc93.txt
