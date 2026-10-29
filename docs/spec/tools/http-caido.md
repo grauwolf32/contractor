@@ -1247,7 +1247,11 @@ ceiling is anchored at allocation preparation; it cannot renew through replay.
 All tasks, streams and clients are joined and closed on cancellation or release.
 
 **HTP-R139.** Every redirect and retry obtains fresh policy admission and a
-physical-request permit. At most five redirects and one additional retry are
+physical-request permit. The raw redirect reference is validated before
+resolution can erase forbidden syntax: relative dot segments or parser-stripped
+controls cannot become an apparently valid absolute target. Valid relative
+references preserve the exact canonical path and query used for admission,
+the continuation digest and transmission. At most five redirects and one additional retry are
 allowed for one seed. The retry is only for an explicit GET/read failure proven
 before any application byte (connect or TLS); received HTTP 500 is not a retry
 condition. Request lifetime defaults to 30 seconds, never exceeds 120 seconds,
