@@ -391,6 +391,9 @@
         },
         "summarizerModelPolicy": {
           "$ref": "#/$defs/Selector"
+        },
+        "compactorModelPolicy": {
+          "$ref": "#/$defs/Selector"
         }
       },
       "required": [],

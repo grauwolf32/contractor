@@ -3006,6 +3006,7 @@ export interface components {
             llmGateway?: components["schemas"]["EvalSelector"];
             credential?: components["schemas"]["EvalOpaque"] | null;
             summarizerModelPolicy?: components["schemas"]["EvalSelector"];
+            compactorModelPolicy?: components["schemas"]["EvalSelector"];
         };
         EvalStageOverride: {
             planner?: components["schemas"]["EvalExecutionSelection"];
@@ -5768,11 +5769,15 @@ export interface components {
             model?: string;
             summarizerModelPolicy?: components["schemas"]["ModelPolicyRef"];
             summarizerModel?: string;
+            /** @description Tool-free compactor of a compact@1 Planner (PLN-R125); absent for every Worker. */
+            compactorModelPolicy?: components["schemas"]["ModelPolicyRef"];
+            compactorModel?: string;
             llmGateway?: components["schemas"]["LLMGatewayConfigRef"];
             credential?: components["schemas"]["CredentialRef"];
             origins?: {
                 modelPolicy?: string;
                 summarizerModelPolicy?: string;
+                compactorModelPolicy?: string;
                 llmGateway?: string;
                 credential?: string;
             };
@@ -6007,6 +6012,8 @@ export interface components {
         ExecutionSelectionPatch: {
             modelPolicy?: components["schemas"]["Selector"];
             summarizerModelPolicy?: components["schemas"]["Selector"];
+            /** @description Exact compactor ModelPolicy; valid only in a Planner selection that applies to a compact@1 Stage (PLN-R125). */
+            compactorModelPolicy?: components["schemas"]["Selector"];
             llmGateway?: components["schemas"]["Selector"];
             credential?: components["schemas"]["ConfigId"] | null;
         };
@@ -6122,6 +6129,18 @@ export interface components {
             ref: components["schemas"]["InstructionPath"];
             digest: components["schemas"]["Digest"];
         };
+        /** @description Resolved Planner context management of a Planner Stage (PLN-R125). Always present for a Planner Stage: none keeps the whole Planner conversation, compact@1 carries every threshold explicitly. The compactor ModelPolicy is the Planner execution selection compactorModelPolicy. */
+        PlannerContextManagement: {
+            /** @constant */
+            strategy: "none";
+        } | {
+            /** @constant */
+            strategy: "compact@1";
+            instructions: components["schemas"]["InstructionsRef"];
+            contextWindowRatio: number;
+            keepRecentGroups: number;
+            maxCompactions: number;
+        };
         PlannerRef: {
             plannerId: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
@@ -6194,6 +6213,7 @@ export interface components {
             objective: string;
             instructions?: components["schemas"]["InstructionsRef"];
             planner?: components["schemas"]["PlannerRef"];
+            plannerContextManagement?: components["schemas"]["PlannerContextManagement"];
             operation?: components["schemas"]["ServerOperationConfig"];
             /**
              * @description Resolved Worker session mode. Always present; omission in source Workflow YAML resolves to isolated before publication.
@@ -6270,6 +6290,9 @@ export interface components {
          *           "planner": {
          *             "plannerId": "passthrough",
          *             "version": "1"
+         *           },
+         *           "plannerContextManagement": {
+         *             "strategy": "none"
          *           },
          *           "session": "isolated",
          *           "agents": {
@@ -6461,6 +6484,7 @@ export interface components {
         };
         ExecutionConfigSelection: {
             modelPolicy?: components["schemas"]["ModelPolicyRef"];
+            compactorModelPolicy?: components["schemas"]["ModelPolicyRef"];
             llmGateway?: components["schemas"]["LLMGatewayConfigRef"];
             credential?: components["schemas"]["CredentialRef"] | null;
         };

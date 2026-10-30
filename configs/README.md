@@ -57,6 +57,16 @@ Existing Streamline variants already use that Planner. Bounded Audit Workers
 have no terminal summarizer; the short artifact-copy and Podman smoke fixtures
 retain their direct passthrough completion and failure checks.
 
+Planner context compaction is opt-in per Streamline/Router Stage. Copy
+[`examples/streamline_compaction_workflow.yaml`](examples/streamline_compaction_workflow.yaml)
+under `workflows/` and
+[`examples/planner_compactor_policy.yaml`](examples/planner_compactor_policy.yaml)
+under `model-policies/` to load a review Workflow whose Planner replaces earlier
+steps with a rolling summary once its prompt reaches 75% of the Planner window,
+keeping exact earlier Worker results readable. The compactor policy has no
+deployment model-selection role, so its `model` must name a live Gateway route.
+No bundled Workflow enables compaction.
+
 Set optional `spec.maxSubtasks` on a Workflow to bound each Streamline/Router
 plan, including summary continuation. For example, `maxSubtasks: 64` allows up
 to 64 records per invocation. Omission selects 32; explicit values must be

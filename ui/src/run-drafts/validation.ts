@@ -17,6 +17,8 @@ export const NO_CREDENTIAL_OVERRIDE = "__none__";
 
 export interface ConsumerOverrideDraft {
   summarizerModelPolicy?: string;
+  /** Preserved from a repeated Run; the form has no compactor editor. */
+  compactorModelPolicy?: string;
   modelPolicy: string;
   llmGateway: string;
   credential: string;
@@ -64,6 +66,9 @@ function selectionPatch(
   }
   if (draft.summarizerModelPolicy) {
     result.summarizerModelPolicy = draft.summarizerModelPolicy;
+  }
+  if (draft.compactorModelPolicy) {
+    result.compactorModelPolicy = draft.compactorModelPolicy;
   }
   if (draft.llmGateway !== "") {
     result.llmGateway = draft.llmGateway;

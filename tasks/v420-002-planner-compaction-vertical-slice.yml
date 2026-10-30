@@ -21,6 +21,17 @@ context:
     These pending records authorize planning only, do not start implementation and do not change the current
     delivery focus. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-planner together with V417-001, V417-003 and V420-002.'
   review: tasks/evidence/v419-go-adk-26-review.json
+  decision_needed: >-
+    2026-10-31 (lane cmp-planner): should the default catalog ship a loaded compactor
+    ModelPolicy? A compactor policy's model must name a live Gateway route, and the routes
+    are generated per selected model by make model-config, so a hand-written loaded policy
+    goes stale when the deployment default model changes. Options: (a) have
+    scripts/generate_model_config.py also emit a non-selectable compactor policy that
+    follows the summarizer route with compactor budgets (maxModelCalls 1, finite
+    maxTotalTokens); (b) make compactor a fifth deployment model-selection role, which
+    widens Server model-selection and the four-role defaults; (c) keep the copy-to-load
+    example only (current state). Recommendation: (a) when a bundled Workflow first opts
+    in; (c) until then.
   specification:
   - docs/spec/execution/planners.md#PLN-R1
   - docs/spec/execution/planners.md#PLN-R81
@@ -255,3 +266,44 @@ test_prerequisites:
 - No dependency on Python V418 or Worker compaction V417 is implied. Cross-language regression uses the currently
   supported Runtime lock. New shared grammar or wire changes, if actually needed, must update all implementations
   and shared fixtures in the owning task.
+decisions:
+- >-
+  2026-10-31 (lane cmp-planner): the resolved snapshot encodes none as an absent
+  plannerContextManagement member, not as an explicit {strategy: none}; a snapshot that
+  names none or a partial compact@1 branch is rejected on read. This keeps the snapshot
+  bytes and every closure digest of existing Workflows unchanged (finding intake
+  WorkflowClosureDigest, Audit consumer pins, scan service), so no migration or relabel is
+  needed. The public read model always renders the branch, {strategy: none} included.
+  Deviation from the frozen V420-001 wording; reopen if a reader needs an explicit none in
+  the snapshot.
+- >-
+  2026-10-31 (lane cmp-planner): the compactor policy is a Planner execution-selection
+  member, compactorModelPolicy (TPL-R117). The Stage's plannerContextManagement.modelPolicy
+  is its lowest-precedence origin; Workflow executionConfig.planner, ExecutionConfig
+  profiles, Run overrides and escalation may replace it; a selection that applies to no
+  compact@1 Stage is rejected, as is any Worker or Agent selection. No deployment
+  model-selection role for the compactor (the deployment defaults stay four roles). The
+  compactor client has no Gateway recovery participant: a transient compactor failure ends
+  the invocation with retryable planner_gateway_unavailable; reopen if live runs show
+  transient compactor failures that need in-invocation retries.
+- >-
+  2026-10-31 (lane cmp-planner): compactor request timeout is the existing Server Planner
+  Gateway request timeout plus the invocation deadline (LLMGatewayConfig has no
+  requestTimeout field). Finish content_filter maps to reason empty (declined); a missing
+  or unknown finish to invalid. A due trigger with no eligible prefix continues without a
+  checkpoint; a due trigger after maxCompactions ends with
+  planner_compaction_limit_exceeded (cycle). The history reader evicts the oldest of 8
+  cursors instead of failing the ninth. A marker append whose acknowledgement is lost
+  fences the invocation (planner_session_unavailable) rather than reconciling and
+  continuing; the committed marker is never appended again.
+- >-
+  2026-10-31 (lane cmp-planner): the opt-in example ships as copy-to-load files beside the
+  existing examples (configs/examples/streamline_compaction_workflow.yaml,
+  configs/examples/planner_compactor_policy.yaml) with the loaded instruction resource
+  configs/instructions/planner-compaction.md; the strict mirror is
+  internal/config/testdata/planner-compaction. The CLI gate validated ./configs and a copy
+  with both example files loaded. No bundled Workflow enables compaction.
+- >-
+  2026-10-31 (lane cmp-planner): the Eval managed schema ExecutionSelection gains
+  compactorModelPolicy because Eval recipes reuse the Go ExecutionConfigPatch decoder;
+  without it the shared decoder and the schema would disagree.

@@ -334,3 +334,75 @@ func TestConvertContentsGeneratesUniqueSyntheticToolCallIDs(t *testing.T) {
 		t.Fatalf("synthetic call correlation = %+v", messages)
 	}
 }
+
+// The compactor path keeps the provider's explicit finish reason and the
+// valid usage of every received reply; the owner classifies the reply.
+func TestOpenAICompatibleCompactorKeepsFinishReasonAndUsage(t *testing.T) {
+	for _, test := range []struct {
+		name, finish string
+		usage        bool
+	}{
+		{"stop", `"stop"`, true},
+		{"length", `"length"`, true},
+		{"content-filter", `"content_filter"`, true},
+		{"missing", `null`, true},
+		{"unknown", `"paused"`, true},
+		{"missing-usage", `"stop"`, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests.Add(1)
+				var payload map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+					t.Error(err)
+				}
+				if payload["model"] != "compactor-model" || payload["tools"] != nil || payload["max_tokens"] != float64(256) {
+					t.Errorf("compactor payload = %+v", payload)
+				}
+				usage := `,"usage":{"prompt_tokens":11,"completion_tokens":7,"total_tokens":18}`
+				if !test.usage {
+					usage = ""
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"choices":[{"finish_reason":` + test.finish +
+					`,"message":{"content":"{\"summary\":\"memory\"}"}}]` + usage + `}`))
+			}))
+			defer server.Close()
+			llm, err := NewOpenAICompatibleModel(GatewaySettings{
+				URL: server.URL + "/v1", Model: "compactor-model", MaxOutputTokens: 256, HTTPClient: server.Client(),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			compactor, ok := llm.(compactionModel)
+			if !ok {
+				t.Fatal("Gateway model has no compactor path")
+			}
+			reply, err := compactor.compact(t.Context(), &model.LLMRequest{
+				Contents: []*genai.Content{genai.NewContentFromText("history", genai.RoleUser)},
+			})
+			if requests.Load() != 1 {
+				t.Fatalf("requests = %d", requests.Load())
+			}
+			if !test.usage {
+				var rejected *gatewayResponseRejected
+				if !errors.As(err, &rejected) || rejected.usage != nil {
+					t.Fatalf("missing usage error = %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := strings.Trim(test.finish, `"`)
+			if test.finish == "null" {
+				want = ""
+			}
+			if reply.finishReason != want || reply.text != `{"summary":"memory"}` || reply.toolCalls != 0 ||
+				reply.usage == nil || reply.usage.TotalTokenCount != 18 {
+				t.Fatalf("reply = %+v", reply)
+			}
+		})
+	}
+}

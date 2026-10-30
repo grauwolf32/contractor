@@ -13,6 +13,7 @@ export function stageContract(
     objective: "Analyze the materials.",
     instructions: { ref: "instructions/analyze.md", digest: DIGEST },
     planner: { plannerId: "streamline", version: "1" },
+    plannerContextManagement: { strategy: "none" },
     session: "isolated",
     agents: {
       analyst: {
