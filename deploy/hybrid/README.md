@@ -46,14 +46,26 @@ The local `local-up` step asks for sudo in your terminal. On macOS the actual
 interface is named `utunN`, even though the configuration is `wg-mesh.conf`.
 On macOS, `local-up` also restores an explicit route for the deployment's private
 mesh /24. It discovers the interface by the controller address, verifies its
-WireGuard public identity, and checks that each peer routes through it. Repeating
-the command repairs routing without restarting an existing matching CLI tunnel:
+WireGuard public identity, and checks that each peer routes through it. It also
+reconciles one exact host route for the controller's own mesh address through
+`lo0` (for example, `10.77.0.10/32`). Local Runtime calls to the advertised
+private API can then use local delivery, while remote peer routes still use
+the mesh interface. Both route classes are read back before reporting readiness.
+Repeating the command repairs routing without restarting an existing matching CLI tunnel:
 run it again after activating a personal VPN that captures mesh traffic. The
 personal VPN, default route, DNS and keys are unchanged. A conflicting or
 unverifiable interface, denied administrator privileges, or a failed route check
 fails the command. Graphical-client tunnels remain manually managed.
 
-The route is temporary and `wg-quick down` removes routes on its interface.
+Stop the CLI mesh with `python3 deploy/wireguard/mesh.py local-down`. This helper
+verifies the mesh identity and removes the controller's exact `lo0` host route
+before invoking `wg-quick down` to remove the tunnel and its interface routes.
+It also removes a leftover controller host route when the mesh is already down;
+repeating teardown is safe. If the interface has an unexpected identity, no
+routes are changed. Failed or unverified host-route removal leaves the mesh
+running for an explicit retry. Direct `wg-quick down` does not own the separate
+loopback route; rerun `local-down` to clean it after an out-of-band teardown.
+All these routes are temporary and do not survive a reboot.
 There is no background route monitor for VPN changes or automatic activation
 added by this helper; rerun `local-up` after such a change. Linux cloud startup
 continues to use `wg-quick@wg-mesh` and the per-peer /32 routes.

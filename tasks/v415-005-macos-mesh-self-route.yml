@@ -1,0 +1,50 @@
+schema_version: "1.0"
+id: V415-005
+title: Route the macOS mesh controller self address through loopback
+milestone: runtime-host-provisioning-2026-10
+epic: operations
+kind: defect
+introduced_by: V415-004
+priority: P1
+status: in_progress
+depends_on: []
+languages: [python]
+goal: Local mesh startup reconciles the controller's own host route through lo0 while every remote peer still uses the verified mesh interface.
+context:
+  severity: medium
+  finding: >-
+    deploy/wireguard/mesh.py:233 verifies only the private /24 and remote
+    peer routes. The controller self route remains on utun, and local
+    Runtime connections to its advertised private Artifact API time out.
+  siblings: >-
+    Fresh and existing macOS CLI tunnels share macos_local_up. Linux
+    startup remains wg-quick-only. The graphical VPN and egress/default
+    routes remain outside this helper.
+scope:
+  in:
+    - Reconcile and verify one exact controller /32 route through lo0 after checking mesh identity.
+    - Preserve existing peer-route repair and make already-correct invocations read-only.
+    - Cover failed, ambiguous, missing and captured host routes with real command-process fixtures.
+    - Add idempotent local-down cleanup for the separate loopback host route before tunnel teardown.
+    - Document route ownership, privileges and teardown.
+  out:
+    - Change Runtime endpoints, certificates, personal VPN settings, cloud provisioning or default routes.
+acceptance_criteria:
+  - id: A1
+    text: Fresh and existing macOS meshes put the controller /32 on lo0 and all configured remote peers on the verified utun interface.
+  - id: A2
+    text: Repeating local-up repairs a captured self route without restarting the mesh; correct peer and self routes cause no mutation.
+  - id: A3
+    text: Route write, readback and permission failures never claim readiness, leak credentials or mutate unrelated routes; Linux behavior remains unchanged.
+  - id: A4
+    text: Regression scenarios fail on the original implementation and the complete hybrid suite and repository lint pass.
+tests:
+  - command: sh deploy/hybrid/test.sh
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification_results:
+  - "The new self-route regression failed against the original helper, which reported readiness without reconciling the controller host route."
+  - "Complete hybrid deployment suite: 44 tests passed, including 21 mesh-route cases, Ruff checks/format and shell syntax."
+  - "make lint passed, including Go checks, UI gates, Ansible resolution, deployment suites and Runtime import contracts."
+  - "Live macOS route application has not been performed: the environment requires an administrator password for sudo."
