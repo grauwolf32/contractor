@@ -739,14 +739,25 @@ func TestPublicArtifactLineageHidesAuditImportStagingEdge(t *testing.T) {
 		t.Fatal(err)
 	}
 	targetRevision := "hidden-revision"
-	fixture.repository.lineage = append(fixture.repository.lineage, artifacts.LineageEdge{
-		Kind:        artifacts.LineageAuditImport,
-		SourceScope: artifacts.ScopeUser, Source: source.Ref,
-		TargetScope: artifacts.ScopeProject,
-		Target: contracts.ArtifactRef{
-			Namespace: "audit-staging", Name: "result", Revision: &targetRevision,
+	userScope, err := artifacts.UserScope("user-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectScope, err := artifacts.ProjectScope("project-staging")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.repository.lineage = append(fixture.repository.lineage, fakeLineageEdge{
+		edge: artifacts.LineageEdge{
+			Kind:        artifacts.LineageAuditImport,
+			SourceScope: artifacts.ScopeUser, Source: source.Ref,
+			TargetScope: artifacts.ScopeProject,
+			Target: contracts.ArtifactRef{
+				Namespace: "audit-staging", Name: "result", Revision: &targetRevision,
+			},
+			CreatedAt: time.Now().UTC(),
 		},
-		CreatedAt: time.Now().UTC(),
+		source: userScope, target: projectScope,
 	})
 	response := serveQuery(t, fixture.handler, "/v1/artifacts/results/source/lineage")
 	var page artifactLineagePageResponse

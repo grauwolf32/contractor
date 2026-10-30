@@ -107,14 +107,14 @@ func TestValidationRejectsInvalidLicenseDuplicatesAndDanglingMappings(t *testing
 
 func TestDiscoveryIsAllOrNothingAndRejectsDuplicateIdentity(t *testing.T) {
 	root := t.TempDir()
-	if plan, err := DiscoverBundled(root); err != nil || len(plan.Packages()) != 0 {
+	if plan, err := DiscoverBundled(root); err != nil || len(plan.packageMetadata()) != 0 {
 		t.Fatalf("missing catalog = (%+v, %v)", plan, err)
 	}
 	if err := os.MkdirAll(filepath.Join(root, artifactpolicy.AuditStandardCatalogNamespace), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	writeRaw(t, filepath.Join(root, artifactpolicy.AuditStandardCatalogNamespace, ".gitkeep"), []byte("\n"))
-	if plan, err := DiscoverBundled(root); err != nil || len(plan.Packages()) != 0 {
+	if plan, err := DiscoverBundled(root); err != nil || len(plan.packageMetadata()) != 0 {
 		t.Fatalf("empty catalog marker = (%+v, %v)", plan, err)
 	}
 	writePackageSource(t, root, "one", validDocument("example", "1"))
@@ -359,14 +359,14 @@ func rawArchive(t *testing.T, name string, data []byte) []byte {
 type memoryRepository struct {
 	artifacts.Repository
 	mu              sync.Mutex
-	bindings        map[string]artifacts.ReadResult
-	frozen          map[string]bool
+	bindings        map[artifactBinding]artifacts.ReadResult
+	frozen          map[artifactBinding]bool
 	writes          int
 	readExistingErr error
 }
 
 func newMemoryRepository() *memoryRepository {
-	return &memoryRepository{bindings: map[string]artifacts.ReadResult{}, frozen: map[string]bool{}}
+	return &memoryRepository{bindings: map[artifactBinding]artifacts.ReadResult{}, frozen: map[artifactBinding]bool{}}
 }
 
 func (r *memoryRepository) Write(_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef,
@@ -440,11 +440,10 @@ func (r *memoryRepository) Read(_ context.Context, scope artifacts.Scope, ref ar
 func (r *memoryRepository) ListRefs(_ context.Context, scope artifacts.Scope, query artifacts.RefPageQuery) (artifacts.RefPage, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	prefix := string(scope.Kind()) + "/" + scope.ID() + "/"
 	result := make([]artifacts.ArtifactRef, 0)
 	for key, value := range r.bindings {
 		ref := artifacts.ArtifactRef{Namespace: value.Ref.Namespace, Name: value.Ref.Name}
-		if len(key) < len(prefix) || key[:len(prefix)] != prefix || query.Namespace != nil && ref.Namespace != *query.Namespace ||
+		if key.scope != scope || query.Namespace != nil && ref.Namespace != *query.Namespace ||
 			query.ModelVisible && artifactpolicy.IsModelHiddenBinding(ref.Namespace, ref.Name) ||
 			ref.Namespace < query.AfterNamespace || ref.Namespace == query.AfterNamespace && ref.Name <= query.AfterName {
 			continue
@@ -463,8 +462,14 @@ func (r *memoryRepository) ListRefs(_ context.Context, scope artifacts.Scope, qu
 	return artifacts.RefPage{Refs: result}, nil
 }
 
-func artifactKey(scope artifacts.Scope, ref artifacts.ArtifactRef) string {
-	return string(scope.Kind()) + "/" + scope.ID() + "/" + ref.Namespace + "/" + ref.Name
+// artifactBinding names a binding of the in-memory repository.
+type artifactBinding struct {
+	scope           artifacts.Scope
+	namespace, name string
+}
+
+func artifactKey(scope artifacts.Scope, ref artifacts.ArtifactRef) artifactBinding {
+	return artifactBinding{scope: scope, namespace: ref.Namespace, name: ref.Name}
 }
 
 func TestCanonicalNormalizationSortsSemanticSets(t *testing.T) {
@@ -481,4 +486,17 @@ func TestCanonicalNormalizationSortsSemanticSets(t *testing.T) {
 		[]string{"inconclusive", "satisfied", "violated"}) {
 		t.Fatalf("normalized assessments = %v", pkg.Document.EvidenceContracts[0].Assessments)
 	}
+}
+
+// packageMetadata returns the metadata of each package of the plan, in plan
+// order, for tests; production seeds the plan without listing it.
+func (p *SeedPlan) packageMetadata() []SeedMetadata {
+	if p == nil {
+		return nil
+	}
+	result := make([]SeedMetadata, len(p.packages))
+	for index, pkg := range p.packages {
+		result[index] = pkg.metadata
+	}
+	return result
 }

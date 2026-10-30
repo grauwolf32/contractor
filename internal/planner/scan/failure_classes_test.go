@@ -324,7 +324,7 @@ func TestScanResultVerificationRetryScope(t *testing.T) {
 			if recovered {
 				h.run(t)
 			}
-			inspector, err := planner.NewRunArtifactInspector(h.invocation.RunID, scanMetadataReader(func(context.Context, contracts.ArtifactRef) (artifacts.Metadata, error) {
+			inspector, err := newScanInspector(h.invocation.RunID, scanMetadataReader(func(context.Context, contracts.ArtifactRef) (artifacts.Metadata, error) {
 				return artifacts.Metadata{}, context.DeadlineExceeded
 			}))
 			if err != nil {

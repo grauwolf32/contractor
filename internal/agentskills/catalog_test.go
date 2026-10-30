@@ -45,9 +45,13 @@ func TestCatalogCreateOnlyInitializationAndDrift(t *testing.T) {
 	if repository.successfulWrites != 2 || repository.revisions != 2 {
 		t.Fatalf("writes/revisions = %d/%d, want 2/2", repository.successfulWrites, repository.revisions)
 	}
+	realOwner, err := artifacts.UserScope("real-owner")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for key := range repository.bindings {
-		if !strings.HasPrefix(key, "user/real-owner/skills/") {
-			t.Fatalf("seed escaped real owner UserScope: %q", key)
+		if key.scope != realOwner || key.namespace != SkillNamespace {
+			t.Fatalf("seed escaped real owner UserScope: %+v", key)
 		}
 	}
 
@@ -241,7 +245,7 @@ func TestCatalogInitializationRacingOwnerCreateNeverOverwritesCurrent(t *testing
 
 func TestBundledDiscoveryIsAllOrNothingAndBounded(t *testing.T) {
 	root := t.TempDir()
-	if plan, err := DiscoverBundled(root); err != nil || len(plan.Packages()) != 0 {
+	if plan, err := DiscoverBundled(root); err != nil || len(plan.packageMetadata()) != 0 {
 		t.Fatalf("missing skills subtree = (%+v, %v)", plan, err)
 	}
 	writeSkillSource(t, root, "valid", "Valid.")
@@ -284,7 +288,7 @@ func bundledPlan(t *testing.T, skills map[string]string) *SeedPlan {
 	if err != nil {
 		t.Fatal(err)
 	}
-	metadata := plan.Packages()
+	metadata := plan.packageMetadata()
 	for index := 1; index < len(metadata); index++ {
 		if metadata[index-1].Name >= metadata[index].Name {
 			t.Fatalf("plan is not sorted: %+v", metadata)
@@ -327,9 +331,9 @@ type missingReadBarrier struct {
 type memoryArtifactRepository struct {
 	artifacts.Repository
 	mu                        sync.Mutex
-	bindings                  map[string]memoryArtifact
-	history                   map[string]map[string]memoryArtifact
-	forkSources               map[string]artifacts.ArtifactRef
+	bindings                  map[artifactBinding]memoryArtifact
+	history                   map[artifactBinding]map[string]memoryArtifact
+	forkSources               map[artifactBinding]artifacts.ArtifactRef
 	forkCalls                 int
 	revisions                 int
 	attemptedWrites           int
@@ -343,8 +347,8 @@ type memoryArtifactRepository struct {
 
 func newMemoryArtifactRepository() *memoryArtifactRepository {
 	return &memoryArtifactRepository{
-		bindings: make(map[string]memoryArtifact), history: make(map[string]map[string]memoryArtifact),
-		forkSources: make(map[string]artifacts.ArtifactRef), failAfterSuccessfulWrites: -1,
+		bindings: make(map[artifactBinding]memoryArtifact), history: make(map[artifactBinding]map[string]memoryArtifact),
+		forkSources: make(map[artifactBinding]artifacts.ArtifactRef), failAfterSuccessfulWrites: -1,
 	}
 }
 
@@ -356,8 +360,14 @@ func (r *memoryArtifactRepository) removeRevision(scope artifacts.Scope, ref art
 	delete(r.history[artifactKey(scope, ref)], *ref.Revision)
 }
 
-func artifactKey(scope artifacts.Scope, ref artifacts.ArtifactRef) string {
-	return string(scope.Kind()) + "/" + scope.ID() + "/" + ref.Namespace + "/" + ref.Name
+// artifactBinding names a binding of the in-memory repository.
+type artifactBinding struct {
+	scope           artifacts.Scope
+	namespace, name string
+}
+
+func artifactKey(scope artifacts.Scope, ref artifacts.ArtifactRef) artifactBinding {
+	return artifactBinding{scope: scope, namespace: ref.Namespace, name: ref.Name}
 }
 
 func (r *memoryArtifactRepository) Read(_ context.Context, scope artifacts.Scope, ref artifacts.ArtifactRef) (artifacts.ReadResult, error) {
@@ -489,4 +499,17 @@ func (r *memoryArtifactRepository) Fork(_ context.Context, fork artifacts.Fork) 
 		SourceRef: source.result.Ref, TargetRef: target.result.Ref,
 		MediaType: source.result.Payload.MediaType, Size: int64(len(source.result.Payload.Data)),
 	}, nil
+}
+
+// packageMetadata returns the metadata of each package of the plan, in plan
+// order, for tests; production seeds the plan without listing it.
+func (p *SeedPlan) packageMetadata() []SeedMetadata {
+	if p == nil {
+		return nil
+	}
+	result := make([]SeedMetadata, len(p.packages))
+	for index, pkg := range p.packages {
+		result[index] = pkg.metadata
+	}
+	return result
 }

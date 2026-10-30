@@ -231,7 +231,7 @@ INSERT INTO audit_review_requests (
 		}
 		step(t, f, "finding admission")
 		revision := uint64(1)
-		if err := f.store.AppendReviewEvents(f.ctx, []auditstore.ReviewEventParams{
+		if err := f.store.ReviewStore.appendReviewEvents(f.ctx, []auditstore.ReviewEventParams{
 			{AuditID: f.audit.AuditID, Kind: "review.requested", EntityID: "review-dense",
 				EntityRevision: &revision, Summary: map[string]any{"subjectKind": "finding", "findingId": findingID}},
 			{AuditID: f.audit.AuditID, Kind: "review.decided", EntityID: "decision-dense",

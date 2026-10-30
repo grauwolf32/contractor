@@ -17,7 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -52,7 +52,7 @@ func testNextRoundRetryPolicy(t *testing.T, policy contracts.ActiveChecksPolicy)
 	credentials := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
 	service, err := New(Options{
 		Pool: pool, Profiles: profiles, CredentialGuard: &countingCredentialGuard{},
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 		),
 	})

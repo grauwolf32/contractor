@@ -13,7 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -43,7 +43,7 @@ func TestSharedPostgresAuditDetailReadsOneCommitWhileTheAuditChanges(t *testing.
 	f.claim(1)
 	credentials := newFakeManagedCredentials()
 	service, err := auditservice.New(auditservice.Options{Pool: traced, Profiles: f.catalog, CredentialGuard: credentials,
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil }),
 	})
 	if err != nil {

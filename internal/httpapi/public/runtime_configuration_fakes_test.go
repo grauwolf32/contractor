@@ -172,7 +172,10 @@ type fakeRuntimeConfigManagement struct {
 	versions     map[string]runtimeconfig.Version
 	bindings     map[string]runtimeconfig.Binding
 	publications map[string]runtimeconfig.PublishResult
-	mutations    map[string]runtimeconfig.BindingMutationResult
+	// publicationDigests holds the request digest of each idempotency key,
+	// which a replay must repeat, as the Publisher compares it.
+	publicationDigests map[string]string
+	mutations          map[string]runtimeconfig.BindingMutationResult
 	// mutationRequests binds each key to its request, as the real store's
 	// request digest does.
 	mutationRequests map[string]string
@@ -198,8 +201,9 @@ func newFakeRuntimeConfigManagement(resolver runtimeconfig.GatewayResolver) *fak
 			CreatedBy: "contractor-bootstrap", CreatedAt: builtIn.CreatedAt,
 			UpdatedBy: "contractor-bootstrap", UpdatedAt: builtIn.CreatedAt,
 		}},
-		publications: make(map[string]runtimeconfig.PublishResult),
-		mutations:    make(map[string]runtimeconfig.BindingMutationResult),
+		publications:       make(map[string]runtimeconfig.PublishResult),
+		publicationDigests: make(map[string]string),
+		mutations:          make(map[string]runtimeconfig.BindingMutationResult),
 	}
 }
 
@@ -216,7 +220,7 @@ func (f *fakeRuntimeConfigManagement) Publish(
 		return runtimeconfig.PublishResult{}, err
 	}
 	if replay, ok := f.publications[key]; ok {
-		if replay.Version.Ref.Name != prepared.Name() || replay.Version.Ref.Version != prepared.Version() {
+		if f.publicationDigests[key] != prepared.RequestDigest() {
 			return runtimeconfig.PublishResult{}, contracts.ErrIdempotencyConflict
 		}
 		replay.Replayed = true
@@ -239,6 +243,7 @@ func (f *fakeRuntimeConfigManagement) Publish(
 	}
 	result := runtimeconfig.PublishResult{Version: version}
 	f.publications[key] = result
+	f.publicationDigests[key] = prepared.RequestDigest()
 	return result, nil
 }
 
@@ -472,7 +477,8 @@ func (f *fakeRuntimeCredentialManagement) Create(
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if replay, ok := f.creations[request.IdempotencyKey]; ok {
-		if replay.CredentialID != request.CredentialID || replay.Kind != request.Material.Kind() {
+		kind := runtimeCredentialMaterialKind(&request.Material)
+		if replay.CredentialID != request.CredentialID || replay.Kind != kind {
 			return credentials.RuntimeCredentialCreateResult{}, contracts.ErrIdempotencyConflict
 		}
 		return credentials.RuntimeCredentialCreateResult{Credential: replay, Replayed: true}, nil
@@ -481,7 +487,8 @@ func (f *fakeRuntimeCredentialManagement) Create(
 		return credentials.RuntimeCredentialCreateResult{}, credentials.ErrRuntimeCredentialConflict
 	}
 	metadata := credentials.RuntimeCredentialMetadata{
-		CredentialID: request.CredentialID, Kind: request.Material.Kind(), CreatedBy: request.ActorID, CreatedAt: f.now,
+		CredentialID: request.CredentialID, Kind: runtimeCredentialMaterialKind(&request.Material),
+		CreatedBy: request.ActorID, CreatedAt: f.now,
 	}
 	f.records[request.CredentialID] = metadata
 	f.creations[request.IdempotencyKey] = metadata
@@ -540,3 +547,15 @@ func cloneRuntimeVersion(value runtimeconfig.Version) runtimeconfig.Version {
 
 var _ RuntimeConfigManagement = (*fakeRuntimeConfigManagement)(nil)
 var _ RuntimeCredentialManagement = (*fakeRuntimeCredentialManagement)(nil)
+
+// runtimeCredentialMaterialKind returns the kind of creation material as the
+// Runtime credential service reads it, through WithPlaintext; invalid
+// material has no kind.
+func runtimeCredentialMaterialKind(material *credentials.RuntimeCredentialMaterial) credentials.RuntimeCredentialKind {
+	var kind credentials.RuntimeCredentialKind
+	_ = material.WithPlaintext(func(materialKind credentials.RuntimeCredentialKind, _ []byte) error {
+		kind = materialKind
+		return nil
+	})
+	return kind
+}

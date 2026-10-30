@@ -179,10 +179,3 @@ func (s *QueryStore) ListExecutionItems(ctx context.Context, executionID string)
 func (s *QueryStore) GetReportCandidate(ctx context.Context, auditID string) (auditstore.ReportCandidate, error) {
 	return s.getReportCandidate(ctx, auditID)
 }
-
-// AppendReviewEvents reserves a contiguous sequence range and records all
-// events atomically. Every event advances the Audit revision once, preserving
-// the single-event contract; a rejected event rolls back the entire statement.
-func (s *ReviewStore) AppendReviewEvents(ctx context.Context, events []auditstore.ReviewEventParams) error {
-	return s.appendReviewEvents(ctx, events)
-}

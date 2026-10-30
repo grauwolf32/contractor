@@ -135,7 +135,7 @@ func TestPostgresPublicPagedListsAcceptTheLargestPage(t *testing.T) {
 			managed := newFakeManagedCredentials()
 			audits, err := auditservice.New(auditservice.Options{
 				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: managed,
-				TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+				TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 					func(pgx.Tx) (resolved.CredentialLookup, error) { return managed, nil },
 				),
 			})

@@ -19,6 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -58,7 +59,7 @@ func TestTransactionLookupPinsRuntimeConfigWithoutAnotherPoolConnection(t *testi
 		GatewayResolver:           resolver,
 		TransactionLLMCredentials: factory,
 		RuntimeCredentials:        transactionTestRuntimeCredentialCatalog{},
-		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(
+		PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(
 			func(string) bool { return true },
 		),
 	})

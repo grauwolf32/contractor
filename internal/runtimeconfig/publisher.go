@@ -30,12 +30,6 @@ type PlannerTelemetryAdapterCatalog interface {
 	SupportsPlannerTelemetryAdapter(string) bool
 }
 
-type PlannerTelemetryAdapterCatalogFunc func(string) bool
-
-func (f PlannerTelemetryAdapterCatalogFunc) SupportsPlannerTelemetryAdapter(ref string) bool {
-	return f != nil && f(ref)
-}
-
 type PublisherOptions struct {
 	Pool                      *pgxpool.Pool
 	GatewayResolver           GatewayResolver

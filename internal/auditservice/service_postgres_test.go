@@ -33,7 +33,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -56,7 +56,7 @@ func TestAuditDraftStartReplayAndAtomicUnsupportedRollback(t *testing.T) {
 	guard := &countingCredentialGuard{}
 	service, err := New(Options{
 		Pool: pool, Profiles: profiles,
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 		),
 		CredentialGuard: guard,
@@ -699,7 +699,7 @@ func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
 	lookup := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
 	service, err := New(Options{
 		Pool: pool, Profiles: profiles,
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil },
 		),
 		CredentialGuard: &countingCredentialGuard{},

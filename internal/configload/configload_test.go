@@ -4,9 +4,14 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/agentskills"
+	"github.com/grauwolf32/contractor/internal/artifactpolicy"
+	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/config"
 	"github.com/grauwolf32/contractor/internal/configtest"
 )
@@ -82,11 +87,10 @@ func TestLoadsReturnTheBundlesTheyValidated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	skills, standards := discoverBundles(t, root)
 	for name, bundles := range map[string]Bundles{"LoadUnionReadOnly": offline, "NewManager": startup} {
-		skills := bundles.Skills.Packages()
-		if len(skills) != 1 || skills[0].Name != "review" || bundles.Standards == nil ||
-			len(bundles.Standards.Packages()) != 0 {
-			t.Fatalf("%s bundles = %+v and %+v", name, skills, bundles.Standards)
+		if !reflect.DeepEqual(bundles.Skills, skills) || !reflect.DeepEqual(bundles.Standards, standards) {
+			t.Fatalf("%s bundles differ from what bundled discovery packages", name)
 		}
 	}
 }
@@ -105,8 +109,9 @@ func TestBundleChecksKeepOnlyTheStartupLoad(t *testing.T) {
 		}
 	}
 	run()
-	if startup := checks.take(); len(startup.Skills.Packages()) != 1 || startup.Standards == nil {
-		t.Fatalf("startup bundles = %+v", startup)
+	skills, standards := discoverBundles(t, root)
+	if startup := checks.take(); !reflect.DeepEqual(startup.Skills, skills) || !reflect.DeepEqual(startup.Standards, standards) {
+		t.Fatalf("startup bundles differ from what bundled discovery packages")
 	}
 	run()
 	if later := checks.take(); later != (Bundles{}) {
@@ -140,4 +145,38 @@ func TestManagerRechecksBundlesBeforePublication(t *testing.T) {
 	}); err == nil || !strings.HasPrefix(err.Error(), "bundled skills: ") {
 		t.Fatalf("restart with an invalid bundle: %v", err)
 	}
+}
+
+// discoverBundles packages the bundled skills and Audit standards of root
+// independently of the loads under test, after checking that root bundles
+// exactly the review skill and no Audit standard.
+func discoverBundles(t *testing.T, root string) (*agentskills.SeedPlan, *auditstandards.SeedPlan) {
+	t.Helper()
+	for namespace, want := range map[string][]string{
+		agentskills.SkillNamespace:                   {"review"},
+		artifactpolicy.AuditStandardCatalogNamespace: nil,
+	} {
+		entries, err := os.ReadDir(filepath.Join(root, namespace))
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Fatal(err)
+		}
+		var packaged []string
+		for _, entry := range entries {
+			if entry.IsDir() {
+				packaged = append(packaged, entry.Name())
+			}
+		}
+		if !slices.Equal(packaged, want) {
+			t.Fatalf("%s bundles %v, want %v", namespace, packaged, want)
+		}
+	}
+	skills, err := agentskills.DiscoverBundled(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	standards, err := auditstandards.DiscoverBundled(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return skills, standards
 }

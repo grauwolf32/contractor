@@ -25,6 +25,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -52,13 +53,13 @@ func TestPostgresHybridBootstrapMutationIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(dependencies *testServices) {
-				lookup := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return dependencies.Credentials, nil })
+				lookup := runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return dependencies.Credentials, nil })
 				publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 					Pool: pool, RuntimeCredentials: hybridBootstrapCredentials{}, TransactionLLMCredentials: lookup,
 					GatewayResolver: runtimeconfig.GatewayResolverFunc(func(_ context.Context, selector string) (llmgateway.ResolvedLLMGatewayConfig, error) {
 						return dependencies.Config.(*config.Manager).LLMGateway(selector)
 					}),
-					PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+					PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 				})
 				if err != nil {
 					t.Fatal(err)

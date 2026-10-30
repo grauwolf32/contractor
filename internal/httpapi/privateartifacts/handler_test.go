@@ -934,15 +934,15 @@ type memoryRepository struct {
 	writeCalls     int
 	readCalls      int
 	metadataCalls  int
-	bindings       map[string]storedArtifact
-	history        map[string]storedArtifact
+	bindings       map[artifactBinding]storedArtifact
+	history        map[artifactRevision]storedArtifact
 	writeStarted   chan struct{}
 	continueWrite  chan struct{}
 	writeStartOnce sync.Once
 }
 
 func newMemoryRepository() *memoryRepository {
-	return &memoryRepository{bindings: make(map[string]storedArtifact), history: make(map[string]storedArtifact)}
+	return &memoryRepository{bindings: make(map[artifactBinding]storedArtifact), history: make(map[artifactRevision]storedArtifact)}
 }
 
 func (m *memoryRepository) seed(runID, namespace, name, revision string, data []byte) {
@@ -952,14 +952,14 @@ func (m *memoryRepository) seed(runID, namespace, name, revision string, data []
 		revision: revision, mediaType: "text/plain", data: append([]byte(nil), data...),
 		bindingCreatedAt: artifactTestEpoch, revisionCreatedAt: artifactTestEpoch,
 	}
-	m.bindings[artifactKey("run", runID, namespace, name)] = value
-	m.history[historyKey("run", runID, namespace, name, revision)] = value
+	m.bindings[artifactKey(testRunScope(runID), namespace, name)] = value
+	m.history[historyKey(testRunScope(runID), namespace, name, revision)] = value
 }
 
 func (m *memoryRepository) current(runID, namespace, name string) (storedArtifact, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	value, exists := m.bindings[artifactKey("run", runID, namespace, name)]
+	value, exists := m.bindings[artifactKey(testRunScope(runID), namespace, name)]
 	return value, exists
 }
 
@@ -982,7 +982,7 @@ func (m *memoryRepository) Write(
 			return artifacts.WriteResult{}, ctx.Err()
 		}
 	}
-	key := artifactKey(string(scope.Kind()), scope.ID(), target.Namespace, target.Name)
+	key := artifactKey(scope, target.Namespace, target.Name)
 	current, exists := m.bindings[key]
 	if expected == nil && exists || expected != nil && (!exists || current.revision != *expected) {
 		return artifacts.WriteResult{}, &artifacts.ConflictError{Ref: target, ExpectedRevision: expected}
@@ -999,7 +999,7 @@ func (m *memoryRepository) Write(
 		bindingCreatedAt: bindingCreatedAt, revisionCreatedAt: revisionCreatedAt,
 	}
 	m.bindings[key] = stored
-	m.history[historyKey(string(scope.Kind()), scope.ID(), target.Namespace, target.Name, revision)] = stored
+	m.history[historyKey(scope, target.Namespace, target.Name, revision)] = stored
 	return artifacts.WriteResult{
 		Ref:               artifacts.ArtifactRef{Namespace: target.Namespace, Name: target.Name, Revision: &revision},
 		MediaType:         payload.MediaType,
@@ -1018,9 +1018,9 @@ func (m *memoryRepository) Read(
 	var value storedArtifact
 	var exists bool
 	if ref.Revision == nil {
-		value, exists = m.bindings[artifactKey(string(scope.Kind()), scope.ID(), ref.Namespace, ref.Name)]
+		value, exists = m.bindings[artifactKey(scope, ref.Namespace, ref.Name)]
 	} else {
-		value, exists = m.history[historyKey(string(scope.Kind()), scope.ID(), ref.Namespace, ref.Name, *ref.Revision)]
+		value, exists = m.history[historyKey(scope, ref.Namespace, ref.Name, *ref.Revision)]
 	}
 	if !exists {
 		return artifacts.ReadResult{}, artifacts.ErrArtifactNotFound
@@ -1041,10 +1041,10 @@ func (m *memoryRepository) Metadata(
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.metadataCalls++
-	current, exists := m.bindings[artifactKey(string(scope.Kind()), scope.ID(), ref.Namespace, ref.Name)]
+	current, exists := m.bindings[artifactKey(scope, ref.Namespace, ref.Name)]
 	value := current
 	if ref.Revision != nil {
-		value, exists = m.history[historyKey(string(scope.Kind()), scope.ID(), ref.Namespace, ref.Name, *ref.Revision)]
+		value, exists = m.history[historyKey(scope, ref.Namespace, ref.Name, *ref.Revision)]
 	}
 	if !exists {
 		return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
@@ -1075,14 +1075,12 @@ func (m *memoryRepository) ListRefs(
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.listCalls++
-	prefix := string(scope.Kind()) + "\x00" + scope.ID() + "\x00"
 	result := make([]artifacts.ArtifactRef, 0)
 	for key := range m.bindings {
-		if !strings.HasPrefix(key, prefix) {
+		if key.scope != scope {
 			continue
 		}
-		parts := strings.Split(key, "\x00")
-		ref := artifacts.ArtifactRef{Namespace: parts[2], Name: parts[3]}
+		ref := artifacts.ArtifactRef{Namespace: key.namespace, Name: key.name}
 		if query.Namespace != nil && ref.Namespace != *query.Namespace ||
 			query.ModelVisible && artifactpolicy.IsModelHiddenBinding(ref.Namespace, ref.Name) ||
 			ref.Namespace < query.AfterNamespace ||
@@ -1103,10 +1101,32 @@ func (m *memoryRepository) ListRefs(
 	return artifacts.RefPage{Refs: result}, nil
 }
 
-func artifactKey(kind, id, namespace, name string) string {
-	return strings.Join([]string{kind, id, namespace, name}, "\x00")
+// artifactBinding names a binding of the in-memory repository, and
+// artifactRevision one revision of it.
+type artifactBinding struct {
+	scope           artifacts.Scope
+	namespace, name string
 }
 
-func historyKey(kind, id, namespace, name, revision string) string {
-	return artifactKey(kind, id, namespace, name) + "\x00" + revision
+type artifactRevision struct {
+	artifactBinding
+	revision string
+}
+
+func artifactKey(scope artifacts.Scope, namespace, name string) artifactBinding {
+	return artifactBinding{scope: scope, namespace: namespace, name: name}
+}
+
+func historyKey(scope artifacts.Scope, namespace, name, revision string) artifactRevision {
+	return artifactRevision{artifactBinding: artifactKey(scope, namespace, name), revision: revision}
+}
+
+// testRunScope is the RunScope of a Run ID the tests chose; an invalid one is
+// a defect of the test.
+func testRunScope(runID string) artifacts.Scope {
+	scope, err := artifacts.RunScope(runID)
+	if err != nil {
+		panic(err)
+	}
+	return scope
 }

@@ -80,12 +80,10 @@ func (r *prefixRepository) ListPrefix(_ context.Context, scope artifacts.Scope, 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.prefixCalls++
-	keyPrefix := string(scope.Kind()) + "\x00" + scope.ID() + "\x00" + namespace + "\x00" + prefix
 	refs := make([]artifacts.ArtifactRef, 0)
 	for key := range r.bindings {
-		if strings.HasPrefix(key, keyPrefix) {
-			parts := strings.Split(key, "\x00")
-			refs = append(refs, artifacts.ArtifactRef{Namespace: parts[2], Name: parts[3]})
+		if key.scope == scope && key.namespace == namespace && strings.HasPrefix(key.name, prefix) {
+			refs = append(refs, artifacts.ArtifactRef{Namespace: key.namespace, Name: key.name})
 		}
 	}
 	sort.Slice(refs, func(i, j int) bool { return refs[i].Name < refs[j].Name })

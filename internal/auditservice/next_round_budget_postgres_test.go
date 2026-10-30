@@ -15,7 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -48,7 +48,7 @@ func TestPostgresNextRoundSpreadsLargeProposalsAndReportsUnschedulable(t *testin
 	service, err := New(Options{
 		Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true},
 		CredentialGuard: &countingCredentialGuard{},
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 		),
 	})
@@ -160,7 +160,7 @@ func TestPostgresNextRoundPreparesNineNearLimitProposals(t *testing.T) {
 	service, err := New(Options{
 		Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true},
 		CredentialGuard: &countingCredentialGuard{},
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 		),
 	})

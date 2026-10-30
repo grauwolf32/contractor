@@ -310,7 +310,7 @@ func testPostgresFindingReceiptAuditImportDirectVerificationAndRunDeletion(t *te
 	if err != nil || replayed {
 		t.Fatalf("claim-only receipt = (%+v, replay=%v, %v)", claimOnlyReceipt, replayed, err)
 	}
-	directOutput, err := auditdomain.EncodeDirectVerificationSet(auditdomain.DirectVerificationSet{
+	directOutput, err := json.Marshal(auditdomain.DirectVerificationSet{
 		Schema: auditdomain.DirectVerificationsSchema,
 		Verifications: []auditdomain.DirectVerificationResult{{
 			InvocationID: firstInput.InvocationID, ClientKey: firstInput.Proposal.ClientKey,

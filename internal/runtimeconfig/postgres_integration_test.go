@@ -70,7 +70,7 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	publisher, err := NewPublisher(PublisherOptions{
 		Pool: pool, GatewayResolver: resolver,
 		RuntimeCredentials: allowRuntimeCredentialCatalog{},
-		TransactionLLMCredentials: TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
+		TransactionLLMCredentials: transactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
 			return llmCredentialLookupFunc(func(_ context.Context, id string) (resolved.CredentialMetadata, error) {
 				if id != "worker-local" {
 					return resolved.CredentialMetadata{}, errors.New("test LLM credential not found")
@@ -83,7 +83,7 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 				}, nil
 			}), nil
 		}),
-		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		PlannerTelemetryAdapters: plannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 		Now:                      func() time.Time { return now },
 	})
 	if err != nil {
@@ -143,7 +143,7 @@ func TestPostgresRuntimeConfigBootstrapPublicationReplayAndBindingCAS(t *testing
 	concurrentPublisher, err := NewPublisher(PublisherOptions{
 		Pool: pool, GatewayResolver: concurrentResolver,
 		RuntimeCredentials:       allowRuntimeCredentialCatalog{},
-		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		PlannerTelemetryAdapters: plannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 		Now:                      func() time.Time { return now.Add(30 * time.Second) },
 	})
 	if err != nil {
@@ -241,7 +241,7 @@ func TestPostgresRuntimeManagementBindingMutationIsCASAndReplaySafe(t *testing.T
 	now := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	publisher, err := NewPublisher(PublisherOptions{
 		Pool: pool, RuntimeCredentials: allowRuntimeCredentialCatalog{}, Now: func() time.Time { return now },
-		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		PlannerTelemetryAdapters: plannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 	})
 	if err != nil {
 		t.Fatal(err)
