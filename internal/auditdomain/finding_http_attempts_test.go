@@ -2,16 +2,14 @@ package auditdomain
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestFindingHTTPAttemptSharedContract(t *testing.T) {
-	raw, err := os.ReadFile("testdata/finding-http-attempts.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedFindingHTTPAttemptContract(t *testing.T) {
+	raw := contractstest.ReadFile(t, "api", "testdata", "findings", "finding-http-attempts.json")
 	var cases []struct {
 		Name   string `json:"name"`
 		URL    string `json:"url"`

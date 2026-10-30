@@ -1479,7 +1479,7 @@ receipts of the ordinary Workflow.
 ### Conformance
 
 **FND-R151.** The
-[shared fixture](../../../internal/auditdomain/testdata/finding-collection-v1.fixture.json)
+[shared fixture](../../../api/testdata/findings/finding-collection-v1.fixture.json)
 is the conformance reference for the Go and Python codecs and for Runtime
 preparation. It contains generic function and configuration subjects,
 ordinary Run and Audit origins, an optional hypothesis, a review without a

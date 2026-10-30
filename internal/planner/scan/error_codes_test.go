@@ -2,10 +2,9 @@ package scan
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/planner"
 )
 
@@ -20,18 +19,14 @@ type workerErrorCodeCases struct {
 
 func readWorkerErrorCodeCases(t *testing.T) workerErrorCodeCases {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join("..", "..", "..", "api", "scan", "v1", "testdata", "worker-error-codes.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	var cases workerErrorCodeCases
-	if err := json.Unmarshal(data, &cases); err != nil {
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "scan", "worker-error-codes.json"), &cases); err != nil {
 		t.Fatal(err)
 	}
 	return cases
 }
 
-func TestObservationStatusClassifiesSharedWorkerErrorCodes(t *testing.T) {
+func TestSharedObservationStatusClassifiesWorkerErrorCodes(t *testing.T) {
 	t.Parallel()
 	cases := readWorkerErrorCodeCases(t)
 	if len(cases.Outcomes) != len(outcomeCodes) {

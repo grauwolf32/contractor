@@ -173,7 +173,7 @@ func observationStatus(observation map[string]json.RawMessage) (string, string) 
 }
 
 // workerErrorOutcomes classifies every errorCode a scan Worker reports. The
-// shared table api/scan/v1/testdata/worker-error-codes.json pins it to the
+// shared table api/testdata/scan/worker-error-codes.json pins it to the
 // Runtime producers and the UI.
 var workerErrorOutcomes = map[string]string{
 	// Scanner absence.

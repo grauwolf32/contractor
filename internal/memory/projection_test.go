@@ -2,17 +2,15 @@ package memory
 
 import (
 	"encoding/json"
-	"os"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 func TestSharedMemoryProjectionJSON(t *testing.T) {
-	data, err := os.ReadFile("../../testdata/memory/projections.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "memory", "projections.json")
 	var cases []struct {
 		ID      string         `json:"id"`
 		Note    StoredNote     `json:"note"`

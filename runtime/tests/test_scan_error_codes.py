@@ -7,7 +7,7 @@ from pathlib import Path
 import contractor_runtime.toolsets.scan as scan_package
 
 ROOT = Path(__file__).parents[2]
-CASES = json.loads((ROOT / "api/scan/v1/testdata/worker-error-codes.json").read_text())
+CASES = json.loads((ROOT / "api/testdata/scan/worker-error-codes.json").read_text())
 CODE_TARGETS = {"error", "error_code", "errorCode"}
 CODE_EXCEPTIONS = {"ScannerUnavailable", "ScanTargetRefused", "PackageError"}
 
@@ -43,7 +43,7 @@ def _emitted_codes() -> set[str]:
     return codes
 
 
-def test_every_emitted_scan_error_code_has_a_shared_outcome() -> None:
+def test_shared_every_emitted_scan_error_code_has_an_outcome() -> None:
     registered = {case["errorCode"] for case in CASES["codes"]}
     assert len(registered) == len(CASES["codes"])
     assert _emitted_codes() == registered

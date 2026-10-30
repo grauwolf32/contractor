@@ -1760,7 +1760,7 @@ truncation, incomplete ffuf scans and malformed outputs are `incomplete`; an
 ordinary nonzero scanner exit remains `failed`.
 
 **SCN-R216.** The shared [Worker error code
-table](../../../api/scan/v1/testdata/worker-error-codes.json) fixes the outcome
+table](../../../api/testdata/scan/worker-error-codes.json) fixes the outcome
 of every reported `errorCode`; an unlisted code is an invalid report.
 
 **SCN-R217.** When `tool_execution_failed` omits the report reference, the

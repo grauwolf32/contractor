@@ -11,8 +11,11 @@ from shared_fixture_gate import (
     declared_readers,
     go_file_problems,
     go_outcomes,
+    literal_paths,
     load_manifest,
+    named_testdata_files,
     observed_reads,
+    outside_problems,
     ui_reads,
 )
 
@@ -96,6 +99,76 @@ class GoSourcesTest(unittest.TestCase):
             go_file_problems("internal/x/x_test.go", text),
             ["internal/x/x_test.go: TestShared tests behind '//go:build integration' do not run in the gate"],
         )
+
+
+class OutsideFixturesTest(unittest.TestCase):
+    """A file that tests of two sides read is a shared fixture wherever it lives."""
+
+    def tree(self, directory: str) -> Path:
+        root = Path(directory)
+        files = {
+            "testdata/memory/cases.json": "{}",
+            "internal/memory/testdata/local.json": "{}",
+            "api/testdata/shared.json": "{}",
+            "internal/memory/codec_test.go": "\n".join(
+                [
+                    "package memory",
+                    'var a, _ = os.ReadFile("../../testdata/memory/cases.json")',
+                    'var b, _ = os.ReadFile(filepath.Join("testdata", "local.json"))',
+                    'var c = contractstest.ReadFile(t, "api", "testdata", "shared.json")',
+                ]
+            ),
+            "runtime/tests/test_memory.py": "\n".join(
+                [
+                    'CASES = Path(__file__).parents[2] / "testdata" / "memory" / "cases.json"',
+                    'SHARED = Path(__file__).parents[2] / "api/testdata/shared.json"',
+                ]
+            ),
+            "ui/src/memory.test.ts": 'import cases from "../../testdata/memory/cases.json";',
+        }
+        for relative, text in files.items():
+            (root / relative).parent.mkdir(parents=True, exist_ok=True)
+            (root / relative).write_text(text)
+        return root
+
+    def test_literal_segments_join_into_one_path(self):
+        self.assertEqual(
+            literal_paths('filepath.Join("..", "..", "testdata", "x.json") + "y"'),
+            ["../../testdata/x.json", "y"],
+        )
+        self.assertEqual(literal_paths('ROOT / "testdata" / "x.json"'), ["testdata/x.json"])
+        self.assertEqual(literal_paths('read("a.json", name, "b.json")'), ["a.json", "b.json"])
+
+    def test_two_sides_reading_a_file_outside_api_testdata_fail(self):
+        with tempfile.TemporaryDirectory() as directory:
+            named = named_testdata_files(self.tree(directory))
+        self.assertEqual(
+            {fixture: set(sides) for fixture, sides in named.items()},
+            {
+                "testdata/memory/cases.json": {"go", "python", "ui"},
+                "internal/memory/testdata/local.json": {"go"},
+            },
+        )
+        self.assertEqual(
+            outside_problems(named, {}),
+            [
+                "testdata/memory/cases.json: tests of 3 sides read it (go: "
+                "internal/memory/codec_test.go; python: runtime/tests/test_memory.py; ui: "
+                "ui/src/memory.test.ts); move it under api/testdata with a readers entry"
+            ],
+        )
+
+    def test_a_named_outside_fixture_needs_a_live_entry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            named = named_testdata_files(self.tree(directory))
+        self.assertEqual(outside_problems(named, {"testdata/memory/": "reason"}), [])
+        self.assertEqual(
+            outside_problems(named, {"testdata/memory/": "reason", "testdata/gone.json": "reason"}),
+            ["OUTSIDE_SHARED entry testdata/gone.json covers no file that two sides read"],
+        )
+
+    def test_repository_keeps_shared_fixtures_under_api_testdata(self):
+        self.assertEqual(outside_problems(named_testdata_files()), [])
 
 
 class OutcomesTest(unittest.TestCase):

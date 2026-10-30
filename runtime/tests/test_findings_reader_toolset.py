@@ -15,6 +15,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import jcs
 import pytest
+from fakes import finding_collection
 from google.adk.tools import FunctionTool
 
 from contractor_runtime.allocation import WorkerState
@@ -40,9 +41,7 @@ from contractor_runtime.toolsets.security_findings.reader import ListFindingsToo
 from contractor_runtime.worker.instrumentation import _safe_tool_response
 from contractor_runtime.workspace import AllocationWorkspace
 
-FIXTURE = (
-    Path(__file__).parents[2] / "internal/auditdomain/testdata/finding-collection-v1.fixture.json"
-)
+FIXTURE = Path(__file__).parents[2] / "api/testdata/findings/finding-collection-v1.fixture.json"
 TIMESTAMPS = {
     "x-contractor-binding-created-at": "2026-09-06T09:00:00Z",
     "x-contractor-revision-created-at": "2026-09-06T09:00:00Z",
@@ -58,8 +57,7 @@ def _digest(data):
 
 
 def _fixture():
-    value = json.loads(FIXTURE.read_bytes())
-    return value["collection"], {key: text.encode() for key, text in value["contents"].items()}
+    return finding_collection.collection()
 
 
 def _zip(members, *, compression=zipfile.ZIP_STORED, mode=stat.S_IFREG | 0o644):

@@ -52,10 +52,11 @@ PYTHON_FILES = (
     "tests/test_security_findings_toolset.py",
     "tests/test_findings_reader_toolset.py",
     "tests/test_finding_facades.py",
+    "tests/test_shared_finding_facades.py",
     "tests/test_numbered_file_reads.py",
 )
 PYTHON_CASES = {
-    "test_locations_match_go_contract": 32,
+    "test_shared_locations_match_go_contract": 32,
     "test_actual_provider_schema": 3,
     "test_code_call_normalizes_coordinates_and_keeps_retry_identity": 1,
     "test_http_evidence_captures_actual_request_and_survives_history_eviction": 1,

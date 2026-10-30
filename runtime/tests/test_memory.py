@@ -30,7 +30,7 @@ from contractor_runtime.toolsets.memory.codec import (
     preview_projection,
 )
 
-FIXTURES = Path(__file__).parents[2] / "testdata" / "memory" / "cases.json"
+FIXTURES = Path(__file__).parents[2] / "api" / "testdata" / "memory" / "cases.json"
 
 
 def test_shared_codec_fixtures() -> None:

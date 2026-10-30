@@ -40,6 +40,10 @@ HELPER_READS = {
         "allocation_spec builds every fake allocation with the valid empty Runtime "
         "provenance fixture"
     ),
+    "runtime/tests/fakes/finding_collection.py": (
+        "the findings reader tests build their packages from the shared collection; "
+        "test_shared_go_python_fixture_and_exact_consumer_reads checks it"
+    ),
     "runtime/tests/fakes/telemetry.py": (
         "SERVER_EXPORT is the Server's telemetry export default, which the Runtime "
         "does not define itself (RCF-R102)"

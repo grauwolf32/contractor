@@ -309,18 +309,23 @@ make release-verify
 Podman, Git, backup/restore and blob-backend checks have their own host/image requirements;
 consult their guides before running those targets.
 
-A test that reads a fixture under `api/testdata` is named `TestShared*` in Go,
+A fixture that tests of more than one side (Go, the Runtime, the UI) read
+lives under `api/testdata`. A test that reads one is named `TestShared*` in Go,
 where it reads through `internal/contracts/contractstest`, and
 `test_shared_*` in the Runtime, where a test module that reads one while it is
 imported (to parametrize its tests) holds only such tests; any other test or
-module that reads one fails. A Runtime helper module may read one at import to
-build test inputs only when `runtime/tests/shared_fixtures.py` lists it with
-its reason.
+module that reads one fails. A Go `Fuzz*` target may seed its corpus from one,
+and a Runtime helper module may read one at import to build test inputs only
+when `runtime/tests/shared_fixtures.py` lists it with its reason; neither
+counts as a reader. A process test (`tests/e2e`) uses a copy under
+`tests/e2e/testdata` that a shared test keeps identical.
 `api/testdata/readers.json` declares the sides that read each fixture, and
 `make test-wire-cross-language` runs every shared test and holds the observed
 readers to it ([`scripts/shared_fixture_gate.py`](../../scripts/shared_fixture_gate.py)).
 `make lint` runs only the gate's source checks: no other Go path into
-`api/testdata`, and no `TestShared*` test behind a build constraint.
+`api/testdata`, no `TestShared*` test behind a build constraint, and no file in
+another `testdata` directory that tests of two sides name by its literal path,
+unless the gate's `OUTSIDE_SHARED` names it with its reason.
 
 ## Live-model and research evaluations
 

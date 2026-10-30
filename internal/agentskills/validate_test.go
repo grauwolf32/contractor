@@ -12,6 +12,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 type packageFixtureSet struct {
@@ -80,11 +82,8 @@ func TestSkillNameAcceptsDigitsAfterTheFirstCharacter(t *testing.T) {
 	}
 }
 
-func TestPortablePathsMatchRuntimeFixture(t *testing.T) {
-	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "agent-skills", "portable-paths.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedPortablePathsMatchRuntimeFixture(t *testing.T) {
+	data := contractstest.ReadFile(t, "api", "testdata", "agent-skills", "portable-paths.json")
 	var fixture struct {
 		Cases []struct {
 			Path  string `json:"path"`
@@ -443,12 +442,8 @@ func makeTestZIP(t *testing.T, method uint16, entries []testEntry) []byte {
 
 func loadPackageFixtures(t *testing.T) packageFixtureSet {
 	t.Helper()
-	payload, err := os.ReadFile("../../testdata/agent-skills/cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
 	var fixtures packageFixtureSet
-	if err := json.Unmarshal(payload, &fixtures); err != nil {
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "agent-skills", "cases.json"), &fixtures); err != nil {
 		t.Fatal(err)
 	}
 	return fixtures

@@ -3,16 +3,14 @@ package auditdomain
 import (
 	"bytes"
 	"encoding/json"
-	"os"
 	"reflect"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
-func TestFindingLocationSharedContract(t *testing.T) {
-	raw, err := os.ReadFile("testdata/finding-locations.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+func TestSharedFindingLocationContract(t *testing.T) {
+	raw := contractstest.ReadFile(t, "api", "testdata", "findings", "finding-locations.json")
 	var cases []struct {
 		Name     string          `json:"name"`
 		Valid    bool            `json:"valid"`

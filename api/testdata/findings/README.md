@@ -16,3 +16,9 @@ The fixture contains ordinary Run and Audit origins, different generic subject
 kinds, an optional hypothesis, a review without decision ID, and identical
 binding names/revisions/evidence bytes in two Runs. Runtime V43-003 must consume
 these same vectors instead of regenerating expected values with its own codec.
+
+`finding-http-attempts.json` and `finding-locations.json` pin the HTTP attempt
+and location rules that the Go Server and the Runtime finding facades share; the
+UI also reads the HTTP attempt cases. The process tests (`tests/e2e`) read a copy
+of the collection fixture under `tests/e2e/testdata/findings`, which
+`TestSharedFindingCollectionProcessCopyMatches` keeps identical.

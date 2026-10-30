@@ -4,11 +4,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 type fixtureDocument struct {
@@ -195,10 +196,7 @@ func TestArtifactNameMappingAndModelProjections(t *testing.T) {
 
 func loadFixtures(t *testing.T) fixtureDocument {
 	t.Helper()
-	data, err := os.ReadFile("../../testdata/memory/cases.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	data := contractstest.ReadFile(t, "api", "testdata", "memory", "cases.json")
 	var result fixtureDocument
 	decoder := json.NewDecoder(strings.NewReader(string(data)))
 	decoder.DisallowUnknownFields()
