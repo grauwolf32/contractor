@@ -30,8 +30,10 @@ type StageExecutionConfigPatch struct {
 type ExecutionSelectionPatch struct {
 	ModelPolicy           OptionalString
 	SummarizerModelPolicy OptionalString
-	LLMGateway            OptionalString
-	Credential            OptionalString
+	// CompactorModelPolicy applies only to a compact@1 Planner (PLN-R125).
+	CompactorModelPolicy OptionalString
+	LLMGateway           OptionalString
+	Credential           OptionalString
 }
 
 // OptionalString is one member of a patch: absent, an explicit null (which
@@ -132,6 +134,8 @@ func (p *ExecutionSelectionPatch) unmarshalJSON(data []byte, field string) error
 			p.ModelPolicy, err = decodeOptionalString(raw, false, field+".modelPolicy")
 		case "summarizerModelPolicy":
 			p.SummarizerModelPolicy, err = decodeOptionalString(raw, false, field+".summarizerModelPolicy")
+		case "compactorModelPolicy":
+			p.CompactorModelPolicy, err = decodeOptionalString(raw, false, field+".compactorModelPolicy")
 		case "llmGateway":
 			p.LLMGateway, err = decodeOptionalString(raw, false, field+".llmGateway")
 		case "credential":
@@ -185,7 +189,8 @@ func decodeOptionalString(data []byte, allowNull bool, field string) (OptionalSt
 
 // HasAny reports whether the patch selects at least one member.
 func (p ExecutionSelectionPatch) HasAny() bool {
-	return p.ModelPolicy.Present || p.SummarizerModelPolicy.Present || p.LLMGateway.Present || p.Credential.Present
+	return p.ModelPolicy.Present || p.SummarizerModelPolicy.Present || p.CompactorModelPolicy.Present ||
+		p.LLMGateway.Present || p.Credential.Present
 }
 
 // canonicalValue is used by public request idempotency hashing. It preserves
@@ -236,7 +241,8 @@ func (p StageExecutionConfigPatch) CanonicalValue() map[string]any {
 func (p ExecutionSelectionPatch) canonicalValue() map[string]any {
 	result := make(map[string]any)
 	for name, value := range map[string]OptionalString{
-		"modelPolicy": p.ModelPolicy, "summarizerModelPolicy": p.SummarizerModelPolicy, "llmGateway": p.LLMGateway, "credential": p.Credential,
+		"modelPolicy": p.ModelPolicy, "summarizerModelPolicy": p.SummarizerModelPolicy,
+		"compactorModelPolicy": p.CompactorModelPolicy, "llmGateway": p.LLMGateway, "credential": p.Credential,
 	} {
 		if !value.Present {
 			continue

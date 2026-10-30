@@ -59,6 +59,27 @@ function ConsumerConfigView({
           Summarizer <code>{config.summarizerModel}</code>
         </span>
       )}
+      {config.compactorModelPolicy === undefined ? null : (
+        <span>
+          Context compactor{" "}
+          <code>
+            {config.compactorModelPolicy.policyId}@
+            {config.compactorModelPolicy.version}
+          </code>
+          {config.compactorModel === undefined ? null : (
+            <>
+              {" "}
+              <code>{config.compactorModel}</code>
+            </>
+          )}
+          {exact ? (
+            <>
+              {" "}
+              <Digest value={config.compactorModelPolicy.digest} />
+            </>
+          ) : null}
+        </span>
+      )}
       {config.llmGateway === undefined ? (
         <span>Gateway resolved during Runtime placement</span>
       ) : (
@@ -79,6 +100,9 @@ function ConsumerConfigView({
       {exact ? (
         <span className="ui-caption">
           Origins: model {config.origins?.modelPolicy ?? "not reported"};
+          {config.origins?.compactorModelPolicy === undefined
+            ? null
+            : ` context compactor ${config.origins.compactorModelPolicy};`}
           Gateway {config.origins?.llmGateway ?? "not reported"}; credential{" "}
           {config.origins?.credential ?? "not reported"}
         </span>

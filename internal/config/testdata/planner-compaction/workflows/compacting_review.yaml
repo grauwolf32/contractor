@@ -1,0 +1,67 @@
+# configs/examples/streamline_compaction_workflow.yaml with its Planner,
+# compactor and Agent retargeted to this slice's test policies and the core
+# fixture's artifact_builder@1.
+apiVersion: contractor/v1alpha1
+kind: Workflow
+
+metadata:
+  name: compacting-review
+  version: "1"
+
+spec:
+  parameters: {}
+
+  inputs:
+    source:
+      required: true
+      mediaTypes: [text/plain]
+
+  outputs:
+    report:
+      required: true
+      mediaTypes: [application/json]
+
+  executionConfig:
+    planner:
+      modelPolicy: test-window-planner@1
+      llmGateway: local-litellm@1
+    workers:
+      llmGateway: local-litellm@1
+
+  entryStage: review
+  stages:
+    review:
+      objective: Analyze the source and produce a reviewed JSON report
+      instructions:
+        ref: instructions/copy-planner.md
+      planner: streamline@1
+      plannerContextManagement:
+        strategy: compact@1
+        modelPolicy: test-compactor@1
+        instructions:
+          ref: instructions/planner-compaction.md
+      agents:
+        reviewer:
+          template: artifact_builder@1
+          namespace: review
+      context:
+        artifacts:
+          source:
+            namespace: inputs
+            name: source
+            required: true
+      result:
+        artifacts:
+          report:
+            required: true
+            mediaTypes: [application/json]
+            from: {namespace: review, name: report}
+      workflowOutputs:
+        report: report
+      on:
+        succeeded:
+          succeed: {}
+        failed:
+          fail: {}
+        interrupted:
+          fail: {}

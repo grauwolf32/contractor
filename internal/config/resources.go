@@ -266,6 +266,9 @@ func executionSelectionResourceBody(selection resolved.ResolvedExecutionSelectio
 	if selection.ModelPolicy != nil {
 		result["modelPolicy"] = selection.ModelPolicy.Ref
 	}
+	if selection.CompactorModelPolicy != nil {
+		result["compactorModelPolicy"] = selection.CompactorModelPolicy.Ref
+	}
 	if selection.LLMGateway != nil {
 		result["llmGateway"] = selection.LLMGateway.Ref
 	}

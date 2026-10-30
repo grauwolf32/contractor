@@ -4306,6 +4306,36 @@ func (e PerformanceSnapshotSampleIntervalSeconds) Valid() bool {
 	}
 }
 
+// Defines values for PlannerContextManagement0Strategy.
+const (
+	PlannerContextManagement0StrategyNone PlannerContextManagement0Strategy = "none"
+)
+
+// Valid indicates whether the value is a known member of the PlannerContextManagement0Strategy enum.
+func (e PlannerContextManagement0Strategy) Valid() bool {
+	switch e {
+	case PlannerContextManagement0StrategyNone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PlannerContextManagement1Strategy.
+const (
+	Compact1 PlannerContextManagement1Strategy = "compact@1"
+)
+
+// Valid indicates whether the value is a known member of the PlannerContextManagement1Strategy enum.
+func (e PlannerContextManagement1Strategy) Valid() bool {
+	switch e {
+	case Compact1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PlannerSubtaskStatus.
 const (
 	PlannerSubtaskStatusFailed    PlannerSubtaskStatus = "failed"
@@ -7970,11 +8000,16 @@ type ConfigurationResourceSource string
 
 // ConsumerExecutionConfig defines model for ConsumerExecutionConfig.
 type ConsumerExecutionConfig struct {
-	Credential  *CredentialRef       `json:"credential,omitempty"`
-	LlmGateway  *LLMGatewayConfigRef `json:"llmGateway,omitempty"`
-	Model       *string              `json:"model,omitempty"`
-	ModelPolicy *ModelPolicyRef      `json:"modelPolicy,omitempty"`
-	Origins     *struct {
+	CompactorModel *string `json:"compactorModel,omitempty"`
+
+	// CompactorModelPolicy Tool-free compactor of a compact@1 Planner (PLN-R125); absent for every Worker.
+	CompactorModelPolicy *ModelPolicyRef      `json:"compactorModelPolicy,omitempty"`
+	Credential           *CredentialRef       `json:"credential,omitempty"`
+	LlmGateway           *LLMGatewayConfigRef `json:"llmGateway,omitempty"`
+	Model                *string              `json:"model,omitempty"`
+	ModelPolicy          *ModelPolicyRef      `json:"modelPolicy,omitempty"`
+	Origins              *struct {
+		CompactorModelPolicy  *string `json:"compactorModelPolicy,omitempty"`
 		Credential            *string `json:"credential,omitempty"`
 		LlmGateway            *string `json:"llmGateway,omitempty"`
 		ModelPolicy           *string `json:"modelPolicy,omitempty"`
@@ -8788,6 +8823,7 @@ type EvalExecutionRefKind string
 
 // EvalExecutionSelection defines model for EvalExecutionSelection.
 type EvalExecutionSelection struct {
+	CompactorModelPolicy  *EvalSelector                 `json:"compactorModelPolicy,omitempty"`
 	Credential            nullable.Nullable[EvalOpaque] `json:"credential,omitempty"`
 	LlmGateway            *EvalSelector                 `json:"llmGateway,omitempty"`
 	ModelPolicy           *EvalSelector                 `json:"modelPolicy,omitempty"`
@@ -9367,13 +9403,16 @@ type ExecutionConfigRef struct {
 
 // ExecutionConfigSelection defines model for ExecutionConfigSelection.
 type ExecutionConfigSelection struct {
-	Credential  nullable.Nullable[CredentialRef] `json:"credential,omitempty"`
-	LlmGateway  *LLMGatewayConfigRef             `json:"llmGateway,omitempty"`
-	ModelPolicy *ModelPolicyRef                  `json:"modelPolicy,omitempty"`
+	CompactorModelPolicy *ModelPolicyRef                  `json:"compactorModelPolicy,omitempty"`
+	Credential           nullable.Nullable[CredentialRef] `json:"credential,omitempty"`
+	LlmGateway           *LLMGatewayConfigRef             `json:"llmGateway,omitempty"`
+	ModelPolicy          *ModelPolicyRef                  `json:"modelPolicy,omitempty"`
 }
 
 // ExecutionSelectionPatch defines model for ExecutionSelectionPatch.
 type ExecutionSelectionPatch struct {
+	// CompactorModelPolicy Exact compactor ModelPolicy; valid only in a Planner selection that applies to a compact@1 Stage (PLN-R125).
+	CompactorModelPolicy  *Selector                   `json:"compactorModelPolicy,omitempty"`
 	Credential            nullable.Nullable[ConfigId] `json:"credential,omitempty"`
 	LlmGateway            *Selector                   `json:"llmGateway,omitempty"`
 	ModelPolicy           *Selector                   `json:"modelPolicy,omitempty"`
@@ -10705,6 +10744,31 @@ type PinnedRuntimeConfig struct {
 
 // PlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
 type PlacementLabels = []string
+
+// PlannerContextManagement Resolved Planner context management of a Planner Stage (PLN-R125). Always present for a Planner Stage: none keeps the whole Planner conversation, compact@1 carries every threshold explicitly. The compactor ModelPolicy is the Planner execution selection compactorModelPolicy.
+type PlannerContextManagement struct {
+	union json.RawMessage
+}
+
+// PlannerContextManagement0 defines model for PlannerContextManagement.0.
+type PlannerContextManagement0 struct {
+	Strategy PlannerContextManagement0Strategy `json:"strategy"`
+}
+
+// PlannerContextManagement0Strategy defines model for PlannerContextManagement.0.Strategy.
+type PlannerContextManagement0Strategy string
+
+// PlannerContextManagement1 defines model for PlannerContextManagement.1.
+type PlannerContextManagement1 struct {
+	ContextWindowRatio float32                           `json:"contextWindowRatio"`
+	Instructions       InstructionsRef                   `json:"instructions"`
+	KeepRecentGroups   int                               `json:"keepRecentGroups"`
+	MaxCompactions     int                               `json:"maxCompactions"`
+	Strategy           PlannerContextManagement1Strategy `json:"strategy"`
+}
+
+// PlannerContextManagement1Strategy defines model for PlannerContextManagement.1.Strategy.
+type PlannerContextManagement1Strategy string
 
 // PlannerDispatch defines model for PlannerDispatch.
 type PlannerDispatch struct {
@@ -12179,7 +12243,10 @@ type WorkflowStageContract struct {
 	On               WorkflowTransitions                `json:"on"`
 	Operation        *ServerOperationConfig             `json:"operation,omitempty"`
 	Planner          *PlannerRef                        `json:"planner,omitempty"`
-	ResultArtifacts  map[string]StageResultArtifactSlot `json:"resultArtifacts"`
+
+	// PlannerContextManagement Resolved Planner context management of a Planner Stage (PLN-R125). Always present for a Planner Stage: none keeps the whole Planner conversation, compact@1 carries every threshold explicitly. The compactor ModelPolicy is the Planner execution selection compactorModelPolicy.
+	PlannerContextManagement *PlannerContextManagement          `json:"plannerContextManagement,omitempty"`
+	ResultArtifacts          map[string]StageResultArtifactSlot `json:"resultArtifacts"`
 
 	// Session Resolved Worker session mode. Always present; omission in source Workflow YAML resolves to isolated before publication.
 	Session         WorkflowStageContractSession `json:"session"`
@@ -17847,6 +17914,68 @@ func (t *PerformanceSnapshot) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsPlannerContextManagement0 returns the union data inside the PlannerContextManagement as a PlannerContextManagement0
+func (t PlannerContextManagement) AsPlannerContextManagement0() (PlannerContextManagement0, error) {
+	var body PlannerContextManagement0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPlannerContextManagement0 overwrites any union data inside the PlannerContextManagement as the provided PlannerContextManagement0
+func (t *PlannerContextManagement) FromPlannerContextManagement0(v PlannerContextManagement0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePlannerContextManagement0 performs a merge with any union data inside the PlannerContextManagement, using the provided PlannerContextManagement0
+func (t *PlannerContextManagement) MergePlannerContextManagement0(v PlannerContextManagement0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPlannerContextManagement1 returns the union data inside the PlannerContextManagement as a PlannerContextManagement1
+func (t PlannerContextManagement) AsPlannerContextManagement1() (PlannerContextManagement1, error) {
+	var body PlannerContextManagement1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPlannerContextManagement1 overwrites any union data inside the PlannerContextManagement as the provided PlannerContextManagement1
+func (t *PlannerContextManagement) FromPlannerContextManagement1(v PlannerContextManagement1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePlannerContextManagement1 performs a merge with any union data inside the PlannerContextManagement, using the provided PlannerContextManagement1
+func (t *PlannerContextManagement) MergePlannerContextManagement1(v PlannerContextManagement1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PlannerContextManagement) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PlannerContextManagement) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsPublishConfigurationRequest0 returns the union data inside the PublishConfigurationRequest as a PublishConfigurationRequest0
 func (t PublishConfigurationRequest) AsPublishConfigurationRequest0() (PublishConfigurationRequest0, error) {
 	var body PublishConfigurationRequest0
@@ -18847,6 +18976,13 @@ func (t WorkflowStageContract) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	if t.PlannerContextManagement != nil {
+		object["plannerContextManagement"], err = json.Marshal(t.PlannerContextManagement)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'plannerContextManagement': %w", err)
+		}
+	}
+
 	if t.ResultArtifacts != nil {
 		object["resultArtifacts"], err = json.Marshal(t.ResultArtifacts)
 		if err != nil {
@@ -18933,6 +19069,13 @@ func (t *WorkflowStageContract) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.Planner)
 		if err != nil {
 			return fmt.Errorf("error reading 'planner': %w", err)
+		}
+	}
+
+	if raw, found := object["plannerContextManagement"]; found {
+		err = json.Unmarshal(raw, &t.PlannerContextManagement)
+		if err != nil {
+			return fmt.Errorf("error reading 'plannerContextManagement': %w", err)
 		}
 	}
 

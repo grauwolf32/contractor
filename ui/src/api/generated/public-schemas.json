@@ -1532,6 +1532,9 @@
         },
         "summarizerModelPolicy": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalSelector"
+        },
+        "compactorModelPolicy": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/EvalSelector"
         }
       },
       "required": [],
@@ -10593,6 +10596,10 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelPolicyRef"
         },
         "summarizerModel": { "type": "string", "minLength": 1 },
+        "compactorModelPolicy": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelPolicyRef"
+        },
+        "compactorModel": { "type": "string", "minLength": 1 },
         "llmGateway": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/LLMGatewayConfigRef"
         },
@@ -10609,6 +10616,11 @@
               "maxLength": 256
             },
             "summarizerModelPolicy": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "compactorModelPolicy": {
               "type": "string",
               "minLength": 1,
               "maxLength": 256
@@ -11252,6 +11264,9 @@
         "summarizerModelPolicy": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
         },
+        "compactorModelPolicy": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
+        },
         "llmGateway": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Selector"
         },
@@ -11570,6 +11585,44 @@
         }
       }
     },
+    "PlannerContextManagement": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["strategy"],
+          "properties": { "strategy": { "type": "string", "const": "none" } }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "strategy",
+            "instructions",
+            "contextWindowRatio",
+            "keepRecentGroups",
+            "maxCompactions"
+          ],
+          "properties": {
+            "strategy": { "type": "string", "const": "compact@1" },
+            "instructions": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/InstructionsRef"
+            },
+            "contextWindowRatio": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 1
+            },
+            "keepRecentGroups": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 16
+            },
+            "maxCompactions": { "type": "integer", "minimum": 1, "maximum": 16 }
+          }
+        }
+      ]
+    },
     "PlannerRef": {
       "type": "object",
       "additionalProperties": false,
@@ -11787,7 +11840,7 @@
       ],
       "oneOf": [
         {
-          "required": ["planner", "instructions"],
+          "required": ["planner", "instructions", "plannerContextManagement"],
           "not": { "required": ["operation"] },
           "properties": { "agents": { "minProperties": 1 } }
         },
@@ -11796,7 +11849,8 @@
           "not": {
             "anyOf": [
               { "required": ["planner"] },
-              { "required": ["instructions"] }
+              { "required": ["instructions"] },
+              { "required": ["plannerContextManagement"] }
             ]
           },
           "properties": {
@@ -11812,6 +11866,9 @@
         },
         "planner": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlannerRef"
+        },
+        "plannerContextManagement": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlannerContextManagement"
         },
         "operation": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ServerOperationConfig"
@@ -12266,6 +12323,9 @@
       "minProperties": 1,
       "properties": {
         "modelPolicy": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelPolicyRef"
+        },
+        "compactorModelPolicy": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelPolicyRef"
         },
         "llmGateway": {

@@ -58,12 +58,18 @@ export function validateAdvanced(draft: Draft): Problem[] {
       ![
         "modelPolicy",
         "summarizerModelPolicy",
+        "compactorModelPolicy",
         "llmGateway",
         "credential",
       ].some((key) => Object.hasOwn(row, key))
     )
       error(path, "Select at least one execution field.");
-    for (const key of ["modelPolicy", "summarizerModelPolicy", "llmGateway"]) {
+    for (const key of [
+      "modelPolicy",
+      "summarizerModelPolicy",
+      "compactorModelPolicy",
+      "llmGateway",
+    ]) {
       const value = row[key];
       if (
         Object.hasOwn(row, key) &&

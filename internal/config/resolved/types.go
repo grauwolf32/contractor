@@ -104,6 +104,7 @@ type ResolvedAgentBinding struct {
 type ExecutionConfigOrigins struct {
 	ModelPolicy           string `json:"modelPolicy,omitempty"`
 	SummarizerModelPolicy string `json:"summarizerModelPolicy,omitempty"`
+	CompactorModelPolicy  string `json:"compactorModelPolicy,omitempty"`
 	LLMGateway            string `json:"llmGateway,omitempty"`
 	Credential            string `json:"credential,omitempty"`
 }
@@ -112,11 +113,14 @@ type ExecutionConfigOrigins struct {
 // selection. Credential is a non-secret identity; token bytes never enter a
 // Workflow or Run snapshot.
 type ResolvedConsumerExecutionConfig struct {
-	SummarizerModelPolicy *contracts.ResolvedModelPolicy       `json:"summarizerModelPolicy,omitempty"`
-	ModelPolicy           contracts.ResolvedModelPolicy        `json:"modelPolicy,omitzero"`
-	LLMGateway            *llmgateway.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
-	Credential            *llmgateway.LLMCredentialRef         `json:"credential,omitempty"`
-	Origins               ExecutionConfigOrigins               `json:"origins"`
+	SummarizerModelPolicy *contracts.ResolvedModelPolicy `json:"summarizerModelPolicy,omitempty"`
+	// CompactorModelPolicy is the tool-free compactor of a compact@1 Planner
+	// (PLN-R125); a Worker selection never has one.
+	CompactorModelPolicy *contracts.ResolvedModelPolicy       `json:"compactorModelPolicy,omitempty"`
+	ModelPolicy          contracts.ResolvedModelPolicy        `json:"modelPolicy,omitzero"`
+	LLMGateway           *llmgateway.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
+	Credential           *llmgateway.LLMCredentialRef         `json:"credential,omitempty"`
+	Origins              ExecutionConfigOrigins               `json:"origins"`
 }
 
 type ResolvedStageExecutionConfig struct {
@@ -143,6 +147,7 @@ type ResolvedCredentialOverride struct {
 // selection. Nil fields inherit the Run's base Stage configuration.
 type ResolvedExecutionSelectionOverride struct {
 	SummarizerModelPolicy *contracts.ResolvedModelPolicy       `json:"summarizerModelPolicy,omitempty"`
+	CompactorModelPolicy  *contracts.ResolvedModelPolicy       `json:"compactorModelPolicy,omitempty"`
 	ModelPolicy           *contracts.ResolvedModelPolicy       `json:"modelPolicy,omitempty"`
 	LLMGateway            *llmgateway.ResolvedLLMGatewayConfig `json:"llmGateway,omitempty"`
 	Credential            *ResolvedCredentialOverride          `json:"credential,omitempty"`
@@ -209,21 +214,24 @@ type StageTransitions struct {
 }
 
 type ResolvedStage struct {
-	Operation       *ServerOperationConfig                   `json:"operation,omitempty"`
-	ModelDefaults   map[string]contracts.ResolvedModelPolicy `json:"modelDefaults,omitempty"`
-	MaxSubtasks     contracts.PlannerSubtaskLimit            `json:"maxSubtasks,omitempty"`
-	Objective       string                                   `json:"objective"`
-	Instructions    contracts.ResolvedInstructions           `json:"instructions,omitzero"`
-	Planner         PlannerRef                               `json:"planner,omitzero"`
-	ScanPlan        *scan.ScanPlanPolicy                     `json:"scanPlan,omitempty"`
-	AuditScan       *AuditScanConfig                         `json:"auditScan,omitempty"`
-	Session         contracts.WorkerSessionMode              `json:"session"`
-	Agents          map[string]ResolvedAgentBinding          `json:"agents"`
-	ExecutionConfig ResolvedStageExecutionConfig             `json:"executionConfig"`
-	Context         StageContext                             `json:"context"`
-	Result          StageResultContract                      `json:"result"`
-	WorkflowOutputs map[string]string                        `json:"workflowOutputs"`
-	On              StageTransitions                         `json:"on"`
+	Operation     *ServerOperationConfig                   `json:"operation,omitempty"`
+	ModelDefaults map[string]contracts.ResolvedModelPolicy `json:"modelDefaults,omitempty"`
+	MaxSubtasks   contracts.PlannerSubtaskLimit            `json:"maxSubtasks,omitempty"`
+	Objective     string                                   `json:"objective"`
+	Instructions  contracts.ResolvedInstructions           `json:"instructions,omitzero"`
+	Planner       PlannerRef                               `json:"planner,omitzero"`
+	// PlannerContextManagement is nil for none and the complete compact@1
+	// branch otherwise (PLN-R125).
+	PlannerContextManagement *PlannerContextManagement       `json:"plannerContextManagement,omitempty"`
+	ScanPlan                 *scan.ScanPlanPolicy            `json:"scanPlan,omitempty"`
+	AuditScan                *AuditScanConfig                `json:"auditScan,omitempty"`
+	Session                  contracts.WorkerSessionMode     `json:"session"`
+	Agents                   map[string]ResolvedAgentBinding `json:"agents"`
+	ExecutionConfig          ResolvedStageExecutionConfig    `json:"executionConfig"`
+	Context                  StageContext                    `json:"context"`
+	Result                   StageResultContract             `json:"result"`
+	WorkflowOutputs          map[string]string               `json:"workflowOutputs"`
+	On                       StageTransitions                `json:"on"`
 }
 
 // ResolvedWorkflow is the complete immutable-in-snapshot Workflow definition.

@@ -473,6 +473,7 @@ export type PublicSchemaName =
   | "WorkflowSummary"
   | "AgentInstructions"
   | "InstructionsRef"
+  | "PlannerContextManagement"
   | "PlannerRef"
   | "WorkflowContextArtifact"
   | "WorkflowAgentBinding"

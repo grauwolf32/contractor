@@ -8985,6 +8985,9 @@ components:
         },
         "summarizerModelPolicy": {
           "$ref": "#/components/schemas/EvalSelector"
+        },
+        "compactorModelPolicy": {
+          "$ref": "#/components/schemas/EvalSelector"
         }
       },
       "required": [],
@@ -15943,6 +15946,10 @@ components:
         model: {type: string, minLength: 1}
         summarizerModelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
         summarizerModel: {type: string, minLength: 1}
+        compactorModelPolicy:
+          $ref: '#/components/schemas/ModelPolicyRef'
+          description: Tool-free compactor of a compact@1 Planner (PLN-R125); absent for every Worker.
+        compactorModel: {type: string, minLength: 1}
         llmGateway: {$ref: '#/components/schemas/LLMGatewayConfigRef'}
         credential: {$ref: '#/components/schemas/CredentialRef'}
         origins:
@@ -15951,6 +15958,7 @@ components:
           properties:
             modelPolicy: {type: string, minLength: 1, maxLength: 256}
             summarizerModelPolicy: {type: string, minLength: 1, maxLength: 256}
+            compactorModelPolicy: {type: string, minLength: 1, maxLength: 256}
             llmGateway: {type: string, minLength: 1, maxLength: 256}
             credential: {type: string, minLength: 1, maxLength: 256}
     ResolvedStageExecutionConfig:
@@ -16265,6 +16273,9 @@ components:
       properties:
         modelPolicy: {$ref: '#/components/schemas/Selector'}
         summarizerModelPolicy: {$ref: '#/components/schemas/Selector'}
+        compactorModelPolicy:
+          $ref: '#/components/schemas/Selector'
+          description: Exact compactor ModelPolicy; valid only in a Planner selection that applies to a compact@1 Stage (PLN-R125).
         llmGateway: {$ref: '#/components/schemas/Selector'}
         credential:
           oneOf:
@@ -16433,6 +16444,28 @@ components:
       properties:
         ref: {$ref: '#/components/schemas/InstructionPath'}
         digest: {$ref: '#/components/schemas/Digest'}
+    PlannerContextManagement:
+      description: >-
+        Resolved Planner context management of a Planner Stage (PLN-R125).
+        Always present for a Planner Stage: none keeps the whole Planner
+        conversation, compact@1 carries every threshold explicitly. The
+        compactor ModelPolicy is the Planner execution selection
+        compactorModelPolicy.
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [strategy]
+          properties:
+            strategy: {type: string, const: none}
+        - type: object
+          additionalProperties: false
+          required: [strategy, instructions, contextWindowRatio, keepRecentGroups, maxCompactions]
+          properties:
+            strategy: {type: string, const: compact@1}
+            instructions: {$ref: '#/components/schemas/InstructionsRef'}
+            contextWindowRatio: {type: number, exclusiveMinimum: 0, exclusiveMaximum: 1}
+            keepRecentGroups: {type: integer, minimum: 1, maximum: 16}
+            maxCompactions: {type: integer, minimum: 1, maximum: 16}
     PlannerRef:
       type: object
       additionalProperties: false
@@ -16550,7 +16583,7 @@ components:
       additionalProperties: false
       required: [objective, session, agents, executionConfig, contextArtifacts, resultArtifacts, workflowOutputs, on]
       oneOf:
-        - required: [planner, instructions]
+        - required: [planner, instructions, plannerContextManagement]
           not: {required: [operation]}
           properties:
             agents: {minProperties: 1}
@@ -16559,6 +16592,7 @@ components:
             anyOf:
               - {required: [planner]}
               - {required: [instructions]}
+              - {required: [plannerContextManagement]}
           properties:
             agents: {maxProperties: 0}
             session: {const: isolated}
@@ -16566,6 +16600,7 @@ components:
         objective: {type: string, minLength: 1, maxLength: 65536}
         instructions: {$ref: '#/components/schemas/InstructionsRef'}
         planner: {$ref: '#/components/schemas/PlannerRef'}
+        plannerContextManagement: {$ref: '#/components/schemas/PlannerContextManagement'}
         operation: {$ref: '#/components/schemas/ServerOperationConfig'}
         session:
           type: string
@@ -16628,6 +16663,7 @@ components:
               ref: instructions/copy-planner.md
               digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
             planner: {plannerId: passthrough, version: '1'}
+            plannerContextManagement: {strategy: none}
             session: isolated
             agents:
               builder:
@@ -16842,6 +16878,7 @@ components:
       minProperties: 1
       properties:
         modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
+        compactorModelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
         llmGateway: {$ref: '#/components/schemas/LLMGatewayConfigRef'}
         credential:
           oneOf:

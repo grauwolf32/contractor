@@ -63,6 +63,7 @@ const workflow: WorkflowResource = conforming("WorkflowResource", {
       objective: "Build an OpenAPI contract from the supplied source tree.",
       instructions: { ref: "instructions/openapi-planner.md", digest },
       planner: { plannerId: "passthrough", version: "1" },
+      plannerContextManagement: { strategy: "none" },
       session: "isolated",
       agents: {
         builder: {

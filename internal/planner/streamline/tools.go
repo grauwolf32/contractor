@@ -144,6 +144,14 @@ func (p *streamlinePlanner) buildTools(
 		return nil, nil, err
 	}
 	result = append(result, memoryTools...)
+	if p.compaction != nil {
+		history, err := p.buildHistoryTool(state, identity.SessionID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("build %s tool: %w", readContextHistoryToolName, err)
+		}
+		result = append(result, history)
+		allowed[readContextHistoryToolName] = struct{}{}
+	}
 	finish, err := functiontool.New(functiontool.Config{
 		Name:        finishToolName,
 		Description: "Finish the Stage with a succeeded or failed candidate. A failed candidate requires a safe error; a succeeded candidate forbids one. Every artifact must name a declared result slot and include an exact revision. Workflow Scheduler remains the acceptance and transition owner.",
@@ -355,6 +363,13 @@ func (p *streamlinePlanner) callWorker(
 		}
 	}
 	cloned := planner.CloneWorkerResult(result)
+	if p.compaction != nil {
+		// The exact result stays readable after compaction; an index over
+		// its retained-data ceiling stops the Planner before its next call.
+		if failure := p.compaction.recordResult(binding.logicalName, claim.Subtask.ID, cloned); failure != nil {
+			state.setExternalFailure(failure)
+		}
+	}
 	encoded, _ := json.Marshal(cloned)
 	state.recordTool(executeCurrentSubtaskToolName, safeArguments, true, time.Since(started), len(encoded), nil)
 	return workerCallOutput{OK: true, Result: &cloned}

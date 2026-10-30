@@ -21,6 +21,7 @@ Worker set. It owns:
 - Planner budgets and their stop codes, Planner model access and the handling
   of permanent Planner Gateway rejections;
 - Planner Sessions, reduced durable facts and the typed plan projection;
+- `compact@1` Planner context compaction and its history reader;
 - cross-Stage state and Planner non-goals.
 
 It leaves to other documents:
@@ -73,6 +74,9 @@ following ones.
 | Typed Planner-plan projection | The validated durable projection of the subtask plan used for recovery and the Run UI. |
 | Projection tool | A Server-side Planner tool that returns one fixed projection of a logical Worker's live State snapshot. |
 | Planner timeline | The public sequence of fixed-kind reduced Planner facts. |
+| Context checkpoint | One `compact@1` step that replaces the earlier complete tool groups of a live Planner conversation with a rolling summary, recorded by a content-free marker fact. |
+| Compactor | The tool-free model call that writes the rolling summary of a context checkpoint. |
+| History reader | `read_context_history`, the live Planner's paged reader of exact earlier validated Worker results. |
 
 ## Model
 
@@ -768,8 +772,8 @@ codes, which the Scheduler records in an interrupted StageTermination
 `planner_tool_selection_invalid`, the execution report error of each rejected
 parallel or unknown tool selection (PLN-R41, FAIL-PLN-4);
 `planner_worker_unknown`, the non-retryable tool error of
-`execute_current_subtask` for a Worker name that names no available logical
-Worker (PLN-R39, FAIL-PLN-3); and `planner_model_overlap`, the error of a
+`execute_current_subtask` and `read_context_history` for a Worker name that
+names no available logical Worker (PLN-R39, PLN-R131, FAIL-PLN-3); and `planner_model_overlap`, the error of a
 Planner model telemetry span that ended because the next model request started
 before its response was recorded.
 
@@ -958,6 +962,107 @@ PLN-R71/PLN-R73 checks; a partial summary or missing report cannot become final
 success. Summarized Worker calls inside Streamline consume its existing finite
 plan/model/Worker-call budgets and do not request another strategy escalation.
 
+### Context compaction
+
+**PLN-R125.** A `streamline@1` or `router@1` Stage selects its context
+management with `plannerContextManagement`
+([WFL-R90](../configuration/workflows.md)); both Planners share one Server-side
+compaction engine. `none` keeps the whole conversation. `compact@1` lets the
+invocation replace earlier turns with one rolling summary; its compactor is the
+Planner selection's exact `compactorModelPolicy`
+([TPL-R116](../configuration/agent-templates.md),
+[TPL-R117](../configuration/agent-templates.md)) and calls the Planner's
+effective Gateway with the Planner's credential, with no tools and without
+in-invocation Gateway recovery. The selection is Planner-only and never enters
+`AllocationSpec`. Compaction never marks a result summarized, never falls back
+to terminal summarization and is off for every Passthrough Planner, including
+the Passthrough base of a summary escalation (WFL-R86). ADK native compaction
+stays off.
+
+**PLN-R126.** A context checkpoint is due before a main model request when the
+latest main model response of the current checkpoint generation reported
+prompt tokens at or above `min(floor(window × contextWindowRatio), window −
+maxOutputTokens)` of the main Planner ModelPolicy, no tool call is open, no
+Worker dispatch is active and more than `keepRecentGroups` complete groups
+follow the last checkpoint. A complete group is one function call with all its
+responses or one standalone message. Compactor tokens never change this
+measurement. A due checkpoint after `maxCompactions` checkpoints ends the
+invocation with `planner_compaction_limit_exceeded` (cycle).
+
+**PLN-R127.** A due checkpoint ends the current Runner turn at the complete
+group boundary; the Planner owner then makes one compactor call outside ADK
+callbacks and continues the same invocation with a new user turn in the same
+session. The plan, its revision, the execution state, tools, Session and
+StageExecution IDs, prepared Worker handles and every budget counter are kept.
+Each compactor call is admitted against, and charged once to, the main
+Planner's cumulative `maxModelCalls` and `maxTotalTokens` (PLN-R81); known
+usage of a rejected response is charged too, and missing usage is
+`planner_gateway_invalid_response` (PLN-R86). The compactor's own output and
+request bounds add limits but no second total budget. The original Planner
+deadline bounds the call, and each request also obeys the Server's Planner
+Gateway request timeout, the same as a main model request.
+
+**PLN-R128.** Before transport, the complete serialized compactor request in
+bytes, plus a framing reserve of 1,024 tokens (1,024 + 128 per message above
+eight messages) and the compactor `maxOutputTokens`, must fit both the
+compactor `contextWindowTokens` and its `maxTotalTokens`, and the request must
+fit the 4 MiB Gateway request bound; otherwise the invocation ends with
+`planner_compaction_failed` (input_capacity), without truncating a group or
+substituting a model. The reply is accepted only when it finished with `stop`,
+called no tool, reports usage within the compactor limits and is exactly one
+JSON object `{"summary": …}` whose trimmed, non-empty UTF-8 summary is at most
+16 KiB (LIM-PLN-13) and smaller than the source it replaces. Any other reply
+ends the invocation with `planner_compaction_failed` and a bounded reason:
+`tool_output`, `output_limit` (finish `length` or usage over the limit),
+`empty` (empty or declined, finish `content_filter`), `invalid` (another or
+missing finish, or not that JSON object), `oversized` or `ineffective`. The
+first main response after a checkpoint that still reaches the trigger also
+ends it as `ineffective`. Gateway failures keep FAIL-PLN-1. Nothing is
+retried, and no fallback continues the conversation.
+
+**PLN-R129.** After a checkpoint, every main model request is a deterministic
+projection: the protected first user message (the Stage input), one checkpoint
+message and the complete groups after the last checkpoint, at most 1 MiB of
+recent tail (LIM-PLN-14). The checkpoint message states that the summary is
+untrusted lossy memory and carries the summary and a bounded plan view: plan
+revision, subtask status counts, the current subtask and the active dispatch,
+never the whole plan or all prior results. The summary cannot add artifact
+references, change subtask IDs, statuses or the plan revision, authorize work
+or repeat a completed dispatch. The engine accepts only complete, final,
+unbranched session events with unique IDs and matched tool call and response
+IDs; any other event ends the invocation with `planner_compaction_failed`
+(scope). Raw history, the summary, the history index and transient copies are
+kept within LIM-PLN-15 and LIM-PLN-16; reaching a bound ends the invocation
+with `planner_compaction_limit_exceeded` naming it (group, retained, tail or
+peak) before more work starts.
+
+**PLN-R130.** A checkpoint becomes visible only after its content-free marker
+is appended through the required reduced-fact append of PLN-R106: a
+`planner.activity` fact of the Planner agent with no function calls, results or
+token usage. Raw context and the summary are never durable (PLN-R94). Any
+failure of that append, including an acknowledgement lost after a commit,
+fences the invocation: no further model or Worker call and no candidate. A
+refused append is `planner_session_rejected`, any other failure
+`planner_session_unavailable`; the marker is never appended again. A finish
+whose required append fails after checkpoints still cannot complete
+(FAIL-PLN-9). Cancellation takes precedence and the Planner joins its Runner,
+compactor call and session write before it returns (FAIL-PLN-10).
+
+**PLN-R131.** A `compact@1` Planner also has the tool `read_context_history`,
+which pages the exact validated Worker results of this invocation, with their
+exact artifact references, oldest first: Streamline takes `{cursor?}`, Router
+`{worker_name, cursor?}` with `worker_name` limited to its logical Workers. A
+page holds at most 8 fragments and 32 KiB of encoded JSON; a fragment holds at
+most 16 KiB of UTF-8 cut at a rune boundary (LIM-PLN-17). Cursors are opaque
+128-bit values bound to the session, checkpoint generation, index revision,
+view and Worker; advancing consumes a cursor, at most 8 are live and the
+oldest is evicted first (LIM-PLN-18). A foreign, stale, consumed or evicted
+cursor returns the tool error `history_cursor_invalid` without data, a cursor
+that cannot be issued `history_unavailable`, and an unknown `worker_name`
+`planner_worker_unknown` (PLN-R122). The reader exists only in the live
+invocation's memory; it adds no HTTP endpoint and is released with the
+Planner.
+
 ### Cross-Stage state
 
 **PLN-R108.** Cross-Stage state passes through explicit Workflow
@@ -979,8 +1084,8 @@ than Planner-session inheritance.
 - Live Worker State: `WorkerStateReader` ([CTL-R130](control-plane.md)).
 - Model-facing Planner functions: plan operations (PLN-R24), execution
   functions (PLN-R8, PLN-R9), `finish` (PLN-R69),
-  MemoryTools ([Memory](../tools/memory.md)) and projection tools
-  (PLN-R49, PLN-R50).
+  MemoryTools ([Memory](../tools/memory.md)), projection tools
+  (PLN-R49, PLN-R50) and the `compact@1` history reader (PLN-R131).
 - Typed Planner-plan projection: the `PlannerPlan`, `PlannerSubtask` and
   `PlannerDispatch` schemas of the
   [public API](../../../api/openapi/contractor-public-v1.yaml).
@@ -1002,6 +1107,11 @@ Limits ([registry](../platform/limits.md)):
   (PLN-R49, PLN-R60).
 - LIM-PLN-9 — durable state of one Planner session: at most 2 MiB of stored
   jsonb text (PLN-R124).
+- LIM-PLN-10 to LIM-PLN-12 — `compact@1` trigger ratio, recent groups and
+  checkpoints per invocation (WFL-R90, PLN-R126).
+- LIM-PLN-13 to LIM-PLN-16 — `compact@1` summary, recent tail, retained data
+  and accounted peak (PLN-R128, PLN-R129).
+- LIM-PLN-17, LIM-PLN-18 — history reader pages and cursors (PLN-R131).
 - Planner instances, invocations and Sessions per StageExecution (LIM-SCH-2)
   belong to [Scheduler](scheduler.md); Planner budget fields to
   [AgentTemplates](../configuration/agent-templates.md).
@@ -1025,6 +1135,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   PLN-R107).
 - FAIL-PLN-9 — Required Planner session write, including completion after the
   Planner has its outcome (PLN-R106).
+- FAIL-PLN-10 — `compact@1` context checkpoint: compactor call, marker append
+  and continuation (PLN-R127 to PLN-R130).
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 
@@ -1032,6 +1144,8 @@ Lifecycle ([registry](../platform/lifecycle.md)):
 - LIFE-PLN-2 — Planner Session record (PLN-R94,
   PLN-R106).
 - LIFE-PLN-3 — live ADK conversation (PLN-R94).
+- LIFE-PLN-4 — `compact@1` checkpoint state and history index (PLN-R129,
+  PLN-R131).
 
 Errors ([registry](../platform/errors.md)):
 
@@ -1067,6 +1181,10 @@ Errors ([registry](../platform/errors.md)):
   `planner_execution_failed`, `planner_cancelled` — invocation failure codes
   (PLN-R121); `planner_tool_selection_invalid`, `planner_worker_unknown`,
   `planner_model_overlap` — recorded without ending the invocation (PLN-R122).
+- `planner_compaction_failed`, `planner_compaction_limit_exceeded` —
+  non-retryable `compact@1` failures with a bounded reason or limit
+  (PLN-R126, PLN-R128 to PLN-R130); `history_cursor_invalid`,
+  `history_unavailable` — history reader tool errors (PLN-R131).
 - `invalid_worker_handle`, `invalid_stage_content`, `invalid_a2a_response`,
   `worker_task_rejected`, `worker_task_cancelled`, `worker_task_failed`,
   `worker_deadline_exceeded`, `worker_unavailable` — Worker invocation failure
@@ -1097,6 +1215,10 @@ Errors ([registry](../platform/errors.md)):
 
 - Reduced Planner facts and the public Planner timeline: PLN-R102,
   PLN-R103, PLN-R105.
+- A compactor call is a Planner model span with operation `model.compact`
+  that carries only the model alias, token usage, outcome and safe error code;
+  the summary and compacted history never enter span attributes or durable
+  facts (PLN-R127, PLN-R130).
 - The `planner.telemetry` settings for Planner invocations are specified in
   [RCF-R136](../configuration/runtime-config.md).
 - Planner telemetry construction in Server, its adapter registry, the closed
@@ -1110,7 +1232,8 @@ Errors ([registry](../platform/errors.md)):
   Streamline/Router Worker expansion (see also [CTL-R115](control-plane.md)).
 - Planner-selected AgentTemplates.
 - Resuming a Planner invocation from its persisted ADK Session or private plan
-  (PLN-R107).
+  (PLN-R107), including from a context checkpoint; durable transcripts,
+  checkpoint tables and cross-Stage history (PLN-R130).
 - Plan edit, reorder, delete, skip, parent/child decomposition and arbitrary
   metadata operations (PLN-R28).
 - A model-facing `escalate` operation (PLN-R76).

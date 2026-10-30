@@ -145,6 +145,26 @@ function StageContract({
                       </>
                     ),
                   },
+                  {
+                    term: "Planner context",
+                    value:
+                      stage.plannerContextManagement?.strategy ===
+                      "compact@1" ? (
+                        <>
+                          Compacted after{" "}
+                          {Math.round(
+                            stage.plannerContextManagement.contextWindowRatio *
+                              100,
+                          )}
+                          % of the context window, keeping{" "}
+                          {stage.plannerContextManagement.keepRecentGroups}{" "}
+                          recent steps, at most{" "}
+                          {stage.plannerContextManagement.maxCompactions} times
+                        </>
+                      ) : (
+                        "Kept whole"
+                      ),
+                  },
                 ]
           }
         />

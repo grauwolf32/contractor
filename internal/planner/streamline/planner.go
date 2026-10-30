@@ -48,6 +48,11 @@ type streamlinePlanner struct {
 	model          model.LLM
 	limits         Limits
 	deadline       time.Time
+	// compactionSettings selects compact@1; compaction is its live state and
+	// compactor its tool-free model client (PLN-R125).
+	compactionSettings *compactionSettings
+	compaction         *contextCompaction
+	compactor          compactionModel
 
 	reportMu  sync.RWMutex
 	report    reporting.ExecutionReport
@@ -103,6 +108,9 @@ func (p *streamlinePlanner) Run(
 		return stageresult.StageContentResult{}, err
 	}
 
+	if p.compactionSettings != nil {
+		p.compaction = newContextCompaction(*p.compactionSettings)
+	}
 	tools, allowed, err := p.buildTools(state, identity)
 	if err != nil {
 		return stageresult.StageContentResult{}, p.fail(
@@ -136,7 +144,7 @@ func (p *streamlinePlanner) Run(
 	}
 	adkSessionSpan.End("succeeded", telemetry.PlannerSpanAttributes{})
 
-	root, err := p.newRootAgent(state, tools, allowed)
+	root, err := p.newRootAgent(state, tools, allowed, identity, adkSessions)
 	if err != nil {
 		return stageresult.StageContentResult{}, p.fail(
 			ctx, identity, state, planner.NewError(
@@ -214,6 +222,15 @@ func (p *streamlinePlanner) Run(
 		if failure := stoppedPlannerError(ctx, runContext); failure != nil {
 			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
 		}
+		if errors.Is(iterationErr, errCompactionCheckpoint) {
+			// The Runner stopped at a complete tool group; compact outside
+			// its callbacks, then continue in the same session (PLN-R127).
+			if failure := p.compactContext(ctx, runContext, identity, state, adkSessions); failure != nil {
+				return stageresult.StageContentResult{}, p.fail(ctx, identity, state, failure)
+			}
+			message = continuePlanningMessage()
+			continue
+		}
 		if iterationErr != nil {
 			var plannerError *planner.Error
 			if errors.As(iterationErr, &plannerError) {
@@ -234,11 +251,42 @@ func (p *streamlinePlanner) Run(
 		if exhausted := state.exhaustedAfterTurn(); exhausted != nil {
 			return stageresult.StageContentResult{}, p.fail(ctx, identity, state, exhausted)
 		}
-		message = genai.NewContentFromText(
-			"Continue planning. Call exactly one declared planning, Worker, or finish tool; a text-only answer does not complete the Stage.",
-			genai.RoleUser,
-		)
+		message = continuePlanningMessage()
 	}
+}
+
+func continuePlanningMessage() *genai.Content {
+	return genai.NewContentFromText(
+		"Continue planning. Call exactly one declared planning, Worker, or finish tool; a text-only answer does not complete the Stage.",
+		genai.RoleUser,
+	)
+}
+
+// prepareCompactedRequest applies compact@1 before a main-model request: it
+// fences a recorded failure, requests a due checkpoint or projects the
+// bounded post-checkpoint context into request.
+func (p *streamlinePlanner) prepareCompactedRequest(
+	ctx context.Context,
+	state *executionState,
+	identity planner.SessionIdentity,
+	sessions adksession.Service,
+	request *model.LLMRequest,
+) error {
+	if _, failure := state.terminal(); failure != nil {
+		return failure
+	}
+	loaded, err := sessions.Get(ctx, &adksession.GetRequest{
+		AppName: p.profile.adkAppName, UserID: p.invocation.StageExecutionID, SessionID: identity.SessionID,
+	})
+	if err != nil {
+		return state.setExternalFailure(planner.SessionError("read ADK session", err))
+	}
+	err = p.compaction.prepareMain(loaded.Session, p.plan.Snapshot(), request)
+	var failure *planner.Error
+	if errors.As(err, &failure) {
+		return state.setExternalFailure(failure)
+	}
+	return err
 }
 
 func stoppedPlannerError(caller, execution context.Context) *planner.Error {
@@ -259,6 +307,7 @@ func (p *streamlinePlanner) ExecutionReport() (reporting.ExecutionReport, bool) 
 
 func (p *streamlinePlanner) newRootAgent(
 	state *executionState, tools []tool.Tool, allowed map[string]struct{},
+	identity planner.SessionIdentity, sessions adksession.Service,
 ) (agent.Agent, error) {
 	var temperature *float32
 	if selected := p.invocation.ModelAccess.ModelPolicy.Temperature; selected != nil {
@@ -321,7 +370,12 @@ func (p *streamlinePlanner) newRootAgent(
 		GenerateContentConfig: &genai.GenerateContentConfig{Temperature: temperature},
 		Tools:                 tools,
 		BeforeModelCallbacks: []llmagent.BeforeModelCallback{
-			func(_ agent.Context, request *model.LLMRequest) (*model.LLMResponse, error) {
+			func(ctx agent.Context, request *model.LLMRequest) (*model.LLMResponse, error) {
+				if p.compaction != nil {
+					if err := p.prepareCompactedRequest(ctx, state, identity, sessions, request); err != nil {
+						return nil, err
+					}
+				}
 				if err := state.beforeModel(); err != nil {
 					return nil, err
 				}
@@ -332,6 +386,11 @@ func (p *streamlinePlanner) newRootAgent(
 		AfterModelCallbacks: []llmagent.AfterModelCallback{
 			func(_ agent.Context, response *model.LLMResponse, _ error) (*model.LLMResponse, error) {
 				result, err := state.afterModel(response, allowed)
+				if err == nil && p.compaction != nil && response != nil {
+					if failure := p.compaction.observeMain(response.UsageMetadata); failure != nil {
+						result, err = nil, state.setExternalFailure(failure)
+					}
+				}
 				if err != nil {
 					failure := planner.FailureFrom(err)
 					endModelSpan("failed", failure.Code, response)
@@ -457,6 +516,9 @@ func (p *streamlinePlanner) systemInstruction() string {
 	if guidance := p.memoryInstruction(); guidance != "" {
 		sections = append(sections, guidance)
 	}
+	if p.compactionSettings != nil {
+		sections = append(sections, compactionInstruction)
+	}
 	if p.invocation.Context.Continuation != nil {
 		sections = append(sections,
 			"Continue the original task using continuation.summary and the exact saved artifact references. Plan only the work still needed to produce and verify the required final artifacts. Preserve the original parameters and authorization scope; the summary is partial progress and does not change them.")
@@ -485,6 +547,9 @@ func (p *streamlinePlanner) routerSystemInstruction() string {
 	}
 	if guidance := p.memoryInstruction(); guidance != "" {
 		sections = append(sections, guidance)
+	}
+	if p.compactionSettings != nil {
+		sections = append(sections, compactionInstruction)
 	}
 	sections = append(sections, p.stateInstruction())
 	sections = append(sections, "Stage-specific operating guidance:", p.request.Instructions)

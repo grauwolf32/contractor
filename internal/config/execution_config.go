@@ -27,8 +27,10 @@ func (l *loader) resolveWorkflowExecutionConfig(
 		return err
 	}
 	for stageName, stage := range workflow.Stages {
+		// resolveStage pins only a compact@1 Stage's compactor policy here.
 		base := resolved.ResolvedStageExecutionConfig{
-			Agents: make(map[string]resolved.ResolvedConsumerExecutionConfig, len(stage.Agents)),
+			Planner: stage.ExecutionConfig.Planner,
+			Agents:  make(map[string]resolved.ResolvedConsumerExecutionConfig, len(stage.Agents)),
 		}
 		for logicalName, binding := range stage.Agents {
 			if binding.Template.IsToolWorker() {
@@ -100,16 +102,25 @@ func (l *loader) applyExecutionConfigPatch(
 	patch resolved.ExecutionConfigPatch,
 	originPrefix string,
 ) error {
-	plannerApplied := false
+	plannerApplied, compactorApplied := false, false
 	for _, stageName := range slices.Sorted(maps.Keys(workflow.Stages)) {
 		stage := workflow.Stages[stageName]
 		if patch.Planner != nil && !resolved.IsModelFreeStage(stage) {
-			if err := l.applyPlannerSelection(
-				&stage, *patch.Planner, originPrefix+".planner",
-			); err != nil {
-				return fmt.Errorf("Stage %q: %w", stageName, err)
+			// A Workflow- or Run-wide compactor selection applies to every
+			// compact@1 Stage and is no selection for the others (PLN-R125).
+			selection := *patch.Planner
+			if !resolved.PlannerCompactsContext(stage) {
+				selection.CompactorModelPolicy = resolved.OptionalString{}
+			}
+			if selection.HasAny() {
+				if err := l.applyPlannerSelection(
+					&stage, selection, originPrefix+".planner",
+				); err != nil {
+					return fmt.Errorf("Stage %q: %w", stageName, err)
+				}
 			}
 			plannerApplied = true
+			compactorApplied = compactorApplied || selection.CompactorModelPolicy.Present
 		}
 		if patch.Workers != nil {
 			for _, logicalName := range slices.Sorted(maps.Keys(stage.ExecutionConfig.Agents)) {
@@ -118,7 +129,7 @@ func (l *loader) applyExecutionConfigPatch(
 				}
 				selection := stage.ExecutionConfig.Agents[logicalName]
 				if err := l.applySelection(
-					&selection, *patch.Workers, originPrefix+".workers",
+					&selection, *patch.Workers, originPrefix+".workers", false,
 				); err != nil {
 					return fmt.Errorf("Stage %q Agent %q: %w", stageName, logicalName, err)
 				}
@@ -129,6 +140,9 @@ func (l *loader) applyExecutionConfigPatch(
 	}
 	if patch.Planner != nil && !plannerApplied {
 		return fmt.Errorf("planner defaults do not apply to any modeled Stage")
+	}
+	if patch.Planner != nil && patch.Planner.CompactorModelPolicy.Present && !compactorApplied {
+		return fmt.Errorf("planner compactorModelPolicy does not apply to any compact@1 Stage")
 	}
 
 	for _, stageName := range slices.Sorted(maps.Keys(patch.Stages)) {
@@ -154,7 +168,7 @@ func (l *loader) applyExecutionConfigPatch(
 				return fmt.Errorf("stages.%s.agents names unknown logical Agent %q", stageName, logicalName)
 			}
 			if err := l.applySelection(
-				&selection, stagePatch.Agents[logicalName], stageOrigin+".agents."+logicalName,
+				&selection, stagePatch.Agents[logicalName], stageOrigin+".agents."+logicalName, false,
 			); err != nil {
 				return fmt.Errorf("Stage %q Agent %q: %w", stageName, logicalName, err)
 			}
@@ -174,16 +188,20 @@ func (l *loader) applyPlannerSelection(
 	if resolved.IsModelFreeStage(*stage) {
 		return fmt.Errorf("%s does not accept Planner model configuration", ref)
 	}
+	if patch.CompactorModelPolicy.Present && !resolved.PlannerCompactsContext(*stage) {
+		return fmt.Errorf("compactorModelPolicy requires plannerContextManagement %s", resolved.PlannerContextCompact)
+	}
 	if stage.ExecutionConfig.Planner == nil {
 		stage.ExecutionConfig.Planner = &resolved.ResolvedConsumerExecutionConfig{}
 	}
-	return l.applySelection(stage.ExecutionConfig.Planner, patch, origin)
+	return l.applySelection(stage.ExecutionConfig.Planner, patch, origin, true)
 }
 
 func (l *loader) applySelection(
 	selection *resolved.ResolvedConsumerExecutionConfig,
 	patch resolved.ExecutionSelectionPatch,
 	origin string,
+	planner bool,
 ) error {
 	if patch.ModelPolicy.Present {
 		selector, err := resolved.ParseSelector(patch.ModelPolicy.Value)
@@ -212,6 +230,17 @@ func (l *loader) applySelection(
 		pinned := policy.Clone()
 		selection.SummarizerModelPolicy = &pinned
 		selection.Origins.SummarizerModelPolicy = origin
+	}
+	if patch.CompactorModelPolicy.Present {
+		if !planner {
+			return fmt.Errorf("compactorModelPolicy applies only to a Planner")
+		}
+		policy, err := l.compactorPolicy(patch.CompactorModelPolicy.Value)
+		if err != nil {
+			return err
+		}
+		selection.CompactorModelPolicy = &policy
+		selection.Origins.CompactorModelPolicy = origin
 	}
 	if patch.LLMGateway.Present {
 		selector, err := resolved.ParseSelector(patch.LLMGateway.Value)
@@ -304,6 +333,10 @@ func executionSelectionFromYAML(
 	if err != nil {
 		return resolved.ExecutionSelectionPatch{}, err
 	}
+	compactorPolicy, err := optionalStringFromYAML(source.CompactorModelPolicy, false, field+".compactorModelPolicy")
+	if err != nil {
+		return resolved.ExecutionSelectionPatch{}, err
+	}
 	llmGateway, err := optionalStringFromYAML(source.LLMGateway, false, field+".llmGateway")
 	if err != nil {
 		return resolved.ExecutionSelectionPatch{}, err
@@ -313,7 +346,8 @@ func executionSelectionFromYAML(
 		return resolved.ExecutionSelectionPatch{}, err
 	}
 	result := resolved.ExecutionSelectionPatch{
-		ModelPolicy: modelPolicy, SummarizerModelPolicy: summaryPolicy, LLMGateway: llmGateway, Credential: credential,
+		ModelPolicy: modelPolicy, SummarizerModelPolicy: summaryPolicy, CompactorModelPolicy: compactorPolicy,
+		LLMGateway: llmGateway, Credential: credential,
 	}
 	if !result.HasAny() {
 		return resolved.ExecutionSelectionPatch{}, fmt.Errorf("%s must select at least one field", field)
@@ -342,4 +376,21 @@ func optionalStringFromYAML(
 		return resolved.OptionalString{}, fmt.Errorf("%s must be a string", field)
 	}
 	return resolved.OptionalString{Present: true, Value: node.Value}, nil
+}
+
+// compactorPolicy resolves the exact compactor ModelPolicy a compact@1 Stage
+// or a Planner execution selection names (TPL-R116).
+func (l *loader) compactorPolicy(raw string) (contracts.ResolvedModelPolicy, error) {
+	selector, err := resolved.ParseSelector(raw)
+	if err != nil {
+		return contracts.ResolvedModelPolicy{}, fmt.Errorf("compactorModelPolicy: %w", err)
+	}
+	policy, ok := l.policies[selector.String()]
+	if !ok {
+		return contracts.ResolvedModelPolicy{}, fmt.Errorf("compactorModelPolicy selects unknown ModelPolicy %q", selector)
+	}
+	if err := resolved.ValidatePlannerCompactorModelPolicy(policy); err != nil {
+		return contracts.ResolvedModelPolicy{}, err
+	}
+	return policy.Clone(), nil
 }

@@ -217,11 +217,32 @@ func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error)
 			return nil, err
 		}
 	}
+	compaction, err := newCompactionSettings(invocation.Stage, invocation.ModelAccess.ModelPolicy)
+	if err != nil {
+		return nil, fmt.Errorf("configure %s context compaction: %w", f.profile.ref, err)
+	}
 	selectedModel, err := f.modelFactory(*invocation.ModelAccess)
 	if err != nil {
 		return nil, fmt.Errorf("configure %s model client: %w", f.profile.ref, err)
 	}
 	instance.model = selectedModel
+	if compaction != nil {
+		// The compactor shares the effective Planner Gateway and credential
+		// with its own exact ModelPolicy. It has no Gateway recovery
+		// participant: the Gateway failure signatures classify its failures.
+		access := *invocation.ModelAccess
+		access.ModelPolicy = compaction.compactor
+		access.Recovery = nil
+		compactorModel, err := f.modelFactory(access)
+		if err != nil {
+			return nil, fmt.Errorf("configure %s compactor model client: %w", f.profile.ref, err)
+		}
+		compactor, ok := compactorModel.(compactionModel)
+		if !ok {
+			return nil, fmt.Errorf("%s compactor model client does not support tool-free compaction", f.profile.ref)
+		}
+		instance.compactionSettings, instance.compactor = compaction, compactor
+	}
 	return instance, nil
 }
 

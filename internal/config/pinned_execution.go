@@ -33,8 +33,13 @@ func (s *Snapshot) validatePinnedWorkflow(pinned resolved.ResolvedWorkflow) erro
 		if err := checkPolicy(selection.ModelPolicy); err != nil {
 			return err
 		}
-		if selection.SummarizerModelPolicy != nil {
-			if err := checkPolicy(*selection.SummarizerModelPolicy); err != nil {
+		for _, policy := range []*contracts.ResolvedModelPolicy{
+			selection.SummarizerModelPolicy, selection.CompactorModelPolicy,
+		} {
+			if policy == nil {
+				continue
+			}
+			if err := checkPolicy(*policy); err != nil {
 				return err
 			}
 		}
@@ -54,7 +59,7 @@ func (s *Snapshot) validatePinnedWorkflow(pinned resolved.ResolvedWorkflow) erro
 			}
 		}
 		baseline, ok := current.Stages[stageName]
-		if !ok {
+		if !ok || !reflect.DeepEqual(baseline.PlannerContextManagement, stage.PlannerContextManagement) {
 			return fmt.Errorf("%w: pinned Stage no longer matches the catalog", contentdigest.ErrPinnedSelectionChanged)
 		}
 		for name, binding := range stage.Agents {

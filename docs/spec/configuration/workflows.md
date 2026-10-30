@@ -251,6 +251,25 @@ Common context pinning, result media types, explicit `from`, Workflow output
 mappings and transitions remain in force. Execution and recovery are owned by
 [Server operations](../execution/server-operations.md), never Planner.
 
+**WFL-R90.** A Stage whose Planner is `streamline@1` or `router@1` may declare
+`plannerContextManagement`, a strict union whose `strategy` selects the branch.
+`strategy: none`, the default when the member is omitted, accepts no other
+field and keeps the whole Planner conversation. `strategy: compact@1` requires
+an exact compactor `modelPolicy` selector and an `instructions.ref` resource
+pinned by digest like Planner instructions (WFL-R19), and accepts
+`contextWindowRatio` (exclusive 0 to 1, default 0.75, LIM-PLN-10),
+`keepRecentGroups` (1 to 16, default 4, LIM-PLN-11) and `maxCompactions` (1 to
+16, default 8, LIM-PLN-12). A null member, a null or unknown field, a
+duplicate key, a mixed branch, a Planner summarizer or terminal setting and any
+other strategy are invalid. The member is invalid on a `passthrough@1`, other
+model-free or operation Stage. `compact@1` also requires the Stage's effective
+Planner ModelPolicy to declare `contextWindowTokens` with `maxOutputTokens`
+below it; the compactor policy rules are TPL-R117. The resolved Stage carries
+the `compact@1` branch with every default made explicit and no member for
+`none`; the public read model always shows the branch, `{strategy: none}`
+included. Runtime execution is owned by
+[Planners](../execution/planners.md#context-compaction) (PLN-R125).
+
 **WFL-R15.** Every Planner Stage declares a mandatory non-empty literal
 `objective` and one mandatory Planner-instruction resource ref,
 `instructions`:
@@ -738,6 +757,7 @@ Stage fields:
 | `objective` | Literal Stage outcome | WFL-R15 to WFL-R18, WFL-R20 |
 | `instructions.ref` | Planner instruction resource | WFL-R19 |
 | `planner` | Exact Planner factory selector | WFL-R14; [Planners](../execution/planners.md) |
+| `plannerContextManagement` | `none` or `compact@1` Planner context management | WFL-R90; [Planners](../execution/planners.md) PLN-R125 |
 | `session` | `isolated` or `shared` | WFL-R27 to WFL-R34 |
 | `agents` | Logical Agent name to `{template, namespace?}` | WFL-R22 to WFL-R26 |
 | `context.artifacts` | Stage-local name to `{namespace, name, required}` | WFL-R59, WFL-R60 |

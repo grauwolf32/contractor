@@ -161,6 +161,7 @@ type workflowPresentationSource struct {
 
 type executionSelectionSource struct {
 	SummarizerModelPolicy yaml.Node `yaml:"summarizerModelPolicy,omitempty"`
+	CompactorModelPolicy  yaml.Node `yaml:"compactorModelPolicy,omitempty"`
 	ModelPolicy           yaml.Node `yaml:"modelPolicy,omitempty"`
 	LLMGateway            yaml.Node `yaml:"llmGateway,omitempty"`
 	Credential            yaml.Node `yaml:"credential,omitempty"`
@@ -195,18 +196,21 @@ type artifactBindingSource struct {
 }
 
 type stageSource struct {
-	Operation       *resolved.ServerOperationConfig `yaml:"operation,omitempty"`
-	Objective       string                          `yaml:"objective"`
-	Instructions    *instructionsRefSource          `yaml:"instructions"`
-	Planner         string                          `yaml:"planner"`
-	ScanPlan        *scan.ScanPlanPolicy            `yaml:"scanPlan,omitempty"`
-	AuditScan       *resolved.AuditScanConfig       `yaml:"auditScan,omitempty"`
-	Session         yaml.Node                       `yaml:"session,omitempty"`
-	Agents          map[string]agentBindingSource   `yaml:"agents"`
-	Context         *stageContextSource             `yaml:"context,omitempty"`
-	Result          *stageResultSource              `yaml:"result,omitempty"`
-	WorkflowOutputs map[string]string               `yaml:"workflowOutputs,omitempty"`
-	On              *stageTransitionsSource         `yaml:"on"`
+	Operation    *resolved.ServerOperationConfig `yaml:"operation,omitempty"`
+	Objective    string                          `yaml:"objective"`
+	Instructions *instructionsRefSource          `yaml:"instructions"`
+	Planner      string                          `yaml:"planner"`
+	// PlannerContextManagement is decoded by resolvePlannerContextManagement,
+	// which needs the node to reject an explicit null.
+	PlannerContextManagement yaml.Node                     `yaml:"plannerContextManagement,omitempty"`
+	ScanPlan                 *scan.ScanPlanPolicy          `yaml:"scanPlan,omitempty"`
+	AuditScan                *resolved.AuditScanConfig     `yaml:"auditScan,omitempty"`
+	Session                  yaml.Node                     `yaml:"session,omitempty"`
+	Agents                   map[string]agentBindingSource `yaml:"agents"`
+	Context                  *stageContextSource           `yaml:"context,omitempty"`
+	Result                   *stageResultSource            `yaml:"result,omitempty"`
+	WorkflowOutputs          map[string]string             `yaml:"workflowOutputs,omitempty"`
+	On                       *stageTransitionsSource       `yaml:"on"`
 }
 
 type agentBindingSource struct {
