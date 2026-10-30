@@ -11,7 +11,14 @@ export type ArtifactPreviewPlan =
   | { kind: "likec4" }
   | { kind: "http"; document: HTTPExchangeDocument }
   | { kind: "invalid-http" }
-  | { kind: "openapi"; document: Record<string, unknown> };
+  | { kind: "openapi"; document: Record<string, unknown> }
+  | { kind: "openapi-on-request" };
+
+// LIM-UI-17: a larger OpenAPI document opens on Source and is parsed and
+// rendered only when asked for, because Scalar renders every operation of an
+// untagged document at once and holds the page for seconds at 1 MiB.
+export const MAXIMUM_AUTOMATIC_OPENAPI_BYTES = 128 * 1024;
+export const AUTOMATIC_OPENAPI_LIMIT_LABEL = `${MAXIMUM_AUTOMATIC_OPENAPI_BYTES / 1024} KiB`;
 
 const OPENAPI_MEDIA_TYPES = new Set([
   "application/json",
@@ -46,7 +53,16 @@ export async function createArtifactPreviewPlan(
     return { kind: "source" };
   }
 
-  const { parseOpenApiDocument } = await import("./previews/openapi-document");
+  const { declaresOpenApi, parseOpenApiDocument } =
+    await import("./previews/openapi-document");
+  if (
+    new TextEncoder().encode(source).byteLength >
+    MAXIMUM_AUTOMATIC_OPENAPI_BYTES
+  ) {
+    return declaresOpenApi(source)
+      ? { kind: "openapi-on-request" }
+      : { kind: "source" };
+  }
   const document = parseOpenApiDocument(source);
   return document === undefined
     ? { kind: "source" }
