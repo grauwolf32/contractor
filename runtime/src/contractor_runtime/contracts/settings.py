@@ -770,7 +770,7 @@ class WorkerSummarizerConfig(StrictWireModel):
         return self
 
 
-# compact@1 bounds, LIM-WRK-28 and LIM-TPL-12.
+# compact@1 bounds, LIM-WFL-9 to LIM-WFL-12.
 MAX_WORKER_COMPACTIONS = 16
 MAX_WORKER_COMPACTION_RECENT_GROUPS = 16
 MAX_WORKER_CONTEXT_INSTRUCTIONS_CHARACTERS = 8000

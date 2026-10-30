@@ -815,7 +815,7 @@ class AdkWorkerRuntime:
                             )
                     if compacted and self._compaction is not None:
                         # The same logical invocation continues in a new SDK
-                        # turn whose requests carry the checkpoint (WRK-R195).
+                        # turn whose requests carry the checkpoint (WRK-R192).
                         self._check_active()
                         sdk_invocation_id = f"{invocation_id}-turn-{uuid.uuid4().hex}"
                         self._plugin.prepare_continuation(

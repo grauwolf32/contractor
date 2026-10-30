@@ -31,6 +31,13 @@ from contractor_runtime.contracts import (
     WorkerSessionMode,
 )
 from contractor_runtime.factories import WorkerBuildContext
+from contractor_runtime.reasoning import (
+    MAX_REASONING_PART_BYTES,
+    MAX_REASONING_TOTAL_BYTES,
+    REASONING_TRUNCATED_MEMBER,
+    TRUNCATION_MARKER,
+    tagged_size,
+)
 from contractor_runtime.worker import compaction as compaction_module
 from contractor_runtime.worker.compaction import (
     HISTORY_TOOL_NAME,
@@ -88,7 +95,11 @@ def compactor_policy() -> ResolvedModelPolicy:
 
 
 def compaction(
-    *, keep: int = 1, max_compactions: int = 8, ratio: float = 0.5
+    *,
+    keep: int = 1,
+    max_compactions: int = 8,
+    ratio: float = 0.5,
+    include_reasoning: bool = False,
 ) -> CompactWorkerContextManagement:
     return CompactWorkerContextManagement(
         strategy="compact@1",
@@ -98,7 +109,7 @@ def compaction(
             digest="sha256:" + "d" * 64,
             text="Keep decisions, open questions and exact artifact references.",
         ),
-        includeReasoning=False,
+        includeReasoning=include_reasoning,
         contextWindowRatio=ratio,
         keepRecentGroups=keep,
         maxCompactions=max_compactions,
@@ -789,9 +800,9 @@ def test_incomplete_group_fails_before_compactor_call() -> None:
     asyncio.run(scenario())
 
 
-def new_coordinator(*, keep: int = 1) -> CompactionCoordinator:
+def new_coordinator(*, keep: int = 1, include_reasoning: bool = False) -> CompactionCoordinator:
     coordinator = CompactionCoordinator(
-        compaction(keep=keep),
+        compaction(keep=keep, include_reasoning=include_reasoning),
         worker_policy=compactor_policy().model_copy(
             update={"context_window_tokens": 1000, "max_output_tokens": 100}
         ),
@@ -963,5 +974,101 @@ def test_retained_history_bytes_stop_at_the_ceiling() -> None:
         assert retained <= MAX_RETAINED_HISTORY_BYTES
         assert retained + index.groups[0].size > MAX_RETAINED_HISTORY_BYTES
         assert accepted == len(index.groups)
+
+    asyncio.run(scenario())
+
+
+def thought_call_event(event_id: str, call_id: str, thought: str) -> Event:
+    return model_event(
+        event_id,
+        [
+            types.Part(text=thought, thought=True),
+            types.Part(function_call=types.FunctionCall(id=call_id, name="step", args={})),
+        ],
+    )
+
+
+async def add_thought_group(coordinator: CompactionCoordinator, ordinal: int, thought: str) -> None:
+    await coordinator.observe(thought_call_event(f"call-{ordinal}", f"c{ordinal}", thought))
+    await coordinator.observe(reply_event(f"reply-{ordinal}", f"c{ordinal}"))
+
+
+def reasoning_parts(document: str) -> list[str]:
+    payload = json.loads(document.split("\n", 1)[1])
+    return [
+        part["reasoning"]
+        for group in payload["history"]
+        for event in group["events"]
+        for part in event["parts"]
+        if "reasoning" in part
+    ]
+
+
+@pytest.mark.parametrize("include_reasoning", [False, True])
+def test_reasoning_enters_compactor_input_only_when_selected(include_reasoning: bool) -> None:
+    async def scenario() -> None:
+        coordinator = new_coordinator(include_reasoning=include_reasoning)
+        await add_thought_group(coordinator, 1, "consider the parser " + SECRET)
+        await add_thought_group(coordinator, 2, "r" * (9 * 1024))
+        await add_group(coordinator, 3)
+        plan = await coordinator.plan()
+        header = json.loads(plan.document.split("\n", 1)[1])["checkpoint"]
+        parts = reasoning_parts(plan.document)
+        assert SECRET not in plan.document
+        if not include_reasoning:
+            assert parts == []
+            assert REASONING_TRUNCATED_MEMBER not in header
+            return
+        assert parts[0] == "consider the parser [REDACTED]"
+        assert parts[1].endswith(TRUNCATION_MARKER)
+        assert tagged_size(parts[1]) <= MAX_REASONING_PART_BYTES
+        assert header[REASONING_TRUNCATED_MEMBER] is True
+        # Reasoning is never replayed to the main model.
+        coordinator.commit(plan, "S1", coordinator.marker(plan, sdk_invocation_id="sdk-1"))
+        projected = coordinator.project(
+            [
+                thought_call_event("call-1", "c1", "x"),
+                reply_event("reply-1", "c1"),
+                thought_call_event("call-2", "c2", "y"),
+                reply_event("reply-2", "c2"),
+                call_event("call-3", "c3"),
+                reply_event("reply-3", "c3"),
+            ]
+        )
+        assert projected is not None
+        assert not any(part.thought for content in projected for part in content.parts or [])
+
+    asyncio.run(scenario())
+
+
+def test_compactor_input_keeps_newest_reasoning_within_its_total_bound() -> None:
+    async def scenario() -> None:
+        coordinator = new_coordinator(include_reasoning=True)
+        for ordinal in range(1, 13):
+            await add_thought_group(coordinator, ordinal, f"{ordinal:02d}" + "q" * 7000)
+        await add_group(coordinator, 13)
+        plan = await coordinator.plan()
+        parts = reasoning_parts(plan.document)
+        assert sum(tagged_size(part) for part in parts) <= MAX_REASONING_TOTAL_BYTES
+        assert 0 < len(parts) < 12
+        # The newest groups keep their reasoning; evidence of every group stays.
+        assert parts[-1].startswith("12")
+        assert plan.document.count('"functionCall"') == 12
+        header = json.loads(plan.document.split("\n", 1)[1])["checkpoint"]
+        assert header[REASONING_TRUNCATED_MEMBER] is True
+
+    asyncio.run(scenario())
+
+
+def test_reasoning_does_not_count_against_the_protected_tail() -> None:
+    async def scenario() -> None:
+        coordinator = new_coordinator(keep=16, include_reasoning=True)
+        await add_group(coordinator, 1)
+        for ordinal in range(2, 18):
+            await add_thought_group(coordinator, ordinal, "t" * 8000)
+        tail = coordinator._archive.groups[1:]  # type: ignore[union-attr]
+        assert sum(group.size for group in tail) > MAX_RECENT_GROUPS_BYTES
+        plan = await coordinator.plan()
+        assert (plan.first_group, plan.last_group) == (1, 1)
 
     asyncio.run(scenario())

@@ -120,7 +120,7 @@ class WorkerBuildContext:
     execution: ToolExecutionConfig | None = None
     template_ref: AgentTemplateRef | None = None
     summarizer: WorkerSummarizerConfig | None = None
-    # The compact@1 branch (WRK-R190); it excludes ``summarizer``.
+    # The compact@1 branch (WRK-R184); it excludes ``summarizer``.
     compaction: CompactWorkerContextManagement | None = None
     completion_contract: WorkerCompletionContract | None = None
     adapter_handles: AdapterHandles = field(

@@ -119,7 +119,7 @@
       }
     },
     "workerContextManagement": {
-      "description": "The one effective Worker context branch of an allocation (WRK-R190): none, the template terminal@1 summarizer, or compact@1, which wholly replaces the template summarizer.",
+      "description": "The one effective Worker context branch of an allocation (WRK-R184): none, the template terminal@1 summarizer, or compact@1, which wholly replaces the template summarizer.",
       "oneOf": [
         {
           "type": "object",

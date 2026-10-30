@@ -1204,7 +1204,7 @@ func isCapacityLive(entry *agentEntry, monotonicNow time.Duration) bool {
 }
 
 // validateBindingContextManagement checks the effective branch against the
-// binding's immutable selection before any candidate is reserved (WRK-R190).
+// binding's immutable selection before any candidate is reserved (WRK-R184).
 func validateBindingContextManagement(binding BindingRequirement) error {
 	context := contracts.AllocationContext{
 		Template:           binding.AgentTemplate,

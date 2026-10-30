@@ -29,11 +29,17 @@ from pydantic import BaseModel, ConfigDict, PrivateAttr
 from contractor_runtime.contracts import CompactWorkerContextManagement, ResolvedModelPolicy
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.llm.usage import project_token_usage
+from contractor_runtime.reasoning import (
+    MAX_REASONING_TOTAL_BYTES,
+    REASONING_INPUT_INSTRUCTION,
+    REASONING_TRUNCATED_MEMBER,
+    ReasoningBudget,
+)
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.worker.one_shot import OneShotModel, generation_config, one_shot_session
-from contractor_runtime.worker.summarizer import _project_event
+from contractor_runtime.worker.summarizer import _project_event, _without_reasoning
 
-# Registered in docs/spec/platform/limits.md (LIM-WRK-28 to LIM-WRK-33).
+# Registered in docs/spec/platform/limits.md (LIM-WRK-30 to LIM-WRK-36).
 MAX_COMPACTIONS_PER_ALLOCATION = 32
 MAX_RECENT_GROUPS_BYTES = 128 * 1024
 MAX_COMPACTOR_INPUT_BYTES = 8 * 1024 * 1024
@@ -50,6 +56,8 @@ _COMPACTOR_PREAMBLE = "Contractor Worker context compaction input (JSON):\n"
 _OMITTED_SKILL_CONTENT = "[Skill content omitted; load the Skill again to read it]"
 # Group and document delimiters around the per-group projections.
 _GROUP_OVERHEAD_BYTES = 96
+# checkpoint header members added after the selection is measured
+_HEADER_RESERVE_BYTES = 64
 _PAGE_OVERHEAD_BYTES = 512
 
 
@@ -86,35 +94,74 @@ def compaction_boundary(policy: ResolvedModelPolicy, ratio: float) -> int:
 class _Group:
     ordinal: int
     event_ids: tuple[str, ...]
-    # Redacted JSON array of the group's projected events; the only retained
-    # copy besides the session's own events.
+    # Redacted JSON array of the group's projected events, with tagged
+    # reasoning parts only when compact@1 selects includeReasoning; the only
+    # retained copy besides the session's own events.
     projection: str
+    # Retained bytes: the projection plus index overhead (LIM-WRK-34).
     size: int
+    # Bytes without reasoning parts: task and tool evidence, which takes
+    # priority over reasoning in every bound it shares (WRK-R188).
+    evidence_size: int = 0
+    reasoning_bytes: int = 0
+    reasoning_truncated: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class _GroupProjection:
+    projection: str
+    evidence_size: int
+    reasoning_bytes: int
+    reasoning_truncated: bool
+
+
+def _dump(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
 def _project_group_events(
-    events: tuple[Event, ...], secrets: tuple[str, ...], skill_tools: frozenset[str]
-) -> str:
+    events: tuple[Event, ...],
+    secrets: tuple[str, ...],
+    skill_tools: frozenset[str],
+    include_reasoning: bool,
+) -> _GroupProjection:
+    """The shared summarizer projection: redaction, bounds and tagged reasoning."""
+
     projected: list[dict[str, Any]] = []
+    reasoning_bytes = 0
+    reasoning_truncated = False
     for event in events:
-        value, _calls, _responses, _truncated = _project_event(event, secrets)
-        if value is None:
+        value = _project_event(event, secrets, include_reasoning=include_reasoning)
+        reasoning_truncated = reasoning_truncated or value.reasoning_truncated
+        if value.event is None:
             continue
-        for part in value["parts"]:
+        reasoning_bytes += value.reasoning_bytes
+        for part in value.event["parts"]:
             response = part.get("functionResponse")
-            # History must not bypass the Skill disclosure budget (WRK-R197).
+            # History must not bypass the Skill disclosure budget (WRK-R191).
             if response is not None and response.get("name") in skill_tools:
                 response["response"] = _OMITTED_SKILL_CONTENT
-        projected.append(value)
-    return json.dumps(projected, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        projected.append(value.event)
+    projection = _dump(projected)
+    evidence = _dump(_without_reasoning(projected)) if reasoning_bytes else projection
+    return _GroupProjection(
+        projection, len(evidence.encode("utf-8")), reasoning_bytes, reasoning_truncated
+    )
 
 
 class ContextArchive:
     """Incremental index of complete groups in one isolated invocation."""
 
-    def __init__(self, *, secrets: tuple[str, ...], skill_tools: frozenset[str]) -> None:
+    def __init__(
+        self,
+        *,
+        secrets: tuple[str, ...],
+        skill_tools: frozenset[str],
+        include_reasoning: bool = False,
+    ) -> None:
         self._secrets = secrets
         self._skill_tools = skill_tools
+        self._include_reasoning = include_reasoning
         self._groups: list[_Group] = []
         self._ids: set[str] = set()
         self._active: list[Event] = []
@@ -168,14 +215,15 @@ class ContextArchive:
         await self._close((event,))
 
     async def _close(self, events: tuple[Event, ...]) -> None:
-        projection = await to_thread_until_done(
+        projected = await to_thread_until_done(
             _project_group_events,
             events,
             self._secrets,
             self._skill_tools,
+            self._include_reasoning,
             name="worker-context-archive",
         )
-        size = len(projection.encode("utf-8")) + _GROUP_OVERHEAD_BYTES
+        size = len(projected.projection.encode("utf-8")) + _GROUP_OVERHEAD_BYTES
         if (
             len(self._groups) >= MAX_RETAINED_HISTORY_GROUPS
             or self._bytes + size > MAX_RETAINED_HISTORY_BYTES
@@ -186,8 +234,11 @@ class ContextArchive:
             _Group(
                 ordinal=len(self._groups) + 1,
                 event_ids=tuple(event.id for event in events),
-                projection=projection,
+                projection=projected.projection,
                 size=size,
+                evidence_size=projected.evidence_size + _GROUP_OVERHEAD_BYTES,
+                reasoning_bytes=projected.reasoning_bytes,
+                reasoning_truncated=projected.reasoning_truncated,
             )
         )
 
@@ -256,7 +307,11 @@ class CompactionCoordinator:
         self._reset()
         self._invocation_id = invocation_id
         self._task_prompt = task_prompt
-        self._archive = ContextArchive(secrets=secrets, skill_tools=self._skill_tools)
+        self._archive = ContextArchive(
+            secrets=secrets,
+            skill_tools=self._skill_tools,
+            include_reasoning=self.config.include_reasoning,
+        )
 
     def end(self) -> None:
         """Clear history, cursors, memory and markers with the invocation."""
@@ -271,7 +326,7 @@ class CompactionCoordinator:
             await self._archive.observe(event)
 
     def should_compact(self, latest_prompt_tokens: int | None) -> bool:
-        """Trigger only from actual latest main-model prompt usage (WRK-R192)."""
+        """Trigger only from actual latest main-model prompt usage (WRK-R185)."""
 
         return (
             self._invocation_id is not None
@@ -303,28 +358,51 @@ class CompactionCoordinator:
         groups = archive.groups
         keep = self.config.keep_recent_groups
         tail = groups[max(self._compacted_groups, len(groups) - keep) :]
-        if sum(group.size for group in tail) > MAX_RECENT_GROUPS_BYTES:
+        # The main model sees the tail without reasoning (WRK-R188).
+        if sum(group.evidence_size for group in tail) > MAX_RECENT_GROUPS_BYTES:
             raise WorkerCompactionError.limit("recent_groups")
         eligible = groups[self._compacted_groups : len(groups) - keep]
         if not eligible:
             raise WorkerCompactionError.failed("ineffective")
-        header = {
+        header: dict[str, Any] = {
             "checkpointGeneration": self.generation + 1,
             "previousSummary": self._memory or None,
             "subtask": self._task_prompt,
         }
-        head = json.dumps(header, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        used = len(_COMPACTOR_PREAMBLE.encode("utf-8")) + len(head.encode("utf-8")) + 32
+        include_reasoning = self.config.include_reasoning
+        # Evidence is selected first; reasoning has its own reserved bound.
+        used = (
+            len(_COMPACTOR_PREAMBLE.encode("utf-8"))
+            + len(_dump(header).encode("utf-8"))
+            + _HEADER_RESERVE_BYTES
+            + (MAX_REASONING_TOTAL_BYTES if include_reasoning else 0)
+        )
         selected: list[_Group] = []
         for group in eligible:
-            if used + group.size > MAX_COMPACTOR_INPUT_BYTES:
+            if used + group.evidence_size > MAX_COMPACTOR_INPUT_BYTES:
                 break
             selected.append(group)
-            used += group.size
+            used += group.evidence_size
         if not selected:
             raise WorkerCompactionError.limit("compactor_input")
+        admitted: frozenset[int] = frozenset()
+        if include_reasoning:
+            # Newest reasoning first, within LIM-WRK-29 for this document.
+            budget = ReasoningBudget()
+            admitted = frozenset(
+                group.ordinal
+                for group in reversed(selected)
+                if group.reasoning_bytes and budget.admit(group.reasoning_bytes)
+            )
+            header[REASONING_TRUNCATED_MEMBER] = budget.omitted or any(
+                group.reasoning_truncated for group in selected
+            )
         document = await to_thread_until_done(
-            _compactor_document, head, tuple(selected), name="worker-compaction-input"
+            _compactor_document,
+            _dump(header),
+            tuple(selected),
+            admitted,
+            name="worker-compaction-input",
         )
         return CheckpointPlan(
             generation=self.generation,
@@ -334,7 +412,8 @@ class CompactionCoordinator:
                 event_id for group in groups[: selected[-1].ordinal] for event_id in group.event_ids
             ),
             document=document,
-            source_bytes=sum(group.size for group in selected) + len(self._memory.encode("utf-8")),
+            source_bytes=sum(group.evidence_size for group in selected)
+            + len(self._memory.encode("utf-8")),
             groups_seen=len(groups),
         )
 
@@ -399,7 +478,7 @@ class CompactionCoordinator:
         )
 
     def project(self, events: list[Event]) -> list[types.Content] | None:
-        """Exact-ID request projection for the main model (WFL-R92, WRK-R195)."""
+        """Exact-ID request projection for the main model (WRK-R192)."""
 
         archive = self._archive
         if archive is None or self.generation == 0:
@@ -449,11 +528,20 @@ class CompactionCoordinator:
         return _history_page(groups[:last], group, position)
 
 
-def _compactor_document(head: str, groups: tuple[_Group, ...]) -> str:
+def _compactor_document(
+    head: str, groups: tuple[_Group, ...], reasoning_groups: frozenset[int]
+) -> str:
     history = ",".join(
-        f'{{"group":{group.ordinal},"events":{group.projection}}}' for group in groups
+        f'{{"group":{group.ordinal},"events":{_group_events(group, reasoning_groups)}}}'
+        for group in groups
     )
     return f'{_COMPACTOR_PREAMBLE}{{"checkpoint":{head},"history":[{history}]}}'
+
+
+def _group_events(group: _Group, reasoning_groups: frozenset[int]) -> str:
+    if not group.reasoning_bytes or group.ordinal in reasoning_groups:
+        return group.projection
+    return _dump(_without_reasoning(json.loads(group.projection)))
 
 
 def _json_bytes(value: Any) -> int:
@@ -609,7 +697,7 @@ async def run_compactor(
     invocation_id: str,
     observer: CompactorObserver,
 ) -> str | None:
-    """One tool-free compactor call charged to the owning invocation (WRK-R193)."""
+    """One tool-free compactor call charged to the owning invocation (WRK-R186)."""
 
     one_shot = _OneShotCompactorModel(model)
     started = False
@@ -623,6 +711,8 @@ async def run_compactor(
         started = True
 
     instruction = f"{_COMPACTOR_SYSTEM_INSTRUCTION}\n\n{config.instructions.text}"
+    if config.include_reasoning:
+        instruction = f"{instruction}\n\n{REASONING_INPUT_INSTRUCTION}"
     agent = LlmAgent(
         name="contractor_worker_context_compactor",
         description="Compact earlier Worker history into one bounded summary.",

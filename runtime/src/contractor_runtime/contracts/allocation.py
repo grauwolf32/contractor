@@ -246,7 +246,7 @@ class AllocationSpec(VersionedWireModel):
         return self
 
     def _validate_context_management(self) -> None:
-        """Checks the one effective context branch (WRK-R190)."""
+        """Checks the one effective context branch (WRK-R184)."""
         strategy = self.context_management.strategy
         summarizer = self.agent_template.summarizer
         if strategy == "none" and summarizer is not None:

@@ -353,7 +353,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         await self._on_auxiliary_error("result_finalizer", invocation_id, error)
 
     async def before_context_compactor_call(self, *, invocation_id: str) -> None:
-        """Account one compactor call in the owning invocation (WRK-R193)."""
+        """Account one compactor call in the owning invocation (WRK-R186)."""
 
         await self._before_auxiliary_call("context_compactor", invocation_id)
 

@@ -60,7 +60,7 @@ class _InvocationBudget:
         self._sync()
 
     def after_model_response(self, usage: Any | None, *, record_prompt: bool = True) -> None:
-        """Charge one response; only the main model measures the prompt (WRK-R192)."""
+        """Charge one response; only the main model measures the prompt (WRK-R185)."""
 
         projected = project_token_usage(usage)
         if record_prompt:

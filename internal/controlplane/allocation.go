@@ -25,7 +25,7 @@ type BindingRequirement struct {
 	LogicalAgentName   string
 	Namespace          string
 	WorkerSessionMode  contracts.WorkerSessionMode
-	// ContextManagement is the effective branch (WRK-R190), projected from
+	// ContextManagement is the effective branch (WRK-R184), projected from
 	// the Workflow binding and its template.
 	ContextManagement contracts.WorkerContextManagement
 	AgentTemplate     contracts.ResolvedAgentTemplate

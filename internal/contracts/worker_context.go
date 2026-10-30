@@ -1,7 +1,7 @@
 package contracts
 
 // Workflow-selected Worker context management (WFL-R90..WFL-R94) and its
-// effective allocation branch (WRK-R190).
+// effective allocation branch (WRK-R184).
 
 import (
 	"encoding/json"
@@ -24,7 +24,7 @@ const (
 	ContextStrategyTerminal WorkerContextStrategy = "terminal@1"
 )
 
-// Compaction bounds, LIM-WRK-28 to LIM-WRK-30 and LIM-TPL-12.
+// Compaction bounds, LIM-WFL-9 to LIM-WFL-12.
 const (
 	MinWorkerCompactions                   = 1
 	MaxWorkerCompactionsPerInvocation      = 16
@@ -137,7 +137,7 @@ func EffectiveContextManagement(binding WorkerContextManagement, template Resolv
 }
 
 // ValidateAllocation checks the effective branch against the allocation it
-// travels in (WRK-R190).
+// travels in (WRK-R184).
 func (c WorkerContextManagement) ValidateAllocation(spec AllocationContext) error {
 	switch c.Strategy {
 	case ContextStrategyNone:
@@ -214,7 +214,7 @@ func ValidateCompactionTarget(template ResolvedAgentTemplate, session WorkerSess
 }
 
 // ValidateCompactedWorkerPolicy requires the effective main Worker policy
-// metadata the compaction boundary is derived from (WRK-R192).
+// metadata the compaction boundary is derived from (WRK-R185).
 func ValidateCompactedWorkerPolicy(policy ResolvedModelPolicy) error {
 	if policy.ContextWindowTokens <= 0 || policy.MaxOutputTokens <= 0 {
 		return Invalidf("compact@1 Worker modelPolicy requires contextWindowTokens and maxOutputTokens")
