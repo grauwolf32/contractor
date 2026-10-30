@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V422-002
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - json
@@ -35,3 +35,9 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: f527d2dbfc7c7c6433cade9ca11e34005b42876f
+verification:
+  date: '2026-10-30'
+  environment: macOS arm64, Go 1.26.9, the locked Runtime venv, local PostgreSQL database contractor_test_bigrun; branch claude/fix-coord on main fde39a943.
+  commands:
+  - CONTRACTOR_TEST_DATABASE_URL=postgres://localhost/contractor_test_bigrun make test-wire-cross-language passed (343 fixtures, 390 Go and 280 Python shared tests); on fde39a943 before the change the gate failed only on this fixture.
