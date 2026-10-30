@@ -77,13 +77,10 @@ def annotation_tool_observation(
 
 
 def workspace_changes_observation(
-    tool_name: str,
     tool_args: Mapping[str, Any],
     result: Any,
-) -> WorkspaceToolObservation | None:
+) -> WorkspaceToolObservation:
     del tool_args
-    if tool_name != "changed_paths":
-        return None
     return WorkspaceToolObservation(modified=_item_paths(_mapping(result), "changes"))
 
 

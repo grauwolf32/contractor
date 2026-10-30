@@ -116,7 +116,7 @@ describe("Project HTTP credential picker", () => {
         return fail
           ? json(
               {
-                code: "unavailable",
+                code: "storage_transaction_conflict",
                 message: "Later credentials unavailable",
                 retryable: true,
               },

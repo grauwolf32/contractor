@@ -612,7 +612,7 @@ describe("New project", () => {
         return unavailable
           ? json(
               {
-                code: "unavailable",
+                code: "storage_transaction_conflict",
                 message: "Project store unavailable",
                 retryable: true,
               },

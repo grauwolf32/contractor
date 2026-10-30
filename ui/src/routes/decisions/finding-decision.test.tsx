@@ -541,7 +541,11 @@ describe("FindingDecision", () => {
       finding: makeFinding(),
       pendingLookup: () =>
         lookupFails
-          ? failure(503, "unavailable", "review store unavailable")
+          ? failure(
+              503,
+              "storage_transaction_conflict",
+              "review store unavailable",
+            )
           : undefined,
     });
     const bar = await decisionBar();
@@ -557,7 +561,9 @@ describe("FindingDecision", () => {
       screen.getByRole("button", { name: "Confirm issue" }),
     ).toBeDisabled();
     await user.click(screen.getByText("Request details"));
-    expect(screen.getByText("Code unavailable · Status 503")).toBeVisible();
+    expect(
+      screen.getByText("Code storage_transaction_conflict · Status 503"),
+    ).toBeVisible();
     expect(screen.getByText("Request request_test")).toBeVisible();
     // The message is already on screen; the details do not repeat it.
     expect(screen.queryByText(/^Message:/u)).toBeNull();

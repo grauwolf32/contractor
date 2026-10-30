@@ -7,6 +7,7 @@ import {
 import { at, record, textValue, type Draft, type Path } from "./document";
 import { validateCheckMethods } from "./check-methods";
 import { validateAdvanced } from "./advanced-validation";
+import { plannerFacts } from "./planners";
 
 export interface Problem {
   severity: "error" | "warning";
@@ -169,15 +170,9 @@ export function validateDraft(draft: Draft): Problem[] {
       )
         error([...p, "session"], "Session must be isolated or shared.");
       const agents = record(stage.agents),
-        count = Object.keys(agents).length;
-      if (
-        !operation &&
-        (!count ||
-          (["passthrough@1", "streamline@1"].includes(
-            textValue(stage.planner),
-          ) &&
-            count !== 1))
-      )
+        count = Object.keys(agents).length,
+        facts = plannerFacts(textValue(stage.planner));
+      if (!operation && (!count || (facts?.singleAgent && count !== 1)))
         error(
           [...p, "agents"],
           "This planner requires exactly one agent; other planners need at least one.",
@@ -201,7 +196,7 @@ export function validateDraft(draft: Draft): Problem[] {
             );
         } else if (
           !operation &&
-          stage.planner !== "scan-plan@1" &&
+          facts?.agentResults !== false &&
           (!textValue(from.name) ||
             !namespaces.includes(textValue(from.namespace)))
         ) {

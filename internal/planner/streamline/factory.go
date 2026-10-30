@@ -3,6 +3,7 @@ package streamline
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -27,11 +28,11 @@ type plannerProfile struct {
 
 var (
 	streamlineProfile = plannerProfile{
-		ref: Ref, adkAppName: "contractor_streamline", agentName: "streamline_planner",
+		ref: resolved.StreamlinePlanner, adkAppName: "contractor_streamline", agentName: "streamline_planner",
 		agentDescription: "Plans one immutable Contractor Stage using its sole prepared Worker.",
 	}
 	routerProfile = plannerProfile{
-		ref: planner.RouterRef, adkAppName: "contractor_router", agentName: "router_planner",
+		ref: resolved.RouterPlanner, adkAppName: "contractor_router", agentName: "router_planner",
 		agentDescription: "Plans one immutable Contractor Stage and routes each subtask to one fixed logical Worker.",
 		routesWorkers:    true,
 	}
@@ -261,32 +262,11 @@ type workerBinding struct {
 	workspaceState bool
 }
 
+// selectedWorkspaceObservation reports whether a Worker's template selects a
+// tool whose calls the Runtime records as workspace observations, which the
+// registered Toolset descriptor classifies (TLS-R38).
 func selectedWorkspaceObservation(template contracts.ResolvedAgentTemplate) bool {
-	for _, selection := range template.Toolsets {
-		ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
-		for _, operation := range selection.Tools {
-			switch ref {
-			case "filesystem@1":
-				if operation == "ls" || operation == "glob" || operation == "read_file" || operation == "grep" {
-					return true
-				}
-			case "edit-files@1":
-				switch operation {
-				case "write_file", "append_file", "rm", "insert_line", "edit", "replace_range", "cp", "mv", "mkdir":
-					return true
-				}
-			case "taint-annotations@1":
-				if operation == "annotate_trace" || operation == "annotate_validate" || operation == "annotate_sink" {
-					return true
-				}
-			case "workspace-changes@1":
-				if operation == "changed_paths" {
-					return true
-				}
-			}
-		}
-	}
-	return false
+	return slices.ContainsFunc(template.Toolsets, resolved.SelectsWorkspaceObservationTool)
 }
 
 func selectedMemoryOperations(template contracts.ResolvedAgentTemplate) (map[string]struct{}, error) {
@@ -320,7 +300,7 @@ func validateInvocation(profile plannerProfile, invocation planner.Invocation) (
 		strings.TrimSpace(invocation.Stage.Instructions.Text) == "" {
 		return nil, fmt.Errorf("Stage objective and instructions are required")
 	}
-	if invocation.Stage.Planner.PlannerID+"@"+invocation.Stage.Planner.Version != profile.ref {
+	if invocation.Stage.Planner.Selector() != profile.ref {
 		return nil, fmt.Errorf("%s cannot execute a Stage for another PlannerFactory", profile.ref)
 	}
 	if profile.routesWorkers {

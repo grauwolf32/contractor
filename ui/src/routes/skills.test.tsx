@@ -73,7 +73,11 @@ describe("Skills catalog", () => {
           if (params.name === "plain")
             return archive("plain", "r2", ["notes.txt"]);
           return archiveReads(server, "broken") === 1
-            ? failure(503, "unavailable", "Archive store is unavailable")
+            ? failure(
+                503,
+                "storage_transaction_conflict",
+                "Archive store is unavailable",
+              )
             : archive("broken", "r1", ["SKILL.md"]);
         },
         "GET /v1/artifacts/{namespace}/{name}/archive/file": () => {
@@ -159,7 +163,7 @@ describe("Skills catalog", () => {
         "GET /v1/artifacts/{namespace}/{name}/archive": ({ params }) =>
           params.name === "review"
             ? archive("review", "r1", ["notes.md"])
-            : failure(503, "unavailable", "Later"),
+            : failure(503, "storage_transaction_conflict", "Later"),
         "PUT /v1/artifacts/{namespace}/{name}": () => {
           stored = true;
           return json(

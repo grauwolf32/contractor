@@ -336,7 +336,7 @@ describe("Material detail", () => {
         fail
           ? failure(
               503,
-              "artifact_unavailable",
+              "storage_transaction_conflict",
               "Artifact bytes are unavailable",
               true,
             )

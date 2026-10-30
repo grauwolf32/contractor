@@ -213,8 +213,15 @@ honor its complete contract in that process environment.
 
 **TLS-R38.** For every built-in Toolset, the Server descriptor and the Runtime
 ToolsetFactory declare the same exported tools, the same infrastructure
-channels per tool (TLS-R22), the same workspace need and the same set of allowed
-SandboxProfiles. The shared fixture
+channels per tool (TLS-R22), the same workspace need, the same workspace
+observation tools and the same set of allowed SandboxProfiles. The workspace
+observation tools are the exported tools whose successful calls the Runtime
+records as workspace observations in Worker State; only a Toolset with a
+workspace need has any. The Server reads them to decide whether a Worker's
+Planner gets workspace projections ([PLN-R53](../execution/planners.md)), and
+Runtime allocation preparation fails, as for any defective factory, when a
+created tool reports observations without being declared or is declared
+without reporting them. The shared fixture
 [`api/testdata/toolset-descriptors.json`](../../../api/testdata/toolset-descriptors.json)
 records them, together with the classifications only the Server reads
 (active-check tools including profile-dependent active checks, finding-proposal

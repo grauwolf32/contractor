@@ -245,7 +245,7 @@ describe("Report detail", () => {
     const { queryClient } = renderRoutes("/reports/audit_proposed", server);
     await screen.findByRole("region", { name: "Your decision" });
     server.state.reviewRead = () =>
-      failure(503, "unavailable", "Review store unavailable");
+      failure(503, "storage_transaction_conflict", "Review store unavailable");
     approveElsewhere(server);
     await rereadReport(queryClient);
     const pane = detail();
@@ -288,7 +288,7 @@ describe("Report detail", () => {
     const refresh = deferred();
     server.state.hold = { path: /^\/v1\/projects$/, until: refresh.promise };
     server.state.reviewRead = () =>
-      failure(503, "unavailable", "Review store unavailable");
+      failure(503, "storage_transaction_conflict", "Review store unavailable");
     await user.click(within(decision).getByRole("button", { name: "Approve" }));
     await user.type(
       within(decision).getByRole("textbox", { name: "Why" }),
@@ -517,7 +517,11 @@ describe("Report detail", () => {
     const ready = server.state.reports.audit_ready;
     server.state.reports.audit_ready = () =>
       fail
-        ? failure(503, "unavailable", "Report store unavailable")
+        ? failure(
+            503,
+            "storage_transaction_conflict",
+            "Report store unavailable",
+          )
         : json(ready);
     const { queryClient } = renderRoutes("/reports/audit_ready", server);
     await screen.findByRole("heading", { name: "Coverage summary" });

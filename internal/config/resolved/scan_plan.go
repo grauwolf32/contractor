@@ -26,7 +26,7 @@ func cloneScanPlanPolicy(source *scan.ScanPlanPolicy) *scan.ScanPlanPolicy {
 // The exception to ordinary tool@1 input/result bindings applies only after
 // this contract has validated every member of the fixed Worker set.
 func ValidateScanPlanStage(stage ResolvedStage) error {
-	if stage.Planner != (PlannerRef{PlannerID: "scan-plan", Version: "1"}) {
+	if stage.Planner.Selector() != ScanPlanPlanner {
 		if stage.ScanPlan != nil || stage.AuditScan != nil {
 			return fmt.Errorf("scanPlan is only supported by scan-plan@1")
 		}

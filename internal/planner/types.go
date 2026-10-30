@@ -13,13 +13,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
-const (
-	PassthroughRef = "passthrough@1"
-	StreamlineRef  = "streamline@1"
-	RouterRef      = "router@1"
-	ScanPlanRef    = "scan-plan@1"
-)
-
 // StageContext is the immutable input snapshot visible to one Planner
 // invocation. A nil artifact records an explicitly absent optional binding.
 type StageContext struct {

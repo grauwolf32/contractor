@@ -268,7 +268,7 @@ describe("Git artifacts", () => {
     await user.click(dialog.parentElement!);
     expect(dialog).toBeInTheDocument();
     await act(async () => {
-      finishDelete(failure(500, "git_key_delete_failed", "Removal failed"));
+      finishDelete(failure(500, "internal_error", "Removal failed"));
       await delayedDelete;
     });
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
@@ -417,9 +417,9 @@ it.each([undefined, "project-1"])(
       />,
       {
         "GET /v1/artifacts/{namespace}/{name}/metadata": () =>
-          failure(404, "artifact_not_found", "not found"),
+          failure(404, "not_found", "not found"),
         "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/metadata":
-          () => failure(404, "artifact_not_found", "not found"),
+          () => failure(404, "not_found", "not found"),
         [route]: async ({ request }: { request: Request }) => {
           expect(await request.json()).toMatchObject({ mode: "analysis" });
           return json(result, 201);
