@@ -57,6 +57,8 @@ class GeneralFindingTool(_FindingFacade):
             one HTTP source; selected exchanges are saved automatically.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
         evidence_refs: Optional exact artifact references copied from tool output.
+            With any selected exchange they total at most 64 MiB; a larger set
+            fails with invalid_finding_request, so cite fewer artifacts.
         standard_refs: Optional exact standard identities copied from an assigned
             Audit task. A finding linked to a standard-mapped Audit result must
             cite every assigned entry ID.
@@ -106,6 +108,8 @@ class CodeFindingTool(_FindingFacade):
         range: Optional inclusive start_line/end_line object.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
         evidence_refs: Optional exact artifact references copied from tool output.
+            They total at most 64 MiB; a larger set fails with
+            invalid_finding_request, so cite fewer artifacts.
         standard_refs: Optional exact standard identities copied from an assigned
             Audit task. A finding linked to a standard-mapped Audit result must
             cite every assigned entry ID.
@@ -162,6 +166,8 @@ class HTTPFindingTool(_FindingFacade):
             saves the selected exchange automatically without sending traffic.
         cwe: Optional CWE-NNN weakness identifier from the pinned catalog.
         evidence_refs: Optional exact artifact references copied from tool output.
+            With any selected exchange they total at most 64 MiB; a larger set
+            fails with invalid_finding_request, so cite fewer artifacts.
         standard_refs: Optional exact standard identities copied from an assigned
             Audit task. A finding linked to a standard-mapped Audit result must
             cite every assigned entry ID.
