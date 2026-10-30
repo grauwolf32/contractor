@@ -857,6 +857,7 @@ def check_artifact_backend_matrix(
 LINT_STAGE_CHECKS = (
     ("config validate --root ./configs", "the shipped configuration catalog"),
     ("scripts/check_database_erd.py", "the database ERD against the migrations"),
+    ("TestERDUsageMatchesTheSQLScan", "the database ERD's usage lists against the SQL scan"),
     ("-C tools/testonlyexports run", "exported identifiers that only tests use"),
 )
 
