@@ -1011,7 +1011,7 @@ attempts. Profile digests identify operator configuration, not observed provider
 weights. Unknown provider revision remains unknown; changing current defaults
 never relabels historical execution.
 
-**TPL-R116.** `compactorModelPolicy` selects the exact tool-free compactor
+**TPL-R117.** `compactorModelPolicy` selects the exact tool-free compactor
 policy of a `compact@1` Planner ([PLN-R125](../execution/planners.md)). The
 Stage's `plannerContextManagement.modelPolicy` is its lowest-precedence
 origin, `workflow.stages.<name>.plannerContextManagement`; a Workflow
@@ -1025,7 +1025,7 @@ for it. The compactor uses the Planner's effective LLMGatewayConfig and
 credential. Consumer projections expose the requested compactor alias, the exact policy
 ref and its origin beside the Planner's (TPL-R113).
 
-**TPL-R117.** A compactor ModelPolicy declares `contextWindowTokens`, a
+**TPL-R118.** A compactor ModelPolicy declares `contextWindowTokens`, a
 positive `maxOutputTokens` below it, `maxModelCalls: 1` (one call per
 compaction) and a finite positive `maxTotalTokens`; it declares neither
 `maxToolCalls` nor `maxWorkerCalls`. Its own window may be smaller than the

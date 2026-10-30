@@ -264,7 +264,7 @@ duplicate key, a mixed branch, a Planner summarizer or terminal setting and any
 other strategy are invalid. The member is invalid on a `passthrough@1`, other
 model-free or operation Stage. `compact@1` also requires the Stage's effective
 Planner ModelPolicy to declare `contextWindowTokens` with `maxOutputTokens`
-below it; the compactor policy rules are TPL-R117. The resolved Stage carries
+below it; the compactor policy rules are TPL-R118. The resolved Stage carries
 the `compact@1` branch with every default made explicit and no member for
 `none`; the public read model always shows the branch, `{strategy: none}`
 included. Runtime execution is owned by

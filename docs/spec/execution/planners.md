@@ -970,8 +970,8 @@ management with `plannerContextManagement`
 compaction engine. `none` keeps the whole conversation. `compact@1` lets the
 invocation replace earlier turns with one rolling summary; its compactor is the
 Planner selection's exact `compactorModelPolicy`
-([TPL-R116](../configuration/agent-templates.md),
-[TPL-R117](../configuration/agent-templates.md)) and calls the Planner's
+([TPL-R117](../configuration/agent-templates.md),
+[TPL-R118](../configuration/agent-templates.md)) and calls the Planner's
 effective Gateway with the Planner's credential, with no tools and without
 in-invocation Gateway recovery. The selection is Planner-only and never enters
 `AllocationSpec`. Compaction never marks a result summarized, never falls back

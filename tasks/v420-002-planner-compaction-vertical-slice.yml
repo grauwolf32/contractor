@@ -278,7 +278,7 @@ decisions:
   the snapshot.
 - >-
   2026-10-31 (lane cmp-planner): the compactor policy is a Planner execution-selection
-  member, compactorModelPolicy (TPL-R116). The Stage's plannerContextManagement.modelPolicy
+  member, compactorModelPolicy (TPL-R117). The Stage's plannerContextManagement.modelPolicy
   is its lowest-precedence origin; Workflow executionConfig.planner, ExecutionConfig
   profiles, Run overrides and escalation may replace it; a selection that applies to no
   compact@1 Stage is rejected, as is any Worker or Agent selection. No deployment

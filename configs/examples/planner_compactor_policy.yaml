@@ -2,7 +2,7 @@
 # streamline_compaction_workflow.yaml. A compactor ModelPolicy is tool-free:
 # one call per compaction (maxModelCalls: 1), an exact context window, an
 # output limit below it and a finite total; no tool or Worker budget
-# (TPL-R117). There is no deployment model-selection role for it, so `model`
+# (TPL-R118). There is no deployment model-selection role for it, so `model`
 # must name a live Gateway route: this one is the summarizer route that
 # `make model-config` generates today; update it when that route changes.
 apiVersion: contractor/v1alpha1

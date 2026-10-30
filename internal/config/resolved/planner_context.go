@@ -119,7 +119,7 @@ func PlannerCompactsContext(stage ResolvedStage) bool {
 }
 
 // ValidatePlannerCompactorModelPolicy checks the tool-free compactor policy of
-// compact@1 (TPL-R117): an exact context window, one bounded response below
+// compact@1 (TPL-R118): an exact context window, one bounded response below
 // it, exactly one model call per compaction and a finite total, and no tool
 // or Worker budget.
 func ValidatePlannerCompactorModelPolicy(policy contracts.ResolvedModelPolicy) error {

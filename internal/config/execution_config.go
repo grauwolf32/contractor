@@ -379,7 +379,7 @@ func optionalStringFromYAML(
 }
 
 // compactorPolicy resolves the exact compactor ModelPolicy a compact@1 Stage
-// or a Planner execution selection names (TPL-R116).
+// or a Planner execution selection names (TPL-R117).
 func (l *loader) compactorPolicy(raw string) (contracts.ResolvedModelPolicy, error) {
 	selector, err := resolved.ParseSelector(raw)
 	if err != nil {
