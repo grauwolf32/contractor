@@ -48,8 +48,14 @@ func (c *manualPollClock) After(duration time.Duration) <-chan time.Time {
 // all of them.
 func (c *manualPollClock) fireWhenArmed(t *testing.T, duration time.Duration, armed int) {
 	t.Helper()
-	deadline := time.NewTimer(10 * time.Second)
-	defer deadline.Stop()
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	c.fireWhenArmedBefore(t, ctx, duration, armed)
+}
+
+// fireWhenArmedBefore is fireWhenArmed within ctx, the test's own deadline.
+func (c *manualPollClock) fireWhenArmedBefore(t *testing.T, ctx context.Context, duration time.Duration, armed int) {
+	t.Helper()
 	for {
 		c.mu.Lock()
 		pending := c.timers[duration]
@@ -66,8 +72,8 @@ func (c *manualPollClock) fireWhenArmed(t *testing.T, duration time.Duration, ar
 		c.mu.Unlock()
 		select {
 		case <-changed:
-		case <-deadline.C:
-			t.Fatalf("%d timers of %v armed, want %d", len(pending), duration, armed)
+		case <-ctx.Done():
+			t.Fatalf("%d timers of %v armed, want %d: %v", len(pending), duration, armed, context.Cause(ctx))
 		}
 	}
 }
