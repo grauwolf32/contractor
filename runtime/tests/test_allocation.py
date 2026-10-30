@@ -1996,3 +1996,54 @@ def test_release_retains_no_adapter_secret_or_session_credential(
         assert secret_holders(marker) == []
 
     asyncio.run(scenario())
+
+
+class ObservingTrackingTool(TrackingTool):
+    def contractor_observation(self, _tool_args: object, _result: object) -> None:
+        return None
+
+
+class DeclaringTrackingToolsetFactory(TrackingToolsetFactory):
+    workspace_observation_tools = frozenset({"read_artifact"})
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        # A tool that reports observations its Toolset does not declare.
+        lambda: TrackingToolsetFactory(ObservingTrackingTool()),
+        # A declared observing tool without an extractor.
+        lambda: DeclaringTrackingToolsetFactory(TrackingTool()),
+    ],
+    ids=["undeclared-extractor", "declared-without-extractor"],
+)
+def test_prepare_rejects_a_tool_whose_workspace_observation_differs_from_its_declaration(
+    tmp_path: Path,
+    runtime_capabilities: CapabilitySnapshot,
+    factory: Callable[[], TrackingToolsetFactory],
+) -> None:
+    async def scenario() -> None:
+        state = RuntimeState(instance_id="runtime-test")
+        await state.mark_registered()
+        toolsets = factory()
+        registry = FactoryRegistry(
+            worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
+            toolsets={"run-artifacts@1": toolsets},
+            sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path)},
+        )
+        service = AllocationService(
+            state,
+            registry,
+            runtime_capabilities,
+            a2a_base_url="https://runtime.example",
+            now=lambda: NOW,
+        )
+
+        with pytest.raises(AllocationError) as failure:
+            await service.prepare(make_spec())
+        assert failure.value.payload()["code"] == "invalid_toolset_factory"
+        assert failure.value.status_code == 500
+        assert toolsets.tool.close_calls == 1
+        assert await service.snapshot() is None
+
+    asyncio.run(scenario())
