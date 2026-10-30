@@ -194,11 +194,7 @@ type ResyncFrame = {
 type ErrorFrame = {
   type: "error";
   subscriptionId?: string;
-  code:
-    | "invalid_frame"
-    | "subscription_limit"
-    | "not_found"
-    | "overloaded";
+  code: "invalid_frame" | "subscription_limit" | "not_found" | "overloaded";
   message: string;
   retryable: boolean;
 };

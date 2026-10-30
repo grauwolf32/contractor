@@ -414,7 +414,12 @@ describe("Run routes", () => {
         ...RUN_PAGE,
         "GET /v1/runs/{runId}": () =>
           fail
-            ? failure(503, "storage_transaction_conflict", "Server unavailable", true)
+            ? failure(
+                503,
+                "storage_transaction_conflict",
+                "Server unavailable",
+                true,
+              )
             : json(runFixture()),
       }),
     });

@@ -119,7 +119,12 @@ function serve(
         },
         "GET /v1/projects/{projectId}/audits": ({ params, url }) => {
           if (params.projectId === options.failProject)
-            return failure(503, "storage_transaction_conflict", "Checks unavailable", true);
+            return failure(
+              503,
+              "storage_transaction_conflict",
+              "Checks unavailable",
+              true,
+            );
           const state = url.searchParams.get("state");
           return json(
             page(

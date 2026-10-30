@@ -517,7 +517,11 @@ describe("Report detail", () => {
     const ready = server.state.reports.audit_ready;
     server.state.reports.audit_ready = () =>
       fail
-        ? failure(503, "storage_transaction_conflict", "Report store unavailable")
+        ? failure(
+            503,
+            "storage_transaction_conflict",
+            "Report store unavailable",
+          )
         : json(ready);
     const { queryClient } = renderRoutes("/reports/audit_ready", server);
     await screen.findByRole("heading", { name: "Coverage summary" });

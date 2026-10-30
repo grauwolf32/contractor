@@ -1142,7 +1142,11 @@ describe("Start a check: lost and refused answers", () => {
         start: () => {
           starts += 1;
           return starts === 1
-            ? failure(422, "audit_package_invalid", "The source archive is empty")
+            ? failure(
+                422,
+                "audit_package_invalid",
+                "The source archive is empty",
+              )
             : json(startResponse(draftAudit(top10)), 200, { ETag: '"2"' });
         },
       },

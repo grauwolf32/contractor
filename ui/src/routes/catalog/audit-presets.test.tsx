@@ -35,7 +35,12 @@ function setup(
   const server = fakeServer({
     "GET /v1/audit-profiles": ({ url }) => {
       if (options.failCatalog) {
-        return failure(503, "storage_transaction_conflict", "Preset catalog unavailable", true);
+        return failure(
+          503,
+          "storage_transaction_conflict",
+          "Preset catalog unavailable",
+          true,
+        );
       }
       const later = url.searchParams.has("cursor");
       return json(
@@ -58,7 +63,12 @@ function setup(
     },
     "GET /v1/audit-standards/{scheme}/versions/{version}": () =>
       options.failStandard
-        ? failure(503, "storage_transaction_conflict", "Standard unavailable", true)
+        ? failure(
+            503,
+            "storage_transaction_conflict",
+            "Standard unavailable",
+            true,
+          )
         : json(standardResponse(options.standard ?? standardFixture)),
     "GET /v1/workflows/{name}/versions/{version}": () =>
       json(

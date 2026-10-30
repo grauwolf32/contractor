@@ -771,7 +771,11 @@ describe("ReportDecision", () => {
         {
           server: reportRead(() =>
             fail
-              ? failure(503, "storage_transaction_conflict", "report store unavailable")
+              ? failure(
+                  503,
+                  "storage_transaction_conflict",
+                  "report store unavailable",
+                )
               : json(proposedReport(reportReview())),
           ),
         },

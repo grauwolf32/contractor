@@ -66,7 +66,8 @@ const published = {
     }),
 };
 
-const failed = () => failure(503, "storage_transaction_conflict", "Try again", true);
+const failed = () =>
+  failure(503, "storage_transaction_conflict", "Try again", true);
 
 /** The field over a fake Server whose catalog lists answer `load`. */
 function mount(
