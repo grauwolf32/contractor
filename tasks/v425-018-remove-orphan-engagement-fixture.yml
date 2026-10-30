@@ -1,0 +1,37 @@
+schema_version: '1.0'
+id: V425-018
+title: Remove the engagement action fixture that no side reads
+milestone: hub-audit-defects-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V422-002
+priority: P2
+status: pending
+depends_on: []
+languages:
+- json
+goal: 'make test-wire-cross-language passes on main: every shared fixture has the readers it declares.'
+context:
+  origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
+  severity: medium
+  finding: '41f6fb79e (V422-002) renamed api/testdata/pentest-action-maximum-url.json to engagement-action-maximum-url.json
+    and kept its api/testdata/readers.json entry (go, python), but removed the prepare action it exercises:
+    no Go or Python code reads redirectHop or retryOrdinal any more. scripts/shared_fixture_gate.py fails
+    on main fde39a943 with ''declared side go does not read it'' and the same for python.'
+  siblings: Other fixtures in api/testdata/readers.json for removed engagement or pentest wire; the gate
+    reports every one, and this task removes each that has no contract left.
+scope:
+  in:
+  - Delete the fixture and its readers.json entry.
+  out:
+  - Restoring the removed prepare action.
+acceptance_criteria:
+- id: A1
+  text: The shared fixture gate passes with the database set.
+- id: A2
+  text: No readers.json entry names a missing or unread fixture.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> make test-wire-cross-language
+  covers:
+  - A1
+  - A2

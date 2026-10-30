@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-106 open tasks: 41 in progress, 54 pending, 11 deferred. 1219 finished: 1204 completed, 15 archived.
+121 open tasks: 41 in progress, 69 pending, 11 deferred. 1219 finished: 1204 completed, 15 archived.
 
 ## In progress
 
@@ -55,6 +55,12 @@ the epics are in [epics.yml](epics.yml).
 
 ## Pending
 
+### Run execution core (`execution-core`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
+
 ### Planners and the Worker model boundary (`planner-worker`)
 
 | Task | Kind | Priority | Waiting for | Title |
@@ -85,6 +91,8 @@ the epics are in [epics.yml](epics.yml).
 | [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
+| [V425-004](v425-004-http-gateway-e2e-tool-list.yml) | defect | P2 | — | Derive the HTTP gateway process test's expected tools from the toolset descriptor |
+| [V425-018](v425-018-remove-orphan-engagement-fixture.yml) | defect | P2 | — | Remove the engagement action fixture that no side reads |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -108,6 +116,13 @@ the epics are in [epics.yml](epics.yml).
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-006 | Discover URL-only targets using HTTP tools and the shared sitemap |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-007, V411-019 | Ship an ordinary HTTP pentest Workflow with an early process demonstration |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
+
+### Projects, artifacts and lifecycle controls (`projects-artifacts`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V425-011](v425-011-git-url-validate-once.yml) | defect | P3 | — | Validate a Git import URL once in its canonical form |
+| [V425-012](v425-012-bounded-project-drain-check.yml) | defect | P3 | — | Bound the Project deletion drain check by active work, not finished Run history |
 
 ### Audits (`audits`)
 
@@ -134,6 +149,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V411-015 | Allow nonblocking analyst review for automated HTTP Audits |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V411-010 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
+| [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 
 ### Evaluations (`evals`)
 
@@ -156,12 +172,24 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017, V411-010 | Build the ordinary HTTP Audit setup and evidence UI journey |
+| [V425-007](v425-007-ui-preparation-and-error-fixtures.yml) | chore | P3 | — | Derive the UI's past-preparation check from the phase definition and its test errors from the registry |
 
 ### Public API and wire contracts (`api-contracts`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V411-010 | Expose HTTP engagement setup and results through existing API and CLI |
+| [V425-006](v425-006-one-exact-integer-bound.yml) | chore | P3 | — | Take the exact JSON integer bound from one definition in Go and one in Python |
+| [V425-008](v425-008-remaining-error-codes.yml) | chore | P3 | — | Register invalid_toolset_factory and unsupported_toolset in the error registry |
+| [V425-009](v425-009-typed-const-and-event-enums.yml) | chore | P3 | — | Give every OpenAPI const schema and every events schema enum a type |
+| [V425-010](v425-010-composite-byte-bounds-server.yml) | defect | P2 | — | Validate per-part byte bounds of Run label selectors and sitemap rules in the Server and drop their gate exceptions |
+
+### PostgreSQL persistence and schema (`persistence`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V425-005](v425-005-stored-size-bounds-agree.yml) | defect | P2 | — | Make Go validation, stored-size CHECKs and the limits registry agree on every remaining column |
+| [V425-015](v425-015-optional-filter-generic-plans.yml) | chore | P3 | — | Measure the generic plans of optional-filter predicates and bound the ones that scan |
 
 ### Quality, CI and process (`quality`)
 
@@ -173,6 +201,8 @@ the epics are in [epics.yml](epics.yml).
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
+| [V425-013](v425-013-go-test-wall-clock-wave-3.yml) | chore | P3 | — | Replace the remaining wall-clock waits in Go PostgreSQL tests and restore the listener budget coverage |
+| [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 
 ## Deferred
 
@@ -197,23 +227,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 4 | 41 | 56 | 20 | 84 |
-| Planners and the Worker model boundary (`planner-worker`) | 12 | 34 | 47 | 28 | 64 |
+| Run execution core (`execution-core`) | 5 | 41 | 56 | 21 | 84 |
+| Planners and the Worker model boundary (`planner-worker`) | 12 | 34 | 47 | 28 | 65 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 5 | 43 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 22 | 25 | 9 | 24 |
+| HTTP and Caido tools (`http-tools`) | 7 | 22 | 27 | 9 | 25 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 4 | 16 | 9 | 8 | 13 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 18 | 15 | 12 | 19 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 34 | 11 | 54 |
-| Audits (`audits`) | 23 | 67 | 82 | 34 | 119 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 36 | 11 | 54 |
+| Audits (`audits`) | 24 | 67 | 82 | 35 | 121 |
 | Evaluations (`evals`) | 7 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
-| Web UI (`ui`) | 2 | 25 | 66 | 14 | 59 |
+| Web UI (`ui`) | 3 | 25 | 66 | 15 | 59 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 43 | 7 | 18 |
-| Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
-| PostgreSQL persistence and schema (`persistence`) | 7 | 0 | 25 | 44 | 13 |
-| Quality, CI and process (`quality`) | 16 | 1 | 27 | 102 | 23 |
+| Public API and wire contracts (`api-contracts`) | 9 | 2 | 38 | 25 | 14 |
+| PostgreSQL persistence and schema (`persistence`) | 9 | 0 | 26 | 45 | 13 |
+| Quality, CI and process (`quality`) | 18 | 1 | 27 | 104 | 25 |

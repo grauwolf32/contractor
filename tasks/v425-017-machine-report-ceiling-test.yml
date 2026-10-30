@@ -1,0 +1,37 @@
+schema_version: '1.0'
+id: V425-017
+title: Drive the cumulative 64 MiB machine report check to its rejection in a test
+milestone: hub-audit-defects-2026-10
+epic: audits
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages:
+- go
+goal: The cumulative machine report ceiling (LIM-REV-8) has a test that reaches it and proves the classified
+  rejection.
+context:
+  origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
+  finding: 'V414-027 open question (7), from V409-013: the cumulative 64 MiB machine report check (internal/auditimport/report_build.go:145-149,
+    LIM-REV-8) keeps audit_report_pages below 4,096 pages of 64 MiB, but no test drives it to its rejection.'
+  siblings: Other cumulative report ceilings in internal/auditimport.
+scope:
+  in:
+  - A test at the ceiling and one byte over, without materialising 64 MiB in memory if an injected smaller
+    ceiling or counting writer proves the same path.
+  out:
+  - Changing the ceiling.
+acceptance_criteria:
+- id: A1
+  text: At the ceiling the report builds; one byte over it is refused with the registered code.
+- id: A2
+  text: The test fails if the check is removed.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditimport/...
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1

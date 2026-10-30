@@ -1,0 +1,40 @@
+schema_version: '1.0'
+id: V425-011
+title: Validate a Git import URL once in its canonical form
+milestone: hub-audit-defects-2026-10
+epic: projects-artifacts
+kind: defect
+priority: P3
+status: pending
+depends_on: []
+languages:
+- go
+goal: A Git import URL is either refused at intake or fetched; a URL that passes intake never fails later
+  with ErrURL.
+context:
+  origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
+  severity: low
+  finding: internal/gitimport/client.go Fetch (line ~218) re-validates the repository URL after percent-encoding
+    it; a non-ASCII URL passes the intake check and then fails at Fetch with ErrURL, after the import
+    was accepted.
+  siblings: Every other caller that validates a remote URL before percent-encoding (Project Git sources,
+    credentials host matching).
+scope:
+  in:
+  - Canonicalize before the first validation and validate once; Fetch trusts the canonical value.
+  - A test with a non-ASCII URL through intake and Fetch.
+  out:
+  - Changing which URLs are allowed.
+acceptance_criteria:
+- id: A1
+  text: A non-ASCII URL is either refused at intake with the owning code or fetched successfully.
+- id: A2
+  text: The test fails on the unfixed code.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/gitimport/...
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1

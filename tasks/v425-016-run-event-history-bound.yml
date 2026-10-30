@@ -1,0 +1,45 @@
+schema_version: '1.0'
+id: V425-016
+title: Bound or detect the per-Run event history and delete it in bounded batches
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: chore
+priority: P3
+status: pending
+depends_on: []
+languages:
+- go
+- sql
+- markdown
+goal: workflow_run_events per Run has a registered bound or a detection signal, and Run deletion removes
+  its history in bounded transactions.
+context:
+  origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
+  finding: 'V414-027 open question (6), from V409-013 (review open question F, V409-010 decision): workflow_run_events
+    per Run has neither a count bound nor a detection signal. Reads are bounded per page (LIM-API-24),
+    but Run deletion removes the whole history in one transaction.'
+  decision_needed: 'Proposal (coordinator, 2026-10-30): register a per-Run event count bound derived from
+    existing per-Run limits (Stages, attempts, allocations) with a metric that reports Runs approaching
+    it, and delete history in bounded batches under the existing Run deletion claim. Simpler alternative:
+    no bound, only a metric plus batched deletion. The user decides before implementation.'
+  siblings: Other per-Run append-only tables deleted with the Run.
+scope:
+  in:
+  - The chosen bound or signal, registered in docs/spec/platform/limits.md and observability.md.
+  - Batched deletion with a real-PostgreSQL test at a large history.
+  out:
+  - Changing event content.
+acceptance_criteria:
+- id: A1
+  text: A Run at the bound behaves as decided; deletion of a large history never holds one transaction
+    over the batch bound.
+- id: A2
+  text: The test fails on single-transaction deletion.
+tests:
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/runstore/... ./internal/telemetry/...
+  covers:
+  - A1
+  - A2
+- command: make lint
+  covers:
+  - A1
