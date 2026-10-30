@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-110 open tasks: 39 in progress, 60 pending, 11 deferred. 1209 finished: 1199 completed, 10 archived.
+108 open tasks: 37 in progress, 60 pending, 11 deferred. 1211 finished: 1201 completed, 10 archived.
 
 ## In progress
 
@@ -21,14 +21,12 @@ the epics are in [epics.yml](epics.yml).
 | [V371-014](v371-014-scheduler-stage-history-reads.yml) | execution-core | defect | P3 | Count escalation attempts and check the first tick without reading Stage snapshots |
 | [V371-015](v371-015-memory-claim-paused-skip.yml) | quality | chore | P3 | Model the paused-owner claim skip in the Scheduler's memory store doubles |
 | [V371-021](v371-021-postgres-test-wall-clock.yml) | quality | chore | P3 | Replace wall-clock budgets in the Scheduler and runstore PostgreSQL tests |
-| [V371-022](v371-022-capability-probe-test-budget.yml) | quality | chore | P3 | Remove the 10 ms probe budget from the capability discovery tests |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | runtime-config | chore | P3 | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
 | [V372-007](v372-007-terminal-stage-state-set.yml) | execution-core | chore | P3 | Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them |
 | [V372-008](v372-008-upward-table-reads.yml) | persistence | chore | P3 | Remove the table reads that point up the layer stack or name who owns each one |
 | [V372-009](v372-009-ownership-check-blind-spots.yml) | persistence | chore | P3 | Close the blind spots of the table ownership check |
 | [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | persistence | chore | P3 | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
 | [V372-013](v372-013-planner-facts-one-source.yml) | workflows | chore | P3 | Take Planner refs and facts from the descriptor registry in Go, the composition and Studio |
-| [V372-014](v372-014-execution-config-patch-strict-decode.yml) | workflows | chore | P3 | Decode executionConfig patch members with strictjson |
 | [V372-015](v372-015-config-split-leftovers.yml) | workflows | chore | P3 | Stop locals from shadowing imported packages and drop config's copy of clone.Map |
 | [V372-016](v372-016-wall-clock-test-budgets-wave-2.yml) | quality | chore | P3 | Replace wall-clock budgets in the finding intake, Audit, Eval and persistence tests and the result publication test |
 | [V372-020](v372-020-error-code-vocabularies.yml) | api-contracts | chore | P3 | Hold every vocabulary that carries error code names to the registry |
@@ -201,7 +199,7 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 7 | 22 | 25 | 9 | 23 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 4 | 17 | 8 | 8 | 13 |
-| Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
+| Workflow catalog and document workflows (`workflows`) | 6 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 34 | 11 | 54 |
 | Audits (`audits`) | 26 | 67 | 82 | 32 | 116 |
 | Evaluations (`evals`) | 7 | 21 | 39 | 15 | 48 |
@@ -210,4 +208,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 43 | 7 | 18 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 44 | 13 |
-| Quality, CI and process (`quality`) | 17 | 1 | 27 | 102 | 23 |
+| Quality, CI and process (`quality`) | 16 | 1 | 27 | 102 | 23 |

@@ -1348,10 +1348,17 @@ pool's size), Runs deferred within their window and pending Runs of paused
 owners (SCH-R163). A progression attempt reads the Run's lifecycle
 state and its one active StageExecution (SCH-R114), not the Run's Stage
 history of up to 1,024 attempts (LIM-RUN-2); it reads the whole Run again only
-when its state changed since the claim. Only a Run without an active
-StageExecution, whose first Stage is not yet created or whose state the
-Scheduler cannot progress, has its Stage history read; a cancelling one reads
-only the attempts whose allocation release is incomplete (SCH-R179).
+when its state changed since the claim. Two decisions consult the history,
+and neither selects a snapshot column (StageSpec, StageContext, candidate or
+accepted result, termination). A Run without an active StageExecution, whose
+first Stage is not yet created or whose state the Scheduler cannot progress,
+proves which with one existence probe that returns one boolean. An automatic
+escalate decision counts the escalation attempts of its Stage (SCH-R89) from
+one statement that reads only the identity, Run, Stage name, attempt, state,
+execution configuration variant, escalation ordinal and previous and resume
+source columns of that Stage's attempts: at most LIM-RUN-2 narrow rows. A
+cancelling Run reads only the attempts whose allocation release is incomplete
+(SCH-R179).
 
 **SCH-R125.** Focused tests drive the Scheduler through `RunOnce`, a
 deterministic single-claim helper that only the Scheduler's tests compile and

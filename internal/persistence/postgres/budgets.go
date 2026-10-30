@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -76,8 +77,10 @@ func DefaultMigrationBudgets() MigrationBudgets {
 	return MigrationBudgets{StatementTimeout: 120 * time.Second, LockTimeout: 10 * time.Second}
 }
 
-// migrationQueryMargin keeps the client-side tracer deadline just beyond the
-// server statement timeout so PostgreSQL reports the timeout first.
+// migrationQueryMargin keeps the client-side tracer deadline of each
+// single-statement call of the migrator just beyond the server statement
+// timeout so PostgreSQL reports the timeout first. A call that carries a
+// whole migration file has the run deadline instead (withMigrationFileBudget).
 const migrationQueryMargin = 5 * time.Second
 
 func (m MigrationBudgets) normalized() (Budgets, time.Duration, error) {
@@ -111,9 +114,11 @@ func (m MigrationBudgets) Validate() error {
 // advisory-lock polling wait, to at least 15 minutes. Statement and lock
 // timeouts govern DDL after leadership is acquired, not the overall
 // advisory-lock wait; m overrides them, and its zero fields keep the
-// defaults. The tracer query deadline follows the statement timeout plus a
-// small margin. InTx installs these server settings with SET LOCAL, so
-// commit/rollback cannot leak maintenance settings into the pool.
+// defaults. The tracer query deadline of each call follows the statement
+// timeout plus a small margin; withMigrationFileBudget lifts it for the call
+// that carries a whole migration file. InTx installs these server settings
+// with SET LOCAL, so commit/rollback cannot leak maintenance settings into
+// the pool.
 func WithMigrationBudgets(ctx context.Context, m MigrationBudgets) (context.Context, context.CancelFunc, error) {
 	b, total, err := m.normalized()
 	if err != nil {
@@ -121,6 +126,27 @@ func WithMigrationBudgets(ctx context.Context, m MigrationBudgets) (context.Cont
 	}
 	ctx, cancel := withMaintenanceBudget(ctx, b, total)
 	return ctx, cancel, nil
+}
+
+// withMigrationFileBudget gives the one call that carries a whole migration
+// file the run deadline of ctx (LIM-PER-11) as its client deadline, rather
+// than the per-call deadline of the statement timeout plus
+// migrationQueryMargin (PER-R31). PostgreSQL applies the statement timeout to
+// each statement of the file, so the client deadline of the call only has to
+// end a call whose connection was lost, and a file has no client bound of its
+// own (PER-R32). ctx must carry the budget and deadline of
+// WithMigrationBudgets.
+func withMigrationFileBudget(ctx context.Context) (context.Context, error) {
+	b, budgeted := ctx.Value(maintenanceBudgetKey{}).(Budgets)
+	deadline, bounded := ctx.Deadline()
+	if !budgeted || !bounded {
+		return nil, errors.New("a migration file call requires the migration budget and its run deadline")
+	}
+	// The tracer derives the call deadline from the context it is given, so a
+	// timeout of the time left can only end at the run deadline or after it;
+	// the run deadline, the earlier one, governs.
+	b.QueryTimeout = time.Until(deadline)
+	return context.WithValue(ctx, maintenanceBudgetKey{}, b), nil
 }
 
 // WithCleanupBudget allows bounded physical collection to do more work than

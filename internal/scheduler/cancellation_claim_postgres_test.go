@@ -124,15 +124,15 @@ type cancellationClaimStore struct {
 	finish   chan struct{}
 }
 
-func (s *cancellationClaimStore) ListStageExecutions(ctx context.Context, runID string) ([]runstore.StageExecution, error) {
-	// Renewal reads the Run too, but never lists its StageExecutions. Block
+func (s *cancellationClaimStore) HasStageExecutions(ctx context.Context, runID string) (bool, error) {
+	// Renewal reads the Run too, but never probes its StageExecutions. Block
 	// only the initial execution path, independent of goroutine scheduling.
 	if s.first.CompareAndSwap(false, true) {
 		s.started <- runID
 		<-ctx.Done()
-		return nil, ctx.Err()
+		return false, ctx.Err()
 	}
-	return s.PostgresStore.ListStageExecutions(ctx, runID)
+	return s.PostgresStore.HasStageExecutions(ctx, runID)
 }
 
 // ListStageExecutionsWithUnreleasedAllocations is the first read of the

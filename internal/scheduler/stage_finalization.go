@@ -485,7 +485,10 @@ func (s *Scheduler) buildProgression(
 }
 
 // escalationAttempts counts the automatic escalation attempts of stageName's
-// variant branch in the Run's Stage history (SCH-R89). A history the
+// variant branch in the Run's Stage history (SCH-R89). It reads only the
+// lineage of that Stage's attempts, no snapshot (SCH-R164); a manual
+// continuation whose source is not an attempt of the same Stage is therefore
+// not found and fails like any other broken lineage. A history the
 // Scheduler cannot have written, such as an ordinal that is missing,
 // duplicated or not contiguous or a manual continuation that does not repeat
 // its source, is errInvalidRunState; a failed read of the history is a store
@@ -496,11 +499,11 @@ func (s *Scheduler) escalationAttempts(
 	stageName string,
 	variant runstore.StageExecutionConfigVariant,
 ) (int, error) {
-	executions, err := s.store.ListStageExecutions(ctx, runID)
+	executions, err := s.store.ListStageLineage(ctx, runID, stageName)
 	if err != nil {
 		return 0, err
 	}
-	byID := make(map[string]runstore.StageExecution, len(executions))
+	byID := make(map[string]runstore.StageLineage, len(executions))
 	for _, execution := range executions {
 		byID[execution.StageExecutionID] = execution
 	}
