@@ -45,12 +45,12 @@ func auditDetailHydratesPreparation(audit auditstore.Audit) bool {
 }
 
 // auditListHydratesPreparation reports whether a list item carries
-// preparation (ASC-R150): its phase shows preparation (preparing or
+// preparation (ASC-R150): its phase precedes Rounds (preparing or
 // inventory) and its pinned profile has a prepare role. Neither phase has
 // generatedInventory, which exists only once the Audit reaches rounds
 // (ASC-R146), so the list reads no inventory link or payload.
 func auditListHydratesPreparation(audit auditstore.Audit) bool {
-	return audit.Phase.ShowsPreparation() && auditPinsPreparation(audit)
+	return audit.Phase.PrecedesRounds() && auditPinsPreparation(audit)
 }
 
 // auditPinsPreparation reports whether the Audit's pinned profile has a
