@@ -5862,7 +5862,10 @@ export interface components {
             createdAt: string;
         };
         RunRecovery: {
-            /** @enum {string} */
+            /**
+             * @description Cause of the model gateway failure that holds the Run, from the recovery cause vocabulary that the Server and the Runtime share. It is not an error code: gateway_unavailable here is an unavailable model gateway route, not the error of a failed Gateway credential manager.
+             * @enum {string}
+             */
             code: "model_unavailable" | "gateway_unavailable" | "gateway_timeout" | "gateway_rate_limited";
             /** Format: date-time */
             since: string;

@@ -743,6 +743,61 @@ The complete Planner Gateway error table, with `planner_gateway_rejected`,
 `planner_gateway_unavailable` and `planner_gateway_invalid_response`, is in the
 [errors registry](../platform/errors.md).
 
+### Invocation failure codes
+
+**PLN-R121.** A Planner invocation that ends without a candidate for a reason
+other than its budgets (PLN-R85), its Gateway (PLN-R89, PLN-R90), its session
+(PLN-R106, PLN-R107) or its Worker invocation (PLN-R123) ends with one of these
+codes, which the Scheduler records in an interrupted StageTermination
+(FAIL-PLN-5):
+
+- `planner_initialization_failed` — the Planner, or its tools, ADK agent or
+  runner, could not be created; non-retryable;
+- `planner_context_invalid` — the Planner context could not be encoded for
+  the model; non-retryable;
+- `planner_session_invalid` — the Planner session did not grant this
+  invocation ownership, or its recorded completion is invalid; non-retryable;
+- `planner_already_completed` — a model call was attempted after the Planner
+  had produced its candidate; non-retryable;
+- `planner_execution_failed` — ADK execution of a model-backed Planner failed;
+  retryable;
+- `planner_cancelled` — the caller cancelled the invocation or one of its
+  Worker invocations; retryable.
+
+**PLN-R122.** A Planner records these codes without ending its invocation:
+`planner_tool_selection_invalid`, the execution report error of each rejected
+parallel or unknown tool selection (PLN-R41, FAIL-PLN-4);
+`planner_worker_unknown`, the non-retryable tool error of
+`execute_current_subtask` for a Worker name that names no available logical
+Worker (PLN-R39, FAIL-PLN-3); and `planner_model_overlap`, the error of a
+Planner model telemetry span that ended because the next model request started
+before its response was recorded.
+
+**PLN-R123.** The A2A `WorkerInvoker` ends a Worker invocation that yields no
+WorkerCompletion with one of these codes, besides `worker_input_required` and
+`worker_auth_required` (PLN-R67), `invalid_worker_result` (PLN-R118) and
+`planner_cancelled` (PLN-R121). Passthrough ends its invocation with the code
+(FAIL-PLN-2); Streamline and Router fail the dispatch and keep the Planner
+running (FAIL-PLN-3):
+
+- `invalid_worker_handle` — the Worker binding or allocation identity is
+  missing, or the Worker's Agent Card or Runtime Agent principal is invalid or
+  incompatible; non-retryable, nothing is sent;
+- `invalid_stage_content` — the StageContentRequest violates its contract;
+  non-retryable, nothing is sent;
+- `invalid_a2a_response` — the Worker answered with an invalid or unsupported
+  A2A response, Task or Task state, or with a payload that is not one bounded
+  Agent DataPart of the WorkerCompletion media type; non-retryable;
+- `worker_task_rejected` — the Worker rejected the A2A Task; non-retryable;
+- `worker_task_cancelled` — the A2A Task was cancelled; retryable;
+- `worker_task_failed` — the A2A Task failed without a Contractor result;
+  retryable;
+- `worker_deadline_exceeded` — the Worker invocation deadline expired;
+  retryable;
+- `worker_unavailable` — the Worker's A2A endpoint is unavailable or the
+  invocation failed for another reason; retryable, except that an A2A client
+  that is not configured is non-retryable.
+
 ### Planner Sessions and durable facts
 
 The number of Planner instances, invocations, Sessions and ADK conversations
@@ -993,6 +1048,15 @@ Errors ([registry](../platform/errors.md)):
   (PLN-R106).
 - `planner_session_rejected` — non-retryable; the Planner session refused a
   write as invalid, such as a state over its bounded size (PLN-R106).
+- `planner_initialization_failed`, `planner_context_invalid`,
+  `planner_session_invalid`, `planner_already_completed`,
+  `planner_execution_failed`, `planner_cancelled` — invocation failure codes
+  (PLN-R121); `planner_tool_selection_invalid`, `planner_worker_unknown`,
+  `planner_model_overlap` — recorded without ending the invocation (PLN-R122).
+- `invalid_worker_handle`, `invalid_stage_content`, `invalid_a2a_response`,
+  `worker_task_rejected`, `worker_task_cancelled`, `worker_task_failed`,
+  `worker_deadline_exceeded`, `worker_unavailable` — Worker invocation failure
+  codes of the A2A `WorkerInvoker` (PLN-R123).
 - `result_contract_violation` belongs to [Scheduler](scheduler.md); a
   Planner raises it, non-retryable, for a candidate that violates the Stage
   result contract, including a rejected result reference (PLN-R118).

@@ -528,7 +528,7 @@
         "type": { "const": "error" },
         "subscriptionId": { "$ref": "#/$defs/SubscriptionId" },
         "code": {
-          "enum": ["invalid_frame", "subscription_limit", "unauthorized", "not_found", "overloaded"]
+          "enum": ["invalid_frame", "subscription_limit", "not_found", "overloaded"]
         },
         "message": { "type": "string", "minLength": 1, "maxLength": 512 },
         "retryable": { "type": "boolean" }

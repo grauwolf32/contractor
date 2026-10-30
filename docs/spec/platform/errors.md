@@ -21,6 +21,7 @@ This document owns the code vocabularies of:
 - code-analysis and taint annotation tools;
 - HTTP and Caido tools;
 - the findings tools;
+- the rule that registers every Stage failure code;
 - the public API's error codes, generated from the Server's error registry.
 
 It leaves to other documents:
@@ -294,6 +295,18 @@ The conditions that raise the codes are owned by
 [Findings](../findings/findings.md) (FND-R123, FND-R135, FND-R140, FND-R142,
 FND-R143).
 
+### Stage failure codes
+
+**ERR-R24.** Every code that the Planners, the A2A Worker invoker, the
+Scheduler or a Server operation Stage writes into a Planner failure, a
+StageTermination, an execution report error, a Planner telemetry span or a Run
+output publication result has exactly one row in the [Registry](#registry),
+and that row links the requirement that defines the code. These codes reach the
+public API as the `code` of a StageTermination and of an attempt diagnostic.
+The Server's source is scanned for them, so a code without a row fails a test.
+Model-visible tool errors that end nothing and Run event reason codes are
+other vocabularies.
+
 ### Public API error codes
 
 **ERR-R14.** The public API answers every failure, in its HTTP error envelope
@@ -305,8 +318,20 @@ is not registered cannot be answered; how the Server classifies a failure is
 owned by [Public API](../api/public-api.md) (API-R73). The registry is checked
 against the managed Eval error enum, the error details kinds, the error
 statuses and the codes named in response descriptions of the OpenAPI
-contract, the error-frame enum of the event schema, and the code comparisons
-of the browser client.
+contract; the error-frame enum of the event schema and the error frames the
+Server's event stream sends; the code comparisons of the browser client and
+the error answers of its test doubles, each with the registry's HTTP status;
+and the private Artifact and Control Plane APIs, whose own codes stay outside
+the registry but which answer a code that is also a public code with that
+code's HTTP status and `retryable` flag.
+
+The `code` of a Run's `recovery` is not an error code. It names a model
+gateway failure cause from the recovery cause vocabulary that the Server and
+the Runtime share (`model_unavailable`, `gateway_unavailable`,
+`gateway_timeout`, `gateway_rate_limited`), owned by
+[Scheduler](../execution/scheduler.md) (SCH-R168). Its `gateway_unavailable`
+is an unavailable model gateway route, not the public `gateway_unavailable`
+error of a failed Gateway credential manager.
 
 ## Limits, failures and errors
 
@@ -452,7 +477,7 @@ The codes of the public API's HTTP error envelope and WebSocket error frames
 | `skill_limit_exceeded` | 422 | no | A selected current Skill package exceeds the stored package bound (LIM-SKL-17), or the stored bytes of the packages that one AgentTemplate or the whole Run selects exceed their limit (LIM-SKL-22, LIM-SKL-24), and Run creation or Audit start creates nothing. The same code reports any per-member, count or aggregate package bound at Run initialization or allocation preparation, terminal and non-retryable for the recorded Run snapshot. | [SKL-R117](../tools/skills.md), [ERR-R4](errors.md) |
 | `storage_transaction_conflict` | 503 | yes | A definite PostgreSQL transaction conflict (serialization failure or deadlock), including one that outlasts the bounded transaction retries of its operation; nothing committed, so the request may be repeated. | [PER-R16](persistence.md) |
 | `subscription_limit` | — (WebSocket error frame) | no | A socket already holds its maximum of subscriptions (LIM-API-11); only the new subscription is refused. | [API-R62](../api/public-api.md), [API-R63](../api/public-api.md) |
-| `unauthorized` | 401; also a WebSocket error frame | no | Authentication is absent or invalid: no valid bearer token or browser session, or a login with invalid credentials. | [SEC-R45](security.md), [API-R33](../api/public-api.md) |
+| `unauthorized` | 401 | no | Authentication is absent or invalid: no valid bearer token or browser session, or a login with invalid credentials. | [SEC-R45](security.md), [API-R33](../api/public-api.md) |
 | `unsupported_media_type` | 415 | no | An Operations settings update (Scheduler settings or model selection) is not sent as exactly application/json; nothing changes. Other JSON operations answer a wrong media type with invalid_request, or eval_invalid on Managed Eval routes. | [OPS-R60](../operations/operations.md), [OPS-R225](../operations/operations.md) |
 <!-- END GENERATED PUBLIC ERROR CODES -->
 
@@ -471,8 +496,10 @@ Assembled from every document.
 | `INVALID_ARGUMENTS` | — | not specified | Bounded Skill tool error: an oversize, absolute, backslash or dot-segment skill function argument; returned before native dispatch and never retained as a safe metric path | [SKL-R94](../tools/skills.md) |
 | `SKILL_DISCLOSURE_LIMIT` | — | not specified | Bounded tool error: a native Skill call would exceed the allocation disclosure budget; returned before activation or content lookup, with no partial content | [SKL-R100](../tools/skills.md) |
 | `agent_state_unavailable` | 409/503 | contextual | Closed safe agent-state endpoint error: retryable 409 for a missing, preparing or draining Worker; non-retryable 503 for an invalid or oversized snapshot; retryable 503 for temporary snapshot infrastructure failures | [WRK-R121](../execution/worker.md) |
+| `allocation_fence_failed` | — | yes | The Scheduler could not write-fence the Stage's allocations before finalization; the Stage ends through bounded aborting with an interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |
 | `allocation_not_found` | — | not specified | Closed safe agent-state endpoint error for a stale, preparing, draining-with-destroyed-State or released slot | [WRK-R121](../execution/worker.md) |
 | `allocation_preparation_failed` | — | not specified | Allocation preparation failed, including a confirmed local Podman engine preparation failure. Retry follows the existing preparation retry classification. | [EXE-R115](../tools/code-execution.md) |
+| `allocation_report_unavailable` | — | yes | Error of the incomplete placeholder report the Scheduler records for a Worker allocation that started but returned no valid execution report. | [OBS-R37](observability.md) |
 | `artifact_limit_exceeded` | 409 | no | A RunScope write would exceed the Run revision limit (LIM-ART-6); nothing is stored and the Run never regains revisions, so no retry can succeed. Returned on the private Artifact API. | [ART-R118](../artifacts/artifact-store.md) |
 | `assessment_unsupported` | — | no | Reason code of audit_profile_unsupported emitted for the unsupported finding-candidate inventory entry point. | [AUD-R89](../audits/audits.md) |
 | `audit_result_incomplete` | — | yes | The reminder allowance is exhausted while assigned items still lack a valid accepted submission; returned with safe counts and missing identifiers. Stage and Audit policies decide whether a new attempt is submitted. | [AWC-R79](../audits/worker-completion.md) |
@@ -493,6 +520,21 @@ Assembled from every document.
 | `audit_scan_task_invalid` | — | no | The assigned task package, member, document or scanner identity is invalid. | [SCN-R258](../tools/scanners.md) |
 | `audit_scan_task_unavailable` | — | cause-based for Audit; no for ordinary scans | The exact assigned task package could not be read. | [SCN-R258](../tools/scanners.md) |
 | `automatic_active_checks_unsupported` | — | no | Reason code of audit_profile_unsupported for a profile prohibition conflicting with selected active tools. | [AUD-R89](../audits/audits.md) |
+| `control_plane_state_lost` | — | yes | Control Plane no longer holds the active allocation set of the Stage being prepared, such as durable allocation rows left without grants; interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |
+| `invalid_a2a_response` | — | no | The Worker answered with an invalid or unsupported A2A response, Task or Task state, or with a payload that is not one bounded Agent DataPart of the WorkerCompletion media type. | [PLN-R123](../execution/planners.md) |
+| `invalid_stage_content` | — | no | The StageContentRequest of a Worker invocation violates its contract; nothing is sent to the Worker. | [PLN-R123](../execution/planners.md) |
+| `invalid_worker_handle` | — | no | The Worker binding or allocation identity is missing, or the Worker's Agent Card or Runtime Agent principal is invalid or incompatible; nothing is sent to the Worker. | [PLN-R123](../execution/planners.md) |
+| `model_route_binding_failed` | — | yes | The Scheduler could not bind the model recovery routes of the Stage's placed allocations; interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |
+| `planner_already_completed` | — | no | A model call was attempted after the Planner had produced its candidate. | [PLN-R121](../execution/planners.md) |
+| `planner_cancelled` | — | yes | The caller cancelled the Planner invocation or one of its Worker invocations. | [PLN-R121](../execution/planners.md) |
+| `planner_context_invalid` | — | no | The Planner context could not be encoded for the model. | [PLN-R121](../execution/planners.md) |
+| `planner_execution_config_unavailable` | — | yes only for a transient cause (an ended context or an unavailable database); otherwise no | The Planner's model execution configuration, including its pinned credential, could not be resolved; interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |
+| `planner_execution_failed` | — | yes | ADK execution of a model-backed Planner failed. | [PLN-R121](../execution/planners.md) |
+| `planner_initialization_failed` | — | no | The Planner, or its tools, ADK agent or runner, could not be created. | [PLN-R121](../execution/planners.md) |
+| `planner_model_overlap` | — | no | Error of a Planner model telemetry span that ended because the next model request started before its response was recorded; telemetry only. | [PLN-R122](../execution/planners.md) |
+| `planner_session_invalid` | — | no | The Planner session did not grant this invocation ownership, or its recorded completion is invalid. | [PLN-R121](../execution/planners.md) |
+| `planner_tool_selection_invalid` | — | no | Execution report error of a rejected parallel or unknown Planner tool selection; the model may correct it and the invocation continues. | [PLN-R122](../execution/planners.md) |
+| `planner_worker_unknown` | — | no | Tool error of execute_current_subtask for a Worker name that names no available logical Worker; no A2A side effect, and the Planner continues. | [PLN-R122](../execution/planners.md) |
 | `project_active_checks_prohibited` | — | no | Reason code of audit_profile_unsupported for active tools prohibited by Project settings. | [AUD-R89](../audits/audits.md) |
 | `pentest_capability_unsupported` | — | no | Engagement requires a Server capability that is not implemented; metadata support never implies target execution. | [AUD-R246](../audits/audits.md) |
 | `pentest_source_closure_unsupported` | — | no | Blackbox closure would expose source or has unclassified source provenance. | [AUD-R246](../audits/audits.md) |
@@ -519,7 +561,7 @@ Assembled from every document.
 | `code_analysis_workspace_changed` | — | yes | Cursor or pending cache belongs to an older effective tree; retry without the cursor | [ERR-R11](errors.md), [CAN-R32](../tools/code-analysis.md) |
 | `collection-contract-invalid` | — | no | Bounded collection disposition recorded when the trusted collector cannot validate pinned internal data or the Store rejects a collection request by its content alone so that no retry can commit it; affected items are settled invalid with blocked coverage and their prior requested and completed coverage arrays are preserved; a cleanup-safe technical outcome, never accepted evidence, after which Run deletion is allowed. | [REV-R154](../audits/review-and-reports.md) |
 | `context_artifact_missing` | — | no | A required Stage context binding is missing when the StageExecution is created; detected before allocation and recorded as a non-retryable interrupted StageTermination with phase preparing before any allocation, Planner or Session exists. | [SCH-R17](../execution/scheduler.md) |
-| `control_lease_expired` | — | yes | Allocation-loss reason recorded in the retryable interrupted StageTermination when the confirmed Runtime Agent control lease expired. | [scheduler](../execution/scheduler.md) |
+| `control_lease_expired` | — | yes | Allocation-loss reason recorded in the retryable interrupted StageTermination when the confirmed Runtime Agent control lease expired. | [SCH-R95](../execution/scheduler.md) |
 | `counter_reset` | — | not specified | Bounded reason value of runtime.resources for a partial or unavailable resource summary (the sources define only the name) | [OPS-R174](../operations/operations.md) |
 | `deadline_exhausted` | — | not specified | Audit stop reason recorded when the optional Audit time limit pauses admission; Resume clears it. Historical terminal records may also carry it and remain final. | [audits](../audits/audits.md) |
 | `dispatch_contract_invalid` | — | no | Stop code for an invalid dispatch contract: pinned check dispatch data fails deterministic validation, or the Audit Store refuses a check execution intent as invalid; dispatch closes after one attempt and the Audit finalizes. The package capacity of a valid task package is never classified as dispatch_contract_invalid and consumes no attempt for omitted items. | [AUX-R16](../audits/execution.md), [AUX-R99](../audits/execution.md) |
@@ -592,6 +634,7 @@ Assembled from every document.
 | `preparation_unsupported` | — | not specified | Reserved reason value of audit_profile_unsupported kept for compatible clients; the Server does not produce it for preparation. | [AUD-R91](../audits/audits.md) |
 | `proposal_inventory_limit_exceeded` | — | not specified | Audit finalizes because only proposals remain whose first unscheduled check cannot fit even an empty Round; the message names each skipped receipt and the limit it exceeds. | [AUX-R65](../audits/execution.md) |
 | `proxy_subprocess_failed` | — | not specified | The tool-subprocess proxy route could not be prepared, launched or cleaned up, or the adapter was closed while the child ran; counts as a failed adapter operation | [RTA-R63](../execution/runtime-agent.md) |
+| `publication_attempts_exhausted` | — | no | Failed Run output publication result recorded once transient database failures exhausted the bounded publication replays (LIM-PRJ-4); the Run succeeds. | [PRJ-R58](../artifacts/projects.md) |
 | `publication_conflict` | — | not specified | Core diagnostic for a publication conflict, such as a different body at the same create-only publication name. | [EVF-R223](../evals/format.md) |
 | `read_failed` | — | not specified | Bounded reason value of runtime.resources for a partial or unavailable resource summary (the sources define only the name) | [OPS-R174](../operations/operations.md) |
 | `result_artifact_unavailable` | — | yes | A Planner could not verify a Stage candidate or Worker result artifact because the store did not answer; Passthrough ends its invocation, Streamline and Router return it as a dispatch tool error. | [PLN-R118](../execution/planners.md) |
@@ -628,6 +671,9 @@ Assembled from every document.
 | `scan_session_invalid` | — | no | The ordinary scan session has no complete, terminal plan and job state. | [SCN-R258](../tools/scanners.md) |
 | `scan_session_unavailable` | — | cause-based for Audit; no for ordinary scans | The scan session could not be opened or did not grant invocation ownership. | [SCN-R258](../tools/scanners.md) |
 | `scan_source_unavailable` | — | cause-based for Audit; no for ordinary scans | A required source/wordlist binding is absent or the exact source could not be read. | [SCN-R258](../tools/scanners.md) |
+| `server_operation_failed` | — | yes only for a transient database failure; otherwise no | A Server operation failed without a classified failure of its own; interrupted StageTermination. | [SOP-R9](../execution/server-operations.md) |
+| `server_operation_timeout` | — | yes | A deadline inside a Server operation expired before the Stage deadline; interrupted StageTermination. | [SOP-R9](../execution/server-operations.md) |
+| `server_operation_unavailable` | — | no | The Server has no Server operation execution; interrupted StageTermination. | [SOP-R9](../execution/server-operations.md) |
 | `source_projection_pending` | — | after explicit index rebuild | Exact finding receipt has no private check index; admission waits without inventing an ordinal, hydrating the source or appending repeated decisions. | [ASC-R180](../audits/scans.md) |
 | `scan_target_denied` | — | no | The shared Runtime target policy refused the scanner Worker's target before scanner launch; the Worker report carries it without an exit code and scan-plan@1 records the job as incomplete, never as completed coverage. Reported as the errorCode of a failed scanner result (SCN-R19), so a tool@1 Worker reporting it publishes its diagnostic report and ends with a nonretryable WorkerFailure (retryable=false, SCN-R48, SCN-R49). | [SCN-R56](../tools/scanners.md) |
 | `scan_target_unresolved` | — | no | The scanner Worker's target host did not resolve under the shared target policy; reported before launch without an exit code; scan-plan@1 records the job as incomplete. Reported as the errorCode of a failed scanner result (SCN-R19), so a tool@1 Worker reporting it publishes its diagnostic report and ends with a nonretryable WorkerFailure (retryable=false, SCN-R48, SCN-R49). | [SCN-R56](../tools/scanners.md) |
@@ -646,6 +692,7 @@ Assembled from every document.
 | `skill_name_mismatch` | — | no | Skill directory, artifact and frontmatter names differ; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
 | `skill_path_invalid` | — | no | Non-portable, duplicate or escaping Skill package member path; a terminal Run initialization code and non-retryable for the recorded Run snapshot | [ERR-R4](errors.md) |
 | `skill_runtime_unsupported` | — | no | Skill placement/configuration failure in allocation preparation | [ERR-R9](errors.md) |
+| `stage_deadline_exceeded` | — | yes | The admitted Stage deadline passed before the Planner or Server operation completed; interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |
 | `startup: invalid effective configuration (no wire code)` | — | not specified | Invalid process settings or performance/profiling switches, or an enabled diagnostic listener with an invalid address or that cannot bind, fail Server startup with a safe error | [OPS-R75](../operations/operations.md) |
 | `submission_conflict` | — | no | Core diagnostic for a submission conflict; an existing idempotency key with changed request bytes is a conflict, not a retry strategy. | [EVF-R223](../evals/format.md) |
 | `submission_unknown` | — | not specified | Stop code: the adapter cannot prove or recover the outcome of an uncertain submission, so that member stops. | [EVF-R113](../evals/format.md) |
@@ -692,6 +739,8 @@ Assembled from every document.
 | `worker_auth_required` | — | no | The Passthrough Planner's Worker A2A Task entered AUTH_REQUIRED; the invocation ends promptly without a StageResult candidate and Scheduler records an interrupted StageTermination and applies on.interrupted. | [PLN-R67](../execution/planners.md) |
 | `worker_budget_exhausted` | — | yes | A Worker ModelPolicy model-call, tool-call or token ceiling was exhausted; the exhausted dimension is in bounded metrics | [WRK-R25](../execution/worker.md) |
 | `worker_busy` | — | not specified | An A2A Task was rejected because the Worker was busy; cancelling such a Task leaves the active invocation of another Task untouched | [RTA-R83](../execution/runtime-agent.md) |
+| `worker_deadline_exceeded` | — | yes | The deadline of a Worker invocation expired. | [PLN-R123](../execution/planners.md) |
+| `worker_execution_config_unavailable` | — | yes only for a transient cause (an ended context or an unavailable database); otherwise no | The Workers' model execution configuration, including a pinned credential, could not be resolved during Stage preparation; interrupted StageTermination. | [SCH-R184](../execution/scheduler.md) |
 | `worker_execution_failed` | — | yes | An exception escaped the Worker invocation; it is returned as a bounded WorkerCompletion on a failed A2A Task, never as a Task left working or a provider or exception message | [RTA-R82](../execution/runtime-agent.md) |
 | `worker_gateway_invalid_request` | — | no | Local, deterministic adapter failure while constructing a Gateway request from ADK content | [WRK-R21](../execution/worker.md) |
 | `worker_gateway_unavailable` | — | per Gateway classification: yes for connection failures, timeouts and HTTP 408/409/429/5xx; no for other HTTP errors and insufficient_quota, budget_exceeded or context_length_exceeded | LLM Gateway provider failure of the ordinary Worker or its result finalizer, preserving the Gateway retryability flag | [WRK-R19](../execution/worker.md) |
@@ -709,9 +758,13 @@ Assembled from every document.
 | `worker_state_unavailable` | — | not specified | A Planner projection tool was called before any WorkerCompletion matching that logical Worker was returned. | [PLN-R57](../execution/planners.md) |
 | `worker_summarization_failed` | — | yes for missing, invalid, mismatched or oversized summarizer output and summarizer budget exhaustion; provider failures keep Gateway retryability | Terminal summarization failed; a more specific bounded cause is in metrics | [WRK-R152](../execution/worker.md) |
 | `worker_summarized` | — | no | Trusted terminal summary is incomplete work; declared summary policy may continue it, otherwise ordinary failure applies | [SCH-R171](../execution/scheduler.md) |
+| `worker_task_cancelled` | — | yes | The Worker's A2A Task was cancelled. | [PLN-R123](../execution/planners.md) |
+| `worker_task_failed` | — | yes | The Worker's A2A Task failed without a Contractor result. | [PLN-R123](../execution/planners.md) |
+| `worker_task_rejected` | — | no | The Worker rejected the A2A Task. | [PLN-R123](../execution/planners.md) |
 | `worker_timeout` | — | yes | The effective Worker-call deadline passed before an ordinary invocation or Audit completion produced its outcome; Runtime cancelled and joined the work in flight and started no further call. External cancellation and a nested operation's own timeout keep their own outcomes | [WRK-R167](../execution/worker.md), [WRK-R158](../execution/worker.md) |
 | `summary_publication_failed` | — | no | Permanent failure saving the source-keyed ordinary summary artifact | [SCH-R174](../execution/scheduler.md) |
 | `summary_publication_unavailable` | — | yes, within source admission deadline | Transient summary publication failure; replay the recorded completion without dispatching its Worker again | [SCH-R174](../execution/scheduler.md) |
+| `worker_unavailable` | — | yes; no when the A2A client is not configured | The Worker's A2A endpoint is unavailable, or the Worker invocation failed for another reason. | [PLN-R123](../execution/planners.md) |
 | `workspace_capacity_exceeded` | — | yes | Workspace placement/resource failure: capacity exceeded | [ERR-R10](errors.md), [WSP-R173](../tools/workspace.md) |
 | `workspace_export_failed` | — | yes | Overlay workspace export failed because of a temporary Artifact API failure; invalid state, quota and fence failures are classified by their own stable cause instead (WSP-R152) | [ERR-R10](errors.md), [WSP-R152](../tools/workspace.md) |
 | `workspace_limit_exceeded` | — | no | Workspace limit exceeded; a deterministic quota violation (WSP-R174) | [ERR-R10](errors.md), [WSP-R93](../tools/workspace.md) |

@@ -414,7 +414,12 @@ describe("Run routes", () => {
         ...RUN_PAGE,
         "GET /v1/runs/{runId}": () =>
           fail
-            ? failure(503, "unavailable", "Server unavailable", true)
+            ? failure(
+                503,
+                "storage_transaction_conflict",
+                "Server unavailable",
+                true,
+              )
             : json(runFixture()),
       }),
     });
@@ -1307,7 +1312,7 @@ describe("Run routes", () => {
           if (calls === 1) {
             return failure(
               500,
-              "unavailable",
+              "internal_error",
               "Cancellation service unavailable",
               true,
             );
