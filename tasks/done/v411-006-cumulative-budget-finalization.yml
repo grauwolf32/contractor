@@ -5,7 +5,7 @@ milestone: autonomous-http-pentest-2026-10
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: archived
 depends_on:
 - V411-002
 - V411-003
@@ -182,3 +182,20 @@ verification_requirements:
 - Update the owning normative specification, shared limits/errors/lifecycle registries and public/private
   contracts in the same change. Preserve existing contract ownership; do not add backward-compatibility
   readers or edit generated clients manually.
+
+archive:
+  date: '2026-10-30'
+  previous_status: pending
+  authority: User requested rewriting stalled pentest work and archiving tasks requiring removed functionality;
+    planning only, on a separate branch.
+  reason: V422-002 retains the four ordinary Audit budgets and the existing Audit deadline. Separate cumulative
+    model/token reservations, an active-time clock and target-request settlement are outside the selected
+    contract.
+  superseded_by:
+  - V422-002
+  - V411-016
+  - V411-020
+  reactivation_condition: Explicit user direction and a new reviewed scope with a concrete production
+    caller. Completion of historical dependencies does not reactivate this task.
+  evidence: Original scope, acceptance criteria and test commands below/above are historical design, not
+    implementation evidence or requirements for active work.

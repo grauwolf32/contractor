@@ -5,7 +5,7 @@ milestone: autonomous-http-pentest-2026-10
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: archived
 depends_on:
 - V411-003
 - V411-004
@@ -206,3 +206,18 @@ verification_requirements:
 - Update the owning normative specification, shared limits/errors/lifecycle registries and public/private
   contracts in the same change. Preserve existing contract ownership; do not add backward-compatibility
   readers or edit generated clients manually.
+
+archive:
+  date: '2026-10-30'
+  previous_status: pending
+  authority: User requested rewriting stalled pentest work and archiving tasks requiring removed functionality;
+    planning only, on a separate branch.
+  reason: The action journal, testData/action classes, durable unknown-effect state and special transport-stop
+    proof were removed by V422-002. There is no production Workflow creating and cleaning disposable target
+    objects to justify this subsystem.
+  superseded_by:
+  - V422-002
+  reactivation_condition: Explicit user direction and a new reviewed scope with a concrete production
+    caller. Completion of historical dependencies does not reactivate this task.
+  evidence: Original scope, acceptance criteria and test commands below/above are historical design, not
+    implementation evidence or requirements for active work.

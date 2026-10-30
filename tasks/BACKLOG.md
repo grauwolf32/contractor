@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-110 open tasks: 37 in progress, 62 pending, 11 deferred. 1214 finished: 1204 completed, 10 archived.
+105 open tasks: 37 in progress, 57 pending, 11 deferred. 1219 finished: 1204 completed, 15 archived.
 
 ## In progress
 
@@ -82,33 +82,31 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V410-008](v410-008-sitemap-caido-history.yml) | feature | P2 | V410-007 | Import selected Caido history incrementally with durable checkpoints |
 | [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
-| [V411-009](v411-009-http-recipes-predicates.yml) | feature | P1 | V411-007, V411-008 | Execute frozen HTTP recipes and evaluate trusted three-valued predicates |
-| [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | V411-007, V411-008, V411-010 | Add a managed browser with isolated contexts and enforced target transport |
-| [V412-002](v412-002-browser-login-replay-recipes.yml) | feature | P2 | V412-001, V411-009 | Execute closed browser login and replay recipes with trusted markers |
-| [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-009, V411-012, V411-020 | Integrate trusted Interactsh callback evidence and its release gate |
+| [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
+| [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
-| [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020 | Gate controlled ffuf execution through the pentest transport |
+| [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | — | Run ffuf through the existing allocation-local engagement authority |
 
 ### Findings tools and collections (`findings`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V411-007](v411-007-trusted-http-capture.yml) | feature | P1 | V411-006 | Expose safe HTTP evidence only through authenticated capture receipts |
-| [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | — | Expose safe live Project findings to allocated pentesters |
+| [V411-007](v411-007-trusted-http-capture.yml) | defect | P1 | — | Retain actual engagement HTTP exchanges through ordinary Audit evidence |
+| [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | V411-015 | Read live Project findings through allocation-authorized existing mechanisms |
 
 ### Workflow catalog and document workflows (`workflows`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V410-006](v410-006-sitemap-workflow-composition.yml) | feature | P1 | — | Ship ordinary sitemap discovery and reconciliation Workflows |
-| [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-007, V410-006 | Discover URL-only targets and retain bounded source-aware surfaces |
-| [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-012, V411-013, V411-014, V411-011, V411-010, V411-016 | Publish exact HTTP API pentest Workflows and source-mode presets |
-| [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-002, V411-020, V410-009 | Publish optional browser programs behind their independent release gate |
+| [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-006 | Discover URL-only targets using HTTP tools and the shared sitemap |
+| [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-007, V411-019 | Ship an ordinary HTTP pentest Workflow with an early process demonstration |
+| [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
 
 ### Audits (`audits`)
 
@@ -131,12 +129,9 @@ the epics are in [epics.yml](epics.yml).
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-012, V64-014, V64-006 | Maintain indexed research readiness and bounded priority refresh |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Measure optional research ranking against deterministic baselines |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-014, V64-008, V64-009 | Project optional attack trees over exact research evidence |
-| [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-012, V411-015, V411-016, V411-020 | Connect optional hypothesis research to pentest proof and reports |
-| [V411-006](v411-006-cumulative-budget-finalization.yml) | feature | P1 | — | Enforce cumulative pentest budgets and finalize at the hard active-time cap |
-| [V411-008](v411-008-stateful-actions-cleanup.yml) | feature | P1 | V411-006, V411-007 | Serialize stateful target checks and retain unresolved cleanup effects |
-| [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | — | Pin optional pentest programs and nonblocking finding review |
-| [V411-012](v411-012-pentest-admission-rounds.yml) | feature | P1 | V411-009, V411-010 | Admit typed pentest plans and derive exact later-round replay |
-| [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-012, V411-014 | Assemble retained pentest proof and incomplete-coverage reports |
+| [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-015, V411-016, V411-020 | Connect optional hypothesis research to ordinary HTTP checks and reports |
+| [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V411-015 | Allow nonblocking analyst review for automated HTTP Audits |
+| [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V411-010 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
 
 ### Evaluations (`evals`)
@@ -144,8 +139,8 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V40-003](v40-003-agent-instruction-eval-decision.yml) | feature | P1 | V40-002 | Evaluate instruction candidates and record evidence-based adoption decisions |
-| [V411-019](v411-019-pentest-target-fixtures-and-proof-scorers.yml) | chore | P1 | — | Build paired pentest fixtures and independent proof scorers |
-| [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate pentest quality against a frozen repeated-sample baseline |
+| [V411-019](v411-019-pentest-target-fixtures-and-proof-scorers.yml) | chore | P1 | — | Build small paired HTTP targets and independent result oracles |
+| [V411-021](v411-021-pentest-frozen-live-quality-evaluation.yml) | chore | P2 | V411-020 | Evaluate HTTP investigation quality with frozen repeated comparisons |
 | [V417-008](v417-008-context-compaction-eval-harness.yml) | chore | P2 | V417-001, V417-003 | Build frozen context-compaction evaluation fixtures and an opt-in harness |
 | [V417-010](v417-010-context-compaction-live-evaluation.yml) | chore | P2 | V417-008, V417-009 | Measure compaction and reasoning choices with repeated frozen live experiments |
 
@@ -153,19 +148,19 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V411-013](v411-013-pentest-sandbox-integration.yml) | feature | P1 | V411-006 | Integrate bounded sandbox investigations and tool installation |
+| [V411-013](v411-013-pentest-sandbox-integration.yml) | feature | P1 | V411-015 | Compose the existing networked sandbox into HTTP investigations |
 
 ### Web UI (`ui`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017 | Build the autonomous HTTP pentest setup and evidence journey |
+| [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017, V411-010 | Build the ordinary HTTP Audit setup and evidence UI journey |
 
 ### Public API and wire contracts (`api-contracts`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-010, V411-011, V411-012, V411-016, V411-006 | Expose pentest drafts progress surfaces and proof through API and CLI |
+| [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V411-010 | Expose HTTP engagement setup and results through existing API and CLI |
 
 ### Quality, CI and process (`quality`)
 
@@ -173,7 +168,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
-| [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-006, V411-007, V411-008, V411-009, V411-010, V411-011, V411-012, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the first HTTP API pentest delivery through real processes |
+| [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-007, V411-010, V411-011, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the composed ordinary HTTP pentest through real processes |
 | [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
@@ -208,12 +203,12 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 7 | 22 | 25 | 9 | 23 |
+| HTTP and Caido tools (`http-tools`) | 5 | 22 | 25 | 9 | 24 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 9 | 9 | 18 |
-| Findings tools and collections (`findings`) | 4 | 17 | 8 | 8 | 13 |
+| Findings tools and collections (`findings`) | 4 | 16 | 9 | 8 | 13 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 34 | 11 | 54 |
-| Audits (`audits`) | 26 | 67 | 82 | 34 | 118 |
+| Audits (`audits`) | 23 | 67 | 82 | 34 | 118 |
 | Evaluations (`evals`) | 7 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 66 | 14 | 59 |

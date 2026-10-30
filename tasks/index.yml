@@ -9,13 +9,23 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
-    User direction on 2026-10-24: deliver V410 to V414 in parallel lanes and
-    merge each finished task into main. Sitemap lane: V410-010, then V410-001,
-    V410-002, V410-003/004/005, V410-006, V410-007 and V410-008; V413-001 starts
-    after V410-010 lands. Pentest lane: V414-015 before V411-001, then V411-002
-    up to V411-009, V411-013 and V411-014; V411-012 and everything after it wait
-    for completion of V62-005, V62-006 and V62-007, now pending after the
-    explicit user request. The V414 follow-ups run in groups that share code (secrets and
+    Pentest delivery revised by the user on 2026-10-30: V422-002 and V422-003
+    are completed on main; preserve their recorded implementation and verification.
+    Next V411-007 connects actual HTTP evidence, V411-019 supplies small
+    independent fixtures and V411-015 demonstrates a
+    runnable ordinary HTTP Audit before later context/UI integrations. Keep
+    the base HTTP path independent of browser, callback, scanners and V64.
+    V411-020 accepts the composed slice after its revised prerequisites, and
+    V411-021 separately evaluates live quality. V411-006/008/009/012 and
+    V412-002 are archived historical designs and cannot be prerequisites of
+    active delivery. V422-003 delivered Nuclei integration with local HTTP authority;
+    V412-005 is the remaining ffuf integration. No action journal, global HTTP quota,
+    automatic login, separate preflight API or proof/recipe framework is
+    scheduled by the remaining tasks. This replaces the 2026-10-24 pentest
+    execution order, without starting implementation in this planning change.
+    Unrelated delivery directions retained from 2026-10-24: the sitemap lane
+    proceeds through V410-006/007 and optional V410-008 after its completed
+    foundations. The V414 follow-ups run in groups that share code (secrets and
     telemetry; Evals; Planner session and store error classes; SQL read bounds;
     OpenAPI rules and byte bounds; Audit read model; Server lifecycle; Runtime;
     finding fence) and close through V414-027. This is delivery order, not an
@@ -142,19 +152,19 @@ milestones:
     outcome: Managed browser observations update the shared Project sitemap through the same safe reducer and allocation-bound context.
   - id: autonomous-http-pentest-2026-10
     exit_task: V411-020
-    outcome: HTTP/API pentest Audits provide controlled transport, isolated identities, bounded discovery, fresh-session proof replay and retained reports through a passing deterministic process gate; generic round prerequisites must be completed first.
+    outcome: An early ordinary HTTP Workflow demonstrates scoped requests, explicit supplied credentials and actual selected evidence. The composed HTTP slice adds bounded discovery/context, nonblocking review and truthful ordinary reports/API/UI through a deterministic process gate, using allocation-local HTTP limits without journal, recipe or proof prerequisites.
   - id: autonomous-pentest-quality-2026-10
     exit_task: V411-021
     outcome: A frozen repeated-sample experiment records independent pentest quality results against equal-input baselines without conflating protocol conformance with model quality.
   - id: autonomous-pentest-browser-2026-10
     exit_task: V412-003
-    outcome: Optional browser programs provide isolated managed execution, closed login/replay recipes and actual execution-marker proof through their independent conformance gate.
+    outcome: Optional browser investigation uses isolated supplied-credential contexts, demonstrated allocation-local network enforcement, shared sitemap observations and ordinary retained results; absent, busy and failed capability remain distinct through an independent real-browser gate.
   - id: autonomous-pentest-callback-2026-10
     exit_task: V412-004
-    outcome: Trusted Interactsh integration reuses the pinned adapter and allocation lifecycle, publishes safe action-bound observations with sticky destructive-poll gaps, and promotes SSRF proof only with independent target attribution, including sandbox-spoofing and late-arrival gates.
+    outcome: Optional Interactsh investigation reuses the existing adapter, allocation lifecycle and Artifact publisher, retaining callback observations and destructive-poll gaps without a target-action journal or automatic SSRF proof; Worker/sandbox spoofability and late arrivals remain explicit limitations.
   - id: controlled-pentest-scanners-2026-10
     exit_task: V412-005
-    outcome: The pinned ffuf adapter passes an actual-engine controlled-transport gate; unsupported native scanners remain outside its claimed guarantees.
+    outcome: Nuclei first uses the exact allocation-local HTTP authority under V422-003; the later pinned ffuf integration reuses that concrete mechanism where compatible. Actual-engine gates prove scope, explicit credentials, optional local limits and cleanup; unsupported paths are rejected without Server request permits.
   - id: sql-review-2026-10
     exit_task: V409-013
     outcome: Retained SQL-review defects are fixed with real-store regressions, behavior-preserving improvements are verified, and unsupported or declined claims have evidence-backed decisions that preserve the owning contracts.

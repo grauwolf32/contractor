@@ -1,142 +1,113 @@
 schema_version: '1.0'
 id: V411-011
-title: Expose safe live Project findings to allocated pentesters
+title: Read live Project findings through allocation-authorized existing mechanisms
 milestone: autonomous-http-pentest-2026-10
 epic: findings
 kind: feature
 priority: P1
 status: pending
 depends_on:
-- V411-002
+- V422-002
 - V397-004
+- V411-015
 languages:
 - go
 - python
 - json
-goal: Give a Worker bounded read-only access to findings in its owning Project and exact authorized evidence without
-  changing existing immutable collection readers.
+goal: A selected HTTP Worker can read bounded current Project findings and explicitly selected exact evidence
+  as investigation context.
 context:
-  authority: User requested a complete implementation task plan for the reviewed proposals on 2026-10-24; this record
-    authorizes no implementation during planning.
-  proposal: docs/proposals/0033-autonomous-pentest-audits.md
-  proposal_sections:
-  - Sections 3 and 7.3; Project findings read acceptance gates
+  authority: 'User direction on 2026-10-30: replan stalled pentest tasks against the selected V422 contracts
+    and archive obsolete work. This edit changes the plan only; it does not start implementation.'
   specification:
   - docs/spec/findings/findings.md
   - docs/spec/artifacts/artifact-store.md
-  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/audits/audits.md
   - docs/spec/execution/control-plane.md
-  - docs/spec/tools/toolsets.md
-  existing_boundaries: >-
-    V62-005/006/007 are pending after the explicit 2026-10-24 user request.
-    Only completed declared dependencies permit this task to start. Generic
-    V62 work and V64 research retain their own task scopes; V61 MCP and
-    V62-008 analysis-chain work remain deferred.
-  code_owners:
-  - internal/findingintake
-  - internal/auditservice
-  - internal/httpapi/privateartifacts
-  - internal/artifacts
-  - runtime/src/contractor_runtime/toolsets
+  - docs/spec/configuration/agent-templates.md
+  replanned: '2026-10-30: replaces the earlier scope and acceptance in this task. Proposal 0033 is historical
+    design wherever it conflicts with current normative contracts and this reviewed delivery scope.'
+  boundary: Finding services own finding semantics. ArtifactStore owns content access/forks; trusted allocation
+    context owns Project authority. No pentest-specific evidence store.
 scope:
   in:
-  - Register list_project_findings and read_project_finding through a separate explicit Project-bound reader selection.
-  - Derive Project identity from trusted allocation/Run context and reuse existing finding/correlation/review records.
-  - Filter source-derived previews and embedded documents before blackbox disclosure; materialize exact allowed
-    evidence into the consumer Run.
-  - Test cross-Project isolation, current revisions, live pagination, source deletion and cancellation of materialization.
+  - Add explicit read-only list/read tools over existing finding/correlation/review services, deriving
+    Project identity from trusted Run/allocation context.
+  - Reuse and narrowly extend ordinary Artifact allocation grants and exact evidence materialization rather
+    than create a parallel file transport.
+  - Preserve the current engagement source-access boundary for finding text/embedded files; do not copy
+    the removed sitemap source-mode projection into the shared map.
+  - Select the reader in an actual HTTP Workflow and cover all keyset pages, exact selected revisions
+    and foreign Project denial.
   out:
-  - Finding mutation, confirmation, merging, deletion or automatic coverage credit.
-  - SARIF/export redesign, a second finding database or a dependency on V397-006 through V397-009.
+  - Finding mutation/review/deletion, automatic coverage credit, a second finding database or proof-dependency
+    registry.
+  - Reintroducing source-mode filtering of shared sitemap metadata.
 requirements:
 - id: R1
-  text: Reuse LIM-FND-26 default 20/max 100 and LIM-FND-29 256 KiB rather than copying independent page constants.
+  text: Use existing finding page/byte bounds and return exact current revisions; live pages do not claim
+    a frozen snapshot.
 - id: R2
-  text: Live keyset cursors bind Project and filters. Each result names its exact revision; pages are not claimed
-    to be one immutable snapshot.
+  text: Unknown source provenance is not permission to disclose source-bearing finding content to blackbox
+    consumers; explicit owner-selected inputs retain their existing authority.
 - id: R3
-  text: Source-mode checks apply before metadata, notes and evidence exposure; unknown or mixed provenance cannot
-    be labelled safe by the model.
-- id: R4
-  text: Resolve selected evidence through existing ownership/retention checks and exact forks, preserving original-to-consumer
-    refs; foreign identities return safe not-found.
-- id: R5
-  text: Reads grant no review or mutation authority and no holds by themselves. Accepted proof dependencies acquire
-    existing retention before acceptance.
+  text: Reading adds no hold or review authority. Exact selected evidence uses existing forks/holds only
+    when a real consumer retains it.
 failure_outcomes:
-- operation: Finding list/read and evidence materialization
-  permanent: Invalid filters fail with classified invalid-input errors; foreign refs are safe not-found and missing
-    retained evidence is explicitly unavailable.
-  retryable: Bound transient store conflicts through existing 503/Retry-After policy; never hide them as empty findings.
-  ambiguous: Reconcile exact materialization/fork identity on lost acknowledgement; never select a newer revision.
-  cancelled: Join pending evidence fetch/fork work before allocation release; fenced allocations cannot publish.
-  timeout: Reader and materialization operations obey finite tool/allocation deadlines, separately from target request
-    budgets.
+- operation: Read live Project findings through allocation-authorized existing mechanisms
+  permanent: Reject invalid, unauthorized or unsupported input through the owning existing classified
+    error; a missing exact dependency stays unavailable without a latest-ref substitution.
+  retryable: Use only existing bounded storage/publication retries under the original operation identity
+    and deadline. HTTP retry is exclusively HTP-R139; no possibly sent request or failed engagement item
+    is automatically repeated.
+  ambiguous: Reconcile ordinary Artifact, Run or Audit receipts where publication may have committed.
+    Never send target traffic to reconstruct a missing acknowledgement.
+  cancelled: Existing allocation/Run ownership cancels and joins all work before release and secret cleanup;
+    no special transport-stop proof or background controller is added.
+  timeout: Use the ordinary Audit, Run and operation deadlines. No separate cumulative clock, post-deadline
+    target work or new default HTTP quota.
 cardinality:
-- collection: Project findings and selected evidence
-  expected: Several pages of findings from multiple Runs/Audits.
-  maximum: 20 default/100 maximum items and 256 KiB metadata per page; existing evidence/package ceilings.
-  bound: Use indexed keyset reads; do not hydrate every evidence blob or rescan all Project findings for a page.
+- collection: Live findings and selected evidence
+  expected: Several pages of Project findings; a few explicitly selected evidence members
+  bound: Reuse LIM-FND-26/29 pagination and byte bounds; batch exact metadata without scanning unrelated
+    Run artifacts.
 lifecycle:
-- entity: Prepared read view and consumer evidence
-  delete: Allocation release drops ephemeral reader state; existing Run/Audit/Project deletion owns durable refs.
-  cascade: Run-scoped materialized refs purge normally; accepted proof holds survive permitted source Run deletion.
-  retention: Retain only explicitly selected proof dependencies; mere reading creates no new Project-wide hold.
+- entity: Existing Run/Audit artifacts and allocation-owned state
+  delete: Existing drained Run/Audit/Project deletion and Artifact retention rules remain authoritative.
+  retention: Only explicitly selected exact evidence/context uses existing holds. A read or metadata reference
+    creates no new hold, table or lifetime.
 acceptance_criteria:
 - id: A1
-  given: Multiple Runs/Audits contribute findings to one Project.
-  when: An explicitly selected Worker lists and reads them.
-  then: It sees bounded current metadata with exact revisions and usable authorized consumer refs.
+  text: A Workflow reads more than 100 Project findings across all pages and identifies current exact
+    revisions.
 - id: A2
-  given: Foreign Project IDs/receipts and source-derived embedded content.
-  when: A blackbox reader attempts list/read/materialization.
-  then: Foreign data is not exposed and source content is filtered before any model-visible response.
+  text: Foreign Projects, unauthorized embedded source and inaccessible evidence remain unavailable before
+    model exposure.
 - id: A3
-  given: More than 100 findings and concurrent updates.
-  when: All keyset pages are read.
-  then: No first-page-only truncation occurs and the API truthfully identifies live revisions without claiming snapshot
-    consistency.
-- id: A4
-  given: Source deletion, missing evidence and a lost fork response.
-  when: The reader materializes a selected dependency.
-  then: It returns an exact retained copy or explicit unavailable outcome and never a latest-binding substitute.
-- id: A5
-  given: A reader-only allocation is cancelled while materializing evidence.
-  when: Release completes.
-  then: No work outlives release and no finding state, analyst decision or coverage is changed.
+  text: Selected evidence materializes through ordinary Artifact ownership/retention and survives only
+    according to those rules; cancellation joins work and changes no finding/review state.
 tests:
-- command: go test -tags=integration -count=1 ./internal/findingintake ./internal/auditservice ./internal/artifacts
-    ./internal/httpapi/privateartifacts
+- command: go test -count=1 ./internal/findingintake/... ./internal/auditservice/... ./internal/artifacts/...
+    ./internal/httpapi/privateartifacts/...
   covers:
   - A1
   - A2
   - A3
-  - A4
-  - A5
-- command: cd runtime && uv run --locked pytest -W error tests/test_findings_reader_toolset.py tests/test_security_findings_toolset.py
+- command: make test-runtime test-wire-cross-language test-findings-e2e
   covers:
   - A1
   - A2
-  - A5
-- command: make test-findings-e2e test-wire-cross-language
-  covers:
-  - A1
-  - A2
-  - A4
-  - A5
+  - A3
 - command: make lint
   covers:
   - A1
   - A2
   - A3
-  - A4
-  - A5
 test_prerequisites:
-- Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set for every store-backed test; unavailable configured
-  infrastructure must fail, not skip.
-- Run complete suites of each touched package. Fixtures live in testdata, never the live configs tree; shipped configuration
-  uses its dedicated validation command.
-verification_requirements:
-- Map every acceptance criterion to executed cases; selected zero-test filters and mandatory skips fail verification.
-- Update owning numbered specifications, limits/errors/lifecycle registries and shared schemas/fixtures in the implementation
-  change; planning supplies no implementation commit or successful verification evidence.
+- Run complete suites of touched packages. Store behavior uses disposable PostgreSQL; an explicitly configured
+  unreachable database fails rather than skips. Mandatory process selections must execute at least one
+  test with no unexpected skips.
+- Unit/config tests use testdata fixtures; validate the shipped catalog separately. These commands are
+  future implementation acceptance, not claimed results of this planning change.
+demonstration: A Workflow reads more than 100 Project findings across all pages and identifies current
+  exact revisions.

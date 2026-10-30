@@ -5,7 +5,7 @@ milestone: autonomous-pentest-browser-2026-10
 epic: http-tools
 kind: feature
 priority: P2
-status: pending
+status: archived
 depends_on:
 - V412-001
 - V411-009
@@ -124,3 +124,19 @@ tests:
   - A2
   - A3
   - A4
+
+archive:
+  date: '2026-10-30'
+  previous_status: pending
+  authority: User requested rewriting stalled pentest work and archiving tasks requiring removed functionality;
+    planning only, on a separate branch.
+  reason: Automatic browser login/refresh and frozen browser replay recipes extend the removed HTTP recipe/action-ledger
+    subsystem. Managed browser investigation can ship using supplied credentials and ordinary evidence
+    without this DSL or proof promotion.
+  superseded_by:
+  - V412-001
+  - V412-003
+  reactivation_condition: Explicit user direction and a new reviewed scope with a concrete production
+    caller. Completion of historical dependencies does not reactivate this task.
+  evidence: Original scope, acceptance criteria and test commands below/above are historical design, not
+    implementation evidence or requirements for active work.

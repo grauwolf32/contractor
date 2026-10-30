@@ -40,7 +40,7 @@ context:
   boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
     proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64
     work.
-  proposal_integration: Proposal 0033 managed browser adapter supplied by V412-001 is the required browser execution
+  proposal_integration: The allocation-owned managed browser adapter supplied by V412-001 is the required browser execution
     owner; this task only feeds its trusted network events into the sitemap.
   code:
   - runtime/src/contractor_runtime/toolsets/common
@@ -49,6 +49,10 @@ context:
   - runtime/tests
   - tests/e2e
   - make/toolsets.mk
+  replanned: >-
+    2026-10-30: use the current allocation authority from V422-002/V412-001.
+    Archived browser/action recipes are not dependencies. Automatic map
+    collection stays best effort and adds no Run/report completeness state.
 scope:
   in:
   - Subscribe at managed BrowserContext scope to request, response and failure events, including new tabs in the
@@ -62,7 +66,8 @@ scope:
   - Provide an optional selected capability, local browser fixtures and a registered process gate while leaving
     HTTP/OpenAPI Workflows independent.
   out:
-  - Browser execution/identity policy or action DSL implementation owned by V412-001 and proposal 0033.
+  - Browser execution/credential/network policy belongs to V412-001; no browser
+    action DSL, login recipe or proof authority is added.
   - DOM extraction, journey graphs, screenshots as trusted proof, browser replay or a universal crawler framework.
   - Automatic capture of arbitrary sandbox scripts that do not use the helper/structured export or selected Caido
     import.
@@ -84,8 +89,10 @@ requirements:
   text: Use common pending/batch/member/summary/evidence/publication bounds. A failed navigation/request is not
     a received HTTP response and a response event does not imply complete retained body evidence.
 - id: R5
-  text: Reading flushes the caller collector; cancellation/context close and allocation release join event/publisher
-    work and retain explicit incomplete source state if pending metadata is lost.
+  text: Flush through the existing bounded best-effort collector; context close,
+    cancellation and release join event handlers and publishers. Lost pending
+    automatic metadata is technical diagnostics only, without a new Run/report
+    collection-completeness state.
 - id: R6
   text: Optional browser absence yields a source-specific gap and never becomes a prerequisite of the first-slice
     HTTP/OpenAPI catalog; busy capacity is handled by the browser execution owner, not labelled absence here.
@@ -107,7 +114,8 @@ failure_outcomes:
   ambiguous: Replay accepted mutation receipts even after revision eviction without republishing or rerunning browser
     actions; exact evicted bytes remain unavailable.
   cancelled: Fenced allocation rejects late writes; cleanup joins every publisher.
-  timeout: Drain expiry records incomplete collection and performs joined cleanup; no publisher outlives release.
+  timeout: Drain expiry records technical diagnostics and performs joined cleanup;
+    no publisher outlives release or changes the browser/Run outcome.
 cardinality:
 - collection: Browser contexts, pages and network events
   expected: A few managed identities/tabs and coalesced request batches
@@ -122,7 +130,7 @@ lifecycle:
 - entity: Managed BrowserContext collector
   delete: Browser context owner closes and joins collector handlers before context/allocation release.
   cascade: Transient network buffers disappear with the context; committed shared metadata persists.
-  retention: Selected safe proof/input context needs real holds before acceptance, atomically against eviction;
+  retention: Selected exact input/evidence context needs real holds before acceptance, atomically against eviction;
     metadata refs/receipts alone do not pin history. Browser traces and raw traffic are not archived implicitly.
 acceptance_criteria:
 - id: A1

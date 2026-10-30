@@ -5,7 +5,7 @@ milestone: autonomous-http-pentest-2026-10
 epic: http-tools
 kind: feature
 priority: P1
-status: pending
+status: archived
 depends_on:
 - V411-005
 - V411-007
@@ -194,3 +194,20 @@ verification_requirements:
 - Update the owning normative specification, shared limits/errors/lifecycle registries and public/private
   contracts in the same change. Preserve existing contract ownership; do not add backward-compatibility
   readers or edit generated clients manually.
+
+archive:
+  date: '2026-10-30'
+  previous_status: pending
+  authority: User requested rewriting stalled pentest work and archiving tasks requiring removed functionality;
+    planning only, on a separate branch.
+  reason: This frozen recipe/predicate executor requires the removed action permits, stateful-action machinery
+    and automatic authentication/session generations. The current HTTP program uses model-selected tools
+    and ordinary Audit evidence; a separate proof DSL is not a delivery prerequisite.
+  superseded_by:
+  - V411-007
+  - V411-015
+  - V411-019
+  reactivation_condition: Explicit user direction and a new reviewed scope with a concrete production
+    caller. Completion of historical dependencies does not reactivate this task.
+  evidence: Original scope, acceptance criteria and test commands below/above are historical design, not
+    implementation evidence or requirements for active work.

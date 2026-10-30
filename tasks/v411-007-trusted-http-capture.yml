@@ -1,186 +1,126 @@
 schema_version: '1.0'
 id: V411-007
-title: Expose safe HTTP evidence only through authenticated capture receipts
+title: Retain actual engagement HTTP exchanges through ordinary Audit evidence
 milestone: autonomous-http-pentest-2026-10
 epic: findings
-kind: feature
+kind: defect
 priority: P1
 status: pending
 depends_on:
-- V411-004
-- V411-005
-- V411-006
+- V422-002
+- V421-001
 languages:
 - go
 - python
 - json
 - sql
-goal: Let native pentest HTTP tools return useful safe observations and retain exact evidence whose
-  provenance comes from the managed transport and allocation authority rather than model-authored
-  JSON.
+goal: An engagement HTTP check can select its actual invocation-owned exchange as ordinary Audit evidence,
+  with truthful attempt provenance and no separate trusted-proof channel.
+introduced_by: V411-027
 context:
-  authority: User request on 2026-10-24 to decompose the updated proposals into implementation tasks.
-    This record authorizes no implementation during planning and does not reactivate deferred work.
-  proposal:
-  - docs/proposals/0033-autonomous-pentest-audits.md#10-trusted-evidence-proof-and-retention
-  - docs/proposals/0033-autonomous-pentest-audits.md#101-redaction-and-public-projections
-  - docs/proposals/0033-autonomous-pentest-audits.md#102-result-dimensions
+  authority: 'User direction on 2026-10-30: replan stalled pentest tasks against the selected V422 contracts
+    and archive obsolete work. This edit changes the plan only; it does not start implementation.'
   specification:
-  - docs/spec/findings/findings.md#FND-R15
-  - docs/spec/findings/findings.md#FND-R56
-  - docs/spec/audits/execution.md#AUX-R44
-  - docs/spec/audits/execution.md#AUX-R45
-  - docs/spec/audits/execution.md#AUX-R48
+  - docs/spec/tools/http-caido.md
+  - docs/spec/audits/worker-completion.md
+  - docs/spec/audits/review-and-reports.md
   - docs/spec/artifacts/artifact-store.md
-  code:
-  - runtime/src/contractor_runtime/toolsets/http/capture.py
-  - runtime/src/contractor_runtime/toolsets/common
-  - internal/findingintake
-  - internal/auditimport
-  - internal/auditstore
-  - internal/httpapi/privateartifacts
-  - internal/contracts
-  - api/v1alpha1
+  - docs/spec/audits/execution.md
+  replanned: '2026-10-30: replaces the earlier scope and acceptance in this task. Proposal 0033 is historical
+    design wherever it conflicts with current normative contracts and this reviewed delivery scope.'
+  boundary: Runtime owns actual HTTP attempt interpretation/capture. Existing Audit result selection,
+    importer and ArtifactStore own accepted evidence and retention; Server has no request journal.
+  finding: runtime/src/contractor_runtime/toolsets/http/controlled.py:167 builds one capture after sending
+    from tool arguments, while the transport may redirect/retry and the common Audit evidence contract
+    requires actual attempt provenance. Revalidate and fix this path with the common capture mechanism.
+  siblings: Controlled and standalone HTTP capture, selected finding and audit-results evidence, redirects/retries,
+    failed/truncated responses, common timestamp/deployment attribution, retained result importer and
+    source Run deletion.
+  provenance: git blame attributes reconstructed capture creation to V411-027, commit 27af751d90648be6630e181d6e4d158c91a9c471;
+    reuse the ordinary evidence contract implemented by V421-001.
 scope:
   in:
-  - Implement strict pentest-http-exchange and safe projection records with action/attempt, baseline/policy,
-    identity/session, tool/invocation and exact body/ref/digest provenance.
-  - Wire model-visible pentest-http@1 request/inspection tools to V411-003/V411-005 and a safe capture
-    pipeline; no model-facing raw-response fallback.
-  - Register exact captures through authenticated allocation authority, validate action/fence/capability
-    and retain immutable idempotent receipts with Audit dependency/evidence accounting.
+  - Inspect ControlledHTTPSession and HTTPTransport capture ownership, including redirects, failures and
+    truncation; reuse the common capture builder and recent buffer.
+  - Capture request-attempt facts at the Runtime transport boundary instead of reconstructing them from
+    model arguments after the response. Preserve exact observed attempts, first-attempt time and available
+    pinned deployment attribution.
+  - Connect the existing http_request_id selection to audit-results@2, the ordinary encoder/importer and
+    retained evidence readers; add real producer/store/process regressions.
   out:
-  - Predicate evaluation/observation is V411-009 and full proof/replay collection is V411-012; no
-    model success boolean or ordinary artifact upload becomes trusted proof.
-  - Do not change ordinary http-tools@1 credential capture semantics, introduce complete HTTP archival/proposal0036,
-    an independent evidence bucket or another finding store.
+  - New pentest exchange/observation schemas, capture-registration APIs, durable action receipts, proof
+    promotion, recipe execution or full traffic archival.
+  - Changing standalone HTTP semantics or treating an interactive response as independently reproduced
+    vulnerability proof.
 requirements:
 - id: R1
-  text: Native HTTP tools and actual adapter capture callbacks are production callers. Schemas, redaction
-    enums and limits use common fixtures registered for Go/Python; add only additive public/private
-    metadata and regenerate clients.
+  text: Reuse AWC-R126 and REV-R8; model-selected IDs cannot author observation facts. A summary alone
+    remains an attributed assertion.
 - id: R2
-  text: Before any model/event/artifact/log exposure redact Authorization, Cookie/Set-Cookie, bound
-    API keys/passwords/login fields/session tokens and tainted derived values. Retain only declared
-    non-secret regions/markers; unknown/binary-sensitive regions are omitted with safe descriptors.
+  text: Apply existing selected-exchange credential handling to actual sent attempts; never persist injected
+    secrets or invent omitted response bytes, request tags or timestamps.
 - id: R3
-  text: Capture registration binds exact artifact/ref/digest to action/attempt/invocation, baseline
-    and active allocation fence. Same identity/different bytes conflicts; forged IDs or identical
-    ordinary JSON lack trusted receipt authority.
-- id: R4
-  text: Safe projection digests identify retained bytes, never raw-secret hashes. Raw buffers are
-    bounded memory-only; redaction/truncation/missing evidence remains explicit and cannot produce
-    a fabricated complete response.
-- id: R5
-  text: Retain each exact revision once through existing Audit links/holds within V411-006 budget;
-    publish dependencies before downstream acceptance. Capture/evidence publication failures never
-    resend the target action.
-- id: R6
-  text: Keep pentest-proof@1 promotion unavailable until predicate/replay integration; this task can
-    advertise only the completed managed HTTP/safe-capture capabilities.
+  text: An evicted/foreign/unavailable capture rejects selection before collector mutation; the Worker
+    may submit an explicit gap. Evidence publication never sends another target request.
 failure_outcomes:
-- operation: Project a capture and expose a native tool result
-  permanent: Unsafe/unsupported decoder regions are omitted with stable reason codes; malformed requested
-    projection is permanent 400 contract validation. Target transport failure has no fabricated status/body.
-  retryable: Projection itself is deterministic and not retried through target I/O; ordinary local
-    processing failures are tool/infrastructure errors, not evidence of target success.
-  ambiguous: Reuse bounded safe captured bytes if still owned; if lost after crash mark evidence unavailable
-    rather than repeating traffic.
-  cancelled: Adapter joins projection tasks before release and erases raw/secret buffers.
-  timeout: Processing/capture deadlines are bounded by allocation lifetime and evidence limits, separate
-    from network timeout.
-- operation: Upload/register/retain exact capture
-  permanent: Forged/fenced refs fail safe 404/409 pentest_action_fenced; changed registration bytes
-    use 409 pentest_action_conflict; budget rejection is permanent pentest_budget_exhausted/invalid-result.
-  retryable: Only bounded 503 storage_transaction_conflict and existing classified Artifact upload
-    retries within deadline.
-  ambiguous: Reconcile original exact Artifact mutation identity and action/attempt receipt; never
-    append duplicate evidence or charge twice.
-  cancelled: Join publishers; stale allocations cannot register late evidence and cancellation retains
-    already accepted receipts.
-  timeout: Upload/registration timeout leaves explicit unavailable/unknown evidence until receipt
-    reconciliation; no target retry.
+- operation: Retain actual engagement HTTP exchanges through ordinary Audit evidence
+  permanent: Reject invalid, unauthorized or unsupported input through the owning existing classified
+    error; a missing exact dependency stays unavailable without a latest-ref substitution.
+  retryable: Use only existing bounded storage/publication retries under the original operation identity
+    and deadline. HTTP retry is exclusively HTP-R139; no possibly sent request or failed engagement item
+    is automatically repeated.
+  ambiguous: Reconcile ordinary Artifact, Run or Audit receipts where publication may have committed.
+    Never send target traffic to reconstruct a missing acknowledgement.
+  cancelled: Existing allocation/Run ownership cancels and joins all work before release and secret cleanup;
+    no special transport-stop proof or background controller is added.
+  timeout: Use the ordinary Audit, Run and operation deadlines. No separate cumulative clock, post-deadline
+    target work or new default HTTP quota.
 cardinality:
-- collection: HTTP evidence within an Audit
-  expected: 256 KiB body per exchange, 32 MiB retained
-  maximum: 1 MiB retained response/request body per exchange, 64 MiB Audit evidence and existing tighter
-    package bounds
-  bound: Stream/project before storage; at most 64 headers/32 KiB, 8192-byte URL and bounded omitted-field
-    descriptors; never assemble all exchanges to list one page.
-- collection: Capture receipts and source Run dependencies
-  expected: One exact receipt per action/attempt
-  maximum: Up to the 50000 accounted requests and 100000 intents of the parent Audit
-  bound: Register one capture with bounded exact refs; retain in existing bounded transaction batches
-    and paginate metadata at at most 100 rows/256 KiB.
+- collection: Recent exchanges and selected evidence
+  expected: A few requests and selected members per check
+  bound: Existing recent-buffer, attempt, result-member/package and Audit evidence limits; no scan of
+    all traffic or Run artifacts.
 lifecycle:
-- entity: Capture artifact/receipt and retained Audit evidence link
-  delete: Source Run deletion follows existing collection disposition; accepted Audit proof dependencies
-    are protected before acceptance.
-  cascade: Allocation release wipes raw buffers; Audit deletion/purge removes owned links through
-    existing Artifact lifecycle after drain.
-  retention: Safe exact evidence and immutable provenance remain with Audit; credential holds release
-    independently at execution terminal state.
+- entity: Existing Run/Audit artifacts and allocation-owned state
+  delete: Existing drained Run/Audit/Project deletion and Artifact retention rules remain authoritative.
+  retention: Only explicitly selected exact evidence/context uses existing holds. A read or metadata reference
+    creates no new hold, table or lifetime.
 acceptance_criteria:
 - id: A1
-  given: A/B/anonymous managed HTTP exchanges
-  when: Native pentest tools capture and register evidence
-  then: Returned safe projections, exact refs and authenticated receipts bind the same real action/session
-    and survive allowed source Run deletion.
+  text: A real engagement request, including a redirect, is selected by the actual result tool and retains
+    matching request/attempt/response facts and observation attribution through PostgreSQL collection.
 - id: A2
-  given: Secret canaries in headers, query/body, cookies and derived token names
-  when: Tool outputs, errors, events, logs and stored artifacts are inspected
-  then: No secret or raw-secret hash leaks; only bounded non-secret regions/markers persist.
+  text: Foreign/evicted IDs, missing observations and truncated or failed exchanges cannot produce fabricated
+    complete evidence or a conclusive result requiring unavailable HTTP observation.
 - id: A3
-  given: Forged ordinary JSON, mismatched digest, stale fence or duplicate receipt
-  when: Server receives capture registration
-  then: Only authorized exact bytes are accepted; exact replay is idempotent and changed bytes fail
-    permanently.
-- id: A4
-  given: Truncated/redacted/binary/missing response regions
-  when: Evidence is projected
-  then: Completeness/omission is truthful and downstream consumers cannot treat unavailable operands
-    as a successful observation.
-- id: A5
-  given: Upload loss, restart, budget exhaustion or cancellation
-  when: Registration/retention reconciles on real PostgreSQL and Runtime processes
-  then: No target resend, double charge or late publication occurs; accepted receipts remain protected
-    and missing evidence is explicit.
+  text: Duplicate result publication, cancellation and permitted source Run deletion preserve ordinary
+    receipt, retention and cleanup behavior without new proof authority.
 tests:
-- command: go test -tags=integration -count=1 ./internal/findingintake ./internal/auditdomain ./internal/auditimport
-    ./internal/auditservice ./internal/auditstore/... ./internal/artifacts ./internal/httpapi/privateartifacts
-    ./internal/contracts/...
+- command: go test -count=1 ./internal/auditimport/... ./internal/auditservice/... ./internal/artifacts/...
   covers:
   - A1
   - A2
   - A3
-  - A4
-  - A5
-- command: make test-runtime test-wire-cross-language test-pentest-http-process verify-public-api
+- command: make test-runtime test-wire-cross-language
   covers:
   - A1
   - A2
   - A3
-  - A4
-  - A5
+- command: make test-engagement-http-process test-audit-completion-e2e
+  covers:
+  - A1
+  - A2
+  - A3
 - command: make lint
   covers:
   - A1
   - A2
   - A3
-  - A4
-  - A5
 test_prerequisites:
-- Disposable PostgreSQL able to create/drop isolated schemas; never print its connection secret.
-- Repository-pinned Go and locked Runtime dependencies; run commands from the repository root unless
-  the command explicitly changes directory.
-verification_requirements:
-- Use testdata fixtures, never the live configs tree outside the documented e2e/eval exceptions. Keep
-  model choice unchanged; deterministic targets need no real Gateway.
-- Run every touched package in full, including any new package introduced by this task. Database tests
-  require disposable PostgreSQL through CONTRACTOR_TEST_DATABASE_URL; an unreachable configured database
-  fails and skipped mandatory cases do not pass.
-- New shared fixtures must be registered with their Go/Python/schema readers in the existing shared-fixture
-  gate. New process selections must fail when zero tests match and be reachable from release-verify.
-- Update the owning normative specification, shared limits/errors/lifecycle registries and public/private
-  contracts in the same change. Preserve existing contract ownership; do not add backward-compatibility
-  readers or edit generated clients manually.
+- Run complete suites of touched packages. Store behavior uses disposable PostgreSQL; an explicitly configured
+  unreachable database fails rather than skips. Mandatory process selections must execute at least one
+  test with no unexpected skips.
+- Unit/config tests use testdata fixtures; validate the shipped catalog separately. These commands are
+  future implementation acceptance, not claimed results of this planning change.
+demonstration: A real engagement request, including a redirect, is selected by the actual result tool
+  and retains matching request/attempt/response facts and observation attribution through PostgreSQL collection.
