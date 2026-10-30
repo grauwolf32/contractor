@@ -6720,53 +6720,6 @@
         }
       }
     },
-    "AuditPreflightResponse": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "auditId",
-        "revision",
-        "baselineInputDigest",
-        "compatibleCapabilities",
-        "missingCapabilities",
-        "reasons",
-        "serverCompatible"
-      ],
-      "properties": {
-        "auditId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "revision": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 18446744073709552000
-        },
-        "baselineInputDigest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
-        },
-        "serverCompatible": { "type": "boolean" },
-        "compatibleCapabilities": {
-          "type": "array",
-          "maxItems": 256,
-          "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
-        },
-        "missingCapabilities": {
-          "type": "array",
-          "maxItems": 256,
-          "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
-        },
-        "reasons": {
-          "type": "array",
-          "maxItems": 15,
-          "uniqueItems": true,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCompatibilityReason"
-          }
-        }
-      }
-    },
     "AuditStartResponse": {
       "type": "object",
       "additionalProperties": false,

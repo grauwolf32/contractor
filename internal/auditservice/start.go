@@ -204,7 +204,7 @@ func stageStartInTransaction(ctx context.Context, tx pgx.Tx, params StartParams)
 	if err != nil {
 		return startPlan{}, err
 	}
-	_, _, engagementReasons := engagementCompatibility(profile, policy, engagement)
+	engagementReasons := engagementCompatibility(profile, policy, engagement)
 	if len(engagementReasons) > 0 {
 		return startPlan{}, unsupported(engagementReasons)
 	}
@@ -311,7 +311,7 @@ func (s *Service) startInTransaction(
 	if err := validateEngagementCredentials(ctx, tx, credentials.RuntimeCredentialUser{UserID: params.OwnerID, Operations: params.OperationsPrincipal}, engagement); err != nil {
 		return StartedAudit{}, err
 	}
-	_, _, engagementReasons := engagementCompatibility(profile, plan.activeChecks, engagement)
+	engagementReasons := engagementCompatibility(profile, plan.activeChecks, engagement)
 	if len(engagementReasons) > 0 {
 		return StartedAudit{}, unsupported(engagementReasons)
 	}
@@ -624,8 +624,8 @@ func readAndVerifyInputs(
 	return result, nil
 }
 
-// verifyInputMetadata shares bounded, payload-free admission between preflight
-// and start. Exact immutable revisions are checked before any payload read.
+// verifyInputMetadata checks bounded, payload-free admission before Start reads
+// the payloads of exact immutable revisions.
 func verifyInputMetadata(ctx context.Context, store artifacts.ScopedStore, profile auditprofile.ResolvedAuditProfile, selection DraftSelection) ([]string, error) {
 	names := make([]string, 0, len(selection.Inputs))
 	for name, selected := range selection.Inputs {

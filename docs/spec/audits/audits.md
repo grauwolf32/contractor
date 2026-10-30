@@ -1913,29 +1913,17 @@ sitemap/findings context never changes baseline authority. Shared sitemap
 metadata is available in either mode under SMT-R14 and grants no source-file
 access; Project findings context follows its separate access contract.
 
-**AUD-R246.** `POST /v1/audits/{auditId}/preflight` validates one authenticated
-owner's draft revision under a required strong `If-Match`. It accepts no body
-or query parameters and needs no idempotency key: it is a bounded read with
-its own LIM-AUD-35 deadline, no target/DNS/login requests, decrypted secrets,
-authorization or durable holds. The result carries `auditId`, `revision`,
-`baselineInputDigest`, `compatibleCapabilities`, `missingCapabilities`,
-`serverCompatible` and bounded compatibility `reasons`. It uses `no-store`
-and the checked revision's ETag. Start repeats authoritative validation and
-never treats a previous preflight as authorization (FAIL-AUD-12). Missing or
-foreign entities return safe 404, a stale revision 412, and a non-draft state
-409. Malformed request syntax uses 400; document failures retain their existing
-validation classification; storage conflicts are retryable 503. Compatibility
-reasons additionally include `pentest_capability_unsupported`,
-`pentest_source_closure_unsupported` and `pentest_active_checks_unsupported`.
-
-**AUD-R247.** Start extends its immutable baseline with the versioned
-`contractor.audit.pentest-baseline.v1` engagement snapshot: the exact artifact,
+**AUD-R247.** Start authoritatively validates the engagement, credentials and
+compatibility. Unsupported engagements return `audit_profile_unsupported` with
+`pentest_capability_unsupported`, `pentest_source_closure_unsupported` or
+`pentest_active_checks_unsupported` reasons. Start extends its immutable baseline
+with the versioned `contractor.audit.pentest-baseline.v1` engagement snapshot:
+the exact artifact,
 validated document, policy digest, trusted authorizing owner, authorization
 time. The snapshot contains no executable authentication recipes. Exact nested
-input refs and credential revisions are
-
-validated and held through existing Artifact links and credential dispatch
-holds in the start transaction. Profile, Workflow, Skill and RuntimeConfig
+input refs and credential revisions are validated and held through existing
+Artifact links and credential dispatch holds in the start transaction.
+Profile, Workflow, Skill and RuntimeConfig
 pins retain their existing ownership. Project policy or draft changes racing
 staging fail before commit; replay uses the original start key and keeps its
 original pins. Mutable labels and aliases cannot replace them. Project

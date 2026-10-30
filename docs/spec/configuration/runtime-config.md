@@ -996,7 +996,7 @@ private allocation settings (CTL-R168). Basic fields retain their UTF-8 secret
 grammar, Bearer uses the HTTP field-value grammar, and cookie fields retain the
 same cookie grammar on this wire. The private consumer checks the exact selected
 kind and preserves immutable credential references independently of RuntimeConfig
-labels. Public preflight never decrypts credentials. Within an assigned Audit, the explicit
+labels. Audit start validates credential metadata without decrypting it. Within an assigned Audit, the explicit
 model tool may return credential values under HTP-R143; public credential reads
 remain metadata-only. Memory-only session handling
 belongs to [HTP-R140–146](../tools/http-caido.md). Existing automatic-login

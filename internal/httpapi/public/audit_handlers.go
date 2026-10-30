@@ -32,7 +32,6 @@ type AuditManagement interface {
 	Standards(context.Context, string) ([]auditstandards.PackageProjection, error)
 	Standard(context.Context, string, auditstandards.Reference) (auditstandards.PackageProjection, error)
 	CreateDraft(context.Context, auditservice.CreateDraftParams) (auditstore.Audit, bool, error)
-	Preflight(context.Context, auditservice.PreflightParams) (auditservice.PreflightResult, error)
 	Start(context.Context, auditservice.StartParams) (auditservice.StartedAudit, error)
 	Pause(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)
 	Resume(context.Context, auditservice.MutationParams) (auditservice.MutationResult, error)

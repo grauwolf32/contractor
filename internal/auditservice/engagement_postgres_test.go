@@ -148,7 +148,7 @@ func (f *engagementFixture) credential(t *testing.T, id, owner string) {
 	}
 }
 
-func TestEngagementPreflightStartPinsAndReplay(t *testing.T) {
+func TestEngagementStartPinsAndReplay(t *testing.T) {
 	f := newEngagementFixture(t)
 	var requests atomic.Int32
 	target := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requests.Add(1) }))
@@ -159,24 +159,6 @@ func TestEngagementPreflightStartPinsAndReplay(t *testing.T) {
 	draft, err := f.create(t, "engagement-valid", document)
 	if err != nil {
 		t.Fatal(err)
-	}
-	var beforeWrites int
-	if err = f.pool.QueryRow(f.ctx, `SELECT count(*) FROM artifact_binding_revisions`).Scan(&beforeWrites); err != nil {
-		t.Fatal(err)
-	}
-	preflight, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision})
-	if err != nil || !preflight.ServerCompatible || len(preflight.MissingCapabilities) != 0 || !slices.Equal(preflight.CompatibleCapabilities, []string{pentestcontract.Capability}) {
-		t.Fatalf("preflight=%+v err=%v", preflight, err)
-	}
-	var afterWrites int
-	if err = f.pool.QueryRow(f.ctx, `SELECT count(*) FROM artifact_binding_revisions`).Scan(&afterWrites); err != nil {
-		t.Fatal(err)
-	}
-	if beforeWrites != afterWrites || requests.Load() != 0 {
-		t.Fatalf("preflight wrote artifacts or contacted target: writes %d/%d requests %d", beforeWrites, afterWrites, requests.Load())
-	}
-	if holds, err := hookstore.NewCredentialHolds(f.pool).ListHeldAuditIDsByRuntimeCredential(f.ctx, "target-one", 10); err != nil || len(holds) != 0 {
-		t.Fatalf("preflight retained credential: %v %v", holds, err)
 	}
 	started, err := f.service.Start(f.ctx, f.start(draft))
 	if err != nil {
@@ -211,15 +193,12 @@ func TestEngagementPreflightStartPinsAndReplay(t *testing.T) {
 	if err != nil || !replay.Replayed || string(replay.Audit.BaselineSnapshot) != string(started.Audit.BaselineSnapshot) {
 		t.Fatalf("start replay changed authority: %v", err)
 	}
-	if _, err = f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: started.Audit.Revision}); !errors.Is(err, auditstore.ErrConflict) {
-		t.Fatalf("active preflight=%v", err)
-	}
 	if requests.Load() != 0 || strings.Contains(string(started.Audit.BaselineSnapshot), "private-target-secret-canary") {
 		t.Fatal("start executed target work or exposed secret")
 	}
 }
 
-func TestEngagementPreflightAcceptsSharedSitemapKnowledge(t *testing.T) {
+func TestEngagementStartAcceptsSharedSitemapKnowledge(t *testing.T) {
 	f := newEngagementFixtureWithEdits(t, func(worker string) string {
 		return strings.Replace(worker, "  toolsets:\n", "  sitemap:\n    version: sitemap-access@1\n    collectObservations: false\n  toolsets:\n    - ref: sitemap@1\n      tools: [list_sitemap_entries]\n", 1)
 	}, nil)
@@ -227,16 +206,12 @@ func TestEngagementPreflightAcceptsSharedSitemapKnowledge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	preflight, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision})
-	if err != nil || !preflight.ServerCompatible {
-		t.Fatalf("shared sitemap preflight=%+v err=%v", preflight, err)
-	}
 	if _, err := f.service.Start(f.ctx, f.start(draft)); err != nil {
 		t.Fatalf("shared sitemap prevents blackbox Audit start: %v", err)
 	}
 }
 
-func TestEngagementPreflightStaleOwnershipAndStartRevalidation(t *testing.T) {
+func TestEngagementStartValidatesOwnershipRevisionAndCredentials(t *testing.T) {
 	f := newEngagementFixture(t)
 	document := f.document("http://127.0.0.1")
 	f.credential(t, "target-stale", f.project.OwnerID)
@@ -250,18 +225,17 @@ func TestEngagementPreflightStaleOwnershipAndStartRevalidation(t *testing.T) {
 		rev   uint64
 		want  error
 	}{{"foreign", draft.Revision, auditstore.ErrNotFound}, {f.project.OwnerID, draft.Revision + 1, auditstore.ErrPrecondition}} {
-		if _, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: test.owner, AuditID: draft.AuditID, ExpectedRevision: test.rev}); !errors.Is(err, test.want) {
+		params := f.start(draft)
+		params.OwnerID, params.ExpectedRevision = test.owner, test.rev
+		if _, err := f.service.Start(f.ctx, params); !errors.Is(err, test.want) {
 			t.Fatalf("owner/revision check=%v want %v", err, test.want)
 		}
-	}
-	if _, err = f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision}); err != nil {
-		t.Fatal(err)
 	}
 	if _, err = f.credentials.Delete(f.ctx, "target-stale", f.project.OwnerID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.service.Start(f.ctx, f.start(draft)); !errors.Is(err, credentials.ErrRuntimeCredentialNotFound) {
-		t.Fatalf("start trusted stale preflight: %v", err)
+		t.Fatalf("start accepted deleted credential: %v", err)
 	}
 	current, err := f.service.Get(f.ctx, f.project.OwnerID, draft.AuditID)
 	if err != nil || current.State != auditstore.AuditDraft || current.BaselineSnapshot != nil {
@@ -277,12 +251,10 @@ func TestEngagementUnsupportedCapabilitiesAndBlackboxClosures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision})
-	if err != nil || result.ServerCompatible || !slices.Contains(result.MissingCapabilities, "pentest-http@1") {
-		t.Fatalf("unimplemented transport advertised: %+v %v", result, err)
-	}
-	if _, err = f.service.Start(f.ctx, f.start(draft)); !errors.Is(err, ErrUnsupported) {
-		t.Fatalf("unsupported start=%v", err)
+	_, err = f.service.Start(f.ctx, f.start(draft))
+	var unsupported *UnsupportedError
+	if !errors.As(err, &unsupported) || !slices.Equal(unsupported.Reasons, []CompatibilityReason{ReasonPentestCapabilityUnsupported}) {
+		t.Fatalf("unsupported start lost compatibility reasons: %v", err)
 	}
 	profile, err := f.service.profiles.AuditProfile("test-checklist@1")
 	if err != nil {
@@ -320,7 +292,7 @@ func TestEngagementUnsupportedCapabilitiesAndBlackboxClosures(t *testing.T) {
 			copyProfile := profile.Clone()
 			copySelection := *selected
 			test.mutate(&copyProfile, &copySelection)
-			_, _, reasons := engagementCompatibility(copyProfile, contracts.ActiveChecksAutomatic, &copySelection)
+			reasons := engagementCompatibility(copyProfile, contracts.ActiveChecksAutomatic, &copySelection)
 			if !slices.Contains(reasons, ReasonPentestSourceClosureUnsupported) {
 				t.Fatalf("source closure allowed: %v", reasons)
 			}
@@ -346,9 +318,6 @@ func TestEngagementSourceAssistedRetainsExactInputsAndPurgeReleasesHolds(t *test
 	draft, err := f.create(t, "engagement-source", document)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if result, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision}); err != nil || !result.ServerCompatible {
-		t.Fatalf("source preflight=%+v %v", result, err)
 	}
 	if _, err = f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("replacement source")}, source.Ref.Revision); err != nil {
 		t.Fatal(err)
@@ -475,16 +444,14 @@ func TestEngagementPersistedClosureStopsBeforeExposure(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			preflight, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision})
-			if err != nil || preflight.ServerCompatible || !slices.Contains(preflight.Reasons, test.want) {
-				t.Fatalf("persisted closure: %+v %v", preflight, err)
-			}
 			var before int
 			if err = f.pool.QueryRow(f.ctx, `SELECT count(*) FROM artifact_binding_revisions`).Scan(&before); err != nil {
 				t.Fatal(err)
 			}
-			if _, err = f.service.Start(f.ctx, f.start(draft)); !errors.Is(err, ErrUnsupported) {
-				t.Fatalf("source/target closure reached materialization: %v", err)
+			_, err = f.service.Start(f.ctx, f.start(draft))
+			var unsupported *UnsupportedError
+			if !errors.As(err, &unsupported) || !slices.Contains(unsupported.Reasons, test.want) {
+				t.Fatalf("source/target closure reached materialization or lost reason %s: %v", test.want, err)
 			}
 			var after int
 			if err = f.pool.QueryRow(f.ctx, `SELECT count(*) FROM artifact_binding_revisions`).Scan(&after); err != nil {
@@ -501,7 +468,7 @@ func TestEngagementPersistedClosureStopsBeforeExposure(t *testing.T) {
 	}
 }
 
-func TestEngagementPreflightRepeatsProjectPolicyAndSuppressesDefaultIdentity(t *testing.T) {
+func TestEngagementStartValidatesProjectPolicyAndSuppressesDefaultIdentity(t *testing.T) {
 	f := newEngagementFixture(t)
 	material, err := credentials.NewHTTPOriginBearerCredential("private-default-target-canary")
 	if err != nil {
@@ -518,21 +485,15 @@ func TestEngagementPreflightRepeatsProjectPolicyAndSuppressesDefaultIdentity(t *
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision})
-	if err != nil || !before.ServerCompatible {
-		t.Fatalf("preflight before policy: %+v %v", before, err)
-	}
 	prohibited := contracts.ActiveChecksProhibited
 	project, err = projectstore.NewPostgresStore(f.pool).Update(f.ctx, projectstore.UpdateParams{ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision, Name: project.Name, HTTPTarget: project.HTTPTarget, ActiveChecks: &prohibited})
 	if err != nil {
 		t.Fatal(err)
 	}
-	after, err := f.service.Preflight(f.ctx, PreflightParams{OwnerID: project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision})
-	if err != nil || after.ServerCompatible || before.BaselineInputDigest == after.BaselineInputDigest {
-		t.Fatalf("stale policy preflight: %+v %v", after, err)
-	}
-	if _, err = f.service.Start(f.ctx, f.start(draft)); !errors.Is(err, ErrUnsupported) {
-		t.Fatalf("start trusted preflight policy: %v", err)
+	_, err = f.service.Start(f.ctx, f.start(draft))
+	var unsupported *UnsupportedError
+	if !errors.As(err, &unsupported) || !slices.Contains(unsupported.Reasons, ReasonPentestActiveChecksUnsupported) {
+		t.Fatalf("start ignored current Project policy or lost reason: %v", err)
 	}
 	automatic := contracts.ActiveChecksAutomatic
 	if _, err = projectstore.NewPostgresStore(f.pool).Update(f.ctx, projectstore.UpdateParams{ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision, Name: project.Name, HTTPTarget: project.HTTPTarget, ActiveChecks: &automatic}); err != nil {
@@ -593,9 +554,6 @@ func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
 		t.Fatalf("oversized engagement materialized: reads=%d err=%v", probe.reads, err)
 	}
 	draft := storedRulepackDraft(t, f.ctx, f.service, profile, f.project.ProjectID, f.project.OwnerID, "stored-oversized-engagement", selection.Inputs)
-	if _, err = f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision}); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("oversized preflight=%v", err)
-	}
 	if _, err = f.service.Start(f.ctx, f.start(draft)); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("oversized start=%v", err)
 	}
@@ -620,7 +578,7 @@ func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
 	badChecklist := f.checklist.Clone()
 	badChecklist.Digest = serviceTestDigest("different-checklist")
 	draft = storedRulepackDraft(t, f.ctx, f.service, profile, f.project.ProjectID, f.project.OwnerID, "stored-bad-checklist", map[string]contracts.ExactArtifact{"engagement": metadata.Exact(), "checklist": badChecklist})
-	if _, err = f.service.Preflight(f.ctx, PreflightParams{OwnerID: f.project.OwnerID, AuditID: draft.AuditID, ExpectedRevision: draft.Revision}); !errors.Is(err, ErrInvalid) {
-		t.Fatalf("preflight skipped ordinary exact input metadata: %v", err)
+	if _, err = f.service.Start(f.ctx, f.start(draft)); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("start skipped ordinary exact input metadata: %v", err)
 	}
 }

@@ -6,47 +6,19 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditbaseline"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/auditstore/querystore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
-	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
-	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/jackc/pgx/v5"
 )
-
-// This is a bounded local validation deadline, independent of target budgets.
-const preflightTimeout = 30 * time.Second
-
-// PreflightParams identifies the authenticated owner and requested draft revision.
-type PreflightParams struct {
-	OwnerID             string
-	AuditID             string
-	ExpectedRevision    uint64
-	OperationsPrincipal bool
-}
-
-// PreflightResult describes local metadata compatibility, never target reachability.
-type PreflightResult struct {
-	AuditID                string                `json:"auditId"`
-	Revision               uint64                `json:"revision"`
-	BaselineInputDigest    string                `json:"baselineInputDigest"`
-	CompatibleCapabilities []string              `json:"compatibleCapabilities"`
-	MissingCapabilities    []string              `json:"missingCapabilities"`
-	Reasons                []CompatibilityReason `json:"reasons"`
-	ServerCompatible       bool                  `json:"serverCompatible"`
-}
 
 type engagementSelection struct {
 	artifact           auditstore.ExactArtifact
@@ -54,83 +26,6 @@ type engagementSelection struct {
 	inputs             []auditstore.ArtifactLink
 	credentialIDs      []string
 	unclassifiedInputs bool
-}
-
-// Preflight revalidates one owner-visible draft without mutating it or invoking
-// DNS, target transport, credential decryption or a Runtime.
-func (s *Service) Preflight(ctx context.Context, params PreflightParams) (PreflightResult, error) {
-	ownerID, auditID, expectedRevision := params.OwnerID, params.AuditID, params.ExpectedRevision
-	if ownerID == "" || auditID == "" || expectedRevision == 0 {
-		return PreflightResult{}, ErrInvalid
-	}
-	ctx, cancel := context.WithTimeout(ctx, preflightTimeout)
-	defer cancel()
-	var result PreflightResult
-	err := persistencepostgres.InTx(ctx, s.pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}, func(tx pgx.Tx) error {
-		audit, err := querystore.New(tx).Get(ctx, ownerID, auditID)
-		if err != nil {
-			return err
-		}
-		if audit.Revision != expectedRevision {
-			return auditstore.ErrPrecondition
-		}
-		if audit.State != auditstore.AuditDraft {
-			return auditstore.ErrConflict
-		}
-		project, err := projectstore.NewPostgresStore(tx).Get(ctx, ownerID, audit.ProjectID)
-		if err != nil {
-			return err
-		}
-		if project.Lifecycle != projectstore.LifecycleActive {
-			return projectstore.ErrDeleting
-		}
-		profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(audit.ProfileSnapshot)
-		if err != nil {
-			return err
-		}
-		selection, err := DecodeDraftSelection(audit.InputSelection)
-		if err != nil {
-			return err
-		}
-		artifactService := artifacts.NewService(artifacts.NewPostgresRepository(tx))
-		store, err := artifactService.Project(audit.ProjectID)
-		if err != nil {
-			return err
-		}
-		if _, err := verifyInputMetadata(ctx, store, profile, selection); err != nil {
-			return err
-		}
-		selected, err := readEngagement(ctx, artifactService, audit.ProjectID, profile, selection)
-		if err != nil {
-			return err
-		}
-		if selected == nil {
-			return fmt.Errorf("%w: Audit has no declared pentest engagement", ErrInvalid)
-		}
-		if err := validateEngagementCredentials(ctx, tx, credentials.RuntimeCredentialUser{UserID: ownerID, Operations: params.OperationsPrincipal}, selected); err != nil {
-			return err
-		}
-		compatible, missing, reasons := engagementCompatibility(profile, project.ActiveChecks, selected)
-		profileCompatibility := ProfileCompatibility(profile)
-		reasonSet := map[CompatibilityReason]struct{}{}
-		for _, reason := range append(reasons, profileCompatibility.Reasons...) {
-			reasonSet[reason] = struct{}{}
-		}
-		reasons = orderedReasons(reasonSet)
-		digest, err := contentdigest.CanonicalJSON(struct {
-			Profile      string                       `json:"profile"`
-			Selection    DraftSelection               `json:"selection"`
-			Engagement   auditstore.ExactArtifact     `json:"engagement"`
-			Inputs       []auditstore.ArtifactLink    `json:"inputs"`
-			ActiveChecks contracts.ActiveChecksPolicy `json:"activeChecks"`
-		}{audit.Profile.Digest, selection, selected.artifact, selected.inputs, project.ActiveChecks})
-		if err != nil {
-			return err
-		}
-		result = PreflightResult{AuditID: auditID, Revision: audit.Revision, BaselineInputDigest: digest, CompatibleCapabilities: compatible, MissingCapabilities: missing, Reasons: reasons, ServerCompatible: len(reasons) == 0}
-		return nil
-	})
-	return result, err
 }
 
 func readEngagement(ctx context.Context, service *artifacts.Service, projectID string, profile auditprofile.ResolvedAuditProfile, selection DraftSelection) (*engagementSelection, error) {
@@ -241,22 +136,19 @@ func validateEngagementCredentials(ctx context.Context, tx pgx.Tx, user credenti
 	return nil
 }
 
-func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeChecks contracts.ActiveChecksPolicy, selected *engagementSelection) ([]string, []string, []CompatibilityReason) {
-	compatible, missing, reasons := []string{}, []string{}, []CompatibilityReason{}
+func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeChecks contracts.ActiveChecksPolicy, selected *engagementSelection) []CompatibilityReason {
+	reasons := []CompatibilityReason{}
 	if selected == nil {
-		return compatible, missing, reasons
+		return reasons
 	}
+	missing := false
 	for _, capability := range append(slices.Clone(selected.document.Policy.RequiredCapabilities), selected.document.Policy.OptionalCapabilities...) {
 		// Controlled identity preflight has a placed Runtime consumer. Other
 		// execution capabilities still need their own production consumer.
-		if capability == pentestcontract.Capability || capability == string(runtimesettings.RuntimeAdapterPentestTargetHTTP) {
-			compatible = append(compatible, capability)
-		} else {
-			missing = append(missing, capability)
+		if capability != pentestcontract.Capability && capability != string(runtimesettings.RuntimeAdapterPentestTargetHTTP) {
+			missing = true
 		}
 	}
-	sort.Strings(compatible)
-	sort.Strings(missing)
 	network := false
 	for _, binding := range profile.Workflows {
 		for _, stage := range binding.Workflow.Stages {
@@ -269,7 +161,7 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 			}
 		}
 	}
-	if len(missing) > 0 || network {
+	if missing || network {
 		reasons = append(reasons, ReasonPentestCapabilityUnsupported)
 	}
 	if activeChecks != contracts.ActiveChecksAutomatic || profile.Interaction.ActiveChecks != contracts.ActiveChecksAutomatic {
@@ -278,7 +170,7 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 	if selected.document.AccessMode == "blackbox" && !blackboxClosure(profile, selected) {
 		reasons = append(reasons, ReasonPentestSourceClosureUnsupported)
 	}
-	return compatible, missing, reasons
+	return reasons
 }
 
 func blackboxClosure(profile auditprofile.ResolvedAuditProfile, selected *engagementSelection) bool {
