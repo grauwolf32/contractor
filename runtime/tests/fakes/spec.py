@@ -11,6 +11,7 @@ from contractor_runtime.contracts import (
     AllocationSpec,
     ArtifactRef,
     ModelPolicyRef,
+    NoWorkerContextManagement,
     ResolvedAgentTemplate,
     ResolvedInstructions,
     ResolvedModelPolicy,
@@ -18,8 +19,10 @@ from contractor_runtime.contracts import (
     ResolvedSkill,
     RuntimeSettings,
     SandboxProfileRef,
+    TerminalWorkerContextManagement,
     ToolsetRef,
     ToolsetSelection,
+    WorkerContextManagement,
     WorkerRuntimeRef,
     WorkerSessionMode,
     WorkerSummarizerConfig,
@@ -38,6 +41,7 @@ def allocation_spec(
     tools: list[str] | None = None,
     skills: list[ResolvedSkill] | None = None,
     summarizer: bool = False,
+    context_management: WorkerContextManagement | None = None,
 ) -> AllocationSpec:
     skills = skills or []
     instructions = "Use only the selected tools and return a strict result."
@@ -103,6 +107,12 @@ def allocation_spec(
         logicalAgentName="builder",
         namespace="builder",
         workerSessionMode=WorkerSessionMode.ISOLATED,
+        contextManagement=context_management
+        or (
+            TerminalWorkerContextManagement(strategy="terminal@1")
+            if summarizer
+            else NoWorkerContextManagement(strategy="none")
+        ),
         runMetadataLabels={},
         leaseExpiresAt=datetime.now(UTC) + timedelta(minutes=5),
         agentTemplate=template,

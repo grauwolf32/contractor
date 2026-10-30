@@ -1002,7 +1002,10 @@ cumulative trigger, and is invalid for a Planner or model-free Worker. Omission
 uses the template's summary policy unless a canonical deployment role default
 applies. Run and escalation overrides follow TPL-R79 and TPL-R80. Credential
 model authorization checks both effective main and summary policies. The
-AgentTemplate body and its digest remain unchanged.
+AgentTemplate body and its digest remain unchanged. A Workflow binding that
+selects `compact@1` replaces the template summarizer for that binding
+([WFL-R92](workflows.md)), so a `summarizerModelPolicy` selection for it is
+rejected ([WFL-R93](workflows.md)).
 
 **TPL-R113.** Run history and consumer projections expose the stored requested
 model aliases and exact policy refs/digests for main and explicitly resolved
@@ -1030,7 +1033,10 @@ positive `maxOutputTokens` below it, `maxModelCalls: 1` (one call per
 compaction) and a finite positive `maxTotalTokens`; it declares neither
 `maxToolCalls` nor `maxWorkerCalls`. Its own window may be smaller than the
 main Planner window. The main Planner's cumulative budgets stay authoritative
-for every compactor call (PLN-R127).
+for every compactor call (PLN-R127). The Worker compactor of a `compact@1`
+Agent binding follows the same rule ([WFL-R92](workflows.md)); there the
+owning Worker invocation's budgets stay authoritative
+([WRK-R186](../execution/worker.md)).
 
 ### Read endpoints
 

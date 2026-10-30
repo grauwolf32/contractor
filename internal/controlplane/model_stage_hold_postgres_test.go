@@ -53,8 +53,8 @@ func TestModelStageHoldPostgresGivesReleasedSharedAgentToWaitingModelStage(t *te
 			ModelFree: true,
 			Bindings: []BindingRequirement{{
 				LogicalAgentName: "scanner", Namespace: "scanner", AgentTemplate: scanTemplate,
-				WorkerSessionMode: contracts.WorkerSessionIsolated,
-				RuntimeSelection:  &resolved.ResolvedConsumerExecutionConfig{},
+				WorkerSessionMode: contracts.WorkerSessionIsolated, ContextManagement: contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyNone},
+				RuntimeSelection: &resolved.ResolvedConsumerExecutionConfig{},
 			}},
 		}
 	}

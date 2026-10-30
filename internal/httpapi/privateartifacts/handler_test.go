@@ -701,7 +701,7 @@ func newProductionGrantHandler(
 	}
 	binding := controlplane.BindingRequirement{
 		LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: template,
-		WorkerSessionMode: contracts.WorkerSessionIsolated,
+		WorkerSessionMode: contracts.WorkerSessionIsolated, ContextManagement: contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyNone},
 		ExecutionConfig: controlplane.AllocationExecutionConfig{
 			ModelPolicy: template.ModelPolicy.Ref, LLMGateway: gateway.Ref,
 		},

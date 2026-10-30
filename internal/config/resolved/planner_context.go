@@ -118,32 +118,6 @@ func PlannerCompactsContext(stage ResolvedStage) bool {
 	return stage.PlannerContextManagement != nil
 }
 
-// ValidatePlannerCompactorModelPolicy checks the tool-free compactor policy of
-// compact@1 (TPL-R118): an exact context window, one bounded response below
-// it, exactly one model call per compaction and a finite total, and no tool
-// or Worker budget.
-func ValidatePlannerCompactorModelPolicy(policy contracts.ResolvedModelPolicy) error {
-	if err := policy.Validate(); err != nil {
-		return err
-	}
-	if policy.ContextWindowTokens <= 0 {
-		return contracts.Invalidf("Planner compactor modelPolicy requires contextWindowTokens")
-	}
-	if policy.MaxOutputTokens <= 0 || policy.MaxOutputTokens >= policy.ContextWindowTokens {
-		return contracts.Invalidf("Planner compactor modelPolicy requires maxOutputTokens below contextWindowTokens")
-	}
-	if policy.MaxModelCalls != 1 {
-		return contracts.Invalidf("Planner compactor modelPolicy requires maxModelCalls 1")
-	}
-	if policy.MaxTotalTokens <= 0 {
-		return contracts.Invalidf("Planner compactor modelPolicy requires maxTotalTokens")
-	}
-	if policy.MaxToolCalls != 0 || policy.MaxWorkerCalls != 0 {
-		return contracts.Invalidf("Planner compactor modelPolicy must omit maxToolCalls and maxWorkerCalls")
-	}
-	return nil
-}
-
 // validatePlannerContextManagement checks a Stage's context-management
 // selection against its Planner and Planner model selection: compact@1
 // requires a modeled Streamline or Router Planner whose main ModelPolicy pins
@@ -173,7 +147,7 @@ func validatePlannerContextManagement(stage ResolvedStage) error {
 	if selection.CompactorModelPolicy == nil {
 		return fmt.Errorf("plannerContextManagement %s requires a compactor modelPolicy", PlannerContextCompact)
 	}
-	if err := ValidatePlannerCompactorModelPolicy(*selection.CompactorModelPolicy); err != nil {
+	if err := selection.CompactorModelPolicy.ValidateForCompactor(); err != nil {
 		return err
 	}
 	if strings.TrimSpace(selection.Origins.CompactorModelPolicy) == "" {

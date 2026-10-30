@@ -670,6 +670,7 @@ class CountingBudget:
         self.model_calls = 0
         self.tool_calls = 0
         self.usage: list[Any] = []
+        self.recorded_prompts: list[bool] = []
         self.summarize_checks = 0
         self.summarize = summarize
 
@@ -679,8 +680,9 @@ class CountingBudget:
     def before_tool_call(self) -> None:
         self.tool_calls += 1
 
-    def after_model_response(self, usage: Any) -> None:
+    def after_model_response(self, usage: Any, *, record_prompt: bool = True) -> None:
         self.usage.append(usage)
+        self.recorded_prompts.append(record_prompt)
 
     def should_summarize(self) -> bool:
         self.summarize_checks += 1
@@ -1155,6 +1157,8 @@ def test_spent_callbacks_settle_after_admission_deadline_without_new_charges() -
         assert checks == 3
         assert (budget.model_calls, budget.tool_calls) == (2, 1)
         assert len(budget.usage) == 2
+        # Finalizer usage is charged but never replaces the main prompt measurement.
+        assert budget.recorded_prompts == [True, False]
         assert all(span.end_calls == 1 and span.outcome == "succeeded" for span in sink.spans)
 
     asyncio.run(scenario())

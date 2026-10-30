@@ -88,8 +88,9 @@ func registerTerminalReleaseGrant(
 		Bindings: []controlplane.BindingRequirement{{
 			LogicalAgentName: "builder", Namespace: binding.Namespace,
 			WorkerSessionMode: stage.Session, AgentTemplate: binding.Template,
-			ResolvedSkills:  []contracts.ResolvedSkill{},
-			ExecutionConfig: allocationExecutionConfig(stage, "builder"),
+			ContextManagement: contracts.EffectiveContextManagement(binding.ContextManagement, binding.Template),
+			ResolvedSkills:    []contracts.ResolvedSkill{},
+			ExecutionConfig:   allocationExecutionConfig(stage, "builder"),
 		}},
 	})
 	if err != nil {

@@ -629,7 +629,8 @@ func (a *PlacementAllocator) resolveCandidateWithCache(
 		return runtimeconfig.ResolvedRuntimeConfig{}, err
 	}
 	var summarizerModelPolicy *contracts.ResolvedModelPolicy
-	if binding.AgentTemplate.Summarizer != nil {
+	// Only the terminal branch has a summarizer consumer (WRK-R184).
+	if binding.ContextManagement.Strategy == contracts.ContextStrategyTerminal {
 		policy := binding.AgentTemplate.Summarizer.ModelPolicy
 		summarizerModelPolicy = &policy
 	}
@@ -637,11 +638,17 @@ func (a *PlacementAllocator) resolveCandidateWithCache(
 		policy := binding.RuntimeSelection.SummarizerModelPolicy.Clone()
 		summarizerModelPolicy = &policy
 	}
+	var compactorModelPolicy *contracts.ResolvedModelPolicy
+	if binding.ContextManagement.IsCompact() {
+		policy := binding.ContextManagement.ModelPolicy.Clone()
+		compactorModelPolicy = &policy
+	}
 	return runtimeconfig.ResolveRuntimeConfig(runtimeconfig.ResolveRuntimeConfigInput{
 		ModelFree:   binding.AgentTemplate.IsToolWorker(),
 		ModelPolicy: binding.RuntimeSelection.ModelPolicy, SummarizerModelPolicy: summarizerModelPolicy,
-		Default:  defaultConfig,
-		Workflow: workflowPatch, RunLabels: runConfigs, RunOverride: runPatch,
+		CompactorModelPolicy: compactorModelPolicy,
+		Default:              defaultConfig,
+		Workflow:             workflowPatch, RunLabels: runConfigs, RunOverride: runPatch,
 		Escalation: escalationPatch, AgentLabels: agentConfigs,
 		Gateways: gateways, LLMCredentials: llmCredentials, RuntimeCredentials: runtimeCredentials,
 	})

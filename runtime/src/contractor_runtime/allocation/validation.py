@@ -7,10 +7,15 @@ from datetime import datetime
 
 from contractor_runtime.allocation.errors import AllocationError
 from contractor_runtime.capabilities import CapabilitySnapshot
-from contractor_runtime.contracts import AllocationSpec, normalize_run_metadata_labels
+from contractor_runtime.contracts import (
+    AllocationSpec,
+    CompactWorkerContextManagement,
+    normalize_run_metadata_labels,
+)
 from contractor_runtime.contracts.artifacts import PURPOSE_RESERVED_NAMESPACES
 from contractor_runtime.digests import (
     TemplateDigestMismatch,
+    verify_compaction_digests,
     verify_model_policy_digest,
     verify_template_digests,
 )
@@ -100,6 +105,8 @@ def validate_spec(
             verify_model_policy_digest(spec.model_policy)
         if spec.summarizer_model_policy is not None:
             verify_model_policy_digest(spec.summarizer_model_policy)
+        if isinstance(spec.context_management, CompactWorkerContextManagement):
+            verify_compaction_digests(spec.context_management)
     except TemplateDigestMismatch:
         raise AllocationError(
             "template_digest_mismatch",

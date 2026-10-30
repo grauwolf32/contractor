@@ -138,6 +138,7 @@ class ToolWorkerRuntime:
         if (
             context.model_policy is not None
             or context.summarizer is not None
+            or context.compaction is not None
             or context.project_workspace is not None
             or context.completion_contract is not None
             or context.resolved_skills

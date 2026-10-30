@@ -25,10 +25,13 @@ type BindingRequirement struct {
 	LogicalAgentName   string
 	Namespace          string
 	WorkerSessionMode  contracts.WorkerSessionMode
-	AgentTemplate      contracts.ResolvedAgentTemplate
-	ResolvedSkills     []contracts.ResolvedSkill
-	ExecutionConfig    AllocationExecutionConfig
-	Workspace          *contracts.AllocationWorkspaceSpec
+	// ContextManagement is the effective branch (WRK-R184), projected from
+	// the Workflow binding and its template.
+	ContextManagement contracts.WorkerContextManagement
+	AgentTemplate     contracts.ResolvedAgentTemplate
+	ResolvedSkills    []contracts.ResolvedSkill
+	ExecutionConfig   AllocationExecutionConfig
+	Workspace         *contracts.AllocationWorkspaceSpec
 	// RuntimeSelection is the immutable Workflow/Run/escalation selection.
 	// Candidate Agent labels are deliberately resolved later by placement.
 	RuntimeSelection *resolved.ResolvedConsumerExecutionConfig
@@ -136,6 +139,7 @@ type Reservation struct {
 	A2AURL                      string
 	AgentTemplate               contracts.ResolvedAgentTemplate
 	WorkerSessionMode           contracts.WorkerSessionMode
+	ContextManagement           contracts.WorkerContextManagement
 	ResolvedSkills              []contracts.ResolvedSkill
 	ExecutionConfig             AllocationExecutionConfig
 	Workspace                   *contracts.AllocationWorkspaceSpec

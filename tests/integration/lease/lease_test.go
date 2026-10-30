@@ -304,7 +304,7 @@ func reservationRequest(t *testing.T, runID, stageID string) controlplane.Reserv
 		RunID: runID, StageExecutionID: stageID,
 		Bindings: []controlplane.BindingRequirement{{
 			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: template,
-			WorkerSessionMode: contracts.WorkerSessionIsolated,
+			WorkerSessionMode: contracts.WorkerSessionIsolated, ContextManagement: contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyNone},
 			ExecutionConfig: controlplane.AllocationExecutionConfig{
 				ModelPolicy: template.ModelPolicy.Ref, LLMGateway: gateway.Ref,
 			},

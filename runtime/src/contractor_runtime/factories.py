@@ -22,6 +22,7 @@ from contractor_runtime.artifacts import ArtifactClient
 from contractor_runtime.contracts import (
     AgentStateSnapshot,
     AllocationWorkspaceExport,
+    CompactWorkerContextManagement,
     ResolvedModelPolicy,
     ResolvedSkill,
     RuntimeSettings,
@@ -119,6 +120,8 @@ class WorkerBuildContext:
     execution: ToolExecutionConfig | None = None
     template_ref: AgentTemplateRef | None = None
     summarizer: WorkerSummarizerConfig | None = None
+    # The compact@1 branch (WRK-R184); it excludes ``summarizer``.
+    compaction: CompactWorkerContextManagement | None = None
     completion_contract: WorkerCompletionContract | None = None
     adapter_handles: AdapterHandles = field(
         default=EMPTY_ADAPTER_HANDLES,
@@ -134,6 +137,8 @@ class WorkerBuildContext:
             isinstance(name, str) for name in self.sensitive_output_tools
         ):
             raise TypeError("sensitive_output_tools must be a frozenset of tool names")
+        if self.summarizer is not None and self.compaction is not None:
+            raise TypeError("a Worker has at most one context-management branch")
 
 
 class WorkerRuntimeFactory(Protocol):

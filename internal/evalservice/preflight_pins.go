@@ -55,6 +55,9 @@ func (p workflowPins) addStage(key string, stage resolved.ResolvedStage) {
 			"sandbox":   binding.Template.SandboxProfile,
 			"runtime":   binding.Template.Runtime,
 		}
-		p.models[agentKey] = binding.Template.Summarizer
+		p.models[agentKey] = map[string]any{
+			"summarizer":        binding.Template.Summarizer,
+			"contextManagement": binding.ContextManagement,
+		}
 	}
 }

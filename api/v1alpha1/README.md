@@ -199,6 +199,21 @@ verifies the instruction text digest and uses the text literally as the summary
 agent's instruction. Omission selects the built-in instruction. This
 character limit does not guarantee a 2,000-token upper bound.
 
+Every `AllocationSpec` carries a required `contextManagement` object, the one
+effective context branch of the Worker (WRK-R184): `{"strategy": "none"}`
+when the template has no summarizer, `{"strategy": "terminal@1"}` when it
+has one, or `compact@1` with every member explicit beside the strategy:
+the pinned tool-free compactor `modelPolicy` (exact ref, digest and body),
+`instructions` (`ref`, `digest`, `text`), a JSON boolean `includeReasoning`,
+`contextWindowRatio`, `keepRecentGroups` and `maxCompactions`. Other strategies
+carry no members. Both sides reject a branch that disagrees with the template
+summarizer, `compact@1` for a `tool@1` template, a `shared` session or Audit
+completion, and `summarizerModelPolicy` outside `terminal@1`. The compactor
+uses the allocation's Gateway route and credential, which the Server
+authorizes for the compactor model before placement (CTL-R154). The shared cases
+are `api/testdata/workflow-context-management-cases.json` and the
+`allocation-spec-compact*` fixtures.
+
 `AgentStateSnapshot.state.schemaVersion` is `2`: every current/completed invocation
 contains bounded invocation metrics and a closed summarizer phase/usage record.
 Prompt-token trigger tracking and workspace integrity digests stay internal to

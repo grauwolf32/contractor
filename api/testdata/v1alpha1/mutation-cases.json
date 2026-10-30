@@ -588,9 +588,168 @@
         "/report/worker/toolCalls/0/error"
       ]
     },
+    "allocation-spec-compact.json": {
+      "enum": [
+        "/agentTemplate/summarizer/modelPolicy/maxModelCalls",
+        "/apiVersion",
+        "/contextManagement/modelPolicy/maxModelCalls",
+        "/contextManagement/strategy",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/agentTemplate/summarizer/instructions/text",
+          "maxLength": 8000
+        },
+        {
+          "pointer": "/contextManagement/instructions/text",
+          "maxLength": 8000
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/agentTemplate/summarizer/instructions/text",
+          "maxLength": 8000,
+          "verdict": "accept"
+        },
+        {
+          "pointer": "/contextManagement/instructions/text",
+          "maxLength": 8000,
+          "verdict": "accept"
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/summarizer",
+        "/agentTemplate/summarizer/instructions",
+        "/agentTemplate/summarizer/modelPolicy",
+        "/agentTemplate/summarizer/modelPolicy/ref",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
+        "/contextManagement/instructions",
+        "/contextManagement/modelPolicy",
+        "/contextManagement/modelPolicy/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/summarizer",
+        "/agentTemplate/summarizer/instructions",
+        "/agentTemplate/summarizer/modelPolicy",
+        "/agentTemplate/summarizer/modelPolicy/ref",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
+        "/contextManagement/instructions",
+        "/contextManagement/modelPolicy",
+        "/contextManagement/modelPolicy/ref",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings"
+      ]
+    },
     "allocation-spec-engagement-metadata.json": {
       "enum": [
         "/apiVersion",
+        "/contextManagement/strategy",
         "/engagement/accessMode",
         "/engagement/policy/activeChecks",
         "/engagement/policy/requiredCapabilities/0",
@@ -715,6 +874,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/engagement",
         "/engagement/engagement",
         "/engagement/policy",
@@ -745,6 +905,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/engagement",
         "/engagement/engagement",
         "/engagement/policy",
@@ -771,6 +932,7 @@
         "/agentTemplate/skills/0/namespace",
         "/agentTemplate/skills/1/namespace",
         "/apiVersion",
+        "/contextManagement/strategy",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
@@ -901,6 +1063,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/skills/0",
         "/agentTemplate/skills/1",
+        "/contextManagement",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -932,6 +1095,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/skills/0",
         "/agentTemplate/skills/1",
+        "/contextManagement",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -957,6 +1121,7 @@
       "enum": [
         "/agentTemplate/summarizer/modelPolicy/maxModelCalls",
         "/apiVersion",
+        "/contextManagement/strategy",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
@@ -1044,6 +1209,7 @@
         "/agentTemplate/summarizer/modelPolicy/ref",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -1075,6 +1241,7 @@
         "/agentTemplate/summarizer/modelPolicy/ref",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -1096,6 +1263,7 @@
       "enum": [
         "/agentTemplate/summarizer/modelPolicy/maxModelCalls",
         "/apiVersion",
+        "/contextManagement/strategy",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
@@ -1173,6 +1341,7 @@
         "/agentTemplate/summarizer/modelPolicy/ref",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -1203,6 +1372,7 @@
         "/agentTemplate/summarizer/modelPolicy/ref",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -1224,6 +1394,7 @@
       "enum": [
         "/agentTemplate/summarizer/modelPolicy/maxModelCalls",
         "/apiVersion",
+        "/contextManagement/strategy",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
@@ -1302,6 +1473,7 @@
         "/agentTemplate/summarizer/modelPolicy/ref",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -1334,6 +1506,7 @@
         "/agentTemplate/summarizer/modelPolicy/ref",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -1360,6 +1533,7 @@
         "/agentTemplate/sandboxProfile/sandboxProfileId",
         "/agentTemplate/sandboxProfile/version",
         "/apiVersion",
+        "/contextManagement/strategy",
         "/workerSessionMode"
       ],
       "maxLength": [
@@ -1431,6 +1605,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/resolvedRuntimeConfigProvenance",
         "/resolvedRuntimeConfigProvenance/default",
         "/resolvedRuntimeConfigProvenance/default/config",
@@ -1448,6 +1623,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/resolvedRuntimeConfigProvenance",
         "/resolvedRuntimeConfigProvenance/default",
         "/resolvedRuntimeConfigProvenance/default/config",
@@ -1458,6 +1634,7 @@
     "allocation-spec.json": {
       "enum": [
         "/apiVersion",
+        "/contextManagement/strategy",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
@@ -1550,6 +1727,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -1577,6 +1755,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/modelPolicy",
         "/modelPolicy/ref",
         "/resolvedRuntimeConfigProvenance",
@@ -1950,6 +2129,7 @@
     "engagement-allocation-basic.json": {
       "enum": [
         "/apiVersion",
+        "/contextManagement/strategy",
         "/engagement/accessMode",
         "/engagement/http/adapter",
         "/engagement/http/identities/0/id",
@@ -2181,6 +2361,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/engagement",
         "/engagement/engagement",
         "/engagement/http",
@@ -2219,6 +2400,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/engagement",
         "/engagement/engagement",
         "/engagement/http",
@@ -2253,6 +2435,7 @@
     "engagement-allocation-cookies.json": {
       "enum": [
         "/apiVersion",
+        "/contextManagement/strategy",
         "/engagement/accessMode",
         "/engagement/http/adapter",
         "/engagement/http/identities/0/id",
@@ -2476,6 +2659,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/engagement",
         "/engagement/engagement",
         "/engagement/http",
@@ -2514,6 +2698,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/engagement",
         "/engagement/engagement",
         "/engagement/http",
@@ -2548,6 +2733,7 @@
     "engagement-allocation-preflight.json": {
       "enum": [
         "/apiVersion",
+        "/contextManagement/strategy",
         "/engagement/accessMode",
         "/engagement/http/adapter",
         "/engagement/http/identities/0/id",
@@ -2731,6 +2917,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/engagement",
         "/engagement/engagement",
         "/engagement/http",
@@ -2766,6 +2953,7 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/contextManagement",
         "/engagement",
         "/engagement/engagement",
         "/engagement/http",

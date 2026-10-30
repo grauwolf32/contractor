@@ -82,7 +82,8 @@ func TestAuditCompletionDirectPrepareRejectsUnsupportedBeforeHTTP(t *testing.T) 
 		t.Fatal(err)
 	}
 	binding := completionBinding(t)
-	reservation := Reservation{Grant: AllocationGrant{Namespace: binding.Namespace}, AgentTemplate: binding.AgentTemplate, CompletionContract: binding.CompletionContract}
+	reservation := Reservation{Grant: AllocationGrant{Namespace: binding.Namespace}, AgentTemplate: binding.AgentTemplate, CompletionContract: binding.CompletionContract,
+		ContextManagement: binding.ContextManagement}
 	if _, err := client.Prepare(context.Background(), reservation, runtimesettings.WorkerExecutionSettings{}); !errors.Is(err, ErrInvalidRequest) {
 		t.Fatalf("direct prepare: %v", err)
 	}

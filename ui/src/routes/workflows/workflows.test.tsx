@@ -74,6 +74,7 @@ const workflow: WorkflowResource = conforming("WorkflowResource", {
           },
           namespace: "builder",
           skills: [{ namespace: "skills", name: "openapi-analysis" }],
+          contextManagement: { strategy: "template@1" },
         },
       },
       executionConfig: { agents: { builder: workerConfig } },

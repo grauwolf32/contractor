@@ -9,6 +9,7 @@ import jcs
 
 from contractor_runtime.contracts import (
     API_VERSION,
+    CompactWorkerContextManagement,
     ResolvedAgentTemplate,
     ResolvedModelPolicy,
 )
@@ -40,6 +41,16 @@ def verify_template_digests(template: ResolvedAgentTemplate) -> None:
     template_digest = _agent_template_digest(template)
     if template_digest != template.ref.digest:
         raise TemplateDigestMismatch("resolved AgentTemplate digest does not match its body")
+
+
+def verify_compaction_digests(compaction: CompactWorkerContextManagement) -> None:
+    """Verifies the pinned compactor policy and instruction text (WFL-R92)."""
+    verify_model_policy_digest(compaction.model_policy)
+    instructions = compaction.instructions
+    if sha256_digest(instructions.text.encode("utf-8")) != instructions.digest:
+        raise TemplateDigestMismatch(
+            "resolved compaction instruction digest does not match its text"
+        )
 
 
 def verify_model_policy_digest(policy: ResolvedModelPolicy) -> None:

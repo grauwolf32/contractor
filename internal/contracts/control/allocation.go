@@ -105,6 +105,7 @@ type AllocationSpec struct {
 	LogicalAgentName                string                                          `json:"logicalAgentName" strictjson:"required"`
 	Namespace                       string                                          `json:"namespace" strictjson:"required"`
 	WorkerSessionMode               contracts.WorkerSessionMode                     `json:"workerSessionMode" strictjson:"required"`
+	ContextManagement               contracts.WorkerContextManagement               `json:"contextManagement" strictjson:"required"`
 	RunMetadataLabels               runlabels.RunMetadataLabels                     `json:"runMetadataLabels" strictjson:"required"`
 	LeaseExpiresAt                  time.Time                                       `json:"leaseExpiresAt" strictjson:"required"`
 	AgentTemplate                   contracts.ResolvedAgentTemplate                 `json:"agentTemplate" strictjson:"required"`
@@ -197,15 +198,20 @@ func (s AllocationSpec) Validate() error {
 			return err
 		}
 	}
+	if err := s.ContextManagement.ValidateAllocation(contracts.AllocationContext{
+		Template: s.AgentTemplate, SessionMode: s.WorkerSessionMode, CompletionContract: s.CompletionContract,
+		SummarizerModelPolicy: s.SummarizerModelPolicy, WorkerPolicy: s.ModelPolicy,
+	}); err != nil {
+		return err
+	}
 	if s.SummarizerModelPolicy != nil {
-		if s.AgentTemplate.Summarizer == nil {
-			return contracts.Invalidf("summarizerModelPolicy requires an enabled summarizer")
-		}
 		if err := s.SummarizerModelPolicy.ValidateForWorkerSummarizer(); err != nil {
 			return err
 		}
 	}
-	if s.AgentTemplate.Summarizer != nil {
+	// The compact@1 branch wholly replaces the template summarizer, so its
+	// terminal limits do not constrain the effective Worker policy.
+	if s.ContextManagement.Strategy == contracts.ContextStrategyTerminal {
 		if err := s.AgentTemplate.Summarizer.Validate(s.ModelPolicy); err != nil {
 			return err
 		}

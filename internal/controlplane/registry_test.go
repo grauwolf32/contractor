@@ -1315,7 +1315,9 @@ func testBinding(
 		LogicalAgentName:  logicalAgentName,
 		Namespace:         namespace,
 		WorkerSessionMode: contracts.WorkerSessionIsolated,
-		AgentTemplate:     template,
+		ContextManagement: contracts.EffectiveContextManagement(
+			contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyTemplate}, template),
+		AgentTemplate: template,
 		ExecutionConfig: AllocationExecutionConfig{
 			ModelPolicy: template.ModelPolicy.Ref,
 			LLMGateway:  gateway.Ref,

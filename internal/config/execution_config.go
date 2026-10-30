@@ -389,7 +389,7 @@ func (l *loader) compactorPolicy(raw string) (contracts.ResolvedModelPolicy, err
 	if !ok {
 		return contracts.ResolvedModelPolicy{}, fmt.Errorf("compactorModelPolicy selects unknown ModelPolicy %q", selector)
 	}
-	if err := resolved.ValidatePlannerCompactorModelPolicy(policy); err != nil {
+	if err := policy.ValidateForCompactor(); err != nil {
 		return contracts.ResolvedModelPolicy{}, err
 	}
 	return policy.Clone(), nil

@@ -1,0 +1,19 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+
+metadata:
+  name: audit_checker
+  version: "1"
+
+spec:
+  description: Records Audit check results through Runtime-owned completion
+  runtime: adk@1
+  instructions:
+    ref: instructions/artifact-builder.md
+  modelPolicy: test-compact-worker@1
+  toolsets:
+    - ref: run-artifacts@1
+      tools: [read_artifact]
+    - ref: audit-results@2
+      tools: [read_audit_task, submit_check_result]
+  sandboxProfile: local-workdir@1

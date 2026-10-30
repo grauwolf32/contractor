@@ -33,7 +33,8 @@ The current user-facing Workflow set is:
 - `openapi-from-analysis@4` and `likec4-from-analysis@5` when the caller already
   has exact dependency and project reports;
 - `security-analysis@4` and `taint-trace-from-workspace@4` for their explicit
-  focused analysis contracts;
+  focused analysis contracts, and `taint-trace-from-workspace-compact@1`, the
+  same trace with opt-in Worker context compaction;
 - `audit-source-check@1` for bounded task sets in `source-checklist@1`;
 - `audit-openapi-operation-observe@1` for graph-backed operation analysis in
   the limited `openapi-operation-observe@1` comparison variant;
@@ -181,8 +182,9 @@ Model authoring is split into three deployment sources:
 | --- | --- |
 | Upstream model, endpoint, API-key environment name, context and output capacity | `deploy/models/catalog/<model>.yaml` |
 | Initial model for all roles and optional role overrides | `deploy/models/selection.yaml` |
-| Planner, Worker, summarizer and Audit completion spending/generation budgets | `deploy/models/roles.yaml` |
+| Planner, Worker, summarizer, Audit completion and compactor spending/generation budgets | `deploy/models/roles.yaml` |
 | Whether and when a Worker produces a terminal summary | `agent-templates/*.yaml`, `spec.summarizer` |
+| Whether a Workflow's Worker compacts its context and continues | `workflows/*.yaml`, agent `contextManagement` |
 
 Run `make model-config` after editing these deployment sources, then
 `make test-config`. The generated `model-policies/*.yaml`,
@@ -195,9 +197,12 @@ is a deployment bootstrap; it is not a mutable setting of an active Run.
 E2E and optional Eval fixtures have their own policies outside this generator.
 
 The default catalog uses `planner@2` and `worker@2` for normal execution,
-`summarizer@1` for terminal summaries and `audit_completion_worker@1` for the
-separately selected Audit completion example. Each model also has up to four exact
-model-specific policies under `model-policies/models/`. Aliases carry the
+`summarizer@1` for terminal summaries, `audit_completion_worker@1` for the
+separately selected Audit completion example and `compactor@1` for Workflows
+that select `compact@1`. Each model also has up to five exact model-specific
+policies under `model-policies/models/`. The compactor always uses the default
+model: `deploy/models/selection.yaml` cannot override it, and it is not part of
+the model-choice catalog, because a Workflow pins its compactor policy. Aliases carry the
 upstream model name, a model-profile digest and the role; changing the selection
 never retargets an old alias. A changed profile produces new aliases. Keep a
 profile deployed for as long as its pinned Runs may still execute. A requested
@@ -261,8 +266,22 @@ that omit this field retain the built-in instruction for compatibility.
 
 V47-003 context admission has been removed: summarizer no longer charges one
 token per byte or trims its request against that estimate. Context errors come
-from the gateway. The earlier 512 KiB document projection remains in place;
-compactification is not an implemented strategy.
+from the gateway. The earlier 512 KiB document projection remains in place.
+
+A Workflow can instead let an isolated, ordinary Worker continue past its
+context boundary. `workflows/taint_trace_from_workspace_compact.yaml` is the
+opt-in example: its analyst binding selects `contextManagement: compact@1` with
+`compactor@1` and `instructions/worker-compaction.md`. That branch replaces the
+template's terminal summarizer for this binding only; the AgentTemplate and its
+digest stay unchanged. When the measured prompt reaches
+`min(floor(worker context * contextWindowRatio), worker context - worker max
+output)` (ratio 0.75 by default), Runtime asks the tool-free compactor for one
+summary of the oldest complete call groups, keeps the most recent groups
+(`keepRecentGroups`, default 4), and continues the same subtask; the Worker can
+read compacted groups again with `read_context_history`. A Workflow that uses
+`compact@1` cannot also declare `on.summarized`, and shared sessions and Audit
+completion Workers are rejected for now. See
+[Workflows](../docs/spec/configuration/workflows.md#WFL-R91).
 
 The local LiteLLM model and request timeouts are 240 seconds; the Worker client
 timeout is 300 seconds. Planner execution retains its 30-minute timeout;

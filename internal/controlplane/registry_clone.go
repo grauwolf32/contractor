@@ -62,6 +62,7 @@ func cloneReservation(source Reservation) Reservation {
 		result.CompletionCapabilities = &value
 	}
 	result.AgentTemplate = source.AgentTemplate.Clone()
+	result.ContextManagement = source.ContextManagement.Clone()
 	result.ResolvedSkills = contracts.CloneResolvedSkills(source.ResolvedSkills)
 	result.ExecutionConfig = cloneAllocationExecutionConfig(source.ExecutionConfig)
 	result.Workspace = contracts.CloneAllocationWorkspaceSpec(source.Workspace)

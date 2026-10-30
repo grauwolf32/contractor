@@ -6154,6 +6154,23 @@ export interface components {
             template: components["schemas"]["AgentTemplateRef"];
             namespace: components["schemas"]["ArtifactName"];
             skills: components["schemas"]["AgentSkillRef"][];
+            contextManagement: components["schemas"]["WorkflowContextManagement"];
+        };
+        /** @description The binding's explicit Worker context selection. template@1 keeps the AgentTemplate's terminal summarizer or hard budgets; compact@1 continues the same subtask after bounded context compaction and wholly replaces the template summarizer. */
+        WorkflowContextManagement: components["schemas"]["WorkflowTemplateContextManagement"] | components["schemas"]["WorkflowCompactContextManagement"];
+        WorkflowTemplateContextManagement: {
+            /** @constant */
+            strategy: "template@1";
+        };
+        WorkflowCompactContextManagement: {
+            /** @constant */
+            strategy: "compact@1";
+            modelPolicy: components["schemas"]["ModelPolicyRef"];
+            instructions: components["schemas"]["InstructionsRef"];
+            includeReasoning: boolean;
+            contextWindowRatio: number;
+            keepRecentGroups: number;
+            maxCompactions: number;
         };
         WorkflowNextTransition: {
             /** @constant */
@@ -6303,7 +6320,10 @@ export interface components {
          *                 "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
          *               },
          *               "namespace": "builder",
-         *               "skills": []
+         *               "skills": [],
+         *               "contextManagement": {
+         *                 "strategy": "template@1"
+         *               }
          *             }
          *           },
          *           "executionConfig": {

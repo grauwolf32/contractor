@@ -29,3 +29,10 @@ audit_completion_worker:
   maxToolCalls: 32
   maxTotalTokens: 25000000
   temperature: 0.6
+compactor:
+  policyVersion: "1"
+  gatewayAlias: compactor-model
+  maxOutputTokens: 8192
+  maxModelCalls: 1
+  maxTotalTokens: 1500000
+  temperature: 0.6

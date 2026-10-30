@@ -55,6 +55,7 @@ EXPECTED_PROCESS_TESTS = {
     "TestSchedulerConcurrencyAcrossProductionProcesses",
     "TestMemoryMVPProcesses",
     "TestTaintAnnotationsAcrossRealRuntimeProcess",
+    "TestWorkerCompactionContinuesIsolatedWorker",
     "TestWorkerSessionModesAcrossProductionProcesses",
     "TestWorkerSummarizerProductionBoundaries",
 }

@@ -440,7 +440,14 @@
               }
             }
           },
-          "summarizerModelPolicy": false
+          "summarizerModelPolicy": false,
+          "contextManagement": {
+            "properties": {
+              "strategy": {
+                "const": "none"
+              }
+            }
+          }
         }
       },
       "else": {
@@ -488,6 +495,9 @@
             "isolated",
             "shared"
           ]
+        },
+        "contextManagement": {
+          "$ref": "common.schema.json#/$defs/workerContextManagement"
         },
         "runMetadataLabels": {
           "$ref": "#/$defs/runMetadataLabels"
@@ -553,6 +563,7 @@
         "logicalAgentName",
         "namespace",
         "workerSessionMode",
+        "contextManagement",
         "runMetadataLabels",
         "leaseExpiresAt",
         "agentTemplate",
@@ -574,6 +585,88 @@
               "agentTemplate": {
                 "required": [
                   "summarizer"
+                ]
+              },
+              "contextManagement": {
+                "properties": {
+                  "strategy": {
+                    "const": "terminal@1"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "contextManagement": {
+                "properties": {
+                  "strategy": {
+                    "const": "terminal@1"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "agentTemplate": {
+                "required": [
+                  "summarizer"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "contextManagement": {
+                "properties": {
+                  "strategy": {
+                    "const": "none"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "agentTemplate": {
+                "properties": {
+                  "summarizer": false
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "contextManagement": {
+                "properties": {
+                  "strategy": {
+                    "const": "compact@1"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "modelPolicy"
+            ],
+            "properties": {
+              "workerSessionMode": {
+                "const": "isolated"
+              },
+              "completionContract": false,
+              "summarizerModelPolicy": false,
+              "modelPolicy": {
+                "required": [
+                  "contextWindowTokens",
+                  "maxOutputTokens"
                 ]
               }
             }

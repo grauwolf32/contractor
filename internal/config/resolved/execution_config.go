@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+
+	"github.com/grauwolf32/contractor/internal/contracts"
 )
 
 // ResolveEscalationVariants pins, for every escalate transition of workflow,
@@ -162,7 +164,7 @@ func applyResolvedExecutionSelectionOverride(
 		selection.Origins.SummarizerModelPolicy = origin
 	}
 	if override.CompactorModelPolicy != nil {
-		if err := ValidatePlannerCompactorModelPolicy(*override.CompactorModelPolicy); err != nil {
+		if err := override.CompactorModelPolicy.ValidateForCompactor(); err != nil {
 			return err
 		}
 		policy := override.CompactorModelPolicy.Clone()
@@ -301,6 +303,9 @@ func ValidateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 		if !ok {
 			return fmt.Errorf("Stage %q Agent %q has no executionConfig", stageName, logicalName)
 		}
+		if err := validateAgentContextManagement(stage, binding, selection); err != nil {
+			return fmt.Errorf("Stage %q Agent %q contextManagement: %w", stageName, logicalName, err)
+		}
 		hasTools := len(binding.Template.Toolsets) > 0 || len(binding.Template.Skills) > 0
 		if selection.CompactorModelPolicy != nil || selection.Origins.CompactorModelPolicy != "" {
 			return fmt.Errorf("Stage %q Agent %q: compactorModelPolicy applies only to a Planner", stageName, logicalName)
@@ -330,7 +335,8 @@ func ValidateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 		} else if selection.Origins.SummarizerModelPolicy != "" {
 			return fmt.Errorf("absent summarizerModelPolicy must not have an origin")
 		}
-		if binding.Template.Summarizer != nil {
+		// compact@1 wholly replaces the template summarizer (WFL-R92).
+		if binding.Template.Summarizer != nil && !binding.ContextManagement.IsCompact() {
 			if err := binding.Template.Summarizer.Validate(selection.ModelPolicy); err != nil {
 				return fmt.Errorf("Stage %q Agent %q summarizer: %w", stageName, logicalName, err)
 			}
@@ -383,4 +389,32 @@ func validateConsumerExecutionConfig(
 		}
 	}
 	return nil
+}
+
+// validateAgentContextManagement checks one binding's explicit context
+// selection against its Stage and effective execution selection (WFL-R93):
+// compact@1 needs a modeled, isolated, non-Audit-completion Worker whose
+// effective policy pins its context window, produces no summarized outcome
+// and accepts no summarizer-only selection it would ignore.
+func validateAgentContextManagement(
+	stage ResolvedStage,
+	binding ResolvedAgentBinding,
+	selection ResolvedConsumerExecutionConfig,
+) error {
+	if err := binding.ContextManagement.ValidateBinding(); err != nil {
+		return err
+	}
+	if !binding.ContextManagement.IsCompact() {
+		return nil
+	}
+	if err := contracts.ValidateCompactionTarget(binding.Template, stage.Session, false); err != nil {
+		return err
+	}
+	if stage.On.Summarized != nil {
+		return fmt.Errorf("compact@1 cannot produce on.summarized")
+	}
+	if selection.SummarizerModelPolicy != nil {
+		return fmt.Errorf("compact@1 forbids summarizerModelPolicy")
+	}
+	return contracts.ValidateCompactedWorkerPolicy(selection.ModelPolicy)
 }

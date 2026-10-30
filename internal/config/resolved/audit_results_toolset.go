@@ -6,8 +6,8 @@ import "github.com/grauwolf32/contractor/internal/contracts"
 // Worker completion contract. Its descriptor and the completion rules below
 // share these names, so the rules follow the descriptor.
 const (
-	AuditResultsToolsetID      = "audit-results"
-	AuditResultsToolsetVersion = "2"
+	AuditResultsToolsetID      = contracts.AuditResultsToolsetID
+	AuditResultsToolsetVersion = contracts.AuditResultsToolsetVersion
 	ReadAuditTaskTool          = "read_audit_task"
 	SubmitCheckResultTool      = "submit_check_result"
 )

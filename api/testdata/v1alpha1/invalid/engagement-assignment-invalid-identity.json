@@ -199,5 +199,6 @@
     "requestTimeoutSeconds": 30
   },
   "stageExecutionId": "019c-stage-1",
-  "workerSessionMode": "isolated"
+  "workerSessionMode": "isolated",
+  "contextManagement": {"strategy": "none"}
 }

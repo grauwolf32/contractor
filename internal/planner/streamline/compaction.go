@@ -105,7 +105,7 @@ func newCompactionSettings(
 		return nil, fmt.Errorf("plannerContextManagement %s requires a compactor modelPolicy", resolved.PlannerContextCompact)
 	}
 	compactor := stage.ExecutionConfig.Planner.CompactorModelPolicy.Clone()
-	if err := resolved.ValidatePlannerCompactorModelPolicy(compactor); err != nil {
+	if err := compactor.ValidateForCompactor(); err != nil {
 		return nil, err
 	}
 	if main.ContextWindowTokens <= 0 || main.MaxOutputTokens >= main.ContextWindowTokens {

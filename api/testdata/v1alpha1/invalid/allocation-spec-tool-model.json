@@ -110,6 +110,7 @@
   },
   "stageExecutionId": "019c-stage-1",
   "workerSessionMode": "isolated",
+  "contextManagement": {"strategy": "none"},
   "modelPolicy": {
     "maxModelCalls": 8,
     "maxOutputTokens": 4096,

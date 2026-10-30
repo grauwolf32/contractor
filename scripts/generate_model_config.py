@@ -22,7 +22,13 @@ from urllib.parse import urlsplit
 import yaml
 
 ROOT = Path(__file__).resolve().parent.parent
-ROLES = ("planner", "worker", "summarizer", "audit_completion_worker")
+SELECTION_ROLES = ("planner", "worker", "summarizer", "audit_completion_worker")
+# The compact@1 compactor policy is pinned by the Workflows that select it.
+# Deployment model selection does not retarget it (compactorModelPolicy
+# overrides belong to V417-006), so it always uses the default model and stays
+# out of the Server's selection catalog.
+ROLES = (*SELECTION_ROLES, "compactor")
+ONE_CALL_ROLES = ("summarizer", "compactor")
 MAX_BYTES = 65536
 MAX_PROFILES = 32
 MAX_OUTPUT_BYTES = 1024 * 1024
@@ -132,7 +138,9 @@ def role_budget(role: str, value: dict) -> dict:
         raise ConfigError(f"{role}: expected role mapping")
     required = {"policyVersion", "gatewayAlias", "maxOutputTokens", "maxModelCalls"}
     if role != "summarizer":
+        # The compactor needs a finite token limit but no tool budget (WRK-R186).
         required.add("maxTotalTokens")
+    if role not in ONE_CALL_ROLES:
         required.add("maxWorkerCalls" if role == "planner" else "maxToolCalls")
     fields(value, required, {"temperature", "maxTotalTokens"})
     text_value(value["policyVersion"], r"[A-Za-z0-9][A-Za-z0-9._+-]*", "policy version", 64)
@@ -140,8 +148,8 @@ def role_budget(role: str, value: dict) -> dict:
     for key, maximum in BUDGET_LIMITS.items():
         if key in value:
             positive(value[key], maximum, key)
-    if role == "summarizer" and value["maxModelCalls"] != 1:
-        raise ConfigError("summarizer must permit exactly one model call")
+    if role in ONE_CALL_ROLES and value["maxModelCalls"] != 1:
+        raise ConfigError(f"{role} must permit exactly one model call")
     if "temperature" in value:
         temperature = value["temperature"]
         if (
@@ -161,7 +169,7 @@ def render(root: Path) -> dict[str, bytes]:
     selection = load(root, "deploy/models/selection.yaml")
     fields(selection, {"defaultModel", "roles"})
     selected = selection["roles"]
-    if not isinstance(selected, dict) or selected.keys() - set(ROLES):
+    if not isinstance(selected, dict) or selected.keys() - set(SELECTION_ROLES):
         raise ConfigError("selection roles must name only the four supported roles")
     budgets = load(root, "deploy/models/roles.yaml")
     fields(budgets, set(ROLES))
@@ -216,7 +224,8 @@ def render(root: Path) -> dict[str, bytes]:
             }
             output[f"configs/model-policies/models/{name}.yaml"] = encode(document)
             compiled[model_id, role] = document
-            policies[role] = f"{name}@{budget['policyVersion']}"
+            if role in SELECTION_ROLES:
+                policies[role] = f"{name}@{budget['policyVersion']}"
             routes.append(
                 {
                     "model_name": alias,

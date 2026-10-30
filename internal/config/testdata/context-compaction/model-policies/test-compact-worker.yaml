@@ -1,0 +1,15 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: test-compact-worker
+  version: "1"
+
+spec:
+  model: worker-model
+  contextWindowTokens: 131072
+  maxOutputTokens: 4096
+  maxModelCalls: 64
+  maxToolCalls: 128
+  maxTotalTokens: 2000000
+  temperature: 0.1

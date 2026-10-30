@@ -118,6 +118,50 @@
         "includeReasoning": {"const": true}
       }
     },
+    "workerContextManagement": {
+      "description": "The one effective Worker context branch of an allocation (WRK-R184): none, the template terminal@1 summarizer, or compact@1, which wholly replaces the template summarizer.",
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["strategy"],
+          "properties": {"strategy": {"enum": ["none", "terminal@1"]}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["strategy", "modelPolicy", "instructions", "includeReasoning", "contextWindowRatio", "keepRecentGroups", "maxCompactions"],
+          "properties": {
+            "strategy": {"const": "compact@1"},
+            "modelPolicy": {
+              "allOf": [
+                {"$ref": "#/$defs/resolvedModelPolicy"},
+                {
+                  "required": ["contextWindowTokens", "maxOutputTokens", "maxModelCalls", "maxTotalTokens"],
+                  "properties": {"maxModelCalls": {"const": 1}},
+                  "not": {
+                    "anyOf": [
+                      {"required": ["maxToolCalls"]},
+                      {"required": ["maxWorkerCalls"]}
+                    ]
+                  }
+                }
+              ]
+            },
+            "instructions": {
+              "allOf": [
+                {"$ref": "#/$defs/resolvedAgentTemplate/properties/instructions"},
+                {"properties": {"text": {"maxLength": 8000, "pattern": "\\S"}}}
+              ]
+            },
+            "includeReasoning": {"type": "boolean"},
+            "contextWindowRatio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+            "keepRecentGroups": {"type": "integer", "minimum": 1, "maximum": 16},
+            "maxCompactions": {"type": "integer", "minimum": 1, "maximum": 16}
+          }
+        }
+      ]
+    },
     "toolsetRef": {
       "type": "object",
       "additionalProperties": false,

@@ -130,9 +130,41 @@ func plannerContextManagementReadModel(stage resolved.ResolvedStage) *plannerCon
 }
 
 type workflowAgentBindingResponse struct {
-	Template  contracts.AgentTemplateRef `json:"template"`
-	Namespace string                     `json:"namespace"`
-	Skills    []contracts.ArtifactRef    `json:"skills"`
+	Template          contracts.AgentTemplateRef        `json:"template"`
+	Namespace         string                            `json:"namespace"`
+	Skills            []contracts.ArtifactRef           `json:"skills"`
+	ContextManagement workflowContextManagementResponse `json:"contextManagement"`
+}
+
+// workflowContextManagementResponse is the reference-only public projection
+// of one binding's explicit context selection (WFL-R91): compaction members
+// are present exactly for compact@1, and instruction text is not repeated.
+type workflowContextManagementResponse struct {
+	Strategy           contracts.WorkerContextStrategy `json:"strategy"`
+	ModelPolicy        *contracts.ModelPolicyRef       `json:"modelPolicy,omitempty"`
+	Instructions       *instructionsRefResponse        `json:"instructions,omitempty"`
+	IncludeReasoning   *bool                           `json:"includeReasoning,omitempty"`
+	ContextWindowRatio *float64                        `json:"contextWindowRatio,omitempty"`
+	KeepRecentGroups   *int                            `json:"keepRecentGroups,omitempty"`
+	MaxCompactions     *int                            `json:"maxCompactions,omitempty"`
+}
+
+func newWorkflowContextManagementResponse(value contracts.WorkerContextManagement) workflowContextManagementResponse {
+	result := workflowContextManagementResponse{Strategy: value.Strategy}
+	if compaction := value.WorkerCompaction; compaction != nil {
+		ref := compaction.ModelPolicy.Ref
+		includeReasoning := compaction.IncludeReasoning
+		ratio := compaction.ContextWindowRatio
+		keep := compaction.KeepRecentGroups
+		maximum := compaction.MaxCompactions
+		result.ModelPolicy = &ref
+		result.Instructions = &instructionsRefResponse{Ref: compaction.Instructions.Ref, Digest: compaction.Instructions.Digest}
+		result.IncludeReasoning = &includeReasoning
+		result.ContextWindowRatio = &ratio
+		result.KeepRecentGroups = &keep
+		result.MaxCompactions = &maximum
+	}
+	return result
 }
 
 type workflowStageResponse struct {

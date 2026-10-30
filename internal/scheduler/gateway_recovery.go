@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/runstore"
@@ -28,9 +29,16 @@ func reservationModelRoutes(ownerID string, reservation controlplane.Reservation
 		route.TransportDigest = hex.EncodeToString(digest[:])
 	}
 	routes := []gatewayrecovery.Route{route}
-	if summarizer := runtimeConfig.SummarizerModelPolicy; summarizer != nil && summarizer.Model != route.Model {
-		route.Model = summarizer.Model
-		routes = append(routes, route)
+	// Auxiliary consumers share the Worker route except for their model alias.
+	for _, auxiliary := range []*contracts.ResolvedModelPolicy{runtimeConfig.SummarizerModelPolicy, runtimeConfig.CompactorModelPolicy} {
+		if auxiliary == nil || slices.ContainsFunc(routes, func(existing gatewayrecovery.Route) bool {
+			return existing.Model == auxiliary.Model
+		}) {
+			continue
+		}
+		next := route
+		next.Model = auxiliary.Model
+		routes = append(routes, next)
 	}
 	return routes
 }

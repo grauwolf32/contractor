@@ -4323,13 +4323,13 @@ func (e PlannerContextManagement0Strategy) Valid() bool {
 
 // Defines values for PlannerContextManagement1Strategy.
 const (
-	Compact1 PlannerContextManagement1Strategy = "compact@1"
+	PlannerContextManagement1StrategyCompact1 PlannerContextManagement1Strategy = "compact@1"
 )
 
 // Valid indicates whether the value is a known member of the PlannerContextManagement1Strategy enum.
 func (e PlannerContextManagement1Strategy) Valid() bool {
 	switch e {
-	case Compact1:
+	case PlannerContextManagement1StrategyCompact1:
 		return true
 	default:
 		return false
@@ -5755,6 +5755,21 @@ func (e WorkerCompletionDiagnosticsPhase) Valid() bool {
 	}
 }
 
+// Defines values for WorkflowCompactContextManagementStrategy.
+const (
+	WorkflowCompactContextManagementStrategyCompact1 WorkflowCompactContextManagementStrategy = "compact@1"
+)
+
+// Valid indicates whether the value is a known member of the WorkflowCompactContextManagementStrategy enum.
+func (e WorkflowCompactContextManagementStrategy) Valid() bool {
+	switch e {
+	case WorkflowCompactContextManagementStrategyCompact1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for WorkflowEscalateTransitionKind.
 const (
 	WorkflowEscalateTransitionKindEscalate WorkflowEscalateTransitionKind = "escalate"
@@ -5926,6 +5941,21 @@ const (
 func (e WorkflowSummaryTransitionMaxAttempts) Valid() bool {
 	switch e {
 	case WorkflowSummaryTransitionMaxAttemptsN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkflowTemplateContextManagementStrategy.
+const (
+	Template1 WorkflowTemplateContextManagementStrategy = "template@1"
+)
+
+// Valid indicates whether the value is a known member of the WorkflowTemplateContextManagementStrategy enum.
+func (e WorkflowTemplateContextManagementStrategy) Valid() bool {
+	switch e {
+	case Template1:
 		return true
 	default:
 		return false
@@ -12123,16 +12153,37 @@ type WorkerTelemetryRetryConfig struct {
 
 // WorkflowAgentBinding defines model for WorkflowAgentBinding.
 type WorkflowAgentBinding struct {
-	Namespace ArtifactName     `json:"namespace"`
-	Skills    []AgentSkillRef  `json:"skills"`
-	Template  AgentTemplateRef `json:"template"`
+	// ContextManagement The binding's explicit Worker context selection. template@1 keeps the AgentTemplate's terminal summarizer or hard budgets; compact@1 continues the same subtask after bounded context compaction and wholly replaces the template summarizer.
+	ContextManagement WorkflowContextManagement `json:"contextManagement"`
+	Namespace         ArtifactName              `json:"namespace"`
+	Skills            []AgentSkillRef           `json:"skills"`
+	Template          AgentTemplateRef          `json:"template"`
 }
+
+// WorkflowCompactContextManagement defines model for WorkflowCompactContextManagement.
+type WorkflowCompactContextManagement struct {
+	ContextWindowRatio float32                                  `json:"contextWindowRatio"`
+	IncludeReasoning   bool                                     `json:"includeReasoning"`
+	Instructions       InstructionsRef                          `json:"instructions"`
+	KeepRecentGroups   int                                      `json:"keepRecentGroups"`
+	MaxCompactions     int                                      `json:"maxCompactions"`
+	ModelPolicy        ModelPolicyRef                           `json:"modelPolicy"`
+	Strategy           WorkflowCompactContextManagementStrategy `json:"strategy"`
+}
+
+// WorkflowCompactContextManagementStrategy defines model for WorkflowCompactContextManagement.Strategy.
+type WorkflowCompactContextManagementStrategy string
 
 // WorkflowContextArtifact defines model for WorkflowContextArtifact.
 type WorkflowContextArtifact struct {
 	Name      ArtifactName `json:"name"`
 	Namespace ArtifactName `json:"namespace"`
 	Required  bool         `json:"required"`
+}
+
+// WorkflowContextManagement The binding's explicit Worker context selection. template@1 keeps the AgentTemplate's terminal summarizer or hard budgets; compact@1 continues the same subtask after bounded context compaction and wholly replaces the template summarizer.
+type WorkflowContextManagement struct {
+	union json.RawMessage
 }
 
 // WorkflowEscalateTransition defines model for WorkflowEscalateTransition.
@@ -12315,6 +12366,14 @@ type WorkflowSummaryTransitionKind string
 
 // WorkflowSummaryTransitionMaxAttempts defines model for WorkflowSummaryTransition.MaxAttempts.
 type WorkflowSummaryTransitionMaxAttempts int
+
+// WorkflowTemplateContextManagement defines model for WorkflowTemplateContextManagement.
+type WorkflowTemplateContextManagement struct {
+	Strategy WorkflowTemplateContextManagementStrategy `json:"strategy"`
+}
+
+// WorkflowTemplateContextManagementStrategy defines model for WorkflowTemplateContextManagement.Strategy.
+type WorkflowTemplateContextManagementStrategy string
 
 // WorkflowTransitions defines model for WorkflowTransitions.
 type WorkflowTransitions struct {
@@ -18685,6 +18744,68 @@ func (t *StageContentResult) UnmarshalJSON(b []byte) error {
 		}
 	}
 
+	return err
+}
+
+// AsWorkflowTemplateContextManagement returns the union data inside the WorkflowContextManagement as a WorkflowTemplateContextManagement
+func (t WorkflowContextManagement) AsWorkflowTemplateContextManagement() (WorkflowTemplateContextManagement, error) {
+	var body WorkflowTemplateContextManagement
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromWorkflowTemplateContextManagement overwrites any union data inside the WorkflowContextManagement as the provided WorkflowTemplateContextManagement
+func (t *WorkflowContextManagement) FromWorkflowTemplateContextManagement(v WorkflowTemplateContextManagement) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeWorkflowTemplateContextManagement performs a merge with any union data inside the WorkflowContextManagement, using the provided WorkflowTemplateContextManagement
+func (t *WorkflowContextManagement) MergeWorkflowTemplateContextManagement(v WorkflowTemplateContextManagement) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsWorkflowCompactContextManagement returns the union data inside the WorkflowContextManagement as a WorkflowCompactContextManagement
+func (t WorkflowContextManagement) AsWorkflowCompactContextManagement() (WorkflowCompactContextManagement, error) {
+	var body WorkflowCompactContextManagement
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromWorkflowCompactContextManagement overwrites any union data inside the WorkflowContextManagement as the provided WorkflowCompactContextManagement
+func (t *WorkflowContextManagement) FromWorkflowCompactContextManagement(v WorkflowCompactContextManagement) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeWorkflowCompactContextManagement performs a merge with any union data inside the WorkflowContextManagement, using the provided WorkflowCompactContextManagement
+func (t *WorkflowContextManagement) MergeWorkflowCompactContextManagement(v WorkflowCompactContextManagement) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t WorkflowContextManagement) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *WorkflowContextManagement) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
 	return err
 }
 
