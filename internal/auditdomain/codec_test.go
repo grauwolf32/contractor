@@ -123,7 +123,7 @@ func TestDirectVerificationSetRequiresCanonicalExactIdentities(t *testing.T) {
 			},
 		},
 	}
-	encoded, err := EncodeDirectVerificationSet(valid)
+	encoded, err := encodeDocument(valid, validateDirectVerificationSet)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestDirectVerificationSetRequiresCanonicalExactIdentities(t *testing.T) {
 				)
 			}
 			test.mutate(&candidate)
-			if _, err := EncodeDirectVerificationSet(candidate); err == nil {
+			if _, err := encodeDocument(candidate, validateDirectVerificationSet); err == nil {
 				t.Fatal("invalid direct verification set was accepted")
 			}
 		})

@@ -37,7 +37,6 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -445,7 +444,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 
 	credentials := newFakeManagedCredentials()
 	service, err := auditservice.New(auditservice.Options{Pool: traced, Profiles: f.catalog, CredentialGuard: credentials,
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil }),
 	})
 	if err != nil {

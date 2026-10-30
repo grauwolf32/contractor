@@ -164,7 +164,7 @@ func newHarness(t *testing.T) *serviceHarness {
 		t.Fatal(err)
 	}
 	credentialLookup := testCredentials{gateway: gateway.Ref}
-	transactionLLMCredentials := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentialLookup, nil })
+	transactionLLMCredentials := runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentialLookup, nil })
 	audits, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: retainedExecutionCatalog{catalog}, TransactionLLMCredentials: transactionLLMCredentials, CredentialGuard: testBarrier{}})
 	if err != nil {
 		t.Fatal(err)

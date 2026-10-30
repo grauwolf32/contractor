@@ -29,7 +29,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -212,7 +211,7 @@ SELECT array_agg(receipt_id ORDER BY created_at, receipt_id)
 		credentials := newFakeManagedCredentials()
 		audits, err := auditservice.New(auditservice.Options{
 			Pool: pool, Profiles: deps.Config.(*config.Manager), CredentialGuard: credentials,
-			TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil }),
+			TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil }),
 		})
 		if err != nil {
 			t.Fatal(err)

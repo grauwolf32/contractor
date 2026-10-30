@@ -275,7 +275,7 @@ func TestFakeRuntimeAgentPrincipalKeysMatchPostgres(t *testing.T) {
 	// A Runtime Agent label must select Worker settings.
 	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool, RuntimeCredentials: parityRuntimeCredentials{},
-		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 	})
 	if err != nil {
 		t.Fatal(err)

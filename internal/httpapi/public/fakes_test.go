@@ -404,10 +404,17 @@ func (f *fakeOperationsReader) SubscribeOperations() (<-chan struct{}, func()) {
 }
 
 type artifactKey struct {
-	kind      artifacts.ScopeKind
-	id        string
+	scope     artifacts.Scope
 	namespace string
 	name      string
+}
+
+// fakeLineageEdge is a lineage edge with the scopes it joins. The public
+// handlers never read an edge's scope IDs, which are not part of a response,
+// so the fake leaves them empty and matches edges by scope.
+type fakeLineageEdge struct {
+	edge           artifacts.LineageEdge
+	source, target artifacts.Scope
 }
 
 // fakeArtifactRepository applies the binding rules of PostgresRepository that
@@ -424,7 +431,7 @@ type fakeArtifactRepository struct {
 	reads      int
 	created    map[artifactKey]map[string]time.Time
 	frozen     map[artifactKey]bool
-	lineage    []artifacts.LineageEdge
+	lineage    []fakeLineageEdge
 	queryReads int
 	// beforeWrite stands in for slow storage work; it sees the write context.
 	beforeWrite func(context.Context) error
@@ -466,7 +473,7 @@ func (f *fakeArtifactRepository) writeLocked(
 	scope artifacts.Scope, ref artifacts.ArtifactRef, payload artifacts.Payload, expected *string, frozen bool,
 ) (artifacts.WriteResult, error) {
 	f.writes++
-	key := artifactKey{scope.Kind(), scope.ID(), ref.Namespace, ref.Name}
+	key := artifactKey{scope, ref.Namespace, ref.Name}
 	if err := artifacts.WritePrecondition(ref, f.headLocked(key), expected); err != nil {
 		return artifacts.WriteResult{}, err
 	}
@@ -506,7 +513,7 @@ func (f *fakeArtifactRepository) Read(
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.reads++
-	key := artifactKey{scope.Kind(), scope.ID(), ref.Namespace, ref.Name}
+	key := artifactKey{scope, ref.Namespace, ref.Name}
 	var result artifacts.ReadResult
 	var ok bool
 	if ref.Revision == nil {
@@ -530,7 +537,7 @@ func (f *fakeArtifactRepository) ListRefs(
 	defer f.mu.Unlock()
 	result := make([]artifacts.ArtifactRef, 0)
 	for key := range f.current {
-		if key.kind != scope.Kind() || key.id != scope.ID() ||
+		if key.scope != scope ||
 			query.Namespace != nil && key.namespace != *query.Namespace ||
 			query.ModelVisible && artifactpolicy.IsModelHiddenBinding(key.namespace, key.name) ||
 			key.namespace < query.AfterNamespace || key.namespace == query.AfterNamespace && key.name <= query.AfterName {
@@ -561,14 +568,15 @@ func (f *fakeArtifactRepository) Fork(ctx context.Context, fork artifacts.Fork) 
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	sourceKey := artifactKey{fork.Source.Kind(), fork.Source.ID(), fork.SourceRef.Namespace, fork.SourceRef.Name}
+	sourceKey := artifactKey{fork.Source, fork.SourceRef.Namespace, fork.SourceRef.Name}
 	if fork.SourceFrozen && (!f.frozen[sourceKey] || *f.current[sourceKey].Ref.Revision != *read.Ref.Revision) {
 		return artifacts.ForkResult{}, artifacts.ErrArtifactNotFound
 	}
 	result := artifacts.ForkResult{SourceRef: read.Ref, MediaType: read.Payload.MediaType, Size: int64(len(read.Payload.Data))}
-	key := artifactKey{fork.Target.Kind(), fork.Target.ID(), fork.TargetRef.Namespace, fork.TargetRef.Name}
+	key := artifactKey{fork.Target, fork.TargetRef.Namespace, fork.TargetRef.Name}
 	if existing, exists := f.current[key]; exists {
-		for _, edge := range f.lineage {
+		for _, recorded := range f.lineage {
+			edge := recorded.edge
 			if fork.Replay && edge.Kind == fork.Kind && sameExactArtifact(edge.Target, existing.Ref) &&
 				sameExactArtifact(edge.Source, read.Ref) {
 				result.TargetRef = existing.Ref
@@ -585,15 +593,16 @@ func (f *fakeArtifactRepository) Fork(ctx context.Context, fork artifacts.Fork) 
 	f.historical[key] = map[string]artifacts.ReadResult{revision: stored}
 	f.created[key] = map[string]time.Time{revision: time.Unix(int64(f.next), 0).UTC()}
 	f.frozen[key] = fork.Frozen
-	f.lineage = append(f.lineage, artifacts.LineageEdge{
-		Kind:          fork.Kind,
-		SourceScope:   fork.Source.Kind(),
-		SourceScopeID: fork.Source.ID(),
-		Source:        read.Ref,
-		TargetScope:   fork.Target.Kind(),
-		TargetScopeID: fork.Target.ID(),
-		Target:        result.TargetRef,
-		CreatedAt:     time.Unix(int64(f.next), 0).UTC(),
+	f.lineage = append(f.lineage, fakeLineageEdge{
+		edge: artifacts.LineageEdge{
+			Kind:        fork.Kind,
+			SourceScope: fork.Source.Kind(),
+			Source:      read.Ref,
+			TargetScope: fork.Target.Kind(),
+			Target:      result.TargetRef,
+			CreatedAt:   time.Unix(int64(f.next), 0).UTC(),
+		},
+		source: fork.Source, target: fork.Target,
 	})
 	return result, nil
 }
@@ -606,7 +615,7 @@ func (f *fakeArtifactRepository) Freeze(_ context.Context, scope artifacts.Scope
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for key := range f.current {
-		if key.kind == scope.Kind() && key.id == scope.ID() && key.namespace == namespace {
+		if key.scope == scope && key.namespace == namespace {
 			f.frozen[key] = true
 		}
 	}
@@ -633,7 +642,7 @@ func (f *fakeArtifactRepository) ListMetadata(
 	f.queryReads++
 	result := make([]artifacts.Metadata, 0)
 	for key, read := range f.current {
-		if key.kind != scope.Kind() || key.id != scope.ID() ||
+		if key.scope != scope ||
 			scope.Kind() == artifacts.ScopeUser && artifactpolicy.IsRunSystemNamespace(key.namespace) ||
 			query.Namespace != nil && key.namespace != *query.Namespace ||
 			query.ExcludeNamespace != nil && key.namespace == *query.ExcludeNamespace ||
@@ -668,7 +677,7 @@ func (f *fakeArtifactRepository) ListVersions(
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.queryReads++
-	key := artifactKey{scope.Kind(), scope.ID(), ref.Namespace, ref.Name}
+	key := artifactKey{scope, ref.Namespace, ref.Name}
 	if _, ok := f.current[key]; !ok {
 		return nil, artifacts.ErrArtifactNotFound
 	}
@@ -707,11 +716,10 @@ func (f *fakeArtifactRepository) ListLineage(
 	defer f.mu.Unlock()
 	f.queryReads++
 	result := make([]artifacts.LineageEdge, 0)
-	for _, edge := range f.lineage {
-		matchesSource := edge.SourceScope == scope.Kind() && edge.SourceScopeID == scope.ID() &&
-			sameExactArtifact(edge.Source, ref)
-		matchesTarget := edge.TargetScope == scope.Kind() && edge.TargetScopeID == scope.ID() &&
-			sameExactArtifact(edge.Target, ref)
+	for _, recorded := range f.lineage {
+		edge := recorded.edge
+		matchesSource := recorded.source == scope && sameExactArtifact(edge.Source, ref)
+		matchesTarget := recorded.target == scope && sameExactArtifact(edge.Target, ref)
 		if !matchesSource && !matchesTarget || edge.Kind == query.ExcludeKind || !fakeLineageBefore(edge, query) {
 			continue
 		}
@@ -727,7 +735,7 @@ func (f *fakeArtifactRepository) ListLineage(
 func (f *fakeArtifactRepository) metadataLocked(
 	scope artifacts.Scope, ref artifacts.ArtifactRef,
 ) (artifacts.Metadata, error) {
-	key := artifactKey{scope.Kind(), scope.ID(), ref.Namespace, ref.Name}
+	key := artifactKey{scope, ref.Namespace, ref.Name}
 	read, ok := f.current[key]
 	if ref.Revision != nil {
 		read, ok = f.historical[key][*ref.Revision]

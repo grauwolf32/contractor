@@ -139,8 +139,7 @@ func TestPostgresArtifactStorageDatesExactForkCASAndPurge(t *testing.T) {
 	if err != nil || surviving.StorageTimestamps != retained.StorageTimestamps {
 		t.Fatalf("surviving fork lost dates: %v", err)
 	}
-	projectScope, _ := ProjectScope(project.ProjectID)
-	assertStoredTimestampFacts(t, ctx, pool, projectScope, published.TargetRef, surviving)
+	assertStoredTimestampFacts(t, ctx, pool, ScopeProject, project.ProjectID, published.TargetRef, surviving)
 	// Creation guards reject changes without blocking the mutable scope counter.
 	for _, sql := range []string{`UPDATE artifact_scopes SET created_at=created_at+interval '1 second'`, `UPDATE artifact_blobs SET created_at=created_at+interval '1 second'`, `UPDATE artifact_versions SET created_at=created_at+interval '1 second'`} {
 		if _, err := pool.Exec(ctx, sql); postgres.Classify(err) != postgres.ClassRejected {
@@ -152,7 +151,7 @@ func TestPostgresArtifactStorageDatesExactForkCASAndPurge(t *testing.T) {
 	}
 }
 
-func assertStoredTimestampFacts(t *testing.T, ctx context.Context, pool *pgxpool.Pool, scope Scope, ref ArtifactRef, got Metadata) {
+func assertStoredTimestampFacts(t *testing.T, ctx context.Context, pool *pgxpool.Pool, scopeKind ScopeKind, scopeID string, ref ArtifactRef, got Metadata) {
 	t.Helper()
 	var expected StorageTimestamps
 	var revisionAt time.Time
@@ -160,7 +159,7 @@ func assertStoredTimestampFacts(t *testing.T, ctx context.Context, pool *pgxpool
  FROM artifact_scopes scope JOIN artifact_bindings binding USING(scope_kind,scope_id)
  JOIN artifact_binding_revisions revision USING(scope_kind,scope_id,namespace,name)
  JOIN artifact_versions version USING(version_id) JOIN artifact_blobs blob ON blob.sha256=version.blob_sha256
- WHERE scope.scope_kind=$1 AND scope.scope_id=$2 AND binding.namespace=$3 AND binding.name=$4 AND revision.revision=$5`, scope.Kind(), scope.ID(), ref.Namespace, ref.Name, ref.Revision).Scan(&expected.ScopeCreatedAt, &expected.BlobCreatedAt, &expected.VersionCreatedAt, &expected.BindingUpdatedAt, &revisionAt)
+ WHERE scope.scope_kind=$1 AND scope.scope_id=$2 AND binding.namespace=$3 AND binding.name=$4 AND revision.revision=$5`, scopeKind, scopeID, ref.Namespace, ref.Name, ref.Revision).Scan(&expected.ScopeCreatedAt, &expected.BlobCreatedAt, &expected.VersionCreatedAt, &expected.BindingUpdatedAt, &revisionAt)
 	if err != nil {
 		t.Fatal(err)
 	}

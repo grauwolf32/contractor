@@ -17,7 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -36,7 +36,7 @@ func TestPublicFindingCorrelationReadsUseOwnedRetainedObservations(t *testing.T)
 	}
 	fixture := newHandlerFixtureWithAuth(t, "../../config/testdata/valid", newTestAuthentication(t), mustTestOrigins(t), false, nil, func(dependencies *testServices) {
 		credentials := newFakeManagedCredentials()
-		service, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: credentials, TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})
+		service, err := auditservice.New(auditservice.Options{Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: credentials, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})
 		if err != nil {
 			t.Fatal(err)
 		}

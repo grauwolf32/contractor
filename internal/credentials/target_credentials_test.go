@@ -61,9 +61,9 @@ func TestSharedTargetCredentialMaterialCases(t *testing.T) {
 			}
 			continue
 		}
-		kinds[material.Kind()]++
-		if material.Kind() != kind {
-			t.Errorf("%s: kind = %q, want %q", test.Name, material.Kind(), kind)
+		kinds[material.kind]++
+		if material.kind != kind {
+			t.Errorf("%s: kind = %q, want %q", test.Name, material.kind, kind)
 		}
 		envelope, err := cipher.SealRuntimeCredential("target-case", material)
 		if err != nil {

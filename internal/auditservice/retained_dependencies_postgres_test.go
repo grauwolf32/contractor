@@ -19,7 +19,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -52,7 +52,7 @@ func TestPostgresAcceptedRetainedDependencyManifestMaximumReplayAndPurge(t *test
 	})
 	gateway, _ := catalog.LLMGateway("test-gateway@1")
 	credentials := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
-	service, err := New(Options{Pool: pool, Profiles: &switchableProfileCatalog{snapshot: catalog, available: true}, CredentialGuard: &countingCredentialGuard{}, TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})
+	service, err := New(Options{Pool: pool, Profiles: &switchableProfileCatalog{snapshot: catalog, available: true}, CredentialGuard: &countingCredentialGuard{}, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil })})
 	if err != nil {
 		t.Fatal(err)
 	}

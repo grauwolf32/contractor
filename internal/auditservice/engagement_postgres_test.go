@@ -29,7 +29,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -91,7 +91,7 @@ func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string,
 	lookup := &switchableCredentialLookup{available: true, gateway: gateway.Ref}
 	barrier := credentials.NewLifecycleBarrier()
 	now := time.Date(2026, 10, 28, 10, 0, 0, 0, time.UTC)
-	service, err := New(Options{Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true}, TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil }), CredentialGuard: engagementGuard{barrier}, Now: func() time.Time { return now }})
+	service, err := New(Options{Pool: pool, Profiles: &switchableProfileCatalog{snapshot: snapshot, available: true}, TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) { return lookup, nil }), CredentialGuard: engagementGuard{barrier}, Now: func() time.Time { return now }})
 	if err != nil {
 		t.Fatal(err)
 	}

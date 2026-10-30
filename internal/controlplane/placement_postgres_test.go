@@ -27,6 +27,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -71,7 +72,7 @@ func TestPlacementOptimisticCatalogReadsDoNotGrowWithSharedCandidates(t *testing
 	fixture := newPlacementFixture(t, ctx, pool, nil)
 	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool, RuntimeCredentials: placementRuntimeCatalog{},
-		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -194,7 +195,7 @@ func TestPlacementPostgresRechecksBindingChangedAfterOptimisticPass(t *testing.T
 	fixture := newPlacementFixture(t, ctx, pool, nil)
 	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool, RuntimeCredentials: placementRuntimeCatalog{},
-		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -423,7 +424,7 @@ func TestPlacementPostgresKeepsOldAgentBindingAndNextResolutionUsesRebind(t *tes
 	fixture := newPlacementFixture(t, ctx, pool, nil)
 	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool, RuntimeCredentials: placementRuntimeCatalog{},
-		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -534,7 +535,7 @@ func newPlacementFixture(
 	if len(runLabels) != 0 {
 		publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 			Pool: pool, RuntimeCredentials: catalog,
-			PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+			PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -574,7 +575,7 @@ func newPlacementFixture(
 	defer func() { _ = tx.Rollback(ctx) }()
 	txLookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 		tx,
-		runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+		runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return llmCredentials, nil },
 		),
 	)
@@ -632,7 +633,7 @@ func newPlacementFixture(
 		Pool: pool, Registry: registry,
 		Gateways:       placementGatewayLookup{gateway: *selection.LLMGateway},
 		LLMCredentials: llmCredentials, RuntimeCredentials: placementRuntimeCredentialLookup{},
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return llmCredentials, nil },
 		),
 		CredentialGuard: placementGuardFunc(func(_ context.Context, fn func() error) error { return fn() }),

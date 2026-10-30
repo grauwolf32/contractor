@@ -33,10 +33,35 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// streamlineMetadataReader answers the artifact metadata reads of one Run.
 type streamlineMetadataReader func(context.Context, contracts.ArtifactRef) (artifacts.Metadata, error)
 
-func (f streamlineMetadataReader) Metadata(ctx context.Context, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
-	return f(ctx, ref)
+// streamlineMetadataRepository is the artifacts Repository of an artifacts.Service whose
+// RunScope reads of Run scope it answers with read; any other Repository
+// method panics on the nil embedded interface.
+type streamlineMetadataRepository struct {
+	artifacts.Repository
+	scope artifacts.Scope
+	read  streamlineMetadataReader
+}
+
+func (r streamlineMetadataRepository) Metadata(
+	ctx context.Context, scope artifacts.Scope, ref contracts.ArtifactRef,
+) (artifacts.Metadata, error) {
+	if scope != r.scope {
+		return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
+	}
+	return r.read(ctx, ref)
+}
+
+// newStreamlineInspector is the production artifact inspector over an artifacts.Service
+// whose repository answers the metadata of Run runID with read.
+func newStreamlineInspector(runID string, read streamlineMetadataReader) (*planner.ArtifactServiceInspector, error) {
+	scope, err := artifacts.RunScope(runID)
+	if err != nil {
+		return nil, err
+	}
+	return planner.NewArtifactServiceInspector(artifacts.NewService(streamlineMetadataRepository{scope: scope, read: read}))
 }
 
 func TestStreamlineDispatchAndFinishInspectMetadataWithTransferSlotsSaturated(t *testing.T) {
@@ -55,7 +80,7 @@ func TestStreamlineDispatchAndFinishInspectMetadataWithTransferSlotsSaturated(t 
 	report := exactRef("review", "report", revision)
 	source := exactRef("inputs", "source", "source-r1")
 	inspected := map[string]int{}
-	inspector, err := planner.NewRunArtifactInspector("run-1", streamlineMetadataReader(func(_ context.Context, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
+	inspector, err := newStreamlineInspector("run-1", streamlineMetadataReader(func(_ context.Context, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
 		inspected[refKey(ref)]++
 		switch refKey(ref) {
 		case refKey(source):

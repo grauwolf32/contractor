@@ -26,7 +26,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runrepeat"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/scancontroller"
 	"github.com/grauwolf32/contractor/internal/scanservice"
 	"github.com/grauwolf32/contractor/internal/scanstore"
@@ -480,7 +480,7 @@ func TestPostgresScanSweepsCancellationFencesUncommittedAdmission(t *testing.T) 
 		t.Fatal(err)
 	}
 	entered, proceed := make(chan struct{}), make(chan struct{})
-	lookup := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(tx pgx.Tx) (resolved.CredentialLookup, error) {
+	lookup := runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(tx pgx.Tx) (resolved.CredentialLookup, error) {
 		close(entered)
 		select {
 		case <-proceed:

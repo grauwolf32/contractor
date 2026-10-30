@@ -2,7 +2,13 @@
 // other packages share. Production code never imports it.
 package runtimeconfigtest
 
-import "github.com/grauwolf32/contractor/internal/runtimeconfig"
+import (
+	"errors"
+
+	"github.com/grauwolf32/contractor/internal/config/resolved"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/jackc/pgx/v5"
+)
 
 // BuiltInRunSnapshot pins a Run to the built-in RuntimeConfig through the
 // default label at binding revision 1 and pins no other label or credential,
@@ -18,4 +24,24 @@ func BuiltInRunSnapshot() runtimeconfig.RunSnapshot {
 		},
 		Labels: []runtimeconfig.PinnedLabel{}, LLMCredentialIDs: []string{}, RuntimeCredentialIDs: []string{},
 	}
+}
+
+// PlannerTelemetryAdapterCatalogFunc is a runtimeconfig.PlannerTelemetryAdapterCatalog
+// that a test states as a function; production passes the Planner registry.
+type PlannerTelemetryAdapterCatalogFunc func(string) bool
+
+func (f PlannerTelemetryAdapterCatalogFunc) SupportsPlannerTelemetryAdapter(ref string) bool {
+	return f != nil && f(ref)
+}
+
+// TransactionLLMCredentialLookupFactoryFunc is a
+// runtimeconfig.TransactionLLMCredentialLookupFactory that a test states as a
+// function; production passes the credential store's transaction lookup.
+type TransactionLLMCredentialLookupFactoryFunc func(pgx.Tx) (resolved.CredentialLookup, error)
+
+func (f TransactionLLMCredentialLookupFactoryFunc) ForTransaction(tx pgx.Tx) (resolved.CredentialLookup, error) {
+	if f == nil {
+		return nil, errors.New("transaction LLM credential lookup factory is nil")
+	}
+	return f(tx)
 }

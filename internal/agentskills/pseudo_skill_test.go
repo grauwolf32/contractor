@@ -189,7 +189,7 @@ func TestBundledDiscoveryPackagesEveryPseudoSkill(t *testing.T) {
 		}
 		want = append(want, SeedMetadata{Name: pkg.Manifest.Name, Digest: pkg.Digest, Size: int64(len(archive))})
 	}
-	if got := plan.Packages(); !reflect.DeepEqual(got, want) {
+	if got := plan.packageMetadata(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("bundled discovery = %+v, want %+v", got, want)
 	}
 }

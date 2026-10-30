@@ -3,7 +3,6 @@ package planner
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -11,12 +10,6 @@ import (
 
 type RunArtifactMetadataReader interface {
 	Metadata(context.Context, contracts.ArtifactRef) (artifacts.Metadata, error)
-}
-
-// RunArtifactInspector adapts a RunScope-bound metadata store.
-type RunArtifactInspector struct {
-	runID string
-	store RunArtifactMetadataReader
 }
 
 // ArtifactServiceInspector resolves the RunScope supplied by each invocation
@@ -40,26 +33,6 @@ func (i *ArtifactServiceInspector) Inspect(
 		return ArtifactMetadata{}, err
 	}
 	result, err := inspectExact(ctx, store, ref)
-	if err != nil {
-		return ArtifactMetadata{}, err
-	}
-	return ArtifactMetadata{MediaType: result.MediaType}, nil
-}
-
-func NewRunArtifactInspector(runID string, store RunArtifactMetadataReader) (*RunArtifactInspector, error) {
-	if strings.TrimSpace(runID) == "" || store == nil {
-		return nil, fmt.Errorf("Run ID and RunScope artifact metadata reader are required")
-	}
-	return &RunArtifactInspector{runID: runID, store: store}, nil
-}
-
-func (i *RunArtifactInspector) Inspect(
-	ctx context.Context, runID string, ref contracts.ArtifactRef,
-) (ArtifactMetadata, error) {
-	if runID != i.runID {
-		return ArtifactMetadata{}, fmt.Errorf("%w: artifact inspector is bound to another RunScope", artifacts.ErrInvalidScope)
-	}
-	result, err := inspectExact(ctx, i.store, ref)
 	if err != nil {
 		return ArtifactMetadata{}, err
 	}

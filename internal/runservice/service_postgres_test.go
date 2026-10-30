@@ -296,7 +296,7 @@ func postgresPublicTransaction(pool *pgxpool.Pool) PublicTransaction {
 		return persistencepostgres.InTx(ctx, pool, pgx.TxOptions{IsoLevel: pgx.RepeatableRead}, func(tx pgx.Tx) error {
 			lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 				tx,
-				runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+				runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 					func(pgx.Tx) (resolved.CredentialLookup, error) { return emptyCredentialLookup{}, nil },
 				),
 			)

@@ -205,8 +205,6 @@ func NewTargetCookiesCredential(cookies map[string]string) (RuntimeCredentialMat
 	}{Cookies: cookies})
 }
 
-func (m RuntimeCredentialMaterial) Kind() RuntimeCredentialKind { return m.kind }
-
 // RuntimeCredentialMaterial formats and logs only as a redaction marker, for
 // every fmt verb and flag, and refuses JSON encoding (SEC-R88).
 func (m RuntimeCredentialMaterial) String() string { return "[REDACTED]" }

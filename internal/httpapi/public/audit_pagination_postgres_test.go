@@ -23,7 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -60,7 +60,7 @@ func TestPublicAuditPaginationBoundary(t *testing.T) {
 			credentials := newFakeManagedCredentials()
 			service, err = auditservice.New(auditservice.Options{
 				Pool: pool, Profiles: dependencies.Config.(*config.Manager), CredentialGuard: credentials,
-				TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+				TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 					func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil },
 				),
 			})

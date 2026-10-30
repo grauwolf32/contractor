@@ -18,7 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,7 +32,7 @@ func TestDeploymentModelSelectionAuditDraftStartsWithCapturedProfile(t *testing.
 	credentialLookup := developmentCredentialLookup(t, manager.Snapshot())
 	service, err := auditservice.New(auditservice.Options{
 		Pool: pool, Profiles: manager,
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentialLookup, nil },
 		),
 		CredentialGuard: modelAuditGuard{},

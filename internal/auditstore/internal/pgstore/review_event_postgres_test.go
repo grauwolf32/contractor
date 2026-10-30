@@ -72,7 +72,7 @@ func TestPostgresReviewEventKeepsAuditRevisionAndSequenceAtomic(t *testing.T) {
 	}
 	beforeBatch := current
 	batch := []auditstore.ReviewEventParams{params, invalid}
-	if err := store.AppendReviewEvents(ctx, batch); err == nil {
+	if err := store.ReviewStore.appendReviewEvents(ctx, batch); err == nil {
 		t.Fatal("batch with an invalid second event was recorded")
 	}
 	current, err = store.Get(ctx, project.OwnerID, audit.AuditID)
@@ -82,7 +82,7 @@ func TestPostgresReviewEventKeepsAuditRevisionAndSequenceAtomic(t *testing.T) {
 	revision := uint64(7)
 	batch[1] = auditstore.ReviewEventParams{AuditID: audit.AuditID, Kind: "review.expired",
 		EntityID: "review-batch-two", EntityRevision: &revision, Summary: map[string]any{"subjectKind": "finding"}}
-	if err := store.AppendReviewEvents(ctx, batch); err != nil {
+	if err := store.ReviewStore.appendReviewEvents(ctx, batch); err != nil {
 		t.Fatal(err)
 	}
 	current, err = store.Get(ctx, project.OwnerID, audit.AuditID)

@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -179,7 +180,7 @@ func TestPlacementRuntimeCredentialsDoNotBorrowAnotherConnection(t *testing.T) {
 			}
 			publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 				Pool: limited, RuntimeCredentials: service,
-				PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(string) bool { return true }),
+				PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(string) bool { return true }),
 			})
 			if err != nil {
 				t.Fatal(err)
