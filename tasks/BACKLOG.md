@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-89 open tasks: 10 in progress, 68 pending, 11 deferred. 1252 finished: 1237 completed, 15 archived.
+88 open tasks: 9 in progress, 68 pending, 11 deferred. 1253 finished: 1238 completed, 15 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | planner-worker | feature | P1 | Make terminal summarizer reasoning input explicitly configurable |
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
-| [V425-003](v425-003-restorable-sql-function-references.yml) | persistence | defect | P1 | Make every SQL function that table definitions evaluate restorable by pg_restore |
 
 ## Pending
 
@@ -213,5 +212,5 @@ tasks in `introduced_by`.
 | Web UI (`ui`) | 2 | 25 | 66 | 15 | 59 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 43 | 7 | 18 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 38 | 25 | 14 |
-| PostgreSQL persistence and schema (`persistence`) | 5 | 0 | 27 | 45 | 14 |
+| PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 27 | 45 | 14 |
 | Quality, CI and process (`quality`) | 12 | 1 | 27 | 104 | 25 |

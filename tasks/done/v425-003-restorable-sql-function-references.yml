@@ -6,7 +6,7 @@ epic: persistence
 kind: defect
 introduced_by: V62-006
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, sql]
 goal: >-
@@ -101,3 +101,28 @@ delivery:
     helpers and scripts/check_postgres_client_version.py and
     scripts/release_test_reports.py already skip an empty secret.
 
+implementation_commit: b12ebbe80e9222652f0d042278aebd29fc90bd8b
+verification:
+  date: '2026-10-31'
+  environment: >-
+    macOS arm64; Go 1.26.9; the locked Runtime venv; local PostgreSQL 17.11
+    (Homebrew) with pg_dump and pg_restore 17.11; lane database
+    contractor_test_fix_restore and coordinator database
+    contractor_test_bigrun; coordinator gates on main ce609f4f3.
+  commands:
+    - >-
+      Lane (targeted): go test -count=1 -tags integration
+      ./tests/integration/restore for both blob backends and the readable
+      failure subtest; it fails on the unfixed schema at CREATE TABLE
+      audit_items, and with only the generated-column functions fixed at COPY
+      workflow_runs. go test -count=1 -p 1 ./internal/persistence/... passed;
+      TestPostgresTableDefinitionFunctionsAreRestorable reported 14 problems
+      on the unfixed schema. Targeted runstore, planner/session,
+      settingsstore, runservice, controlplane, auditservice, pgstore and
+      evalstore tests passed.
+    - >-
+      Coordinator on ce609f4f3: make test-backup-restore passed;
+      CONTRACTOR_TEST_DATABASE_URL set, go test -count=1 -p 1
+      ./internal/persistence/... passed; make lint passed.
+    - >-
+      Not covered: a restore of real demo data.
