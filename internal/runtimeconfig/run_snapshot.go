@@ -8,12 +8,11 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentialerrors"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
-
-const MaximumRunLabels = 32
 
 // PinnedLabel records the exact mutable binding observation that selected one
 // immutable RuntimeConfig version. Explicit is false only for the mandatory
@@ -44,25 +43,15 @@ const (
 	RuntimeCredentialIDsMember = "runtimeCredentialIds"
 )
 
-// NormalizeRunLabels validates the caller-selected set and returns its one
-// canonical order. Request order is deliberately not semantic.
-func NormalizeRunLabels(source []string) ([]string, error) {
-	if len(source) > MaximumRunLabels {
-		return nil, invalid("Run selects too many Runtime labels")
+// NormalizeLabels validates a Runtime label set that a Run selects or a
+// Runtime Agent is given, and returns its canonical order; request order has
+// no meaning. runtimesettings.CanonicalRuntimeLabels defines the set.
+func NormalizeLabels(source []string) ([]string, error) {
+	labels, err := runtimesettings.CanonicalRuntimeLabels(source)
+	if err != nil {
+		return nil, invalid("Runtime labels must be at most %d unique valid labels other than default", runtimesettings.MaxRuntimeLabels)
 	}
-	seen := make(map[string]struct{}, len(source))
-	result := append([]string{}, source...)
-	for _, label := range result {
-		if ValidateLabel(label) != nil || label == DefaultLabel {
-			return nil, invalid("Run Runtime label is invalid or reserved")
-		}
-		if _, duplicate := seen[label]; duplicate {
-			return nil, invalid("Run Runtime labels contain a duplicate")
-		}
-		seen[label] = struct{}{}
-	}
-	sort.Strings(result)
-	return result, nil
+	return labels, nil
 }
 
 // PinRunSnapshot must be called with the owning PostgreSQL transaction and a
@@ -82,7 +71,7 @@ func PinRunSnapshot(
 	if len(modelFree) > 1 {
 		return RunSnapshot{}, invalid("Run RuntimeConfig pinning accepts at most one model-free selection")
 	}
-	labels, err := NormalizeRunLabels(explicitLabels)
+	labels, err := NormalizeLabels(explicitLabels)
 	if err != nil {
 		return RunSnapshot{}, err
 	}
@@ -164,16 +153,20 @@ func PinRunSnapshot(
 
 func (s RunSnapshot) Validate() error {
 	if s.Default.Label != DefaultLabel || s.Default.Explicit || s.Default.BindingRevision == 0 ||
-		validateRef(s.Default.Config) != nil || len(s.Labels) > MaximumRunLabels {
+		validateRef(s.Default.Config) != nil {
 		return invalid("Run RuntimeConfig snapshot default is invalid")
 	}
-	previous := ""
+	labels := make([]string, 0, len(s.Labels))
 	for _, pin := range s.Labels {
-		if !pin.Explicit || pin.Label == DefaultLabel || pin.Label <= previous ||
-			ValidateLabel(pin.Label) != nil || pin.BindingRevision == 0 || validateRef(pin.Config) != nil {
+		labels = append(labels, pin.Label)
+	}
+	if runtimesettings.ValidateCanonicalRuntimeLabels(labels) != nil {
+		return invalid("Run RuntimeConfig label snapshot is invalid")
+	}
+	for _, pin := range s.Labels {
+		if !pin.Explicit || pin.BindingRevision == 0 || validateRef(pin.Config) != nil {
 			return invalid("Run RuntimeConfig label snapshot is invalid")
 		}
-		previous = pin.Label
 	}
 	if err := validateCredentialIDSet(s.LLMCredentialIDs, true); err != nil {
 		return err

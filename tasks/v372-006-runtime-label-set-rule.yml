@@ -61,6 +61,22 @@ context:
     (contracts.ValidIdentifier with a 63-byte bound) has its shared cases
     already and stays as it is. Runtime placement labels (V405) are a
     different rule and are not touched.
+  decision: >-
+    2026-10-30 (fix-rules lane): the one Go definition lives in
+    internal/contracts/runtimesettings/runtime_labels.go
+    (CanonicalRuntimeLabels, ValidateCanonicalRuntimeLabels,
+    MaxRuntimeLabels, DefaultRuntimeLabel), not in runtimeconfig, because
+    the kernel wire contracts hold two more copies the finding did not
+    list: the provenance runLabels and agentLabels of Runtime settings
+    (runtimesettings/validation.go validateProvenanceBindings) and the
+    registration initialLabels (contracts/control/registration.go
+    validateSortedLabels), and the execution-layer runtimeconfig cannot be
+    imported there. runtimeconfig keeps the domain entry points
+    (NormalizeLabels, which replaces NormalizeRunLabels, and
+    ValidateAgentLabels) on top of it, and its resolver's Run and Agent
+    label layer check uses it too. RCF-R185 records the rule; reversal
+    condition: none expected, the wire contract is the lowest layer that
+    every reader shares.
 scope:
   in:
     - "One Go definition of the label set rule (count bound, label grammar, default exclusion, uniqueness and canonical order) in runtimeconfig, used by Run selection, the Run snapshot check, agentprincipal and the public handler, which keeps only the request decoding; one exported bound replaces maxAgentLabels, MaximumRunLabels and the handler's literal 32."

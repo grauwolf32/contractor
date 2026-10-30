@@ -5,27 +5,6 @@ import (
 	"testing"
 )
 
-func TestNormalizeRunLabelsCanonicalizesOnlyOrder(t *testing.T) {
-	labels, err := NormalizeRunLabels([]string{"trace", "caido", "debug"})
-	if err != nil || strings.Join(labels, ",") != "caido,debug,trace" {
-		t.Fatalf("canonical Run labels = (%v, %v)", labels, err)
-	}
-	for _, invalidLabels := range [][]string{
-		{"debug", "debug"}, {DefaultLabel}, {"Bad"}, {""},
-	} {
-		if _, err := NormalizeRunLabels(invalidLabels); err == nil {
-			t.Fatalf("invalid Run labels accepted: %v", invalidLabels)
-		}
-	}
-	tooMany := make([]string, MaximumRunLabels+1)
-	for index := range tooMany {
-		tooMany[index] = "label_" + strings.Repeat("a", index+1)
-	}
-	if _, err := NormalizeRunLabels(tooMany); err == nil {
-		t.Fatal("oversized Run label set accepted")
-	}
-}
-
 // builtInRunSnapshot pins the default label to the built-in RuntimeConfig,
 // as runtimeconfigtest.BuiltInRunSnapshot does for other packages' tests.
 func builtInRunSnapshot() RunSnapshot {

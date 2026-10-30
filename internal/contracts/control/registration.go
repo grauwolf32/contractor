@@ -68,8 +68,8 @@ func (r AgentRegistration) Validate() error {
 	if err := validateCapabilities(r.SupportedRuntimes, r.SupportedToolsets, r.SupportedSandboxProfiles); err != nil {
 		return err
 	}
-	if err := validateSortedLabels("initialLabels", r.InitialLabels, 32, false); err != nil {
-		return err
+	if r.InitialLabels == nil || runtimesettings.ValidateCanonicalRuntimeLabels(r.InitialLabels) != nil {
+		return contracts.Invalidf("initialLabels must be a Runtime label set in canonical order")
 	}
 	if err := contracts.ValidatePlacementLabels(r.PlacementLabels); err != nil {
 		return err
@@ -166,22 +166,4 @@ func RuntimeAdapterCapabilityProjection(source AgentRegistration) []string {
 	}
 	sort.Strings(result)
 	return result
-}
-
-func validateSortedLabels(field string, values []string, maximum int, allowDefault bool) error {
-	if values == nil || len(values) > maximum {
-		return contracts.Invalidf("%s must be a non-null bounded array", field)
-	}
-	previous := ""
-	for _, value := range values {
-		if len(value) == 0 || len(value) > 63 || !contracts.ValidIdentifier(value) ||
-			(!allowDefault && value == "default") {
-			return contracts.Invalidf("%s contains an invalid label", field)
-		}
-		if value <= previous {
-			return contracts.Invalidf("%s must be sorted and unique", field)
-		}
-		previous = value
-	}
-	return nil
 }

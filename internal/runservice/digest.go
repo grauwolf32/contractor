@@ -14,7 +14,7 @@ import (
 // also binds its Project, so one body sent to two Projects, or to a Project
 // and to /v1/runs, is two different requests.
 func PublicRequestDigest(params PublicCreateParams) (string, error) {
-	labels, err := runtimeconfig.NormalizeRunLabels(params.RuntimeLabels)
+	labels, err := runtimeconfig.NormalizeLabels(params.RuntimeLabels)
 	if err != nil {
 		return "", err
 	}

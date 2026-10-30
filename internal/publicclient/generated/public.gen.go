@@ -6717,18 +6717,20 @@ type Audit struct {
 	ProjectId   ResourceId           `json:"projectId"`
 
 	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
-	RequiredPlacementLabels *PlacementLabels          `json:"requiredPlacementLabels,omitempty"`
-	ReservedRunCount        int                       `json:"reservedRunCount"`
-	RetainedEvidenceBytes   int                       `json:"retainedEvidenceBytes"`
-	Revision                int                       `json:"revision"`
-	RuntimeLabels           []RuntimeInfrastructureId `json:"runtimeLabels"`
-	Scope                   AuditScope                `json:"scope"`
-	StartedAt               *time.Time                `json:"startedAt,omitempty"`
-	State                   AuditState                `json:"state"`
-	StopReason              *AuditStopReason          `json:"stopReason,omitempty"`
-	SubmittedRunCount       int                       `json:"submittedRunCount"`
-	UpdatedAt               time.Time                 `json:"updatedAt"`
-	union                   json.RawMessage
+	RequiredPlacementLabels *PlacementLabels `json:"requiredPlacementLabels,omitempty"`
+	ReservedRunCount        int              `json:"reservedRunCount"`
+	RetainedEvidenceBytes   int              `json:"retainedEvidenceBytes"`
+	Revision                int              `json:"revision"`
+
+	// RuntimeLabels Selected Runtime labels in lexical order; never the reserved default label (RCF-R118).
+	RuntimeLabels     []RuntimeInfrastructureId `json:"runtimeLabels"`
+	Scope             AuditScope                `json:"scope"`
+	StartedAt         *time.Time                `json:"startedAt,omitempty"`
+	State             AuditState                `json:"state"`
+	StopReason        *AuditStopReason          `json:"stopReason,omitempty"`
+	SubmittedRunCount int                       `json:"submittedRunCount"`
+	UpdatedAt         time.Time                 `json:"updatedAt"`
+	union             json.RawMessage
 }
 
 // Audit0 defines model for Audit.0.
@@ -6774,12 +6776,14 @@ type AuditBaseline struct {
 	ProjectHttpTarget *ProjectHTTPTarget `json:"projectHttpTarget,omitempty"`
 
 	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
-	RequiredPlacementLabels *PlacementLabels          `json:"requiredPlacementLabels,omitempty"`
-	RuntimeConfig           AuditRuntimeSnapshot      `json:"runtimeConfig"`
-	RuntimeLabels           []RuntimeInfrastructureId `json:"runtimeLabels"`
-	Scope                   AuditScope                `json:"scope"`
-	Skills                  []AuditSkill              `json:"skills"`
-	Standards               []AuditPinnedStandard     `json:"standards"`
+	RequiredPlacementLabels *PlacementLabels     `json:"requiredPlacementLabels,omitempty"`
+	RuntimeConfig           AuditRuntimeSnapshot `json:"runtimeConfig"`
+
+	// RuntimeLabels Selected Runtime labels in lexical order; never the reserved default label (RCF-R118).
+	RuntimeLabels []RuntimeInfrastructureId `json:"runtimeLabels"`
+	Scope         AuditScope                `json:"scope"`
+	Skills        []AuditSkill              `json:"skills"`
+	Standards     []AuditPinnedStandard     `json:"standards"`
 }
 
 // AuditBaselineInventory defines model for AuditBaselineInventory.
@@ -7985,8 +7989,10 @@ type CreateAuditRequest struct {
 	Inputs map[string]ExactArtifactRef `json:"inputs"`
 
 	// Labels Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance.
-	Labels        *AuditLabels               `json:"labels,omitempty"`
-	Profile       AuditProfileSelector       `json:"profile"`
+	Labels  *AuditLabels         `json:"labels,omitempty"`
+	Profile AuditProfileSelector `json:"profile"`
+
+	// RuntimeLabels Runtime labels in any order: at most 32 labels of the label grammar, unique, never the reserved default label (RCF-R117 to RCF-R120). The Server stores and answers them in lexical order.
 	RuntimeLabels *[]RuntimeInfrastructureId `json:"runtimeLabels,omitempty"`
 	Scope         *AuditScope                `json:"scope,omitempty"`
 }
@@ -8014,10 +8020,12 @@ type CreateRunRequest struct {
 	ExecutionConfig *ExecutionConfigPatch                     `json:"executionConfig,omitempty"`
 
 	// Labels Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive.
-	Labels        *RunMetadataLabels                   `json:"labels,omitempty"`
-	Parameters    nullable.Nullable[map[string]string] `json:"parameters,omitempty"`
-	RuntimeLabels *[]ConfigId                          `json:"runtimeLabels,omitempty"`
-	Workflow      Selector                             `json:"workflow"`
+	Labels     *RunMetadataLabels                   `json:"labels,omitempty"`
+	Parameters nullable.Nullable[map[string]string] `json:"parameters,omitempty"`
+
+	// RuntimeLabels Runtime labels in any order: at most 32 labels of the label grammar, unique, never the reserved default label (RCF-R117 to RCF-R120). The Server stores and answers them in lexical order.
+	RuntimeLabels *[]ConfigId `json:"runtimeLabels,omitempty"`
+	Workflow      Selector    `json:"workflow"`
 }
 
 // CreateRunResponse defines model for CreateRunResponse.
@@ -8031,8 +8039,10 @@ type CreateRunResponse struct {
 	RequiredPlacementLabels *PlacementLabels        `json:"requiredPlacementLabels,omitempty"`
 	RunId                   ResourceId              `json:"runId"`
 	RuntimeConfiguration    RunRuntimeConfiguration `json:"runtimeConfiguration"`
-	RuntimeLabels           []ConfigId              `json:"runtimeLabels"`
-	State                   WorkflowRunState        `json:"state"`
+
+	// RuntimeLabels Selected Runtime labels in lexical order; never the reserved default label (RCF-R118).
+	RuntimeLabels []ConfigId       `json:"runtimeLabels"`
+	State         WorkflowRunState `json:"state"`
 }
 
 // CreateRuntimeCredentialRequest defines model for CreateRuntimeCredentialRequest.
@@ -10924,7 +10934,9 @@ type RunRepeatDraft struct {
 
 	// RequiredPlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
 	RequiredPlacementLabels *PlacementLabels `json:"requiredPlacementLabels,omitempty"`
-	RuntimeLabels           []ConfigId       `json:"runtimeLabels"`
+
+	// RuntimeLabels Selected Runtime labels in lexical order; never the reserved default label (RCF-R118).
+	RuntimeLabels []ConfigId `json:"runtimeLabels"`
 }
 
 // RunRepeatDraftNotice defines model for RunRepeatDraftNotice.
@@ -11014,9 +11026,11 @@ type RunStatus struct {
 	ResumeStageExecutionId *ResourceId             `json:"resumeStageExecutionId,omitempty"`
 	RunId                  ResourceId              `json:"runId"`
 	RuntimeConfiguration   RunRuntimeConfiguration `json:"runtimeConfiguration"`
-	RuntimeLabels          []ConfigId              `json:"runtimeLabels"`
-	StartedAt              *time.Time              `json:"startedAt,omitempty"`
-	State                  WorkflowRunState        `json:"state"`
+
+	// RuntimeLabels Selected Runtime labels in lexical order; never the reserved default label (RCF-R118).
+	RuntimeLabels []ConfigId       `json:"runtimeLabels"`
+	StartedAt     *time.Time       `json:"startedAt,omitempty"`
+	State         WorkflowRunState `json:"state"`
 
 	// Transitions Complete retained transition history. No fixed item cap or truncation is applied by this endpoint.
 	Transitions []StageTransition `json:"transitions"`
@@ -11064,6 +11078,7 @@ type RuntimeAdapterDiagnosticRef string
 
 // RuntimeAgentLabelsMutation defines model for RuntimeAgentLabelsMutation.
 type RuntimeAgentLabelsMutation struct {
+	// Labels The Runtime Agent's complete label set in any order: at most 32 labels of the label grammar, unique, never the reserved default label (RCF-R117 to RCF-R120). The Server stores it in lexical order.
 	Labels []RuntimeInfrastructureId `json:"labels"`
 }
 

@@ -1,0 +1,283 @@
+{
+  "description": "Runtime label sets that a Run selects and a Runtime Agent holds (RCF-R117 to RCF-R120, LIM-RCF-26): at most maxLabels labels of the configuration-ID grammar and at most maxLabelBytes bytes, never default, never twice. A valid set has one canonical form, its labels in lexical byte order; a normalizing reader (Run selection, Agent label replacement, the browser checks) accepts a valid set in any order and returns canonical, and a canonical-form reader (stored Agent labels, Run snapshots, Runtime settings provenance, Runtime registration) accepts exactly the valid sets whose labels already equal canonical. Runtime placement labels are another rule (placement-label-cases.json).",
+  "maxLabels": 32,
+  "maxLabelBytes": 63,
+  "cases": [
+    {
+      "name": "empty",
+      "labels": [],
+      "valid": true,
+      "canonical": []
+    },
+    {
+      "name": "one",
+      "labels": [
+        "gpu"
+      ],
+      "valid": true,
+      "canonical": [
+        "gpu"
+      ]
+    },
+    {
+      "name": "canonical-order",
+      "labels": [
+        "caido",
+        "debug",
+        "trace"
+      ],
+      "valid": true,
+      "canonical": [
+        "caido",
+        "debug",
+        "trace"
+      ]
+    },
+    {
+      "name": "unsorted",
+      "labels": [
+        "trace",
+        "caido",
+        "debug"
+      ],
+      "valid": true,
+      "canonical": [
+        "caido",
+        "debug",
+        "trace"
+      ]
+    },
+    {
+      "name": "lexical-not-natural-order",
+      "labels": [
+        "b-10",
+        "b-9",
+        "b_1",
+        "b1"
+      ],
+      "valid": true,
+      "canonical": [
+        "b-10",
+        "b-9",
+        "b1",
+        "b_1"
+      ]
+    },
+    {
+      "name": "thirty-two-labels",
+      "labels": [
+        "label-31",
+        "label-30",
+        "label-29",
+        "label-28",
+        "label-27",
+        "label-26",
+        "label-25",
+        "label-24",
+        "label-23",
+        "label-22",
+        "label-21",
+        "label-20",
+        "label-19",
+        "label-18",
+        "label-17",
+        "label-16",
+        "label-15",
+        "label-14",
+        "label-13",
+        "label-12",
+        "label-11",
+        "label-10",
+        "label-09",
+        "label-08",
+        "label-07",
+        "label-06",
+        "label-05",
+        "label-04",
+        "label-03",
+        "label-02",
+        "label-01",
+        "label-00"
+      ],
+      "valid": true,
+      "canonical": [
+        "label-00",
+        "label-01",
+        "label-02",
+        "label-03",
+        "label-04",
+        "label-05",
+        "label-06",
+        "label-07",
+        "label-08",
+        "label-09",
+        "label-10",
+        "label-11",
+        "label-12",
+        "label-13",
+        "label-14",
+        "label-15",
+        "label-16",
+        "label-17",
+        "label-18",
+        "label-19",
+        "label-20",
+        "label-21",
+        "label-22",
+        "label-23",
+        "label-24",
+        "label-25",
+        "label-26",
+        "label-27",
+        "label-28",
+        "label-29",
+        "label-30",
+        "label-31"
+      ]
+    },
+    {
+      "name": "thirty-three-labels",
+      "labels": [
+        "label-00",
+        "label-01",
+        "label-02",
+        "label-03",
+        "label-04",
+        "label-05",
+        "label-06",
+        "label-07",
+        "label-08",
+        "label-09",
+        "label-10",
+        "label-11",
+        "label-12",
+        "label-13",
+        "label-14",
+        "label-15",
+        "label-16",
+        "label-17",
+        "label-18",
+        "label-19",
+        "label-20",
+        "label-21",
+        "label-22",
+        "label-23",
+        "label-24",
+        "label-25",
+        "label-26",
+        "label-27",
+        "label-28",
+        "label-29",
+        "label-30",
+        "label-31",
+        "label-32"
+      ],
+      "valid": false
+    },
+    {
+      "name": "duplicate",
+      "labels": [
+        "debug",
+        "debug"
+      ],
+      "valid": false
+    },
+    {
+      "name": "duplicate-apart",
+      "labels": [
+        "debug",
+        "caido",
+        "debug"
+      ],
+      "valid": false
+    },
+    {
+      "name": "default",
+      "labels": [
+        "default"
+      ],
+      "valid": false
+    },
+    {
+      "name": "default-among-others",
+      "labels": [
+        "caido",
+        "default"
+      ],
+      "valid": false
+    },
+    {
+      "name": "empty-label",
+      "labels": [
+        ""
+      ],
+      "valid": false
+    },
+    {
+      "name": "uppercase",
+      "labels": [
+        "Bad"
+      ],
+      "valid": false
+    },
+    {
+      "name": "leading-digit",
+      "labels": [
+        "1gpu"
+      ],
+      "valid": false
+    },
+    {
+      "name": "leading-hyphen",
+      "labels": [
+        "-gpu"
+      ],
+      "valid": false
+    },
+    {
+      "name": "placement-label",
+      "labels": [
+        "cloud/aws"
+      ],
+      "valid": false
+    },
+    {
+      "name": "dot",
+      "labels": [
+        "gpu.large"
+      ],
+      "valid": false
+    },
+    {
+      "name": "space",
+      "labels": [
+        "gpu large"
+      ],
+      "valid": false
+    },
+    {
+      "name": "non-ascii",
+      "labels": [
+        "gpü"
+      ],
+      "valid": false
+    },
+    {
+      "name": "label-63-bytes",
+      "labels": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "valid": true,
+      "canonical": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ]
+    },
+    {
+      "name": "label-64-bytes",
+      "labels": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "valid": false
+    }
+  ]
+}

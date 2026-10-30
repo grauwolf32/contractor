@@ -13527,6 +13527,10 @@ components:
           maxProperties: 32
           additionalProperties: {$ref: '#/components/schemas/ExactArtifactRef'}
         runtimeLabels:
+          description: >-
+            Runtime labels in any order: at most 32 labels of the label grammar,
+            unique, never the reserved default label (RCF-R117 to RCF-R120). The
+            Server stores and answers them in lexical order.
           type: array
           maxItems: 32
           uniqueItems: true
@@ -13605,6 +13609,9 @@ components:
           additionalProperties: {$ref: '#/components/schemas/AuditExactArtifact'}
         scope: {$ref: '#/components/schemas/AuditScope'}
         runtimeLabels:
+          description: >-
+            Selected Runtime labels in lexical order; never the reserved default
+            label (RCF-R118).
           type: array
           maxItems: 32
           items: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
@@ -13734,6 +13741,9 @@ components:
           additionalProperties: {$ref: '#/components/schemas/AuditExactArtifact'}
         scope: {$ref: '#/components/schemas/AuditScope'}
         runtimeLabels:
+          description: >-
+            Selected Runtime labels in lexical order; never the reserved default
+            label (RCF-R118).
           type: array
           maxItems: 32
           items: {$ref: '#/components/schemas/RuntimeInfrastructureId'}
@@ -16068,6 +16078,9 @@ components:
           type: boolean
           description: True only when terminal release and every applicable retention receipt are durable.
         runtimeLabels:
+          description: >-
+            Selected Runtime labels in lexical order; never the reserved default
+            label (RCF-R118).
           type: array
           maxItems: 32
           uniqueItems: true
@@ -16142,6 +16155,9 @@ components:
           maxProperties: 128
           additionalProperties: {type: string}
         runtimeLabels:
+          description: >-
+            Selected Runtime labels in lexical order; never the reserved default
+            label (RCF-R118).
           type: array
           maxItems: 32
           uniqueItems: true
@@ -16229,6 +16245,9 @@ components:
         projectId: {$ref: '#/components/schemas/ResourceId'}
         state: {$ref: '#/components/schemas/WorkflowRunState'}
         runtimeLabels:
+          description: >-
+            Selected Runtime labels in lexical order; never the reserved default
+            label (RCF-R118).
           type: array
           maxItems: 32
           uniqueItems: true
@@ -16285,6 +16304,10 @@ components:
       properties:
         workflow: {$ref: '#/components/schemas/Selector'}
         runtimeLabels:
+          description: >-
+            Runtime labels in any order: at most 32 labels of the label grammar,
+            unique, never the reserved default label (RCF-R117 to RCF-R120). The
+            Server stores and answers them in lexical order.
           type: array
           maxItems: 32
           uniqueItems: true
@@ -17138,6 +17161,10 @@ components:
       required: [labels]
       properties:
         labels:
+          description: >-
+            The Runtime Agent's complete label set in any order: at most 32
+            labels of the label grammar, unique, never the reserved default
+            label (RCF-R117 to RCF-R120). The Server stores it in lexical order.
           type: array
           maxItems: 32
           uniqueItems: true
