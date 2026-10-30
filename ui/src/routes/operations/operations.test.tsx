@@ -264,7 +264,7 @@ describe("Operations routes", () => {
         if (!snapshotAvailable) {
           return failure(
             503,
-            "unavailable",
+            "storage_transaction_conflict",
             "Operations snapshot is unavailable",
             true,
           );

@@ -347,7 +347,7 @@ describe("Managed Eval comparisons", () => {
       pairFails &&
       request.method === "GET" &&
       new URL(request.url).pathname.includes("/pairs/")
-        ? failure(503, "unavailable", "Pair store unavailable")
+        ? failure(503, "storage_transaction_conflict", "Pair store unavailable")
         : answer(request);
     const user = userEvent.setup();
     start(

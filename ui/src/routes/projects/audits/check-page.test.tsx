@@ -2176,7 +2176,7 @@ describe("Check refresh correctness", () => {
       const failure = () =>
         json(
           {
-            code: "temporarily_unavailable",
+            code: "storage_transaction_conflict",
             message: "Temporary read failure",
             retryable: true,
             requestId: "retry_refresh",

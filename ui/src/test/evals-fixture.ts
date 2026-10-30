@@ -150,8 +150,8 @@ export function createEvalFixture(
       if (
         request.headers.get("X-CSRF-Token") !== EVAL_FIXTURE_SESSION.csrfToken
       )
-        return error("csrf_required", 403);
-      if (!key) return error("eval_invalid", 400);
+        return error("forbidden", 403);
+      if (!key) return error("eval_invalid", 422);
       const saved = receipts.get(receiptKey);
       if (saved)
         return saved.body === raw && saved.etag === etag
@@ -354,7 +354,7 @@ export function createEvalFixture(
       }
       if (fixture.commandUnavailableOnce) {
         fixture.commandUnavailableOnce = false;
-        return error("eval_unavailable", 503);
+        return error("storage_transaction_conflict", 503);
       }
       if (etag !== `"${e.revision}"`)
         return error("eval_revision_mismatch", 412);
