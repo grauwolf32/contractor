@@ -48,7 +48,7 @@ func parseSource(data []byte, mediaType string, ref contracts.ArtifactRef) (*sou
 		return nil, err
 	}
 	version, _ := root["openapi"].(string)
-	if !supportedOpenAPIVersion(version) {
+	if !SupportsOpenAPIVersion(version) {
 		return nil, failure("unsupported_openapi_version")
 	}
 	paths, ok := root["paths"].(map[string]any)

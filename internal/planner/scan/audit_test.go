@@ -16,8 +16,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	contractscan "github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/scanplan"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 )
 
 type auditFactoryHistory struct {

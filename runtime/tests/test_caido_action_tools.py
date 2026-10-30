@@ -88,6 +88,7 @@ def test_scope_replay_automate_and_workflow_actions_are_exact_and_bounded(
                     "error": None,
                     "request": {
                         "id": "replayed-request",
+                        "createdAt": "2026-09-01T00:03:00Z",
                         "method": "GET",
                         "host": "target.example",
                         "path": "/probe",
@@ -832,6 +833,7 @@ def payload_handler(observed: list[str]) -> tuple[Any, dict[str, bytes]]:
                 "error": None,
                 "request": {
                     "id": "replayed-request",
+                    "createdAt": "2026-09-01T00:03:00Z",
                     "method": "GET",
                     "host": "target.example",
                     "path": "/probe",

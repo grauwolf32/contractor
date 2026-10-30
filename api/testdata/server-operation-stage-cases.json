@@ -1,0 +1,13 @@
+{
+  "cases": [
+    {"name": "pure join", "path": ["operation", "ref"], "value": "sitemap-openapi-join@1", "valid": true},
+    {"name": "explicit apply", "path": ["operation", "ref"], "value": "sitemap-apply-openapi@1", "valid": true},
+    {"name": "unknown operation", "path": ["operation", "ref"], "value": "shell-command@1", "valid": false},
+    {"name": "planner and operation", "path": ["planner"], "value": "passthrough@1", "valid": false},
+    {"name": "null planner", "path": ["planner"], "value": null, "valid": false},
+    {"name": "null operation", "path": ["operation"], "value": null, "valid": false},
+    {"name": "instructions", "path": ["instructions"], "value": {"ref": "instructions/unused.md"}, "valid": false},
+    {"name": "null instructions", "path": ["instructions"], "value": null, "valid": false},
+    {"name": "shared session", "path": ["session"], "value": "shared", "valid": false}
+  ]
+}

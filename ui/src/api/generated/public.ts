@@ -2651,8 +2651,8 @@ export interface components {
         };
         SitemapProvenance: {
             sourceId: components["schemas"]["ResourceId"];
-            /** @enum {string} */
-            kind: "manual" | "http" | "caido" | "ffuf" | "katana" | "dirsearch" | "openapi";
+            /** @description Source label using the shared name grammar. Observed sources are extensible; manual and openapi identify domain editing and declaration provenance. */
+            kind: string;
             deployment?: components["schemas"]["ResourceId"];
         };
         SitemapSummary: {
@@ -2709,7 +2709,7 @@ export interface components {
         SitemapGap: {
             sourceId: "" | components["schemas"]["ResourceId"];
             /** @enum {string} */
-            reason: "structural" | "members" | "groups" | "summaries" | "examples" | "regrouping" | "incomplete" | "parameters" | "source-unavailable" | "ambiguous" | "projection";
+            reason: "structural" | "members" | "groups" | "summaries" | "examples" | "regrouping" | "incomplete" | "parameters" | "source-unavailable" | "ambiguous" | "projection" | "report-truncated" | "request-errors" | "evidence";
             count: number;
         };
         SitemapMutation: {
@@ -5623,7 +5623,7 @@ export interface components {
             config: components["schemas"]["RuntimeConfigRef"];
         };
         /** @enum {unknown} */
-        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-login@1";
+        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-cookies@1";
         RuntimeCredentialMetadata: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             kind: components["schemas"]["RuntimeCredentialKind"];
@@ -5676,9 +5676,9 @@ export interface components {
             /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
             token: string;
         };
-        TargetLoginMaterial: {
-            /** @description Named login secret fields (RCF-R184); each value is at most 8,192 UTF-8 bytes without control characters, and the values total at most 16 KiB. */
-            fields: {
+        TargetCookiesMaterial: {
+            /** @description Ready user supplied cookies (RCF-R184); at most 128 cookies with token names, at most 8192 ASCII cookie octets per value and at most 16 KiB of names and values combined. Empty values are allowed. Runtime does not log in or refresh the session. */
+            cookies: {
                 [key: string]: string;
             };
         };
@@ -5730,8 +5730,8 @@ export interface components {
         } | {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             /** @constant */
-            kind: "target-login@1";
-            material: components["schemas"]["TargetLoginMaterial"];
+            kind: "target-cookies@1";
+            material: components["schemas"]["TargetCookiesMaterial"];
         };
         PinnedRuntimeConfig: {
             label: components["schemas"]["ConfigId"];
@@ -6203,8 +6203,9 @@ export interface components {
         };
         WorkflowStageContract: {
             objective: string;
-            instructions: components["schemas"]["InstructionsRef"];
-            planner: components["schemas"]["PlannerRef"];
+            instructions?: components["schemas"]["InstructionsRef"];
+            planner?: components["schemas"]["PlannerRef"];
+            operation?: components["schemas"]["ServerOperationConfig"];
             /**
              * @description Resolved Worker session mode. Always present; omission in source Workflow YAML resolves to isolated before publication.
              * @enum {string}
@@ -6224,6 +6225,19 @@ export interface components {
                 [key: string]: components["schemas"]["ArtifactName"];
             };
             on: components["schemas"]["WorkflowTransitions"];
+        } & ({
+            agents?: unknown;
+        } | {
+            agents?: unknown;
+            /** @constant */
+            session?: "isolated";
+        });
+        ServerOperationConfig: {
+            /** @enum {string} */
+            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1";
+            arguments: {
+                [key: string]: components["schemas"]["ArgumentBinding"] & unknown;
+            };
         };
         /**
          * @example {
@@ -6428,30 +6442,31 @@ export interface components {
             resultArtifact: string;
             timeoutSeconds: number;
             arguments: {
-                [key: string]: {
-                    /** @constant */
-                    source: "parameter";
-                    name: string;
-                    default?: string;
-                } | {
-                    /** @constant */
-                    source: "parameter";
-                    name: string;
-                    /** @constant */
-                    parse: "integer";
-                    default?: number;
-                } | {
-                    /** @constant */
-                    source: "artifact";
-                    name: string;
-                    /** @constant */
-                    optional?: true;
-                } | {
-                    /** @constant */
-                    source: "literal";
-                    value: string | boolean | number;
-                };
+                [key: string]: components["schemas"]["ArgumentBinding"];
             };
+        };
+        ArgumentBinding: {
+            /** @constant */
+            source: "parameter";
+            name: string;
+            default?: string;
+        } | {
+            /** @constant */
+            source: "parameter";
+            name: string;
+            /** @constant */
+            parse: "integer";
+            default?: number;
+        } | {
+            /** @constant */
+            source: "artifact";
+            name: string;
+            /** @constant */
+            optional?: true;
+        } | {
+            /** @constant */
+            source: "literal";
+            value: string | boolean | number;
         };
         ExecutionConfigSelection: {
             modelPolicy?: components["schemas"]["ModelPolicyRef"];

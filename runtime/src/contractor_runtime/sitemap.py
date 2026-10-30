@@ -40,8 +40,10 @@ class SitemapClient:
         self._root = allocation_path(client.allocation_id, "sitemap")
         self._transport = client.transport
 
-    async def collect(self, batch: Mapping[str, object], key: str) -> SitemapMutationResult:
-        response = await self._post("observations", batch, key)
+    async def collect(
+        self, batch: Mapping[str, object], key: str, *, automatic: bool = True
+    ) -> SitemapMutationResult:
+        response = await self._post("observations", batch, key, automatic=automatic)
         return decode_private(SitemapMutationResponse, response).result
 
     async def mutate(self, command: Mapping[str, object], key: str) -> SitemapMutationResult:
@@ -52,14 +54,19 @@ class SitemapClient:
         response = await self._post("snapshots", selection, key)
         return decode_private(SitemapSnapshotResponse, response).result
 
-    async def _post(self, operation: str, value: Mapping[str, object], key: str) -> bytes:
+    async def _post(
+        self, operation: str, value: Mapping[str, object], key: str, *, automatic: bool = False
+    ) -> bytes:
         body = await threads.to_thread_until_done(
             lambda: json.dumps(
                 {
                     "apiVersion": "contractor/v1alpha1",
-                    {"mutations": "mutation", "snapshots": "selection", "observations": "input"}[
-                        operation
-                    ]: value,
+                    {
+                        "mutations": "mutation",
+                        "snapshots": "selection",
+                        "observations": "input",
+                    }[operation]: value,
+                    **({"automatic": automatic} if operation == "observations" else {}),
                 },
                 ensure_ascii=False,
                 sort_keys=True,
@@ -69,12 +76,13 @@ class SitemapClient:
             name="sitemap-command-encode",
         )
         if len(body) > MAX_SITEMAP_COMMAND_BYTES:
-            raise ValueError("sitemap command exceeds its byte bound")
+            raise ArtifactAPIError(400, "invalid_request", False)
         # Reconcile one ambiguous transport loss with the same bytes and key.
         # The Server owns storage retry budgets and definite API failures.
         async with asyncio.timeout(15):
             response = None
-            for attempt in range(1 if operation == "observations" else 2):
+            collected = automatic
+            for attempt in range(1 if collected else 2):
                 try:
                     response = await self._transport.request(
                         "POST",
@@ -89,7 +97,7 @@ class SitemapClient:
                     )
                     break
                 except ArtifactTransportError:
-                    if operation == "observations" or attempt != 0:
+                    if collected or attempt != 0:
                         raise
             if response is None:
                 raise RuntimeError("sitemap operation did not produce a response")

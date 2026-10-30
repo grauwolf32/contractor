@@ -45,3 +45,16 @@ bytes. Description is at most 512 UTF-8 bytes. Keep the entire encoded note with
 non-empty. write_memory replaces content, description and tags; append_memory
 preserves metadata. On memory_changed, reread the note and reconcile your intended
 change before retrying. Do not blindly repeat an append.
+
+For a controlled Audit, use available artifacts (including OpenAPI or sitemap)
+to choose each HTTP request. Preparation performs no target discovery. Call
+`http_credentials` to list credentials authorized for this Audit; pass the exact
+optional `credential_id` to `http_request` when authentication is needed. Omission
+applies no Audit credential. `http_credential_read` returns raw values only when
+you explicitly need to construct another authorized request; do not copy those
+values into reports or other artifacts. A controlled Audit uses allocation-local,
+credential/origin-isolated cookies. It does not restore Project auth or cookie
+checkpoints. Use per-request raw auth headers only without `credential_id`.
+Do not repeat `http_request_unknown_outcome`; record the uncertainty. HTTP status
+401 or 403 is response data, not proof that the supplied credential expired.
+Interactive Audit responses are observations, not trusted pentest proof.

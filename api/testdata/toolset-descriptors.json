@@ -62,7 +62,7 @@
       "requiredWorkflowInputs": {}
     },
     "http-tools@1": {
-      "tools": ["http_history", "http_read_body", "http_request", "http_session_clear", "http_session_get", "http_session_set"],
+      "tools": ["http_credential_read", "http_credentials", "http_history", "http_read_body", "http_request", "http_session_clear", "http_session_get", "http_session_set"],
       "infrastructureChannels": {"http_request": ["runtime-http-client"]},
       "requiresWorkspace": false,
       "requiredSandboxProfiles": [],

@@ -225,17 +225,13 @@
       "type": "PentestActionReply",
       "schema": "pentest-action-reply.schema.json"
     },
-    "pentest-preflight-run.json": {
-      "type": "PentestPreflightRequest",
-      "schema": "pentest-preflight-request.schema.json"
+    "pentest-transport-stop.json": {
+      "type": "PentestTransportRequest",
+      "schema": "pentest-transport-request.schema.json"
     },
-    "pentest-preflight-stop.json": {
-      "type": "PentestPreflightRequest",
-      "schema": "pentest-preflight-request.schema.json"
-    },
-    "pentest-preflight-response.json": {
-      "type": "PentestPreflightResponse",
-      "schema": "pentest-preflight-response.schema.json"
+    "pentest-transport-stopped.json": {
+      "type": "PentestTransportResponse",
+      "schema": "pentest-transport-response.schema.json"
     },
     "pentest-allocation-preflight.json": {
       "type": "AllocationSpec",
@@ -249,37 +245,13 @@
       "type": "AllocationSpec",
       "schema": "allocation.schema.json"
     },
-    "pentest-allocation-http-login.json": {
+    "pentest-action-request-identity.json": {
+      "type": "PentestActionCommand",
+      "schema": "pentest-action-command.schema.json"
+    },
+    "pentest-allocation-cookies.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json"
-    },
-    "pentest-action-login-identity.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-control-identity.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-auth-check-identity.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-refresh-identity.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-refresh-control-identity.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-seed-identity.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-preflight-identities.json": {
-      "type": "PentestPreflightResponse",
-      "schema": "pentest-preflight-response.schema.json"
     }
   },
   "invalid": {
@@ -959,11 +931,6 @@
       "schema": "pentest-action-reply.schema.json",
       "strict": true
     },
-    "pentest-prepare-invalid-seedIndex.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
     "pentest-prepare-invalid-redirectHop.json": {
       "type": "PentestActionCommand",
       "strict": true,
@@ -1064,20 +1031,10 @@
       "strict": true,
       "schema": "pentest-action-reply.schema.json"
     },
-    "pentest-stop-wrong-mode.json": {
-      "type": "PentestPreflightRequest",
-      "strict": true,
-      "schema": "pentest-preflight-request.schema.json"
-    },
     "pentest-stopped-false-type.json": {
-      "type": "PentestPreflightResponse",
+      "type": "PentestTransportResponse",
       "strict": true,
-      "schema": "pentest-preflight-response.schema.json"
-    },
-    "pentest-seed-summary-overflow.json": {
-      "type": "PentestPreflightResponse",
-      "strict": true,
-      "reason": "invariant"
+      "schema": "pentest-transport-response.schema.json"
     },
     "pentest-assignment-invalid-adapter.json": {
       "type": "AllocationSpec",
@@ -1085,11 +1042,6 @@
       "schema": "allocation.schema.json"
     },
     "pentest-assignment-invalid-protectedDestinations.json": {
-      "type": "AllocationSpec",
-      "strict": true,
-      "schema": "allocation.schema.json"
-    },
-    "pentest-assignment-invalid-seedUrls.json": {
       "type": "AllocationSpec",
       "strict": true,
       "schema": "allocation.schema.json"
@@ -1104,37 +1056,7 @@
       "strict": true,
       "schema": "allocation.schema.json"
     },
-    "pentest-action-invalid-anonymous-login.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-invalid-anonymous-refresh.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
     "pentest-action-invalid-unknown-phase.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-invalid-login-redirect.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-invalid-refresh-generation.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-invalid-login-index.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-invalid-control-index.json": {
       "type": "PentestActionCommand",
       "strict": true,
       "schema": "pentest-action-command.schema.json"
@@ -1154,35 +1076,16 @@
       "strict": true,
       "schema": "pentest-action-command.schema.json"
     },
-    "pentest-preflight-invalid-duplicate.json": {
-      "type": "PentestPreflightResponse",
+    "pentest-transport-unconfirmed.json": {
+      "type": "PentestTransportResponse",
+      "strict": true,
+      "reason": "invariant",
+      "schema": "pentest-transport-response.schema.json"
+    },
+    "pentest-assignment-duplicate-credential.json": {
+      "type": "AllocationSpec",
       "strict": true,
       "reason": "invariant"
-    },
-    "pentest-preflight-invalid-unverified-origin.json": {
-      "type": "PentestPreflightResponse",
-      "strict": true,
-      "schema": "pentest-preflight-response.schema.json"
-    },
-    "pentest-preflight-invalid-missing-origin.json": {
-      "type": "PentestPreflightResponse",
-      "strict": true,
-      "schema": "pentest-preflight-response.schema.json"
-    },
-    "pentest-preflight-invalid-origin-path.json": {
-      "type": "PentestPreflightResponse",
-      "strict": true,
-      "reason": "invariant"
-    },
-    "pentest-preflight-invalid-anonymous-auth.json": {
-      "type": "PentestPreflightResponse",
-      "strict": true,
-      "schema": "pentest-preflight-response.schema.json"
-    },
-    "pentest-preflight-invalid-too-many.json": {
-      "type": "PentestPreflightResponse",
-      "strict": true,
-      "schema": "pentest-preflight-response.schema.json"
     }
   }
 }

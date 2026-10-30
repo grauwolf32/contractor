@@ -1,0 +1,18 @@
+apiVersion: contractor/v1alpha1
+kind: AgentTemplate
+metadata: {name: sitemap-importer, version: "1"}
+spec:
+  description: Import an existing exact scanner report without running a scanner.
+  runtime: tool@1
+  sandboxProfile: local-workdir@1
+  sitemap: {version: sitemap-access@1, collectObservations: false}
+  toolsets:
+    - ref: sitemap@1
+      tools: [import_sitemap_source]
+  execution:
+    tool: import_sitemap_source
+    arguments:
+      format: {source: parameter, name: format}
+      artifact_ref: {source: artifact, name: source}
+    resultArtifact: report
+    timeoutSeconds: 30

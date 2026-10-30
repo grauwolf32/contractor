@@ -67,7 +67,9 @@ def test_production_registry_derives_exactly_the_previous_sensitive_output_tools
     assert ("code-execution@1" in registry.toolsets) is with_execution
 
     assert registry.sensitive_output_tools == (
-        PREVIOUS_UNDECLARED_SENSITIVE_OUTPUT_TOOLS | INTERACTSH_TOOL_NAMES
+        PREVIOUS_UNDECLARED_SENSITIVE_OUTPUT_TOOLS
+        | INTERACTSH_TOOL_NAMES
+        | {"http_credentials", "http_credential_read"}
     )
     # The previous definition, which also covered tools added to either toolset later.
     assert registry.sensitive_output_tools == frozenset(

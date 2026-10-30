@@ -34,6 +34,7 @@ func TestSharedProjectSitemapCases(t *testing.T) {
 		Version    string          `json:"version"`
 		Empty      json.RawMessage `json:"empty"`
 		Observed   json.RawMessage `json:"observed"`
+		Reported   json.RawMessage `json:"reported"`
 		Invalid    []string        `json:"invalid"`
 		Projection []struct {
 			URL        string   `json:"url"`
@@ -54,6 +55,9 @@ func TestSharedProjectSitemapCases(t *testing.T) {
 	}
 	if observed, err := Decode(fixture.Observed); err != nil || len(observed.Groups) != 1 || len(observed.Groups[0].Members[0].Summaries) != 1 {
 		t.Fatalf("observed: %v", err)
+	}
+	if reported, err := Decode(fixture.Reported); err != nil || len(reported.Gaps) != 3 {
+		t.Fatalf("reported gaps: %v", err)
 	}
 	for _, invalid := range fixture.Invalid {
 		if _, err := Decode([]byte(invalid)); err == nil {

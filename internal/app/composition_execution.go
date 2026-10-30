@@ -12,6 +12,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/mtls"
+	"github.com/grauwolf32/contractor/internal/operations"
+	"github.com/grauwolf32/contractor/internal/operations/sitemapjoin"
 	"github.com/grauwolf32/contractor/internal/planner"
 	plannera2a "github.com/grauwolf32/contractor/internal/planner/a2a"
 	plannerrouter "github.com/grauwolf32/contractor/internal/planner/router"
@@ -19,6 +21,7 @@ import (
 	plannersession "github.com/grauwolf32/contractor/internal/planner/session"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 	"github.com/grauwolf32/contractor/internal/projectlifecycle"
+	"github.com/grauwolf32/contractor/internal/projectsitemap"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/scheduler"
@@ -28,9 +31,10 @@ import (
 	"google.golang.org/adk/v2/model"
 )
 
-type plannerServices struct {
-	registry *planner.Registry
-	sessions *plannersession.Service
+type executorServices struct {
+	registry   *planner.Registry
+	operations *operations.Registry
+	sessions   *plannersession.Service
 }
 
 type workflowServices struct {
@@ -47,20 +51,20 @@ func (workflowServices) Format(state fmt.State, _ rune) {
 	_, _ = io.WriteString(state, "app.workflowServices([REDACTED])")
 }
 
-func configurePlanners(
+func configureExecutors(
 	pool *pgxpool.Pool,
 	artifactService *artifacts.Service,
 	runtimeClient *controlplane.RuntimeControlClient,
 	cfg Config,
-) (plannerServices, error) {
+) (executorServices, error) {
 	files := mtls.Files{Certificate: cfg.CertificateFile, PrivateKey: cfg.PrivateKeyFile, CA: cfg.CAFile}
 	artifactInspector, err := planner.NewArtifactServiceInspector(artifactService)
 	if err != nil {
-		return plannerServices{}, err
+		return executorServices{}, err
 	}
 	plannerMemoryStore, err := plannermemory.NewPostgresStore(pool)
 	if err != nil {
-		return plannerServices{}, fmt.Errorf("configure Planner Memory store: %w", err)
+		return executorServices{}, fmt.Errorf("configure Planner Memory store: %w", err)
 	}
 	completionWriteTimeout := max(
 		planner.DefaultCompletionWriteTimeout,
@@ -70,15 +74,15 @@ func configurePlanners(
 		CompletionWriteTimeout: completionWriteTimeout,
 	})
 	if err != nil {
-		return plannerServices{}, fmt.Errorf("configure Planner sessions: %w", err)
+		return executorServices{}, fmt.Errorf("configure Planner sessions: %w", err)
 	}
 	a2aInvoker, err := plannera2a.NewMTLS(files, cfg.RuntimeRequestTimeout, plannera2a.Options{PollInterval: cfg.Operations.A2A.PollInterval})
 	if err != nil {
-		return plannerServices{}, fmt.Errorf("configure A2A client: %w", err)
+		return executorServices{}, fmt.Errorf("configure A2A client: %w", err)
 	}
 	passthrough, err := planner.NewPassthroughFactory(plannerSessions, a2aInvoker, artifactInspector)
 	if err != nil {
-		return plannerServices{}, err
+		return executorServices{}, err
 	}
 	plannerModelFactory := func(access planner.ModelAccess) (model.LLM, error) {
 		return streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
@@ -94,28 +98,32 @@ func configurePlanners(
 		runtimeClient, plannerMemoryStore, plannerModelFactory, streamlineLimits,
 	)
 	if err != nil {
-		return plannerServices{}, fmt.Errorf("configure Streamline Planner: %w", err)
+		return executorServices{}, fmt.Errorf("configure Streamline Planner: %w", err)
 	}
 	routerFactory, err := plannerrouter.NewConfiguredFactoryWithMemory(
 		plannerSessions, plannerSessions, a2aInvoker, artifactInspector,
 		runtimeClient, plannerMemoryStore, plannerModelFactory, streamlineLimits,
 	)
 	if err != nil {
-		return plannerServices{}, fmt.Errorf("configure Router Planner: %w", err)
+		return executorServices{}, fmt.Errorf("configure Router Planner: %w", err)
 	}
 	scanArtifacts, err := plannerscan.NewServiceArtifacts(artifactService)
 	if err != nil {
-		return plannerServices{}, err
+		return executorServices{}, err
 	}
 	scanFactory, err := plannerscan.NewFactory(plannerSessions, a2aInvoker, scanArtifacts, artifactInspector)
 	if err != nil {
-		return plannerServices{}, err
+		return executorServices{}, err
 	}
 	plannerRegistry, err := planner.NewRegistry(passthrough, streamlineFactory, routerFactory, scanFactory)
 	if err != nil {
-		return plannerServices{}, err
+		return executorServices{}, err
 	}
-	return plannerServices{registry: plannerRegistry, sessions: plannerSessions}, nil
+	operationRegistry, err := operations.NewRegistry(sitemapjoin.NewJoin(projectsitemap.NewService(pool)), sitemapjoin.NewApply(projectsitemap.NewService(pool)))
+	if err != nil {
+		return executorServices{}, err
+	}
+	return executorServices{registry: plannerRegistry, operations: operationRegistry, sessions: plannerSessions}, nil
 }
 
 func configureWorkflows(
@@ -136,7 +144,7 @@ func configureWorkflows(
 	if err != nil {
 		return workflowServices{}, err
 	}
-	planners, err := configurePlanners(pool, catalogs.artifacts, control.runtimeClient, cfg)
+	planners, err := configureExecutors(pool, catalogs.artifacts, control.runtimeClient, cfg)
 	if err != nil {
 		return workflowServices{}, err
 	}
@@ -166,6 +174,7 @@ func configureWorkflows(
 		scheduler.Options{
 			GatewayRecovery:     recovery,
 			PlannerSessions:     planners.sessions,
+			ServerOperations:    planners.operations,
 			PollInterval:        cfg.Operations.Scheduler.PollInterval,
 			ClaimDuration:       cfg.Operations.Scheduler.ClaimDuration,
 			LeaseScanInterval:   cfg.Operations.Scheduler.LeaseScanInterval,

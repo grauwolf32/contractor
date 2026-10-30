@@ -195,17 +195,18 @@ type artifactBindingSource struct {
 }
 
 type stageSource struct {
-	Objective       string                        `yaml:"objective"`
-	Instructions    *instructionsRefSource        `yaml:"instructions"`
-	Planner         string                        `yaml:"planner"`
-	ScanPlan        *scan.ScanPlanPolicy          `yaml:"scanPlan,omitempty"`
-	AuditScan       *resolved.AuditScanConfig     `yaml:"auditScan,omitempty"`
-	Session         yaml.Node                     `yaml:"session,omitempty"`
-	Agents          map[string]agentBindingSource `yaml:"agents"`
-	Context         *stageContextSource           `yaml:"context,omitempty"`
-	Result          *stageResultSource            `yaml:"result,omitempty"`
-	WorkflowOutputs map[string]string             `yaml:"workflowOutputs,omitempty"`
-	On              *stageTransitionsSource       `yaml:"on"`
+	Operation       *resolved.ServerOperationConfig `yaml:"operation,omitempty"`
+	Objective       string                          `yaml:"objective"`
+	Instructions    *instructionsRefSource          `yaml:"instructions"`
+	Planner         string                          `yaml:"planner"`
+	ScanPlan        *scan.ScanPlanPolicy            `yaml:"scanPlan,omitempty"`
+	AuditScan       *resolved.AuditScanConfig       `yaml:"auditScan,omitempty"`
+	Session         yaml.Node                       `yaml:"session,omitempty"`
+	Agents          map[string]agentBindingSource   `yaml:"agents"`
+	Context         *stageContextSource             `yaml:"context,omitempty"`
+	Result          *stageResultSource              `yaml:"result,omitempty"`
+	WorkflowOutputs map[string]string               `yaml:"workflowOutputs,omitempty"`
+	On              *stageTransitionsSource         `yaml:"on"`
 }
 
 type agentBindingSource struct {

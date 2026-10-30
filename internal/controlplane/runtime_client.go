@@ -154,7 +154,7 @@ func (c *RuntimeControlClient) Prepare(
 		}
 
 		spec.PentestEngagement = projection
-		if projection != nil && projection.Preflight != nil && c.pentestMaterials != nil {
+		if projection != nil && projection.HTTP != nil && c.pentestMaterials != nil {
 			materialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 			material, materialErr := c.pentestMaterials(materialCtx, projection)
 			cancel()
@@ -165,7 +165,11 @@ func (c *RuntimeControlClient) Prepare(
 			}
 		}
 
-		if projection != nil && resolved.TemplateRequiresNetwork(spec.AgentTemplate) {
+		uncontrolled := resolved.TemplateRequiresNetwork(spec.AgentTemplate)
+		if projection != nil && projection.HTTP != nil {
+			uncontrolled = resolved.TemplateRequiresUncontrolledNetwork(spec.AgentTemplate)
+		}
+		if projection != nil && uncontrolled {
 			return contracts.WorkerHandle{}, fmt.Errorf("%w: pentest metadata does not authorize target transport", ErrInvalidRequest)
 		}
 		if c.grantReader == nil {
@@ -187,8 +191,12 @@ func (c *RuntimeControlClient) Prepare(
 	if err := request.Validate(); err != nil {
 		return contracts.WorkerHandle{}, fmt.Errorf("build prepare request: %w", err)
 	}
-	if spec.PentestEngagement != nil && spec.PentestEngagement.Preflight != nil {
+	if spec.PentestEngagement != nil && spec.PentestEngagement.HTTP != nil {
 		deadline, err := pentestPreparationDeadline(ctx, reservation)
+		if err != nil {
+			return contracts.WorkerHandle{}, err
+		}
+		stageDeadline, err := pentestTargetDeadline(reservation)
 		if err != nil {
 			return contracts.WorkerHandle{}, err
 		}
@@ -200,7 +208,9 @@ func (c *RuntimeControlClient) Prepare(
 		if err := bounded.Err(); err != nil {
 			return contracts.WorkerHandle{}, err
 		}
-		if err := c.pentestDeadlineRecorder(bounded, reservation, deadline); err != nil {
+		// Stage authority is durable data; bounded remains the original, shorter
+		// prepare operation context and is never extended to that authority.
+		if err := c.pentestDeadlineRecorder(bounded, reservation, stageDeadline); err != nil {
 			return contracts.WorkerHandle{}, err
 		}
 		ctx = bounded
@@ -216,18 +226,6 @@ func (c *RuntimeControlClient) Prepare(
 		return contracts.WorkerHandle{}, err
 	}
 	clearPentestMaterials(spec.RuntimeSettings.PentestIdentities)
-	if spec.PentestEngagement != nil && spec.PentestEngagement.Preflight != nil {
-		outcome, err := c.pentestPreflight(ctx, reservation, "run")
-		if err != nil {
-			return contracts.WorkerHandle{}, err
-		}
-		if err := validatePentestPreflightResult(outcome, *spec.PentestEngagement.Preflight); err != nil {
-			return contracts.WorkerHandle{}, err
-		}
-		if outcome.CompletedSeeds == 0 {
-			return contracts.WorkerHandle{}, fmt.Errorf("%w: preflight found no reachable seed", ErrInvalidRequest)
-		}
-	}
 	response.WorkerHandle.RuntimeAgentID = reservation.Grant.RuntimeAgentID
 	return response.WorkerHandle, nil
 }

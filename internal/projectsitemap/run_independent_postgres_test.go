@@ -33,7 +33,7 @@ func TestPostgresSitemapRepeatedRunsAggregateBehavior(t *testing.T) {
 		o.Parameters = []string{"expand"}
 		// Deliver newest first so aggregation must preserve both ends of time.
 		o.At = start.Add(time.Duration(31-index) * time.Minute).Format(time.RFC3339Nano)
-		if _, err := service.CollectHTTPAllocation(ctx, access, runID, CollectionIngress{Observations: []Observation{o}}); err != nil {
+		if _, err := service.CollectAllocation(ctx, access, runID, CollectionIngress{Kind: "http", Observations: []Observation{o}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -69,12 +69,12 @@ func TestPostgresSitemapRepeatedRunsAggregateBehavior(t *testing.T) {
 	timeout.Outcome, timeout.Status = "timeout", 0
 	shape := observation("/shared")
 	shape.Parameters = []string{"page"}
-	if _, err := service.CollectHTTPAllocation(ctx, access, "new-behavior", CollectionIngress{Observations: []Observation{failure, timeout, shape}}); err != nil {
+	if _, err := service.CollectAllocation(ctx, access, "new-behavior", CollectionIngress{Kind: "http", Observations: []Observation{failure, timeout, shape}}); err != nil {
 		t.Fatal(err)
 	}
 	staging := "staging"
 	access.Policy.Deployment = &staging
-	if _, err := service.CollectHTTPAllocation(ctx, access, "other-deployment", CollectionIngress{Observations: []Observation{failure}}); err != nil {
+	if _, err := service.CollectAllocation(ctx, access, "other-deployment", CollectionIngress{Kind: "http", Observations: []Observation{failure}}); err != nil {
 		t.Fatal(err)
 	}
 	view, err = readSitemap(service, ctx, "project", "")

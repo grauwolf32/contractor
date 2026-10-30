@@ -145,7 +145,7 @@ func workflowResourceReadModel(workflow resolved.ResolvedWorkflow) workflowResou
 			Instructions: instructionsRefResponse{
 				Ref: stage.Instructions.Ref, Digest: stage.Instructions.Digest,
 			},
-			Planner: stage.Planner, Session: stage.Session, Agents: agents,
+			Planner: stage.Planner, Operation: stage.Operation, Session: stage.Session, Agents: agents,
 			ExecutionConfig:  resolvedStageExecutionConfigReadModel(stage.ExecutionConfig),
 			ContextArtifacts: stage.Context.Artifacts,
 			ResultArtifacts:  stage.Result.Artifacts,

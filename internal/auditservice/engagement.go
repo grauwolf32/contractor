@@ -51,7 +51,6 @@ type PreflightResult struct {
 type engagementSelection struct {
 	artifact           auditstore.ExactArtifact
 	document           pentestcontract.Document
-	loginRecipes       map[string]pentestcontract.LoginRecipe
 	inputs             []auditstore.ArtifactLink
 	credentialIDs      []string
 	unclassifiedInputs bool
@@ -195,11 +194,6 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 		if identity.Credential != nil {
 			selected.credentialIDs = append(selected.credentialIDs, identity.Credential.CredentialID)
 		}
-		if identity.LoginRecipe != nil {
-			refs = append(refs, identity.LoginRecipe.Ref)
-			expected = append(expected, *identity.LoginRecipe)
-			keys = append(keys, "pentest-login/"+identity.ID)
-		}
 	}
 	if len(refs) > 0 {
 		metadata, err := store.DescribeExact(ctx, refs)
@@ -211,33 +205,6 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 				return nil, fmt.Errorf("%w: engagement input digest differs from exact revision", ErrInvalid)
 			}
 
-			if strings.HasPrefix(keys[i], "pentest-login/") {
-				identityID := strings.TrimPrefix(keys[i], "pentest-login/")
-				var identity pentestcontract.Identity
-				for _, candidate := range document.Identities {
-					if candidate.ID == identityID {
-						identity = candidate
-						break
-					}
-				}
-				if identity.Kind != "browser-login" {
-					if exact.MediaType != pentestcontract.LoginRecipeMediaType || exact.SizeBytes > pentestcontract.MaxLoginRecipeBytes {
-						return nil, fmt.Errorf("%w: invalid login recipe artifact", ErrInvalid)
-					}
-					read, readErr := store.ReadExact(ctx, exact)
-					if readErr != nil {
-						return nil, readErr
-					}
-					recipe, decodeErr := pentestcontract.DecodeLoginRecipe(read.Payload.Data)
-					if decodeErr != nil || recipe.ValidateIdentity(identity, document) != nil {
-						return nil, fmt.Errorf("%w: invalid login recipe artifact", ErrInvalid)
-					}
-					if selected.loginRecipes == nil {
-						selected.loginRecipes = map[string]pentestcontract.LoginRecipe{}
-					}
-					selected.loginRecipes[identity.ID] = recipe
-				}
-			}
 			provenance, err := json.Marshal(struct {
 				Schema     string                   `json:"schema"`
 				Engagement auditstore.ExactArtifact `json:"engagement"`
@@ -250,13 +217,6 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 		}
 	}
 
-	if slices.Contains(document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterPentestTargetHTTP)) {
-		for _, identity := range document.Identities {
-			if identity.Kind == "browser-login" || identity.Kind == "http-login" && identity.LoginRecipe == nil {
-				return nil, fmt.Errorf("%w: executable identity requires a supported login recipe", ErrInvalid)
-			}
-		}
-	}
 	selected.credentialIDs = mergeIDs(selected.credentialIDs)
 	return selected, nil
 }
@@ -301,7 +261,11 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 	for _, binding := range profile.Workflows {
 		for _, stage := range binding.Workflow.Stages {
 			for _, agent := range stage.Agents {
-				network = network || resolved.TemplateRequiresNetwork(agent.Template)
+				if slices.Contains(selected.document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterPentestTargetHTTP)) {
+					network = network || resolved.TemplateRequiresUncontrolledNetwork(agent.Template)
+				} else {
+					network = network || resolved.TemplateRequiresNetwork(agent.Template)
+				}
 			}
 		}
 	}
@@ -350,9 +314,6 @@ func blackboxClosure(profile auditprofile.ResolvedAuditProfile, selected *engage
 	// The declared document roles are authoritative for ordinary exact inputs;
 	// opaque inherited archives cannot acquire a non-source role implicitly.
 	for _, input := range selected.inputs {
-		if strings.HasPrefix(input.LogicalKey, "pentest-login/") {
-			continue
-		}
 		if strings.Contains(input.Artifact.MediaType, "zip") || strings.Contains(input.Artifact.MediaType, "tar") {
 			return false
 		}
@@ -379,26 +340,7 @@ func validateEngagementBaseline(baseline BaselineSnapshot) error {
 	if err != nil || engagement.PolicyDigest != digest {
 		return fmt.Errorf("%w: engagement policy digest differs", ErrInvalid)
 	}
-	if engagement.LoginRecipes != nil && len(engagement.LoginRecipes) == 0 || len(engagement.LoginRecipes) > 7 {
-		return fmt.Errorf("%w: missing login recipe snapshots", ErrInvalid)
-	}
-	for id, recipe := range engagement.LoginRecipes {
-		matched := false
-		for _, identity := range engagement.Document.Identities {
-			if identity.ID == id && recipe.ValidateIdentity(identity, engagement.Document) == nil {
-				matched = true
-			}
-		}
-		if !matched {
-			return fmt.Errorf("%w: invalid login recipe snapshot", ErrInvalid)
-		}
-	}
 	for _, identity := range engagement.Document.Identities {
-		if identity.Kind != "browser-login" && identity.LoginRecipe != nil {
-			if _, ok := engagement.LoginRecipes[identity.ID]; !ok {
-				return fmt.Errorf("%w: missing login recipe snapshot", ErrInvalid)
-			}
-		}
 		if identity.Credential != nil && !slices.Contains(baseline.RuntimeCredentialIDs, identity.Credential.CredentialID) {
 			return fmt.Errorf("%w: engagement credential is not held", ErrInvalid)
 		}
@@ -412,17 +354,8 @@ func cloneEngagement(source *auditbaseline.EngagementSnapshot) *auditbaseline.En
 	}
 	result := *source
 	result.Artifact = source.Artifact.Clone()
-	if source.LoginRecipes != nil {
-		result.LoginRecipes = map[string]pentestcontract.LoginRecipe{}
-	}
-	for id, recipe := range source.LoginRecipes {
-		encoded, _ := json.Marshal(recipe)
-		copy, _ := pentestcontract.DecodeLoginRecipe(encoded)
-		result.LoginRecipes[id] = copy
-	}
 	d := &result.Document
 	d.Target.Origins = slices.Clone(d.Target.Origins)
-	d.Target.SeedURLs = slices.Clone(d.Target.SeedURLs)
 	if d.Target.Deployment != nil {
 		value := *d.Target.Deployment
 		d.Target.Deployment = &value
@@ -446,10 +379,6 @@ func cloneEngagement(source *auditbaseline.EngagementSnapshot) *auditbaseline.En
 		if identity.Credential != nil {
 			value := *identity.Credential
 			identity.Credential = &value
-		}
-		if identity.LoginRecipe != nil {
-			value := identity.LoginRecipe.Clone()
-			identity.LoginRecipe = &value
 		}
 	}
 	d.Inputs = slices.Clone(d.Inputs)

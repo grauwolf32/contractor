@@ -27,10 +27,9 @@ const (
 	MaximumOTLPHeaderValueBytes    = 4 * 1024
 	MaximumOTLPHeaderValuesBytes   = 16 * 1024
 	MaximumOTLPHeaders             = 32
-	// MaximumTargetLoginFields and MaximumTargetLoginValuesBytes bound one
-	// target-login@1 material inside the 32 KiB plaintext envelope.
-	MaximumTargetLoginFields      = 16
-	MaximumTargetLoginValuesBytes = 16 * 1024
+	// Supplied cookies fit the existing encrypted plaintext envelope.
+	MaximumTargetCookies     = 128
+	MaximumTargetCookieBytes = 16 * 1024
 )
 
 // RuntimeCredentialKind is a stored Runtime credential kind. Its values are
@@ -47,7 +46,7 @@ const (
 	RuntimeCredentialOriginBearer    = RuntimeCredentialKind(runtimesettings.RuntimeCredentialOriginBearer)
 	RuntimeCredentialTargetBasic     = RuntimeCredentialKind(runtimesettings.RuntimeCredentialTargetBasic)
 	RuntimeCredentialTargetBearer    = RuntimeCredentialKind(runtimesettings.RuntimeCredentialTargetBearer)
-	RuntimeCredentialTargetLogin     = RuntimeCredentialKind(runtimesettings.RuntimeCredentialTargetLogin)
+	RuntimeCredentialTargetCookies   = RuntimeCredentialKind(runtimesettings.RuntimeCredentialTargetCookies)
 )
 
 var (
@@ -57,9 +56,8 @@ var (
 	ErrRuntimeCredentialNotFound = credentialerrors.RuntimeNotFound
 	ErrRuntimeCredentialInUse    = errors.New("Runtime adapter credential is in use")
 
-	targetLoginFieldNamePattern = regexp.MustCompile("^[a-z][a-z0-9_-]{0,63}$")
-	headerNamePattern           = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
-	forbiddenOTLPHeaders        = map[string]struct{}{
+	headerNamePattern    = regexp.MustCompile("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
+	forbiddenOTLPHeaders = map[string]struct{}{
 		"connection": {}, "content-length": {}, "forwarded": {}, "host": {},
 		"keep-alive": {}, "proxy-authenticate": {}, "proxy-authorization": {},
 		"te": {}, "trailer": {}, "transfer-encoding": {}, "upgrade": {},
@@ -180,29 +178,28 @@ func NewTargetBearerCredential(token string) (RuntimeCredentialMaterial, error) 
 	}{Token: token})
 }
 
-// NewTargetLoginCredential is a pentest login identity's named secret
-// fields: 1-16 names of the login field grammar, each value a bounded secret,
-// at most 16 KiB of values in total.
-func NewTargetLoginCredential(fields map[string]string) (RuntimeCredentialMaterial, error) {
-	if len(fields) < 1 || len(fields) > MaximumTargetLoginFields {
-		return RuntimeCredentialMaterial{}, runtimeInvalid("Target login field count is invalid")
+// NewTargetCookiesCredential stores ready user-supplied session cookies.
+// Names are HTTP tokens; values cannot contain cookie separators or framing.
+func NewTargetCookiesCredential(cookies map[string]string) (RuntimeCredentialMaterial, error) {
+	if len(cookies) < 1 || len(cookies) > MaximumTargetCookies {
+		return RuntimeCredentialMaterial{}, runtimeInvalid("Target cookie count is invalid")
 	}
 	totalValueBytes := 0
-	for name, value := range fields {
-		if !targetLoginFieldNamePattern.MatchString(name) {
-			return RuntimeCredentialMaterial{}, runtimeInvalid("Target login field name is invalid")
+	for name, value := range cookies {
+		if !contracts.ValidCookieName(name) {
+			return RuntimeCredentialMaterial{}, runtimeInvalid("Target cookie name is invalid")
 		}
-		if !validBoundedSecret(value, MaximumRuntimeSecretBytes) {
-			return RuntimeCredentialMaterial{}, runtimeInvalid("Target login field value is invalid")
+		if !contracts.ValidCookieValue(value) || len(value) > MaximumRuntimeSecretBytes {
+			return RuntimeCredentialMaterial{}, runtimeInvalid("Target cookie value is invalid")
 		}
-		totalValueBytes += len(value)
-		if totalValueBytes > MaximumTargetLoginValuesBytes {
-			return RuntimeCredentialMaterial{}, runtimeInvalid("Target login field values exceed their total bound")
+		totalValueBytes += len(name) + len(value)
+		if totalValueBytes > MaximumTargetCookieBytes {
+			return RuntimeCredentialMaterial{}, runtimeInvalid("Target cookie values exceed their total bound")
 		}
 	}
-	return newRuntimeCredentialMaterial(RuntimeCredentialTargetLogin, struct {
-		Fields map[string]string `json:"fields"`
-	}{Fields: fields})
+	return newRuntimeCredentialMaterial(RuntimeCredentialTargetCookies, struct {
+		Cookies map[string]string `json:"cookies"`
+	}{Cookies: cookies})
 }
 
 func (m RuntimeCredentialMaterial) Kind() RuntimeCredentialKind { return m.kind }
@@ -449,15 +446,15 @@ func decodeRuntimeCredentialMaterial(kind RuntimeCredentialKind, data []byte) (R
 		default:
 			return NewTargetBearerCredential(source.Token)
 		}
-	case RuntimeCredentialTargetLogin:
+	case RuntimeCredentialTargetCookies:
 		var source struct {
-			Fields map[string]string `json:"fields"`
+			Cookies map[string]string `json:"cookies"`
 		}
 		if err := strictjson.Decode(data, &source); err != nil {
 			return RuntimeCredentialMaterial{}, err
 		}
-		material, err := NewTargetLoginCredential(source.Fields)
-		clear(source.Fields)
+		material, err := NewTargetCookiesCredential(source.Cookies)
+		clear(source.Cookies)
 		return material, err
 	default:
 		return RuntimeCredentialMaterial{}, runtimeInvalid("Runtime credential kind is invalid")

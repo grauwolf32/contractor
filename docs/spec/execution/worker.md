@@ -62,7 +62,7 @@ Terms are defined once in the [glossary](../glossary.md).
 | `WorkerResult` | The trusted result Runtime assembles from the validated semantic result, Runtime-owned observations, exact trusted artifact refs and the Runtime-owned `summarized` flag. |
 | `WorkerFailure` | A Runtime-authored technical failure `(code, message, retryable)`. |
 | `WorkerCompletion` | The versioned private A2A union carrying exactly one `WorkerResult` or `WorkerFailure`. |
-| `StageResult` | The Planner-authored, Scheduler-accepted decision whether a whole Stage succeeded ([Planners](planners.md)). |
+| `StageResult` | The executor-authored, Scheduler-accepted decision whether a whole Stage succeeded ([Planners](planners.md)). |
 | Completion boundary | The one Runtime-owned point at which an invocation's semantic completion resolves to `continue`, `complete` or `fail`. |
 | Session mode | The Stage's `isolated` or `shared` Worker session policy. |
 | Contractor-owned Worker State | The reserved, versioned, bounded `contractor` subtree of ADK State; "full state" always means this subtree. |

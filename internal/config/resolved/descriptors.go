@@ -191,7 +191,7 @@ func builtInDescriptors() descriptorTable {
 			"http-tools@1": {
 				Tools: []string{
 					"http_history", "http_read_body", "http_request", "http_session_clear",
-					"http_session_get", "http_session_set",
+					"http_session_get", "http_session_set", "http_credentials", "http_credential_read",
 				},
 				InfrastructureChannels: map[string][]infrastructureChannel{
 					"http_request": {channelRuntimeHTTPClient},
@@ -383,6 +383,16 @@ func RequiredRuntimeAdaptersForTemplate(
 // externally addressed work. A local offline sandbox remains scratch-only; a
 // subprocess launcher is not assumed to enforce target scope.
 func TemplateRequiresNetwork(template contracts.ResolvedAgentTemplate) bool {
+	return templateRequiresNetwork(template, false)
+}
+
+// TemplateRequiresUncontrolledNetwork permits only the HTTP tool path whose
+// allocation explicitly supplies the Audit-owned controlled transport.
+func TemplateRequiresUncontrolledNetwork(template contracts.ResolvedAgentTemplate) bool {
+	return templateRequiresNetwork(template, true)
+}
+
+func templateRequiresNetwork(template contracts.ResolvedAgentTemplate, controlledHTTP bool) bool {
 	if template.SandboxProfile.SandboxProfileID == "podman-network" {
 		return true
 	}
@@ -393,6 +403,9 @@ func TemplateRequiresNetwork(template contracts.ResolvedAgentTemplate) bool {
 		}
 		for _, tool := range selection.Tools {
 			for _, channel := range descriptor.InfrastructureChannels[tool] {
+				if controlledHTTP && selection.Ref.ToolsetID == "http-tools" && selection.Ref.Version == "1" && channel == channelRuntimeHTTPClient {
+					continue
+				}
 				if channel != channelSandboxExecution || template.SandboxProfile.SandboxProfileID == "podman-network" {
 					return true
 				}

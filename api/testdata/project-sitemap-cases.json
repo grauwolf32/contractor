@@ -133,5 +133,78 @@
     "rules": [],
     "markers": [],
     "gaps": []
+  },
+  "reported": {
+    "version": "project-sitemap@1",
+    "projection": "sitemap-safe-projection@1",
+    "groups": [
+      {
+        "id": "d67e61c19dbf50432400b503db3dc6ade4992c833e56190cc869a68465b77d2c",
+        "origin": "https://example.test",
+        "method": "GET",
+        "route": "/users/123",
+        "structural": [],
+        "members": [
+          {
+            "id": "0f416eb03606ec8e69c183220e99c38dbbca78f47e24960572c331d713d80399",
+            "path": "/users/123",
+            "summaries": [
+              {
+                "provenance": {
+                  "sourceId": "http-source",
+                  "kind": "custom-scanner.v2",
+                  "deployment": "test"
+                },
+                "outcome": "response",
+                "status": 200,
+                "parameters": [
+                  "expand"
+                ],
+                "first": "2026-10-26T00:00:00Z",
+                "last": "2026-10-29T00:00:00Z"
+              }
+            ],
+            "examples": [
+              "GET https://example.test/users/123"
+            ],
+            "evidence": [],
+            "annotations": [],
+            "omitted": 0
+          }
+        ],
+        "declarations": [],
+        "omitted": 0
+      }
+    ],
+    "sources": [
+      {
+        "provenance": {
+          "sourceId": "http-source",
+          "kind": "custom-scanner.v2",
+          "deployment": "test"
+        },
+        "generation": 1,
+        "policyDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    ],
+    "rules": [],
+    "markers": [],
+    "gaps": [
+      {
+        "sourceId": "http-source",
+        "reason": "evidence",
+        "count": 1
+      },
+      {
+        "sourceId": "http-source",
+        "reason": "report-truncated",
+        "count": 1
+      },
+      {
+        "sourceId": "http-source",
+        "reason": "request-errors",
+        "count": 1
+      }
+    ]
   }
 }

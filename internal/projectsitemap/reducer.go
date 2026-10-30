@@ -238,7 +238,7 @@ func validateDocument(d Document) error {
 	for _, gap := range d.Gaps {
 		id := gap.SourceID + "/" + gap.Reason
 		if gapIDs[id] || gap.Count > MaxOmissionCount || (gap.SourceID != "" && !contracts.ValidResourceID(gap.SourceID)) ||
-			!slices.Contains([]string{"structural", "members", "groups", "summaries", "examples", "regrouping", "incomplete", "parameters", "source-unavailable", "ambiguous", "projection"}, gap.Reason) {
+			!validGapReason(gap.Reason) {
 			return ErrInvalid
 		}
 		gapIDs[id] = true
@@ -336,13 +336,19 @@ func Reduce(current Document, mutation Mutation, authority Authority) (Document,
 	}
 	switch mutation.Operation {
 	case "observe":
-		if !authority.CanObserve || len(mutation.Observations) == 0 || len(mutation.Observations) > MaxBatch || !onlyFields(mutation, "observe") {
+		if !authority.CanObserve || len(mutation.Observations) > MaxBatch || len(mutation.Gaps) > 16 || !onlyFields(mutation, "observe") {
 			return Document{}, nil, ErrInvalid
 		}
 		for _, observation := range mutation.Observations {
 			if err := observe(&next, observation, authority); err != nil {
 				return Document{}, nil, err
 			}
+		}
+		for _, gap := range mutation.Gaps {
+			if gap.SourceID != authority.SourceID || !validGapReason(gap.Reason) || gap.Count == 0 || gap.Count > MaxOmissionCount {
+				return Document{}, nil, ErrInvalid
+			}
+			addGap(&next, gap.SourceID, gap.Reason, gap.Count)
 		}
 	case "declare":
 		if !onlyFields(mutation, "declare") {
@@ -380,7 +386,7 @@ func onlyFields(m Mutation, op string) bool {
 	clean := Mutation{Operation: m.Operation, ExpectedRevision: m.ExpectedRevision}
 	switch op {
 	case "observe":
-		clean.Observations = m.Observations
+		clean.Observations, clean.Gaps, clean.Artifact = m.Observations, m.Gaps, m.Artifact
 	case "declare":
 		clean.URL, clean.Method = m.URL, m.Method
 	case "annotate":
@@ -670,7 +676,7 @@ func routeFor(rules []Rule, origin, method, path string) (string, bool) {
 }
 
 func replaceSource(d *Document, u SourceUpdate, a Authority) error {
-	if !contracts.ValidResourceID(u.SourceID) || u.SourceID != a.SourceID || len(u.Rules) > MaxRules || a.Kind == "http" {
+	if !contracts.ValidResourceID(u.SourceID) || u.SourceID != a.SourceID || len(u.Rules) > MaxRules || observedKind(a.Kind) {
 		return ErrInvalid
 	}
 	if u.Artifact != nil && u.Artifact.Validate() != nil {
@@ -786,4 +792,8 @@ func regroup(d *Document) error {
 		return ErrConflict
 	}
 	return nil
+}
+
+func validGapReason(reason string) bool {
+	return slices.Contains([]string{"structural", "members", "groups", "summaries", "examples", "regrouping", "incomplete", "parameters", "source-unavailable", "ambiguous", "projection", "report-truncated", "request-errors", "evidence"}, reason)
 }

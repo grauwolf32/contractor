@@ -160,8 +160,18 @@ func ValidateWorkflowGraph(workflow ResolvedWorkflow) error {
 		if err := stage.Session.Validate(); err != nil {
 			return fmt.Errorf("Stage %q: %w", name, err)
 		}
-		if err := ValidatePlannerAgents(stage.Planner, len(stage.Agents)); err != nil {
+		if err := ValidateStageExecutor(stage); err != nil {
 			return fmt.Errorf("Stage %q: %w", name, err)
+		}
+		if stage.Operation != nil {
+			for _, binding := range stage.Operation.Arguments {
+				if binding.Source == "parameter" {
+					parameter, exists := workflow.Parameters[binding.Name]
+					if !exists || (!parameter.Required && binding.Default == nil) {
+						return fmt.Errorf("Stage %q operation parameter must be declared and required or have a default", name)
+					}
+				}
+			}
 		}
 		if err := validateResolvedStageMappings(name, stage, workflow.Outputs); err != nil {
 			return err

@@ -7,7 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/configload"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 )
 
 func TestPassthroughToolWorkflowBindsTargetAndExactReport(t *testing.T) {

@@ -140,10 +140,10 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 		t.Fatalf("private projection=%+v %v", first, err)
 	}
 	pin := baseline.Engagement
-	if first.EngagementDigest != pin.Artifact.Digest || first.PolicyDigest != pin.PolicyDigest || first.AuthorizedBy != f.project.OwnerID || !first.AuthorizedAt.Equal(pin.AuthorizedAt) || first.Budgets != document.Budgets || !first.Engagement.SameExact(pin.Artifact.Ref) || (first.Preflight != nil) != controlled {
+	if first.EngagementDigest != pin.Artifact.Digest || first.PolicyDigest != pin.PolicyDigest || first.AuthorizedBy != f.project.OwnerID || !first.AuthorizedAt.Equal(pin.AuthorizedAt) || first.Budgets != document.Budgets || !first.Engagement.SameExact(pin.Artifact.Ref) || (first.HTTP != nil) != controlled {
 		t.Fatalf("private projection drifted or exposed unassigned authority: %+v", first)
 	}
-	if controlled && (!reflect.DeepEqual(first.Preflight.SeedURLs, document.Target.SeedURLs) || !reflect.DeepEqual(first.Preflight.Routes, document.Scope.Routes) || first.Preflight.Identities[0].ID != "anonymous" || first.Preflight.Identities[0].Credential != nil || first.Preflight.Identities[0].LoginRecipe != nil) {
+	if controlled && (!reflect.DeepEqual(first.HTTP.Routes, document.Scope.Routes) || first.HTTP.Identities[0].ID != "anonymous" || first.HTTP.Identities[0].Credential != nil) {
 		t.Fatal("controlled assignment drifted or exposed identity authority")
 	}
 	document.Target.Deployment = &pentestcontract.Deployment{Marker: "new mutable document"}

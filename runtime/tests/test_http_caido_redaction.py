@@ -252,6 +252,7 @@ def test_caido_results_and_artifacts_scrub_runtime_injected_credentials(
                     "error": None,
                     "request": {
                         "id": "replayed",
+                        "createdAt": "2026-09-01T00:03:00Z",
                         "method": "GET",
                         "host": "target.example",
                         "path": "/api/me",

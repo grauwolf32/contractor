@@ -20,7 +20,7 @@ func TestPostgresSitemapHTTPCollectionProjectionAndReceipt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := CollectionIngress{Observations: []Observation{}}
+	input := CollectionIngress{Kind: "http", Observations: []Observation{}}
 	for _, row := range []struct {
 		path, outcome string
 		status        int
@@ -37,7 +37,7 @@ func TestPostgresSitemapHTTPCollectionProjectionAndReceipt(t *testing.T) {
 		o.Outcome, o.Status = row.outcome, row.status
 		input.Observations = append(input.Observations, o)
 	}
-	committed, err := s.CollectHTTPAllocation(ctx, access, "http-first", input)
+	committed, err := s.CollectAllocation(ctx, access, "http-first", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,11 +76,11 @@ func TestPostgresSitemapHTTPCollectionProjectionAndReceipt(t *testing.T) {
 	for n := range 4 {
 		next := input
 		next.Observations = []Observation{observation(fmt.Sprintf("/next/%d", n))}
-		if _, err = s.CollectHTTPAllocation(ctx, access, fmt.Sprintf("next-%d", n), next); err != nil {
+		if _, err = s.CollectAllocation(ctx, access, fmt.Sprintf("next-%d", n), next); err != nil {
 			t.Fatal(err)
 		}
 	}
-	replayed, err := s.CollectHTTPAllocation(ctx, access, "http-first", input)
+	replayed, err := s.CollectAllocation(ctx, access, "http-first", input)
 	if err != nil || !replayed.Replayed || *replayed.Ref.Revision != *committed.Ref.Revision {
 		t.Fatalf("lost receipt after eviction: %+v %v", replayed, err)
 	}
@@ -88,8 +88,8 @@ func TestPostgresSitemapHTTPCollectionProjectionAndReceipt(t *testing.T) {
 		t.Fatal("evicted bytes were revived")
 	}
 	access.Policy.CollectObservations = false
-	if _, err = s.CollectHTTPAllocation(ctx, access, "denied", input); err == nil {
-		t.Fatal("reader gained collection authority")
+	if _, err = s.CollectAllocation(ctx, access, "explicit", input); err != nil {
+		t.Fatal("domain incorrectly required automatic collection policy for an authorized explicit batch")
 	}
 }
 
@@ -109,7 +109,7 @@ func TestPostgresSitemapRetainsCredentialNamedMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = service.CollectHTTPAllocation(ctx, access, "observe", CollectionIngress{Observations: []Observation{observation("/dispatch?token=short-password&password=excluded-query-value")}})
+	_, err = service.CollectAllocation(ctx, access, "observe", CollectionIngress{Kind: "http", Observations: []Observation{observation("/dispatch?token=short-password&password=excluded-query-value")}})
 	if err != nil {
 		t.Fatal(err)
 	}

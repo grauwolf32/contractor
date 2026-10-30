@@ -107,8 +107,9 @@ type workflowAgentBindingResponse struct {
 
 type workflowStageResponse struct {
 	Objective        string                                  `json:"objective"`
-	Instructions     instructionsRefResponse                 `json:"instructions"`
-	Planner          resolved.PlannerRef                     `json:"planner"`
+	Instructions     instructionsRefResponse                 `json:"instructions,omitzero"`
+	Operation        *resolved.ServerOperationConfig         `json:"operation,omitempty"`
+	Planner          resolved.PlannerRef                     `json:"planner,omitzero"`
 	Session          contracts.WorkerSessionMode             `json:"session"`
 	Agents           map[string]workflowAgentBindingResponse `json:"agents"`
 	ExecutionConfig  resolvedStageExecutionConfigResponse    `json:"executionConfig"`

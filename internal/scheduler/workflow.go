@@ -42,7 +42,7 @@ func decodeExecutableWorkflow(run runstore.WorkflowRun) (executableWorkflow, err
 	// The decoder has checked every Stage's Planner and logical Agent count
 	// against the registered PlannerFactory descriptors.
 	for stageName, stage := range workflow.Stages {
-		if strings.TrimSpace(stage.Objective) == "" || strings.TrimSpace(stage.Instructions.Text) == "" {
+		if strings.TrimSpace(stage.Objective) == "" || (stage.Operation == nil && strings.TrimSpace(stage.Instructions.Text) == "") {
 			return executableWorkflow{}, fmt.Errorf("%w: Stage %q semantic input is incomplete", ErrUnsupportedWorkflow, stageName)
 		}
 		for logicalName, binding := range stage.Agents {

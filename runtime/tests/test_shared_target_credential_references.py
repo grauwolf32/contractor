@@ -28,7 +28,36 @@ FIXTURE = (
     / "v1alpha1"
     / "target-credential-cases.json"
 )
-TARGET_KINDS = {"target-basic@1", "target-bearer@1", "target-login@1"}
+TARGET_KINDS = {"target-basic@1", "target-bearer@1", "target-cookies@1"}
+
+
+def test_shared_target_cookie_material_cases():
+    from contractor_runtime.contracts.settings import PentestIdentityMaterial
+    from contractor_runtime.strict_json import strict_json_loads
+
+    cases = json.loads(FIXTURE.read_text())["materials"]
+    selected = [case for case in cases if case["kind"] == "target-cookies@1"]
+    assert selected
+    for case in selected:
+        try:
+            material = (
+                strict_json_loads(case["text"].encode()) if "text" in case else case["material"]
+            )
+            if not isinstance(material, dict) or set(material) != {"cookies"}:
+                raise ValueError("cookie material shape differs")
+            decode_private(
+                PentestIdentityMaterial,
+                json.dumps(
+                    {
+                        "credential": {"credentialId": "fixture", "kind": "target-cookies@1"},
+                        "fields": material["cookies"],
+                    }
+                ).encode(),
+            )
+            accepted = True
+        except (ValueError, TypeError, PrivateProtocolDecodeError):
+            accepted = False
+        assert accepted == case["valid"], case["name"]
 
 
 def _references() -> list[dict[str, Any]]:

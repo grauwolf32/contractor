@@ -87,7 +87,7 @@ func TestSharedTargetCredentialMaterialCases(t *testing.T) {
 		opened.Destroy()
 	}
 	for _, kind := range []RuntimeCredentialKind{
-		RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetLogin,
+		RuntimeCredentialTargetBasic, RuntimeCredentialTargetBearer, RuntimeCredentialTargetCookies,
 		RuntimeCredentialOriginBasic, RuntimeCredentialProxyBasic,
 	} {
 		if kinds[kind] == 0 {
@@ -125,9 +125,9 @@ func materialStrings(data []byte) []string {
 	return values
 }
 
-func TestTargetLoginMaterialIsWipedAfterCallbackFailureAndNeverFormatted(t *testing.T) {
+func TestTargetCookiesMaterialIsWipedAfterCallbackFailureAndNeverFormatted(t *testing.T) {
 	const canary = "canary-login-secret-41c9"
-	material, err := NewTargetLoginCredential(map[string]string{"password": canary})
+	material, err := NewTargetCookiesCredential(map[string]string{"password": canary})
 	if err != nil {
 		t.Fatal(err)
 	}

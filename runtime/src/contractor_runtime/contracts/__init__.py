@@ -106,10 +106,10 @@ from contractor_runtime.contracts.pentest_action import (
     PentestActionReply as PentestActionReply,
 )
 from contractor_runtime.contracts.pentest_action import (
-    PentestPreflightRequest as PentestPreflightRequest,
+    PentestTransportRequest as PentestTransportRequest,
 )
 from contractor_runtime.contracts.pentest_action import (
-    PentestPreflightResponse as PentestPreflightResponse,
+    PentestTransportResponse as PentestTransportResponse,
 )
 from contractor_runtime.contracts.registration import AgentHeartbeat as AgentHeartbeat
 from contractor_runtime.contracts.registration import AgentRegistration as AgentRegistration
