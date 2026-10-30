@@ -57,6 +57,7 @@
     "openapi-document-bounds.json": {"readers": ["go", "python"], "reason": "Go scanplan and auditdomain inventory readers and Python openapi authoring share source-bound verdicts."},
     "openapi-json-escape-cases.json": {"readers": ["go", "python"]},
     "openapi-yaml-scalar-cases.json": {"readers": ["go", "python"]},
+    "reasoning-projection-cases.json": {"readers": ["python"], "reason": "only the Runtime projects provider reasoning into a model consumer's input; the terminal summarizer and every later consumer use the one contractor_runtime.reasoning implementation, and the Server only carries the includeReasoning flag"},
     "scan-host-syntax.json": {"readers": ["go", "python"]},
     "scan/worker-error-codes.json": {"readers": ["go", "python", "ui"]},
     "memory/": {"readers": ["go", "python"]},

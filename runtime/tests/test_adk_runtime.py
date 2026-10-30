@@ -73,6 +73,7 @@ from contractor_runtime.llm.openai import (
     OpenAICompatibleGatewayLlm,
     _completion_request,
 )
+from contractor_runtime.reasoning import REASONING_INPUT_INSTRUCTION
 from contractor_runtime.toolsets.memory.tools import MemoryToolsetFactory
 from contractor_runtime.toolsets.run_artifacts.tools import RunArtifactsToolsetFactory
 from contractor_runtime.worker.budget import WorkerBudgetExceeded
@@ -2347,9 +2348,9 @@ def spy_transcripts(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]]:
     original_init = TranscriptRecorder.__init__
     original_record = TranscriptRecorder.record
 
-    def init(self: TranscriptRecorder, *, secrets: Any = ()) -> None:
+    def init(self: TranscriptRecorder, *, include_reasoning: bool, secrets: Any = ()) -> None:
         observed["created"].append(tuple(secrets))
-        original_init(self, secrets=secrets)
+        original_init(self, include_reasoning=include_reasoning, secrets=secrets)
 
     def record(self: TranscriptRecorder, event: Any) -> None:
         observed["recorded"].append(event)
@@ -2445,7 +2446,7 @@ def test_adk_worker_summarizer_receives_the_recorded_redacted_transcript(
         assert len(events) >= 2
         # The summarizer receives exactly the bounded, redacted projection of
         # the recorded normal-loop events (WRK-R146, WRK-R147).
-        replay = TranscriptRecorder(secrets=expected_secrets)
+        replay = TranscriptRecorder(include_reasoning=False, secrets=expected_secrets)
         for event in events:
             replay.record(event)
         expected_transcript = json.loads(json.dumps(replay.finish()))
@@ -2459,6 +2460,81 @@ def test_adk_worker_summarizer_receives_the_recorded_redacted_transcript(
         assert str(tmp_path) not in content
         finished = (await state.snapshot())["lastCompletedInvocation"]
         assert finished["summarizer"]["phase"] == "succeeded"
+        await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
+
+    asyncio.run(scenario())
+
+
+REASONING_CANARY = "provider-reasoning-canary"
+
+
+@pytest.mark.parametrize("include_reasoning", [False, True])
+def test_adk_worker_summary_includes_provider_reasoning_only_when_enabled(
+    tmp_path: Path, include_reasoning: bool
+) -> None:
+    async def scenario() -> None:
+        client = FakeArtifactClient()
+        state = WorkerState()
+        tools = await selected_tools(tmp_path, client, state)
+        responses = []
+        for index in range(2):
+            response = tool_call(
+                "read_artifact",
+                {"namespace": "inputs", "name": "source", "revision": "input-r1"},
+                call_id=f"read-with-reasoning-{index}",
+            )
+            assert response.content is not None and response.content.parts is not None
+            response.content.parts.insert(
+                0,
+                types.Part(text=f"{REASONING_CANARY}-{index} with {SECRET}", thought=True),
+            )
+            responses.append(response)
+        normal_model = CapturingScriptedLlm(model="deterministic-fake", responses=responses)
+        summary_model = scripted_model(
+            [structured_result("Summary with reasoning")], model="worker-summary-model"
+        )
+        # Each scripted call reports 10 tokens: the second call crosses 15.
+        runtime = await create_runtime(
+            tmp_path,
+            state,
+            tools,
+            normal_model,
+            summary_model=summary_model,
+            cumulative_budget=15,
+            include_reasoning=include_reasoning,
+        )
+
+        completion = await runtime.invoke(stage_request())
+
+        assert completion.result is not None and completion.result.summarized is True
+        assert len(normal_model.payloads) == 2
+        # The main Worker never replays provider reasoning (WRK-R181).
+        replayed = json.dumps(normal_model.payloads[1])
+        assert REASONING_CANARY not in replayed and "reasoning_content" not in replayed
+        request = summary_model.requests[0]
+        payload = json.loads(request["contentText"].split("\n", 1)[1])
+        reasoning = [
+            part["reasoning"]
+            for group in payload["transcript"]
+            for event in group
+            for part in event["parts"]
+            if "reasoning" in part
+        ]
+        instruction = str(request["systemInstruction"])
+        if include_reasoning:
+            assert reasoning == [
+                f"{REASONING_CANARY}-{index} with [REDACTED]" for index in range(2)
+            ]
+            assert payload["reasoningTruncated"] is False
+            assert REASONING_INPUT_INSTRUCTION in instruction
+        else:
+            assert reasoning == []
+            assert "reasoningTruncated" not in payload
+            assert REASONING_CANARY not in request["contentText"]
+            assert REASONING_INPUT_INSTRUCTION not in instruction
+        assert SECRET not in request["contentText"]
+        snapshot = json.dumps(await state.snapshot())
+        assert REASONING_CANARY not in snapshot
         await runtime.finalize(datetime.now(UTC) + timedelta(seconds=1))
 
     asyncio.run(scenario())
@@ -3820,6 +3896,7 @@ async def create_runtime(
     summary_max_total_tokens: int | None = None,
     summary_instructions: str | None = None,
     cumulative_budget: int | None = None,
+    include_reasoning: bool = False,
     context_window_tokens: int = 131_072,
     context_window_ratio: float = 0.9,
     session_mode: WorkerSessionMode = WorkerSessionMode.SHARED,
@@ -3891,6 +3968,7 @@ async def create_runtime(
                 **(
                     {"cumulativeBudget": cumulative_budget} if cumulative_budget is not None else {}
                 ),
+                **({"includeReasoning": True} if include_reasoning else {}),
             ),
         )
 
