@@ -281,7 +281,7 @@ func normalizePublicCreate(params PublicCreateParams) (PublicCreateParams, error
 		originalSources[slot] = source
 	}
 	params.OriginalInputSources = originalSources
-	labels, err := runtimeconfig.NormalizeRunLabels(params.RuntimeLabels)
+	labels, err := runtimeconfig.NormalizeLabels(params.RuntimeLabels)
 	if err != nil {
 		return PublicCreateParams{}, err
 	}

@@ -6,12 +6,10 @@ import (
 	"sort"
 
 	"github.com/grauwolf32/contractor/internal/apierror"
+	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
-
-// maxAgentLabels bounds the Runtime labels one Runtime Agent principal holds.
-const maxAgentLabels = 32
 
 var ErrAgentLabelNotApplicable = apierror.New(apierror.RuntimeAgentLabelNotApplicable,
 	"RuntimeConfig label is not applicable to a Runtime Agent")
@@ -36,19 +34,12 @@ type LabelHolders interface {
 	LockLabelHolders(ctx context.Context, tx pgx.Tx, runtimeAgentIDs []string) ([]LabelHolder, error)
 }
 
-// ValidateAgentLabels checks the shape of a Runtime Agent principal's label
-// set: at most maxAgentLabels valid labels, sorted and unique, never the
-// default label.
+// ValidateAgentLabels checks the stored form of a Runtime Agent principal's
+// label set: a non-null Runtime label set in canonical order
+// (runtimesettings.ValidateCanonicalRuntimeLabels).
 func ValidateAgentLabels(labels []string) error {
-	if labels == nil || len(labels) > maxAgentLabels {
-		return invalid("Runtime Agent labels must be a non-null bounded set")
-	}
-	previous := ""
-	for _, label := range labels {
-		if ValidateLabel(label) != nil || label == DefaultLabel || label <= previous {
-			return invalid("Runtime Agent labels must be sorted, unique, valid, and exclude default")
-		}
-		previous = label
+	if labels == nil || runtimesettings.ValidateCanonicalRuntimeLabels(labels) != nil {
+		return invalid("Runtime Agent labels must be a sorted set of at most %d unique valid labels other than default", runtimesettings.MaxRuntimeLabels)
 	}
 	return nil
 }

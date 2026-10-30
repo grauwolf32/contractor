@@ -51,6 +51,11 @@ WORKER_SUBTASK_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 WORKER_FAILURE_CODE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 RUN_METADATA_LABEL_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$")
 MAX_RUN_METADATA_LABELS = 32
+# A Runtime label set (RCF-R117 to RCF-R120, LIM-RCF-25, LIM-RCF-26); the
+# Server defines it in internal/contracts/runtimesettings/runtime_labels.go.
+DEFAULT_RUNTIME_LABEL = "default"
+MAX_RUNTIME_LABELS = 32
+MAX_RUNTIME_LABEL_BYTES = 63
 MAX_RUN_METADATA_LABEL_KEY_BYTES = 63
 MAX_RUN_METADATA_LABEL_VALUE_BYTES = 256
 MAX_WORKER_RESULT_BYTES = 64 * 1024
@@ -389,15 +394,27 @@ def _require_workspace_target(value: str) -> str:
     return value
 
 
-def _require_runtime_label(field: str, value: str) -> str:
-    if (
-        len(value.encode("ascii", errors="ignore")) != len(value)
-        or not 1 <= len(value) <= 63
-        or ID_PATTERN.fullmatch(value) is None
-        or value == "default"
-    ):
-        raise ValueError(f"{field} contains an invalid Runtime label")
-    return value
+def _require_runtime_labels(field: str, labels: list[str]) -> None:
+    """Accept a Runtime label set in its canonical order.
+
+    At most MAX_RUNTIME_LABELS labels of the label grammar, none of them the
+    default label, strictly ascending; the shared cases of
+    api/testdata/v1alpha1/runtime-label-set-cases.json hold the Server and the
+    browser to the same verdicts.
+    """
+
+    if len(labels) > MAX_RUNTIME_LABELS:
+        raise ValueError(f"{field} must contain at most {MAX_RUNTIME_LABELS} Runtime labels")
+    for label in labels:
+        if (
+            not label.isascii()
+            or not 1 <= len(label) <= MAX_RUNTIME_LABEL_BYTES
+            or ID_PATTERN.fullmatch(label) is None
+            or label == DEFAULT_RUNTIME_LABEL
+        ):
+            raise ValueError(f"{field} contains an invalid Runtime label")
+    if labels != sorted(set(labels)):
+        raise ValueError(f"{field} must be sorted and unique")
 
 
 def _require_selector(field: str, value: str) -> str:

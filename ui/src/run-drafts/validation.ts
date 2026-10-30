@@ -7,6 +7,10 @@ import {
   runMetadataLabelValueError,
   type RunMetadataLabelDraft,
 } from "../api/run-metadata-labels";
+import {
+  canonicalRuntimeLabels,
+  RUNTIME_LABEL_LIMIT,
+} from "../api/runtime-configuration";
 import type { CreateRunRequest, WorkflowResource } from "../api/workflows";
 
 export const NO_CREDENTIAL_OVERRIDE = "__none__";
@@ -87,14 +91,9 @@ export function validateRunDraft(
   ) => ReadonlyMap<string, ArtifactMetadata> | undefined,
 ): RunDraftValidation {
   const errors: Record<string, string> = {};
-  const runtimeLabels = [...values.runtimeLabels].sort();
-  if (
-    runtimeLabels.length > 32 ||
-    runtimeLabels.includes("default") ||
-    new Set(runtimeLabels).size !== runtimeLabels.length
-  ) {
-    errors.runtimeLabels =
-      "Runtime labels must be a unique set without default.";
+  const runtimeLabels = canonicalRuntimeLabels(values.runtimeLabels);
+  if (runtimeLabels === undefined) {
+    errors.runtimeLabels = `Runtime labels must be a set of at most ${RUNTIME_LABEL_LIMIT} valid labels without default.`;
   }
 
   if (values.metadataLabels.length > RUN_METADATA_LABEL_LIMIT) {
@@ -184,7 +183,7 @@ export function validateRunDraft(
       ? {}
       : { stages: structuredClone(values.overrides.stages) }),
   };
-  if (Object.keys(errors).length > 0) {
+  if (Object.keys(errors).length > 0 || runtimeLabels === undefined) {
     return { errors };
   }
   return {

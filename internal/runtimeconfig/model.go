@@ -19,7 +19,7 @@ const (
 	BuiltInName    = "contractor-empty"
 	BuiltInVersion = "1"
 	BuiltInDigest  = "sha256:80a1754c01f8443c29fdc8f650a2254b2461694819918b204a55a7ad3425dc5f"
-	DefaultLabel   = "default"
+	DefaultLabel   = runtimesettings.DefaultRuntimeLabel
 
 	BuiltInCanonicalDocument = `{"apiVersion":"contractor/v1alpha1","kind":"RuntimeConfig","metadata":{"name":"contractor-empty","version":"1"},"spec":{}}`
 )

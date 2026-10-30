@@ -735,7 +735,14 @@ func validateRef(ref Ref) error {
 
 // ValidateLabel checks the Runtime label grammar: an identifier of at most 63
 // characters.
-func ValidateLabel(label string) error { return validateID("RuntimeConfig label", label, 63) }
+// ValidateLabel checks the Runtime label grammar (RCF-R117), which the
+// default label has too.
+func ValidateLabel(label string) error {
+	if !runtimesettings.ValidRuntimeLabel(label) {
+		return invalid("RuntimeConfig label is invalid")
+	}
+	return nil
+}
 
 func validateURL(field, raw string) (string, error) {
 	if raw == "" || len([]byte(raw)) > maxURLBytes || raw != strings.TrimSpace(raw) || !utf8.ValidString(raw) {

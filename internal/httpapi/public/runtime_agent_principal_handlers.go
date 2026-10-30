@@ -3,7 +3,6 @@ package public
 import (
 	"errors"
 	"net/http"
-	"sort"
 	"strconv"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
@@ -110,9 +109,10 @@ func (h *runtimeConfigurationHandlers) putRuntimeAgentLabels(w http.ResponseWrit
 		handleError(w, err)
 		return
 	}
-	labels, err := normalizeRuntimeAgentLabels(request.Labels)
+	// The request decoder admits only a JSON array.
+	labels, err := runtimeconfig.NormalizeLabels(request.Labels)
 	if err != nil {
-		handleError(w, err)
+		handleError(w, errInvalidRequest)
 		return
 	}
 	principal, replayed, err := h.RuntimeAgentPrincipals.ReplaceLabels(
@@ -183,21 +183,6 @@ func (h *runtimeConfigurationHandlers) deleteRuntimeAgentPrincipal(w http.Respon
 		w.Header().Set("Idempotency-Replayed", "true")
 	}
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func normalizeRuntimeAgentLabels(labels []string) ([]string, error) {
-	if labels == nil || len(labels) > 32 {
-		return nil, errInvalidRequest
-	}
-	result := append([]string{}, labels...)
-	sort.Strings(result)
-	for index, label := range result {
-		if !validRuntimeInfrastructureID(label) || label == runtimeconfig.DefaultLabel ||
-			index > 0 && result[index-1] == label {
-			return nil, errInvalidRequest
-		}
-	}
-	return result, nil
 }
 
 func runtimeAgentPrincipalResource(

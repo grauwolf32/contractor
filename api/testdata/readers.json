@@ -71,6 +71,7 @@
     "v1alpha1/placement-label-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/run-metadata-label-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/runtime-capability-cases.json": {"readers": ["go", "python", "ui"]},
+    "v1alpha1/runtime-label-set-cases.json": {"readers": ["go", "python", "ui"]},
     "v1alpha1/workspace-path-cases.json": {"readers": ["go", "python", "ui"]}
   }
 }
