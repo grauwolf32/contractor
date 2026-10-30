@@ -8,6 +8,7 @@ dependencies = [
   "a2a-sdk[http-server]==1.1.2",
   "cryptography>=45,<51",
   "google-adk==2.13.0",
+  "h11>=0.16,<0.17",
   "httpx>=0.28,<1",
   "idna>=3,<4",
   "jcs>=0.2,<1",

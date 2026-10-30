@@ -19,7 +19,7 @@ class ReportReuseTest(unittest.TestCase):
         audit = reports.gate("test-audit-completion-e2e.py")
         findings = reports.gate("test-findings-e2e.py")
         for identity, count in audit["matrix"]()["python"].items():
-            classname, name = identity.rsplit("::", 1)
+            classname, name = identity.split("::", 1)
             for index in range(count):
                 ET.SubElement(suite, "testcase", classname=classname, name=f"{name}[{index}]")
         classname = findings["PYTHON_FILES"][0].removesuffix(".py").replace("/", ".")
@@ -28,7 +28,7 @@ class ReportReuseTest(unittest.TestCase):
                 ET.SubElement(suite, "testcase", classname=classname, name=f"{name}[{index}]")
         engagement = reports.gate("test-engagement-http-process.py")
         for identity in engagement["matrix"]()["python"]:
-            classname, name = identity.rsplit("::", 1)
+            classname, name = identity.split("::", 1)
             ET.SubElement(suite, "testcase", classname=classname, name=name)
         # Optional tests outside both focused scopes did not fail their old gates.
         ET.SubElement(

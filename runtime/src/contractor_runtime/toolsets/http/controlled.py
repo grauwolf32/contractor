@@ -10,9 +10,9 @@ from collections import deque
 import httpx
 
 from contractor_runtime.adapters.http_transport import HTTPTransport, HTTPTransportError
+from contractor_runtime.core.http_limits import MAX_HISTORY
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
-from contractor_runtime.toolsets.common.http_limits import MAX_HISTORY
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.http.tools import (
@@ -53,12 +53,7 @@ class ControlledHTTPSession(_HTTPSession):
 
     @property
     def metric_secrets(self) -> tuple[str, ...]:
-        return tuple(
-            value.get_secret_value()
-            for session in self._transport._sessions
-            if session.material is not None
-            for value in session.material.fields.values()
-        )
+        return self._transport.private_values()
 
     def credential_catalog(self):
         try:

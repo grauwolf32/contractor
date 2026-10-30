@@ -6,11 +6,12 @@ import asyncio
 import json
 import os
 import re
+import secrets
 import shutil
 import tempfile
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -19,6 +20,8 @@ from urllib.parse import urlsplit
 from contractor_runtime import threads
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
+from contractor_runtime.adapters.http_proxy_bridge import HTTPProxyBridge
+from contractor_runtime.adapters.http_transport import HTTPTransport, HTTPTransportError
 from contractor_runtime.artifacts import ArtifactAPIError
 from contractor_runtime.contracts import ArtifactRef, RuntimeSettings
 from contractor_runtime.core.input_errors import ToolInputError
@@ -54,6 +57,12 @@ from contractor_runtime.toolsets.scan.katana import (
     canonical_url,
     katana_observation,
     scope_regex,
+)
+from contractor_runtime.toolsets.scan.nuclei_http import (
+    SUPPORTED_ENGINE_VERSION,
+    execution_package,
+    selection_package,
+    source_selection,
 )
 from contractor_runtime.toolsets.scan.nuclei_inputs import validate_nuclei_arguments
 from contractor_runtime.toolsets.scan.nuclei_package import (
@@ -146,7 +155,8 @@ class _ScanSession:
         proxy_configured,
         artifact_client,
         namespace,
-        target_policy: TargetPolicy,
+        target_policy: TargetPolicy | None,
+        controlled_http: HTTPTransport | None = None,
     ):
         self.workspace = workspace
         self.executables = executables
@@ -155,6 +165,7 @@ class _ScanSession:
         self.artifact_client = artifact_client
         self.namespace = namespace
         self.target_policy = target_policy
+        self.controlled_http = controlled_http
         self._closed = False
         self._lock = asyncio.Lock()
         self._task: asyncio.Task | None = None
@@ -169,6 +180,7 @@ class _ScanSession:
         prepare: PrepareInvocation | None = None,
         observation: Callable[[ProcessResult], dict] | None = None,
         finalize: FinalizeInvocation | None = None,
+        credential_id: str | None = None,
     ) -> dict:
         async def invocation():
             # The scan lock serializes calls; waiting for it is outside this
@@ -183,19 +195,29 @@ class _ScanSession:
             elif not self.executables[tool.name]:
                 result = ProcessResult(None, error_code="scanner_unavailable")
             else:
-                result = await self._execute(tool, arguments, deadline, destination, prepare)
+                result = await self._execute(
+                    tool, arguments, deadline, destination, prepare, credential_id
+                )
             # Output parsing is CPU work over up to 1 MiB; publication stays on the loop.
             value = await threads.to_thread_until_done(
                 observation or tool.observation, result, name="scan-observation"
             )
             return await finalize(value, deadline) if finalize is not None else value
 
+        async def owned_invocation():
+            owned = self.controlled_http.own_invocation() if self.controlled_http else False
+            try:
+                return await invocation()
+            finally:
+                if self.controlled_http is not None:
+                    self.controlled_http.finish_invocation(owned)
+
         async with self._lock:
             # Artifact publication is part of the invocation: keep it serialized
             # and cancellable until close has joined its cleanup as well. Worker
             # threads are joined before the invocation ends, so the lock is
             # held until parsing, publication and scratch removal finish.
-            self._task = asyncio.create_task(invocation())
+            self._task = asyncio.create_task(owned_invocation())
             try:
                 return await self._task
             finally:
@@ -208,6 +230,7 @@ class _ScanSession:
         deadline: float,
         destination: Destination | None,
         prepare: PrepareInvocation | None,
+        credential_id: str | None,
     ) -> ProcessResult:
         async with _Scratch(self.workspace, f"{tool.name}-") as directory:
             try:
@@ -217,7 +240,7 @@ class _ScanSession:
                     prepared = await threads.to_thread_until_done(
                         tool.prepare, directory, self.templates, name="scan-prepare"
                     )
-                    if destination is not None:
+                    if destination is not None and self.controlled_http is None:
                         await self.require_destination(*destination)
                     if prepare is not None:
                         prepared += await prepare(directory, deadline)
@@ -229,7 +252,45 @@ class _ScanSession:
             if remaining <= 0:
                 return ProcessResult(None, error_code="scan_timeout")
             command = [self.executables[tool.name], *arguments, *prepared]
-            return await run_process(command, directory, remaining)
+            if self.controlled_http is None:
+                return await run_process(command, directory, remaining)
+            try:
+                async with asyncio.timeout_at(deadline):
+                    async with HTTPProxyBridge(
+                        self.controlled_http,
+                        directory,
+                        credential_id=credential_id,
+                        deadline=deadline,
+                    ) as bridge:
+                        configure_proxy = tool.http_proxy_arguments
+                        if configure_proxy is None:
+                            raise RuntimeError("scanner HTTP proxy configuration is missing")
+                        proxy_arguments = await configure_proxy(bridge, directory)
+                        result = await run_process(
+                            [*command, *proxy_arguments],
+                            directory,
+                            max(0.001, deadline - time.monotonic()),
+                        )
+                        result = await threads.to_thread_until_done(
+                            lambda: replace(
+                                result,
+                                stdout=bridge.redact(result.stdout),
+                                stderr=bridge.redact(result.stderr),
+                            ),
+                            name="scanner-private-output-redaction",
+                        )
+                    # Cleanup joins every bridge task. An early engine exit can
+                    # otherwise race a still-pending exchange or its failure.
+                    return replace(
+                        result,
+                        error_code=result.error_code
+                        or bridge.error_code
+                        or ("scan_request_failed" if bridge.requests == 0 else None),
+                    )
+            except TimeoutError:
+                return ProcessResult(None, error_code="scan_timeout")
+            except (HTTPTransportError, OSError, ValueError):
+                return ProcessResult(None, error_code="scan_request_failed")
 
     async def require_destination(self, host: str, ports: tuple[int, ...]) -> None:
         """Check every address the host resolves to now, before the scanner starts.
@@ -240,6 +301,8 @@ class _ScanSession:
         restrict the Runtime's network namespace.
         """
 
+        if self.target_policy is None:
+            raise RuntimeError("standalone scanner destination policy is missing")
         try:
             await self.target_policy.require(host, ports)
         except TargetDenied:
@@ -283,6 +346,7 @@ class ScanTool:
     binary: str
     version_arguments: tuple[str, ...]
     description: str
+    http_proxy_arguments: Callable[[HTTPProxyBridge, Path], Awaitable[list[str]]] | None = None
 
     def __init__(self, session: _ScanSession, metrics: ToolMetrics) -> None:
         self._session = session
@@ -313,6 +377,7 @@ class ScanTool:
         prepare: PrepareInvocation | None = None,
         observation: Callable[[ProcessResult], dict] | None = None,
         finalize: FinalizeInvocation | None = None,
+        credential_id: str | None = None,
     ) -> dict:
         started = time.perf_counter_ns()
         result = None
@@ -329,6 +394,7 @@ class ScanTool:
                 prepare=prepare,
                 observation=observation,
                 finalize=finalize,
+                credential_id=credential_id,
             )
             return result
         except asyncio.CancelledError:
@@ -418,15 +484,21 @@ class _NucleiPreparation:
     timeout_seconds: int
     templates_digest: str
     rulepack_ref: dict[str, str] | None
+    credential_id: str | None = None
     result: _NucleiPreparationResult = field(default_factory=_NucleiPreparationResult, init=False)
     manifest_ref: ArtifactRef = field(init=False)
 
     def __post_init__(self) -> None:
-        self.manifest_ref = ArtifactRef(namespace=self.session.namespace, name="template-manifest")
+        name = "template-manifest"
+        if self.session.controlled_http is not None:
+            name += "." + secrets.token_hex(12)
+        self.manifest_ref = ArtifactRef(namespace=self.session.namespace, name=name)
 
     @property
     def publishes_manifest(self) -> bool:
-        return bool(self.templates_digest or self.rulepack_ref is not None)
+        return bool(
+            self.session.controlled_http or self.templates_digest or self.rulepack_ref is not None
+        )
 
     def arguments(self) -> list[str]:
         values = dict(
@@ -440,6 +512,19 @@ class _NucleiPreparation:
         )
         if self.rulepack_ref is not None:
             values["rulepack_ref"] = self.rulepack_ref
+        if self.credential_id is not None:
+            values["credential_id"] = self.credential_id
+            if self.session.controlled_http is None:
+                raise ScanInputError("credential_id requires an engagement HTTP assignment")
+        if self.session.controlled_http is not None:
+            try:
+                catalog = self.session.controlled_http.credentials()
+                if self.credential_id is not None and not any(
+                    item["credential_id"] == self.credential_id for item in catalog
+                ):
+                    raise ValueError
+            except (ValueError, HTTPTransportError):
+                raise ScanInputError("credential is not assigned to this allocation") from None
         try:
             validate_nuclei_arguments(values)
         except ToolInputError as error:
@@ -447,9 +532,9 @@ class _NucleiPreparation:
         if self.rulepack_ref is not None:
             self.result.source = "rulepack"
             self.result.rulepack_artifact = self.rulepack_ref
-        elif self.templates_digest:
+        elif self.templates_digest or self.session.controlled_http is not None:
             self.result.source = "installed"
-            self.result.expected_package_digest = self.templates_digest
+            self.result.expected_package_digest = self.templates_digest or None
         command = [
             "-jsonl",
             "-silent",
@@ -462,14 +547,16 @@ class _NucleiPreparation:
             "-omit-template",
             "-disable-redirects",
             "-rate-limit",
-            str(self.rate_limit),
+            str(self.rate_limit if self.session.controlled_http is None else 0),
             "-concurrency",
             "5",
             "-timeout",
             "10",
             "-retries",
-            "1",
+            "1" if self.session.controlled_http is None else "0",
         ]
+        if self.session.controlled_http is not None:
+            command += ["-no-httpx", "-payload-concurrency", "1"]
         for flag, value in (
             ("-id", self.template_ids),
             ("-tags", self.tags),
@@ -526,7 +613,7 @@ class _NucleiPreparation:
                 templates.is_dir, name="nuclei-templates-check"
             ):
                 raise ScannerUnavailable("nuclei_templates_unavailable")
-            if self.templates_digest:
+            if self.templates_digest or self.session.controlled_http is not None:
                 snapshot = await threads.to_thread_until_done(
                     snapshot_package,
                     templates,
@@ -535,9 +622,9 @@ class _NucleiPreparation:
                     name="nuclei-package-snapshot",
                 )
                 self.result.actual_package_digest = snapshot.digest
-                if snapshot.digest != self.templates_digest:
+                if self.templates_digest and snapshot.digest != self.templates_digest:
                     raise PackageError("nuclei_package_mismatch")
-        if self.templates_digest or self.rulepack_ref is not None:
+        if self.publishes_manifest:
             templates = snapshot.root
             await self.session.require_output_name_free(self.manifest_ref)
             executable = self.session.executables["scan_nuclei"]
@@ -558,7 +645,12 @@ class _NucleiPreparation:
                     raise PackageError("nuclei_selection_invalid")
                 engine_version = match[1].decode("ascii")
                 self.result.engine_version = engine_version
-                if self.rulepack_ref is not None:
+                if (
+                    self.session.controlled_http is not None
+                    and engine_version != SUPPORTED_ENGINE_VERSION
+                ):
+                    raise PackageError("nuclei_selection_invalid")
+                if self.rulepack_ref is not None and self.session.controlled_http is None:
                     validation = await run_command(
                         [
                             executable,
@@ -577,8 +669,17 @@ class _NucleiPreparation:
                     )
                     if validation.returncode:
                         raise PackageError("nuclei_rulepack_invalid")
+                selection = templates
+                if self.session.controlled_http is not None:
+                    selection = await threads.to_thread_until_done(
+                        selection_package,
+                        snapshot,
+                        directory / "selection",
+                        deadline,
+                        name="nuclei-inert-selection",
+                    )
                 listing = await run_command(
-                    [executable, *self.arguments(), "-t", str(templates), "-tl"],
+                    [executable, *self.arguments(), "-t", str(selection), "-tl"],
                     cwd=directory,
                     env=child_environment(directory),
                     timeout=max(0.001, deadline - time.monotonic()),
@@ -586,16 +687,55 @@ class _NucleiPreparation:
                 )
                 if listing.returncode:
                     raise PackageError("nuclei_selection_invalid")
+                selected_output = listing.stdout
+                selected_paths = []
+                if self.session.controlled_http is not None:
+                    selected_output, selected_paths = await threads.to_thread_until_done(
+                        source_selection,
+                        snapshot,
+                        selection,
+                        listing.stdout,
+                        deadline,
+                        name="nuclei-original-selection",
+                    )
                 data, count = await threads.to_thread_until_done(
                     selected_manifest,
                     snapshot,
-                    listing.stdout,
+                    selected_output,
                     engine_version,
                     deadline,
                     identifiers,
                     source,
                     name="nuclei-selected-manifest",
                 )
+                if self.session.controlled_http is not None:
+                    templates = await threads.to_thread_until_done(
+                        execution_package,
+                        snapshot,
+                        selected_paths,
+                        directory / "http-templates",
+                        deadline,
+                        self.credential_id,
+                        name="nuclei-http-admission",
+                    )
+                    validation = await run_command(
+                        [
+                            executable,
+                            "-validate",
+                            "-t",
+                            str(templates),
+                            "-disable-update-check",
+                            "-no-interactsh",
+                            "-no-color",
+                            "-silent",
+                        ],
+                        cwd=directory,
+                        env=child_environment(directory),
+                        timeout=max(0.001, deadline - time.monotonic()),
+                        max_output_bytes=MAX_MANIFEST_BYTES,
+                    )
+                    if validation.returncode:
+                        raise PackageError("nuclei_selection_invalid")
             except ProcessTimeoutError:
                 raise PackageError("scan_timeout") from None
             except (ProcessOutputLimitError, OSError):
@@ -638,7 +778,10 @@ class NucleiTool(JSONLinesScanTool):
     Uses local templates, disables updates and external OAST callbacks. Calls are
     serialized within the allocation. A configured tool proxy route is unsupported.
     The supplied target passes target policy before launch. Custom pack-controlled
-    destinations follow the trusted templates.
+    destinations follow the trusted templates. With an engagement, normal HTTP
+    templates use the allocation HTTP transport and its scope, TLS, identity jars
+    and optional limits. Scanner retries are disabled and Runtime owns cookies;
+    unsupported protocols, raw/unsafe HTTP and impure expressions fail before traffic.
     Findings are scanner evidence and are not automatically published.
 
     Args:
@@ -646,11 +789,14 @@ class NucleiTool(JSONLinesScanTool):
         template_ids: Comma-separated template IDs or wildcard IDs; empty selects all.
         tags: Comma-separated template tags; empty applies no tag filter.
         severity: Comma-separated info, low, medium, high, critical, unknown values.
-        rate_limit: Maximum requests per second, 1 through 1000; defaults to 10.
+        rate_limit: Standalone scanner rate, 1 through 1000; defaults to 10.
+            Engagement scans use only the allocation's HTTP rate limit instead.
         timeout_seconds: Total scan deadline, 1 through 3600 seconds; defaults to 300.
         templates_digest: Optional sha256 package pin. Verify a private installed-package
             snapshot, list the selected rules and publish their exact template_manifest
             artifact before scanning. A mismatch fails without scanning.
+        credential_id: Optional exact credential ID from the engagement assignment;
+            omitted uses the anonymous session. Unavailable without an engagement.
         rulepack_ref: Optional exact RunScope artifact ref for application/yaml or
             application/vnd.contractor.nuclei-rulepack+zip. Custom mode validates
             every HTTP template and exclusively scans the pack, without installed
@@ -661,6 +807,16 @@ class NucleiTool(JSONLinesScanTool):
         flags, durationMs, up to 100 JSON results, resultsTruncated and invalidResultLines.
         Timeout, overflow and execution errors are failures, not clean scans.
     """
+
+    async def http_proxy_arguments(self, bridge: HTTPProxyBridge, directory: Path) -> list[str]:
+        config = directory / "nuclei-proxy.yaml"
+        await threads.to_thread_until_done(
+            _write_private,
+            config,
+            ("proxy: [" + json.dumps(bridge.proxy_url) + "]\nproxy-internal: true\n").encode(),
+            name="nuclei-private-proxy-config",
+        )
+        return ["-config", str(config)]
 
     def prepare(self, directory: Path, templates: Path) -> list[str]:
         # Prevent a first-run template install even on older nuclei versions.
@@ -677,6 +833,7 @@ class NucleiTool(JSONLinesScanTool):
         timeout_seconds: int = 300,
         templates_digest: str = "",
         rulepack_ref: dict[str, str] | None = None,
+        credential_id: str | None = None,
     ) -> dict:
         preparation = _NucleiPreparation(
             session=self._session,
@@ -688,6 +845,7 @@ class NucleiTool(JSONLinesScanTool):
             timeout_seconds=timeout_seconds,
             templates_digest=templates_digest,
             rulepack_ref=rulepack_ref,
+            credential_id=credential_id,
         )
 
         async def prepare_target(directory: Path, deadline: float) -> list[str]:
@@ -700,9 +858,12 @@ class NucleiTool(JSONLinesScanTool):
                 prepared = preparation.result
                 value.update(
                     **prepared.provenance(),
-                    rateLimit=rate_limit,
                     filters={"templateIds": template_ids, "tags": tags, "severity": severity},
                 )
+                if self._session.controlled_http is None:
+                    value["rateLimit"] = rate_limit
+                else:
+                    value["httpLimits"] = self._session.controlled_http.configured_limits()
                 value["artifacts"] = (
                     {"template_manifest": prepared.template_manifest}
                     if prepared.template_manifest is not None
@@ -716,6 +877,7 @@ class NucleiTool(JSONLinesScanTool):
             destination=lambda: _url_destination(url),
             prepare=prepare_target,
             observation=observation,
+            credential_id=credential_id,
         )
 
 
@@ -1246,7 +1408,17 @@ class ScanToolsetFactory:
             raise ValueError("duplicate scan tool names")
         self.exported_tools = frozenset(self._scanners)
         self.infrastructure_channels = MappingProxyType(
-            {name: frozenset({"runtime-subprocess-launcher"}) for name in self._scanners}
+            {
+                name: frozenset(
+                    {"runtime-subprocess-launcher"}
+                    | (
+                        {"runtime-http-client"}
+                        if scanner.http_proxy_arguments is not None
+                        else set()
+                    )
+                )
+                for name, scanner in self._scanners.items()
+            }
         )
         self._templates = (
             templates_directory
@@ -1295,6 +1467,7 @@ class ScanToolsetFactory:
         state: Any,
         adapter_handles: AdapterHandles = EMPTY_ADAPTER_HANDLES,
         project_workspace: Any = None,
+        controlled_http: HTTPTransport | None = None,
     ) -> Mapping[str, Any]:
         del run_id, project_workspace
         require_selected_tools(
@@ -1302,6 +1475,10 @@ class ScanToolsetFactory:
         )
         if not selected:
             return {}
+        if controlled_http is not None and any(
+            self._scanners[name].http_proxy_arguments is None for name in selected
+        ):
+            raise ValueError("selected scanner cannot use the allocation HTTP transport")
         metrics = require_metrics(state, "scan@1")
         session = _ScanSession(
             workspace.path,
@@ -1312,7 +1489,10 @@ class ScanToolsetFactory:
             ),
             artifact_client=self._clients(allocation_id, runtime_settings),
             namespace=namespace,
-            target_policy=await self._target_policy.build(runtime_settings),
+            target_policy=(await self._target_policy.build(runtime_settings))
+            if controlled_http is None
+            else None,
+            controlled_http=controlled_http,
         )
         return {name: self._scanners[name](session, metrics) for name in selected}
 

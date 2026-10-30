@@ -152,3 +152,9 @@ test-nuclei-web-installed: require-database runtime-venv
 .PHONY: test-project-sitemap-tools-e2e
 test-project-sitemap-tools-e2e: require-database runtime-venv
 	$(call run-family-test,python3 scripts/test-project-sitemap-tools-e2e.py)
+
+.PHONY: test-nuclei-engagement
+test-nuclei-engagement: require-database runtime-venv
+	@command -v nuclei >/dev/null || { echo "real nuclei is required on PATH" >&2; exit 1; }
+	go test -tags=e2e -count=1 -timeout=6m ./tests/e2e -run '^TestNucleiEngagementAcrossProductionProcesses$$'
+	cd runtime && uv run pytest -W error tests/test_http_proxy_bridge.py tests/test_nuclei_engagement.py

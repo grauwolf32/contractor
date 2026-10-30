@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from contractor_runtime.contracts import ArtifactRef
+from contractor_runtime.contracts.base import ID_PATTERN
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.toolsets.common.artifact_visibility import require_model_visible_binding
 from contractor_runtime.toolsets.scan.http_request import validate_http_url
@@ -22,6 +23,7 @@ def validate_nuclei_arguments(arguments: dict) -> None:
         "timeout_seconds",
         "templates_digest",
         "rulepack_ref",
+        "credential_id",
     }:
         raise ToolInputError("unknown Nuclei argument")
     validate_http_url(arguments.get("url"))
@@ -53,3 +55,12 @@ def validate_nuclei_arguments(arguments: dict) -> None:
             require_model_visible_binding(ref.namespace, ref.name)
         except (ValueError, TypeError):
             raise ToolInputError("rulepack_ref must be an accessible exact artifact ref") from None
+
+    if "credential_id" in arguments:
+        value = arguments["credential_id"]
+        if (
+            not isinstance(value, str)
+            or not 1 <= len(value) <= 128
+            or not ID_PATTERN.fullmatch(value)
+        ):
+            raise ToolInputError("invalid Nuclei credential ID")

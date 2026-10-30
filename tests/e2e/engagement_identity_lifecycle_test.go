@@ -60,8 +60,8 @@ func TestEngagementIdentityLifecycleAcrossProcesses(t *testing.T) {
 		case <-h.ctx.Done():
 			t.Fatal("cookie request did not reach target")
 		}
-		var allocation, instance string
-		if err := pool.QueryRow(h.ctx, `SELECT p.allocation_id,p.runtime_instance_id FROM audit_action_attempts p JOIN audit_actions a USING(audit_id,action_id) WHERE p.audit_id=$1 AND a.identity_id='account-a' AND a.phase='request' AND a.step_index=1 AND p.state='started'`, audit).Scan(&allocation, &instance); err != nil {
+		var allocation string
+		if err := pool.QueryRow(h.ctx, `SELECT a.allocation_id FROM stage_allocations a JOIN stage_executions s USING(stage_execution_id) JOIN audit_executions e ON e.run_id=s.run_id WHERE e.audit_id=$1 AND a.release_completed_at IS NULL`, audit).Scan(&allocation); err != nil {
 			t.Fatal(err)
 		}
 		var revision uint64

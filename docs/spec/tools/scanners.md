@@ -447,12 +447,13 @@ request inputs follow [SQLMap HTTP request
 artifacts](#sqlmap-http-request-artifacts) and `scan_ffuf` wordlists follow
 [Scanner wordlist artifacts](#scanner-wordlist-artifacts).
 
-**SCN-R56.** Each scanner Worker applies the shared target policy
+**SCN-R56.** Each standalone scanner Worker applies the shared target policy
 ([Security](../platform/security.md)) to its target host before launching its
 scanner. A refusal is reported without an exit code as `scan_target_denied`,
 or as `scan_target_unresolved` when the host did not resolve; the policy
 decisions behind both are owned by [SEC-R78](../platform/security.md)
-(FAIL-SCN-6).
+(FAIL-SCN-6). With an engagement HTTP assignment, SCN-R259 replaces this
+pre-launch check with the shared transport's authoritative per-request admission.
 
 **SCN-R57.** No scanner result establishes the absence of a vulnerability:
 empty matches, an empty result list, an empty SQL-injection technique list,
@@ -480,6 +481,74 @@ checks that the output name is free with a metadata read
 payload for this check. Only `404` admits the invocation; an existing binding
 fails as `scan_output_exists`, and any other read failure fails as
 `scan_artifact_unavailable`. Neither failure launches the scanner.
+
+### Nuclei under an engagement HTTP assignment
+
+**SCN-R259.** With an allocation HTTP assignment, `scan_nuclei` uses the
+allocation-owned HTTP transport through HTP-R148. The URL remains one explicit
+scan work item; it grants no authority beyond the selected engagement. Server
+and Runtime classify this supported path through its `runtime-http-client` and
+`runtime-subprocess-launcher` descriptor channels. A subprocess-only scanner
+remains uncontrolled and is refused in an engagement. The supported controlled
+engine is Nuclei v3.11.1, matching the provisioned engine. A different engine
+fails with `nuclei_selection_invalid` before target traffic; admit another
+version only after real proxy, cookie, retry and teardown conformance.
+
+**SCN-R260.** Controlled scans snapshot installed content even without an
+explicit package pin; custom rulepacks retain their exact Artifact source.
+Native filtering reads private inert copies containing only original ID/info
+and a normal HTTP placeholder. Original variables and DSL never reach native
+selection: variable unmarshalling may evaluate helpers even without a target.
+The adapter maps selected paths back into the verified original package and
+keeps its ordinary source manifest/digests. Controlled invocations publish
+create-only manifests under distinct ordinary binding names, so explicit
+subsequent calls can select other rules/credentials within the same allocation.
+It admits the selected normal HTTP
+subset and validates private execution copies before scanning. Those copies
+set `disable-cookie` and disable redirects; source bytes and provenance remain
+unchanged. The bridge also removes engine-added Cookie headers, including
+cookies retained by an explicit native jar despite `disable-cookie`.
+
+The admitted subset is structured HTTP methods/paths/headers/bodies, inline
+payload lists, normal matchers/extractors and the adapter's closed pure-helper
+allowlist. Raw/unsafe/pipeline/race HTTP, other protocols, flow/JavaScript,
+external payload files, OAST and impure or unknown helper functions fail before
+any target request. Parsing uses the existing bounded, duplicate-free YAML
+reader. Native validation remains responsible for Nuclei syntax. Unsupported
+features produce `nuclei_selection_invalid`, without an installed-rule fallback.
+
+**SCN-R261.** Optional `credential_id` has the existing Runtime credential ID
+grammar and 128-byte maximum. It selects only an exact credential assigned to
+this allocation; omission uses its anonymous session. A credential selector
+without an engagement or outside its assignment is invalid before scanner
+launch. Runtime injects credential values and keeps learned cookies by exact
+origin. Controlled templates cannot supply Cookie headers, or Authorization
+headers alongside a selected credential. Supplied private values and their
+HTTP authentication encodings are redacted from scanner diagnostics/results;
+proxy credentials stay in a private mode-0600 config file and never enter argv,
+environment, metrics or retained Artifacts. The ordinary scoped-Artifact policy
+for target observations remains SCN-R219.
+
+**SCN-R262.** Controlled Nuclei sets scanner retries and its native request-rate
+limiter to zero. Only the shared transport enforces optional request count,
+RPS, concurrency and body limits from the engagement (HTP-R145), together with
+ordinary HTTP framing/buffering bounds. Thus HTTP tools and Nuclei consume the
+same allocation allowance. An omitted engagement limit stays absent. The
+`rate_limit` argument continues to configure standalone scans; controlled scans
+report `httpLimits` and use the engagement instead. Native redirect following
+is disabled; every actual request is admitted separately. Native template/payload
+scheduling does not create another target quota. Pre-send GET/HEAD/OPTIONS
+retry belongs only to the shared transport under HTP-R139.
+
+**SCN-R263.** A refused proxy exchange, failed request or truncated response
+makes the scan fail even when Nuclei exits zero or has earlier matches. Scope
+refusal uses `scan_target_denied`; other controlled HTTP failures use
+`scan_request_failed`. Unsupported source/engine features use the existing
+Nuclei selection diagnostic. None authorize an automatic write replay. The
+whole invocation, including preparation, process, output handling and bridge,
+is owned by the allocation HTTP lifecycle (HTP-R149). Process and per-request
+deadlines remain independently bounded; ordinary tool Worker receipts and
+report publication retain their ownership.
 
 ### Pinned installed Nuclei web scans
 

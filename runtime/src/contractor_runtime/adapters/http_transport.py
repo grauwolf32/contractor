@@ -18,9 +18,10 @@ from contractor_runtime.adapters.http_session import IdentitySession, PrivateRes
 from contractor_runtime.adapters.http_stream import ControlledBackend, RequestBoundary
 from contractor_runtime.contracts import AllocationSpec
 from contractor_runtime.contracts.engagement import MAX_URL_BYTES, HTTPLimits, resolve_redirect_url
+from contractor_runtime.core.http_limits import MAX_RESPONSE_BODY_BYTES
+from contractor_runtime.core.http_session import basic_authorization
 from contractor_runtime.core.target_policy import Resolver, TargetDenied, TargetUnresolved
 from contractor_runtime.threads import to_thread_until_done
-from contractor_runtime.toolsets.common.http_limits import MAX_RESPONSE_BODY_BYTES
 
 TARGET_ADAPTER = "http-target@1"
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}
@@ -226,6 +227,24 @@ class HTTPTransport:
             for session in self._sessions
             if session.identity.credential is not None
         ]
+
+    def configured_limits(self) -> dict[str, int | float]:
+        """Configured slot limits for execution provenance; omitted values stay absent."""
+        return self._http_limits.model_dump(by_alias=True, exclude_none=True)
+
+    def private_values(self) -> tuple[str, ...]:
+        """Static assigned credentials and their HTTP authentication encodings."""
+        values = []
+        for session in self._sessions:
+            material = session.material
+            if material is None:
+                continue
+            fields = {key: value.get_secret_value() for key, value in material.fields.items()}
+            values.extend(fields.values())
+            if session.identity.kind == "basic":
+                authorization = basic_authorization(fields["username"], fields["password"])
+                values.extend((authorization, authorization.removeprefix("Basic ")))
+        return tuple(value for value in values if value)
 
     def read_credential(self, credential_id: str) -> dict:
         """Explicit model access is restricted to the immutable Audit assignment."""

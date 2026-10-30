@@ -42,7 +42,7 @@ func ValidNucleiRulepackMetadata(mediaType string, size int64) bool {
 func ValidateNucleiArguments(arguments map[string]any) error {
 	for name := range arguments {
 		switch name {
-		case "url", "template_ids", "tags", "severity", "rate_limit", "timeout_seconds", "templates_digest", "rulepack_ref":
+		case "url", "template_ids", "tags", "severity", "rate_limit", "timeout_seconds", "templates_digest", "rulepack_ref", "credential_id":
 		default:
 			return contracts.Invalidf("unknown Nuclei argument")
 		}
@@ -89,6 +89,12 @@ func ValidateNucleiArguments(arguments map[string]any) error {
 			if json.Unmarshal(data, &number) != nil || number < 1 || number > pair.max {
 				return contracts.Invalidf("invalid Nuclei integer")
 			}
+		}
+	}
+	if value, exists := arguments["credential_id"]; exists {
+		id, ok := value.(string)
+		if !ok || !contracts.ValidConfigID(id) {
+			return contracts.Invalidf("invalid Nuclei credential ID")
 		}
 	}
 	if value, exists := arguments["templates_digest"]; exists {
