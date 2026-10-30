@@ -183,6 +183,24 @@ own the rules of particular state are indexed in the next section.
 | `internal/settingsstore` | `scheduler_settings`, `model_selection_settings` |
 | `internal/telemetry` | `allocation_execution_reports`, `planner_execution_reports`, `stage_metrics` |
 
+### Accepted upward reads
+
+A package reads a relation whose owner sits higher in the layer stack of
+[`internal/archtest/layers_test.go`](../../../internal/archtest/layers_test.go)
+only where its registry entry names the open task that removes the read or one
+of these records ([PER-R23](#requirements)). A read through a function that Go
+SQL calls is a read of the calling package. Each record names the reader, the
+relations it reads and their owners, the guarantee that needs the read in the
+reader's own statement or transaction, the alternatives and when to reopen it.
+
+| Record | Reader | Relations | Owners | Guarantee | Alternatives | Reopen when |
+| --- | --- | --- | --- | --- | --- | --- |
+| `PER-UR-1` | `internal/artifacts` (platform) | `workflow_runs` | `internal/runstore` (execution) | An Artifact operation that names a Run and a Project (output freezing, a Project input fork into a Run, a context projection, output publication, Audit import) proves in its own transaction that the Run exists and belongs to that Project, so no caller can move Artifacts between Projects. A Run's `project_id` is immutable, so the read cannot go stale. | The caller passes the Run's Project, which a caller defect could get wrong; an artifacts port that runstore implements and the composition wires, which adds a statement and an interface for one immutable column. | A Run's Project stops being the immutable `workflow_runs.project_id`. |
+| `PER-UR-2` | `internal/telemetry` (platform) | `workflow_runs`, `stage_executions`, `stage_allocations` | `internal/runstore` (execution) | Resource history reads the allocations of terminal Stages of the owner's Runs, and Runtime and tool diagnostics authorize a Stage through its Run's owner, in the statement that pages the telemetry rows, so a page is one snapshot and one bounded read; report and metric retention deletes only rows of terminal Stages, decided in the deleting statement. | A runstore port that returns the authorized terminal Stages of each page, which needs a second statement per page and the same page window on both sides; history reads in runstore, which would then read telemetry's tables instead. | Authorization stops being the Run's owner, a Stage's end stops being `stage_executions.terminal_at`, or retention needs more of the Run lifecycle than a Stage's end. |
+| `PER-UR-3` | `internal/gatewayrecovery` (platform) | `workflow_runs`, `stage_executions`, `stage_allocations` | `internal/runstore` (execution) | Route admission waits while a running or waiting Run waits on the route, an update that changes nothing is decided from one read without locks ([SCH-R165](../execution/scheduler.md)), recovery status shows only active Runs, and the participant fence refuses a non-terminal update of an ending or ended participant by primary-key reads in the recovery transaction's snapshot or under the Run row lock that runstore's RunStates port takes. Recovery changes and locks Runs only through that port. | Each read through RunStates: a second statement outside the snapshot that SCH-R165 decides from, or a port call made while the Run row lock is held. | The Run or Stage states these reads test change meaning, or RunStates returns the same facts inside the recovery transaction. |
+| `PER-UR-4` | `internal/runstore` (execution) | `projects` | `internal/projectstore` (product) | The Run queue page shows each Run's Project in the page's own statement; Run resumption checks that the Project is active and holds `FOR SHARE` on its row in the resuming transaction, so Project deletion, which changes that row, cannot interleave with a resumption. | A projectstore port called inside runstore's transaction for the fence and once per queue page, which keeps the same lock and adds a statement per page; a deletion fence row that runstore owns, which copies the Project lifecycle. | Project deletion stops fencing through the Project row, or `projects.lifecycle_state` changes meaning. |
+| `PER-UR-5` | `internal/telemetry` (platform) | `eval_submissions`, `audit_executions` | `internal/evalstore`, `internal/auditstore/internal/pgstore` (product) | StageMetrics retention renews, instead of deleting, the metrics of a Run that an existing Eval member executed, directly or as a child Run of its Audit. `contractor_eval_run_members`, which the Eval projection trigger shares, is the one definition of that membership and runs in the retention statement. | Eval members hold their Runs' StageMetrics explicitly, as Artifact holds do, which adds a hold write to every submission; telemetry asks evalstore through a port per batch, a second statement that a new submission can race. | Eval membership of a Run gets a second definition, or Eval members hold StageMetrics explicitly. |
+
 ### PostgreSQL state and its owners
 
 | State | Owner |
@@ -466,7 +484,9 @@ caller's relations and reads another owner's relation only where the registry
 lists that read with its reason. A trigger's function acts for the owner of
 the trigger's table: it writes or exclusively locks another owner's relation
 only where the registry lists that write with its reason, such as the Eval
-projection that a Run's change marks dirty. A function body that runs dynamic
+projection that a Run's change marks dirty. A read of a relation whose owner
+sits higher in the layer stack names, in its registry entry, the open task that
+removes it or its [accepted upward read](#accepted-upward-reads). A function body that runs dynamic
 SQL (`EXECUTE`) or that the check cannot read as PL/pgSQL or SQL text is not
 allowed where the rule applies. Test fixtures are outside the rule, and so
 are the reads that triggers make: a trigger reads another owner's rows to
@@ -1252,7 +1272,12 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     [`internal/persistence/routine_ownership_test.go`](../../../internal/persistence/routine_ownership_test.go),
     and `TestReadBodyFindsWritesLocksReadsCallsAndDynamicSQL` in
     [`internal/persistence/explaintest/statements_test.go`](../../../internal/persistence/explaintest/statements_test.go)
-    for how function bodies are read.
+    for how function bodies are read. A read of a relation whose owner sits
+    higher in the layer stack names its open task or
+    [accepted upward read](#accepted-upward-reads), and every accepted upward
+    read is still named; tests `TestUpwardReadsNameTheirAcceptance` and
+    `TestUpwardReadCheckReportsEachRule` in
+    [`internal/persistence/upward_reads_test.go`](../../../internal/persistence/upward_reads_test.go).
 19. The registry, `scripts/erd/meta.json` with its groups and the
     [Table owners](#table-owners) index name the same relations and owners
     (PER-R23); test `TestTableOwnershipMatchesTheSchemaDocuments` in

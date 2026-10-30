@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/credentials"
 	litellmcredentials "github.com/grauwolf32/contractor/internal/credentials/litellm"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -131,7 +132,8 @@ func configureCredentials(
 	runtimeCredentialLifecycle, err := credentials.NewRuntimeCredentialService(
 		credentials.RuntimeCredentialServiceOptions{
 			Pool: pool, Lease: lease, Cipher: tokenCipher, Usage: runtimeCredentialRepository,
-			Audits: hookstore.NewCredentialHolds(pool), Barrier: credentialBarrier,
+			Projects: projectstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool),
+			Barrier: credentialBarrier,
 		},
 	)
 	if err != nil {

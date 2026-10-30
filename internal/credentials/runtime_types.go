@@ -358,12 +358,20 @@ func (e *RuntimeCredentialInUseError) ErrorKind() apierror.Kind {
 	return apierror.RuntimeCredentialInUse
 }
 
-// RuntimeCredentialUsageChecker reports the RuntimeConfig bindings, Projects,
-// Runs and allocations that reference a Runtime credential: every field of
-// RuntimeCredentialUsage except AuditIDs, which RuntimeCredentialAuditHoldLookup
-// reports.
+// RuntimeCredentialUsageChecker reports the RuntimeConfig bindings, Runs and
+// allocations that reference a Runtime credential: every field of
+// RuntimeCredentialUsage except ProjectIDs, which
+// RuntimeCredentialProjectLookup reports, and AuditIDs, which
+// RuntimeCredentialAuditHoldLookup reports.
 type RuntimeCredentialUsageChecker interface {
 	InspectRuntimeCredentialUsage(context.Context, string, int) (RuntimeCredentialUsage, error)
+}
+
+// RuntimeCredentialProjectLookup reports, up to a limit and by Project ID, the
+// Projects whose HTTP target uses a Runtime credential; projectstore, which
+// owns the Projects, implements it.
+type RuntimeCredentialProjectLookup interface {
+	ListProjectIDsByHTTPTargetCredential(context.Context, string, int) ([]string, error)
 }
 
 // RuntimeCredentialAuditHoldLookup reports, up to a limit, the Audits whose

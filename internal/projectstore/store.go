@@ -150,6 +150,33 @@ func (s *PostgresStore) List(ctx context.Context, params ListParams) ([]Project,
 	return projects, nil
 }
 
+// maxCredentialProjects bounds one ListProjectIDsByHTTPTargetCredential read.
+const maxCredentialProjects = 128
+
+// ListProjectIDsByHTTPTargetCredential returns, by Project ID, at most limit
+// Projects whose HTTP target uses the Runtime credential: the Project usage
+// that refuses the credential's deletion (credentials.RuntimeCredentialProjectLookup).
+// The read is an index scan of projects_http_target_credential_idx.
+func (s *PostgresStore) ListProjectIDsByHTTPTargetCredential(ctx context.Context, credentialID string, limit int) ([]string, error) {
+	if !contracts.ValidConfigID(credentialID) || limit < 1 || limit > maxCredentialProjects {
+		return nil, invalid("Project credential usage query is invalid")
+	}
+	rows, err := s.db.Query(ctx, `
+SELECT project_id
+FROM projects
+WHERE http_target_credential_id = $1
+ORDER BY project_id
+LIMIT $2`, credentialID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list Projects that target a Runtime credential: %w", err)
+	}
+	projectIDs, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, fmt.Errorf("read Projects that target a Runtime credential: %w", err)
+	}
+	return projectIDs, nil
+}
+
 func (s *PostgresStore) Update(ctx context.Context, params UpdateParams) (Project, error) {
 	if err := validateUpdate(params); err != nil {
 		return Project{}, err

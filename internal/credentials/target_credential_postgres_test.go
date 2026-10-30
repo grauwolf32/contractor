@@ -65,7 +65,8 @@ func newTargetCredentialService(t *testing.T, pool *pgxpool.Pool, audits Runtime
 	}
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
 		Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher,
-		Usage: NewRuntimeCredentialRepository(pool), Audits: audits, Barrier: NewLifecycleBarrier(),
+		Usage: NewRuntimeCredentialRepository(pool), Projects: projectstore.NewPostgresStore(pool), Audits: audits,
+		Barrier: NewLifecycleBarrier(),
 	})
 	if err != nil {
 		t.Fatal(err)

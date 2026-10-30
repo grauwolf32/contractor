@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 )
@@ -200,7 +201,7 @@ func TestCredentialWritesOfAPreviousLeaseOwnerAfterTheHandoverCommitNothing(t *t
 	}
 	successorRuntime, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
 		Pool: f.pool, Lease: successor.Lease, Cipher: f.cipher, Usage: NewRuntimeCredentialRepository(f.pool),
-		Audits: staticAuditDispatchHolds{}, Barrier: NewLifecycleBarrier(),
+		Projects: projectstore.NewPostgresStore(f.pool), Audits: staticAuditDispatchHolds{}, Barrier: NewLifecycleBarrier(),
 	})
 	if err != nil {
 		t.Fatal(err)

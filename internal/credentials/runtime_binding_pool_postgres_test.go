@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/agentprincipal"
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -47,8 +48,8 @@ func TestRuntimeCredentialRebindDoesNotBorrowAnotherConnection(t *testing.T) {
 			}
 			service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
 				Pool: limited, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher,
-				Usage:  NewRuntimeCredentialRepository(limited),
-				Audits: staticAuditDispatchHolds{}, Barrier: NewLifecycleBarrier(),
+				Usage:    NewRuntimeCredentialRepository(limited),
+				Projects: projectstore.NewPostgresStore(limited), Audits: staticAuditDispatchHolds{}, Barrier: NewLifecycleBarrier(),
 			})
 			if err != nil {
 				t.Fatal(err)
