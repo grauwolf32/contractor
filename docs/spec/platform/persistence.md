@@ -160,8 +160,9 @@ flowchart LR
 Every table and view has one owner package, the only package whose SQL may
 write it ([PER-R23](#requirements)). The table ownership registry
 [`internal/persistence/table_ownership.txt`](../../../internal/persistence/table_ownership.txt)
-assigns the owners, grants the reads that other packages make and lists the
-known foreign accesses; this index names the same owners. The documents that
+assigns the owners, grants the reads that other packages make, lists the
+known foreign accesses and names the other owners' relations that migration
+functions reach for a package; this index names the same owners. The documents that
 own the rules of particular state are indexed in the next section.
 
 | Owner package | Tables and views |
@@ -458,11 +459,23 @@ reason. The registry also lists the known accesses: foreign accesses that
 break this rule today, each with why it exists and the open task that removes
 it. A known access is a debt, not a grant: it leaves the registry with the
 access, and a new foreign write moves behind its owner instead of becoming a
-known access. The rule covers the SQL text of production Go code; test
-fixtures and the triggers and functions that migrations define are outside
-it. The registry, `scripts/erd/meta.json`, the [Table owners](#table-owners)
-index and the migrated schema name the same tables and views, and the ERD
-draws each table in the registry's group.
+known access. The rule covers the SQL that production Go code runs: its text,
+and the functions that migrations define and that text calls, with the
+functions those call in turn. A function that Go SQL calls writes only the
+caller's relations and reads another owner's relation only where the registry
+lists that read with its reason. A trigger's function acts for the owner of
+the trigger's table: it writes or exclusively locks another owner's relation
+only where the registry lists that write with its reason, such as the Eval
+projection that a Run's change marks dirty. A function body that runs dynamic
+SQL (`EXECUTE`) or that the check cannot read as PL/pgSQL or SQL text is not
+allowed where the rule applies. Test fixtures are outside the rule, and so
+are the reads that triggers make: a trigger reads another owner's rows to
+admit, validate or project a change of its own table, which cannot change
+that owner's state. Reopen the trigger-read exclusion when a decision about
+read dependencies between owners needs those reads. The registry,
+`scripts/erd/meta.json`, the [Table owners](#table-owners) index and the
+migrated schema name the same tables and views, and the ERD draws each table
+in the registry's group.
 
 Rationale: SQL needs no Go import, so the import-based layer check cannot see
 one package writing or locking another package's table. Such writes split one
@@ -1223,12 +1236,23 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     read or a known access that names an open task, and no registry entry
     outlives its access (PER-R23); tests
     `TestSQLAccessFollowsTableOwnership`,
-    `TestTableOwnershipCheckRejectsAnUnlistedForeignUpdate` and
+    `TestTableOwnershipCheckRejectsAnUnlistedForeignUpdate`,
+    `TestTableOwnershipCheckSeesHelperArgumentsAndAppendedLocks` and
     `TestTableOwnershipCheckReportsEachRule` in
     [`internal/persistence/table_ownership_test.go`](../../../internal/persistence/table_ownership_test.go),
-    and `TestSQLAccessScanReadsStatementsAsTheRepositoryWritesThem` in
+    and `TestSQLAccessScanReadsStatementsAsTheRepositoryWritesThem` and
+    `TestSQLAccessScanFindsMigrationFunctionCalls` in
     [`internal/persistence/sql_access_test.go`](../../../internal/persistence/sql_access_test.go)
-    for how SQL text is read.
+    for how SQL text is read. A trigger's write of another owner's relation
+    and a called function's read of one is a listed routine access, a called
+    function writes only the caller's relations, and no routine entry outlives
+    its access; tests `TestMigrationRoutinesFollowTableOwnership`,
+    `TestRoutineOwnershipCheckRejectsProbeRoutines` and
+    `TestRoutineOwnershipCheckReportsEachRule` in
+    [`internal/persistence/routine_ownership_test.go`](../../../internal/persistence/routine_ownership_test.go),
+    and `TestReadBodyFindsWritesLocksReadsCallsAndDynamicSQL` in
+    [`internal/persistence/explaintest/statements_test.go`](../../../internal/persistence/explaintest/statements_test.go)
+    for how function bodies are read.
 19. The registry, `scripts/erd/meta.json` with its groups and the
     [Table owners](#table-owners) index name the same relations and owners
     (PER-R23); test `TestTableOwnershipMatchesTheSchemaDocuments` in
