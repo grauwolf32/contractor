@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: pending
+status: completed
+implementation_commit: 9376d5d0a9877b4aa05450fe74a1354a3d96d0c2
 depends_on: []
 languages: [python]
 goal: "The capability discovery tests that need a probe to time out make only that probe hang and give every other factory a budget machine load cannot exhaust."

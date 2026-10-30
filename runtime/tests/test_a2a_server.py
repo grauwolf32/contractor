@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -23,10 +24,15 @@ from a2a.types import (
 from a2a.utils.constants import TransportProtocol
 from fakes.model import scripted_model, text_result
 from fakes.spec import allocation_spec
-from google.protobuf.json_format import MessageToDict, ParseDict
+from google.protobuf.json_format import MessageToDict, MessageToJson, ParseDict
 from google.protobuf.struct_pb2 import Value
+from pydantic import ValidationError
 
-from contractor_runtime.a2a_server import MAX_A2A_REQUEST_BYTES, ContractorAgentExecutor
+from contractor_runtime.a2a_server import (
+    MAX_A2A_REQUEST_BYTES,
+    ContractorAgentExecutor,
+    _result_message,
+)
 from contractor_runtime.allocation import AllocationService
 from contractor_runtime.capabilities import CapabilitySnapshot
 from contractor_runtime.contracts import (
@@ -487,3 +493,45 @@ def test_executor_publishes_terminal_status_for_a_child_cancelled_worker() -> No
         assert not owner.cancelling()
 
     asyncio.run(scenario())
+
+
+def test_result_message_carries_the_largest_exact_integer_unchanged() -> None:
+    """2^53-1 survives the DataPart's double encoding; 2^53 never reaches it."""
+
+    maximum = 2**53 - 1
+    completion = {
+        "apiVersion": API_VERSION,
+        "invocationId": "worker-1",
+        "stateRevision": maximum,
+        "result": {
+            "subtaskId": "1",
+            "result": "done",
+            "observations": {
+                "profile": "lean@1",
+                "tools": {"read_file": {"calls": maximum, "failures": 0}},
+                "truncated": False,
+            },
+            "artifacts": {},
+            "summarized": False,
+        },
+    }
+    message = _result_message(
+        WorkerCompletion.model_validate(completion), executor_context("task-1")
+    )
+    wire = json.loads(MessageToJson(message))["parts"][0]["data"]
+    assert wire["stateRevision"] == maximum
+    assert wire["result"]["observations"]["tools"]["read_file"]["calls"] == maximum
+    for over in (
+        {"stateRevision": maximum + 1},
+        {
+            "result": {
+                **completion["result"],
+                "observations": {
+                    **completion["result"]["observations"],
+                    "tools": {"read_file": {"calls": maximum + 1, "failures": 0}},
+                },
+            }
+        },
+    ):
+        with pytest.raises(ValidationError):
+            WorkerCompletion.model_validate({**completion, **over})

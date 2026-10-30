@@ -6,7 +6,7 @@ epic: workflows
 kind: chore
 introduced_by: V370-006
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "No Go file declares a local with the name of a package it imports (resolved above all), a check keeps it that way, and internal/config uses clone.Map instead of its own cloneMap."

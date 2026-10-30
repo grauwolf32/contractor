@@ -1012,6 +1012,31 @@ telemetry.
 for example `control_lease_expired` or `runtime_state_mismatch`, rather than
 collapsing every loss into one code.
 
+### Stage failure codes
+
+**SCH-R184.** Besides allocation loss (SCH-R95), the Scheduler ends a
+StageExecution through bounded `aborting` with an interrupted
+StageTermination with one of these codes:
+
+- `stage_deadline_exceeded` — the admitted Stage deadline passed before the
+  Planner or Server operation completed; retryable;
+- `planner_execution_config_unavailable`,
+  `worker_execution_config_unavailable` — the model execution configuration
+  of the Planner or of the Workers, including a pinned credential, could not be
+  resolved; retryable only for a transient cause (an ended context or an
+  unavailable database), non-retryable for a missing, invalid or unreadable
+  credential or another unavailable configuration;
+- `model_route_binding_failed` — the model recovery routes of the Stage's
+  placed allocations could not be bound; retryable;
+- `control_plane_state_lost` — Control Plane no longer holds the active
+  allocation set of the Stage being prepared, such as durable allocation rows
+  left without grants (FAIL-SCH-18); retryable;
+- `allocation_fence_failed` — the Stage's allocations could not be
+  write-fenced before finalization; retryable.
+
+A Planner the Scheduler cannot create ends with `planner_initialization_failed`
+(PLN-R121).
+
 ### Recovery
 
 **SCH-R96.** WorkflowRun recovery uses durable Scheduler state, not live ADK
@@ -1174,7 +1199,8 @@ one in the Runtime, pinned by
 [`gateway-recovery-participant-cases.json`](../../../api/testdata/v1alpha1/gateway-recovery-participant-cases.json):
 the updates `acquire`, `failed`, `succeeded`, `finished` and `released`, of
 which the last three are terminal; the codes a `failed` update may carry, which
-are exactly the retryable codes of the shared Gateway failure classification;
+are exactly the retryable codes of the shared Gateway failure classification
+and the only values of the public `code` of a Run's `recovery`;
 the bounds of an update; the update that reports each attempt outcome, where
 only `failed` carries a code and retry hint and only `failed` resends the
 request; and the update re-delivered after cancellation (SCH-R108).
@@ -1348,10 +1374,17 @@ pool's size), Runs deferred within their window and pending Runs of paused
 owners (SCH-R163). A progression attempt reads the Run's lifecycle
 state and its one active StageExecution (SCH-R114), not the Run's Stage
 history of up to 1,024 attempts (LIM-RUN-2); it reads the whole Run again only
-when its state changed since the claim. Only a Run without an active
-StageExecution, whose first Stage is not yet created or whose state the
-Scheduler cannot progress, has its Stage history read; a cancelling one reads
-only the attempts whose allocation release is incomplete (SCH-R179).
+when its state changed since the claim. Two decisions consult the history,
+and neither selects a snapshot column (StageSpec, StageContext, candidate or
+accepted result, termination). A Run without an active StageExecution, whose
+first Stage is not yet created or whose state the Scheduler cannot progress,
+proves which with one existence probe that returns one boolean. An automatic
+escalate decision counts the escalation attempts of its Stage (SCH-R89) from
+one statement that reads only the identity, Run, Stage name, attempt, state,
+execution configuration variant, escalation ordinal and previous and resume
+source columns of that Stage's attempts: at most LIM-RUN-2 narrow rows. A
+cancelling Run reads only the attempts whose allocation release is incomplete
+(SCH-R179).
 
 **SCH-R125.** Focused tests drive the Scheduler through `RunOnce`, a
 deterministic single-claim helper that only the Scheduler's tests compile and
@@ -1655,6 +1688,10 @@ Errors ([registry](../platform/errors.md)):
 - `control_lease_expired`, `runtime_state_mismatch` — allocation-loss reasons
   of an interrupted StageTermination (SCH-R95); a control lease expiry records
   a retryable StageTermination (SCH-R162).
+- `stage_deadline_exceeded`, `planner_execution_config_unavailable`,
+  `worker_execution_config_unavailable`, `model_route_binding_failed`,
+  `control_plane_state_lost`, `allocation_fence_failed` — Scheduler Stage
+  failure codes (SCH-R184).
 - Planner and Worker error codes (`worker_input_required`,
   `worker_auth_required`, `worker_budget_exhausted` and
   `planner_invocation_in_progress`) are owned by [Planners](planners.md) and

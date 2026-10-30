@@ -98,6 +98,23 @@ const (
 	StageCancelled   StageExecutionState = "cancelled"
 )
 
+// activeStageStates and terminalStageStates partition the StageExecution
+// states (SCH-R42). They are the one definition of both sets: Go code asks
+// StageExecutionState.Terminal, and the StageStateSets tests hold the OpenAPI
+// enum, every StageExecution-state list in Go SQL and the stage_executions
+// CHECKs and partial-index predicates to them. SQL spells the lists as
+// literals for the reason the Run state lists do: PostgreSQL proves a
+// partial-index predicate only from constants written in the query.
+var (
+	activeStageStates   = [...]StageExecutionState{StagePreparing, StageRunning, StageFinalizing, StageAborting}
+	terminalStageStates = [...]StageExecutionState{StageSucceeded, StageFailed, StageInterrupted, StageCancelled}
+)
+
+// Terminal reports whether s is a terminal StageExecution state (SCH-R42).
+func (s StageExecutionState) Terminal() bool {
+	return slices.Contains(terminalStageStates[:], s)
+}
+
 type Reason struct {
 	Code    string
 	Message string
@@ -461,6 +478,21 @@ type StageExecution struct {
 	UpdatedAt                    time.Time
 	PlannerStartedAt             *time.Time
 	TerminalAt                   *time.Time
+}
+
+// StageLineage is the identity, state, execution configuration and lineage
+// of one StageExecution without any of its snapshots: what the Scheduler
+// reads of a Run's Stage history to count escalation attempts (SCH-R164).
+type StageLineage struct {
+	StageExecutionID        string
+	RunID                   string
+	StageName               string
+	Attempt                 int
+	State                   StageExecutionState
+	ExecutionConfigVariant  StageExecutionConfigVariant
+	EscalationOrdinal       *int
+	PreviousExecutionID     *string
+	ResumeSourceExecutionID *string
 }
 
 // StageTransitionAction is the durable Scheduler decision made after one

@@ -75,10 +75,15 @@ const (
 // (OBS-R42), and an integer beyond 2^53 keeps its value.
 type ToolArguments map[string]any
 
-// UnmarshalJSON decodes the summary with its number literals kept. The
-// private codec's scan has already rejected duplicate member names, null and
-// trailing data; validation checks the numbers (LIM-OBS-16) and the size.
+// UnmarshalJSON decodes the summary with its number literals kept. It
+// rejects a repeated member name at any depth and data after the value
+// itself, whatever decoder its caller used (AGENTS.md section 6); the private
+// codec rejects null, and validation checks the numbers (LIM-OBS-16) and the
+// size.
 func (a *ToolArguments) UnmarshalJSON(data []byte) error {
+	if err := strictjson.RejectDuplicateKeys(data); err != nil {
+		return err
+	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	var value map[string]any
@@ -317,11 +322,11 @@ func (r ExecutionReport) validateStored() error {
 }
 
 // metricIntegerInRange reports whether value may be an integer of
-// ExecutionMetrics: every one lies between 0 and MaxResourceInteger, so the
+// ExecutionMetrics: every one lies between 0 and contracts.MaxExactInteger, so the
 // sums the Server builds from them stay far from the int64 range and every
 // JSON consumer reads them exactly (OBS-R111, LIM-OBS-17).
 func metricIntegerInRange(value int64) bool {
-	return value >= 0 && value <= MaxResourceInteger
+	return value >= 0 && value <= contracts.MaxExactInteger
 }
 
 func (r ExecutionReport) validate(received bool) error {
@@ -456,7 +461,7 @@ func (m ExecutionMetrics) Validate() error {
 			summarizer.InputTokens, summarizer.OutputTokens, summarizer.TotalTokens,
 			summarizer.TokenUsageUnavailable,
 		} {
-			if value > MaxResourceInteger {
+			if value > contracts.MaxExactInteger {
 				return contracts.Invalidf("worker summarizer metrics must not exceed 2^53-1")
 			}
 		}

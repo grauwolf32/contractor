@@ -90,7 +90,9 @@ func heldAuditIDs(member, credential string, first, last, every int) []string {
 // credential under its own kind, oldest first and up to the limit, follows an
 // Audit whose hold is released or taken, and reads through the partial index
 // of its kind only the held Audits that name the credential, in its custom
-// and generic plans. The plan without the indexes is recorded for comparison.
+// and generic plans: of audits it reads only the entries the index returns for
+// the matching held Audits (explaintest.Reads). The plan without the indexes
+// is recorded for comparison.
 func TestPostgresHeldAuditCredentialChecksReadOnlyMatchingHeldAudits(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -133,27 +135,6 @@ func TestPostgresHeldAuditCredentialChecksReadOnlyMatchingHeldAudits(t *testing.
 		}
 	}
 
-	// A released hold leaves the index and a new hold enters it.
-	all := expected(llm, "llm-10", 128)
-	err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `UPDATE audits SET hold_state = 'released', dispatch_state = 'closed' WHERE audit_id = $1`,
-			all[0]); err != nil {
-			return err
-		}
-		const taken = 3010 // names llm-10
-		if _, err := tx.Exec(ctx, heldAuditsSQL, taken, taken, heldPadding, 1); err != nil {
-			return err
-		}
-		want := append(slices.Clone(all[1:]), heldAuditIDs(llm, "llm-10", taken, taken, 1)...)
-		if held, err := newTestStore(tx).ListHeldAuditIDsByLLMCredential(ctx, "llm-10", 128); err != nil || !slices.Equal(held, want) {
-			t.Errorf("holds after a release and a new hold = (%v, %v), want %v", held, err, want)
-		}
-		return errHeldRollback
-	})
-	if !errors.Is(err, errHeldRollback) {
-		t.Fatal(err)
-	}
-
 	indexes := map[string]string{llm: "audits_held_llm_credentials_idx", runtime: "audits_held_runtime_credentials_idx"}
 	for _, check := range []struct{ member, credential string }{
 		{llm, "llm-10"}, {llm, "llm-missing"}, {runtime, "runtime-10"},
@@ -168,13 +149,18 @@ func TestPostgresHeldAuditCredentialChecksReadOnlyMatchingHeldAudits(t *testing.
 			t.Errorf("%s holds of %s do not find the held Audits through %s:\n%s",
 				check.member, check.credential, indexes[check.member], plan)
 		}
-		if examined := plan.Examined("audits"); examined > matching {
+		// The partial index of the member returns one entry for each held
+		// Audit that names the credential, and nothing else reads an Audit.
+		// The fixture has only inserted rows so far, so no index holds an
+		// entry of a dead row, and no statement compares an indexed column
+		// with a value the planner probes an index for.
+		if read := analysis.Reads.Of("audits"); read > matching {
 			t.Errorf("%s holds of %s read %d Audits for %d matching held Audits:\n%s",
-				check.member, check.credential, examined, matching, plan)
+				check.member, check.credential, read, matching, plan)
 		}
 		original := explainWithoutHeldCredentialIndexes(t, ctx, pool, sql, check.credential)
-		t.Logf("%s holds of %s, %d matching: %d blocks:\n%s\nwithout the held credential indexes, %d blocks:\n%s",
-			check.member, check.credential, matching, plan.Blocks(), plan, original.Blocks(), original)
+		t.Logf("%s holds of %s, %d matching: reads %d, %d blocks:\n%s\nwithout the held credential indexes, %d blocks:\n%s",
+			check.member, check.credential, matching, analysis.Reads.Of("audits"), plan.Blocks(), plan, original.Blocks(), original)
 		if plan.Blocks() >= original.Blocks() {
 			t.Errorf("%s holds of %s read %d blocks, no fewer than the %d they read without the held credential indexes",
 				check.member, check.credential, plan.Blocks(), original.Blocks())
@@ -193,6 +179,29 @@ func TestPostgresHeldAuditCredentialChecksReadOnlyMatchingHeldAudits(t *testing.
 		if !generic.Uses(index) || slices.Contains(generic.SeqScans(), "audits") {
 			t.Errorf("the generic plan of %s holds does not use %s:\n%s", member, index, generic)
 		}
+	}
+
+	// A released hold leaves the index and a new hold enters it. The plans
+	// are measured first: the rolled-back hold leaves an entry in each held
+	// credential index until a VACUUM removes it.
+	all := expected(llm, "llm-10", 128)
+	err = pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `UPDATE audits SET hold_state = 'released', dispatch_state = 'closed' WHERE audit_id = $1`,
+			all[0]); err != nil {
+			return err
+		}
+		const taken = 3010 // names llm-10
+		if _, err := tx.Exec(ctx, heldAuditsSQL, taken, taken, heldPadding, 1); err != nil {
+			return err
+		}
+		want := append(slices.Clone(all[1:]), heldAuditIDs(llm, "llm-10", taken, taken, 1)...)
+		if held, err := newTestStore(tx).ListHeldAuditIDsByLLMCredential(ctx, "llm-10", 128); err != nil || !slices.Equal(held, want) {
+			t.Errorf("holds after a release and a new hold = (%v, %v), want %v", held, err, want)
+		}
+		return errHeldRollback
+	})
+	if !errors.Is(err, errHeldRollback) {
+		t.Fatal(err)
 	}
 }
 

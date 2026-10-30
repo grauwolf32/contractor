@@ -6,7 +6,7 @@ epic: persistence
 kind: defect
 introduced_by: V29-007
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: >-
@@ -105,3 +105,20 @@ tests:
     covers: [A2, A3, A4]
   - command: make lint
     covers: [A1]
+decisions:
+  - >-
+    2026-10-30: option C. The call that carries a migration file gets the run deadline
+    (LIM-PER-11) as its client deadline through withMigrationFileBudget
+    (internal/persistence/postgres/budgets.go); the migrator's one-statement calls (lock
+    poll, ledger creation and read, ledger row, commit) keep the statement timeout plus
+    5 s. Evidence: every embedded file applied in under 0.2 s and all 61 in about 2 s on an
+    empty schema (psql, one transaction per file, local PostgreSQL); several files hold 30
+    to 110 statements; upgrade tests use tracer-less pools, so the per-file deadline was
+    never exercised on data; PostgreSQL ends each statement at statement_timeout even after
+    the client is gone. A was rejected because it reuses one call's safety net as a file
+    budget enforced only by review; B because it needs a production splitter matching
+    PostgreSQL for no gain beyond faster lost-connection detection. Price and reversal
+    condition are recorded in PER-R31 (decision paragraph). The regression was renamed
+    TestPostgresMigrationFileOutlastsTheCallDeadline (it no longer covers a whole file); on
+    the unfixed code its first case failed at 7.03 s with context deadline exceeded and no
+    SQLSTATE (A3).

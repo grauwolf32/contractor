@@ -23,7 +23,7 @@ func auditBindingRequirements(run runstore.WorkflowRun, workflow executableWorkf
 		if completion.Stage == workflow.stageName {
 			stage := workflow.stage
 			agent, ok := stage.Agents[completion.Agent]
-			if !ok || len(stage.Agents) != 1 || stage.Planner.PlannerID != "passthrough" || stage.Planner.Version != "1" || resolved.ValidateWorkerCompletionSelection(&completion.Contract, agent.Namespace, agent.Template) != nil {
+			if !ok || len(stage.Agents) != 1 || stage.Planner.Selector() != resolved.PassthroughPlanner || resolved.ValidateWorkerCompletionSelection(&completion.Contract, agent.Namespace, agent.Template) != nil {
 				return nil, fmt.Errorf("Audit completion target changed")
 			}
 			outputFound := false

@@ -7,7 +7,9 @@
 # scripts/erd/meta.json and the "Table owners" table of persistence.md in step
 # with [relations], and the PostgreSQL integration test of
 # internal/persistence/postgres requires the migrated schema to have exactly
-# these tables and views.
+# these tables and views. TestMigrationRoutinesFollowTableOwnership
+# (routine_ownership_test.go) checks [routines] against the functions and
+# triggers of a migrated schema.
 #
 # A write is INSERT, UPDATE, DELETE, MERGE, TRUNCATE, COPY FROM or pgx
 # CopyFrom, LOCK TABLE, a change of the definition, or an exclusive row lock:
@@ -231,3 +233,73 @@ internal/telemetry           workflow_runs                  Resource history sco
 # without a task.
 #
 # package                    access  relation                          task      reason
+
+[routines]
+# Relations of another owner that migration functions reach for a package
+# (PER-R23): a trigger's function acts for the owner of the trigger's table,
+# and a function that Go SQL calls acts for the calling package, each through
+# the functions it calls. An entry names the function whose body holds the
+# statement. A trigger lists its writes and exclusive row locks; its reads stay
+# outside the rule. A function that Go SQL calls lists its reads and writes
+# only the caller's relations.
+#
+# package                    function                                   access  relation                     reason
+internal/artifacts           contractor_eval_dirty                      write   eval_member_projections      Eval projection: a change of
+    an Eval member's output binding or evidence marks the member for projection in the same transaction.
+internal/artifacts           contractor_eval_dirty                      write   eval_projection_queue        Eval projection: the same change
+    queues the member's experiment for projection.
+
+internal/auditstore/internal/pgstore contractor_artifact_hold_apply     write   artifact_binding_revisions   Audits and their items hold
+    the Artifact binding revisions they reference, so history retention keeps them until they are released.
+internal/auditstore/internal/pgstore contractor_eval_dirty              write   eval_member_projections      Eval projection: a change of
+    an Eval member's Audit, its executions or its output links marks the member for projection.
+internal/auditstore/internal/pgstore contractor_eval_dirty              write   eval_projection_queue        Eval projection: the same change
+    queues the member's experiment for projection.
+internal/auditstore/internal/pgstore contractor_eval_retain_deleted_execution write eval_execution_tombstones Deleting an Audit that an
+    Eval member executed keeps its terminal state as the member's tombstone.
+internal/auditstore/internal/pgstore contractor_eval_retain_deleted_execution write eval_experiments Deleting that Audit advances
+    the experiment's view generation.
+internal/auditstore/internal/pgstore contractor_lock_finding_correlation_fence read projects        Finding intake fences the
+    Project's deletion FOR SHARE NOWAIT before it locks the Project's finding correlation fence.
+internal/auditstore/internal/pgstore contractor_require_active_audit_project read projects          Audit creation, admission,
+    preparation, Rounds and transitions require the Audit's Project active and fence its deletion FOR SHARE.
+
+internal/findingintake       contractor_admit_audit_finding             write   audit_finding_contributions  Admitting a proposal held for an
+    Audit creates the Audit finding's first contribution in the statement that stores the hold.
+internal/findingintake       contractor_admit_audit_finding             write   audit_findings               Admitting a proposal held for an
+    Audit creates its Audit finding.
+internal/findingintake       contractor_admit_audit_finding             write   audits                       Admitting a proposal advances the
+    Audit's revision and event sequence for its finding.proposed event.
+internal/findingintake       contractor_advance_finding_correlation     write   finding_correlation_fences   Deleting a receipt that a finding
+    cites advances the Project's finding correlation fence.
+internal/findingintake       contractor_append_audit_events             write   audit_events                 Admitting a proposal appends its
+    finding.proposed event to the Audit's numbered events.
+internal/findingintake       contractor_artifact_hold_apply             write   artifact_binding_revisions   Finding proposal receipts hold the
+    Artifact binding revisions of their evidence, so history retention keeps them.
+internal/findingintake       contractor_lock_finding_correlation_fence  write   finding_correlation_fences   Deleting a receipt that a finding
+    cites locks the Project's finding correlation fence before advancing it.
+
+internal/projectstore        contractor_eval_fence_project              write   eval_experiments             A Project entering deletion cancels
+    the Eval experiments that live in it or execute in it.
+
+internal/runstore            contractor_artifact_hold_apply             write   artifact_binding_revisions   Runs, Stages, Planner sessions and
+    output publications hold the Artifact binding revisions they reference, so history retention keeps them.
+internal/runstore            contractor_eval_dirty                      write   eval_member_projections      Eval projection: a change of an
+    Eval member's Run or Stages marks the member for projection.
+internal/runstore            contractor_eval_dirty                      write   eval_projection_queue        Eval projection: the same change
+    queues the member's experiment for projection.
+internal/runstore            contractor_eval_retain_deleted_execution   write   eval_execution_tombstones    Deleting a Run that an Eval member
+    executed keeps its terminal state as the member's tombstone.
+internal/runstore            contractor_eval_retain_deleted_execution   write   eval_experiments             Deleting that Run advances the
+    experiment's view generation.
+
+internal/telemetry           contractor_eval_dirty                      write   eval_member_projections      Eval projection: a change of the
+    StageMetrics of an Eval member's Run marks the member for projection.
+internal/telemetry           contractor_eval_dirty                      write   eval_projection_queue        Eval projection: the same change
+    queues the member's experiment for projection.
+internal/telemetry           contractor_eval_run_members                read    audit_executions             StageMetrics retention keeps the
+    metrics of a Run that an Eval member executed as a child Run of its Audit.
+internal/telemetry           contractor_eval_run_members                read    eval_submissions             StageMetrics retention keeps the
+    metrics of a Run that an existing Eval member executed.
+internal/telemetry           contractor_mark_allocation_report_received write   stage_allocations            A stored allocation execution
+    report marks its allocation as reported in the same transaction.

@@ -160,8 +160,9 @@ flowchart LR
 Every table and view has one owner package, the only package whose SQL may
 write it ([PER-R23](#requirements)). The table ownership registry
 [`internal/persistence/table_ownership.txt`](../../../internal/persistence/table_ownership.txt)
-assigns the owners, grants the reads that other packages make and lists the
-known foreign accesses; this index names the same owners. The documents that
+assigns the owners, grants the reads that other packages make, lists the
+known foreign accesses and names the other owners' relations that migration
+functions reach for a package; this index names the same owners. The documents that
 own the rules of particular state are indexed in the next section.
 
 | Owner package | Tables and views |
@@ -458,11 +459,23 @@ reason. The registry also lists the known accesses: foreign accesses that
 break this rule today, each with why it exists and the open task that removes
 it. A known access is a debt, not a grant: it leaves the registry with the
 access, and a new foreign write moves behind its owner instead of becoming a
-known access. The rule covers the SQL text of production Go code; test
-fixtures and the triggers and functions that migrations define are outside
-it. The registry, `scripts/erd/meta.json`, the [Table owners](#table-owners)
-index and the migrated schema name the same tables and views, and the ERD
-draws each table in the registry's group.
+known access. The rule covers the SQL that production Go code runs: its text,
+and the functions that migrations define and that text calls, with the
+functions those call in turn. A function that Go SQL calls writes only the
+caller's relations and reads another owner's relation only where the registry
+lists that read with its reason. A trigger's function acts for the owner of
+the trigger's table: it writes or exclusively locks another owner's relation
+only where the registry lists that write with its reason, such as the Eval
+projection that a Run's change marks dirty. A function body that runs dynamic
+SQL (`EXECUTE`) or that the check cannot read as PL/pgSQL or SQL text is not
+allowed where the rule applies. Test fixtures are outside the rule, and so
+are the reads that triggers make: a trigger reads another owner's rows to
+admit, validate or project a change of its own table, which cannot change
+that owner's state. Reopen the trigger-read exclusion when a decision about
+read dependencies between owners needs those reads. The registry,
+`scripts/erd/meta.json`, the [Table owners](#table-owners) index and the
+migrated schema name the same tables and views, and the ERD draws each table
+in the registry's group.
 
 Rationale: SQL needs no Go import, so the import-based layer check cannot see
 one package writing or locking another package's table. Such writes split one
@@ -617,23 +630,57 @@ session, so its commit or rollback leaves the pooled connection as it found
 it. PostgreSQL applies the statement timeout (LIM-PER-9) to each statement of
 a migration file separately, the lock timeout (LIM-PER-10) to each lock wait,
 whether for a relation or a row, and the idle-in-transaction timeout
-(LIM-PER-12) while the transaction waits for the migrator's next call. The
-migrator sends each migration file as one simple query, and its client ends
-that query 5 seconds after the statement timeout: this client deadline covers
-all statements of the file together, not each of them. A statement that
-outlasts the statement timeout is therefore cancelled by PostgreSQL (SQLSTATE
-`57014`), and a file whose statements each fit but together outlast the
-client deadline is ended by the client, without a SQLSTATE; both fail the run
-as a timeout (PER-R13). The client also bounds each connection acquisition
-(LIM-PER-13). The run deadline (LIM-PER-11) bounds the whole run, including
-the wait for the schema's migration lock, which therefore outlasts the lock
-timeout. Neither a migration file nor the Server changes these settings.
+(LIM-PER-12) while the transaction waits for the migrator's next call. Each
+timeout has one owner:
+
+| Bound | Owner | What it ends |
+| --- | --- | --- |
+| Statement | PostgreSQL's statement timeout (LIM-PER-9), for every statement of a migration file and of the migrator | the statement, with SQLSTATE `57014` |
+| Lock wait | PostgreSQL's lock timeout (LIM-PER-10) | the wait, with SQLSTATE `55P03` |
+| Client call | the migrator's client, the statement timeout plus 5 seconds, for each of its own one-statement calls: a poll for the migration lock, the creation and read of the ledger, a ledger row and the commit | a call whose connection was lost, without a SQLSTATE; PostgreSQL reports a slow statement first |
+| Migration file | none of its own: the migrator sends a file as one simple query whose client deadline is the run deadline | — |
+| Run | the run deadline (LIM-PER-11), including the wait for the schema's migration lock, which therefore outlasts the lock timeout | every call still in flight, without a SQLSTATE |
+
+A statement that outlasts the statement timeout is therefore cancelled by
+PostgreSQL, and a run that outlasts its deadline, in a file or elsewhere, is
+ended by the client; both fail the run as a timeout (PER-R13). The client
+also bounds each connection acquisition (LIM-PER-13). Neither a migration
+file nor the Server changes these settings.
+
+Decision: a migration file is a sequence of statements, not one
+operation, so the deadline of one client call, the statement timeout plus
+5 seconds, is not its budget. PostgreSQL already bounds each statement of a
+file, even after the client is gone, so the client deadline of the call that
+carries a file only has to end a migrator whose connection was lost, which
+the run deadline does. Evidence: every embedded file applies in under 0.2
+seconds and all of them in about 2 seconds on an empty schema; several
+files, data migrations among them, hold 30 to 110 statements, which a
+per-file deadline of 125 seconds would fail on data where each statement
+fits; and the
+upgrade tests (PER-R33) apply files without the client deadline, so no test
+ever met it on data. Alternatives considered: keeping the per-file client
+deadline and an authoring rule that all statements of a file fit it (rejected:
+it reuses the safety net of one call as the budget of another operation, and
+no gate checks the rule); sending each statement of a file as its own call
+under the per-call deadline (rejected: it needs a production statement
+splitter that agrees with PostgreSQL on dollar quotes, comments and function
+bodies, while the splitter of the migration checks is test support, and it
+only detects a lost connection sooner). Price: a migrator whose connection is
+lost while it sends a file waits until the run deadline, 15 minutes by
+default, before it fails. Reopen this when a lost connection during a
+migration must be detected sooner than the run deadline, for example when an
+operator reports a run that hung until LIM-PER-11 after a network failure;
+the replacement is a statement-per-call run with a production splitter
+checked on every embedded file, or keepalives on the migrator's connection.
 
 **PER-R32.** A migration file must fit the default migration budget on the
-largest data it can meet: each statement within the statement timeout, and all
-statements of the file together within the client deadline of the file, the
-statement timeout plus 5 seconds (PER-R31, LIM-PER-9). A file with several
-heavy statements therefore shares that deadline among them. Where a limit
+largest data it can meet: each statement within the statement timeout
+(LIM-PER-9), and every file a run can apply together within the run deadline
+(LIM-PER-11), which on a new database covers every embedded file (PER-R31).
+A file has no client bound of its own: PostgreSQL bounds its statements one
+by one, and the run deadline bounds what a run does in all of its files, so
+a file with several heavy statements shares the run deadline with every other
+pending file. Where a limit
 bounds the rows or bytes a statement handles, such as the revisions of one Run
 (LIM-ART-6), the file fits at that limit; over a collection that no limit
 bounds, each statement reads each row a bounded number of times, in one pass
@@ -649,7 +696,7 @@ migration must not use a statement that PostgreSQL refuses inside a
 transaction block, such as `CREATE INDEX CONCURRENTLY`, `REINDEX
 CONCURRENTLY` or `VACUUM`, and contains no transaction control: an index is
 built inside the run, holding its table's lock until the run commits, and
-counts against the budget of its file. Two hazards apply to every backfill
+counts against the statement timeout and the run deadline. Two hazards apply to every backfill
 that reads documents stored as JSON text or bytes:
 
 - PostgreSQL rejects the valid JSON escape `\u0000` (SQLSTATE 22P05) when such
@@ -682,10 +729,10 @@ the migration's SQL, checks that unrelated rows are unchanged and exercises
 the schema the migration leaves behind; a backfill that is omitted or
 miscounts makes it fail. A backfill whose statement plan determines its cost,
 such as the number of document parses, has that plan pinned by the test. The
-test may apply the migration through a pool without the client deadline of
-PER-R31, as the isolated test pools are: at test sizes a file takes far less
-than that deadline, so the deadline could not fail it, and the deadline has
-its own test (invariant 26). A test that measures a file near the default
+test may apply the migration through a pool without the client deadlines of
+PER-R31, as the isolated test pools are: at test sizes a statement takes far
+less than its call deadline and a run far less than the run deadline, so
+neither could fail it, and the deadlines have their own test (invariant 26). A test that measures a file near the default
 budget applies it through a pool opened as the migrator opens it. Like
 PER-R32, this requirement is checked when the migration is written and
 reviewed (AGENTS.md section 6, Go server), not by a gate.
@@ -998,11 +1045,14 @@ Limits ([registry](limits.md)):
   lacks `TCP_USER_TIMEOUT` and a reply is unacknowledged at that moment,
   possibly only within its TCP retransmission limit (minutes) (PER-R6).
 - LIM-PER-9 — statement timeout of a migration run: 120 s by default, chosen
-  by the operator per run (PER-R31).
+  by the operator per run; each one-statement call of the migrator also gets
+  a client deadline 5 s after it (PER-R31).
 - LIM-PER-10 — lock timeout of a migration run: 10 s by default, chosen by
   the operator per run and shorter than the statement timeout (PER-R31).
 - LIM-PER-11 — deadline of a whole migration run: 15 minutes, or the
-  statement timeout plus 5 minutes 5 seconds when that is longer (PER-R31).
+  statement timeout plus 5 minutes 5 seconds when that is longer; it is also
+  the client deadline of each call that carries a migration file (PER-R31,
+  PER-R32).
 - LIM-PER-12 — idle-in-transaction timeout of a migration run: 60 s
   (PER-R31).
 - LIM-PER-13 — connection acquisition of a migration run: 5 s (PER-R31).
@@ -1186,12 +1236,23 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     read or a known access that names an open task, and no registry entry
     outlives its access (PER-R23); tests
     `TestSQLAccessFollowsTableOwnership`,
-    `TestTableOwnershipCheckRejectsAnUnlistedForeignUpdate` and
+    `TestTableOwnershipCheckRejectsAnUnlistedForeignUpdate`,
+    `TestTableOwnershipCheckSeesHelperArgumentsAndAppendedLocks` and
     `TestTableOwnershipCheckReportsEachRule` in
     [`internal/persistence/table_ownership_test.go`](../../../internal/persistence/table_ownership_test.go),
-    and `TestSQLAccessScanReadsStatementsAsTheRepositoryWritesThem` in
+    and `TestSQLAccessScanReadsStatementsAsTheRepositoryWritesThem` and
+    `TestSQLAccessScanFindsMigrationFunctionCalls` in
     [`internal/persistence/sql_access_test.go`](../../../internal/persistence/sql_access_test.go)
-    for how SQL text is read.
+    for how SQL text is read. A trigger's write of another owner's relation
+    and a called function's read of one is a listed routine access, a called
+    function writes only the caller's relations, and no routine entry outlives
+    its access; tests `TestMigrationRoutinesFollowTableOwnership`,
+    `TestRoutineOwnershipCheckRejectsProbeRoutines` and
+    `TestRoutineOwnershipCheckReportsEachRule` in
+    [`internal/persistence/routine_ownership_test.go`](../../../internal/persistence/routine_ownership_test.go),
+    and `TestReadBodyFindsWritesLocksReadsCallsAndDynamicSQL` in
+    [`internal/persistence/explaintest/statements_test.go`](../../../internal/persistence/explaintest/statements_test.go)
+    for how function bodies are read.
 19. The registry, `scripts/erd/meta.json` with its groups and the
     [Table owners](#table-owners) index name the same relations and owners
     (PER-R23); test `TestTableOwnershipMatchesTheSchemaDocuments` in
@@ -1302,13 +1363,15 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     [`internal/persistence/postgres/budgets_test.go`](../../../internal/persistence/postgres/budgets_test.go)
     and `TestPostgresMaintenanceBudgetsRestorePoolSettings` in
     [`internal/persistence/postgres/budgets_postgres_test.go`](../../../internal/persistence/postgres/budgets_postgres_test.go).
-    On a pool opened as the migrator opens it, the client deadline covers a
-    whole migration file while PostgreSQL times out each statement: a file
-    whose statements each fit but together outlast the deadline fails as a
-    timeout without a SQLSTATE, a statement beyond the statement timeout fails
-    with SQLSTATE `57014`, and neither leaves the file or its ledger row
-    behind (PER-R31, PER-R32); test
-    `TestPostgresMigrationClientDeadlineCoversAWholeFile` in
+    The call that carries a migration file ends at the run deadline, not at
+    the per-call deadline. On a pool opened as the migrator opens it, a file
+    whose statements each fit the statement timeout but together outlast the
+    per-call deadline applies with its ledger row, a statement beyond the
+    statement timeout fails with SQLSTATE `57014`, the caller's deadline ends
+    a file as a timeout without a SQLSTATE, and neither failure leaves the
+    file or its ledger row behind (PER-R31, PER-R32); tests
+    `TestMigrationBudgetsFollowConfiguredTimeouts` above and
+    `TestPostgresMigrationFileOutlastsTheCallDeadline` in
     [`internal/persistence/postgres/migration_run_postgres_test.go`](../../../internal/persistence/postgres/migration_run_postgres_test.go).
     No embedded migration controls the transaction, uses a statement
     PostgreSQL refuses inside a transaction block or names a timeout setting,

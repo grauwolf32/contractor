@@ -581,7 +581,7 @@ func (s *Service) validateProfileDependencies(
 		}
 		sets = append(sets, resolved.WorkflowSkillSets(workflow)...)
 	}
-	credentials := mergeIDs(credentialSets...)
+	credentialNames := mergeIDs(credentialSets...)
 	names := make([]string, 0, len(skillsByName))
 	for name := range skillsByName {
 		names = append(names, name)
@@ -591,7 +591,7 @@ func (s *Service) validateProfileDependencies(
 	for _, name := range names {
 		refs = append(refs, skillsByName[name])
 	}
-	return credentials, refs, sets, nil
+	return credentialNames, refs, sets, nil
 }
 
 func readAndVerifyInputs(

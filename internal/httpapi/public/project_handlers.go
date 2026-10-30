@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
@@ -65,21 +63,22 @@ func (h *projectHandlers) createProject(w http.ResponseWriter, r *http.Request) 
 		handleError(w, err)
 		return
 	}
-	digest, err := projectRequestDigest(request)
+	params := projectstore.CreateParams{
+		OwnerID: principalUserID(r.Context()), Kind: request.Kind,
+		Name: request.Name, Description: request.Description,
+		IdempotencyKey: key, ActiveChecks: request.ActiveChecks,
+	}
+	params.RequestDigest, err = projectstore.CreateRequestDigest(params)
 	if err != nil {
 		handleError(w, err)
 		return
 	}
-	projectID, err := h.NewID("project_")
+	params.ProjectID, err = h.NewID("project_")
 	if err != nil {
 		handleError(w, fmt.Errorf("generate Project ID: %w", err))
 		return
 	}
-	project, created, err := h.Projects.Create(r.Context(), projectstore.CreateParams{
-		ProjectID: projectID, OwnerID: principalUserID(r.Context()), Kind: request.Kind,
-		Name: request.Name, Description: request.Description,
-		IdempotencyKey: key, RequestDigest: digest, ActiveChecks: request.ActiveChecks,
-	})
+	project, created, err := h.Projects.Create(r.Context(), params)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -254,22 +253,6 @@ func (h *projectHandlers) deleteProject(w http.ResponseWriter, r *http.Request) 
 	}
 	h.ProjectDeletionNotifier.Wake()
 	writeProject(w, http.StatusAccepted, project)
-}
-
-func projectRequestDigest(request createProjectRequest) (string, error) {
-	if request.ActiveChecks == "" {
-		request.ActiveChecks = contracts.ActiveChecksAutomatic
-	}
-	digest, err := contentdigest.JSON(struct {
-		Kind         projectstore.Kind            `json:"kind"`
-		Name         string                       `json:"name"`
-		Description  string                       `json:"description"`
-		ActiveChecks contracts.ActiveChecksPolicy `json:"activeChecks"`
-	}{request.Kind, request.Name, request.Description, request.ActiveChecks})
-	if err != nil {
-		return "", fmt.Errorf("encode Project request: %w", err)
-	}
-	return digest, nil
 }
 
 func writeProject(w http.ResponseWriter, status int, project projectstore.Project) {

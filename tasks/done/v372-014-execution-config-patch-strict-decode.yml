@@ -5,7 +5,8 @@ milestone: hub-audit-defects-2026-10
 epic: workflows
 kind: chore
 priority: P3
-status: pending
+status: completed
+implementation_commit: "1349797e8558493e5a785adeb64e748c6ffb472d"
 depends_on: []
 languages: [go]
 goal: "ExecutionConfigPatch and its member types, and the other UnmarshalJSON methods that decode object members with encoding/json, reject duplicate members by themselves, as AGENTS.md section 6 requires of a type with its own UnmarshalJSON, instead of relying on every caller's outer decoder."

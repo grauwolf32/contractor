@@ -21,6 +21,16 @@ const (
 	channelSandboxExecution          infrastructureChannel = "sandbox-execution"
 )
 
+// The selectors of the registered PlannerFactories (CAT-R79). The descriptor
+// registry is keyed by them, each PlannerFactory names itself with its one,
+// and a check bound to one implementation compares against it.
+const (
+	PassthroughPlanner = "passthrough@1"
+	StreamlinePlanner  = "streamline@1"
+	RouterPlanner      = "router@1"
+	ScanPlanPlanner    = "scan-plan@1"
+)
+
 // plannerDescriptor is the Server-visible part of one registered
 // PlannerFactory.
 type plannerDescriptor struct {
@@ -31,6 +41,10 @@ type plannerDescriptor struct {
 	// ModelFree marks a Planner that runs without a model: its Stage has no
 	// Planner executionConfig, and Workflow-wide Planner defaults skip it.
 	ModelFree bool
+	// AgentResults marks a Planner whose Stage results each come from a
+	// namespace of one of the Stage's Agents. A Planner without it binds its
+	// results through its own Stage contract (scanPlan for scan-plan@1).
+	AgentResults bool
 }
 
 // toolsetDescriptor is the Server-visible part of one runtime ToolsetFactory.
@@ -43,19 +57,24 @@ type plannerDescriptor struct {
 // the ordinary Workflow input that the runtime toolset reads during allocation
 // preparation; ValidateWorkflowGraph requires it of every Workflow whose agent
 // selects that tool. RequiresWorkspace marks a Toolset that reads or changes
-// the allocation workspace, so its Stage needs context.workspace. The Runtime
-// ToolsetFactory of every built-in Toolset declares the same tools, channels,
-// workspace need and SandboxProfile; api/testdata/toolset-descriptors.json
-// pins both sides and the Server-only classifications.
+// the allocation workspace, so its Stage needs context.workspace.
+// WorkspaceObservationTools are the tools whose successful calls the Runtime
+// records as workspace observations in Worker State; a Worker that selects
+// one gets the Planner's workspace projections. The Runtime ToolsetFactory of
+// every built-in Toolset declares the same tools, channels, workspace need,
+// workspace observation tools and SandboxProfile;
+// api/testdata/toolset-descriptors.json pins both sides and the Server-only
+// classifications.
 type toolsetDescriptor struct {
-	RequiredSandboxProfiles []string
-	RequiresWorkspace       bool
-	Tools                   []string
-	InfrastructureChannels  map[string][]infrastructureChannel
-	ActiveCheckTools        []string
-	SandboxActiveCheckTools map[string][]string
-	FindingProposalTools    []string
-	RequiredWorkflowInputs  map[string]workflowInputRequirement
+	RequiredSandboxProfiles   []string
+	RequiresWorkspace         bool
+	Tools                     []string
+	WorkspaceObservationTools []string
+	InfrastructureChannels    map[string][]infrastructureChannel
+	ActiveCheckTools          []string
+	SandboxActiveCheckTools   map[string][]string
+	FindingProposalTools      []string
+	RequiredWorkflowInputs    map[string]workflowInputRequirement
 }
 
 // workflowInputRequirement is one Workflow input a selected tool depends on:
@@ -104,10 +123,10 @@ var registeredDescriptors = sync.OnceValue(func() descriptorTable {
 func builtInDescriptors() descriptorTable {
 	return descriptorTable{
 		PlannerFactories: map[string]plannerDescriptor{
-			"passthrough@1": {SingleAgent: true, ModelFree: true},
-			"streamline@1":  {SingleAgent: true},
-			"router@1":      {},
-			"scan-plan@1":   {ModelFree: true},
+			PassthroughPlanner: {SingleAgent: true, ModelFree: true, AgentResults: true},
+			StreamlinePlanner:  {SingleAgent: true, AgentResults: true},
+			RouterPlanner:      {AgentResults: true},
+			ScanPlanPlanner:    {ModelFree: true},
 		},
 		WorkerRuntimes: map[string]struct{}{
 			"adk@1":  {},
@@ -183,10 +202,14 @@ func builtInDescriptors() descriptorTable {
 				Tools: []string{
 					"append_file", "cp", "edit", "insert_line", "mkdir", "mv", "replace_range", "rm", "write_file",
 				},
+				WorkspaceObservationTools: []string{
+					"append_file", "cp", "edit", "insert_line", "mkdir", "mv", "replace_range", "rm", "write_file",
+				},
 			},
 			"filesystem@1": {
-				RequiresWorkspace: true,
-				Tools:             []string{"glob", "grep", "ls", "read_file"},
+				RequiresWorkspace:         true,
+				Tools:                     []string{"glob", "grep", "ls", "read_file"},
+				WorkspaceObservationTools: []string{"glob", "grep", "ls", "read_file"},
 			},
 			"http-tools@1": {
 				Tools: []string{
@@ -249,12 +272,14 @@ func builtInDescriptors() descriptorTable {
 				Tools: []string{"read_text_artifact", "write_text_artifact"},
 			},
 			"taint-annotations@1": {
-				RequiresWorkspace: true,
-				Tools:             []string{"annotate_sink", "annotate_trace", "annotate_validate"},
+				RequiresWorkspace:         true,
+				Tools:                     []string{"annotate_sink", "annotate_trace", "annotate_validate"},
+				WorkspaceObservationTools: []string{"annotate_sink", "annotate_trace", "annotate_validate"},
 			},
 			"workspace-changes@1": {
-				RequiresWorkspace: true,
-				Tools:             []string{"changed_paths", "diff", "rollback_changes"},
+				RequiresWorkspace:         true,
+				Tools:                     []string{"changed_paths", "diff", "rollback_changes"},
+				WorkspaceObservationTools: []string{"changed_paths"},
 			},
 		},
 		SandboxProfiles: map[string]sandboxProfileDescriptor{
@@ -265,27 +290,46 @@ func builtInDescriptors() descriptorTable {
 	}
 }
 
+// PlannerSelectors returns the sorted selectors of every registered
+// PlannerFactory, which the Server composes one factory for each.
+func PlannerSelectors() []string {
+	return slices.Sorted(maps.Keys(registeredDescriptors().PlannerFactories))
+}
+
 // KnownPlanner reports whether ref selects a registered PlannerFactory.
 func KnownPlanner(ref PlannerRef) bool {
-	_, ok := registeredDescriptors().PlannerFactories[ref.PlannerID+"@"+ref.Version]
+	_, ok := registeredDescriptors().PlannerFactories[ref.Selector()]
 	return ok
 }
 
 // IsModelFreePlanner classifies exact implementations, independently of any
 // authored model selection. Workflow-wide defaults skip these implementations.
 func IsModelFreePlanner(ref PlannerRef) bool {
-	return registeredDescriptors().PlannerFactories[ref.PlannerID+"@"+ref.Version].ModelFree
+	return registeredDescriptors().PlannerFactories[ref.Selector()].ModelFree
+}
+
+// IsSingleAgentPlanner reports whether ref selects a registered
+// PlannerFactory that drives exactly one logical Agent binding.
+func IsSingleAgentPlanner(ref PlannerRef) bool {
+	return registeredDescriptors().PlannerFactories[ref.Selector()].SingleAgent
+}
+
+// PlannerBindsAgentResults reports whether ref selects a registered
+// PlannerFactory whose Stage results each come from a namespace of one of the
+// Stage's Agents. scan-plan@1 binds its results through its scanPlan instead,
+// which ValidateScanPlanStage checks.
+func PlannerBindsAgentResults(ref PlannerRef) bool {
+	return registeredDescriptors().PlannerFactories[ref.Selector()].AgentResults
 }
 
 // ValidatePlannerAgents checks that a Stage selecting planner binds as many
 // logical Agents as its registered PlannerFactory accepts.
 func ValidatePlannerAgents(planner PlannerRef, agents int) error {
-	reference := planner.PlannerID + "@" + planner.Version
-	descriptor, ok := registeredDescriptors().PlannerFactories[reference]
+	reference := planner.Selector()
 	switch {
-	case !ok:
+	case !KnownPlanner(planner):
 		return fmt.Errorf("planner selects unknown PlannerFactory %q", reference)
-	case descriptor.SingleAgent && agents != 1:
+	case IsSingleAgentPlanner(planner) && agents != 1:
 		return fmt.Errorf("%s requires exactly one logical Agent binding; use router@1 for multiple bindings", reference)
 	case agents < 1:
 		return fmt.Errorf("%s requires at least one logical Agent binding", reference)
@@ -323,6 +367,13 @@ func ToolsetTools(selector string) ([]string, bool) {
 func SelectsActiveCheckTool(selection contracts.ToolsetSelection, profile contracts.SandboxProfileRef) bool {
 	descriptor := registeredDescriptors().Toolsets[selection.Ref.ToolsetID+"@"+selection.Ref.Version]
 	return selectsAny(selection.Tools, descriptor.ActiveCheckTools) || selectsAny(selection.Tools, descriptor.SandboxActiveCheckTools[profile.SandboxProfileID+"@"+profile.Version])
+}
+
+// SelectsWorkspaceObservationTool reports whether selection selects a tool
+// whose successful calls the Runtime records as workspace observations.
+func SelectsWorkspaceObservationTool(selection contracts.ToolsetSelection) bool {
+	descriptor := registeredDescriptors().Toolsets[selection.Ref.ToolsetID+"@"+selection.Ref.Version]
+	return selectsAny(selection.Tools, descriptor.WorkspaceObservationTools)
 }
 
 // SelectsFindingProposalTool reports whether selection selects a tool that
@@ -580,6 +631,13 @@ func normalizeToolsetDescriptor(raw string, descriptor toolsetDescriptor, sandbo
 	if err != nil {
 		return toolsetDescriptor{}, err
 	}
+	observing, err := normalizeToolClassification(raw, "workspace-observation", descriptor.WorkspaceObservationTools, seen)
+	if err != nil {
+		return toolsetDescriptor{}, err
+	}
+	if len(observing) > 0 && !descriptor.RequiresWorkspace {
+		return toolsetDescriptor{}, fmt.Errorf("Toolset descriptor %q observes the workspace without a workspace need", raw)
+	}
 	inputs, err := normalizeWorkflowInputRequirements(raw, descriptor.RequiredWorkflowInputs, seen)
 	if err != nil {
 		return toolsetDescriptor{}, err
@@ -587,7 +645,7 @@ func normalizeToolsetDescriptor(raw string, descriptor toolsetDescriptor, sandbo
 	return toolsetDescriptor{
 		RequiredSandboxProfiles: append([]string(nil), descriptor.RequiredSandboxProfiles...),
 		RequiresWorkspace:       descriptor.RequiresWorkspace,
-		Tools:                   tools, InfrastructureChannels: channels,
+		Tools:                   tools, WorkspaceObservationTools: observing, InfrastructureChannels: channels,
 		ActiveCheckTools: active, SandboxActiveCheckTools: sandboxActive, FindingProposalTools: findings,
 		RequiredWorkflowInputs: inputs,
 	}, nil

@@ -318,7 +318,7 @@ describe("Workflow overview and Run drawer", () => {
       ...inventoryRoutes,
       "GET /v1/workflows": ({ url }) =>
         versionsUnavailable
-          ? failure(503, "unavailable", "Unavailable")
+          ? failure(503, "storage_transaction_conflict", "Unavailable")
           : url.searchParams.has("cursor")
             ? json(page([workflowSummary(second)]))
             : json(page([workflowSummary(first)], "older-page")),

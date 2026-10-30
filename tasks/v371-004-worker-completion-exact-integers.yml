@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: planner-worker
 kind: defect
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python]
 goal: "A WorkerCompletion integer above 2^53-1 is rejected by the schema, Go and Python instead of being rounded on its way through the A2A DataPart."

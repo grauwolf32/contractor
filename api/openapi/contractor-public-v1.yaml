@@ -4512,7 +4512,7 @@ paths:
         - $ref: '#/components/parameters/Cursor'
         - {name: auditRevision, in: query, required: false, schema: {type: integer, minimum: 1}, description: 'Pin this page to the summary revision. Continuations bind owner, filters and revision; stale revisions return 409.'}
         - {name: state, in: query, required: false, schema: {$ref: '#/components/schemas/AuditFindingState'}}
-        - {name: verdict, in: query, required: false, schema: {enum: [true_positive, false_positive, unreviewed]}}
+        - {name: verdict, in: query, required: false, schema: {type: string, enum: [true_positive, false_positive, unreviewed]}}
         - {name: severity, in: query, required: false, schema: {$ref: '#/components/schemas/AuditFindingSeverity'}}
       responses:
         '200':
@@ -6388,7 +6388,7 @@ paths:
         - name: step
           in: query
           required: true
-          schema: {enum: [15s, 1m, 5m, 1h]}
+          schema: {type: string, enum: [15s, 1m, 5m, 1h]}
       responses:
         '200':
           description: Bounded history; missing samples remain gaps and generations are never merged
@@ -6528,6 +6528,7 @@ paths:
         in: query
         required: false
         schema:
+          type: string
           enum:
           - project
           - audit
@@ -8295,6 +8296,7 @@ components:
         state:
           $ref: '#/components/schemas/AuditFindingState'
         severitySuggestion:
+          type: string
           enum:
           - ''
           - critical
@@ -8313,6 +8315,7 @@ components:
         origin:
           $ref: '#/components/schemas/FindingComparisonOrigin'
         correlationRole:
+          type: string
           enum:
           - representative
           - automatic-duplicate
@@ -8350,6 +8353,7 @@ components:
       - limitations
       properties:
         kind:
+          type: string
           enum:
           - primary-equality
           - selected-producer-equality
@@ -8417,10 +8421,12 @@ components:
         receiptId: *correlationResourceId
         firstReceiptId: *correlationResourceId
         hintsAvailability:
+          type: string
           enum:
           - available
           - unavailable
         hintsReason:
+          type: string
           enum:
           - not_recorded
           - discarded
@@ -8473,6 +8479,7 @@ components:
       - previewsShareReceipt
       properties:
         kind:
+          type: string
           enum:
           - both
           - left-only
@@ -8488,6 +8495,7 @@ components:
         basis:
           $ref: '#/components/schemas/FindingCorrelationBasis'
         unavailableReason:
+          type: string
           enum:
           - not_recorded
           - no_qualified_key
@@ -12750,6 +12758,7 @@ components:
           "const": "eval"
         },
         "recovery": {
+          "type": "string",
           "enum": [
             "edit_draft",
             "reload",
@@ -12985,7 +12994,7 @@ components:
       required: [credentialId, kind]
       properties:
         credentialId: {$ref: '#/components/schemas/RuntimeCredentialId'}
-        kind: {enum: [http-origin-basic@1, http-origin-bearer@1]}
+        kind: {type: string, enum: [http-origin-basic@1, http-origin-bearer@1]}
     ProjectHTTPTarget:
       type: object
       additionalProperties: false
@@ -13045,6 +13054,7 @@ components:
         name: {$ref: '#/components/schemas/ConfigurationName'}
         version: {$ref: '#/components/schemas/ConfigVersion'}
     AuditProfileMode:
+      type: string
       enum: [risk-assessment, requirements-verification, custom-checklist, operation-tracing, finding-verification]
     AuditStandardRef:
       type: object
@@ -13066,10 +13076,10 @@ components:
       additionalProperties: false
       required: [id, url, attribution, disclosure]
       properties:
-        id: {enum: [CC-BY-4.0, CC-BY-SA-4.0, Apache-2.0, MIT, LicenseRef-Proprietary]}
+        id: {type: string, enum: [CC-BY-4.0, CC-BY-SA-4.0, Apache-2.0, MIT, LicenseRef-Proprietary]}
         url: {type: string, format: uri, pattern: '^https://', maxLength: 2048}
         attribution: {type: string, minLength: 1, maxLength: 4096}
-        disclosure: {enum: [metadata, identifiers, full]}
+        disclosure: {type: string, enum: [metadata, identifiers, full]}
     AuditStandardEvidenceContractRef:
       type: object
       additionalProperties: false
@@ -13082,7 +13092,7 @@ components:
       additionalProperties: false
       required: [mode]
       properties:
-        mode: {enum: [always, profile-rule, human-review]}
+        mode: {type: string, enum: [always, profile-rule, human-review]}
         rule: {type: string, maxLength: 4096}
     AuditStandardEntry:
       type: object
@@ -13090,7 +13100,7 @@ components:
       required: [id, kind]
       properties:
         id: {type: string, minLength: 1, maxLength: 128}
-        kind: {enum: [risk, requirement]}
+        kind: {type: string, enum: [risk, requirement]}
         title: {type: string, maxLength: 1024}
         statement: {type: string, maxLength: 16384}
         level: {type: string, maxLength: 128}
@@ -13099,7 +13109,7 @@ components:
           type: array
           maxItems: 16
           uniqueItems: true
-          items: {enum: [source-analysis, configuration-review, documentation-review, active-test, manual-review]}
+          items: {type: string, enum: [source-analysis, configuration-review, documentation-review, active-test, manual-review]}
         evidenceContract: {$ref: '#/components/schemas/AuditStandardEvidenceContractRef'}
     AuditStandardEvidenceContract:
       type: object
@@ -13113,15 +13123,15 @@ components:
           minItems: 1
           maxItems: 16
           uniqueItems: true
-          items: {enum: [satisfied, violated, inconclusive, not-tested, blocked, not-applicable, supported, refuted]}
+          items: {type: string, enum: [satisfied, violated, inconclusive, not-tested, blocked, not-applicable, supported, refuted]}
         evidenceKinds:
           type: array
           maxItems: 16
           uniqueItems: true
-          items: {enum: [artifact, observation, tool-result, manual-attestation, runtime-metric]}
+          items: {type: string, enum: [artifact, observation, tool-result, manual-attestation, runtime-metric]}
         minimumEvidence: {type: integer, minimum: 0, maximum: 64}
         maximumEvidence: {type: integer, minimum: 0, maximum: 64}
-        humanReview: {enum: [never, on-inconclusive, required]}
+        humanReview: {type: string, enum: [never, on-inconclusive, required]}
         rationaleRequired: {type: boolean}
     AuditStandardMapping:
       type: object
@@ -13136,7 +13146,7 @@ components:
           uniqueItems: true
           items: {type: string, minLength: 1, maxLength: 128}
         workflowRole: {type: string, minLength: 1, maxLength: 64}
-        method: {enum: [source-analysis, configuration-review, documentation-review, active-test, manual-review]}
+        method: {type: string, enum: [source-analysis, configuration-review, documentation-review, active-test, manual-review]}
         evidenceContract: {$ref: '#/components/schemas/AuditStandardEvidenceContractRef'}
         title: {type: string, minLength: 1, maxLength: 1024}
         objective: {type: string, minLength: 1, maxLength: 16384}
@@ -13245,7 +13255,7 @@ components:
       additionalProperties: false
       required: [implementation, itemWorkflowRole]
       properties:
-        implementation: {enum: [checklist@1, openapi-operations@1, openapi-scans@1, web-scans@1, finding-candidates@1, standard-mappings@1]}
+        implementation: {type: string, enum: [checklist@1, openapi-operations@1, openapi-scans@1, web-scans@1, finding-candidates@1, standard-mappings@1]}
         source: {$ref: '#/components/schemas/AuditInventoryArtifact'}
         settings: {$ref: '#/components/schemas/AuditInventoryArtifact'}
         itemWorkflowRole: {$ref: '#/components/schemas/ArtifactName'}
@@ -13254,10 +13264,10 @@ components:
         - properties: {implementation: {const: standard-mappings@1}}
           not:
             anyOf: [{required: [source]}, {required: [settings]}]
-        - properties: {implementation: {enum: [openapi-scans@1, web-scans@1]}}
+        - properties: {implementation: {type: string, enum: [openapi-scans@1, web-scans@1]}}
           required: [source, settings]
           not: {required: [standardSelection]}
-        - properties: {implementation: {enum: [checklist@1, openapi-operations@1, finding-candidates@1]}}
+        - properties: {implementation: {type: string, enum: [checklist@1, openapi-operations@1, finding-candidates@1]}}
           required: [source]
           not:
             anyOf: [{required: [settings]}, {required: [standardSelection]}]
@@ -13266,7 +13276,7 @@ components:
       additionalProperties: false
       required: [source, name]
       properties:
-        source: {enum: [audit-input, prepare-output]}
+        source: {type: string, enum: [audit-input, prepare-output]}
         name: {$ref: '#/components/schemas/ArtifactName'}
         role: {$ref: '#/components/schemas/ArtifactName'}
       oneOf:
@@ -13297,24 +13307,24 @@ components:
       additionalProperties: false
       required: [source]
       properties:
-        source: {enum: [audit-input, item-package, execution-manifest, retained-output, prepare-output, round-results, retained-dependency]}
+        source: {type: string, enum: [audit-input, item-package, execution-manifest, retained-output, prepare-output, round-results, retained-dependency]}
         name: {$ref: '#/components/schemas/ArtifactName'}
         role: {$ref: '#/components/schemas/ArtifactName'}
       oneOf:
-        - properties: {source: {enum: [audit-input, retained-dependency]}}
+        - properties: {source: {type: string, enum: [audit-input, retained-dependency]}}
           required: [name]
           not: {required: [role]}
-        - properties: {source: {enum: [item-package, execution-manifest, round-results]}}
+        - properties: {source: {type: string, enum: [item-package, execution-manifest, round-results]}}
           not:
             anyOf: [{required: [name]}, {required: [role]}]
-        - properties: {source: {enum: [retained-output, prepare-output]}}
+        - properties: {source: {type: string, enum: [retained-output, prepare-output]}}
           required: [name, role]
     AuditWorkflowParameterMapping:
       type: object
       additionalProperties: false
       required: [source]
       properties:
-        source: {enum: [literal, item-field, scope-field]}
+        source: {type: string, enum: [literal, item-field, scope-field]}
         name: {$ref: '#/components/schemas/ArtifactName'}
         value: {type: string, maxLength: 4096}
     AuditCheckCapabilityRequirement:
@@ -13343,7 +13353,7 @@ components:
       required: [planSchema, method, workflowRole, requiredCapabilities]
       properties:
         planSchema: {const: contractor.audit.finding-check-plan.v1}
-        method: {enum: [verify, replay, applicability, alternative, static-trace, http-probe]}
+        method: {type: string, enum: [verify, replay, applicability, alternative, static-trace, http-probe]}
         workflowRole: {type: string, minLength: 1, maxLength: 128}
         requiredCapabilities:
           type: array
@@ -13355,7 +13365,7 @@ components:
       additionalProperties: false
       required: [kind, workflow, inputs, parameters, outputs]
       properties:
-        kind: {enum: [prepare, check, discovery, assessment]}
+        kind: {type: string, enum: [prepare, check, discovery, assessment]}
         maxRunAttempts: {type: integer, minimum: 1, maximum: 10}
         workflow: {$ref: '#/components/schemas/WorkflowRef'}
         inputs:
@@ -13374,7 +13384,7 @@ components:
       oneOf:
         - properties: {kind: {const: prepare}}
           required: [maxRunAttempts]
-        - properties: {kind: {enum: [check, discovery, assessment]}}
+        - properties: {kind: {type: string, enum: [check, discovery, assessment]}}
           not: {required: [maxRunAttempts]}
     AuditExecutionPolicy:
       type: object
@@ -13390,17 +13400,18 @@ components:
         maxItemRunAttempts: {type: integer, minimum: 1, maximum: 10}
         deadlineSeconds: {type: integer, minimum: 1, maximum: 31536000}
         maxEvidenceBytes: {type: integer, minimum: 1, maximum: 1073741824}
-        incompleteRound: {enum: [assess-with-gaps, fail]}
+        incompleteRound: {type: string, enum: [assess-with-gaps, fail]}
     AuditInteractionPolicy:
       type: object
       additionalProperties: false
       required: [activeChecks, findingConfirmation, notApplicable, reportAcceptance]
       properties:
         activeChecks: {$ref: '#/components/schemas/ActiveChecksPolicy'}
-        findingConfirmation: {enum: [disabled, human-required]}
-        notApplicable: {enum: [human-required, profile-rule]}
-        reportAcceptance: {enum: [automatic, human-required]}
+        findingConfirmation: {type: string, enum: [disabled, human-required]}
+        notApplicable: {type: string, enum: [human-required, profile-rule]}
+        reportAcceptance: {type: string, enum: [automatic, human-required]}
     AuditCompatibilityReason:
+      type: string
       enum:
         - preparation_unsupported
         - discovery_unsupported
@@ -13590,6 +13601,7 @@ components:
         itemCount: {type: integer, minimum: 1, maximum: 10000}
         gaps: {type: array, maxItems: 1024, items: {type: string, maxLength: 512}}
     AuditPhase:
+      type: string
       enum: [not-started, preparing, inventory, rounds]
     AuditPreparationOutput:
       type: object
@@ -13608,7 +13620,7 @@ components:
       additionalProperties: false
       required: [status, attempts, maxAttempts, outputs]
       properties:
-        status: {enum: [pending, running, accepted, failed]}
+        status: {type: string, enum: [pending, running, accepted, failed]}
         attempts: {type: integer, minimum: 0, maximum: 10}
         maxAttempts: {type: integer, minimum: 1, maximum: 10}
         executionId: {$ref: '#/components/schemas/ResourceId'}
@@ -13625,7 +13637,7 @@ components:
           not:
             anyOf: [{required: [executionId]}, {required: [runId]}]
         - properties:
-            status: {enum: [running, failed]}
+            status: {type: string, enum: [running, failed]}
             attempts: {minimum: 1}
             outputs: {maxProperties: 0}
           required: [executionId]
@@ -13645,9 +13657,10 @@ components:
           maxProperties: 16
           additionalProperties: {$ref: '#/components/schemas/AuditPreparationRole'}
     AuditState:
+      type: string
       enum: [draft, active, waiting_review, paused, finalizing, cancelling, completed, cancelled, failed, deleting]
-    AuditDispatchState: {enum: [open, closed]}
-    AuditHoldState: {enum: [pending, held, released]}
+    AuditDispatchState: {type: string, enum: [open, closed]}
+    AuditHoldState: {type: string, enum: [pending, held, released]}
     AuditLimits:
       type: object
       additionalProperties: false
@@ -13714,7 +13727,7 @@ components:
         - properties: {phase: {const: not-started}}
           not:
             anyOf: [{required: [currentRoundId]}, {required: [preparation]}]
-        - properties: {phase: {enum: [preparing, inventory]}}
+        - properties: {phase: {type: string, enum: [preparing, inventory]}}
           required: [preparation, baseline]
           not: {required: [currentRoundId]}
         - properties: {phase: {const: rounds}}
@@ -13730,9 +13743,9 @@ components:
         outcome: {$ref: '#/components/schemas/AuditTerminalOutcome'}
         disposition: {$ref: '#/components/schemas/AuditCollectionDisposition'}
         subjectKind: {$ref: '#/components/schemas/AuditReviewSubjectKind'}
-        kind: {enum: [finding-triage, active-check-approval, requirement-applicability, report-acceptance]}
+        kind: {type: string, enum: [finding-triage, active-check-approval, requirement-applicability, report-acceptance]}
         action: {$ref: '#/components/schemas/AuditReviewAction'}
-        verdict: {enum: [true_positive, false_positive, needs_evidence, duplicate, reopen]}
+        verdict: {type: string, enum: [true_positive, false_positive, needs_evidence, duplicate, reopen]}
         runId: {$ref: '#/components/schemas/ResourceId'}
         subjectId: {$ref: '#/components/schemas/ResourceId'}
         findingId: {$ref: '#/components/schemas/ResourceId'}
@@ -13770,7 +13783,7 @@ components:
       properties:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/Audit'}}
         page: {$ref: '#/components/schemas/PageInfo'}
-    AuditRoundState: {enum: [proposed, accepted, executing, assessing, closed]}
+    AuditRoundState: {type: string, enum: [proposed, accepted, executing, assessing, closed]}
     AuditRound:
       type: object
       additionalProperties: false
@@ -13784,12 +13797,12 @@ components:
         revision: {type: integer, minimum: 1}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
-    AuditItemState: {enum: [pending, awaiting_review, ready, submitted, collecting, settled]}
-    AuditFinalDisposition: {enum: [accepted-result, missing-output, invalid-result, execution-failed, execution-cancelled, excluded, not-applicable]}
-    AuditExecutionRole: {enum: [prepare, discovery, check, assessment]}
-    AuditExecutionItemState: {enum: [submitted, collecting, settled]}
-    AuditTerminalOutcome: {enum: [succeeded, failed, cancelled, submission-failed]}
-    AuditCollectionDisposition: {enum: [accepted-result, missing-output, invalid-result, execution-failed, execution-cancelled, collection-contract-invalid]}
+    AuditItemState: {type: string, enum: [pending, awaiting_review, ready, submitted, collecting, settled]}
+    AuditFinalDisposition: {type: string, enum: [accepted-result, missing-output, invalid-result, execution-failed, execution-cancelled, excluded, not-applicable]}
+    AuditExecutionRole: {type: string, enum: [prepare, discovery, check, assessment]}
+    AuditExecutionItemState: {type: string, enum: [submitted, collecting, settled]}
+    AuditTerminalOutcome: {type: string, enum: [succeeded, failed, cancelled, submission-failed]}
+    AuditCollectionDisposition: {type: string, enum: [accepted-result, missing-output, invalid-result, execution-failed, execution-cancelled, collection-contract-invalid]}
     AuditWorkflowProvenance:
       type: object
       additionalProperties: false
@@ -13914,7 +13927,7 @@ components:
       properties:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditItem'}}
         page: {$ref: '#/components/schemas/PageInfo'}
-    AuditCoverageStatus: {enum: [not-tested, inconclusive, satisfied, violated, not-applicable, blocked, excluded, traced-complete, traced-partial, unmapped]}
+    AuditCoverageStatus: {type: string, enum: [not-tested, inconclusive, satisfied, violated, not-applicable, blocked, excluded, traced-complete, traced-partial, unmapped]}
     AuditCoverage:
       type: object
       additionalProperties: false
@@ -13930,7 +13943,7 @@ components:
       additionalProperties: false
       required: [scanner, operation, source, settings, preparationDigest, runnable, testParameters, gaps]
       properties:
-        scanner: {enum: [sqlmap, nuclei]}
+        scanner: {type: string, enum: [sqlmap, nuclei]}
         operation: {type: string, minLength: 1, maxLength: 8192}
         source: {$ref: '#/components/schemas/AuditExactArtifact'}
         settings: {$ref: '#/components/schemas/AuditExactArtifact'}
@@ -13990,7 +14003,7 @@ components:
         items: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/AuditCoverageRow'}}
         page: {$ref: '#/components/schemas/PageInfo'}
         auditRevision: {type: integer, minimum: 1, description: The Audit revision every row of this page was read at.}
-    AuditItemApprovalKind: {enum: [none, active-check-approval, requirement-applicability]}
+    AuditItemApprovalKind: {type: string, enum: [none, active-check-approval, requirement-applicability]}
     AuditReportSummaryArtifact:
       type: object
       additionalProperties: false
@@ -14001,14 +14014,14 @@ components:
         digest: {$ref: '#/components/schemas/Digest'}
         mediaType: {type: string, const: text/markdown}
         sizeBytes: {type: integer, minimum: 0, maximum: 67108864}
-    AuditReportStatus: {enum: [pending, proposed, ready, unavailable]}
+    AuditReportStatus: {type: string, enum: [pending, proposed, ready, unavailable]}
     AuditReport:
       type: object
       additionalProperties: false
       required: [status]
       # Reject proposed reports without review.
       not:
-        properties: {status: {enum: [proposed]}}
+        properties: {status: {type: string, enum: [proposed]}}
         not: {required: [review]}
       properties:
         review: {$ref: '#/components/schemas/AuditReviewRequest'}
@@ -14044,7 +14057,7 @@ components:
             audit: {properties: {phase: {const: rounds}}}
         - not: {required: [round]}
           properties:
-            audit: {properties: {phase: {enum: [preparing, inventory]}}}
+            audit: {properties: {phase: {type: string, enum: [preparing, inventory]}}}
             items: {maxItems: 0}
     FindingExactArtifact:
       type: object
@@ -14064,7 +14077,7 @@ components:
           properties:
             schema: {const: contractor.finding.fingerprint-projection.v1}
             availability: {const: unavailable}
-            reason: {enum: [not_recorded, not_provided, input_limit, producer_key_unavailable, producer_report_invalid, producer_record_ambiguous, asset_unavailable, discarded]}
+            reason: {type: string, enum: [not_recorded, not_provided, input_limit, producer_key_unavailable, producer_report_invalid, producer_record_ambiguous, asset_unavailable, discarded]}
         - type: object
           additionalProperties: false
           required: [schema, availability, algorithm, value, adapter, ruleId, repository, commit, sourceDigest, report, source, recordLocator]
@@ -14098,8 +14111,8 @@ components:
         file: {type: string, minLength: 1, maxLength: 512, x-maxBytes: 512}
         startLine: {type: integer, minimum: 1, maximum: 9007199254740991}
         endLine: {type: integer, minimum: 1, maximum: 9007199254740991}
-        language: {enum: [python, javascript, typescript]}
-        profile: {enum: [python/statement-v1, javascript/statement-v1, typescript/statement-v1]}
+        language: {type: string, enum: [python, javascript, typescript]}
+        profile: {type: string, enum: [python/statement-v1, javascript/statement-v1, typescript/statement-v1]}
         grammar: {const: 'tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2'}
         fileDigest: {$ref: '#/components/schemas/Digest'}
         signatureDigest: {$ref: '#/components/schemas/Digest'}
@@ -14139,7 +14152,7 @@ components:
           properties:
             schema: {const: contractor.finding.anchors-projection.v1}
             availability: {const: unavailable}
-            reason: {enum: [not_recorded, not_provided, input_limit, asset_unavailable, selector_unavailable, anchor_language_unsupported, anchor_parser_unavailable, source_invalid, source_missing, parse_error, anchor_ambiguous, discarded]}
+            reason: {type: string, enum: [not_recorded, not_provided, input_limit, asset_unavailable, selector_unavailable, anchor_language_unsupported, anchor_parser_unavailable, source_invalid, source_missing, parse_error, anchor_ambiguous, discarded]}
         - type: object
           additionalProperties: false
           required: [schema, availability, repository, commit, source, basis, keys]
@@ -14170,7 +14183,7 @@ components:
       additionalProperties: false
       required: [algorithm, value]
       properties:
-        algorithm: {enum: [contractor/producer-issue/v1, contractor/snapshot-issue-anchor/v1]}
+        algorithm: {type: string, enum: [contractor/producer-issue/v1, contractor/snapshot-issue-anchor/v1]}
         value: {type: string, pattern: '^[0-9a-f]{64}$'}
     FindingCorrelation:
       description: System-owned Project equality presentation at projectRevision, separate from every Audit-local verdict, severity and manual duplicate decision. The representative is the smallest retained finding ID in byte order and conveys no truth or discovery priority.
@@ -14184,7 +14197,7 @@ components:
             scope: {$ref: '#/components/schemas/FindingCorrelationScope'}
             projectRevision: {type: integer, minimum: 1, maximum: 9007199254740991}
             availability: {const: unavailable}
-            reason: {enum: [not_recorded, no_qualified_key, primary_key_ambiguous]}
+            reason: {type: string, enum: [not_recorded, no_qualified_key, primary_key_ambiguous]}
             automaticDuplicate: {const: false}
             hasOtherObservations: {const: false}
         - type: object
@@ -14423,7 +14436,7 @@ components:
         standard_refs: {type: array, maxItems: 512, items: {$ref: '#/components/schemas/FindingStandardReference'}}
         evidence_ids: {type: array, maxItems: 256, items: {type: string, minLength: 1, maxLength: 160}}
         proposed_checks: {type: array, maxItems: 512, items: {$ref: '#/components/schemas/FindingProposedCheck'}}
-        severity_suggestion: {enum: ['', informational, low, medium, high, critical]}
+        severity_suggestion: {type: string, enum: ['', informational, low, medium, high, critical]}
         limitations:
           type: array
           maxItems: 512
@@ -14490,7 +14503,7 @@ components:
         document: {$ref: '#/components/schemas/FindingProposalDocument'}
         evidence: {type: array, maxItems: 256, items: {$ref: '#/components/schemas/FindingExactArtifact'}}
         origin: {$ref: '#/components/schemas/FindingOrigin'}
-        retention: {enum: [source-held, audit-held, discarded]}
+        retention: {type: string, enum: [source-held, audit-held, discarded]}
         auditHolds: {type: array, maxItems: 200, items: {$ref: '#/components/schemas/FindingAuditHold'}}
         createdAt: {type: string, format: date-time}
     FindingProposalPage:
@@ -14514,20 +14527,20 @@ components:
       properties:
         hold: {$ref: '#/components/schemas/FindingAuditHold'}
         replayed: {type: boolean}
-    AuditFindingState: {enum: [proposed, confirmed, rejected, duplicate, needs-evidence]}
-    AuditFindingSeverity: {enum: [informational, low, medium, high, critical]}
-    AuditAnalystVerdict: {enum: [true_positive, false_positive, duplicate, reopen, needs_evidence]}
-    AuditReviewAction: {enum: [approve, reject, not_applicable]}
-    AuditReviewRequestedAction: {enum: [true_positive, false_positive, duplicate, reopen, needs_evidence, approve, reject, not_applicable]}
-    AuditReviewSubjectKind: {enum: [finding, audit-item-action, audit-report]}
-    AuditReviewState: {enum: [pending, decided, expired]}
+    AuditFindingState: {type: string, enum: [proposed, confirmed, rejected, duplicate, needs-evidence]}
+    AuditFindingSeverity: {type: string, enum: [informational, low, medium, high, critical]}
+    AuditAnalystVerdict: {type: string, enum: [true_positive, false_positive, duplicate, reopen, needs_evidence]}
+    AuditReviewAction: {type: string, enum: [approve, reject, not_applicable]}
+    AuditReviewRequestedAction: {type: string, enum: [true_positive, false_positive, duplicate, reopen, needs_evidence, approve, reject, not_applicable]}
+    AuditReviewSubjectKind: {type: string, enum: [finding, audit-item-action, audit-report]}
+    AuditReviewState: {type: string, enum: [pending, decided, expired]}
     AuditFindingAssessment:
       type: object
       additionalProperties: false
       required: [assessmentId, semanticAssessment, result, receiptId, directVerification, acceptedAt]
       properties:
         assessmentId: {$ref: '#/components/schemas/ResourceId'}
-        semanticAssessment: {enum: [supported, refuted, inconclusive, blocked, satisfied, violated, not-tested]}
+        semanticAssessment: {type: string, enum: [supported, refuted, inconclusive, blocked, satisfied, violated, not-tested]}
         result: {$ref: '#/components/schemas/AuditExactArtifact'}
         receiptId: {$ref: '#/components/schemas/ResourceId'}
         itemId: {$ref: '#/components/schemas/ResourceId'}
@@ -14564,7 +14577,7 @@ components:
         findingId: {$ref: '#/components/schemas/ResourceId'}
         subjectKind: {$ref: '#/components/schemas/AuditReviewSubjectKind'}
         subjectId: {$ref: '#/components/schemas/ResourceId'}
-        kind: {enum: [finding-triage, active-check-approval, requirement-applicability, report-acceptance]}
+        kind: {type: string, enum: [finding-triage, active-check-approval, requirement-applicability, report-acceptance]}
         subjectRevision: {type: integer, minimum: 1}
         subjectDigest: {$ref: '#/components/schemas/Digest'}
         requestedActions: {type: array, minItems: 1, maxItems: 16, items: {$ref: '#/components/schemas/AuditReviewRequestedAction'}}
@@ -14582,7 +14595,7 @@ components:
         findingId: {$ref: '#/components/schemas/ResourceId'}
         auditId: {$ref: '#/components/schemas/ResourceId'}
         state: {$ref: '#/components/schemas/AuditFindingState'}
-        rejectionReason: {enum: [false-positive, policy, out-of-scope]}
+        rejectionReason: {type: string, enum: [false-positive, policy, out-of-scope]}
         duplicateTargetId: {$ref: '#/components/schemas/ResourceId'}
         firstProposal: {$ref: '#/components/schemas/FindingProposalReceipt'}
         fingerprint: {$ref: '#/components/schemas/FindingFingerprintProjection'}
@@ -14654,9 +14667,9 @@ components:
       required: [recordId, kind, receiptId, proposal, origin, supportsCurrentAssessment, createdAt]
       properties:
         recordId: {$ref: '#/components/schemas/ResourceId'}
-        kind: {enum: [source-proposal, check-attempt, direct-verification]}
+        kind: {type: string, enum: [source-proposal, check-attempt, direct-verification]}
         receiptId: {$ref: '#/components/schemas/ResourceId'}
-        relation: {enum: [first, contributing, verification]}
+        relation: {type: string, enum: [first, contributing, verification]}
         proposal: {$ref: '#/components/schemas/AuditExactArtifact'}
         origin: {$ref: '#/components/schemas/FindingOrigin'}
         assessment: {$ref: '#/components/schemas/AuditFindingAssessment'}
@@ -14840,7 +14853,7 @@ components:
       required: [kind, reason]
       properties:
         kind: {type: string, const: run_not_deletable}
-        reason: {enum: [run_not_terminal, allocation_release_pending, audit_collection_pending]}
+        reason: {type: string, enum: [run_not_terminal, allocation_release_pending, audit_collection_pending]}
     RuntimeCredentialInUseDetails:
       type: object
       additionalProperties: false
@@ -15022,10 +15035,10 @@ components:
       additionalProperties: false
       required: [kind, sourceScope, source, targetScope, target, createdAt]
       properties:
-        kind: {enum: [input_fork, output_bind, project_output_publish, context_projection]}
-        sourceScope: {enum: [user, project, run]}
+        kind: {type: string, enum: [input_fork, output_bind, project_output_publish, context_projection]}
+        sourceScope: {type: string, enum: [user, project, run]}
         source: {$ref: '#/components/schemas/ExactArtifactRef'}
-        targetScope: {enum: [user, project, run]}
+        targetScope: {type: string, enum: [user, project, run]}
         target: {$ref: '#/components/schemas/ExactArtifactRef'}
         runId: {$ref: '#/components/schemas/ResourceId'}
         stageExecutionId: {$ref: '#/components/schemas/ResourceId'}
@@ -15039,14 +15052,19 @@ components:
         page: {$ref: '#/components/schemas/PageInfo'}
 
     WorkflowRunState:
+      type: string
       enum: [initializing, pending, running, waiting, cancelling, succeeded, failed, cancelled]
     WorkflowRunLifecycle:
+      type: string
       enum: [active, terminal]
     NonTerminalWorkflowRunState:
+      type: string
       enum: [initializing, pending, running, waiting, cancelling]
     StageExecutionState:
+      type: string
       enum: [preparing, running, finalizing, aborting, succeeded, failed, interrupted, cancelled]
     StageOutcome:
+      type: string
       enum: [succeeded, failed]
     TerminationError:
       type: object
@@ -15075,38 +15093,38 @@ components:
         summaryArtifact: {$ref: '#/components/schemas/ExactArtifactRef'}
       oneOf:
         - properties:
-            outcome: {enum: [succeeded]}
-            summarized: {enum: [false]}
+            outcome: {type: string, enum: [succeeded]}
+            summarized: {type: boolean, enum: [false]}
           not:
             anyOf:
               - required: [error]
               - required: [summaryArtifact]
         - required: [error]
           properties:
-            outcome: {enum: [failed]}
-            summarized: {enum: [false]}
+            outcome: {type: string, enum: [failed]}
+            summarized: {type: boolean, enum: [false]}
             error:
               properties:
-                code: {not: {enum: [worker_summarized]}}
+                code: {not: {type: string, enum: [worker_summarized]}}
           not: {required: [summaryArtifact]}
         - required: [summarized, error]
           properties:
-            outcome: {enum: [failed]}
-            summarized: {enum: [true]}
+            outcome: {type: string, enum: [failed]}
+            summarized: {type: boolean, enum: [true]}
             error:
               properties:
-                code: {enum: [worker_summarized]}
-                retryable: {enum: [false]}
+                code: {type: string, enum: [worker_summarized]}
+                retryable: {type: boolean, enum: [false]}
     StageTermination:
       type: object
       additionalProperties: false
       required: [outcome, code, message, retryable, phase, occurredAt]
       properties:
-        outcome: {enum: [cancelled, interrupted]}
+        outcome: {type: string, enum: [cancelled, interrupted]}
         code: {$ref: '#/components/schemas/ConfigId'}
         message: {type: string, minLength: 1, maxLength: 4096}
         retryable: {type: boolean}
-        phase: {enum: [preparing, running]}
+        phase: {type: string, enum: [preparing, running]}
         occurredAt: {type: string, format: date-time}
     Cancellation:
       type: object
@@ -15148,7 +15166,7 @@ components:
       additionalProperties: false
       required: [participant, code, message]
       properties:
-        participant: {enum: [planner, worker]}
+        participant: {type: string, enum: [planner, worker]}
         completion: {$ref: '#/components/schemas/WorkerCompletionDiagnostics'}
         logicalAgent: {$ref: '#/components/schemas/ConfigId'}
         code: {$ref: '#/components/schemas/ConfigId'}
@@ -15371,7 +15389,7 @@ components:
           minItems: 1
           maxItems: 128
           uniqueItems: true
-          items: {enum: [llm-gateway, tool-http, tool-subprocess]}
+          items: {type: string, enum: [llm-gateway, tool-http, tool-subprocess]}
     RuntimeCaidoConfig:
       type: object
       additionalProperties: false
@@ -15547,6 +15565,7 @@ components:
       properties:
         config: {$ref: '#/components/schemas/RuntimeConfigRef'}
     RuntimeCredentialKind:
+      type: string
       enum: [otlp-headers@1, http-proxy-basic@1, http-proxy-bearer@1, caido-bearer@1, interactsh-token@1, http-origin-basic@1, http-origin-bearer@1, target-basic@1, target-bearer@1, target-cookies@1]
     RuntimeCredentialMetadata:
       type: object
@@ -15788,6 +15807,7 @@ components:
       required: [layer]
       properties:
         layer:
+          type: string
           enum: [default, workflow_execution_config, run_labels, run_execution_config, escalation_execution_config, agent_labels]
         configs:
           type: array
@@ -15821,7 +15841,7 @@ components:
           uniqueItems: true
           items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
         origins: {$ref: '#/components/schemas/StageRuntimeOrigins'}
-        status: {enum: [pinned, release_pending, released]}
+        status: {type: string, enum: [pinned, release_pending, released]}
     StageRuntimeConfiguration:
       type: object
       additionalProperties: false
@@ -15886,7 +15906,7 @@ components:
       additionalProperties: false
       required: [variant, agents]
       properties:
-        variant: {enum: [base, failed_escalation, interrupted_escalation, summary_escalation]}
+        variant: {type: string, enum: [base, failed_escalation, interrupted_escalation, summary_escalation]}
         escalationOrdinal: {type: integer, minimum: 1}
         ref: {$ref: '#/components/schemas/ExecutionConfigRef'}
         planner: {$ref: '#/components/schemas/ConsumerExecutionConfig'}
@@ -15926,7 +15946,7 @@ components:
       required: [sourceExecutionId, action, escalationExhausted, decidedAt]
       properties:
         sourceExecutionId: {$ref: '#/components/schemas/ResourceId'}
-        action: {enum: [next, retry, escalate, succeed, fail]}
+        action: {type: string, enum: [next, retry, escalate, succeed, fail]}
         targetStage: {$ref: '#/components/schemas/ConfigId'}
         targetExecutionId: {$ref: '#/components/schemas/ResourceId'}
         escalationOrdinal: {type: integer, minimum: 1}
@@ -15945,7 +15965,7 @@ components:
       required: [output, status, source, createdAt]
       properties:
         output: {$ref: '#/components/schemas/ConfigId'}
-        status: {enum: [published, already_present, failed]}
+        status: {type: string, enum: [published, already_present, failed]}
         source: {$ref: '#/components/schemas/ExactArtifactRef'}
         target: {$ref: '#/components/schemas/ExactArtifactRef'}
         errorCode: {type: string, minLength: 1, maxLength: 128}
@@ -15956,7 +15976,15 @@ components:
       additionalProperties: false
       required: [code, since, automaticUntil, requiresRetry]
       properties:
-        code: {enum: [model_unavailable, gateway_unavailable, gateway_timeout, gateway_rate_limited]}
+        code:
+          type: string
+          enum: [model_unavailable, gateway_unavailable, gateway_timeout, gateway_rate_limited]
+          description: >-
+            Cause of the model gateway failure that holds the Run, from the
+            recovery cause vocabulary that the Server and the Runtime share. It
+            is not an error code: gateway_unavailable here is an unavailable
+            model gateway route, not the error of a failed Gateway credential
+            manager.
         since: {type: string, format: date-time}
         nextRetryAt: {type: string, format: date-time}
         automaticUntil: {type: string, format: date-time}
@@ -16021,7 +16049,7 @@ components:
       required: [code, severity, message]
       properties:
         code: {type: string, minLength: 1, maxLength: 128, pattern: '^[a-z][a-z0-9_]*$'}
-        severity: {enum: [warning, blocking]}
+        severity: {type: string, enum: [warning, blocking]}
         field: {type: string, minLength: 1, maxLength: 256}
         message: {type: string, minLength: 1, maxLength: 2048}
     RunRepeatExecutionConfig:
@@ -16029,15 +16057,15 @@ components:
       additionalProperties: false
       required: [status, value]
       properties:
-        status: {enum: [available]}
+        status: {type: string, enum: [available]}
         value: {$ref: '#/components/schemas/ExecutionConfigPatch'}
     RunRepeatInput:
       type: object
       additionalProperties: false
       required: [status]
       properties:
-        status: {enum: [available, unavailable]}
-        sourceScope: {enum: [user, project]}
+        status: {type: string, enum: [available, unavailable]}
+        sourceScope: {type: string, enum: [user, project]}
         artifact: {$ref: '#/components/schemas/ExactArtifactRef'}
         metadata: {$ref: '#/components/schemas/ArtifactMetadata'}
         code: {type: string, minLength: 1, maxLength: 128, pattern: '^[a-z][a-z0-9_]*$'}
@@ -16070,7 +16098,7 @@ components:
       required: [sourceRunId, authority, workflow, notices]
       properties:
         sourceRunId: {$ref: '#/components/schemas/ResourceId'}
-        authority: {enum: [ordinary, audit-managed]}
+        authority: {type: string, enum: [ordinary, audit-managed]}
         workflow: {$ref: '#/components/schemas/WorkflowRef'}
         projectId: {$ref: '#/components/schemas/ResourceId'}
         auditId: {$ref: '#/components/schemas/ResourceId'}
@@ -16217,7 +16245,7 @@ components:
         id: {type: string, pattern: '^(0|[1-9][0-9]{0,2})$'}
         objective: {type: string, minLength: 1, maxLength: 8192}
         instructions: {type: string, minLength: 1, maxLength: 32768}
-        status: {enum: [pending, running, succeeded, failed]}
+        status: {type: string, enum: [pending, running, succeeded, failed]}
     PlannerDispatch:
       type: object
       additionalProperties: false
@@ -16767,7 +16795,7 @@ components:
             - {$ref: '#/components/schemas/LLMGatewayBody'}
             - {$ref: '#/components/schemas/AgentTemplateBody'}
             - {$ref: '#/components/schemas/ExecutionConfigBody'}
-        source: {enum: [operator, managed]}
+        source: {type: string, enum: [operator, managed]}
     ConfigurationPage:
       type: object
       additionalProperties: false
@@ -16886,7 +16914,7 @@ components:
           minItems: 1
           maxItems: 16
           uniqueItems: true
-          items: {enum: [user, operations]}
+          items: {type: string, enum: [user, operations]}
     AuthSession:
       type: object
       additionalProperties: false
@@ -16949,13 +16977,13 @@ components:
       additionalProperties: false
       required: [storage, modes, limits]
       properties:
-        storage: {enum: [local, memory]}
+        storage: {type: string, enum: [local, memory]}
         modes:
           type: array
           minItems: 1
           maxItems: 2
           uniqueItems: true
-          items: {enum: [direct, overlay]}
+          items: {type: string, enum: [direct, overlay]}
         limits: {$ref: '#/components/schemas/WorkspaceLimits'}
     PlacementLabels:
       type: array
@@ -16998,14 +17026,15 @@ components:
           uniqueItems: true
           items: {$ref: '#/components/schemas/RuntimeCapabilityRef'}
         workspaceCapabilities: {$ref: '#/components/schemas/WorkspaceCapabilities'}
-        observedState: {enum: [idle, allocated, draining, fenced]}
-        slotState: {enum: [idle, reserved, busy, draining, fenced]}
+        observedState: {type: string, enum: [idle, allocated, draining, fenced]}
+        slotState: {type: string, enum: [idle, reserved, busy, draining, fenced]}
         lastAcceptedHeartbeat: {type: string, format: date-time}
         confirmedLeaseUntil: {type: string, format: date-time}
         currentAllocationId: {$ref: '#/components/schemas/ResourceId'}
         authoritativeAllocationId: {$ref: '#/components/schemas/ResourceId'}
         reconciliationReason: {$ref: '#/components/schemas/SafeReason'}
     RuntimeAgentPrincipalAvailability:
+      type: string
       enum: [available, offline, busy, slot_unavailable, adapter_capability_mismatch]
     RuntimeAgentPrincipal:
       type: object
@@ -17062,6 +17091,7 @@ components:
       minimum: 0
       maximum: 9007199254740991
     PerformanceReason:
+      type: string
       enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, missing_baseline, permission_denied, statistics_disabled, database_unavailable, budget_exceeded, record_limit, gpu_not_available, unsupported_metric]
     PerformanceCoverage:
       type: object
@@ -17079,7 +17109,7 @@ components:
       required: [status, lastAttemptAt, intervalSeconds, coverage]
       description: observedAt is the last successful observation, not the read time. Two missed intervals make the group stale; unavailable or never observed groups omit measurements.
       properties:
-        status: {enum: [ok, partial, unavailable]}
+        status: {type: string, enum: [ok, partial, unavailable]}
         reason: {$ref: '#/components/schemas/PerformanceReason'}
         observedAt: {type: string, format: date-time}
         lastAttemptAt: {type: string, format: date-time}
@@ -17103,7 +17133,7 @@ components:
       additionalProperties: false
       required: [surface, inFlight, counts, duration]
       properties:
-        surface: {enum: [public, private]}
+        surface: {type: string, enum: [public, private]}
         inFlight: {$ref: '#/components/schemas/PerformanceInteger'}
         counts:
           type: array
@@ -17384,7 +17414,7 @@ components:
         version: {type: integer, const: 1}
         generation: {type: string, minLength: 1, maxLength: 128}
         minuteStart: {type: string, format: date-time}
-        status: {enum: [ok, partial, unavailable]}
+        status: {type: string, enum: [ok, partial, unavailable]}
         omittedWindows: {$ref: '#/components/schemas/PerformanceInteger'}
         coverageSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
         http:
@@ -17411,7 +17441,7 @@ components:
       properties:
         from: {type: string, format: date-time}
         to: {type: string, format: date-time}
-        step: {enum: [15s, 1m, 5m, 1h]}
+        step: {type: string, enum: [15s, 1m, 5m, 1h]}
         points:
           type: array
           maxItems: 1000
@@ -17436,13 +17466,13 @@ components:
           required: [durationSeconds, cpuUserSeconds, cpuSystemSeconds, rssStartBytes, rssEndBytes, rssPeakObservedBytes, rssSampleCount, maxSampleGapSeconds]
           not: {required: [reason]}
         - properties:
-            status: {enum: [partial, unavailable]}
+            status: {type: string, enum: [partial, unavailable]}
       description: Allocation-local CPU deltas and observed RSS of the entire Runtime process, not child/container resources or a guaranteed RSS peak. Unknowns are omitted. Go/Python additionally validate boundary/count/peak and duration/gap consistency.
       properties:
         version: {type: integer, const: 1}
         scope: {const: runtime_process}
-        status: {enum: [complete, partial, unavailable]}
-        reason: {enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, invalid_report]}
+        status: {type: string, enum: [complete, partial, unavailable]}
+        reason: {type: string, enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, invalid_report]}
         durationSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
         cpuUserSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
         cpuSystemSeconds: {$ref: '#/components/schemas/PerformanceNumber'}
@@ -17463,14 +17493,15 @@ components:
         logicalAgent: {$ref: '#/components/schemas/ConfigId'}
         outcome: {$ref: '#/components/schemas/StageExecutionState'}
         finishedAt: {type: string, format: date-time}
-        collectionPolicy: {enum: [requested, disabled, unsupported]}
-        status: {enum: [disabled, unsupported, pending, available, partial, unavailable]}
+        collectionPolicy: {type: string, enum: [requested, disabled, unsupported]}
+        status: {type: string, enum: [disabled, unsupported, pending, available, partial, unavailable]}
         reason:
           description: >-
             Why resources are partial or unavailable. `report_missing`: the
             released allocation has no report with usable resources;
             `report_expired`: its report was received and has since expired
             under the 30-day telemetry retention.
+          type: string
           enum: [unsupported_platform, read_failed, sampling_gap, counter_reset, invalid_report, report_missing, report_expired]
         resources: {$ref: '#/components/schemas/RuntimeResourceSummary'}
       example:
@@ -17503,13 +17534,14 @@ components:
         logicalWorker: {$ref: '#/components/schemas/ConfigId'}
         agentTemplate: {$ref: '#/components/schemas/AgentTemplateRef'}
         executionConfig: {$ref: '#/components/schemas/ConsumerExecutionConfig'}
-        authoritativePhase: {enum: [preparing, active, finalizing, aborting, releasing]}
+        authoritativePhase: {type: string, enum: [preparing, active, finalizing, aborting, releasing]}
         observedPhase:
           description: Allocated proves preparation, not that an A2A call is currently executing.
+          type: string
           enum: [absent, prepared, draining, fenced]
         reason: {$ref: '#/components/schemas/SafeReason'}
         metrics: {$ref: '#/components/schemas/MetricsSummary'}
-        exhaustedDimension: {enum: [model_calls, tool_calls, total_tokens, worker_calls, wall_time]}
+        exhaustedDimension: {type: string, enum: [model_calls, tool_calls, total_tokens, worker_calls, wall_time]}
     OperationsSnapshot:
       type: object
       additionalProperties: false

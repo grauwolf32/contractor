@@ -324,6 +324,55 @@ def test_shared_worker_completion_rejects_nested_authority_and_inconsistent_obse
             WorkerCompletion.model_validate(candidate)
 
 
+WORKER_COMPLETION_INTEGERS: dict[str, Any] = {
+    "stateRevision": lambda value, n: value.update(stateRevision=n),
+    "tool calls": lambda value, n: value["result"]["observations"]["tools"].update(
+        grep={"calls": n, "failures": 0}
+    ),
+    "tool failures": lambda value, n: value["result"]["observations"]["tools"].update(
+        grep={"calls": n, "failures": n}
+    ),
+    "scopedFiles": lambda value, n: value["result"]["observations"]["workspace"].update(
+        scopedFiles=n
+    ),
+    "discoveredFiles": lambda value, n: value["result"]["observations"]["workspace"].update(
+        discoveredFiles=n
+    ),
+    "readFiles": lambda value, n: (
+        value["result"]["observations"]["workspace"].update(readFiles=n, filesReadTruncated=True),
+        value["result"]["observations"].update(truncated=True),
+    ),
+    "matchedFiles": lambda value, n: value["result"]["observations"]["workspace"].update(
+        matchedFiles=n
+    ),
+    "modifiedFiles": lambda value, n: value["result"]["observations"]["workspace"].update(
+        modifiedFiles=n
+    ),
+    "unreadFiles": lambda value, n: value["result"]["observations"]["workspace"].update(
+        scopedFiles=n, unreadFiles=n
+    ),
+}
+
+
+@pytest.mark.parametrize("member", WORKER_COMPLETION_INTEGERS)
+def test_shared_worker_completion_integers_stay_within_the_exact_range(member: str) -> None:
+    """Every WorkerCompletion integer crosses the A2A DataPart as a double (WRK-R164)."""
+
+    baseline = json.loads(
+        (FIXTURES / "valid" / "worker-completion-success.json").read_text(encoding="utf-8")
+    )
+    validator = private_validator("worker-completion.schema.json")
+    for integer, valid in ((2**53 - 1, True), (2**53, False)):
+        value = deepcopy(baseline)
+        WORKER_COMPLETION_INTEGERS[member](value, integer)
+        assert bool(list(validator.iter_errors(value))) is not valid
+        if valid:
+            WorkerCompletion.model_validate(value)
+        else:
+            with pytest.raises(ValidationError):
+                WorkerCompletion.model_validate(value)
+
+
 @pytest.mark.parametrize(
     ("valid_path", "invalid_path"),
     [
@@ -1044,13 +1093,17 @@ def test_shared_worker_result_size_shared_golden_cases(case: dict[str, Any]) -> 
         value["result"]["artifacts"] = {
             "p" * case["padding"]: {"namespace": "review", "name": "report", "revision": "r1"}
         }
-    if case["max_uint64"]:
-        value["stateRevision"] = 2**64 - 1
+    if case["integer"] is not None:
+        value["stateRevision"] = case["integer"]
         value["result"]["observations"]["tools"] = {
-            "read_file": {"calls": 2**64 - 1, "failures": 0}
+            "read_file": {"calls": case["integer"], "failures": 0}
         }
     raw = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     assert len(raw) == case["json_bytes"]
+    if case["integer"] is not None:
+        # The schema bounds each integer but cannot count the encoded envelope.
+        schema_errors = list(private_validator("worker-completion.schema.json").iter_errors(value))
+        assert bool(schema_errors) is not case["valid"], schema_errors
     if case["valid"]:
         parsed = decode_private(WorkerCompletion, raw)
         assert len(parsed.model_dump_json(by_alias=True, exclude_none=True).encode()) == len(raw)

@@ -187,13 +187,13 @@ SELECT receipt_id, checks_projection, checks_projection_count, checks_projection
 	for rows.Next() {
 		var id, digest string
 		var data []byte
-		var count, bytes int
+		var count, byteCount int
 		var size int64
-		mustCompletion(t, rows.Scan(&id, &data, &count, &bytes, &digest, &size))
+		mustCompletion(t, rows.Scan(&id, &data, &count, &byteCount, &digest, &size))
 		projection, err := auditdomain.DecodeFindingChecksProjection(data)
 		if err != nil || !projection.Discarded || projection.Subject != nil || projection.Limitations != nil || len(projection.Checks) != 0 ||
-			projection.ProposalDigest != digest || projection.SizeBytes != size || count != 0 || bytes != len(data) || bytes < 1 || bytes > auditdomain.MaximumFindingChecksProjectionBytes {
-			t.Fatalf("discarded check index %s: discarded=%v checks=%d count=%d bytes=%d actual=%d error=%v", id, projection.Discarded, len(projection.Checks), count, bytes, len(data), err)
+			projection.ProposalDigest != digest || projection.SizeBytes != size || count != 0 || byteCount != len(data) || byteCount < 1 || byteCount > auditdomain.MaximumFindingChecksProjectionBytes {
+			t.Fatalf("discarded check index %s: discarded=%v checks=%d count=%d bytes=%d actual=%d error=%v", id, projection.Discarded, len(projection.Checks), count, byteCount, len(data), err)
 		}
 		indexedTombstones++
 	}

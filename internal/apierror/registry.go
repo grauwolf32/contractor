@@ -56,7 +56,7 @@ var (
 			"an out-of-range performance history query or a WebSocket handshake that is not a valid upgrade; nothing changes.",
 		link("API-R71", publicAPI)+", "+link("CAT-R68", "../configuration/catalog.md")+", "+
 			link("OPS-R60", "../operations/operations.md")+", "+link("OPS-R165", "../operations/operations.md"))
-	Unauthorized = defineFrame("unauthorized", http.StatusUnauthorized, false,
+	Unauthorized = define("unauthorized", http.StatusUnauthorized, false,
 		"valid authentication is required",
 		"Authentication is absent or invalid: no valid bearer token or browser session, or a login with invalid credentials.",
 		link("SEC-R45", "security.md")+", "+link("API-R33", publicAPI))
@@ -428,7 +428,7 @@ func auditPackage(code, failure string) Kind {
 	return define(code, http.StatusUnprocessableEntity, false,
 		"Audit input could not be processed",
 		"Bounded Audit package codec error: "+failure+". The Audit input, finding proposal or finding collection is "+
-			"rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error.",
+			"rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23).",
 		"[Audits](../audits/audits.md), [findings](../findings/findings.md)")
 }
 

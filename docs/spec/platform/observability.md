@@ -466,7 +466,9 @@ relabel attribution or block semantic terminalization and allocation release
 ### Report collection
 
 **OBS-R37.** For every expected participant that started but produced
-no report, Scheduler records an incomplete placeholder with unknown fields.
+no report, Scheduler records an incomplete placeholder with unknown fields;
+a Worker allocation's placeholder carries the retryable error
+`allocation_report_unavailable`.
 The one exception is a model-free Planner, which does no model work: its
 placeholder states zero model calls and tokens, as its own report would
 ([EVM-R81](../evals/managed-evals.md)). Absence from a `StageMetrics` map means

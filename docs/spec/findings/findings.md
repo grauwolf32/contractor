@@ -465,9 +465,13 @@ block would exceed 64 KiB (LIM-FND-8)
 
 **FND-R55.** The proposal document and embedded report projection retain
 the 8 MiB limit (LIM-FND-10). The complete private submission, including
-selected capture, is at most 64 MiB (LIM-FND-32). All evidence of a finding
-together remains under the existing 64 MiB quota. Oversized content fails
-explicitly; selected evidence is never silently truncated.
+selected capture, is at most 64 MiB (LIM-FND-32). All evidence of one
+proposal, the stored sizes of its exact evidence refs plus the selected HTTP
+exchange Artifact, totals at most 64 MiB (LIM-FND-50). Intake rejects a new
+proposal over this quota permanently as `invalid_finding_request` (400) and
+stores no receipt or Artifact; a replay returns its receipt before the quota
+is checked (FND-R60). Oversized content fails explicitly; selected evidence is
+never silently truncated.
 
 ### Intake
 
@@ -1211,9 +1215,13 @@ a successful partial snapshot.
 silently skipped. An unavailable exact document fails the entire publication
 (FAIL-FND-3).
 
-**FND-R109.** A missing or foreign source or receipt is `404`; a stale
-finding revision is `409`; invalid selectors are `400`; package codec
-failures keep their bounded `422` codes (FAIL-FND-3).
+**FND-R109.** A missing or foreign source or receipt is `404 not_found`; a
+stale finding revision is `409 conflict`; invalid selectors are
+`400 invalid_request`; package codec failures keep their bounded `422` Audit
+package codes `audit_document_invalid`, `audit_schema_unsupported`,
+`audit_limit_exceeded`, `audit_package_invalid`, `audit_package_path_invalid`,
+`audit_package_member_forbidden`, `audit_digest_mismatch` and
+`audit_reference_invalid` (FAIL-FND-3).
 
 **FND-R110.** The Server checks source ownership and correspondence to
 existing records, captures the available review revisions and reads the
@@ -1303,12 +1311,15 @@ Toolset and performs it in these steps (FAIL-FND-4, LIFE-FND-3):
    a replay verifies and reuses them, and existing Run cleanup owns their
    lifecycle.
 
-**FND-R123.** A failed preparation reports its bounded `findings_*` code
-as the allocation error. `findings_collection_unavailable` and
-`findings_document_unavailable` are retryable only for a lost Artifact API
-transport or an Artifact API error marked retryable; invalid or oversized
-collections and `findings_document_conflict` are non-retryable for the
-recorded Run snapshot (FAIL-FND-4).
+**FND-R123.** A failed preparation reports one bounded code of the
+findings tool vocabulary ([errors](../platform/errors.md), ERR-R23) as the
+allocation error. `findings_collection_unavailable` (the collection input)
+and `findings_document_unavailable` (a document destination) are retryable
+only for a lost Artifact API transport or an Artifact API error marked
+retryable. An invalid collection (`findings_collection_invalid`,
+`findings_digest_mismatch`, `findings_reference_invalid`, FND-R143), an
+oversized one (`findings_limit_exceeded`) and `findings_document_conflict`
+are non-retryable for the recorded Run snapshot (FAIL-FND-4).
 
 **FND-R124.** The Toolset may perform this internal materialization even
 in a reader-only configuration; this grants no model-visible creation
@@ -1380,9 +1391,9 @@ available through its exact refs.
 response is at most 256 KiB (LIM-FND-29). Whole items are added until the
 item or byte bound is reached, accounting for the final cursor.
 
-**FND-R135.** If one complete item cannot fit, the tool returns an
-explicit limit error, never an empty page or truncated evidence or review
-arrays (FAIL-FND-5).
+**FND-R135.** If one complete item cannot fit, the tool returns
+`findings_limit_exceeded`, never an empty page or truncated evidence or
+review arrays (FAIL-FND-5).
 
 **FND-R136.** `next_cursor` is `null` exactly when no matching entries
 remain. Empty selections and filters with no matches return
@@ -1405,20 +1416,29 @@ the requested filters, and `after_receipt_id` must exist among the matching
 entries. `limit` may change between calls.
 
 **FND-R140.** A wrong version, a malformed cursor, an unknown receipt,
-or changed filters or snapshot fail explicitly (FAIL-FND-5).
+or changed filters or snapshot fail explicitly with `findings_cursor_invalid`
+(FAIL-FND-5).
 
 **FND-R141.** A cursor is a position token, not an authorization grant.
 It carries no signature, because the collection boundary is already fixed.
 
-**FND-R142.** Invalid arguments, an invalid collection or cursor, missing
-or conflicting prepared artifacts, byte limits and a successful empty page
-are distinct outcomes (FAIL-FND-5).
+**FND-R142.** Invalid arguments (`findings_arguments_invalid`), an
+invalid cursor (`findings_cursor_invalid`), an item over the byte limit
+(`findings_limit_exceeded`), a call after the allocation released the reader
+(`findings_reader_unavailable`) and a successful empty page are distinct
+outcomes; each failure is non-retryable. An invalid collection and missing
+or conflicting prepared artifacts fail preparation instead (FND-R123), so the
+tool is never exposed over them (FAIL-FND-5).
 
-**FND-R143.** Codec errors reuse the existing bounded codes
-`audit_invalid`, `audit_schema_unsupported`, `audit_limit_exceeded`,
-`audit_reference_invalid`, `audit_package_invalid` and
-`audit_digest_mismatch`. Tool transport maps them to its existing error
-envelope and never returns source bytes in error text (FAIL-FND-5).
+**FND-R143.** The Runtime decodes a collection with its own bounded codes,
+the counterparts of the Server's Audit package codes (FND-R109):
+`findings_collection_invalid` for a wrong media type, a malformed or unsafe
+archive, non-canonical or schema-invalid JSON or an invalid proposal;
+`findings_digest_mismatch` for a member or document whose bytes, size or
+metadata disagree with the manifest; `findings_reference_invalid` for a
+document ID, entry link, proposal evidence ID or review that does not
+resolve; and `findings_limit_exceeded` for an exceeded bound. An error
+reports only its code, never source bytes (FAIL-FND-4, FAIL-FND-5).
 
 **FND-R144.** Preparation and reads cannot confirm findings or mutate
 review state.
@@ -1738,7 +1758,7 @@ finding readers and profiles without typed mappings retain their existing path.
 ## Limits, failures and errors
 
 - [Limits](../platform/limits.md): proposal `limitations` LIM-FND-1;
-  encoded proposal LIM-FND-10 and complete submission LIM-FND-32; locations LIM-FND-2 to
+  encoded proposal LIM-FND-10 and complete submission LIM-FND-32; proposal evidence LIM-FND-50; locations LIM-FND-2 to
   LIM-FND-6; selected HTTP evidence LIM-FND-7, LIM-FND-8 and LIM-FND-9,
   where LIM-FND-7 mirrors LIM-HTP-5 and LIM-FND-9 mirrors LIM-HTP-7 and
   LIM-HTP-9; collection IDs LIM-FND-11, Audit holds LIM-FND-12 and review
@@ -1762,12 +1782,11 @@ finding readers and profiles without typed mappings retain their existing path.
   proposal (FND-R63, FND-R154); LIFE-FND-2 published collection and publication
   receipt (FND-R115, FND-R118); LIFE-FND-3 prepared collection
   documents in the current Run (FND-R122).
-- [Errors](../platform/errors.md): `findings_collection_unavailable`,
-  `findings_document_unavailable`, `findings_document_conflict`
-  (FND-R123); `audit_invalid`, `audit_schema_unsupported`,
-  `audit_limit_exceeded`, `audit_reference_invalid`, `audit_package_invalid`,
-  `audit_digest_mismatch` (FND-R143). Publication statuses are listed
-  in FND-R109.
+- [Errors](../platform/errors.md): the findings tool vocabulary ERR-R23,
+  whose preparation codes are named in FND-R123 and FND-R143 and whose
+  `list_findings` codes are named in FND-R135, FND-R140 and FND-R142; the
+  public publication codes `not_found`, `conflict`, `invalid_request`, the
+  Audit package codec codes (FND-R109) and `idempotency_conflict` (FND-R114).
 
 ## Security
 

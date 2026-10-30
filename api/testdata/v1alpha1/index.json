@@ -550,6 +550,21 @@
       "schema": "worker-completion.schema.json",
       "strict": true
     },
+    "worker-completion-state-revision-above-exact.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json",
+      "strict": true
+    },
+    "worker-completion-tool-calls-above-exact.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json",
+      "strict": true
+    },
+    "worker-completion-workspace-count-above-exact.json": {
+      "type": "WorkerCompletion",
+      "schema": "worker-completion.schema.json",
+      "strict": true
+    },
     "workspace-capabilities-unsorted-modes.json": {
       "type": "WorkspaceCapabilities",
       "reason": "invariant"

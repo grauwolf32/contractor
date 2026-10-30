@@ -11,14 +11,14 @@ import (
 func TestSharedWorkerResultSizeSharedPythonCases(t *testing.T) {
 	raw := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "worker-result-size-cases.json")
 	var cases []struct {
-		Name      string `json:"name"`
-		Unit      string `json:"unit"`
-		Repeat    int    `json:"repeat"`
-		Prefix    string `json:"prefix"`
-		Padding   int    `json:"padding"`
-		MaxUint64 bool   `json:"max_uint64"`
-		Valid     bool   `json:"valid"`
-		JSONBytes int    `json:"json_bytes"`
+		Name      string  `json:"name"`
+		Unit      string  `json:"unit"`
+		Repeat    int     `json:"repeat"`
+		Prefix    string  `json:"prefix"`
+		Padding   int     `json:"padding"`
+		Integer   *uint64 `json:"integer"`
+		Valid     bool    `json:"valid"`
+		JSONBytes int     `json:"json_bytes"`
 	}
 	if err := json.Unmarshal(raw, &cases); err != nil {
 		t.Fatal(err)
@@ -37,9 +37,9 @@ func TestSharedWorkerResultSizeSharedPythonCases(t *testing.T) {
 					strings.Repeat("p", test.Padding): {Namespace: "review", Name: "report", Revision: &revision},
 				}
 			}
-			if test.MaxUint64 {
-				value.StateRevision = ^uint64(0)
-				value.Result.Observations.Tools = map[string]ToolObservationCount{"read_file": {Calls: ^uint64(0)}}
+			if test.Integer != nil {
+				value.StateRevision = *test.Integer
+				value.Result.Observations.Tools = map[string]ToolObservationCount{"read_file": {Calls: *test.Integer}}
 			}
 			encoded, err := json.Marshal(value)
 			if err != nil {

@@ -889,6 +889,20 @@ class AllocationService:
                     retryable=False,
                     status_code=500,
                 )
+            # The Server decides from the same declaration whether the Worker's
+            # Planner gets workspace projections (TLS-R38), so a tool may report
+            # workspace observations exactly when its Toolset declares it.
+            observing = getattr(factory, "workspace_observation_tools", frozenset())
+            if any(
+                (name in observing) != callable(getattr(tool, "contractor_observation", None))
+                for name, tool in created.items()
+            ):
+                raise AllocationError(
+                    "invalid_toolset_factory",
+                    "Toolset factory returned a tool whose workspace observation is undeclared",
+                    retryable=False,
+                    status_code=500,
+                )
             if collision:
                 raise AllocationError(
                     "duplicate_visible_tool",

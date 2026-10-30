@@ -11,8 +11,9 @@ import (
 // TestPostgresStageExecutionStateSetsMatchSchema holds the migrated
 // stage_executions table to the StageExecutionState declaration (SCH-R42):
 // its state CHECK lists exactly the declared states, and every partial index
-// admits a named subset. The active and terminal subsets must split the
-// declared states, so a new state fails until it is classified; the terminal
+// admits a named subset. The active and terminal subsets are the production
+// sets and must split the declared states, so a new state fails until it is
+// classified; the terminal
 // history indexes read terminal_at, which stage_execution_state_shape sets in
 // exactly the terminal states.
 func TestPostgresStageExecutionStateSetsMatchSchema(t *testing.T) {
@@ -25,12 +26,8 @@ func TestPostgresStageExecutionStateSetsMatchSchema(t *testing.T) {
 			Name: "state", Check: "stage_executions_state_check",
 			Values: statesettest.DeclaredValues(t, "internal/runstore", "StageExecutionState"),
 			Subsets: map[string][]string{
-				"active": {
-					string(StagePreparing), string(StageRunning), string(StageFinalizing), string(StageAborting),
-				},
-				"terminal": {
-					string(StageSucceeded), string(StageFailed), string(StageInterrupted), string(StageCancelled),
-				},
+				"active":   stageStateStrings(activeStageStates[:]),
+				"terminal": stageStateStrings(terminalStageStates[:]),
 			},
 			Partitions: [][]string{{"active", "terminal"}},
 			Markers: []statesettest.Marker{

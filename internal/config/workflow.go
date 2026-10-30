@@ -276,7 +276,7 @@ func (l *loader) resolveStage(
 	if err := resolved.ValidateStageWorkspace(context, result, agents); err != nil {
 		return resolved.ResolvedStage{}, err
 	}
-	if source.Operation == nil && plannerRef != (resolved.PlannerRef{PlannerID: "scan-plan", Version: "1"}) {
+	if source.Operation == nil && resolved.PlannerBindsAgentResults(plannerRef) {
 		if err := validateStageResultBindings(result, context.Workspace, agents); err != nil {
 			return resolved.ResolvedStage{}, err
 		}

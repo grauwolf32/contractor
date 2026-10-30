@@ -247,7 +247,7 @@ func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T
 	stage.Agents["reviewer"] = second
 	stage.ExecutionConfig.Agents["reviewer"] = stage.ExecutionConfig.Agents["builder"]
 	sourceRevision := "source-revision-7"
-	context := runstore.StageContextSnapshot{Artifacts: map[string]runstore.PinnedContextArtifact{
+	stageContext := runstore.StageContextSnapshot{Artifacts: map[string]runstore.PinnedContextArtifact{
 		"source": {
 			Required: true,
 			Artifact: &contracts.ArtifactRef{Namespace: "inputs", Name: "source", Revision: &sourceRevision},
@@ -255,7 +255,7 @@ func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T
 		"state": {Required: false},
 	}}
 
-	requirements, err := bindingRequirements(stage, []agentskills.RunSkillSnapshot{}, context)
+	requirements, err := bindingRequirements(stage, []agentskills.RunSkillSnapshot{}, stageContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T
 	mutated := "mutated"
 	requirements[0].Workspace.Sources[0].Artifact.Revision = &mutated
 	if *requirements[1].Workspace.Sources[0].Artifact.Revision != sourceRevision ||
-		*context.Artifacts["source"].Artifact.Revision != sourceRevision {
+		*stageContext.Artifacts["source"].Artifact.Revision != sourceRevision {
 		t.Fatal("Router workspace projections alias each other or persisted StageContext")
 	}
 }
@@ -489,18 +489,18 @@ func TestSchedulerMaterializesAndErasesPinnedCaidoBearer(t *testing.T) {
 		}
 		return consumer(runtimesettings.RuntimeCredentialCaidoBearer, []byte(`{"token":"`+secret+`"}`))
 	})
-	resolved, err := schedulerTestResolvedWorkerConfig(
+	runtimeConfig, err := schedulerTestResolvedWorkerConfig(
 		harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"],
 		false,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolved.Caido = &runtimeconfig.CaidoConfig{
+	runtimeConfig.Caido = &runtimeconfig.CaidoConfig{
 		Adapter: string(runtimesettings.RuntimeAdapterCaidoGraphQL), Endpoint: "https://caido.example/prefix",
 		Credential: "caido-lab", RequestTimeoutSeconds: 120,
 	}
-	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), resolved)
+	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), runtimeConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -643,27 +643,27 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 			}
 
 			selection := harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"]
-			resolved, err := schedulerTestResolvedWorkerConfig(selection, false)
+			runtimeConfig, err := schedulerTestResolvedWorkerConfig(selection, false)
 			if err != nil {
 				t.Fatal(err)
 			}
-			resolved.PlannerTelemetry = &runtimeconfig.TelemetryConfig{
+			runtimeConfig.PlannerTelemetry = &runtimeconfig.TelemetryConfig{
 				Adapter: telemetry.PlannerAdapterOTLPHTTP, Endpoint: collector.URL + "/v1/traces",
 				Credential: "planner-otel", FlushTimeoutSeconds: 1,
 			}
-			resolved.PlannerRuntimeCredential = &runtimesettings.RuntimeCredentialRef{
+			runtimeConfig.PlannerRuntimeCredential = &runtimesettings.RuntimeCredentialRef{
 				CredentialID: "planner-otel", Kind: runtimesettings.RuntimeCredentialOTLPHeaders,
 			}
-			resolved.Origins.PlannerTelemetry = &runtimeconfig.RuntimeFieldOrigin{
+			runtimeConfig.Origins.PlannerTelemetry = &runtimeconfig.RuntimeFieldOrigin{
 				Layer: runtimeconfig.LayerRunLabels, Configs: []runtimeconfig.Ref{debugRef},
 			}
-			resolved.Provenance.RunLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
+			runtimeConfig.Provenance.RunLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
 				Label: "debug", BindingRevision: 7, Config: schedulerTestRuntimeConfigRef(debugRef),
 			}}
-			resolved.Provenance.AgentLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
+			runtimeConfig.Provenance.AgentLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
 				Label: "caido", BindingRevision: 11, Config: schedulerTestRuntimeConfigRef(agentRef),
 			}}
-			harness.allocator.resolvedRuntimeConfig = &resolved
+			harness.allocator.resolvedRuntimeConfig = &runtimeConfig
 
 			worked, runErr := harness.scheduler.RunOnce(t.Context())
 			if runErr != nil || !worked || harness.store.run.State != runstore.RunSucceeded ||
@@ -1158,7 +1158,7 @@ func TestTerminalReleaseRecoveryReleasesDivergedGrantWithoutActiveOwner(t *testi
 }
 
 func stageAllocationFromReservation(reservation controlplane.Reservation) runstore.StageAllocation {
-	resolved := reservation.ResolvedRuntimeConfig
+	runtimeConfig := reservation.ResolvedRuntimeConfig
 	return runstore.StageAllocation{
 		AllocationID: reservation.Grant.AllocationID, StageExecutionID: reservation.Grant.StageExecutionID,
 		LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
@@ -1170,7 +1170,7 @@ func stageAllocationFromReservation(reservation controlplane.Reservation) runsto
 		PerformanceCollectionPolicy:       reservation.PerformanceCollectionPolicy,
 		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{
-			ModelPolicy: resolved.ModelPolicy.Ref, Origins: resolved.Origins, Provenance: resolved.Provenance,
+			ModelPolicy: runtimeConfig.ModelPolicy.Ref, Origins: runtimeConfig.Origins, Provenance: runtimeConfig.Provenance,
 		},
 	}
 }
@@ -1653,16 +1653,86 @@ func TestSchedulerExecutesMultiStageWorkflowSerially(t *testing.T) {
 	}
 }
 
+// pauseAfterClaim pauses the owner's Queue once, after the next claim and
+// before the lane's own Queue gates run (SCH-R163 skips a pending Run of a
+// paused owner at the claim, so only this window reaches them).
+func (h *schedulerHarness) pauseAfterClaim() {
+	h.store.afterClaim = func() {
+		h.persistence.queuePaused = true
+		h.store.afterClaim = nil
+	}
+}
+
+// The memory claim answers as the PostgreSQL claim does
+// (TestPostgresClaimSkipsPendingRunsOfPausedOwners): a pending Run of a
+// paused owner is no work unless one of its active Stages is aborting or
+// holds an unreleased allocation (SCH-R163).
+func TestMemoryClaimSkipsPendingRunsOfPausedOwners(t *testing.T) {
+	released := time.Unix(1, 0)
+	for _, test := range []struct {
+		name    string
+		state   runstore.WorkflowRunState
+		paused  bool
+		stage   runstore.StageExecutionState
+		release *time.Time
+		// allocated records an allocation of the Stage, released at release.
+		allocated bool
+		claimed   bool
+	}{
+		{name: "pending without a Stage", state: runstore.RunPending, paused: true},
+		{name: "pending with a preparing Stage", state: runstore.RunPending, paused: true, stage: runstore.StagePreparing},
+		{
+			name: "pending with a released allocation", state: runstore.RunPending, paused: true,
+			stage: runstore.StagePreparing, allocated: true, release: &released,
+		},
+		{
+			name: "pending with an unreleased allocation", state: runstore.RunPending, paused: true,
+			stage: runstore.StagePreparing, allocated: true, claimed: true,
+		},
+		{name: "pending with an aborting Stage", state: runstore.RunPending, paused: true, stage: runstore.StageAborting, claimed: true},
+		{name: "running", state: runstore.RunRunning, paused: true, stage: runstore.StageRunning, claimed: true},
+		{name: "pending of a running Queue", state: runstore.RunPending, stage: runstore.StagePreparing, claimed: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			harness := newSchedulerHarness(t)
+			harness.store.run.State = test.state
+			harness.persistence.queuePaused = test.paused
+			if test.stage != "" {
+				execution := harness.persistedExecution(t, test.stage)
+				harness.store.stages = []runstore.StageExecution{execution}
+				if test.allocated {
+					harness.store.allocations = []runstore.StageAllocation{{
+						AllocationID: "allocation-1", StageExecutionID: execution.StageExecutionID,
+						ReleaseCompletedAt: test.release,
+					}}
+				}
+			}
+			run, err := harness.store.ClaimRunnableRun(
+				context.Background(), "claim-1", time.Minute, nil, harness.store.run.SchedulerLaneClass,
+			)
+			if test.claimed && (err != nil || run.RunID != harness.store.run.RunID) {
+				t.Fatalf("claim = (%s, %v), want the Run", run.RunID, err)
+			}
+			if !test.claimed && !errors.Is(err, runstore.ErrNoWork) {
+				t.Fatalf("claim = (%s, %v), want no work", run.RunID, err)
+			}
+		})
+	}
+}
+
+// A pending Run's first Stage is created under the owner's Queue gate: a
+// pause that commits after the claim defers the Run without a Stage.
 func TestSchedulerOwnerQueuePauseDefersInitialAdmissionUntilResume(t *testing.T) {
 	harness := newSchedulerHarness(t)
-	harness.persistence.queuePaused = true
+	harness.store.run.State = runstore.RunPending
+	harness.pauseAfterClaim()
 
 	worked, err := harness.scheduler.RunOnce(context.Background())
 	if !worked || !errors.Is(err, ErrDeferred) {
 		t.Fatalf("paused RunOnce = (%v, %v), want deferred", worked, err)
 	}
 	if len(harness.store.stages) != 0 || harness.allocator.reserveCalls != 0 ||
-		harness.planners.createCalls != 0 || harness.store.run.State != runstore.RunRunning {
+		harness.planners.createCalls != 0 || harness.store.run.State != runstore.RunPending {
 		t.Fatalf("paused admission created work: run=%s stages=%d reserves=%d planners=%d",
 			harness.store.run.State, len(harness.store.stages), harness.allocator.reserveCalls,
 			harness.planners.createCalls)
@@ -1717,7 +1787,7 @@ func TestSchedulerOwnerQueuePauseDoesNotPlacePendingStage(t *testing.T) {
 	harness := newSchedulerHarness(t)
 	harness.store.run.State = runstore.RunPending
 	harness.store.stages = []runstore.StageExecution{harness.persistedExecution(t, runstore.StagePreparing)}
-	harness.persistence.queuePaused = true
+	harness.pauseAfterClaim()
 
 	worked, err := harness.scheduler.RunOnce(context.Background())
 	if !worked || !errors.Is(err, ErrDeferred) {
@@ -2087,14 +2157,18 @@ type memorySchedulerStore struct {
 	// deferrals counts deferred releases.
 	claimedClasses []resolved.LaneClass
 	deferrals      int
-	// activeStageReads and stageListReads count the Stage reads, so a test
-	// can prove a progression attempt reads one Stage, not the history.
+	// activeStageReads counts the active Stage reads and stageListReads the
+	// Stage history reads (existence probe and lineage), so a test can prove
+	// a progression attempt reads one Stage, not the history.
 	activeStageReads int
 	stageListReads   int
 	events           *eventRecorder
 	// queuePaused aliases the owner Queue gate enforced by memory persistence.
 	queuePaused *bool
 	queueProbes int
+	// afterClaim runs after a successful claim, as a write that commits
+	// between the claim and the lane's work (an owner pausing its Queue).
+	afterClaim func()
 }
 
 type memoryRunSkillInitializer struct {
@@ -2136,12 +2210,40 @@ func (s *memorySchedulerStore) ClaimRunnableRun(
 		s.run.StateReason.Code == runstore.SkillInitializationPendingReason
 	if s.run.State != runstore.RunRunning && s.run.State != runstore.RunPending && s.run.State != runstore.RunWaiting && s.run.State != runstore.RunCancelling && !pendingSkills ||
 		s.run.SchedulerLaneClass != laneClass ||
-		s.claimID != "" || duration <= 0 || slices.Contains(excludedRunIDs, s.run.RunID) {
+		s.claimID != "" || duration <= 0 || slices.Contains(excludedRunIDs, s.run.RunID) ||
+		s.pausedOwnerSkips() {
 		return runstore.WorkflowRun{}, runstore.ErrNoWork
 	}
 	s.claimID = claimID
 	s.claimedClasses = append(s.claimedClasses, laneClass)
-	return s.run, nil
+	claimed := s.run
+	if hook := s.afterClaim; hook != nil {
+		hook()
+	}
+	return claimed, nil
+}
+
+// pausedOwnerSkips applies SCH-R163 as the PostgreSQL claim does: a pending
+// Run of a paused owner is not claimed unless one of its active Stages is
+// aborting or holds an allocation whose release has not completed.
+func (s *memorySchedulerStore) pausedOwnerSkips() bool {
+	if s.run.State != runstore.RunPending || s.queuePaused == nil || !*s.queuePaused {
+		return false
+	}
+	for _, execution := range s.stages {
+		if execution.RunID != s.run.RunID || execution.State.Terminal() {
+			continue
+		}
+		if execution.State == runstore.StageAborting {
+			return false
+		}
+		for _, allocation := range s.allocations {
+			if allocation.StageExecutionID == execution.StageExecutionID && allocation.ReleaseCompletedAt == nil {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // RenewRunClaim answers as the store does: the claimed Run's state, or a
@@ -2237,14 +2339,42 @@ func (s *memorySchedulerStore) GetActiveStageExecution(
 	}
 }
 
-func (s *memorySchedulerStore) ListStageExecutions(
-	_ context.Context, runID string,
-) ([]runstore.StageExecution, error) {
+// HasStageExecutions answers as the PostgreSQL probe does. The double holds
+// the stages of one Run: another Run's history is a failed read.
+func (s *memorySchedulerStore) HasStageExecutions(_ context.Context, runID string) (bool, error) {
+	s.stageListReads++
+	if runID != s.run.RunID {
+		return false, runstore.ErrNotFound
+	}
+	return len(s.stages) > 0, nil
+}
+
+// ListStageLineage selects, like the PostgreSQL statement, the lineage of the
+// Run's attempts of one Stage in attempt order. The double holds the stages
+// of one Run: another Run's history is a failed read.
+func (s *memorySchedulerStore) ListStageLineage(
+	_ context.Context, runID, stageName string,
+) ([]runstore.StageLineage, error) {
 	s.stageListReads++
 	if runID != s.run.RunID {
 		return nil, runstore.ErrNotFound
 	}
-	return append([]runstore.StageExecution(nil), s.stages...), nil
+	var result []runstore.StageLineage
+	for _, execution := range s.stages {
+		if execution.StageName != stageName {
+			continue
+		}
+		result = append(result, runstore.StageLineage{
+			StageExecutionID: execution.StageExecutionID, RunID: execution.RunID,
+			StageName: execution.StageName, Attempt: execution.Attempt, State: execution.State,
+			ExecutionConfigVariant:  execution.ExecutionConfigVariant,
+			EscalationOrdinal:       execution.EscalationOrdinal,
+			PreviousExecutionID:     execution.PreviousExecutionID,
+			ResumeSourceExecutionID: execution.ResumeSourceExecutionID,
+		})
+	}
+	slices.SortFunc(result, func(left, right runstore.StageLineage) int { return left.Attempt - right.Attempt })
+	return result, nil
 }
 
 // ListStageExecutionsWithUnreleasedAllocations selects, like the PostgreSQL
@@ -2888,12 +3018,12 @@ func schedulerTestReservations(t *testing.T, stage resolved.ResolvedStage) []con
 	t.Helper()
 	reservations := make([]controlplane.Reservation, 0, len(stage.Agents))
 	for name, binding := range stage.Agents {
-		resolved, err := schedulerTestResolvedWorkerConfig(stage.ExecutionConfig.Agents[name], binding.Template.IsToolWorker())
+		runtimeConfig, err := schedulerTestResolvedWorkerConfig(stage.ExecutionConfig.Agents[name], binding.Template.IsToolWorker())
 		if err != nil {
 			t.Fatal(err)
 		}
 		reservations = append(reservations, controlplane.Reservation{
-			Grant: controlplane.AllocationGrant{LogicalAgentName: name}, ResolvedRuntimeConfig: &resolved,
+			Grant: controlplane.AllocationGrant{LogicalAgentName: name}, ResolvedRuntimeConfig: &runtimeConfig,
 		})
 	}
 	return reservations
@@ -2978,7 +3108,7 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 	if binding.RuntimeSelection == nil {
 		return controlplane.Reservation{}, errors.New("test allocation requires a Runtime selection")
 	}
-	resolved, err := schedulerTestResolvedWorkerConfig(*binding.RuntimeSelection, binding.AgentTemplate.IsToolWorker())
+	runtimeConfig, err := schedulerTestResolvedWorkerConfig(*binding.RuntimeSelection, binding.AgentTemplate.IsToolWorker())
 	if err != nil {
 		return controlplane.Reservation{}, err
 	}
@@ -2997,11 +3127,11 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 		ExecutionConfig:           binding.ExecutionConfig,
 		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
 		PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
-		ResolvedRuntimeConfig:       &resolved,
+		ResolvedRuntimeConfig:       &runtimeConfig,
 	}
 	if a.resolvedRuntimeConfig != nil {
-		resolved := a.resolvedRuntimeConfig.Clone()
-		reservation.ResolvedRuntimeConfig = &resolved
+		runtimeConfig := a.resolvedRuntimeConfig.Clone()
+		reservation.ResolvedRuntimeConfig = &runtimeConfig
 	}
 	return reservation, nil
 }
@@ -3221,7 +3351,7 @@ func (r *memoryPlannerRegistry) Create(
 ) (planner.Planner, error) {
 	r.createCalls++
 	r.invocation = invocation
-	if ref != planner.PassthroughRef && ref != "streamline@1" {
+	if ref != resolved.PassthroughPlanner && ref != resolved.StreamlinePlanner {
 		return nil, errors.New("unexpected Planner ref")
 	}
 	return plannerFunc(func(context.Context) (stageresult.StageContentResult, error) {
@@ -3427,18 +3557,18 @@ func TestSchedulerMaterializesAndErasesPinnedInteractshToken(t *testing.T) {
 		}
 		return consumer(runtimesettings.RuntimeCredentialInteractshToken, []byte(`{"token":"`+secret+`"}`))
 	})
-	resolved, err := schedulerTestResolvedWorkerConfig(
+	runtimeConfig, err := schedulerTestResolvedWorkerConfig(
 		harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"],
 		false,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolved.Interactsh = &runtimeconfig.InteractshConfig{
+	runtimeConfig.Interactsh = &runtimeconfig.InteractshConfig{
 		Adapter: string(runtimesettings.RuntimeAdapterInteractshHTTP), Endpoint: "https://interactsh.example/prefix",
 		Credential: "interactsh-lab", RequestTimeoutSeconds: 120,
 	}
-	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), resolved)
+	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), runtimeConfig)
 	if err != nil {
 		t.Fatal(err)
 	}

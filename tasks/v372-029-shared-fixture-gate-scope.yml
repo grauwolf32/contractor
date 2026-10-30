@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V369-002
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [python, go]
 goal: "Every fixture that Go, the Runtime or the UI read together falls under the shared fixture gate's naming, reader and declared-readers checks wherever it lives."

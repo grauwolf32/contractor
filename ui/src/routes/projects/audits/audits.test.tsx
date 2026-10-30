@@ -600,7 +600,7 @@ describe("Project Audit routes", () => {
       if (path === "/v1/audits/audit_trace/findings" && failed)
         return json(
           {
-            code: "unavailable",
+            code: "storage_transaction_conflict",
             message: "Findings unavailable",
             retryable: true,
             requestId: "request_failed",

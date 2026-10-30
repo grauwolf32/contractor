@@ -72,7 +72,12 @@ type Store interface {
 	// when it has more (SCH-R114). A progression attempt reads only this
 	// Stage, not the Run's Stage history.
 	GetActiveStageExecution(context.Context, string) (runstore.StageExecution, error)
-	ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error)
+	// HasStageExecutions probes whether the Run has any StageExecution
+	// without reading its Stage history (SCH-R164).
+	HasStageExecutions(context.Context, string) (bool, error)
+	// ListStageLineage reads the lineage columns of one Stage's attempts in
+	// the Run, without their snapshots, for the escalation count (SCH-R164).
+	ListStageLineage(context.Context, string, string) ([]runstore.StageLineage, error)
 	// ListStageExecutionsWithUnreleasedAllocations reads the Run's
 	// StageExecutions that still have an allocation whose release has not
 	// completed, not the rest of its Stage history (SCH-R179).

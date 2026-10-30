@@ -6,6 +6,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
@@ -122,7 +123,7 @@ WHERE experiment_id = $1 AND observed_tokens = 9223372036854775807`, e.ID).Scan(
 // counter at the report bound, 2^53-1.
 func largestStageMetrics(t *testing.T) (string, string) {
 	t.Helper()
-	bound := int64(reporting.MaxResourceInteger)
+	bound := int64(contracts.MaxExactInteger)
 	report := func(id string) reporting.ExecutionReport {
 		return reporting.ExecutionReport{
 			ReportID: id, Complete: true,

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
@@ -34,7 +33,7 @@ func TestMetricsPostgresStageSummaryKeepsTokenCountersInRange(t *testing.T) {
 	if err := reports.RecordPlannerReport(ctx, planner); !errors.Is(err, telemetry.ErrInvalid) {
 		t.Fatalf("Planner report above the counter bound = %v, want ErrInvalid", err)
 	}
-	bound := int64(reporting.MaxResourceInteger)
+	bound := int64(contracts.MaxExactInteger)
 	planner.Report.Metrics.InputTokens = &bound
 	planner.Report.Metrics.TotalTokens = &bound
 	if err := reports.RecordPlannerReport(ctx, planner); err != nil {

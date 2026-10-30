@@ -13,13 +13,16 @@ export function PanelTabs<T extends string>({
   label,
   tabs,
   note,
+  initial,
 }: {
   label: string;
   tabs: readonly { id: T; label: ReactNode; panel: ReactNode }[];
   note?: ReactNode;
+  /** The tab chosen first; the first tab when omitted. */
+  initial?: T | undefined;
 }) {
   const id = useId();
-  const [chosen, setChosen] = useState<T | undefined>(tabs[0]?.id);
+  const [chosen, setChosen] = useState<T | undefined>(initial ?? tabs[0]?.id);
   const tabId = (tab: T) => `${id}-${tab}-tab`;
   const panelId = (tab: T) => `${id}-${tab}-panel`;
   function choose(index: number): void {

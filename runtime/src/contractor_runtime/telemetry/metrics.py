@@ -11,7 +11,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from contractor_runtime.contracts import (
-    MAX_REPORT_INTEGER,
+    MAX_EXACT_INTEGER,
     ExecutionError,
     ExecutionMetrics,
     ExecutionReport,
@@ -38,7 +38,7 @@ MAX_METRIC_ITEMS = 32
 MAX_METRIC_DEPTH = 4
 MAX_METRIC_TEXT_BYTES = 4096
 # Allocation counters saturate at the Worker State bound; their report
-# projection saturates at the lower report bound, MAX_REPORT_INTEGER (OBS-R111).
+# projection saturates at the lower report bound, MAX_EXACT_INTEGER (OBS-R111).
 MAX_METRIC_COUNTER = 2**64 - 1
 _ALLOCATION_ENVELOPE_RESERVE_BYTES = 4096
 SENSITIVE_METRIC_KEYS = frozenset(
@@ -221,30 +221,30 @@ class MetricsState:
         failure_codes = dict(current.failure_codes) if current is not None else {}
         if failure_code is not None:
             failure_codes[failure_code] = min(
-                MAX_REPORT_INTEGER, failure_codes.get(failure_code, 0) + 1
+                MAX_EXACT_INTEGER, failure_codes.get(failure_code, 0) + 1
             )
         self._summarizer = WorkerSummarizerMetrics(
-            attempts=min(MAX_REPORT_INTEGER, attempts),
-            succeeded=min(MAX_REPORT_INTEGER, succeeded_count),
-            failed=min(MAX_REPORT_INTEGER, failed_count),
+            attempts=min(MAX_EXACT_INTEGER, attempts),
+            succeeded=min(MAX_EXACT_INTEGER, succeeded_count),
+            failed=min(MAX_EXACT_INTEGER, failed_count),
             modelCalls=min(
-                MAX_REPORT_INTEGER,
+                MAX_EXACT_INTEGER,
                 (current.model_calls if current is not None else 0) + model_calls,
             ),
             inputTokens=min(
-                MAX_REPORT_INTEGER,
+                MAX_EXACT_INTEGER,
                 (current.input_tokens if current is not None else 0) + input_tokens,
             ),
             outputTokens=min(
-                MAX_REPORT_INTEGER,
+                MAX_EXACT_INTEGER,
                 (current.output_tokens if current is not None else 0) + output_tokens,
             ),
             totalTokens=min(
-                MAX_REPORT_INTEGER,
+                MAX_EXACT_INTEGER,
                 (current.total_tokens if current is not None else 0) + total_tokens,
             ),
             tokenUsageUnavailable=min(
-                MAX_REPORT_INTEGER,
+                MAX_EXACT_INTEGER,
                 (current.token_usage_unavailable if current is not None else 0)
                 + token_usage_unavailable,
             ),
@@ -565,7 +565,7 @@ class MetricsState:
 def _report_integer(value: int) -> int:
     """Saturate an allocation counter at the execution report bound (OBS-R111)."""
 
-    return min(MAX_REPORT_INTEGER, value)
+    return min(MAX_EXACT_INTEGER, value)
 
 
 def trim_report_detail(

@@ -290,7 +290,7 @@ describe("Operations inventories beyond the first page", () => {
             ? json(page([credential(1)]))
             : failure(
                 503,
-                "unavailable",
+                "storage_transaction_conflict",
                 "Runtime credentials are unavailable",
                 true,
               );

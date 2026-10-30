@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V370-026
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "A regression in the cost of reading a changed Worker State at the contract maximum fails a deterministic test, BenchmarkWorkerStateChangedRevision runs again, and the 60 ms target of V370-026 is confirmed on a quiet host or CI, or replaced by a measured one."
@@ -41,6 +41,20 @@ context:
     changed-revision read, median 25.9 ms (24.0-27.4 ms) on an Apple M5 Max
     with a load average of about 4.5. This is one loaded developer host, not
     the CI or quiet-host figure A3 asks for.
+    2026-10-30 after the fix (go1.26.9 darwin/arm64, Apple M5 Max, 18 CPUs;
+    five other agent lanes building and testing on the same host, load
+    average 5.4-6.9 during the run, so the wall times are indicative, not a
+    quiet-host figure): `go test -run '^$' -bench WorkerStateChangedRevision
+    -count 10 ./internal/planner/stateview` on the programmatic 1.94 MB
+    maximum State took a median of 19.3 ms/op (17.3-21.2 ms), 20.3 cpu-ms/op
+    (18.4-21.1), 11.6-13.2 MB/op and 40,203-40,228 allocs/op, well under the
+    60 ms target, which stays. TestWorkerStateChangedRevisionReadCostIsBounded
+    measures 40,193 allocations and 10.4 MB per read (GOMAXPROCS 1, after a
+    collection) against bounds of 48,000 and 16 MiB; with the pre-PLN-R115
+    snapshot copy restored in Service.load it measured 80,329 allocations and
+    20.6 MB and failed (A1). On main before the fix the benchmark command
+    still failed on the shared-fixture guard (A2). The race detector pads
+    allocations (18.2 MB per read), so the guard builds with !race.
   siblings: >-
     No other completed acceptance in internal/planner rests on a wall-clock
     benchmark without a gate. The other benchmarks in packages that read

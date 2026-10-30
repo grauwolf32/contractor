@@ -77,10 +77,9 @@ func ReadAuditScanHistory(ctx context.Context, store ScanHistoryStore, runID str
 		if spec.AuditScan == nil {
 			return nil, fmt.Errorf("scan task executor Stage has no scan configuration")
 		}
-		attempt := planner.ScanAttempt{StageExecutionID: stage.StageExecutionID, StageName: stage.StageName, State: planner.ScanState{Jobs: []planner.ScanJobRecord{}}}
-		switch stage.State {
-		case runstore.StageSucceeded, runstore.StageFailed, runstore.StageInterrupted, runstore.StageCancelled:
-			attempt.Terminal = true
+		attempt := planner.ScanAttempt{
+			StageExecutionID: stage.StageExecutionID, StageName: stage.StageName,
+			State: planner.ScanState{Jobs: []planner.ScanJobRecord{}}, Terminal: stage.State.Terminal(),
 		}
 		if stage.PlannerSessionID != nil {
 			stored, found := sessions[*stage.PlannerSessionID]

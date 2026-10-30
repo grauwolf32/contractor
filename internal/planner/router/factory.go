@@ -4,12 +4,11 @@
 package router
 
 import (
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
 	"github.com/grauwolf32/contractor/internal/planner"
 	"github.com/grauwolf32/contractor/internal/planner/streamline"
 )
-
-const Ref = planner.RouterRef
 
 type Limits = streamline.Limits
 type ADKSessionFactory = streamline.ADKSessionFactory
@@ -38,7 +37,7 @@ func NewConfiguredFactoryWithMemory(
 	return &Factory{delegate: delegate}, nil
 }
 
-func (*Factory) Ref() string { return Ref }
+func (*Factory) Ref() string { return resolved.RouterPlanner }
 
 func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error) {
 	return f.delegate.Create(invocation)

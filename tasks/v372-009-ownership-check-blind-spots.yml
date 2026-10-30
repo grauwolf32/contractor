@@ -6,7 +6,7 @@ epic: persistence
 kind: chore
 introduced_by: V369-001
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: "The table ownership check sees relations that reach SQL through a helper argument, lock clauses appended apart from FROM, the tables that migration functions called from Go SQL read, write or lock, and the writes that migration triggers make to another owner's tables."
@@ -101,9 +101,56 @@ acceptance_criteria:
   - id: A3
     text: "The registry, with the new entries, passes on the current code and schema; both probes pass unnoticed on b523ae77."
 tests:
-  - command: "go test ./internal/persistence"
+  - command: "go test ./internal/persistence ./internal/persistence/explaintest"
     covers: [A1, A3]
-  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/postgres"
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence ./internal/persistence/postgres"
     covers: [A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+decisions:
+  - >-
+    2026-10-30: the scan resolves rather than forbids. Inside a function a local string
+    variable stands for the text last assigned to it, and x += clause appends to that text
+    and scans the whole statement, so Store.project's appended FOR SHARE reads projects
+    (evalstore/store.go:119). A call of a package function or method whose string parameter
+    reaches SQL is scanned again with each argument that is a literal, constant or known
+    local, recording only the SQL that uses an argument, at the call: lockBindings now
+    records its FOR UPDATE at runtimeconfig/repository.go:360, and auditEventsFrom's
+    arguments are CTE names. No production code changed; against b523ae77's scanner the
+    new scan finds 48 more access sites and loses none, all inside the registry. What stays
+    unseen is listed in the limits paragraph of sql_access_test.go: a function's result, a
+    struct field, another declaration's variable, a parameter whose callers are in another
+    package or pass unknown text, and fmt formatting.
+  - >-
+    2026-10-30: the migration-function check lives in internal/persistence
+    (routine_ownership_test.go), not in internal/persistence/postgres, because it needs the
+    registry parser and the Go scan (calls of migration functions), both test code of
+    internal/persistence; it migrates a schema of its own in CONTRACTOR_TEST_DATABASE_URL
+    and skips only while that is unset. Function bodies come from pg_proc.prosrc read by
+    explaintest.ReadBody, which now also returns exclusive row locks (FOR UPDATE, FOR NO KEY
+    UPDATE with their OF list), FROM/JOIN/USING reads and TRUNCATE/LOCK targets. A
+    [routines] entry is package, the function whose body holds the statement, access and
+    relation, so one entry covers every trigger of the package that reaches that body.
+    Rules: a trigger acts for its table's owner and lists its writes and exclusive locks; a
+    function that Go SQL calls acts for the caller, lists its reads and may not write
+    another owner's relation even with an entry; EXECUTE or an unreadable body on either
+    path fails. Trigger reads stay outside (they admit, validate or project a change of the
+    trigger's own table), recorded with a reopen condition in PER-R23; listing them would
+    add about 60 entries. V414-030 has landed on main (000041 dropped
+    contractor_lock_finding_correlation_project), so the registry lists no exclusive lock of
+    projects and no correlation write to projects; it lists findingintake's writes of
+    finding_correlation_fences through contractor_advance_finding_correlation and
+    contractor_lock_finding_correlation_fence, and 27 entries in all (23 trigger writes, 4
+    reads through called functions: auditstore's two Project fences, telemetry's
+    contractor_eval_run_members reads of eval_submissions and audit_executions, which V372-008
+    classifies).
+  - >-
+    2026-10-30 evidence: A1 probes (TestTableOwnershipCheckSeesHelperArgumentsAndAppendedLocks:
+    helper relation argument, appended FOR UPDATE, FOR NO KEY UPDATE passed as a helper's
+    mode) each fail the check at the call or append and pass unnoticed with b523ae77's
+    sql_access_test.go and table_ownership_test.go; their FOR SHARE and FOR KEY SHARE
+    variants pass as granted reads. A2 probe (TestRoutineOwnershipCheckRejectsProbeRoutines):
+    a runstore trigger updating projects and a function locking projects FOR NO KEY UPDATE
+    called from runstore SQL produce exactly those two problems; an entry admits the
+    trigger's write but not the call's lock. Before this task PER-R23 excluded migration
+    functions, so neither probe was checked on b523ae77.

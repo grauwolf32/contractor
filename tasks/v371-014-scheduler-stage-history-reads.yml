@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: execution-core
 kind: defect
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: "Escalation counting and the no-active-Stage first-tick check read narrow projections of the Run's Stage history (identity, variant, ordinal and lineage columns; an existence probe) instead of every StageExecution row with its snapshots."

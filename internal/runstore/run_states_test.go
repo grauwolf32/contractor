@@ -128,20 +128,7 @@ func TestRunStateSetsMatchOpenAPIAndGoSQL(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Run("OpenAPI", func(t *testing.T) {
-		data, err := os.ReadFile(filepath.Join(root, "api", "openapi", "contractor-public-v1.yaml"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		var document struct {
-			Components struct {
-				Schemas map[string]struct {
-					Enum []string `yaml:"enum"`
-				} `yaml:"schemas"`
-			} `yaml:"components"`
-		}
-		if err := yaml.Unmarshal(data, &document); err != nil {
-			t.Fatal(err)
-		}
+		enums := openAPIEnums(t, root)
 		toStates := func(values []string) []WorkflowRunState {
 			result := make([]WorkflowRunState, 0, len(values))
 			for _, value := range values {
@@ -153,67 +140,101 @@ func TestRunStateSetsMatchOpenAPIAndGoSQL(t *testing.T) {
 			"WorkflowRunState":            append(slices.Clone(activeRunStates[:]), terminalRunStates[:]...),
 			"NonTerminalWorkflowRunState": activeRunStates[:],
 		} {
-			if got := toStates(document.Components.Schemas[schema].Enum); !sameRunStates(got, want) {
+			if got := toStates(enums[schema]); !sameRunStates(got, want) {
 				t.Errorf("OpenAPI %s = %v, want %v", schema, got, want)
 			}
 		}
-		lifecycles := document.Components.Schemas["WorkflowRunLifecycle"].Enum
+		lifecycles := enums["WorkflowRunLifecycle"]
 		if !slices.Equal(lifecycles, []string{string(RunLifecycleActive), string(RunLifecycleTerminal)}) {
 			t.Errorf("OpenAPI WorkflowRunLifecycle = %v", lifecycles)
 		}
 	})
 	t.Run("GoSQL", func(t *testing.T) {
 		found := map[string]int{}
-		for _, dir := range []string{"cmd", "internal"} {
-			err := filepath.WalkDir(filepath.Join(root, dir), func(path string, entry fs.DirEntry, err error) error {
-				if err != nil {
-					return err
-				}
-				if entry.IsDir() {
-					if entry.Name() == "testdata" {
-						return filepath.SkipDir
-					}
-					return nil
-				}
-				if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-					return nil
-				}
-				fileSet := token.NewFileSet()
-				file, err := parser.ParseFile(fileSet, path, nil, 0)
-				if err != nil {
-					return err
-				}
-				relative, _ := filepath.Rel(root, path)
-				ast.Inspect(file, func(node ast.Node) bool {
-					literal, ok := node.(*ast.BasicLit)
-					if !ok || literal.Kind != token.STRING {
-						return true
-					}
-					lists, lines := sqlValueLists(literal.Value)
-					for index, list := range lists {
-						name, err := classifyRunStateList(list)
-						if err != nil {
-							line := fileSet.Position(literal.Pos()).Line + lines[index]
-							t.Errorf("%s:%d: %v", relative, line, err)
-						}
-						if name != "" {
-							found[name]++
-						}
-					}
-					return true
-				})
-				return nil
-			})
+		productionSQLValueLists(t, root, func(position string, list []string) {
+			name, err := classifyRunStateList(list)
 			if err != nil {
-				t.Fatal(err)
+				t.Errorf("%s: %v", position, err)
 			}
-		}
+			if name != "" {
+				found[name]++
+			}
+		})
 		// The queue, credential, Project-drain and claim-renewal reads spell the
 		// active set; a scanner that finds none of them is broken.
 		if found["active"] < 5 || found["terminal"] < 3 {
 			t.Fatalf("found Run-state lists %v; the scan missed the known active and terminal lists", found)
 		}
 	})
+}
+
+// productionSQLValueLists calls visit with every quoted value list
+// (sqlValueLists) in a string literal of the production Go code under cmd
+// and internal of the repository at root, and the file:line it starts on.
+func productionSQLValueLists(t *testing.T, root string, visit func(position string, list []string)) {
+	t.Helper()
+	for _, dir := range []string{"cmd", "internal"} {
+		err := filepath.WalkDir(filepath.Join(root, dir), func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() {
+				if entry.Name() == "testdata" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			fileSet := token.NewFileSet()
+			file, err := parser.ParseFile(fileSet, path, nil, 0)
+			if err != nil {
+				return err
+			}
+			relative, _ := filepath.Rel(root, path)
+			ast.Inspect(file, func(node ast.Node) bool {
+				literal, ok := node.(*ast.BasicLit)
+				if !ok || literal.Kind != token.STRING {
+					return true
+				}
+				lists, lines := sqlValueLists(literal.Value)
+				for index, list := range lists {
+					visit(fmt.Sprintf("%s:%d", relative, fileSet.Position(literal.Pos()).Line+lines[index]), list)
+				}
+				return true
+			})
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// openAPIEnums returns the enum of every component schema of the public
+// OpenAPI document of the repository at root.
+func openAPIEnums(t *testing.T, root string) map[string][]string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(root, "api", "openapi", "contractor-public-v1.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var document struct {
+		Components struct {
+			Schemas map[string]struct {
+				Enum []string `yaml:"enum"`
+			} `yaml:"schemas"`
+		} `yaml:"components"`
+	}
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		t.Fatal(err)
+	}
+	enums := make(map[string][]string, len(document.Components.Schemas))
+	for name, schema := range document.Components.Schemas {
+		enums[name] = schema.Enum
+	}
+	return enums
 }
 
 // TestRunLifecycleMatchesSpecification compares runLifecycle with the

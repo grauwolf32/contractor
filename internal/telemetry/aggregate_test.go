@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 )
 
@@ -111,7 +112,7 @@ func diagnosticReport(prefix string, count int) reporting.ExecutionReport {
 // counter at math.MaxInt64 when its reports, each within the report bound,
 // sum past it (OBS-R112); the public summary never turns negative.
 func TestSummarizeSaturatesCountersInsteadOfWrapping(t *testing.T) {
-	bound := int64(reporting.MaxResourceInteger)
+	bound := int64(contracts.MaxExactInteger)
 	atBound := func(id string) reporting.ExecutionReport {
 		return reporting.ExecutionReport{
 			ReportID: id, Complete: true,

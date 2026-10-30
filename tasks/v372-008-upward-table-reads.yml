@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: persistence
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: "No package reads a table whose owner sits above it in the layer stack unless its registry entry names the open task that removes the read or a recorded acceptance with its reversal condition, and each known upward read is either removed or so recorded."

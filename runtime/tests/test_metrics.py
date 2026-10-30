@@ -9,7 +9,7 @@ from fakes.private_codec import encode_private
 from pydantic import ValidationError
 
 from contractor_runtime.contracts import (
-    MAX_REPORT_INTEGER,
+    MAX_EXACT_INTEGER,
     ExecutionReport,
     TerminationError,
     ToolCallRecord,
@@ -438,23 +438,23 @@ def test_shared_report_counters_saturate_at_the_report_integer_bound() -> None:
     metrics = report.metrics
     assert state.counters["total_tokens"] == MAX_METRIC_COUNTER
     assert (metrics.input_tokens, metrics.output_tokens, metrics.total_tokens) == (
-        MAX_REPORT_INTEGER,
-        MAX_REPORT_INTEGER,
-        MAX_REPORT_INTEGER,
+        MAX_EXACT_INTEGER,
+        MAX_EXACT_INTEGER,
+        MAX_EXACT_INTEGER,
     )
-    assert (metrics.duration_ms, metrics.model_calls) == (MAX_REPORT_INTEGER, 1)
+    assert (metrics.duration_ms, metrics.model_calls) == (MAX_EXACT_INTEGER, 1)
     tool = metrics.tools["read_file"]
-    assert (tool.calls, tool.succeeded, tool.failed) == (MAX_REPORT_INTEGER,) * 3
+    assert (tool.calls, tool.succeeded, tool.failed) == (MAX_EXACT_INTEGER,) * 3
     assert metrics.worker_budget is not None
-    assert metrics.worker_budget.observed_total_tokens == MAX_REPORT_INTEGER
-    assert metrics.worker_budget.token_usage_unavailable == MAX_REPORT_INTEGER
+    assert metrics.worker_budget.observed_total_tokens == MAX_EXACT_INTEGER
+    assert metrics.worker_budget.token_usage_unavailable == MAX_EXACT_INTEGER
     assert metrics.summarizer is not None
-    assert metrics.summarizer.total_tokens == MAX_REPORT_INTEGER
+    assert metrics.summarizer.total_tokens == MAX_EXACT_INTEGER
     # A fresh validation, which the budget's model_copy skips, accepts it.
     encoded = report.model_dump_json(by_alias=True, exclude_none=True)
     assert ExecutionReport.model_validate_json(encoded) == report
     above = json.loads(encoded)
-    above["metrics"]["totalTokens"] = MAX_REPORT_INTEGER + 1
+    above["metrics"]["totalTokens"] = MAX_EXACT_INTEGER + 1
     with pytest.raises(ValidationError):
         ExecutionReport.model_validate_json(json.dumps(above))
 

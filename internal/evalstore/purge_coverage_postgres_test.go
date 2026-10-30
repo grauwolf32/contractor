@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"maps"
-	"regexp"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 )
@@ -51,6 +51,16 @@ FROM pg_proc
 WHERE pronamespace = current_schema()::regnamespace
 GROUP BY proname`
 
+// purgeRulesSQL lists every rewrite rule of the current schema's tables
+// other than a view's _RETURN rule: each one changes what a write of its
+// table does.
+const purgeRulesSQL = `
+SELECT c.relname::text, r.rulename::text
+FROM pg_rewrite r
+JOIN pg_class c ON c.oid = r.ev_class
+WHERE c.relnamespace = current_schema()::regnamespace AND r.rulename <> '_RETURN' AND r.ev_type <> '1'
+ORDER BY 1, 2`
+
 // purgeColumnsSQL lists every column of the current schema's tables in
 // column order.
 const purgeColumnsSQL = `
@@ -59,46 +69,52 @@ FROM information_schema.columns
 WHERE table_schema = current_schema()
 GROUP BY table_name`
 
-var (
-	sqlComment = regexp.MustCompile(`--[^\n]*`)
-	sqlLiteral = regexp.MustCompile(`'(?:[^']|'')*'`)
-	sqlWrite   = regexp.MustCompile(`(?i)\b(?:INSERT\s+INTO|UPDATE(?:\s+ONLY)?|DELETE\s+FROM(?:\s+ONLY)?|MERGE\s+INTO)\s+([a-z_][a-z0-9_]*)`)
-	sqlDynamic = regexp.MustCompile(`(?i)\bEXECUTE\b`)
-	sqlCall    = regexp.MustCompile(`(?i)\b([a-z_][a-z0-9_]*)\s*\(`)
-	// Words that follow UPDATE without naming a table: ON CONFLICT DO UPDATE
-	// SET and the row locks FOR UPDATE [OF | NOWAIT | SKIP LOCKED].
-	notTable = map[string]bool{"set": true, "of": true, "nowait": true, "skip": true}
-)
+// inSchema returns the name of a table or function of the current schema
+// as the catalog stores it, or, for a name another schema qualifies, the
+// qualified name, which no purge table or schema function has.
+func inSchema(name explaintest.Name, schema string) string {
+	if name.Schema == "" || name.Schema == schema {
+		return name.Object
+	}
+	return name.Schema + "." + name.Object
+}
 
 // writtenTables returns the tables the PL/pgSQL function fn writes, directly
 // or through the functions of the schema it calls, sorted; "?" stands for
-// dynamic SQL, which may write anything. Comments and string literals are
-// ignored, so a function that only checks TG_OP = 'DELETE' writes nothing.
-func writtenTables(functions map[string]string, fn string, seen map[string]bool) []string {
+// dynamic SQL, which may write anything. explaintest.ReadBody reads the
+// function's source as PostgreSQL's lexer does, so comments and string
+// constants are ignored, and a function that only checks TG_OP = 'DELETE'
+// writes nothing.
+func writtenTables(functions map[string]string, schema, fn string, seen map[string]bool) ([]string, error) {
 	if seen[fn] {
-		return nil
+		return nil, nil
 	}
 	seen[fn] = true
-	source := sqlLiteral.ReplaceAllString(sqlComment.ReplaceAllString(functions[fn], " "), "''")
-	written := map[string]bool{}
-	for _, match := range sqlWrite.FindAllStringSubmatch(source, -1) {
-		if table := strings.ToLower(match[1]); !notTable[table] {
-			written[table] = true
-		}
+	body, err := explaintest.ReadBody(functions[fn])
+	if err != nil {
+		return nil, fmt.Errorf("read function %s: %w", fn, err)
 	}
-	if sqlDynamic.MatchString(source) {
+	written := map[string]bool{}
+	for _, table := range body.Writes {
+		written[inSchema(table, schema)] = true
+	}
+	if body.Dynamic {
 		written["?"] = true
 	}
-	for _, match := range sqlCall.FindAllStringSubmatch(source, -1) {
-		if callee := strings.ToLower(match[1]); callee != fn {
+	for _, call := range body.Calls {
+		if callee := inSchema(call, schema); callee != fn {
 			if _, ok := functions[callee]; ok {
-				for _, table := range writtenTables(functions, callee, seen) {
+				tables, err := writtenTables(functions, schema, callee, seen)
+				if err != nil {
+					return nil, err
+				}
+				for _, table := range tables {
 					written[table] = true
 				}
 			}
 		}
 	}
-	return slices.Sorted(maps.Keys(written))
+	return slices.Sorted(maps.Keys(written)), nil
 }
 
 // purgeCoverageViolations compares what the purge declares it deletes and
@@ -114,6 +130,9 @@ func writtenTables(functions map[string]string, fn string, seen map[string]bool)
 //     a deletion trigger of its table declared in purgeDeleteTriggers, which
 //     the purge charges, and every declared trigger must be one; triggers on
 //     the rows a declared trigger writes are followed the same way;
+//   - no table the purge deletes from, updates or has a trigger write has a
+//     rewrite rule, which would write rows the purge does not count or
+//     change what its own statements do;
 //   - every table the purge deletes from or counts in its final unit must
 //     have its columns measured in purgeRowColumns, every column in schema
 //     order, and no other table may be listed there (Eval receipts are
@@ -184,6 +203,10 @@ func purgeCoverageViolations(ctx context.Context, db pg.DBTX) ([]string, error) 
 		}
 	}
 
+	var schema string
+	if err := db.QueryRow(ctx, `SELECT current_schema()`).Scan(&schema); err != nil {
+		return nil, err
+	}
 	rows, err = db.Query(ctx, purgeFunctionsSQL)
 	if err != nil {
 		return nil, err
@@ -223,8 +246,11 @@ func purgeCoverageViolations(ctx context.Context, db pg.DBTX) ([]string, error) 
 	}
 	// The only row a pass updates is the experiment's projection queue row
 	// (invalidatePurgedViewSQL).
-	updated := regexp.MustCompile(`UPDATE (\w+)`).FindStringSubmatch(invalidatePurgedViewSQL)[1]
-	fired = append(fired, event{updated, triggerUpdate})
+	invalidation, err := explaintest.ReadBody(invalidatePurgedViewSQL)
+	if err != nil || len(invalidation.Writes) != 1 {
+		return nil, fmt.Errorf("read invalidatePurgedViewSQL: writes %v, %v", invalidation.Writes, err)
+	}
+	fired = append(fired, event{inSchema(invalidation.Writes[0], schema), triggerUpdate})
 	declared := map[string]bool{}
 	visited := map[event]bool{}
 	eventNames := map[int]string{triggerInsert: "inserts into", triggerDelete: "deletes from", triggerUpdate: "updates"}
@@ -239,7 +265,10 @@ func purgeCoverageViolations(ctx context.Context, db pg.DBTX) ([]string, error) 
 			if tr.events&next.event == 0 {
 				continue
 			}
-			written := writtenTables(functions, tr.function, map[string]bool{})
+			written, err := writtenTables(functions, schema, tr.function, map[string]bool{})
+			if err != nil {
+				return nil, err
+			}
 			if len(written) == 0 {
 				continue
 			}
@@ -264,6 +293,24 @@ func purgeCoverageViolations(ctx context.Context, db pg.DBTX) ([]string, error) 
 				"the purge counts trigger %s on %s, which is no writing deletion trigger of a purged table",
 				name, purgeDeleteTriggers[name].table))
 		}
+	}
+	changed := map[string]bool{}
+	for next := range visited {
+		changed[next.table] = true
+	}
+	rows, err = db.Query(ctx, purgeRulesSQL)
+	if err != nil {
+		return nil, err
+	}
+	var rule string
+	if _, err = pgx.ForEachRow(rows, []any{&table, &rule}, func() error {
+		if changed[table] {
+			violations = append(violations, fmt.Sprintf(
+				"rule %s on %s rewrites the purge's changes to it, and the purge does not count them", rule, table))
+		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	rows, err = db.Query(ctx, purgeColumnsSQL)
@@ -371,6 +418,29 @@ BEGIN INSERT INTO eval_purge_log VALUES (NEW.project_id); RETURN NEW; END $$`,
 			`CREATE TRIGGER eval_collections_logged AFTER INSERT OR UPDATE ON eval_collections FOR EACH ROW EXECUTE FUNCTION eval_purge_fixture()`},
 			[]string{"trigger eval_collections_logged on eval_collections writes [eval_purge_log] when the purge inserts into it",
 				"trigger eval_collections_logged on eval_collections writes [eval_purge_log] when the purge updates it"}},
+		{"deletion trigger writing a quoted table", []string{logTable,
+			`CREATE FUNCTION eval_purge_fixture() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN INSERT INTO "eval_purge_log" VALUES (OLD.member_id); RETURN OLD; END $$`,
+			`CREATE TRIGGER eval_members_logged AFTER DELETE ON eval_members FOR EACH ROW EXECUTE FUNCTION eval_purge_fixture()`},
+			[]string{"trigger eval_members_logged on eval_members writes [eval_purge_log] when the purge deletes from it"}},
+		{"deletion trigger writing a schema-qualified table", []string{logTable,
+			`CREATE FUNCTION eval_purge_fixture() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN DELETE FROM {schema}.eval_purge_log WHERE note = OLD.member_id; RETURN OLD; END $$`,
+			`CREATE TRIGGER eval_members_logged AFTER DELETE ON eval_members FOR EACH ROW EXECUTE FUNCTION eval_purge_fixture()`},
+			[]string{"trigger eval_members_logged on eval_members writes [eval_purge_log] when the purge deletes from it"}},
+		{"deletion trigger writing after a comment marker in a string constant", []string{logTable,
+			`CREATE FUNCTION eval_purge_fixture() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE NOTICE 'a -- b'; DELETE FROM eval_purge_log; RETURN OLD; END $$`,
+			`CREATE TRIGGER eval_members_logged AFTER DELETE ON eval_members FOR EACH ROW EXECUTE FUNCTION eval_purge_fixture()`},
+			[]string{"trigger eval_members_logged on eval_members writes [eval_purge_log] when the purge deletes from it"}},
+		{"deletion trigger with a dollar-quoted constant", []string{logTable,
+			`CREATE FUNCTION eval_purge_fixture() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE NOTICE $note$DELETE FROM eval_members -- it's$note$; INSERT INTO eval_purge_log VALUES (OLD.member_id); RETURN OLD; END $$`,
+			`CREATE TRIGGER eval_members_logged AFTER DELETE ON eval_members FOR EACH ROW EXECUTE FUNCTION eval_purge_fixture()`},
+			[]string{"trigger eval_members_logged on eval_members writes [eval_purge_log] when the purge deletes from it"}},
+		{"rule that writes when the purge deletes", []string{logTable,
+			`CREATE RULE eval_members_logged AS ON DELETE TO eval_members DO ALSO INSERT INTO eval_purge_log VALUES (OLD.member_id)`},
+			[]string{"rule eval_members_logged on eval_members rewrites"}},
 		{"declared trigger that no longer writes", []string{
 			`DROP TRIGGER eval_datasets_collection ON eval_dataset_revisions`},
 			[]string{"the purge counts trigger eval_datasets_collection on eval_dataset_revisions, which is no writing deletion trigger"}},
@@ -383,7 +453,12 @@ BEGIN INSERT INTO eval_purge_log VALUES (NEW.project_id); RETURN NEW; END $$`,
 				t.Fatal(err)
 			}
 			defer func() { _ = tx.Rollback(ctx) }()
+			var schema string
+			if err := tx.QueryRow(ctx, `SELECT current_schema()`).Scan(&schema); err != nil {
+				t.Fatal(err)
+			}
 			for _, statement := range fixture.ddl {
+				statement = strings.ReplaceAll(statement, "{schema}", pgx.Identifier{schema}.Sanitize())
 				if _, err := tx.Exec(ctx, statement); err != nil {
 					t.Fatalf("%s: %v", statement, err)
 				}

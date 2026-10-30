@@ -321,7 +321,7 @@ func TestSharedPostgresEvalOverflowingUsageRecollectsWithoutNewRecords(t *testin
 	// fits the range at 2^63-1,024 and overflows only together with the
 	// second stage's 1,024 failures. Small summaries keep the budget's known
 	// lower bound out of this test.
-	bound := int64(reporting.MaxResourceInteger)
+	bound := int64(contracts.MaxExactInteger)
 	tools := map[string]reporting.ToolMetrics{}
 	for index := range 1025 {
 		calls, failed := bound, bound

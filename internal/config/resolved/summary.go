@@ -64,7 +64,7 @@ func escalationStage(stage ResolvedStage, outcome string, escalation EscalateTra
 		}
 		return variant, nil
 	}
-	if stage.Planner != (PlannerRef{PlannerID: "passthrough", Version: "1"}) || len(stage.Agents) != 1 {
+	if stage.Planner.Selector() != PassthroughPlanner || len(stage.Agents) != 1 {
 		return ResolvedStage{}, fmt.Errorf("on.summarized requires passthrough@1 with one Worker")
 	}
 	if stage.On.Failed.Kind == TransitionEscalate || stage.On.Interrupted.Kind == TransitionEscalate {
@@ -78,7 +78,7 @@ func escalationStage(stage ResolvedStage, outcome string, escalation EscalateTra
 			return ResolvedStage{}, fmt.Errorf("summary escalation requires a writable ordinary Agent Namespace")
 		}
 	}
-	if escalation.Planner == nil || *escalation.Planner != (PlannerRef{PlannerID: "streamline", Version: "1"}) || escalation.MaxAttempts != 1 {
+	if escalation.Planner == nil || escalation.Planner.Selector() != StreamlinePlanner || escalation.MaxAttempts != 1 {
 		return ResolvedStage{}, fmt.Errorf("on.summarized requires one escalation to streamline@1")
 	}
 	if escalation.Then != (TransitionAction{}) {
