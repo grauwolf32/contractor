@@ -321,6 +321,40 @@ func TestResolverRejectsUnauthorizedRoutesAndCredentialKinds(t *testing.T) {
 		}
 	})
 
+	t.Run("unauthorized compactor policy", func(t *testing.T) {
+		input := resolverInput()
+		compactor := contracts.ResolvedModelPolicy{
+			Ref: contracts.ModelPolicyRef{
+				PolicyID: "compactor", Version: "1", Digest: testDigest("9"),
+			},
+			Model: "compactor-model", ContextWindowTokens: 8192,
+			MaxOutputTokens: 1024, MaxModelCalls: 1, MaxTotalTokens: 9000,
+		}
+		input.CompactorModelPolicy = &compactor
+		input.Default.Spec.Worker.LLMGateway.Credential = credentialField("agent-key")
+		input.LLMCredentials["agent-key"] = authorization(
+			input, "agent-key", testGatewayRef("primary", "1"),
+		)
+		_, err := ResolveRuntimeConfig(input)
+		assertResolutionError(t, err, ResolutionModelUnauthorized, "worker.llmGateway.credential")
+
+		authorized := input.LLMCredentials["agent-key"]
+		authorized.ModelPolicies = append(authorized.ModelPolicies, compactor.Ref)
+		authorized.Models = append(authorized.Models, compactor.Model)
+		input.LLMCredentials["agent-key"] = authorized
+		resolved, err := ResolveRuntimeConfig(input)
+		if err != nil || resolved.CompactorModelPolicy == nil ||
+			resolved.CompactorModelPolicy.Model != "compactor-model" || resolved.Validate() != nil {
+			t.Fatalf("compactor-authorized shared route = (%+v, %v)", resolved, err)
+		}
+
+		withTools := compactor
+		withTools.MaxToolCalls = 1
+		input.CompactorModelPolicy = &withTools
+		_, err = ResolveRuntimeConfig(input)
+		assertResolutionError(t, err, ResolutionInvalid, "contextManagement.modelPolicy")
+	})
+
 	t.Run("Runtime credential kind", func(t *testing.T) {
 		input := resolverInput()
 		input.RunLabels = []PinnedRuntimeConfig{testPin("debug", "4", Spec{Worker: WorkerPatch{

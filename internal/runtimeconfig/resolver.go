@@ -148,21 +148,25 @@ type ResolveRuntimeConfigInput struct {
 	ModelFree             bool
 	ModelPolicy           contracts.ResolvedModelPolicy
 	SummarizerModelPolicy *contracts.ResolvedModelPolicy
-	Default               PinnedRuntimeConfig
-	Workflow              WorkerRoutePatch
-	RunLabels             []PinnedRuntimeConfig
-	RunOverride           WorkerRoutePatch
-	Escalation            WorkerRoutePatch
-	AgentLabels           []PinnedRuntimeConfig
-	Gateways              map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig
-	LLMCredentials        map[string]LLMCredentialAuthorization
-	RuntimeCredentials    map[string]runtimesettings.RuntimeCredentialKind
+	// CompactorModelPolicy is the pinned compact@1 compactor policy; it uses
+	// the effective Worker Gateway and credential (WRK-R186).
+	CompactorModelPolicy *contracts.ResolvedModelPolicy
+	Default              PinnedRuntimeConfig
+	Workflow             WorkerRoutePatch
+	RunLabels            []PinnedRuntimeConfig
+	RunOverride          WorkerRoutePatch
+	Escalation           WorkerRoutePatch
+	AgentLabels          []PinnedRuntimeConfig
+	Gateways             map[llmgateway.LLMGatewayConfigRef]llmgateway.ResolvedLLMGatewayConfig
+	LLMCredentials       map[string]LLMCredentialAuthorization
+	RuntimeCredentials   map[string]runtimesettings.RuntimeCredentialKind
 }
 
 // ResolvedRuntimeConfig is safe non-secret allocation input. RuntimeSettings
 // secret material is deliberately resolved only after placement by V8-007.
 type ResolvedRuntimeConfig struct {
 	SummarizerModelPolicy    *contracts.ResolvedModelPolicy                  `json:"summarizerModelPolicy,omitempty"`
+	CompactorModelPolicy     *contracts.ResolvedModelPolicy                  `json:"compactorModelPolicy,omitempty"`
 	ModelFree                bool                                            `json:"modelFree,omitempty"`
 	ModelPolicy              contracts.ResolvedModelPolicy                   `json:"modelPolicy,omitzero"`
 	LLMGateway               llmgateway.ResolvedLLMGatewayConfig             `json:"llmGateway,omitzero"`
@@ -180,7 +184,7 @@ type ResolvedRuntimeConfig struct {
 
 func (r ResolvedRuntimeConfig) Validate() error {
 	if r.ModelFree {
-		if !r.ModelPolicy.IsZero() || r.SummarizerModelPolicy != nil || r.LLMGateway != (llmgateway.ResolvedLLMGatewayConfig{}) || r.LLMCredential != nil || r.Origins.LLMGateway != nil || r.Origins.LLMCredential != nil || r.Provenance.LLMGatewayConfig != nil || r.Provenance.LLMCredential != nil {
+		if !r.ModelPolicy.IsZero() || r.SummarizerModelPolicy != nil || r.CompactorModelPolicy != nil || r.LLMGateway != (llmgateway.ResolvedLLMGatewayConfig{}) || r.LLMCredential != nil || r.Origins.LLMGateway != nil || r.Origins.LLMCredential != nil || r.Provenance.LLMGatewayConfig != nil || r.Provenance.LLMCredential != nil {
 			return resolutionError(ResolutionInvalid, "modelFree", ErrInvalid)
 		}
 	} else {
@@ -194,6 +198,11 @@ func (r ResolvedRuntimeConfig) Validate() error {
 	if r.SummarizerModelPolicy != nil {
 		if err := r.SummarizerModelPolicy.ValidateForWorkerSummarizer(); err != nil {
 			return resolutionError(ResolutionInvalid, "summarizerModelPolicy", ErrInvalid)
+		}
+	}
+	if r.CompactorModelPolicy != nil {
+		if err := r.CompactorModelPolicy.ValidateForWorkerCompactor(); err != nil || r.SummarizerModelPolicy != nil {
+			return resolutionError(ResolutionInvalid, "compactorModelPolicy", ErrInvalid)
 		}
 	}
 	if err := r.Origins.Validate(); err != nil {
@@ -230,7 +239,7 @@ type layerOrigins struct {
 // the call; the result owns every returned slice and pointer.
 func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfig, error) {
 	if input.ModelFree {
-		if !input.ModelPolicy.IsZero() || input.SummarizerModelPolicy != nil || input.Workflow != (WorkerRoutePatch{}) || input.RunOverride != (WorkerRoutePatch{}) || input.Escalation != (WorkerRoutePatch{}) {
+		if !input.ModelPolicy.IsZero() || input.SummarizerModelPolicy != nil || input.CompactorModelPolicy != nil || input.Workflow != (WorkerRoutePatch{}) || input.RunOverride != (WorkerRoutePatch{}) || input.Escalation != (WorkerRoutePatch{}) {
 			return ResolvedRuntimeConfig{}, resolutionError(ResolutionInvalid, "modelFree", ErrInvalid)
 		}
 		input.Default = WithoutWorkerModel(input.Default)
@@ -245,6 +254,13 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		if err := input.SummarizerModelPolicy.ValidateForWorkerSummarizer(); err != nil {
 			return ResolvedRuntimeConfig{}, resolutionError(
 				ResolutionInvalid, "summarizer.modelPolicy", ErrInvalid,
+			)
+		}
+	}
+	if input.CompactorModelPolicy != nil {
+		if err := input.CompactorModelPolicy.ValidateForWorkerCompactor(); err != nil || input.SummarizerModelPolicy != nil {
+			return ResolvedRuntimeConfig{}, resolutionError(
+				ResolutionInvalid, "contextManagement.modelPolicy", ErrInvalid,
 			)
 		}
 	}
@@ -340,6 +356,10 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 	if input.SummarizerModelPolicy != nil {
 		policy := input.SummarizerModelPolicy.Clone()
 		result.SummarizerModelPolicy = &policy
+	}
+	if input.CompactorModelPolicy != nil {
+		policy := input.CompactorModelPolicy.Clone()
+		result.CompactorModelPolicy = &policy
 	}
 	if err := result.Origins.Validate(); err != nil {
 		return ResolvedRuntimeConfig{}, err
@@ -549,12 +569,14 @@ func validateLLMRoute(
 			ResolutionModelUnauthorized, "worker.llmGateway.credential", ErrInvalid,
 		)
 	}
-	if !authorization.Unrestricted && input.SummarizerModelPolicy != nil &&
-		(!containsModelPolicy(authorization.ModelPolicies, input.SummarizerModelPolicy.Ref) ||
-			!slices.Contains(authorization.Models, input.SummarizerModelPolicy.Model)) {
-		return resolutionError(
-			ResolutionModelUnauthorized, "worker.llmGateway.credential", ErrInvalid,
-		)
+	for _, auxiliary := range []*contracts.ResolvedModelPolicy{input.SummarizerModelPolicy, input.CompactorModelPolicy} {
+		if !authorization.Unrestricted && auxiliary != nil &&
+			(!containsModelPolicy(authorization.ModelPolicies, auxiliary.Ref) ||
+				!slices.Contains(authorization.Models, auxiliary.Model)) {
+			return resolutionError(
+				ResolutionModelUnauthorized, "worker.llmGateway.credential", ErrInvalid,
+			)
+		}
 	}
 	return nil
 }
@@ -902,6 +924,10 @@ func (r ResolvedRuntimeConfig) Clone() ResolvedRuntimeConfig {
 	if r.SummarizerModelPolicy != nil {
 		policy := r.SummarizerModelPolicy.Clone()
 		result.SummarizerModelPolicy = &policy
+	}
+	if r.CompactorModelPolicy != nil {
+		policy := r.CompactorModelPolicy.Clone()
+		result.CompactorModelPolicy = &policy
 	}
 	result.LLMGateway = r.LLMGateway.Clone()
 	result.LLMCredential = clone.Pointer(r.LLMCredential)
