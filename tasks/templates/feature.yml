@@ -15,10 +15,19 @@ depends_on: []
 languages: [go]
 goal: >-
   <One paragraph: the user-visible outcome and why it is needed now.>
+demonstration: >-
+  <The smallest end-to-end scenario through real components that shows the
+  outcome, and the acceptance criterion that proves it (AGENTS.md 4.1).>
 context:
   # Documents named here are required reading for whoever implements the task.
   specification: "docs/spec/<domain>/<document>.md#<PREFIX-Rn>"
   design: "<optional plan or decision record>"
+  # Where the requirements come from: user decisions with their date, the
+  # specification, or agent proposals labelled as such (AGENTS.md 4.1).
+  authority: "<User decision on YYYY-MM-DD: ...; proposal: ...>"
+  # Only while a consequential choice is open: options, recommendation and
+  # who decides. Keep the task pending until it is settled.
+  decision_needed: "<optional>"
 scope:
   in:
     - "<behaviour this task delivers>"
