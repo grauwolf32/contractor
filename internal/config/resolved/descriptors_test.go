@@ -168,14 +168,15 @@ func TestToolsetDescriptorRejectsInvalidInfrastructureChannels(t *testing.T) {
 
 // toolsetDescriptorFixture is one Toolset of api/testdata/toolset-descriptors.json.
 type toolsetDescriptorFixture struct {
-	Tools                   []string                           `json:"tools"`
-	InfrastructureChannels  map[string][]infrastructureChannel `json:"infrastructureChannels"`
-	RequiresWorkspace       bool                               `json:"requiresWorkspace"`
-	RequiredSandboxProfiles []string                           `json:"requiredSandboxProfiles"`
-	SandboxActiveCheckTools map[string][]string                `json:"sandboxActiveCheckTools"`
-	ActiveCheckTools        []string                           `json:"activeCheckTools"`
-	FindingProposalTools    []string                           `json:"findingProposalTools"`
-	RequiredWorkflowInputs  map[string]struct {
+	Tools                     []string                           `json:"tools"`
+	InfrastructureChannels    map[string][]infrastructureChannel `json:"infrastructureChannels"`
+	RequiresWorkspace         bool                               `json:"requiresWorkspace"`
+	WorkspaceObservationTools []string                           `json:"workspaceObservationTools"`
+	RequiredSandboxProfiles   []string                           `json:"requiredSandboxProfiles"`
+	SandboxActiveCheckTools   map[string][]string                `json:"sandboxActiveCheckTools"`
+	ActiveCheckTools          []string                           `json:"activeCheckTools"`
+	FindingProposalTools      []string                           `json:"findingProposalTools"`
+	RequiredWorkflowInputs    map[string]struct {
 		Input     string `json:"input"`
 		MediaType string `json:"mediaType"`
 	} `json:"requiredWorkflowInputs"`
@@ -183,8 +184,8 @@ type toolsetDescriptorFixture struct {
 
 // TestSharedToolsetDescriptorParity holds every Server Toolset descriptor to
 // api/testdata/toolset-descriptors.json, which the Runtime's factories are
-// held to as well (runtime/tests/test_capabilities.py), so a tool or Toolset
-// added on one side only fails.
+// held to as well (runtime/tests/test_capabilities.py), so a tool, a Toolset
+// or a workspace-observation classification added on one side only fails.
 func TestSharedToolsetDescriptorParity(t *testing.T) {
 	t.Parallel()
 	var fixture struct {
@@ -209,6 +210,9 @@ func TestSharedToolsetDescriptorParity(t *testing.T) {
 		want := toolsetDescriptor{
 			RequiredSandboxProfiles: profiles, RequiresWorkspace: shared.RequiresWorkspace,
 			Tools: shared.Tools, InfrastructureChannels: shared.InfrastructureChannels,
+		}
+		if len(shared.WorkspaceObservationTools) > 0 {
+			want.WorkspaceObservationTools = shared.WorkspaceObservationTools
 		}
 		if len(shared.ActiveCheckTools) > 0 {
 			want.ActiveCheckTools = shared.ActiveCheckTools
@@ -242,5 +246,78 @@ func TestToolsetDescriptorRejectsNativeSkillToolNames(t *testing.T) {
 	if _, err := normalizeDescriptors(descriptors); err == nil ||
 		!strings.Contains(err.Error(), `exports tool "load_skill", which is reserved by Agent Skills`) {
 		t.Fatalf("reserved tool descriptor error = %v", err)
+	}
+}
+
+// Exactly the tools whose selection made a Worker workspace-eligible before
+// the classification moved into the descriptors, and no other built-in tool,
+// make it eligible now.
+func TestWorkspaceObservationToolsKeepTheEligibleSelections(t *testing.T) {
+	t.Parallel()
+	eligible := map[string][]string{
+		"filesystem@1": {"glob", "grep", "ls", "read_file"},
+		"edit-files@1": {
+			"append_file", "cp", "edit", "insert_line", "mkdir", "mv", "replace_range", "rm", "write_file",
+		},
+		"taint-annotations@1": {"annotate_sink", "annotate_trace", "annotate_validate"},
+		"workspace-changes@1": {"changed_paths"},
+	}
+	checked := 0
+	for selector, descriptor := range registeredDescriptors().Toolsets {
+		ref, err := ParseSelector(selector)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, tool := range descriptor.Tools {
+			selection := contracts.ToolsetSelection{
+				Ref:   contracts.ToolsetRef{ToolsetID: ref.ID, Version: ref.Version},
+				Tools: []string{tool},
+			}
+			if got, want := SelectsWorkspaceObservationTool(selection), slices.Contains(eligible[selector], tool); got != want {
+				t.Errorf("%s %s workspace-eligible = %v, want %v", selector, tool, got, want)
+			}
+			checked++
+		}
+	}
+	if checked < 100 {
+		t.Fatalf("checked only %d built-in tools", checked)
+	}
+}
+
+func TestToolsetDescriptorRejectsInvalidWorkspaceObservationTools(t *testing.T) {
+	t.Parallel()
+	for name, test := range map[string]struct {
+		selector string
+		mutate   func(*toolsetDescriptor)
+		message  string
+	}{
+		"unknown tool": {
+			selector: "filesystem@1",
+			mutate: func(d *toolsetDescriptor) {
+				d.WorkspaceObservationTools = append(d.WorkspaceObservationTools, "write_file")
+			},
+			message: `classifies unknown workspace-observation tool "write_file"`,
+		},
+		"duplicate tool": {
+			selector: "filesystem@1",
+			mutate:   func(d *toolsetDescriptor) { d.WorkspaceObservationTools = append(d.WorkspaceObservationTools, "ls") },
+			message:  `duplicate workspace-observation tool "ls"`,
+		},
+		"no workspace need": {
+			selector: "run-artifacts@1",
+			mutate:   func(d *toolsetDescriptor) { d.WorkspaceObservationTools = []string{"read_artifact"} },
+			message:  "observes the workspace without a workspace need",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			descriptors := builtInDescriptors()
+			descriptor := descriptors.Toolsets[test.selector]
+			test.mutate(&descriptor)
+			descriptors.Toolsets[test.selector] = descriptor
+			if _, err := normalizeDescriptors(descriptors); err == nil || !strings.Contains(err.Error(), test.message) {
+				t.Fatalf("descriptor error = %v, want %q", err, test.message)
+			}
+		})
 	}
 }

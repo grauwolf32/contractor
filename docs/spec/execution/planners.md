@@ -466,7 +466,8 @@ parameter.
 
 **PLN-R53.** Workspace projection tools are present only when the
 immutable Stage/Agent binding has a workspace and at least one selected
-workspace-observing tool.
+workspace-observing tool: a tool its Toolset descriptor lists as recording
+workspace observations ([TLS-R38](../tools/toolsets.md)).
 
 **PLN-R54.** The Planner toolset includes `get_worker_tool_usage` for
 every modeled Worker binding; this does not add that tool to the Worker

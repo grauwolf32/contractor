@@ -43,19 +43,24 @@ type plannerDescriptor struct {
 // the ordinary Workflow input that the runtime toolset reads during allocation
 // preparation; ValidateWorkflowGraph requires it of every Workflow whose agent
 // selects that tool. RequiresWorkspace marks a Toolset that reads or changes
-// the allocation workspace, so its Stage needs context.workspace. The Runtime
-// ToolsetFactory of every built-in Toolset declares the same tools, channels,
-// workspace need and SandboxProfile; api/testdata/toolset-descriptors.json
-// pins both sides and the Server-only classifications.
+// the allocation workspace, so its Stage needs context.workspace.
+// WorkspaceObservationTools are the tools whose successful calls the Runtime
+// records as workspace observations in Worker State; a Worker that selects
+// one gets the Planner's workspace projections. The Runtime ToolsetFactory of
+// every built-in Toolset declares the same tools, channels, workspace need,
+// workspace observation tools and SandboxProfile;
+// api/testdata/toolset-descriptors.json pins both sides and the Server-only
+// classifications.
 type toolsetDescriptor struct {
-	RequiredSandboxProfiles []string
-	RequiresWorkspace       bool
-	Tools                   []string
-	InfrastructureChannels  map[string][]infrastructureChannel
-	ActiveCheckTools        []string
-	SandboxActiveCheckTools map[string][]string
-	FindingProposalTools    []string
-	RequiredWorkflowInputs  map[string]workflowInputRequirement
+	RequiredSandboxProfiles   []string
+	RequiresWorkspace         bool
+	Tools                     []string
+	WorkspaceObservationTools []string
+	InfrastructureChannels    map[string][]infrastructureChannel
+	ActiveCheckTools          []string
+	SandboxActiveCheckTools   map[string][]string
+	FindingProposalTools      []string
+	RequiredWorkflowInputs    map[string]workflowInputRequirement
 }
 
 // workflowInputRequirement is one Workflow input a selected tool depends on:
@@ -183,10 +188,14 @@ func builtInDescriptors() descriptorTable {
 				Tools: []string{
 					"append_file", "cp", "edit", "insert_line", "mkdir", "mv", "replace_range", "rm", "write_file",
 				},
+				WorkspaceObservationTools: []string{
+					"append_file", "cp", "edit", "insert_line", "mkdir", "mv", "replace_range", "rm", "write_file",
+				},
 			},
 			"filesystem@1": {
-				RequiresWorkspace: true,
-				Tools:             []string{"glob", "grep", "ls", "read_file"},
+				RequiresWorkspace:         true,
+				Tools:                     []string{"glob", "grep", "ls", "read_file"},
+				WorkspaceObservationTools: []string{"glob", "grep", "ls", "read_file"},
 			},
 			"http-tools@1": {
 				Tools: []string{
@@ -249,12 +258,14 @@ func builtInDescriptors() descriptorTable {
 				Tools: []string{"read_text_artifact", "write_text_artifact"},
 			},
 			"taint-annotations@1": {
-				RequiresWorkspace: true,
-				Tools:             []string{"annotate_sink", "annotate_trace", "annotate_validate"},
+				RequiresWorkspace:         true,
+				Tools:                     []string{"annotate_sink", "annotate_trace", "annotate_validate"},
+				WorkspaceObservationTools: []string{"annotate_sink", "annotate_trace", "annotate_validate"},
 			},
 			"workspace-changes@1": {
-				RequiresWorkspace: true,
-				Tools:             []string{"changed_paths", "diff", "rollback_changes"},
+				RequiresWorkspace:         true,
+				Tools:                     []string{"changed_paths", "diff", "rollback_changes"},
+				WorkspaceObservationTools: []string{"changed_paths"},
 			},
 		},
 		SandboxProfiles: map[string]sandboxProfileDescriptor{
@@ -323,6 +334,13 @@ func ToolsetTools(selector string) ([]string, bool) {
 func SelectsActiveCheckTool(selection contracts.ToolsetSelection, profile contracts.SandboxProfileRef) bool {
 	descriptor := registeredDescriptors().Toolsets[selection.Ref.ToolsetID+"@"+selection.Ref.Version]
 	return selectsAny(selection.Tools, descriptor.ActiveCheckTools) || selectsAny(selection.Tools, descriptor.SandboxActiveCheckTools[profile.SandboxProfileID+"@"+profile.Version])
+}
+
+// SelectsWorkspaceObservationTool reports whether selection selects a tool
+// whose successful calls the Runtime records as workspace observations.
+func SelectsWorkspaceObservationTool(selection contracts.ToolsetSelection) bool {
+	descriptor := registeredDescriptors().Toolsets[selection.Ref.ToolsetID+"@"+selection.Ref.Version]
+	return selectsAny(selection.Tools, descriptor.WorkspaceObservationTools)
 }
 
 // SelectsFindingProposalTool reports whether selection selects a tool that
@@ -580,6 +598,13 @@ func normalizeToolsetDescriptor(raw string, descriptor toolsetDescriptor, sandbo
 	if err != nil {
 		return toolsetDescriptor{}, err
 	}
+	observing, err := normalizeToolClassification(raw, "workspace-observation", descriptor.WorkspaceObservationTools, seen)
+	if err != nil {
+		return toolsetDescriptor{}, err
+	}
+	if len(observing) > 0 && !descriptor.RequiresWorkspace {
+		return toolsetDescriptor{}, fmt.Errorf("Toolset descriptor %q observes the workspace without a workspace need", raw)
+	}
 	inputs, err := normalizeWorkflowInputRequirements(raw, descriptor.RequiredWorkflowInputs, seen)
 	if err != nil {
 		return toolsetDescriptor{}, err
@@ -587,7 +612,7 @@ func normalizeToolsetDescriptor(raw string, descriptor toolsetDescriptor, sandbo
 	return toolsetDescriptor{
 		RequiredSandboxProfiles: append([]string(nil), descriptor.RequiredSandboxProfiles...),
 		RequiresWorkspace:       descriptor.RequiresWorkspace,
-		Tools:                   tools, InfrastructureChannels: channels,
+		Tools:                   tools, WorkspaceObservationTools: observing, InfrastructureChannels: channels,
 		ActiveCheckTools: active, SandboxActiveCheckTools: sandboxActive, FindingProposalTools: findings,
 		RequiredWorkflowInputs: inputs,
 	}, nil

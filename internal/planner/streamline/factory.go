@@ -3,6 +3,7 @@ package streamline
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -261,32 +262,11 @@ type workerBinding struct {
 	workspaceState bool
 }
 
+// selectedWorkspaceObservation reports whether a Worker's template selects a
+// tool whose calls the Runtime records as workspace observations, which the
+// registered Toolset descriptor classifies (TLS-R38).
 func selectedWorkspaceObservation(template contracts.ResolvedAgentTemplate) bool {
-	for _, selection := range template.Toolsets {
-		ref := selection.Ref.ToolsetID + "@" + selection.Ref.Version
-		for _, operation := range selection.Tools {
-			switch ref {
-			case "filesystem@1":
-				if operation == "ls" || operation == "glob" || operation == "read_file" || operation == "grep" {
-					return true
-				}
-			case "edit-files@1":
-				switch operation {
-				case "write_file", "append_file", "rm", "insert_line", "edit", "replace_range", "cp", "mv", "mkdir":
-					return true
-				}
-			case "taint-annotations@1":
-				if operation == "annotate_trace" || operation == "annotate_validate" || operation == "annotate_sink" {
-					return true
-				}
-			case "workspace-changes@1":
-				if operation == "changed_paths" {
-					return true
-				}
-			}
-		}
-	}
-	return false
+	return slices.ContainsFunc(template.Toolsets, resolved.SelectsWorkspaceObservationTool)
 }
 
 func selectedMemoryOperations(template contracts.ResolvedAgentTemplate) (map[string]struct{}, error) {

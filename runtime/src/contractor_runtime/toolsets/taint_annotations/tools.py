@@ -117,6 +117,9 @@ class _MutationPlan:
 class TaintAnnotationsToolsetFactory:
     ref = TAINT_ANNOTATIONS_REF
     exported_tools = EXPORTED_TOOLS
+    # Tools whose successful calls record a workspace observation (their
+    # contractor_observation); the Server reads the same set (TLS-R38).
+    workspace_observation_tools = EXPORTED_TOOLS
     infrastructure_channels = MappingProxyType({})
     requires_workspace = True
     workspace_access = "write"

@@ -65,6 +65,9 @@ REGEX_LINE_TIMEOUT_SECONDS = 0.01
 class FilesystemToolsetFactory:
     ref = "filesystem@1"
     exported_tools = frozenset({"ls", "glob", "read_file", "grep"})
+    # Tools whose successful calls record a workspace observation (their
+    # contractor_observation); the Server reads the same set (TLS-R38).
+    workspace_observation_tools = exported_tools
     infrastructure_channels = MappingProxyType({})
     requires_workspace = True
     workspace_access = "read"
