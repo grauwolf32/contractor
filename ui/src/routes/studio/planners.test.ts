@@ -1,19 +1,21 @@
 import { describe, expect, it } from "vitest";
 import shared from "../../../../api/testdata/planner-fact-cases.json";
 import { patchDraft, starter } from "./document";
-import { PLANNER_FACTS } from "./planners";
+import { plannerFacts } from "./planners";
 import { validateDraft } from "./validation";
 
 describe("shared Planner facts", () => {
-  it("lists exactly the registered Planners with their facts", () => {
-    expect(PLANNER_FACTS).toEqual(
-      Object.fromEntries(
-        shared.planners.map(({ ref, singleAgent, agentResults }) => [
-          ref,
-          { singleAgent, agentResults },
-        ]),
-      ),
-    );
+  it.each(shared.planners)(
+    "gives $ref its registered facts",
+    ({ ref, singleAgent, agentResults }) => {
+      expect(plannerFacts(ref)).toEqual({ singleAgent, agentResults });
+    },
+  );
+
+  it("knows no Planner outside the registry", () => {
+    for (const selector of ["unknown@1", "toString", "__proto__"]) {
+      expect(plannerFacts(selector)).toBeUndefined();
+    }
   });
 
   it.each(shared.cases)(

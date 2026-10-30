@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createArtifactPreviewPlan,
-  MAXIMUM_AUTOMATIC_OPENAPI_BYTES,
-} from "./preview-plan";
+import { createArtifactPreviewPlan } from "./preview-plan";
+
+// LIM-UI-17 in docs/spec/platform/limits.md, pinned here so the module cannot
+// move its bound without the specification.
+const MAXIMUM_AUTOMATIC_OPENAPI_BYTES = 128 * 1024;
 
 // Pads a document with a YAML comment to exactly `bytes` UTF-8 bytes.
 function padded(document: string, bytes: number): string {
