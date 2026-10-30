@@ -546,9 +546,35 @@ duplicate key anywhere in it is rejected and an integer keeps its exact
 digits. An A2A DataPart is a `google.protobuf.Value`, whose numbers are
 doubles, and the Runtime renders every integer that way (`7.0`); a number
 written as an integral double therefore counts as that integer, while a
-fractional number or one outside the member's range is rejected. Integers
-above 2^53 cannot cross this DataPart exactly: the Runtime's encoding rounds
-them to the nearest double before the Planner reads them.
+fractional number or one outside the member's range is rejected.
+
+Because a double carries integers exactly only up to 2^53-1, every
+`WorkerCompletion` integer, `state_revision` (1 to 2^53-1) and each lean@1
+observation count (tool calls and failures, scoped, discovered, read,
+matched, modified and unread files; 0 to 2^53-1), is bounded to that range
+(LIM-WRK-27) by the private schema, the Runtime model and the Server decoder.
+The Runtime rejects a larger value when it builds the completion, before it
+encodes the DataPart, so the A2A executor answers with its bounded
+`worker_execution_failed` failure instead (or fails the Task without a
+message when that failure cannot be built either); the Planner rejects a
+larger value it decodes with `invalid_worker_result`. Every integer above
+2^53-1 rounds to a double of at least 2^53, so the Planner detects a rounded
+value instead of reading it as another count. The Worker State and the
+allocation lifecycle responses are JSON bodies, not A2A DataParts, and keep
+their uint64 range.
+
+Decision: bound the integers rather than change the transport. The
+alternative, carrying integers exactly through the DataPart, needs a
+different part encoding or replacing the SDK transport, which is out of scope
+for this boundary ([proposal 0038](../../proposals/0038-server-runtime-transport.md)
+weighs a transport change); no producer comes near the bound (workspace counts are at most 10,000
+paths, LIM-WRK-15, and tool calls and State revisions grow by one per event).
+The shared cases `exact_integer_max` and `exact_integer_over` in
+`api/testdata/v1alpha1/worker-result-size-cases.json` and the
+`worker-completion-*-above-exact.json` invalid fixtures hold the schema, Go,
+Python and the A2A decode path to one verdict. Reopen when a concrete
+`WorkerCompletion` member needs values above 2^53-1 or the A2A transport gains
+an exact integer encoding.
 
 **WRK-R39.** For Streamline and Router,
 `execute_current_subtask` returns the bounded model-facing portion of
@@ -1507,6 +1533,8 @@ Limits ([registry](../platform/limits.md)):
   SessionService events per history reconciliation read (WRK-R176).
 - LIM-WRK-26: five-second joined history-settlement cleanup budget
   (WRK-R177).
+- LIM-WRK-27: every `WorkerCompletion` integer at most 2^53-1
+  (WRK-R164).
 
 Errors ([registry](../platform/errors.md)):
 

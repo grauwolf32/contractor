@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://contractor.local/schema/v1alpha1/worker-completion.schema.json",
   "$defs": {
-    "uint64": {
+    "exactInteger": {
       "type": "integer",
       "minimum": 0,
-      "maximum": 18446744073709551615
+      "maximum": 9007199254740991
     },
     "subtaskId": {
       "type": "string",
@@ -18,8 +18,8 @@
       "additionalProperties": false,
       "required": ["calls", "failures"],
       "properties": {
-        "calls": {"$ref": "#/$defs/uint64"},
-        "failures": {"$ref": "#/$defs/uint64"}
+        "calls": {"$ref": "#/$defs/exactInteger"},
+        "failures": {"$ref": "#/$defs/exactInteger"}
       }
     },
     "workspaceObservationSummary": {
@@ -37,14 +37,14 @@
         "filesReadTruncated"
       ],
       "properties": {
-        "scopedFiles": {"$ref": "#/$defs/uint64"},
+        "scopedFiles": {"$ref": "#/$defs/exactInteger"},
         "scopeComplete": {"type": "boolean"},
-        "discoveredFiles": {"$ref": "#/$defs/uint64"},
-        "readFiles": {"$ref": "#/$defs/uint64"},
-        "matchedFiles": {"$ref": "#/$defs/uint64"},
-        "modifiedFiles": {"$ref": "#/$defs/uint64"},
+        "discoveredFiles": {"$ref": "#/$defs/exactInteger"},
+        "readFiles": {"$ref": "#/$defs/exactInteger"},
+        "matchedFiles": {"$ref": "#/$defs/exactInteger"},
+        "modifiedFiles": {"$ref": "#/$defs/exactInteger"},
         "detailComplete": {"type": "boolean"},
-        "unreadFiles": {"$ref": "#/$defs/uint64"},
+        "unreadFiles": {"$ref": "#/$defs/exactInteger"},
         "filesRead": {
           "type": "array",
           "maxItems": 25,
@@ -140,7 +140,7 @@
     "stateRevision": {
       "type": "integer",
       "minimum": 1,
-      "maximum": 18446744073709551615
+      "maximum": 9007199254740991
     }
   },
   "oneOf": [

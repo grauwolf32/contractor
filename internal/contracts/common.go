@@ -53,6 +53,14 @@ const MaxResourceIDLength = 256
 // the public IdempotencyKey parameter does.
 const MaxIdempotencyKeyLength = 128
 
+// MaxExactInteger is 2^53-1, the largest integer that every JSON consumer,
+// TypeScript and a google.protobuf.Value double included, carries exactly. It
+// bounds every integer of a RuntimeResources block and of ExecutionMetrics
+// (OBS-R111, LIM-OBS-17), every WorkerCompletion integer, which crosses the A2A
+// DataPart as a double (WRK-R164, LIM-WRK-27), and exact tool parameter
+// integers.
+const MaxExactInteger = 1<<53 - 1
+
 var (
 	// ErrValidation identifies a syntactically valid JSON value that violates a
 	// Contractor wire invariant.

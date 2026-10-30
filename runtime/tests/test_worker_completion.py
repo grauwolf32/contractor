@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 from fakes.model import scripted_model, text_result
+from pydantic import ValidationError
 from test_adk_runtime import build_context, stage_request
 
 from contractor_runtime.contracts import (
@@ -468,3 +469,26 @@ def test_model_decoder_and_result_policy_keep_error_precedence(assembly_runtime)
         assert outcome.code == code
         assert outcome.retryable is (code != "unsafe_worker_result")
         assert secret not in outcome.model_dump_json()
+
+
+def test_lean_observations_reject_a_count_the_a2a_datapart_would_round() -> None:
+    """The Runtime rejects a count above 2^53-1 before it encodes the completion."""
+
+    def snapshot(calls: int) -> dict[str, object]:
+        return {
+            "currentInvocation": {
+                "invocationId": "worker-1",
+                "metrics": {
+                    "tools": {"read_file": {"calls": calls, "failures": 0}},
+                    "truncated": False,
+                },
+                "workspace": None,
+            }
+        }
+
+    observations = worker_runtime._lean_observations(
+        snapshot(2**53 - 1), "worker-1", projection_failed=False
+    )
+    assert observations.tools["read_file"].calls == 2**53 - 1
+    with pytest.raises(ValidationError):
+        worker_runtime._lean_observations(snapshot(2**53), "worker-1", projection_failed=False)

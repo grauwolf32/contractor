@@ -5,7 +5,7 @@
     "repeat": 65535,
     "prefix": "x",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 65769
   },
@@ -15,7 +15,7 @@
     "repeat": 65535,
     "prefix": "x",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 65769
   },
@@ -25,7 +25,7 @@
     "repeat": 65535,
     "prefix": "x",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 65769
   },
@@ -35,7 +35,7 @@
     "repeat": 65535,
     "prefix": "x",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 65769
   },
@@ -45,7 +45,7 @@
     "repeat": 32767,
     "prefix": "x",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 65768
   },
@@ -55,7 +55,7 @@
     "repeat": 21845,
     "prefix": "x",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 65769
   },
@@ -65,7 +65,7 @@
     "repeat": 21845,
     "prefix": "x",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 65769
   },
@@ -75,7 +75,7 @@
     "repeat": 9000,
     "prefix": "",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 63233
   },
@@ -85,7 +85,7 @@
     "repeat": 9000,
     "prefix": "",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 63233
   },
@@ -95,19 +95,29 @@
     "repeat": 1000,
     "prefix": "",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 27233
   },
   {
-    "name": "uint64_max",
+    "name": "exact_integer_max",
     "unit": "x",
     "repeat": 1,
     "prefix": "",
     "padding": 0,
-    "max_uint64": true,
+    "integer": 9007199254740991,
     "valid": true,
-    "json_bytes": 308
+    "json_bytes": 300
+  },
+  {
+    "name": "exact_integer_over",
+    "unit": "x",
+    "repeat": 1,
+    "prefix": "",
+    "padding": 0,
+    "integer": 9007199254740992,
+    "valid": false,
+    "json_bytes": 300
   },
   {
     "name": "text_at_limit",
@@ -115,7 +125,7 @@
     "repeat": 65536,
     "prefix": "",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 65769
   },
@@ -125,7 +135,7 @@
     "repeat": 65537,
     "prefix": "",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": false,
     "json_bytes": 65770
   },
@@ -135,7 +145,7 @@
     "repeat": 65535,
     "prefix": "x",
     "padding": 0,
-    "max_uint64": false,
+    "integer": null,
     "valid": false,
     "json_bytes": 393444
   },
@@ -145,7 +155,7 @@
     "repeat": 1,
     "prefix": "",
     "padding": 261853,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 262144
   },
@@ -155,7 +165,7 @@
     "repeat": 1,
     "prefix": "",
     "padding": 261854,
-    "max_uint64": false,
+    "integer": null,
     "valid": false,
     "json_bytes": 262145
   },
@@ -165,7 +175,7 @@
     "repeat": 21000,
     "prefix": "x",
     "padding": 198853,
-    "max_uint64": false,
+    "integer": null,
     "valid": true,
     "json_bytes": 262144
   },
@@ -175,7 +185,7 @@
     "repeat": 21000,
     "prefix": "x",
     "padding": 198854,
-    "max_uint64": false,
+    "integer": null,
     "valid": false,
     "json_bytes": 262145
   }

@@ -105,7 +105,7 @@ func (b ToolArgumentBinding) ResolveParameter(parameters map[string]string) (any
 		}
 	}
 	number, err := strconv.ParseUint(value, 10, 53)
-	if err != nil || number > 9007199254740991 {
+	if err != nil || number > MaxExactInteger {
 		return nil, Invalidf("tool parameter exceeds the exact integer bound")
 	}
 	return int64(number), nil
@@ -149,7 +149,7 @@ func toolDefaultInteger(value any) (int64, error) {
 	}
 	number, ok := decoded.(float64)
 	if !ok || math.IsNaN(number) || math.IsInf(number, 0) || number < 0 ||
-		number > 9007199254740991 || math.Trunc(number) != number {
+		number > MaxExactInteger || math.Trunc(number) != number {
 		return 0, Invalidf("integer tool parameter default must be an exact nonnegative integer")
 	}
 	return int64(number), nil
@@ -228,7 +228,7 @@ func ValidateArgumentBindings(arguments map[string]ToolArgumentBinding, allowArt
 				}
 			case bool:
 			case float64:
-				if math.IsInf(v, 0) || math.IsNaN(v) || math.Abs(v) > 9007199254740991 {
+				if math.IsInf(v, 0) || math.IsNaN(v) || math.Abs(v) > MaxExactInteger {
 					return Invalidf("literal tool number exceeds its bound")
 				}
 			default:
