@@ -25,6 +25,26 @@ context:
   - docs/spec/configuration/agent-templates.md#TPL-R52
   - docs/spec/execution/worker.md#WRK-R146
   - docs/spec/platform/observability.md#OBS-R54
+  decision_needed: >-
+    2026-10-31, lane cmp-sum. R1 says resolved snapshots and private wire
+    "require an explicit boolean". Implemented instead (agent proposal,
+    recorded as TPL-R116 in docs/spec/configuration/agent-templates.md):
+    authoring accepts true or false, and below authoring the member is
+    true-only; omission is the only false in resolved snapshots,
+    AllocationSpec and the digest manifest, and every reader rejects
+    explicit false, null, other types, aliases and duplicates. A dropped true
+    fails the AgentTemplate digest check, so omission cannot hide a lost flag.
+    Reason: stored Run, Stage, Audit profile, scan sweep and Eval snapshots
+    are strictly decoded and are also hashed outside the template manifest
+    (auditprofile.Digest re-verified on decode, scanstore pinned selection,
+    Eval Workflow SHA, retained Audit dependency digests); 16 shipped
+    AgentTemplates have a summarizer block, so an always-present member makes
+    every stored summarizer-bearing snapshot in the demo database unreadable.
+    Options: (a) keep true-only (recommended; no migration, no data change);
+    (b) explicit boolean everywhere as R1 states, which needs either an
+    authorized demo-data reset or a new Go-driven re-pinning migration for
+    the dependent digests (scope growth, its own task). The user should
+    confirm (a), or choose (b), before the coordinator closes this task.
   implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
     strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
     clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,

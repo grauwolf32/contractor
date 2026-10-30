@@ -6414,6 +6414,8 @@ export interface components {
             modelPolicy: components["schemas"]["ModelPolicyRef"];
             cumulativeBudget?: number;
             contextWindowRatio: number;
+            /** @description Whether the terminal summarizer input includes the Worker model's provider-supplied reasoning as tagged, redacted and bounded text. Authoring omission resolves to false. */
+            includeReasoning: boolean;
         };
         AgentTemplateBody: {
             execution?: components["schemas"]["ToolExecutionConfig"];

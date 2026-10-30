@@ -103,8 +103,9 @@ layers = [
   "a2a_server : adapters : agent_skills : archive_cache : archive_cache_files : artifacts : finding_proposals : sitemap_collection : sitemap : llm : observations : projectfs : sandbox : settings : telemetry : work_root_lock : workspace",
   # kernel: wire contracts and dependency-free helpers (core: target policy,
   # subprocess pipes, line splitting, tool metrics and input errors, and the
-  # Worker completion protocol)
-  "_https : backoff : contracts : core : digests : http_body : log : mtls : probe : redaction : strict_json : threads",
+  # Worker completion protocol; reasoning: the provider-reasoning projection that
+  # the terminal summarizer and other model consumers share)
+  "_https : backoff : contracts : core : digests : http_body : log : mtls : probe : reasoning : redaction : strict_json : threads",
 ]
 unmatched_ignore_imports_alerting = "error"
 broken_contract_guidance = """

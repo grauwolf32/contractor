@@ -697,7 +697,9 @@ system instructions and tool declarations; captured output includes the model
 response. Worker tool spans include arguments and results. Planner invocation
 and passthrough dispatch spans include their semantic input and output. Worker
 result-finalizer and terminal-summarizer model calls also capture input and
-output.
+output; a summarizer input that includes provider reasoning
+([WRK-R181](../execution/worker.md)) is captured only under these rules, and
+`includeReasoning` enables no capture.
 
 **OBS-R59.** Model spans use OpenTelemetry GenAI semantic conventions
 v1.41.1: `gen_ai.operation.name=chat`, `gen_ai.provider.name=contractor.gateway`
