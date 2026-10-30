@@ -6,7 +6,8 @@ epic: audits
 kind: chore
 introduced_by: V411-002
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: 08b59223546ad0c851d05f3613ecf65b475d1270
 depends_on: []
 languages: [go, typescript, yaml]
 goal: >-
