@@ -130,7 +130,7 @@ func (s *Scheduler) validateCandidate(
 	if err := result.Validate(); err != nil {
 		return err
 	}
-	if result.Summarized && (stage.Planner != (resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}) || len(stage.Agents) != 1) {
+	if result.Summarized && (stage.Planner.Selector() != resolved.PassthroughPlanner || len(stage.Agents) != 1) {
 		return fmt.Errorf("only a passthrough Worker completion can request summary continuation")
 	}
 	if result.SummaryArtifact != nil {

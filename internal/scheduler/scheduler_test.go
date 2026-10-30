@@ -3351,7 +3351,7 @@ func (r *memoryPlannerRegistry) Create(
 ) (planner.Planner, error) {
 	r.createCalls++
 	r.invocation = invocation
-	if ref != planner.PassthroughRef && ref != "streamline@1" {
+	if ref != resolved.PassthroughPlanner && ref != resolved.StreamlinePlanner {
 		return nil, errors.New("unexpected Planner ref")
 	}
 	return plannerFunc(func(context.Context) (stageresult.StageContentResult, error) {

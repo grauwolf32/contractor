@@ -608,8 +608,11 @@ refers to context artifact aliases, is owned by
 **WFL-R61.** A Stage result artifact has, in addition to the slot payload
 contract, a mandatory versionless `from` binding with exactly `namespace` and
 `name`. On a Planner Stage its Namespace must be assigned to at least one
-logical Agent of that Stage. A Server operation uses ordinary explicit output
-bindings without Worker namespaces (WFL-R89).
+logical Agent of that Stage, unless the Planner's descriptor binds its results
+through its own Stage contract ([CAT-R79](catalog.md)): `scan-plan@1` publishes
+its aggregate report in a namespace separate from its Workers
+([SCN-R209](../tools/scanners.md)). A Server operation uses ordinary explicit
+output bindings without Worker namespaces (WFL-R89).
 
 **WFL-R62.** A revision is invalid in `from`, because the concrete
 revision is created or observed only inside one Run.

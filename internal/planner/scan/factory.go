@@ -25,10 +25,10 @@ func NewFactory(sessions planner.ScanSessionService, invoker planner.WorkerInvok
 	return &Factory{sessions: sessions, invoker: invoker, artifacts: artifacts, inspector: inspector}, nil
 }
 
-func (*Factory) Ref() string { return planner.ScanPlanRef }
+func (*Factory) Ref() string { return resolved.ScanPlanPlanner }
 
 func (f *Factory) Create(invocation planner.Invocation) (planner.Planner, error) {
-	if invocation.Stage.Planner.PlannerID+"@"+invocation.Stage.Planner.Version != planner.ScanPlanRef || invocation.ModelAccess != nil || strings.TrimSpace(invocation.SchedulerClaimID) == "" || invocation.StageExecutionID == "" || invocation.RunID == "" || invocation.Deadline.IsZero() {
+	if invocation.Stage.Planner.Selector() != resolved.ScanPlanPlanner || invocation.ModelAccess != nil || strings.TrimSpace(invocation.SchedulerClaimID) == "" || invocation.StageExecutionID == "" || invocation.RunID == "" || invocation.Deadline.IsZero() {
 		return nil, fmt.Errorf("scan planner requires a model-free Stage and durable Scheduler ownership")
 	}
 	if err := resolved.ValidateScanPlanStage(invocation.Stage); err != nil {

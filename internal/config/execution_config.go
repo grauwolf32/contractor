@@ -170,7 +170,7 @@ func (l *loader) applyPlannerSelection(
 	patch resolved.ExecutionSelectionPatch,
 	origin string,
 ) error {
-	ref := stage.Planner.PlannerID + "@" + stage.Planner.Version
+	ref := stage.Planner.Selector()
 	if resolved.IsModelFreeStage(*stage) {
 		return fmt.Errorf("%s does not accept Planner model configuration", ref)
 	}
