@@ -26,6 +26,9 @@ import (
 )
 
 const (
+	// maxSessionJSONBytes pre-checks the session state on the submitted
+	// compact JSON and checks it at read; the planner_session_state_size
+	// CHECK bounds the stored jsonb text authoritatively (LIM-PLN-9).
 	maxSessionJSONBytes     = 2 * 1024 * 1024
 	maxRecordedPlannerFacts = 256
 	maxPlannerFactKeyBytes  = 256
