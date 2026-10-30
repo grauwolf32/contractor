@@ -54,7 +54,7 @@ SELECT $1, r.path, r.kind, r.document
 	return nil
 }
 
-func (s *Store) PlanResource(ctx context.Context, owner, id, path string) (PlanResource, error) {
+func (s *Store) PlanResource(ctx context.Context, owner, id, resourcePath string) (PlanResource, error) {
 	var kind, digest string
 	var data []byte
 	err := s.db.QueryRow(ctx, `
@@ -64,11 +64,11 @@ JOIN eval_experiments e USING(experiment_id)
 WHERE e.owner_id=$1
     AND e.experiment_id=$2
     AND r.resource_path=$3
-`, owner, id, path).Scan(&kind, &data, &digest)
+`, owner, id, resourcePath).Scan(&kind, &data, &digest)
 	if err != nil {
 		return PlanResource{}, normalize(err)
 	}
 	// putResources validates before insertion; the immutable row and generated
 	// digest have the same trust boundary as FrozenPlan.
-	return PlanResource{Path: path, Document: evaldomain.Restore(kind, data, digest)}, nil
+	return PlanResource{Path: resourcePath, Document: evaldomain.Restore(kind, data, digest)}, nil
 }

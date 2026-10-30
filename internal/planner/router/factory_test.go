@@ -717,7 +717,7 @@ func successfulResult(summary string) stageresult.StageContentResult {
 func routerWorkerCompletion(
 	subtaskID string,
 	result string,
-	artifacts map[string]contracts.ArtifactRef,
+	resultArtifacts map[string]contracts.ArtifactRef,
 ) contracts.WorkerCompletion {
 	return contracts.WorkerCompletion{
 		APIVersion: contracts.APIVersion,
@@ -727,7 +727,7 @@ func routerWorkerCompletion(
 				Profile: contracts.WorkerObservationProfileLeanV1,
 				Tools:   map[string]contracts.ToolObservationCount{},
 			},
-			Artifacts: artifacts, Summarized: false,
+			Artifacts: resultArtifacts, Summarized: false,
 		},
 		InvocationID: "worker-invocation-router", StateRevision: 2,
 	}

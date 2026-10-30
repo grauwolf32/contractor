@@ -694,11 +694,11 @@ func (b *PinnedSubmissionBuilder) readRoundExecutionManifest(
 	// complete descriptor from that exact revision before applying the strict
 	// content gate. This remains fail-closed: ResolveProjectExact verifies the
 	// stored digest and ReadProjectExact verifies every byte and metadata field.
-	resolved, err := b.artifacts.ResolveProjectExact(ctx, projectID, descriptor)
+	exact, err := b.artifacts.ResolveProjectExact(ctx, projectID, descriptor)
 	if err != nil {
 		return auditdomain.ExecutionManifest{}, err
 	}
-	payload, err := b.artifacts.ReadProjectExact(ctx, projectID, resolved)
+	payload, err := b.artifacts.ReadProjectExact(ctx, projectID, exact)
 	if err != nil {
 		return auditdomain.ExecutionManifest{}, err
 	}
@@ -706,7 +706,7 @@ func (b *PinnedSubmissionBuilder) readRoundExecutionManifest(
 		return auditdomain.ExecutionManifest{}, invalidSubmission("current Round manifest is not an Audit package")
 	}
 	pkg, err := auditdomain.ValidatePackage(payload.Data)
-	if err != nil || pkg.Digest != resolved.Digest || pkg.Manifest.Kind != auditdomain.PackageKindWorklist {
+	if err != nil || pkg.Digest != exact.Digest || pkg.Manifest.Kind != auditdomain.PackageKindWorklist {
 		return auditdomain.ExecutionManifest{}, invalidSubmission("current Round worklist package is invalid")
 	}
 	member, found := pkg.MemberByID("execution-manifest")

@@ -623,9 +623,9 @@ func (s *sqlStatement) name(index int) (string, int, bool) {
 	if index >= len(s.tokens) || s.punct(index+1, ".") {
 		return "", index, false
 	}
-	token := s.tokens[index]
-	name := token.text
-	switch token.kind {
+	tok := s.tokens[index]
+	name := tok.text
+	switch tok.kind {
 	case sqlWord:
 		name = strings.ToLower(name)
 	case sqlQuoted:
@@ -739,11 +739,11 @@ func (s *sqlStatement) lock(index int) {
 	var named []string
 	if s.word(index, "OF") {
 		for at := index + 1; at < len(s.tokens); at += 2 {
-			token := s.tokens[at]
-			if token.kind != sqlWord && token.kind != sqlQuoted {
+			tok := s.tokens[at]
+			if tok.kind != sqlWord && tok.kind != sqlQuoted {
 				break
 			}
-			named = append(named, strings.ToLower(token.text))
+			named = append(named, strings.ToLower(tok.text))
 			if !s.punct(at+1, ",") {
 				break
 			}

@@ -1486,13 +1486,13 @@ func TestCreateRunReplayDoesNotResolveDeletedManagedCredential(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	resolved, err := fixture.configs.ResolveRunWorkflow(
+	workflow, err := fixture.configs.ResolveRunWorkflow(
 		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, fixture.credentials,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	gateway := resolved.Stages[resolved.EntryStage].ExecutionConfig.Agents["builder"].LLMGateway.Ref
+	gateway := workflow.Stages[workflow.EntryStage].ExecutionConfig.Agents["builder"].LLMGateway.Ref
 	fixture.credentials.records["ephemeral-worker"] = credentials.Record{
 		CredentialID: "ephemeral-worker", LLMGateway: gateway,
 		CreatedAt: time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC),

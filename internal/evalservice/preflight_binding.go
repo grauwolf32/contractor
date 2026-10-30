@@ -75,12 +75,12 @@ func (r *Resolver) resolveBinding(ctx context.Context, owner string, v evaldomai
 		return b, err
 	}
 	for _, standard := range profile.Standards {
-		resolved, err := catalog.Resolve(ctx, owner, auditstandards.Reference{Scheme: standard.Scheme, Version: standard.Version})
+		resolvedPackage, err := catalog.Resolve(ctx, owner, auditstandards.Reference{Scheme: standard.Scheme, Version: standard.Version})
 		if err != nil {
 			return b, preflightDependencyError(err)
 		}
-		b.snapshot.Standards = append(b.snapshot.Standards, resolved.Source)
-		b.standards = append(b.standards, resolved)
+		b.snapshot.Standards = append(b.snapshot.Standards, resolvedPackage.Source)
+		b.standards = append(b.standards, resolvedPackage)
 	}
 	return b, nil
 }

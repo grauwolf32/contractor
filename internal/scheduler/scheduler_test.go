@@ -247,7 +247,7 @@ func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T
 	stage.Agents["reviewer"] = second
 	stage.ExecutionConfig.Agents["reviewer"] = stage.ExecutionConfig.Agents["builder"]
 	sourceRevision := "source-revision-7"
-	context := runstore.StageContextSnapshot{Artifacts: map[string]runstore.PinnedContextArtifact{
+	stageContext := runstore.StageContextSnapshot{Artifacts: map[string]runstore.PinnedContextArtifact{
 		"source": {
 			Required: true,
 			Artifact: &contracts.ArtifactRef{Namespace: "inputs", Name: "source", Revision: &sourceRevision},
@@ -255,7 +255,7 @@ func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T
 		"state": {Required: false},
 	}}
 
-	requirements, err := bindingRequirements(stage, []agentskills.RunSkillSnapshot{}, context)
+	requirements, err := bindingRequirements(stage, []agentskills.RunSkillSnapshot{}, stageContext)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ func TestBindingRequirementsProjectExactWorkspacePinsForEveryWorker(t *testing.T
 	mutated := "mutated"
 	requirements[0].Workspace.Sources[0].Artifact.Revision = &mutated
 	if *requirements[1].Workspace.Sources[0].Artifact.Revision != sourceRevision ||
-		*context.Artifacts["source"].Artifact.Revision != sourceRevision {
+		*stageContext.Artifacts["source"].Artifact.Revision != sourceRevision {
 		t.Fatal("Router workspace projections alias each other or persisted StageContext")
 	}
 }
@@ -489,18 +489,18 @@ func TestSchedulerMaterializesAndErasesPinnedCaidoBearer(t *testing.T) {
 		}
 		return consumer(runtimesettings.RuntimeCredentialCaidoBearer, []byte(`{"token":"`+secret+`"}`))
 	})
-	resolved, err := schedulerTestResolvedWorkerConfig(
+	runtimeConfig, err := schedulerTestResolvedWorkerConfig(
 		harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"],
 		false,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolved.Caido = &runtimeconfig.CaidoConfig{
+	runtimeConfig.Caido = &runtimeconfig.CaidoConfig{
 		Adapter: string(runtimesettings.RuntimeAdapterCaidoGraphQL), Endpoint: "https://caido.example/prefix",
 		Credential: "caido-lab", RequestTimeoutSeconds: 120,
 	}
-	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), resolved)
+	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), runtimeConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -643,27 +643,27 @@ func TestSchedulerAppliesPinnedPlannerTelemetryWithoutAgentInfluence(t *testing.
 			}
 
 			selection := harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"]
-			resolved, err := schedulerTestResolvedWorkerConfig(selection, false)
+			runtimeConfig, err := schedulerTestResolvedWorkerConfig(selection, false)
 			if err != nil {
 				t.Fatal(err)
 			}
-			resolved.PlannerTelemetry = &runtimeconfig.TelemetryConfig{
+			runtimeConfig.PlannerTelemetry = &runtimeconfig.TelemetryConfig{
 				Adapter: telemetry.PlannerAdapterOTLPHTTP, Endpoint: collector.URL + "/v1/traces",
 				Credential: "planner-otel", FlushTimeoutSeconds: 1,
 			}
-			resolved.PlannerRuntimeCredential = &runtimesettings.RuntimeCredentialRef{
+			runtimeConfig.PlannerRuntimeCredential = &runtimesettings.RuntimeCredentialRef{
 				CredentialID: "planner-otel", Kind: runtimesettings.RuntimeCredentialOTLPHeaders,
 			}
-			resolved.Origins.PlannerTelemetry = &runtimeconfig.RuntimeFieldOrigin{
+			runtimeConfig.Origins.PlannerTelemetry = &runtimeconfig.RuntimeFieldOrigin{
 				Layer: runtimeconfig.LayerRunLabels, Configs: []runtimeconfig.Ref{debugRef},
 			}
-			resolved.Provenance.RunLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
+			runtimeConfig.Provenance.RunLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
 				Label: "debug", BindingRevision: 7, Config: schedulerTestRuntimeConfigRef(debugRef),
 			}}
-			resolved.Provenance.AgentLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
+			runtimeConfig.Provenance.AgentLabels = []runtimesettings.RuntimeLabelBindingProvenance{{
 				Label: "caido", BindingRevision: 11, Config: schedulerTestRuntimeConfigRef(agentRef),
 			}}
-			harness.allocator.resolvedRuntimeConfig = &resolved
+			harness.allocator.resolvedRuntimeConfig = &runtimeConfig
 
 			worked, runErr := harness.scheduler.RunOnce(t.Context())
 			if runErr != nil || !worked || harness.store.run.State != runstore.RunSucceeded ||
@@ -1158,7 +1158,7 @@ func TestTerminalReleaseRecoveryReleasesDivergedGrantWithoutActiveOwner(t *testi
 }
 
 func stageAllocationFromReservation(reservation controlplane.Reservation) runstore.StageAllocation {
-	resolved := reservation.ResolvedRuntimeConfig
+	runtimeConfig := reservation.ResolvedRuntimeConfig
 	return runstore.StageAllocation{
 		AllocationID: reservation.Grant.AllocationID, StageExecutionID: reservation.Grant.StageExecutionID,
 		LogicalAgentName: reservation.Grant.LogicalAgentName, Namespace: reservation.Grant.Namespace,
@@ -1170,7 +1170,7 @@ func stageAllocationFromReservation(reservation controlplane.Reservation) runsto
 		PerformanceCollectionPolicy:       reservation.PerformanceCollectionPolicy,
 		RuntimeConfigurationSchemaVersion: runstore.AllocationRuntimeConfigurationSchemaVersion,
 		RuntimeConfiguration: &runstore.AllocationRuntimeConfiguration{
-			ModelPolicy: resolved.ModelPolicy.Ref, Origins: resolved.Origins, Provenance: resolved.Provenance,
+			ModelPolicy: runtimeConfig.ModelPolicy.Ref, Origins: runtimeConfig.Origins, Provenance: runtimeConfig.Provenance,
 		},
 	}
 }
@@ -3018,12 +3018,12 @@ func schedulerTestReservations(t *testing.T, stage resolved.ResolvedStage) []con
 	t.Helper()
 	reservations := make([]controlplane.Reservation, 0, len(stage.Agents))
 	for name, binding := range stage.Agents {
-		resolved, err := schedulerTestResolvedWorkerConfig(stage.ExecutionConfig.Agents[name], binding.Template.IsToolWorker())
+		runtimeConfig, err := schedulerTestResolvedWorkerConfig(stage.ExecutionConfig.Agents[name], binding.Template.IsToolWorker())
 		if err != nil {
 			t.Fatal(err)
 		}
 		reservations = append(reservations, controlplane.Reservation{
-			Grant: controlplane.AllocationGrant{LogicalAgentName: name}, ResolvedRuntimeConfig: &resolved,
+			Grant: controlplane.AllocationGrant{LogicalAgentName: name}, ResolvedRuntimeConfig: &runtimeConfig,
 		})
 	}
 	return reservations
@@ -3108,7 +3108,7 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 	if binding.RuntimeSelection == nil {
 		return controlplane.Reservation{}, errors.New("test allocation requires a Runtime selection")
 	}
-	resolved, err := schedulerTestResolvedWorkerConfig(*binding.RuntimeSelection, binding.AgentTemplate.IsToolWorker())
+	runtimeConfig, err := schedulerTestResolvedWorkerConfig(*binding.RuntimeSelection, binding.AgentTemplate.IsToolWorker())
 	if err != nil {
 		return controlplane.Reservation{}, err
 	}
@@ -3127,11 +3127,11 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 		ExecutionConfig:           binding.ExecutionConfig,
 		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
 		PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
-		ResolvedRuntimeConfig:       &resolved,
+		ResolvedRuntimeConfig:       &runtimeConfig,
 	}
 	if a.resolvedRuntimeConfig != nil {
-		resolved := a.resolvedRuntimeConfig.Clone()
-		reservation.ResolvedRuntimeConfig = &resolved
+		runtimeConfig := a.resolvedRuntimeConfig.Clone()
+		reservation.ResolvedRuntimeConfig = &runtimeConfig
 	}
 	return reservation, nil
 }
@@ -3557,18 +3557,18 @@ func TestSchedulerMaterializesAndErasesPinnedInteractshToken(t *testing.T) {
 		}
 		return consumer(runtimesettings.RuntimeCredentialInteractshToken, []byte(`{"token":"`+secret+`"}`))
 	})
-	resolved, err := schedulerTestResolvedWorkerConfig(
+	runtimeConfig, err := schedulerTestResolvedWorkerConfig(
 		harness.workflow.Stages[harness.workflow.EntryStage].ExecutionConfig.Agents["builder"],
 		false,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	resolved.Interactsh = &runtimeconfig.InteractshConfig{
+	runtimeConfig.Interactsh = &runtimeconfig.InteractshConfig{
 		Adapter: string(runtimesettings.RuntimeAdapterInteractshHTTP), Endpoint: "https://interactsh.example/prefix",
 		Credential: "interactsh-lab", RequestTimeoutSeconds: 120,
 	}
-	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), resolved)
+	settings, err := harness.scheduler.materializeRuntimeSettings(t.Context(), runtimeConfig)
 	if err != nil {
 		t.Fatal(err)
 	}

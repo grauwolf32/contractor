@@ -398,7 +398,7 @@ func (p *streamlinePlanner) initialMessage() (*genai.Content, error) {
 			Name: binding.logicalName, Tool: executeCurrentSubtaskToolName, Description: binding.description,
 		})
 	}
-	context := promptContext{
+	stageContext := promptContext{
 		Objective:       p.request.Objective,
 		Parameters:      p.request.Parameters,
 		Artifacts:       clonePromptArtifacts(p.invocation.Context.Artifacts),
@@ -406,13 +406,13 @@ func (p *streamlinePlanner) initialMessage() (*genai.Content, error) {
 		ResultArtifacts: cloneResultContract(p.resultContract),
 	}
 	if saved := p.invocation.Context.Continuation; saved != nil {
-		context.Instructions = p.request.Instructions
-		context.Continuation = &continuationPrompt{
+		stageContext.Instructions = p.request.Instructions
+		stageContext.Continuation = &continuationPrompt{
 			Summary: saved.Summary, SummaryArtifact: saved.SummaryArtifact.Clone(),
 			Artifacts: contracts.CloneArtifactRefs(saved.Artifacts),
 		}
 	}
-	payload, err := json.Marshal(context)
+	payload, err := json.Marshal(stageContext)
 	if err != nil || len(payload) > maxPlannerContextBytes {
 		return nil, fmt.Errorf("Planner context exceeds its bounded contract")
 	}

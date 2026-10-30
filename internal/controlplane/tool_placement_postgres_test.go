@@ -33,11 +33,11 @@ func TestPlacementPostgresToolWorkerWithoutModel(t *testing.T) {
 			WorkerSessionMode: contracts.WorkerSessionIsolated, RuntimeSelection: &fixture.selection,
 		}},
 	}
-	resolved, err := fixture.allocator.resolveCandidate(ctx, pool, request, request.Bindings[0], AuthenticatedPrincipal{
+	runtimeConfig, err := fixture.allocator.resolveCandidate(ctx, pool, request, request.Bindings[0], AuthenticatedPrincipal{
 		RuntimeAgentID: principalID, Labels: []string{}, LabelRevision: 1,
 	}, placementCredentialLookups{llm: fixture.allocator.llmCredentials, runtime: fixture.allocator.runtimeCredentials})
-	if err != nil || !resolved.ModelFree || !resolved.ModelPolicy.IsZero() {
-		t.Fatalf("model-free resolution = (%+v, %v)", resolved, err)
+	if err != nil || !runtimeConfig.ModelFree || !runtimeConfig.ModelPolicy.IsZero() {
+		t.Fatalf("model-free resolution = (%+v, %v)", runtimeConfig, err)
 	}
 	reservations, err := fixture.allocator.ReserveAllContext(ctx, request)
 	if err != nil || len(reservations) != 1 {

@@ -176,9 +176,9 @@ func verifyReservations(
 			!reflect.DeepEqual(reservation.CompletionContract, expectedContracts[grant.LogicalAgentName]) {
 			return fmt.Errorf("Control Plane returned an allocation for different resolved inputs")
 		}
-		resolved := reservation.ResolvedRuntimeConfig
+		runtimeConfig := reservation.ResolvedRuntimeConfig
 		selection := workflow.stage.ExecutionConfig.Agents[grant.LogicalAgentName]
-		if resolved == nil || resolved.Validate() != nil || resolved.ModelFree != binding.Template.IsToolWorker() || resolved.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
+		if runtimeConfig == nil || runtimeConfig.Validate() != nil || runtimeConfig.ModelFree != binding.Template.IsToolWorker() || runtimeConfig.ModelPolicy.Ref != selection.ModelPolicy.Ref ||
 			!contracts.PlacementLabelsMatch(run.RequiredPlacementLabels, reservation.PlacementLabels) ||
 			reservation.RuntimeAgentLabelRevision == 0 || grant.RuntimeAgentID == "" ||
 			reservation.PerformanceCollectionPolicy.ValidatePinned() != nil ||
@@ -186,8 +186,8 @@ func verifyReservations(
 				(reservation.PerformanceMetrics != nil) ||
 			(reservation.PerformanceMetrics != nil && reservation.PerformanceMetrics.Validate() != nil) ||
 			!sameAllocationExecutionConfig(reservation.ExecutionConfig, controlplane.AllocationExecutionConfig{
-				ModelPolicy: resolved.ModelPolicy.Ref, LLMGateway: resolved.LLMGateway.Ref,
-				Credential: resolved.LLMCredential,
+				ModelPolicy: runtimeConfig.ModelPolicy.Ref, LLMGateway: runtimeConfig.LLMGateway.Ref,
+				Credential: runtimeConfig.LLMCredential,
 			}) {
 			return fmt.Errorf("Control Plane returned invalid candidate Runtime provenance")
 		}
@@ -230,13 +230,13 @@ func equalRunMetadataLabels(left, right map[string]string) bool {
 
 func samePersistedRuntimeConfiguration(
 	persisted *runstore.AllocationRuntimeConfiguration,
-	resolved *runtimeconfig.ResolvedRuntimeConfig,
+	runtimeConfig *runtimeconfig.ResolvedRuntimeConfig,
 ) bool {
-	if persisted == nil || resolved == nil {
+	if persisted == nil || runtimeConfig == nil {
 		return false
 	}
 	want := runstore.AllocationRuntimeConfiguration{
-		ModelPolicy: resolved.ModelPolicy.Ref, Origins: resolved.Origins, Provenance: resolved.Provenance,
+		ModelPolicy: runtimeConfig.ModelPolicy.Ref, Origins: runtimeConfig.Origins, Provenance: runtimeConfig.Provenance,
 	}
 	left, leftErr := json.Marshal(persisted)
 	right, rightErr := json.Marshal(want)

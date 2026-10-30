@@ -71,8 +71,8 @@ func cloneReservation(source Reservation) Reservation {
 		result.PerformanceMetrics = &request
 	}
 	if source.ResolvedRuntimeConfig != nil {
-		resolved := source.ResolvedRuntimeConfig.Clone()
-		result.ResolvedRuntimeConfig = &resolved
+		runtimeConfig := source.ResolvedRuntimeConfig.Clone()
+		result.ResolvedRuntimeConfig = &runtimeConfig
 	}
 	return result
 }

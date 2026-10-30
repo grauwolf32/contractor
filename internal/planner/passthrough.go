@@ -357,13 +357,13 @@ func validateInvocation(invocation Invocation) (string, contracts.WorkerHandle, 
 	for name, current := range invocation.Workers {
 		binding, handle = name, current
 	}
-	resolved, ok := invocation.Stage.Agents[binding]
+	agentBinding, ok := invocation.Stage.Agents[binding]
 	if !ok {
 		return "", contracts.WorkerHandle{}, fmt.Errorf("prepared Worker has no matching Stage Agent binding")
 	}
 	if strings.TrimSpace(handle.AllocationID) == "" || len(handle.AgentCard) == 0 ||
-		handle.LeaseExpiresAt.IsZero() || handle.AgentTemplateRef != resolved.Template.Ref ||
-		handle.WorkerRuntimeRef != resolved.Template.Runtime {
+		handle.LeaseExpiresAt.IsZero() || handle.AgentTemplateRef != agentBinding.Template.Ref ||
+		handle.WorkerRuntimeRef != agentBinding.Template.Runtime {
 		return "", contracts.WorkerHandle{}, fmt.Errorf("prepared Worker does not match the Agent binding")
 	}
 	if len(invocation.Context.Artifacts) != len(invocation.Stage.Context.Artifacts) {

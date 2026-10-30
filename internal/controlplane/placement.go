@@ -226,7 +226,7 @@ func (a *PlacementAllocator) candidateEdges(
 			if !isBindingCompatible(candidate.Registration, binding) {
 				continue
 			}
-			resolved, err := a.resolveAttemptCandidate(ctx, request, binding, candidate.Principal, lookups, attempt)
+			runtimeConfig, err := a.resolveAttemptCandidate(ctx, request, binding, candidate.Principal, lookups, attempt)
 			if err != nil {
 				if contextError := ctx.Err(); contextError != nil {
 					return nil, nil, contextError
@@ -236,19 +236,19 @@ func (a *PlacementAllocator) candidateEdges(
 				}
 				return nil, nil, err
 			}
-			if !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, resolved.RequiredRuntimeAdapters) || !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, request.auditAdapters) {
+			if !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, runtimeConfig.RequiredRuntimeAdapters) || !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, request.auditAdapters) {
 				continue
 			}
-			if !containsRuntimeAdapters(resolved.RequiredRuntimeAdapters, toolAdapters) {
+			if !containsRuntimeAdapters(runtimeConfig.RequiredRuntimeAdapters, toolAdapters) {
 				continue
 			}
 			key := placementResolutionKey(binding.LogicalAgentName, candidate.Registration.InstanceID)
-			optimistic[key] = resolved
+			optimistic[key] = runtimeConfig
 			edges = append(edges, CandidateEdge{
 				LogicalAgentName: binding.LogicalAgentName, RuntimeAgentID: candidate.Principal.RuntimeAgentID,
 				RuntimeAgentInstanceID:    candidate.Registration.InstanceID,
 				RuntimeAgentLabelRevision: candidate.Principal.LabelRevision,
-				RequiredRuntimeAdapters:   append(slices.Clone(resolved.RequiredRuntimeAdapters), request.auditAdapters...),
+				RequiredRuntimeAdapters:   append(slices.Clone(runtimeConfig.RequiredRuntimeAdapters), request.auditAdapters...),
 			})
 		}
 	}
@@ -341,7 +341,7 @@ func (a *PlacementAllocator) reserveAllContext(
 	if request.Admit != nil {
 		candidates := make([]Reservation, len(reservations))
 		for index, reservation := range reservations {
-			resolved, ok := optimistic[placementResolutionKey(
+			runtimeConfig, ok := optimistic[placementResolutionKey(
 				reservation.Grant.LogicalAgentName, reservation.Grant.RuntimeInstanceID,
 			)]
 			if !ok {
@@ -349,7 +349,7 @@ func (a *PlacementAllocator) reserveAllContext(
 			}
 			// The attempt cache keeps the resolution for later passes, so
 			// admission receives a detached copy.
-			detached := resolved.Clone()
+			detached := runtimeConfig.Clone()
 			reservation.ResolvedRuntimeConfig = &detached
 			candidates[index] = reservation
 		}
@@ -381,13 +381,13 @@ func (a *PlacementAllocator) reserveAllContext(
 	}
 	pinned := make(map[string]PinnedReservationConfig, len(reservations))
 	for _, reservation := range reservations {
-		resolved, ok := resolvedByAllocation[reservation.Grant.AllocationID]
+		runtimeConfig, ok := resolvedByAllocation[reservation.Grant.AllocationID]
 		if !ok {
 			return nil, errors.New("durable placement omitted a selected allocation")
 		}
 		pinned[reservation.Grant.AllocationID] = PinnedReservationConfig{
 			RuntimeAgentLabelRevision:   reservation.RuntimeAgentLabelRevision,
-			Resolved:                    resolved,
+			Resolved:                    runtimeConfig,
 			PerformanceCollectionPolicy: policyByAllocation[reservation.Grant.AllocationID],
 			PerformanceMetrics:          policyByAllocation[reservation.Grant.AllocationID].Request(),
 		}
@@ -459,20 +459,20 @@ func (a *PlacementAllocator) pinReservations(
 		if !ok {
 			return errors.New("selected placement references an unknown logical Agent")
 		}
-		resolved, err := a.resolveCandidate(ctx, tx, request, binding, candidate.Principal, lookups)
+		runtimeConfig, err := a.resolveCandidate(ctx, tx, request, binding, candidate.Principal, lookups)
 		if err != nil {
 			return placementCatalogError(err)
 		}
 		observed, ok := optimistic[placementResolutionKey(
 			reservation.Grant.LogicalAgentName, reservation.Grant.RuntimeInstanceID,
 		)]
-		if !ok || !sameResolvedRuntimeConfig(observed, resolved) ||
+		if !ok || !sameResolvedRuntimeConfig(observed, runtimeConfig) ||
 			!contracts.PlacementLabelsMatch(request.RequiredPlacementLabels, candidate.Registration.PlacementLabels) ||
 			!isBindingCompatible(candidate.Registration, binding) ||
-			!containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, resolved.RequiredRuntimeAdapters) || !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, request.auditAdapters) {
+			!containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, runtimeConfig.RequiredRuntimeAdapters) || !containsRuntimeAdapters(candidate.Registration.SupportedRuntimeAdapters, request.auditAdapters) {
 			return errPlacementRevisionChanged
 		}
-		result[reservation.Grant.AllocationID] = resolved
+		result[reservation.Grant.AllocationID] = runtimeConfig
 		policies[reservation.Grant.AllocationID] = a.collectionPolicy(candidate.Registration)
 	}
 
@@ -497,11 +497,11 @@ func (a *PlacementAllocator) pinReservations(
 		return fmt.Errorf("%w: requirements differ from the immutable Run", ErrInvalidRequest)
 	}
 	for _, reservation := range reservations {
-		resolved := result[reservation.Grant.AllocationID]
+		runtimeConfig := result[reservation.Grant.AllocationID]
 		configuration := &runstore.AllocationRuntimeConfiguration{
-			ModelPolicy: resolved.ModelPolicy.Ref,
-			Origins:     resolved.Origins,
-			Provenance:  resolved.Provenance,
+			ModelPolicy: runtimeConfig.ModelPolicy.Ref,
+			Origins:     runtimeConfig.Origins,
+			Provenance:  runtimeConfig.Provenance,
 		}
 		if err := store.RecordStageAllocation(ctx, runstore.StageAllocation{
 			RuntimePlacementLabels: append([]string{}, reservation.PlacementLabels...),
@@ -563,9 +563,9 @@ func (a *PlacementAllocator) resolveAttemptCandidate(
 	if cached, ok := attempt.resolutions[input]; ok {
 		return cached.value, cached.err
 	}
-	resolved, err := a.resolveCandidateWithCache(ctx, a.pool, request, binding, principal, lookups, attempt)
-	attempt.resolutions[input] = placementCachedValue[runtimeconfig.ResolvedRuntimeConfig]{value: resolved, err: err}
-	return resolved, err
+	runtimeConfig, err := a.resolveCandidateWithCache(ctx, a.pool, request, binding, principal, lookups, attempt)
+	attempt.resolutions[input] = placementCachedValue[runtimeconfig.ResolvedRuntimeConfig]{value: runtimeConfig, err: err}
+	return runtimeConfig, err
 }
 
 func (a *PlacementAllocator) resolveCandidateWithCache(

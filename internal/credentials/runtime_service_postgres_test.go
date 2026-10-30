@@ -90,8 +90,8 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 			t.Fatalf("replay %s = (%+v, %v)", test.id, replayed, err)
 		}
 		want := append([]byte(nil), test.material.canonical...)
-		if err := service.Use(ctx, test.id, []string{string(test.material.Kind())}, func(resolved *RuntimeCredentialMaterial) error {
-			return resolved.WithPlaintext(func(kind RuntimeCredentialKind, plaintext []byte) error {
+		if err := service.Use(ctx, test.id, []string{string(test.material.Kind())}, func(material *RuntimeCredentialMaterial) error {
+			return material.WithPlaintext(func(kind RuntimeCredentialKind, plaintext []byte) error {
 				if kind != test.material.Kind() || !bytes.Equal(plaintext, want) {
 					return errors.New("resolved Runtime credential differs")
 				}

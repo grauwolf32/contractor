@@ -443,9 +443,9 @@ func isolatedRunServicePool(
 		_, _ = admin.Exec(cleanupContext, `DROP DATABASE IF EXISTS `+databaseName+` WITH (FORCE)`)
 		admin.Close()
 	})
-	config := adminConfig.Copy()
-	config.ConnConfig.Database = databaseName
-	pool, err := pgxpool.NewWithConfig(ctx, config)
+	poolConfig := adminConfig.Copy()
+	poolConfig.ConnConfig.Database = databaseName
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
