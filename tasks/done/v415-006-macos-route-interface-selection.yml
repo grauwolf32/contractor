@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V415-005
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: Mesh route repairs set the actual output interface and never confuse a changed link gateway with a repaired route.
@@ -49,4 +49,6 @@ verification_results:
   - "21 mesh-route tests passed, including independent gateway/interface state and an ignored-ifp readback failure."
   - "Complete hybrid deployment suite: 44 tests passed; Ruff checks/format and shell syntax passed."
   - "make lint passed, including Go, UI, Ansible, deployment, task/specification and Runtime import checks."
-  - "The corrected -ifp command still requires a live administrator-run verification on macOS."
+  - "Live administrator rerun verified interface lo0 for 10.77.0.10 and utun5 for 10.77.0.11/12. Native mTLS Artifact API requests completed in 1-2 ms."
+  - "Run run_baf00246202aed26ecdd50fa43053e6b succeeded on local/diag via the native mesh Artifact API without an endpoint override; localhost:8132 logged HTTP 200 and the Git-clone package pin matched."
+implementation_commit: ef9274cb6f35bc54a614e971b67ee28e5673065f
