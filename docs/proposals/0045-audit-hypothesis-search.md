@@ -6,6 +6,13 @@ inside Audit, using ordinary Contractor execution. It revises the future V64
 integration direction; it does not enable a capability, change normative
 contracts, reactivate tasks or authorize implementation.
 
+Pentest integration revised on 2026-10-30: V64-018 composes existing research
+admission with ordinary HTTP checks, selected evidence and reports. It does not
+depend on the archived pentest recipe/proof admission task. Earlier references
+to specialized 0033 proof/replay are historical design and cannot restore the
+removed request journal, recipe DSL or proof authority. The core research
+scope and its independent delivery remain unchanged.
+
 An Audit can derive hypotheses from selected Project materials and guides,
 choose useful experiments, retain their provenance and use results to select
 the next work. Existing deterministic Runs and Audits remain direct execution
@@ -27,7 +34,7 @@ becoming a prerequisite for execution.
 | Selection | Feasibility, usefulness assessment and final budget-aware selection are separate. Model ranking is optional even when search is enabled. |
 | Storage | Indexed Audit metadata and relationships support selection and UI queries; ArtifactStore owns immutable documents, evidence, forks and retention. |
 | Handoff | Every admitted experiment receives a bounded exact context package and materialized authorized dependencies. A manifest alone grants no cross-Run access. |
-| Findings | Research candidates need not enter finding intake. FindingProposal, review and proof policies retain their distinct meaning. |
+| Findings | Research candidates need not enter finding intake. FindingProposal, review and evidence contracts retain their distinct meaning. |
 | Attack trees | Optional analytical projections over exact hypotheses and results. Causal lineage, AND/OR conditions and execution dependencies have separate semantics. |
 
 ### 1.1 Deterministic execution remains first class
@@ -75,7 +82,9 @@ fails validation before execution rather than silently switching modes.
 
 ## 2. Relationship to existing contracts and proposals
 
-Current behavior was checked against `63861457417dcfa9b82afe507ede2ed3e2548828`.
+The original behavior review used `63861457417dcfa9b82afe507ede2ed3e2548828`.
+The pentest/sitemap integration and delivery status below were reconciled with
+the normative contracts and current task records on 2026-10-30.
 
 | Existing mechanism | Reuse or revision |
 | --- | --- |
@@ -83,17 +92,16 @@ Current behavior was checked against `63861457417dcfa9b82afe507ede2ed3e2548828`.
 | [FindingProposal](../spec/findings/findings.md) | Already permits a hypothesis and unknown subject. It remains a candidate/evidence envelope; it is not the research registry. |
 | [Current finding inventory](../../internal/auditdomain/finding_inventory.go) | Receipt/ordinal admission remains a distinct source adapter. Add a trusted hypothesis/experiment source rather than manufacturing finding receipts. |
 | [V64 proposal 0034](0034-audit-check-prioritization.md) | This proposal replaces its future integration direction. The implemented pure core is historical fact; fixed membership, full-pool evaluation, minimum ten and exact top-N are not universal search requirements. |
-| [Pentest proposal 0033](0033-autonomous-pentest-audits.md) | Keep recipe/predicate, identity, controls, effects and independent replay guarantees. For an opted-in research profile, revise early hypothesis admission and pool accounting as described below. |
-| [Live sitemap proposal 0042](0042-live-project-sitemap.md) | Optional context source. Keep declared/observed distinctions, mode-aware projection and live-context versus frozen-evidence separation. Search does not require live Project access. |
-| [Audit composition](../spec/audits/scans.md) | Reuse exact preparation inputs. Current same-Round retained outputs do not provide arbitrary prior-check dependencies. |
+| [Pentest proposal 0033](0033-autonomous-pentest-audits.md) | Use its revised section 14 delivery plan and current normative HTTP scope, supplied-credential, local-limit and evidence contracts. Archived recipe/proof/effect mechanisms are not prerequisites of research integration. |
+| [Live sitemap proposal 0042](0042-live-project-sitemap.md) | Optional context source. All permitted readers share the same Project metadata; declared/observed facts and live context versus exact retained evidence remain distinct. Source-file authority is separate, and search does not require live Project access. |
+| [Audit composition](../spec/audits/scans.md) | Reuse exact preparation inputs and the completed V62 settled-result, retained-dependency and registered-routing contracts; metadata refs alone never authorize arbitrary cross-Run reads. |
 
-For a research-enabled pentest profile, this proposal replaces two parts of
-0033's future design: its combined hypothesis limit becomes separate research
-pool and execution budgets; its mandatory FindingProposal receipt for every
-typed plan becomes one of two admission sources. A trusted exact
-HypothesisRevision plus accepted ExperimentPlan is the other source. Neither
-source bypasses the pentest plan, scope, predicate or replay requirements.
-The original non-search path can continue to use receipt/ordinal admission.
+A research-enabled HTTP profile uses separate research-pool and ordinary
+execution budgets. Trusted finding receipt/ordinal and an accepted exact
+HypothesisRevision/ExperimentPlan are distinct admission sources. Both use
+existing authorization, exact dependency and registered-method validation;
+neither requires the archived pentest recipe/predicate/proof subsystem.
+Verify/replay remain ordinary explicit checks under their registered contracts.
 
 V62-005/006/007 now provide settled result snapshots, retained dependencies and
 profile-owned routing through the trusted finding receipt/ordinal adapter.
@@ -189,8 +197,10 @@ An ExperimentPlan pins the hypothesis revisions, question, chosen method,
 prerequisites, exact context, controls, predicted distinguishing observations,
 required capabilities, permitted effects, worst-case budget and evaluator
 contract. Early plans can establish applicability or ownership, inspect source
-or documents, or distinguish alternatives. They need not be executable pentest
-recipes. A pentest verification/replay plan must satisfy 0033 as well.
+or documents, or distinguish alternatives. An HTTP experiment follows the
+current engagement scope, supplied-credential, allocation-local limit and
+ordinary evidence contracts. It does not require an executable recipe DSL or
+special proof authority from the historical sections of proposal 0033.
 
 Admission maps a selected plan to an ordinary immutable AuditItem. Several
 plans can address one hypothesis; one plan can contribute to several
@@ -579,13 +589,12 @@ settled views; an UI state cannot outrun Server acceptance.
 ## 12. Delivery slices and acceptance evidence
 
 The [staged delivery plan](../plans/2026-10-24-audit-hypothesis-search.md)
-owns the current task graph: revised V64-001–011, new V64-012–018, generic
-V62-005/006/007 plus V62-013, and narrow pentest/scanner task updates. Exactly
-those 22 V64/iterative-V62 tasks are pending by explicit user direction on
-2026-10-24; completed prerequisites still govern when each can start. Optional
-ranking, attack-tree and pentest-bridge tasks are pending without becoming
-core dependencies. The sequence below states intended outcomes rather than
-introducing additional dependency edges or claiming implementation.
+records the research task graph: V64-001–018 are pending, while the shared
+V62-005/006/007/013 prerequisites are completed as of 2026-10-30. Current task
+files own execution status and dependencies. Optional ranking, attack-tree and
+HTTP research integration remain pending without becoming core dependencies.
+The sequence below states intended outcomes rather than introducing additional
+dependency edges or claiming implementation.
 
 1. **Contracts and deterministic boundaries.** Define the opt-in profile,
    hypothesis/plan/assessment/selection/context contracts and limits; revise
@@ -598,8 +607,9 @@ introducing additional dependency edges or claiming implementation.
    deletion, negative/conflicting outcomes, recovery and scoped lineage UI.
 4. **Optional model ranking.** Compare against fixed order and deterministic
    contextual selection on the same budgets and repeated frozen samples.
-5. **Specialized proof and optional analysis.** Integrate 0033 proof/replay;
-   add attack-tree projections only with a real reader and a bounded evaluator.
+5. **Optional HTTP integration and analysis.** Compose ordinary HTTP checks,
+   selected evidence and reports through V64-018; add attack-tree projections
+   only with a real reader and a bounded evaluator.
 
 Required implementation evidence includes:
 

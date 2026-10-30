@@ -35,7 +35,7 @@ SELECT conrelid::regclass::text || '.' || conname,
 // applyMigrationsThrough applies the embedded migrations that pool's ledger
 // lacks, up to and including the one named suffix, so that a migration's
 // catalog test sees its own change and none of a later migration.
-func applyMigrationsThrough(t *testing.T, ctx context.Context, pool *pgxpool.Pool, suffix string) {
+func applyMigrationsThrough(t *testing.T, ctx context.Context, pool *pgxpool.Pool, suffix string) MigrationResult {
 	t.Helper()
 	available, err := loadMigrations()
 	if err != nil {
@@ -43,13 +43,15 @@ func applyMigrationsThrough(t *testing.T, ctx context.Context, pool *pgxpool.Poo
 	}
 	for i, item := range available {
 		if strings.TrimSuffix(item.name[strings.IndexByte(item.name, '_')+1:], ".sql") == suffix {
-			if _, err := applyMigrations(ctx, pool, MigrationBudgets{}, available[:i+1]); err != nil {
+			result, err := applyMigrations(ctx, pool, MigrationBudgets{}, available[:i+1])
+			if err != nil {
 				t.Fatal(err)
 			}
-			return
+			return result
 		}
 	}
 	t.Fatalf("no embedded migration is named %s", suffix)
+	return MigrationResult{}
 }
 
 // TestSharedPostgresIndexConsolidationKeepsGuarantees applies the V409-007

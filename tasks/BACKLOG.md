@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-106 open tasks: 41 in progress, 54 pending, 11 deferred. 1219 finished: 1204 completed, 15 archived.
+88 open tasks: 9 in progress, 68 pending, 11 deferred. 1253 finished: 1238 completed, 15 archived.
 
 ## In progress
 
@@ -14,46 +14,20 @@ the epics are in [epics.yml](epics.yml).
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
-| [V371-004](v371-004-worker-completion-exact-integers.yml) | planner-worker | defect | P3 | Bound WorkerCompletion integers to the range A2A carries exactly |
-| [V371-005](v371-005-worker-state-read-cost-guard.yml) | planner-worker | chore | P3 | Guard the Worker State read cost with a deterministic bound, make its benchmark runnable and re-measure it |
-| [V371-006](v371-006-workspace-observation-descriptor.yml) | planner-worker | chore | P3 | Take the Worker tools that observe the workspace from the shared Toolset descriptor |
-| [V371-011](v371-011-proposal-quota-limits.yml) | findings | chore | P3 | Register the per-proposal evidence quota and hold both proposal quotas to the registry |
-| [V371-014](v371-014-scheduler-stage-history-reads.yml) | execution-core | defect | P3 | Count escalation attempts and check the first tick without reading Stage snapshots |
-| [V371-015](v371-015-memory-claim-paused-skip.yml) | quality | chore | P3 | Model the paused-owner claim skip in the Scheduler's memory store doubles |
-| [V371-021](v371-021-postgres-test-wall-clock.yml) | quality | chore | P3 | Replace wall-clock budgets in the Scheduler and runstore PostgreSQL tests |
-| [V372-006](v372-006-runtime-label-set-rule.yml) | runtime-config | chore | P3 | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
-| [V372-007](v372-007-terminal-stage-state-set.yml) | execution-core | chore | P3 | Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them |
-| [V372-008](v372-008-upward-table-reads.yml) | persistence | chore | P3 | Remove the table reads that point up the layer stack or name who owns each one |
-| [V372-009](v372-009-ownership-check-blind-spots.yml) | persistence | chore | P3 | Close the blind spots of the table ownership check |
-| [V372-010](v372-010-erd-usage-from-ownership-scan.yml) | persistence | chore | P3 | Take the ERD's code-usage lists from the ownership scan and document the new-table workflow |
-| [V372-013](v372-013-planner-facts-one-source.yml) | workflows | chore | P3 | Take Planner refs and facts from the descriptor registry in Go, the composition and Studio |
-| [V372-015](v372-015-config-split-leftovers.yml) | workflows | chore | P3 | Stop locals from shadowing imported packages and drop config's copy of clone.Map |
-| [V372-016](v372-016-wall-clock-test-budgets-wave-2.yml) | quality | chore | P3 | Replace wall-clock budgets in the finding intake, Audit, Eval and persistence tests and the result publication test |
-| [V372-020](v372-020-error-code-vocabularies.yml) | api-contracts | chore | P3 | Hold every vocabulary that carries error code names to the registry |
-| [V372-023](v372-023-findings-tool-error-codes.yml) | findings | chore | P3 | Name the findings error codes the open question lists and register the findings tool codes |
-| [V372-024](v372-024-audit-item-attempts-fake.yml) | quality | chore | P3 | Make the Audit item attempt fake answer like the store and keep the item list schema-valid without it |
-| [V372-025](v372-025-typed-openapi-enums.yml) | api-contracts | chore | P3 | Give every enum of the public OpenAPI document a type |
-| [V372-026](v372-026-request-digests-in-services.yml) | api-contracts | chore | P3 | Move the Project, Audit and review request digests out of the public handlers |
-| [V372-028](v372-028-runstore-strict-snapshot-reads.yml) | execution-core | chore | P3 | Decode persisted Run, Stage and allocation snapshots strictly in runstore |
-| [V372-029](v372-029-shared-fixture-gate-scope.yml) | quality | chore | P3 | Extend the shared fixture gate to every cross-language fixture |
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | quality | chore | P3 | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
-| [V386-004](v386-004-caido-catalog-cardinality.yml) | http-tools | defect | P2 | Keep Caido catalog selection usable above one hundred entries |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
-| [V403-003](v403-003-openapi-preview-at-1mib.yml) | ui | defect | P3 | Keep a 1 MiB OpenAPI preview from blocking the page |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V414-007](v414-007-planner-session-state-limit.yml) | planner-worker | chore | P3 | Register the 2 MiB Planner session state bound and the other unregistered stored-size CHECKs |
-| [V414-009](v414-009-machine-value-byte-bounds.yml) | api-contracts | chore | P3 | Declare the byte bounds of machine values in the public API and hold OpenAPI, Go and the UI to them |
-| [V414-014](v414-014-standby-shutdown-race.yml) | execution-core | defect | P3 | Exit a standby Server cleanly when shutdown races its readiness listener |
-| [V414-020](v414-020-preparation-phase-one-rule.yml) | audits | chore | P3 | Give the pre-Round preparation phase set one definition in Go and one in the UI |
-| [V414-021](v414-021-migration-file-deadline.yml) | persistence | defect | P3 | Decide the client deadline of a migration file: per statement or a migration budget of its own |
-| [V414-022](v414-022-eval-purge-guard-lexer.yml) | evals | chore | P3 | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
-| [V414-024](v414-024-plan-tests-exact-reads.yml) | persistence | chore | P3 | Measure the V407-025 drain and held-credential row budgets with explaintest Analysis.Reads |
 | [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | planner-worker | feature | P1 | Make terminal summarizer reasoning input explicitly configurable |
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
-| [V425-003](v425-003-restorable-sql-function-references.yml) | persistence | defect | P1 | Make every SQL function that table definitions evaluate restorable by pg_restore |
 
 ## Pending
+
+### Run execution core (`execution-core`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V425-016](v425-016-run-event-history-bound.yml) | chore | P3 | — | Bound or detect the per-Run event history and delete it in bounded batches |
 
 ### Planners and the Worker model boundary (`planner-worker`)
 
@@ -85,6 +59,7 @@ the epics are in [epics.yml](epics.yml).
 | [V410-009](v410-009-sitemap-browser-collection.yml) | feature | P2 | V410-007, V412-001 | Collect managed Playwright network observations into the sitemap |
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
+| [V425-004](v425-004-http-gateway-e2e-tool-list.yml) | defect | P2 | — | Derive the HTTP gateway process test's expected tools from the toolset descriptor |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
@@ -108,6 +83,13 @@ the epics are in [epics.yml](epics.yml).
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-006 | Discover URL-only targets using HTTP tools and the shared sitemap |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-007, V411-019 | Ship an ordinary HTTP pentest Workflow with an early process demonstration |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
+
+### Projects, artifacts and lifecycle controls (`projects-artifacts`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V425-011](v425-011-git-url-validate-once.yml) | defect | P3 | — | Validate a Git import URL once in its canonical form |
+| [V425-012](v425-012-bounded-project-drain-check.yml) | defect | P3 | — | Bound the Project deletion drain check by active work, not finished Run history |
 
 ### Audits (`audits`)
 
@@ -134,6 +116,7 @@ the epics are in [epics.yml](epics.yml).
 | [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V411-015 | Allow nonblocking analyst review for automated HTTP Audits |
 | [V411-016](v411-016-pentest-proof-report.yml) | feature | P1 | V411-015, V411-014, V411-010 | Show HTTP engagement context and gaps in ordinary retained Audit reports |
 | [V417-005](v417-005-audit-worker-context-compaction.yml) | feature | P1 | V417-003, V417-004 | Admit compaction without bypassing trusted Audit completion |
+| [V425-017](v425-017-machine-report-ceiling-test.yml) | chore | P3 | — | Drive the cumulative 64 MiB machine report check to its rejection in a test |
 
 ### Evaluations (`evals`)
 
@@ -156,12 +139,25 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017, V411-010 | Build the ordinary HTTP Audit setup and evidence UI journey |
+| [V425-007](v425-007-ui-preparation-and-error-fixtures.yml) | chore | P3 | — | Derive the UI's past-preparation check from the phase definition and its test errors from the registry |
 
 ### Public API and wire contracts (`api-contracts`)
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-017](v411-017-pentest-api-cli.yml) | feature | P1 | V411-015, V411-016, V411-010 | Expose HTTP engagement setup and results through existing API and CLI |
+| [V425-006](v425-006-one-exact-integer-bound.yml) | chore | P3 | — | Take the exact JSON integer bound from one definition in Go and one in Python |
+| [V425-008](v425-008-remaining-error-codes.yml) | chore | P3 | — | Register invalid_toolset_factory and unsupported_toolset in the error registry |
+| [V425-009](v425-009-typed-const-and-event-enums.yml) | chore | P3 | — | Give every OpenAPI const schema and every events schema enum a type |
+| [V425-010](v425-010-composite-byte-bounds-server.yml) | defect | P2 | — | Validate per-part byte bounds of Run label selectors and sitemap rules in the Server and drop their gate exceptions |
+
+### PostgreSQL persistence and schema (`persistence`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V425-005](v425-005-stored-size-bounds-agree.yml) | defect | P2 | — | Make Go validation, stored-size CHECKs and the limits registry agree on every remaining column |
+| [V425-015](v425-015-optional-filter-generic-plans.yml) | chore | P3 | — | Measure the generic plans of optional-filter predicates and bound the ones that scan |
+| [V425-019](v425-019-routine-body-checks-see-sql-bodies.yml) | defect | P3 | — | Make routine-body checks read SQL-standard function bodies |
 
 ### Quality, CI and process (`quality`)
 
@@ -170,9 +166,10 @@ the epics are in [epics.yml](epics.yml).
 | [V347-001](v347-001-protect-main-branch.yml) | chore | P1 | — | Protect main with a required check |
 | [V410-007](v410-007-sitemap-release-gate.yml) | chore | P1 | V410-006 | Verify the first sitemap slice across scale and lifecycle boundaries |
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-007, V411-010, V411-011, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the composed ordinary HTTP pentest through real processes |
-| [V414-027](v414-027-close-review-followups.yml) | chore | P3 | V414-007, V414-009, V414-014, V414-020, V414-021, V414-022, V414-024 | Close the V407/V409 review follow-ups |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
+| [V425-013](v425-013-go-test-wall-clock-wave-3.yml) | chore | P3 | — | Replace the remaining wall-clock waits in Go PostgreSQL tests and restore the listener budget coverage |
+| [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 
 ## Deferred
 
@@ -197,23 +194,23 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 4 | 41 | 56 | 20 | 84 |
-| Planners and the Worker model boundary (`planner-worker`) | 12 | 34 | 47 | 28 | 64 |
-| Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 5 | 43 |
+| Run execution core (`execution-core`) | 1 | 41 | 56 | 21 | 84 |
+| Planners and the Worker model boundary (`planner-worker`) | 8 | 34 | 47 | 28 | 65 |
+| Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 43 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
-| HTTP and Caido tools (`http-tools`) | 5 | 22 | 25 | 9 | 24 |
+| HTTP and Caido tools (`http-tools`) | 5 | 22 | 27 | 9 | 25 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 9 | 9 | 18 |
-| Findings tools and collections (`findings`) | 4 | 16 | 9 | 8 | 13 |
-| Workflow catalog and document workflows (`workflows`) | 6 | 18 | 15 | 12 | 19 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 34 | 11 | 54 |
-| Audits (`audits`) | 23 | 67 | 82 | 34 | 119 |
-| Evaluations (`evals`) | 7 | 21 | 39 | 15 | 48 |
+| Findings tools and collections (`findings`) | 2 | 16 | 9 | 8 | 13 |
+| Workflow catalog and document workflows (`workflows`) | 4 | 18 | 15 | 12 | 19 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 36 | 11 | 54 |
+| Audits (`audits`) | 23 | 67 | 82 | 35 | 121 |
+| Evaluations (`evals`) | 6 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
-| Web UI (`ui`) | 2 | 25 | 66 | 14 | 59 |
+| Web UI (`ui`) | 2 | 25 | 66 | 15 | 59 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 43 | 7 | 18 |
-| Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
-| PostgreSQL persistence and schema (`persistence`) | 7 | 0 | 25 | 44 | 13 |
-| Quality, CI and process (`quality`) | 16 | 1 | 27 | 102 | 23 |
+| Public API and wire contracts (`api-contracts`) | 5 | 2 | 38 | 25 | 14 |
+| PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 27 | 45 | 14 |
+| Quality, CI and process (`quality`) | 12 | 1 | 27 | 104 | 25 |

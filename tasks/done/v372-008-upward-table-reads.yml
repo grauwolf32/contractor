@@ -1,0 +1,175 @@
+schema_version: "1.0"
+id: V372-008
+title: "Remove the table reads that point up the layer stack or name who owns each one"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: chore
+priority: P3
+status: completed
+depends_on: []
+languages: [go, sql]
+goal: "No package reads a table whose owner sits above it in the layer stack unless its registry entry names the open task that removes the read or a recorded acceptance with its reversal condition, and each known upward read is either removed or so recorded."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2a: V369-001), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/platform/persistence.md#PER-R23"
+  revalidated: >-
+    2026-10-24 on b523ae77. Still holds and has grown: V372-012 (8389c367)
+    added gatewayrecovery reads of stage_executions and stage_allocations
+    as ordinary [reads] grants. V369-008 (fab046292553d3ff4dff01af4a531b9168bbe05d)
+    only stopped the SQL scan from reading prose as SQL (it removed the
+    false internal/cli read of projects) and changed no upward read;
+    V406-015 (17ad4783, 941d1f4b) concerns reserved Artifact Namespace
+    constants, not table ownership. Registry and source line numbers below
+    are current.
+  finding: >-
+    V369-001 kept the reads that point up the layer stack
+    (internal/archtest/layers_test.go: kernel below platform below
+    execution below product) as ordinary [reads] grants of
+    internal/persistence/table_ownership.txt, and no task removes them:
+    internal/artifacts (platform) reads runstore's workflow_runs in forkSQL
+    (internal/artifacts/postgres_fork_sql.go:36-39; registry line 119);
+    internal/telemetry (platform) reads workflow_runs, stage_executions and
+    stage_allocations for the resource history
+    (internal/telemetry/allocation_resources_sql.go:17-19 and 67-69) and
+    stage_executions for report and metric retention
+    (internal/telemetry/repository.go:325 and :334,
+    internal/telemetry/repository_sql.go:51; registry lines 217-220);
+    internal/gatewayrecovery (platform) reads workflow_runs in admission
+    (internal/gatewayrecovery/admission.go:93), the unchanged-update read
+    (internal/gatewayrecovery/requests_sql.go:27) and waiting
+    (internal/gatewayrecovery/waiting.go:106), and stage_executions and
+    stage_allocations in the participant fence
+    (internal/gatewayrecovery/requests_sql.go:8-18; registry lines 183-190),
+    while it already moves Runs through runstore's RunStates port;
+    internal/credentials (execution) reads projectstore's projects for the
+    Runtime credential usage (internal/credentials/runtime_repository.go:218-223;
+    registry line 133); internal/runstore (execution) reads projects for the
+    queue page (internal/runstore/queue_store_sql.go:18) and in Run
+    resumption, which also fences the Project FOR SHARE
+    (internal/runstore/resume_store.go:55,
+    internal/runstore/resume_store_sql.go:22-25; registry line 211). The
+    import-based layer check cannot see SQL, so these dependencies stay
+    invisible to it, and an accepted dependency without an owner or a
+    reversal condition is the pattern AGENTS.md 3.9 warns about. The reads
+    predate the shallow history (boundary 6349621) except the
+    gatewayrecovery Stage reads (V372-012); V369-001 recorded them as
+    grants.
+  siblings: >-
+    Every other [reads] entry points sideways or down (checked on
+    b523ae77: agentprincipal, memory, scheduler and credentials'
+    runtime_config_versions, runtime_label_bindings, stage_allocations,
+    stage_executions and workflow_runs are execution reading execution;
+    the product packages read product, execution or platform tables).
+    A migration function also hides an upward read from the scan:
+    cleanupStageMetricsSQL (internal/telemetry/repository_sql.go:58) calls
+    contractor_eval_run_members, which reads evalstore's eval_submissions
+    and auditstore's audit_executions; making such calls visible is
+    V372-009, and this task decides that read the same way once it is
+    visible. V369-001 rejected deriving read permissions from the archtest
+    layer table because that table is test code of another package, so
+    the new check may live in internal/archtest or read one layer list
+    that both tests share.
+scope:
+  in:
+    - "For each upward read listed above: invert it (the owner answers through a port the composition wires, as RunStates does for gatewayrecovery's writes, or the caller passes a fact it already holds), or record with PER-R23 the guarantee that needs the read, the alternatives and the reversal condition, and name that record in the registry entry."
+    - "A check that fails on a [reads] entry whose package sits below the relation's owner in the layer stack unless the entry names an open task or a recorded acceptance."
+  out:
+    - "Writes and exclusive locks, which PER-R23 already forbids across owners."
+    - "Reads that point sideways or down the stack."
+    - "Reads hidden in migration functions and triggers until V372-009 makes them visible."
+acceptance_criteria:
+  - id: A1
+    text: "Every upward [reads] entry of table_ownership.txt is gone or names its open task or recorded acceptance."
+  - id: A2
+    text: "A new upward read granted by an ordinary [reads] entry fails the check; the check fails on b523ae77's registry."
+  - id: A3
+    text: "Fork, resource history, retention, credential usage, queue, resumption and gateway admission, waiting and participant-fence tests pass on PostgreSQL."
+tests:
+  - command: "go test ./internal/persistence ./internal/archtest"
+    covers: [A1, A2]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/artifacts ./internal/telemetry ./internal/credentials ./internal/runstore ./internal/gatewayrecovery"
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+decisions:
+  - >-
+    2026-10-30: credentials' read of projectstore's projects is inverted, the way its Audit
+    holds already were: RuntimeCredentialProjectLookup (internal/credentials/runtime_types.go)
+    is implemented by projectstore.PostgresStore.ListProjectIDsByHTTPTargetCredential and
+    wired in internal/app/composition_credentials.go; the Runtime credential service refuses
+    to start without it. The read needed no shared statement (usage was already several
+    reads under the credential lifecycle barrier), so nothing is lost. Regression test
+    TestRuntimeCredentialPostgresDeleteRefusesAProjectHTTPTarget; the [reads] grant is gone.
+  - >-
+    2026-10-30: the other upward reads are accepted, each recorded as a row of "Accepted upward
+    reads" in docs/spec/platform/persistence.md with the guarantee, alternatives and reopen
+    condition, and each registry entry names its record (PER-UR-n): PER-UR-1 artifacts
+    reading workflow_runs (Run-in-Project proof in the Artifact statement; project_id is
+    immutable), PER-UR-2 telemetry reading workflow_runs, stage_executions and
+    stage_allocations (history and diagnostics pages and retention decided in one
+    statement), PER-UR-3 gatewayrecovery reading the same three (SCH-R165 single read and
+    the participant fence in the recovery snapshot or Run row lock), PER-UR-4 runstore
+    reading projects (queue page; resumption FOR SHARE fence in the resuming transaction),
+    PER-UR-5 telemetry reading eval_submissions and audit_executions through
+    contractor_eval_run_members, which V372-009 made visible. Inverting PER-UR-2..4 means a
+    port called per page or inside the owner's lock, and runstore is being changed by
+    another lane in this wave; the records' reopen conditions name when that changes.
+  - >-
+    2026-10-30: the check (internal/persistence/upward_reads_test.go) reads the layers literal
+    of internal/archtest/layers_test.go with go/parser, so both checks share one list; that
+    file's header now says to keep the literal parseable. It covers [reads] and [routines]
+    read entries; an entry passes when its reason names an open task (taskState as for
+    [known]) or a PER-UR record that lists that reader and relation, and a record fails when
+    a reader and relation it lists is not named by an upward entry. Run on b523ae77's
+    registry it reports the nine upward [reads] entries of the finding.
+implementation_commit: d8666eeba4fbda2d78ec6d706c9baf4061026044
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): d8666eeba4fb:
+      go test -run
+      TestUpwardRead|TestSQLAccess|TestTableOwnership|TestMigrationRoutines|TestRoutineOwnership
+      ./internal/persistence (DB) PASS; go test -run
+      TestLayer|TestLocalsDoNotShadowImportedPackages|TestForbiddenImport
+      ./internal/archtest PASS; go test -run <every test of the touched
+      credentials test files incl. new
+      TestRuntimeCredentialPostgresDeleteRefusesAProjectHTTPTarget>
+      ./internal/credentials (DB) PASS; go test -run
+      TestEngagement|TestAuditStartRechecksProjectHTTPTargetCredentialUse
+      ./internal/auditservice (DB) PASS; go test -run
+      TestPlacement*CredentialsDoNotBorrowAnotherConnection
+      ./internal/controlplane (DB) PASS; go test -run
+      TestPostgresCredentialMutationsWithoutMasterKeyArePermanent
+      ./internal/httpapi/public (DB) PASS; go test -run
+      TestPostgresProjectIdempotencyOwnershipPaginationAndCAS|TestProjectValidationBounds
+      ./internal/projectstore (DB) PASS; testonlyexports PASS; check_spec
+      PASS; check_tasks PASS; go build/vet/gofmt OK
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.

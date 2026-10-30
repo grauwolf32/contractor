@@ -1,0 +1,40 @@
+schema_version: '1.0'
+id: V425-008
+title: Register invalid_toolset_factory and unsupported_toolset in the error registry
+milestone: hub-audit-defects-2026-10
+epic: api-contracts
+kind: chore
+introduced_by: V372-020
+priority: P3
+status: pending
+depends_on: []
+languages:
+- go
+- python
+- markdown
+goal: Every code a Worker or Planner can report is registered in docs/spec/platform/errors.md and held
+  to it by the V372-020 vocabulary checks.
+context:
+  origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
+  finding: The Runtime allocation service raises AllocationError with invalid_toolset_factory (runtime/src/contractor_runtime/allocation/service.py:881,
+    :888, :902, :936) and unsupported_toolset (service.py:817, allocation/validation.py:150, :205); neither
+    code has a row in docs/spec/platform/errors.md, and the V372-020 vocabulary checks do not scan Runtime
+    AllocationError codes.
+  siblings: Every other AllocationError code raised by the Runtime allocation path; extend the V372-020
+    check to scan them.
+scope:
+  in:
+  - Register the codes with retryability and HTTP status where public.
+  - Extend the vocabulary check to the emitting path.
+  out:
+  - Renaming codes.
+acceptance_criteria:
+- id: A1
+  text: Both codes are registered and the extended check fails on an unregistered code from that path.
+tests:
+- command: make lint
+  covers:
+  - A1
+- command: make test-wire-cross-language
+  covers:
+  - A1
