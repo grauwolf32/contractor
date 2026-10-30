@@ -207,7 +207,7 @@ func TestOperationsSnapshotStoresOnlyFinalReportAggregates(t *testing.T) {
 	// Valid counters whose sum passes math.MaxInt64 saturate, as the Stage
 	// summary does, instead of rejecting the report (OBS-R112): 1,025 tools at
 	// 2^53-1 sum to more than 2^63-1.
-	bound := int64(reporting.MaxResourceInteger)
+	bound := int64(contracts.MaxExactInteger)
 	saturating := report
 	saturating.ReportID = "allocation-final-saturating"
 	saturating.Worker.ReportID = "worker-saturating"

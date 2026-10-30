@@ -12,11 +12,6 @@ import (
 const PerformanceMetricsVersion = 1
 const PerformanceMetricsIntervalSeconds = 15
 
-// MaxResourceInteger bounds every integer of a RuntimeResources block and of
-// ExecutionMetrics (OBS-R111, LIM-OBS-17): the largest integer that every JSON
-// consumer, TypeScript included, reads exactly.
-const MaxResourceInteger = 1<<53 - 1
-
 // PerformanceCollectionPolicy is the Server decision pinned with an allocation.
 type PerformanceCollectionPolicy string
 
@@ -142,7 +137,7 @@ func (r RuntimeResources) Validate() error {
 		}
 	}
 	for _, value := range []*uint64{r.RSSStartBytes, r.RSSEndBytes, r.RSSPeakObservedBytes, r.RSSSampleCount} {
-		if value != nil && *value > MaxResourceInteger {
+		if value != nil && *value > contracts.MaxExactInteger {
 			return contracts.Invalidf("resource integer exceeds exact JSON range")
 		}
 	}

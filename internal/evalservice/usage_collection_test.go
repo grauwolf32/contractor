@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 )
@@ -167,7 +168,7 @@ func TestEvalAttemptMetricsOverflowIsOrderIndependent(t *testing.T) {
 		reports := map[string]any{}
 		runtime := map[string]any{}
 		for i := range workers {
-			exact, overflowing, failed := int64(reporting.MaxResourceInteger), int64(reporting.MaxResourceInteger), int64(0)
+			exact, overflowing, failed := int64(contracts.MaxExactInteger), int64(contracts.MaxExactInteger), int64(0)
 			if i == odd {
 				exact, overflowing, failed = 1023, 1024, 1
 			}

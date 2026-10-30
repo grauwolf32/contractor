@@ -69,6 +69,12 @@ MAX_WORKSPACE_TARGET_COMPONENTS = 32
 MAX_WORKER_STATE_PATH_BYTES = 4096
 MAX_WORKER_STATE_PATH_COMPONENTS = 128
 MAX_UINT64 = 2**64 - 1
+# 2^53-1, the largest integer every JSON consumer, TypeScript and a
+# google.protobuf.Value double included, carries exactly; contracts.MaxExactInteger
+# on the Server. It bounds the report integers (OBS-R111, LIM-OBS-17) and every
+# WorkerCompletion integer, which crosses the A2A DataPart as a double
+# (WRK-R164, LIM-WRK-27).
+MAX_EXACT_INTEGER = 2**53 - 1
 _STATE_METRIC_NAME_PATTERN = re.compile(r"^[a-z0-9_]+(?:\.[a-z0-9_]+)*$")
 # Whitespace of the private wire's text checks: the Unicode White_Space
 # characters, which the Server's strings.TrimSpace (unicode.IsSpace) trims.

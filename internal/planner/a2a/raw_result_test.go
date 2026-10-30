@@ -46,23 +46,24 @@ func invokeOfficialSDK(t *testing.T, data any, subtaskID string) (contracts.Work
 
 // TestSharedWorkerResultCasesPassTheA2ADecodePath sends every shared Worker
 // result case through the official SDK and the Invoker. The DataPart is
-// decoded from the response bytes, so uint64_max keeps its digits and each
-// case gets the verdict of the private decoder.
+// decoded from the response bytes, so 2^53-1 keeps its digits, 2^53 is
+// rejected rather than accepted, and each case gets the verdict of the
+// private decoder.
 func TestSharedWorkerResultCasesPassTheA2ADecodePath(t *testing.T) {
 	var cases []struct {
-		Name      string `json:"name"`
-		Unit      string `json:"unit"`
-		Repeat    int    `json:"repeat"`
-		Prefix    string `json:"prefix"`
-		Padding   int    `json:"padding"`
-		MaxUint64 bool   `json:"max_uint64"`
-		Valid     bool   `json:"valid"`
+		Name    string  `json:"name"`
+		Unit    string  `json:"unit"`
+		Repeat  int     `json:"repeat"`
+		Prefix  string  `json:"prefix"`
+		Padding int     `json:"padding"`
+		Integer *uint64 `json:"integer"`
+		Valid   bool    `json:"valid"`
 	}
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "worker-result-size-cases.json"), &cases); err != nil {
 		t.Fatal(err)
 	}
 	base := contractstest.ReadFixture(t, "valid", "worker-completion-empty-observations.json")
-	sawMaximum := false
+	integers := map[uint64]bool{}
 	for _, test := range cases {
 		t.Run(test.Name, func(t *testing.T) {
 			want, err := contracts.DecodePrivateStrict[contracts.WorkerCompletion](base)
@@ -76,10 +77,10 @@ func TestSharedWorkerResultCasesPassTheA2ADecodePath(t *testing.T) {
 					strings.Repeat("p", test.Padding): {Namespace: "review", Name: "report", Revision: &revision},
 				}
 			}
-			if test.MaxUint64 {
-				sawMaximum = true
-				want.StateRevision = ^uint64(0)
-				want.Result.Observations.Tools = map[string]contracts.ToolObservationCount{"read_file": {Calls: ^uint64(0)}}
+			if test.Integer != nil {
+				integers[*test.Integer] = test.Valid
+				want.StateRevision = *test.Integer
+				want.Result.Observations.Tools = map[string]contracts.ToolObservationCount{"read_file": {Calls: *test.Integer}}
 			}
 			got, err := invokeOfficialSDK(t, want, want.Result.SubtaskID)
 			switch {
@@ -93,14 +94,18 @@ func TestSharedWorkerResultCasesPassTheA2ADecodePath(t *testing.T) {
 			}
 		})
 	}
-	if !sawMaximum {
-		t.Fatal("the shared cases lost uint64_max")
+	if valid, ok := integers[contracts.MaxExactInteger]; !ok || !valid {
+		t.Fatal("the shared cases lost the valid 2^53-1 case")
+	}
+	if valid, ok := integers[contracts.MaxExactInteger+1]; !ok || valid {
+		t.Fatal("the shared cases lost the invalid 2^53 case")
 	}
 }
 
 // The A2A decode path rejects duplicate keys anywhere in the WorkerCompletion,
-// keeps integers beyond float64 precision, and maps the integral doubles of
-// a google.protobuf.Value, as the Python Runtime renders them, to integers.
+// maps the integral doubles of a google.protobuf.Value, as the Python Runtime
+// renders them, to integers, and rejects every integer above 2^53-1, whether
+// written exactly or as the double the Runtime's encoding would round it to.
 func TestInvokerDecodesTheDataPartFromResponseBytes(t *testing.T) {
 	encoded, err := json.Marshal(successResult())
 	if err != nil {
@@ -112,6 +117,11 @@ func TestInvokerDecodesTheDataPartFromResponseBytes(t *testing.T) {
 		"duplicate escaped key":   strings.Replace(string(encoded), `"invocationId"`, `"invocationId":"other","invocationId"`, 1),
 		"fractional integer":      strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":7.5`, 1),
 		"integer beyond uint64":   strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":1.8446744073709552e+19`, 1),
+		"2^53 as a double":        strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":9007199254740992.0`, 1),
+		"exact 2^53":              strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":9007199254740992`, 1),
+		"exact 2^53+1":            strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":9007199254740993`, 1),
+		"2^64-1":                  strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":18446744073709551615`, 1),
+		"tool calls 2^53":         strings.Replace(string(encoded), `"tools":{}`, `"tools":{"grep":{"calls":9007199254740992.0,"failures":0.0}}`, 1),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if raw == string(encoded) {
@@ -122,10 +132,10 @@ func TestInvokerDecodesTheDataPartFromResponseBytes(t *testing.T) {
 		})
 	}
 
-	beyondFloat := strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":9007199254740993`, 1)
-	got, err := invokeOfficialSDK(t, json.RawMessage(beyondFloat), "0")
-	if err != nil || got.StateRevision != 9007199254740993 {
-		t.Fatalf("2^53+1 = (%d, %v)", got.StateRevision, err)
+	maximum := strings.Replace(string(encoded), `"stateRevision":7`, `"stateRevision":9007199254740991.0`, 1)
+	got, err := invokeOfficialSDK(t, json.RawMessage(maximum), "0")
+	if err != nil || got.StateRevision != contracts.MaxExactInteger {
+		t.Fatalf("2^53-1 as a double = (%d, %v)", got.StateRevision, err)
 	}
 
 	pythonRendering := strings.NewReplacer(`"stateRevision":7`, `"stateRevision":7.0`).Replace(string(encoded))

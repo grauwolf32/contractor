@@ -17,6 +17,7 @@ from pydantic import (
 
 from contractor_runtime.contracts.base import (
     _RUNTIME_ADAPTER_ERROR_CODES,
+    MAX_EXACT_INTEGER,
     WORKER_FAILURE_CODE_PATTERN,
     RuntimeAdapterRef,
     VersionedWireModel,
@@ -27,12 +28,10 @@ from contractor_runtime.contracts.base import (
     _require_tool_arguments,
 )
 
-# The largest integer every JSON consumer, TypeScript included, reads exactly.
 # Every integer of RuntimeResources and of ExecutionMetrics, with its tools,
-# workerBudget and summarizer members, lies between 0 and this bound
-# (OBS-R111, LIM-OBS-17), as reporting.MaxResourceInteger does on the Server.
-MAX_REPORT_INTEGER = 2**53 - 1
-ReportInteger = Annotated[int, Field(ge=0, le=MAX_REPORT_INTEGER)]
+# workerBudget and summarizer members, lies between 0 and MAX_EXACT_INTEGER
+# (OBS-R111, LIM-OBS-17).
+ReportInteger = Annotated[int, Field(ge=0, le=MAX_EXACT_INTEGER)]
 
 
 class ExecutionError(WireModel):
@@ -79,7 +78,7 @@ class WorkerBudgetMetrics(WireModel):
 
 
 class WorkerSummarizerMetrics(WireModel):
-    attempts: int = Field(gt=0, le=MAX_REPORT_INTEGER)
+    attempts: int = Field(gt=0, le=MAX_EXACT_INTEGER)
     succeeded: ReportInteger
     failed: ReportInteger
     model_calls: ReportInteger

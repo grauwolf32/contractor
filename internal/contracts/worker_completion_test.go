@@ -90,6 +90,58 @@ func TestWorkerCompletionRejectsEveryInvalidBoundary(t *testing.T) {
 	}
 }
 
+// Every WorkerCompletion integer crosses the A2A DataPart as a double, so each
+// one accepts MaxExactInteger and rejects the next integer (WRK-R164).
+func TestWorkerCompletionIntegersStayWithinTheExactRange(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]func(*WorkerCompletion, uint64){
+		"stateRevision": func(value *WorkerCompletion, n uint64) { value.StateRevision = n },
+		"tool calls": func(value *WorkerCompletion, n uint64) {
+			value.Result.Observations.Tools["read_file"] = ToolObservationCount{Calls: n}
+		},
+		"tool failures": func(value *WorkerCompletion, n uint64) {
+			value.Result.Observations.Tools["read_file"] = ToolObservationCount{Calls: n, Failures: n}
+		},
+		"scopedFiles": func(value *WorkerCompletion, n uint64) {
+			value.Result.Observations.Workspace.ScopedFiles = n
+		},
+		"discoveredFiles": func(value *WorkerCompletion, n uint64) {
+			value.Result.Observations.Workspace.DiscoveredFiles = n
+		},
+		"readFiles": func(value *WorkerCompletion, n uint64) {
+			value.Result.Observations.Workspace.ReadFiles = n
+			value.Result.Observations.Workspace.FilesReadTruncated = true
+			value.Result.Observations.Truncated = true
+		},
+		"matchedFiles": func(value *WorkerCompletion, n uint64) {
+			value.Result.Observations.Workspace.MatchedFiles = n
+		},
+		"modifiedFiles": func(value *WorkerCompletion, n uint64) {
+			value.Result.Observations.Workspace.ModifiedFiles = n
+		},
+		"unreadFiles": func(value *WorkerCompletion, n uint64) {
+			value.Result.Observations.Workspace.ScopedFiles = n
+			value.Result.Observations.Workspace.UnreadFiles = &n
+		},
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			value := validWorkerCompletion()
+			mutate(&value, MaxExactInteger)
+			if err := value.Validate(); err != nil {
+				t.Fatalf("2^53-1 rejected: %v", err)
+			}
+			value = validWorkerCompletion()
+			mutate(&value, MaxExactInteger+1)
+			if err := value.Validate(); err == nil {
+				t.Fatal("2^53 accepted")
+			}
+		})
+	}
+}
+
 func TestWorkerCompletionStrictDecodeRejectsUnknownNestedField(t *testing.T) {
 	t.Parallel()
 

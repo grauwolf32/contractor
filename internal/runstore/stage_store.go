@@ -181,6 +181,54 @@ func (s *PostgresStore) ListStageExecutionsWithUnreleasedAllocations(
 	return result, nil
 }
 
+// HasStageExecutions reports whether Run runID has any StageExecution. It
+// reads one boolean, not the Stage history (SCH-R164).
+func (s *PostgresStore) HasStageExecutions(ctx context.Context, runID string) (bool, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return false, err
+	}
+	var exists bool
+	if err := s.db.QueryRow(ctx, hasStageExecutionsSQL, runID).Scan(&exists); err != nil {
+		return false, fmt.Errorf("probe StageExecutions of WorkflowRun %q: %w", runID, err)
+	}
+	return exists, nil
+}
+
+// ListStageLineage returns the lineage of every StageExecution of Stage
+// stageName in Run runID, oldest first, in one statement that selects no
+// snapshot column (SCH-R164). A Run has at most LIM-RUN-2 attempts.
+func (s *PostgresStore) ListStageLineage(ctx context.Context, runID, stageName string) ([]StageLineage, error) {
+	if err := validateOpaque("runID", runID); err != nil {
+		return nil, err
+	}
+	if err := validateOpaque("stageName", stageName); err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(ctx, listStageLineageSQL, runID, stageName)
+	if err != nil {
+		return nil, fmt.Errorf("list Stage %q lineage of WorkflowRun %q: %w", stageName, runID, err)
+	}
+	defer rows.Close()
+	var result []StageLineage
+	for rows.Next() {
+		var lineage StageLineage
+		var state string
+		if err := rows.Scan(
+			&lineage.StageExecutionID, &lineage.RunID, &lineage.StageName, &lineage.Attempt, &state,
+			&lineage.ExecutionConfigVariant, &lineage.EscalationOrdinal,
+			&lineage.PreviousExecutionID, &lineage.ResumeSourceExecutionID,
+		); err != nil {
+			return nil, fmt.Errorf("scan Stage %q lineage of WorkflowRun %q: %w", stageName, runID, err)
+		}
+		lineage.State = StageExecutionState(state)
+		result = append(result, lineage)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate Stage %q lineage of WorkflowRun %q: %w", stageName, runID, err)
+	}
+	return result, nil
+}
+
 func (s *PostgresStore) ListStageExecutions(ctx context.Context, runID string) ([]StageExecution, error) {
 	if err := validateOpaque("runID", runID); err != nil {
 		return nil, err

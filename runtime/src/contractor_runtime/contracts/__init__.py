@@ -43,6 +43,7 @@ from contractor_runtime.contracts.base import (
 from contractor_runtime.contracts.base import (
     MAX_ARTIFACT_LIST_CURSOR_LENGTH as MAX_ARTIFACT_LIST_CURSOR_LENGTH,
 )
+from contractor_runtime.contracts.base import MAX_EXACT_INTEGER as MAX_EXACT_INTEGER
 from contractor_runtime.contracts.base import (
     MAX_RUN_METADATA_LABEL_KEY_BYTES as MAX_RUN_METADATA_LABEL_KEY_BYTES,
 )
@@ -121,7 +122,6 @@ from contractor_runtime.contracts.registration import (
     RuntimeCompletionCapabilities as RuntimeCompletionCapabilities,
 )
 from contractor_runtime.contracts.registration import ToolsetCapability as ToolsetCapability
-from contractor_runtime.contracts.reports import MAX_REPORT_INTEGER as MAX_REPORT_INTEGER
 from contractor_runtime.contracts.reports import AllocationFinalReport as AllocationFinalReport
 from contractor_runtime.contracts.reports import AllocationFinalResponse as AllocationFinalResponse
 from contractor_runtime.contracts.reports import DroppedSpanCounts as DroppedSpanCounts

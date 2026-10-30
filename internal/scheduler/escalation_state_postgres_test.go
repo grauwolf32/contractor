@@ -15,23 +15,31 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// stageHistoryReads counts the Scheduler's reads of a Run's Stage history,
-// which only the escalation budget count (escalationAttempts) makes while a
-// Stage finalizes or aborts. The next reads fail with failures, in order.
+// stageHistoryReads counts the Scheduler's reads of a Run's Stage history:
+// the first-tick existence probe of a Run without an active Stage and the
+// escalation budget count (escalationAttempts) of a Stage that finalizes or
+// aborts. The next lineage reads fail with failures, in order.
 type stageHistoryReads struct {
 	Store
 	reads    int
 	failures []error
 }
 
-func (s *stageHistoryReads) ListStageExecutions(ctx context.Context, runID string) ([]runstore.StageExecution, error) {
+func (s *stageHistoryReads) HasStageExecutions(ctx context.Context, runID string) (bool, error) {
+	s.reads++
+	return s.Store.HasStageExecutions(ctx, runID)
+}
+
+func (s *stageHistoryReads) ListStageLineage(
+	ctx context.Context, runID, stageName string,
+) ([]runstore.StageLineage, error) {
 	s.reads++
 	if len(s.failures) > 0 {
 		failure := s.failures[0]
 		s.failures = s.failures[1:]
 		return nil, failure
 	}
-	return s.Store.ListStageExecutions(ctx, runID)
+	return s.Store.ListStageLineage(ctx, runID, stageName)
 }
 
 // escalationFixture is run-1 on PostgreSQL whose copy Stage escalates one
@@ -294,7 +302,7 @@ func TestPostgresTransientEscalationHistoryReadIsRetried(t *testing.T) {
 			defer cancel()
 			f := newEscalationFixture(t, ctx, outcome)
 			f.startBase(t, ctx)
-			f.reads.failures = []error{fmt.Errorf("list StageExecutions for WorkflowRun %q: %w", "run-1", &pgconn.PgError{
+			f.reads.failures = []error{fmt.Errorf("list Stage lineage of WorkflowRun %q: %w", "run-1", &pgconn.PgError{
 				Code: persistencepostgres.SQLStateDeadlockDetected, Message: "injected deadlock",
 			})}
 
