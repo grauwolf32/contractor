@@ -311,12 +311,12 @@ func validateInvocation(profile plannerProfile, invocation planner.Invocation) (
 		return nil, fmt.Errorf("streamline@1 requires exactly one logical Agent binding and prepared Worker")
 	}
 	bindings := make([]string, 0, len(invocation.Stage.Agents))
-	for logicalName, resolved := range invocation.Stage.Agents {
+	for logicalName, agentBinding := range invocation.Stage.Agents {
 		handle, ok := invocation.Workers[logicalName]
 		if !ok || strings.TrimSpace(logicalName) == "" || strings.Contains(logicalName, "/") ||
 			strings.TrimSpace(handle.AllocationID) == "" || len(handle.AgentCard) == 0 ||
-			handle.LeaseExpiresAt.IsZero() || handle.AgentTemplateRef != resolved.Template.Ref ||
-			handle.WorkerRuntimeRef != resolved.Template.Runtime {
+			handle.LeaseExpiresAt.IsZero() || handle.AgentTemplateRef != agentBinding.Template.Ref ||
+			handle.WorkerRuntimeRef != agentBinding.Template.Runtime {
 			return nil, fmt.Errorf("prepared Worker does not match Agent binding %q", logicalName)
 		}
 		bindings = append(bindings, logicalName)

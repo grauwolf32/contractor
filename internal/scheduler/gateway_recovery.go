@@ -14,21 +14,21 @@ import (
 )
 
 func reservationModelRoutes(ownerID string, reservation controlplane.Reservation) []gatewayrecovery.Route {
-	resolved := reservation.ResolvedRuntimeConfig
-	if resolved == nil || resolved.ModelFree {
+	runtimeConfig := reservation.ResolvedRuntimeConfig
+	if runtimeConfig == nil || runtimeConfig.ModelFree {
 		return nil
 	}
-	route := gatewayrecovery.Route{OwnerID: ownerID, GatewayDigest: resolved.LLMGateway.Ref.Digest, Model: resolved.ModelPolicy.Model}
-	if resolved.LLMCredential != nil {
-		route.CredentialID = resolved.LLMCredential.CredentialID
+	route := gatewayrecovery.Route{OwnerID: ownerID, GatewayDigest: runtimeConfig.LLMGateway.Ref.Digest, Model: runtimeConfig.ModelPolicy.Model}
+	if runtimeConfig.LLMCredential != nil {
+		route.CredentialID = runtimeConfig.LLMCredential.CredentialID
 	}
-	if proxy := resolved.HTTPProxy; proxy != nil && slices.Contains(proxy.Targets, "llm-gateway") {
+	if proxy := runtimeConfig.HTTPProxy; proxy != nil && slices.Contains(proxy.Targets, "llm-gateway") {
 		encoded, _ := json.Marshal(proxy)
 		digest := sha256.Sum256(encoded)
 		route.TransportDigest = hex.EncodeToString(digest[:])
 	}
 	routes := []gatewayrecovery.Route{route}
-	if summarizer := resolved.SummarizerModelPolicy; summarizer != nil && summarizer.Model != route.Model {
+	if summarizer := runtimeConfig.SummarizerModelPolicy; summarizer != nil && summarizer.Model != route.Model {
 		route.Model = summarizer.Model
 		routes = append(routes, route)
 	}

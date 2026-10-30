@@ -139,7 +139,7 @@ func validateDocument(document Document) error {
 		return validationError(CodeLimitExceeded, ManifestPath)
 	}
 
-	contracts := make(map[string]EvidenceContract, len(document.EvidenceContracts))
+	evidenceContracts := make(map[string]EvidenceContract, len(document.EvidenceContracts))
 	for _, contract := range document.EvidenceContracts {
 		if !entryIDPattern.MatchString(contract.ID) || !validVersion(contract.Version) ||
 			contract.MinimumEvidence < 0 || contract.MaximumEvidence < contract.MinimumEvidence ||
@@ -155,10 +155,10 @@ func validateDocument(document Document) error {
 			return validationError(CodeManifestInvalid, ManifestPath)
 		}
 		key := contractKey(contract.Reference())
-		if _, duplicate := contracts[key]; duplicate {
+		if _, duplicate := evidenceContracts[key]; duplicate {
 			return validationError(CodeManifestInvalid, ManifestPath)
 		}
-		contracts[key] = contract
+		evidenceContracts[key] = contract
 	}
 
 	entries := make(map[string]Entry, len(document.Entries))
@@ -180,7 +180,7 @@ func validateDocument(document Document) error {
 		} else if entry.Applicability.Rule != "" {
 			return validationError(CodeManifestInvalid, ManifestPath)
 		}
-		if _, exists := contracts[contractKey(entry.EvidenceContract)]; !exists {
+		if _, exists := evidenceContracts[contractKey(entry.EvidenceContract)]; !exists {
 			return validationError(CodeDanglingMapping, ManifestPath)
 		}
 		if _, duplicate := entries[entry.ID]; duplicate {
@@ -201,7 +201,7 @@ func validateDocument(document Document) error {
 			return validationError(CodeManifestInvalid, ManifestPath)
 		}
 		mappings[mapping.Key] = struct{}{}
-		if _, exists := contracts[contractKey(mapping.EvidenceContract)]; !exists {
+		if _, exists := evidenceContracts[contractKey(mapping.EvidenceContract)]; !exists {
 			return validationError(CodeDanglingMapping, ManifestPath)
 		}
 		seenEntries := make(map[string]struct{}, len(mapping.EntryIDs))

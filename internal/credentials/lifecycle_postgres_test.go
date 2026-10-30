@@ -71,11 +71,11 @@ func TestCredentialLifecycleCreatesAndReplaysWithoutExposingToken(t *testing.T) 
 	}
 
 	provider, _ := NewEncryptedProvider(NewRepository(pool), fixture.cipher)
-	resolved, err := provider.ResolveLLMCredential(
+	plaintext, err := provider.ResolveLLMCredential(
 		ctx, llmgateway.LLMCredentialRef{CredentialID: request.CredentialID}, fixture.gateway.Ref,
 	)
-	if err != nil || resolved.Reveal() != manager.secretFor(request.CredentialID) {
-		t.Fatalf("resolved created token = (%s, %v)", resolved, err)
+	if err != nil || plaintext.Reveal() != manager.secretFor(request.CredentialID) {
+		t.Fatalf("resolved created token = (%s, %v)", plaintext, err)
 	}
 	var ciphertext []byte
 	if err := pool.QueryRow(ctx, `SELECT ciphertext FROM llm_credentials WHERE credential_id = $1`, request.CredentialID).Scan(&ciphertext); err != nil {

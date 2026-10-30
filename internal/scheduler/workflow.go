@@ -211,11 +211,11 @@ func bindingRequirements(
 		selection := stage.ExecutionConfig.Agents[name]
 		resolvedSkills := make([]contracts.ResolvedSkill, 0, len(binding.Template.Skills))
 		for _, logical := range binding.Template.Skills {
-			resolved, ok := resolvedByName[logical.Name]
+			skill, ok := resolvedByName[logical.Name]
 			if !ok {
 				return nil, fmt.Errorf("Run Skill %q is unavailable for Agent %q", logical.Name, name)
 			}
-			resolvedSkills = append(resolvedSkills, resolved)
+			resolvedSkills = append(resolvedSkills, skill)
 		}
 		if err := contracts.ValidateResolvedSkills(binding.Template, resolvedSkills); err != nil {
 			return nil, fmt.Errorf("resolve Skills for Agent %q: %w", name, err)
