@@ -140,8 +140,7 @@ func (c *CLI) runRemoteScanSweep(ctx context.Context, client *publicclient.Clien
 					return errors.New("admitted sweep member has no Run identity")
 				}
 				if state, e := m.RunState.Get(); e == nil {
-					value, ok := state.(string)
-					if !ok || !validRunState(value, false) {
+					if !validRunState(string(state), false) {
 						return errors.New("sweep API returned invalid Run state")
 					}
 				}

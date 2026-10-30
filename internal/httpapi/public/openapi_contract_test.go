@@ -114,6 +114,9 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	assertClosedObjectSchemas(t, source, "$")
 	assertSafePublicSchemaFields(t, source, "$")
 	assertExamplesContainNoSecrets(t, source, "$")
+	for _, violation := range enumTypeViolations(source, "$") {
+		t.Error(violation)
+	}
 
 	labels := document.Components.Schemas["RunMetadataLabels"]
 	if labels == nil || labels.Value == nil {
@@ -966,6 +969,102 @@ func assertClosedObjectSchemas(t *testing.T, value any, path string) {
 		for index, child := range current {
 			assertClosedObjectSchemas(t, child, fmt.Sprintf("%s/%d", path, index))
 		}
+	}
+}
+
+// TestEnumTypeCheckFindsProbes pins that the enum rule of the contract test
+// can fail: an enum without a type, or with a type its values do not satisfy.
+func TestEnumTypeCheckFindsProbes(t *testing.T) {
+	for name, probe := range map[string]any{
+		"untyped":           map[string]any{"enum": []any{"15s", "1m"}},
+		"untyped parameter": map[string]any{"parameters": []any{map[string]any{"schema": map[string]any{"enum": []any{"a"}}}}},
+		"untyped boolean":   map[string]any{"properties": map[string]any{"summarized": map[string]any{"enum": []any{false}}}},
+		"wrong type":        map[string]any{"type": "string", "enum": []any{true}},
+		"null not allowed":  map[string]any{"type": "string", "enum": []any{"a", nil}},
+		"fraction":          map[string]any{"type": "integer", "enum": []any{1.5}},
+	} {
+		if violations := enumTypeViolations(probe, "$"); len(violations) == 0 {
+			t.Errorf("%s: the check missed %#v", name, probe)
+		}
+	}
+	for name, valid := range map[string]any{
+		"string":   map[string]any{"type": "string", "enum": []any{"a", ""}},
+		"nullable": map[string]any{"type": []any{"string", "null"}, "enum": []any{"a", nil}},
+		"boolean":  map[string]any{"type": "boolean", "enum": []any{true}},
+		"integer":  map[string]any{"type": "integer", "enum": []any{1, 2.0}},
+		"number":   map[string]any{"type": "number", "enum": []any{1, 1.5}},
+		"property": map[string]any{"properties": map[string]any{"enum": map[string]any{"type": "string"}}},
+	} {
+		if violations := enumTypeViolations(valid, "$"); len(violations) != 0 {
+			t.Errorf("%s: valid enum reported: %v", name, violations)
+		}
+	}
+}
+
+// enumTypeViolations reports every enum without a type and every enum value
+// its declared type does not admit. OpenAPI 3.1 allows an untyped enum, but
+// the Go client generator (API-R68) then emits interface{} and the compiler
+// checks nothing; the UI generator infers the union either way.
+func enumTypeViolations(value any, path string) []string {
+	var violations []string
+	switch current := value.(type) {
+	case map[string]any:
+		if values, ok := current["enum"].([]any); ok {
+			types := map[string]bool{}
+			switch declared := current["type"].(type) {
+			case string:
+				types[declared] = true
+			case []any:
+				for _, candidate := range declared {
+					if name, ok := candidate.(string); ok {
+						types[name] = true
+					}
+				}
+			}
+			if len(types) == 0 {
+				violations = append(violations, fmt.Sprintf("enum %s declares no type", path))
+			}
+			for _, enumValue := range values {
+				if len(types) != 0 && !types[jsonSchemaType(enumValue)] &&
+					(jsonSchemaType(enumValue) != "integer" || !types["number"]) {
+					violations = append(violations, fmt.Sprintf("enum %s value %#v is not of its type %v", path, enumValue, current["type"]))
+				}
+			}
+		}
+		for key, child := range current {
+			violations = append(violations, enumTypeViolations(child, path+"/"+key)...)
+		}
+	case []any:
+		for index, child := range current {
+			violations = append(violations, enumTypeViolations(child, fmt.Sprintf("%s/%d", path, index))...)
+		}
+	}
+	return violations
+}
+
+// jsonSchemaType names the JSON Schema type of one decoded YAML value; an
+// integral number is an integer.
+func jsonSchemaType(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		return "null"
+	case bool:
+		return "boolean"
+	case string:
+		return "string"
+	case int, int64, uint64:
+		return "integer"
+	case float64:
+		if typed == float64(int64(typed)) {
+			return "integer"
+		}
+		return "number"
+	case []any:
+		return "array"
+	case map[string]any:
+		return "object"
+	default:
+		return fmt.Sprintf("%T", value)
 	}
 }
 
