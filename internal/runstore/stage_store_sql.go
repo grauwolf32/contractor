@@ -91,6 +91,22 @@ WHERE execution.run_id = $1
   )
 ORDER BY execution.created_at, execution.stage_execution_id`
 
+// hasStageExecutionsSQL probes whether Run $1 has any StageExecution
+// through the run index. Used by PostgresStore.HasStageExecutions.
+var hasStageExecutionsSQL = `SELECT EXISTS (SELECT 1 FROM stage_executions WHERE run_id = $1)`
+
+// listStageLineageSQL returns the identity, state, execution configuration
+// and lineage columns of every StageExecution of Stage $2 in Run $1, oldest
+// first, through the (run_id, stage_name, attempt) identity index; it selects
+// no snapshot column (SCH-R164). Used by PostgresStore.ListStageLineage.
+var listStageLineageSQL = `
+SELECT stage_execution_id, run_id, stage_name, attempt, state,
+       execution_config_variant, escalation_ordinal,
+       previous_execution_id, resume_source_execution_id
+FROM stage_executions
+WHERE run_id = $1 AND stage_name = $2
+ORDER BY attempt`
+
 // listStageExecutionsSQL returns every StageExecution of Run $1, oldest
 // first. Used by PostgresStore.ListStageExecutions.
 var listStageExecutionsSQL = `

@@ -573,8 +573,12 @@ func (s *laneTestStore) GetActiveStageExecution(context.Context, string) (runsto
 	return runstore.StageExecution{}, errors.New("unexpected active Stage read")
 }
 
-func (s *laneTestStore) ListStageExecutions(context.Context, string) ([]runstore.StageExecution, error) {
-	return nil, errors.New("unexpected Stage list")
+func (s *laneTestStore) HasStageExecutions(context.Context, string) (bool, error) {
+	return false, errors.New("unexpected Stage history probe")
+}
+
+func (s *laneTestStore) ListStageLineage(context.Context, string, string) ([]runstore.StageLineage, error) {
+	return nil, errors.New("unexpected Stage lineage read")
 }
 
 func (s *laneTestStore) ListStageExecutionsWithUnreleasedAllocations(context.Context, string) ([]runstore.StageExecution, error) {

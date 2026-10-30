@@ -28,9 +28,16 @@ type cancellationCleanupReads struct {
 	unreleasedErr, batchErr                error
 }
 
-func (s *cancellationCleanupReads) ListStageExecutions(ctx context.Context, runID string) ([]runstore.StageExecution, error) {
+func (s *cancellationCleanupReads) HasStageExecutions(ctx context.Context, runID string) (bool, error) {
 	s.histories++
-	return s.Store.ListStageExecutions(ctx, runID)
+	return s.Store.HasStageExecutions(ctx, runID)
+}
+
+func (s *cancellationCleanupReads) ListStageLineage(
+	ctx context.Context, runID, stageName string,
+) ([]runstore.StageLineage, error) {
+	s.histories++
+	return s.Store.ListStageLineage(ctx, runID, stageName)
 }
 
 func (s *cancellationCleanupReads) ListStageExecutionsWithUnreleasedAllocations(
@@ -250,7 +257,7 @@ func TestPostgresCancellationReadsOnlyIncompleteReleases(t *testing.T) {
 	pending := []string{historicalAttemptID(historicalAttempts - 1), historicalAttemptID(historicalAttempts)}
 	if f.reads.histories != 0 || f.reads.allocationReads != 0 || f.reads.unreleased != 1 ||
 		len(f.reads.batchIDs) != 1 || !slices.Equal(f.reads.batchIDs[0], pending) {
-		t.Fatalf("cleanup reads = full histories %d, per-Stage allocation reads %d, unreleased histories %d, batches %v; "+
+		t.Fatalf("cleanup reads = other history reads %d, per-Stage allocation reads %d, unreleased histories %d, batches %v; "+
 			"want one unreleased history and one batch of %v",
 			f.reads.histories, f.reads.allocationReads, f.reads.unreleased, f.reads.batchIDs, pending)
 	}
@@ -301,7 +308,7 @@ func TestPostgresCancellationCleanupFailuresKeepRetries(t *testing.T) {
 
 			worked, err := f.scheduler.progressOneClaim(ctx, resolved.LaneClassModel, nil)
 			if f.reads.histories != 0 || f.reads.allocationReads != 0 {
-				t.Fatalf("cleanup read the full history %d times and per-Stage allocations %d times",
+				t.Fatalf("cleanup read the other Stage history %d times and per-Stage allocations %d times",
 					f.reads.histories, f.reads.allocationReads)
 			}
 			if test.name == "history read fails" {

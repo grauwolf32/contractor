@@ -62,12 +62,13 @@ func (s *Scheduler) executeRun(
 	case errors.Is(err, runstore.ErrNotFound):
 		// Only a Run whose first Stage was never created has no active
 		// StageExecution: every later Stage, retry and manual continuation is
-		// created in the transaction that ends its predecessor.
-		executions, listErr := s.store.ListStageExecutions(ctx, run.RunID)
-		if listErr != nil {
-			return listErr
+		// created in the transaction that ends its predecessor. An existence
+		// probe, not the Stage history, proves it (SCH-R164).
+		hasHistory, probeErr := s.store.HasStageExecutions(ctx, run.RunID)
+		if probeErr != nil {
+			return probeErr
 		}
-		if len(executions) != 0 {
+		if hasHistory {
 			return s.failInvalidRunState(
 				ctx, run.RunID, fmt.Errorf("running WorkflowRun has no active StageExecution"),
 			)
