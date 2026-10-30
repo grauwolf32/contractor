@@ -12,7 +12,6 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
-	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -106,11 +105,12 @@ INSERT INTO runtime_credentials (
 		updated.HTTPTarget.Credential.CredentialID != "project-origin" || !updated.UpdatedAt.After(created.UpdatedAt) {
 		t.Fatalf("update Project = (%+v, %v)", updated, err)
 	}
-	usage, err := credentials.NewRuntimeCredentialRepository(pool).InspectRuntimeCredentialUsage(
-		ctx, "project-origin", 10,
-	)
-	if err != nil || len(usage.ProjectIDs) != 1 || usage.ProjectIDs[0] != created.ProjectID {
-		t.Fatalf("Project target credential usage = (%+v, %v)", usage, err)
+	usage, err := store.ListProjectIDsByHTTPTargetCredential(ctx, "project-origin", 10)
+	if err != nil || len(usage) != 1 || usage[0] != created.ProjectID {
+		t.Fatalf("Project target credential usage = (%v, %v)", usage, err)
+	}
+	if _, err := store.ListProjectIDsByHTTPTargetCredential(ctx, "project-origin", 129); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("unbounded Project credential usage error = %v", err)
 	}
 	if _, err := store.Update(ctx, UpdateParams{
 		ProjectID: created.ProjectID, OwnerID: "owner-1", ExpectedRevision: 1,

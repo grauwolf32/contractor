@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -77,7 +78,7 @@ func newRuntimeServiceBeside(
 	t.Helper()
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
 		Pool: pool, Lease: lease, Cipher: cipher, Usage: NewRuntimeCredentialRepository(pool),
-		Audits: staticAuditDispatchHolds{}, Barrier: barrier,
+		Projects: projectstore.NewPostgresStore(pool), Audits: staticAuditDispatchHolds{}, Barrier: barrier,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 )
 
@@ -58,7 +59,7 @@ func TestPostgresCredentialMutationsWithoutMasterKeyArePermanent(t *testing.T) {
 			runtimeCredentials, err := credentials.NewRuntimeCredentialService(
 				credentials.RuntimeCredentialServiceOptions{
 					Pool: pool, Lease: lease, Usage: credentials.NewRuntimeCredentialRepository(pool),
-					Audits: hookstore.NewCredentialHolds(pool), Barrier: barrier,
+					Projects: projectstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool), Barrier: barrier,
 				},
 			)
 			if err != nil {

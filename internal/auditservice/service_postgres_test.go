@@ -713,8 +713,8 @@ func TestAuditStartRechecksProjectHTTPTargetCredentialUse(t *testing.T) {
 	}
 	runtimeCredentials, err := managedcredentials.NewRuntimeCredentialService(managedcredentials.RuntimeCredentialServiceOptions{
 		Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher,
-		Usage:  managedcredentials.NewRuntimeCredentialRepository(pool),
-		Audits: hookstore.NewCredentialHolds(pool), Barrier: managedcredentials.NewLifecycleBarrier(),
+		Usage:    managedcredentials.NewRuntimeCredentialRepository(pool),
+		Projects: projectstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool), Barrier: managedcredentials.NewLifecycleBarrier(),
 	})
 	if err != nil {
 		t.Fatal(err)
