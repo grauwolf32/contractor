@@ -698,14 +698,14 @@ through the existing finding receipt (FAIL-FND-1).
 
 | Tool | Static Caido operations |
 | --- | --- |
-| `caido_scope` | List scopes or create one bounded allow/deny scope |
+| `caido_scope` | Page the scope catalog or create one bounded allow/deny scope |
 | `caido_history` | Query paginated proxy history using bounded HTTPQL text |
 | `caido_request_detail` | Read request/response metadata and bounded raw previews and finding-selectable capture |
 | `caido_replay` | Replay a stored request or one bounded supplied raw request |
 | `caido_automate_run` | Create, configure and start bounded Automate fuzzing |
-| `caido_automate_results` | Page one Automate result set |
+| `caido_automate_results` | Page the result set of one Automate entry |
 | `caido_sitemap` | Browse the root or descendants with bounded depth and result count |
-| `caido_workflow_list` | List Caido workflows, optionally by known kind |
+| `caido_workflow_list` | Page the workflow catalog, optionally by known kind |
 | `caido_workflow_run` | Run one convert or active workflow with bounded input |
 | `caido_workflow_findings` | Page findings created by workflows |
 
@@ -759,7 +759,7 @@ Rationale: schema validation alone does not validate scalar values.
 | One GraphQL response, received and decoded | 16 MiB | LIM-HTP-19 |
 | Raw request supplied to replay or a workflow | 1 MiB | LIM-HTP-20 |
 | Inline raw preview | 8192 characters | LIM-HTP-21 |
-| History, sitemap, results or findings page | 100 entries | LIM-HTP-22 |
+| History, sitemap, scope, workflow, results or findings page | 100 entries | LIM-HTP-22 |
 | Scope allowlist plus denylist | 256 terms | LIM-HTP-23 |
 | HTTPQL or filter text | 8192 UTF-8 bytes | LIM-HTP-24 |
 | Automate targets | 32 | LIM-HTP-25 |
@@ -799,6 +799,42 @@ Malformed nodes anywhere in the selected collection fail
 `caido_response_too_large`. The caller may narrow `parent_id` or `scope_id`
 when a complete provider selection exceeds the source bounds. Failures retain
 the redaction rules of HTP-R112.
+
+**HTP-R147.** `caido_scope(action="list", limit=100, offset=0)` and
+`caido_workflow_list(kind="", limit=100, offset=0)` page the scope and
+workflow catalogs. `limit` is an integer from 1 through 100 (LIM-HTP-22) and
+`offset` a zero-based integer. The result has `scopes` or `workflows`,
+`total_scopes` or `total_workflows`, `offset` and `truncated`; a truncated
+page also has `next_offset`, and calling again with `offset=next_offset` and
+the same `kind` reaches every selected member. A page may contain fewer than
+`limit` members to fit LIM-HTP-35, and an offset at or past the end returns an
+empty final page. A valid catalog exceeding one page is not malformed.
+`caido_scope(action="create")` keeps `limit` and `offset` at their defaults.
+
+Caido returns these catalogs, like the entries of one Automate session, as
+flat collections without provider pagination. Catalogs are expected to hold
+tens of members; the maximum is what fits LIM-HTP-19 and LIM-HTP-34. Every
+call reads the complete catalog, strictly validates every member, including
+workflows the `kind` filter leaves out, and pages the selected members in
+provider order. A malformed member anywhere fails `caido_response_invalid`; a
+response exceeding the byte bound fails `caido_response_too_large`.
+Validation and page assembly run outside the event loop, and a cancelled or
+expired call joins them before releasing the session lock (HTP-R132). No
+catalog state is retained between calls, so nothing needs refreshing or
+erasing at release; each offset indexes the catalog as that call read it, and
+a changed total shows that the catalog changed between pages.
+
+`caido_automate_results` reads the complete entry list of its session the
+same way and selects the explicit `entry_id` or, when it is empty, the last
+listed entry, which is the newest. An `entry_id` that is not among the
+session's entries is `not_found`, and a session without entries is
+`no_entries`. The returned session and entry identities must equal the
+selected ones (HTP-R110).
+
+Rationale: these catalogs are small and rarely change, so re-reading them per
+page keeps no per-allocation state. A retained snapshot like the sitemap's
+(HTP-R126) becomes appropriate if a deployment shows catalogs whose re-read
+per page is costly or whose order changes while it is paged.
 
 ### Raw exchanges and workflow output
 
