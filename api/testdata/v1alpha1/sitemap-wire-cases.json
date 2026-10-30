@@ -71,8 +71,10 @@
               "status": 200,
               "at": "2026-10-26T00:00:00Z"
             }
-          ]
-        }
+          ],
+          "kind": "http"
+        },
+        "automatic": true
       }
     },
     {
@@ -95,6 +97,96 @@
             ]
           }
         }
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "caido"
+        },
+        "automatic": true
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "http-proxy"
+        },
+        "automatic": true
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
       }
     }
   ],
@@ -311,8 +403,10 @@
               "status": 200,
               "at": "2026-10-26T00:00:00Z"
             }
-          ]
-        }
+          ],
+          "kind": "http"
+        },
+        "automatic": true
       }
     },
     {
@@ -328,8 +422,10 @@
               "status": 200,
               "at": "2026-10-26T00:00:00Z"
             }
-          ]
-        }
+          ],
+          "kind": "http"
+        },
+        "automatic": true
       }
     },
     {
@@ -346,8 +442,10 @@
               "at": "2026-10-26T00:00:00Z"
             }
           ],
-          "secrets": []
-        }
+          "secrets": [],
+          "kind": "http"
+        },
+        "automatic": true
       }
     },
     {
@@ -502,8 +600,10 @@
               "at": "2026-10-26T00:00:00Z",
               "sessionGeneration": "session-one"
             }
-          ]
-        }
+          ],
+          "kind": "http"
+        },
+        "automatic": true
       }
     },
     {
@@ -570,6 +670,641 @@
             "rules": []
           }
         }
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": ""
+        },
+        "automatic": true
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ]
+        },
+        "automatic": true
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": null
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "manual",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "openapi",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "unknown provider",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": null,
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": null,
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2,
+              "sourceId": "forged"
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 0
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "unknown",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 700,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "get",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "timeout",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z",
+              "parameters": [
+                ""
+              ]
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z",
+              "raw": "forged"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            },
+            {
+              "reason": "projection",
+              "count": 3
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-26T00:00:00Z",
+              "parameters": [
+                "bad\nname"
+              ]
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
+      }
+    },
+    {
+      "type": "SitemapCollectionRequest",
+      "value": {
+        "apiVersion": "contractor/v1alpha1",
+        "input": {
+          "observations": [
+            {
+              "url": "https://api.example.test/session/short-password?token=value&password=value",
+              "method": "GET",
+              "outcome": "response",
+              "status": 200,
+              "at": "2026-10-29T03:00:00+03:00"
+            }
+          ],
+          "kind": "custom-scanner.v2",
+          "artifact": {
+            "namespace": "scanner",
+            "name": "report",
+            "revision": "rev-report"
+          },
+          "gaps": [
+            {
+              "reason": "projection",
+              "count": 2
+            }
+          ]
+        },
+        "automatic": false
       }
     }
   ],

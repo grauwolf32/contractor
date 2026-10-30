@@ -5,10 +5,11 @@ milestone: project-sitemap-2026-10
 epic: scan-tools
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V410-002
 - V410-003
+- V410-024
 languages:
 - go
 - python
@@ -60,7 +61,7 @@ scope:
     errors.
   - Preserve report provenance/timestamps, response availability, wildcard/soft-404 caveats, truncation and discarded-match
     gaps; validate every accepted record.
-  - Bound each import step with the existing exact input/cursor and shared keyed mutation receipts. Add no autonomous
+  - Bound each exact-report import with shared keyed mutation receipts. Add no autonomous
     import job, checkpoint journal or generic sync framework without a real caller.
   - Normalize imported URLs, examples and metadata under the shared syntax/byte and content-kind contract before
     map identity or publication; do not add sitemap secret matching or matching-secret transport.
@@ -71,14 +72,14 @@ scope:
     first slice. Generic collection-completeness states or required automatic import checks are excluded.
 requirements:
 - id: R1
-  text: An import reads only an exact authorized artifact under an explicit format/version and source/deployment binding;
+  text: A Runtime import adapter reads only an exact authorized artifact under an explicit format/version and source/deployment binding;
     unknown formats fail permanently and never execute embedded instructions.
 - id: R2
   text: Keep existing ffuf/Katana limits and observed-response restrictions. Preserve concrete limitations already
     declared by the report (such as discarded matches); do not invent a generic source-complete/incomplete state.
 - id: R3
-  text: Process a bounded exact report step and reuse the existing cursor/receipt mechanisms for continuation/replay.
-    The same exact ref and keyed batch cannot append again after result eviction. Add no independent durable import
+  text: Prepare one bounded normalized batch from an exact report in Runtime and reuse the existing shared receipt for replay.
+    The same prepared keyed batch cannot append again after source or result eviction; a fresh tool invocation must still read its exact source. Add no independent durable import
     checkpoint mechanism.
 - id: R4
   text: Selected Caido request/detail results are not durable exchange refs; their IDs remain provenance unless actual
@@ -98,9 +99,9 @@ failure_outcomes:
   permanent: Unknown format/version, inaccessible ref, malformed envelope or incompatible records return permanent
     classified outcomes; accepted valid records from a documented partial format carry exact gaps.
   retryable: Only Artifact/provider transport failures retry within owning read/import deadline.
-  ambiguous: Resume the same exact report identity and bounded continuation position; do not choose current/latest source or rerun the scanner.
-  cancelled: Join off-thread parser work and preserve accepted keyed batches before allocation release.
-  timeout: A bounded import-step deadline limits parsing and publication; incomplete continuation remains explicit.
+  ambiguous: Replay the already prepared normalized batch and key; do not reread a report between publication retries, choose current/latest source or rerun the scanner.
+  cancelled: Join Runtime off-thread parser work and in-flight publication before allocation release.
+  timeout: The existing operation deadline bounds exact reads, parsing and publication; no continuation state is created.
 - operation: Selected Caido projection and map publication
   permanent: Provider invalidity, absent raw exchange or collection denial never fabricate HTTP success; no raw HTTP
     exchange is retained as sitemap metadata. Generic Artifact admission rejection or history filled by protected revisions
@@ -115,30 +116,30 @@ cardinality:
 - collection: Source report and selected Caido result pages
   expected: Small normalized reports and selected tool results
   maximum: Existing scanner/provider input bounds plus proposal section 10 batch/map/member quotas
-  bound: Bound input bytes before parse, process one page/batch per step with bounded continuation instead of rescanning the full report.
+  bound: Bound input bytes before parse; each report has at most 100 rows and fits one batch, while Caido contributes only selected page/detail metadata.
 - collection: Rejected/omitted records and provenance
   expected: A few source-specific gaps
   maximum: Shared source registry/provenance/gap representation limits
   bound: Use aggregate counts and bounded examples; do not append one durable gap per invalid input row.
 lifecycle:
-- entity: Import source, continuation position and selected-result attribution
+- entity: Import source and selected-result attribution
   delete: Allocation cleanup removes transient parsers; Project purge removes its durable map source metadata.
   cascade: Deleting source Run bytes leaves safe map metadata and explicit unavailable evidence, not dangling claimed
     readable exchanges.
   retention: Exact report inputs selected for proof acquire ordinary holds before acceptance, atomically against eviction.
-    Metadata refs/cursors/receipts alone do not pin history; the collector never performs eviction and metadata-only
+    Metadata refs/receipts alone do not pin history; the collector never performs eviction and metadata-only
     import does not preserve all raw traffic.
 acceptance_criteria:
 - id: A1
   given: Exact ffuf and Katana reports with partial/malformed/oversized cases
   when: The production importer processes them
-  then: Valid records retain factual source limitations; explicit malformed imports return classified errors. No scanner
+  then: Runtime adapters retain factual source limitations and reject malformed reports before submitting normalized data. Server accepts any valid source label through one common contract and never parses provider reports or repairs provider rows. No scanner
     process is launched, and automatic map publication cannot replace the scanner report/result.
 - id: A2
-  given: Many records spanning batches, a lost acknowledgement and eviction of an accepted revision
-  when: The import resumes or repeats with the same source
-  then: Each continuation step is bounded, accepted observations are not duplicated and receipt replay does not append
-    another revision or republish evicted history; unavailable exact bytes never fall back to latest.
+  given: Exact reports at the 100-result boundary, a lost acknowledgement and eviction of an accepted map or source revision
+  when: The same keyed import is retried
+  then: One report is prepared once as one bounded batch in Runtime. Retrying that prepared batch uses receipt replay without rereading evidence metadata and does not append
+    another revision or republish evicted history. A fresh explicit import of unavailable exact bytes fails its ordinary read and never falls back to latest.
 - id: A3
   given: Selected Caido results plus unrelated traffic in the same provider
   when: A selected tool inspects/generates requests
@@ -193,14 +194,24 @@ tests:
   - A3
   - A4
   - A5
+- command: make test-wire-cross-language
+  covers: [A1, A4, A5]
+- command: make verify-public-api
+  covers: [A4]
+- command: make ui-verify
+  covers: [A4]
 test_prerequisites:
 - Use controlled report/provider fixtures, real Artifact storage and production process boundaries. Installed-engine
   test-scan-e2e is unnecessary for import-only changes; if implementation also changes scanner execution, its existing
   execution gate becomes required.
 execution:
-  branch: codex/v410-sitemap
-  claimed_on: '2026-10-27'
-  note: Resumed after the reviewed V410-003 implementation and its main merge. V410-005 through V410-007 remain pending until their own implementation starts.
+  branch: codex/v410-004-sitemap-imports
+  claimed_on: '2026-10-29'
+  note: >-
+    Resumed here after the user's request to continue sitemap delivery. The earlier V410 lane's last turn
+    is completed, its checkout is clean and its last commit only claimed this task; no implementation
+    is being taken from an active worker. Start from main including V410-024. V410-005 through V410-009
+    remain pending until their declared prerequisites and individual work are complete.
 implementation_decisions:
 - date: 2026-10-26
   decision: Preserve the user-requested isolation between tools and sitemap. Scanner execution and Caido tools retain
@@ -213,3 +224,80 @@ implementation_decisions:
     subsystem. Defer new dirsearch format work until a concrete caller/contract exists.
 - date: '2026-10-27'
   decision: Existing normalized ffuf and Katana reports each retain at most 100 results and 128 KiB. Validate those owning bounds and import one exact report as one bounded batch through existing receipts. No continuation cursor or durable import checkpoint is needed for these concrete callers; reopen only when a selected versioned format exceeds the shared batch bound.
+- date: '2026-10-29'
+  decision: >-
+    The 128 KiB limit applies to retained result arrays; the existing schemaVersion 1 tool report envelope
+    is bounded by 512 KiB. Read exact current-Run report metadata and bytes through ArtifactStore,
+    strictly validate the existing ffuf/Katana formats in Go, and reuse the common Project receipt and
+    publication transaction. Receipt identity binds the exact ref, format and authenticated Run before
+    reading source bytes. Missing HTTP timestamps use immutable report revision publication time,
+    explicitly described as report time rather than precise exchange time. Stable kind/deployment
+    sources aggregate behavior; existing bounded member Evidence stores exact report file locators.
+- date: '2026-10-29'
+  decision: >-
+    Generic report-publication notifications originate after the tool Worker writes its ordinary report;
+    scanner tools do not acquire another report writer. Allocation composition connects optional bounded
+    subscribers. Selected Caido metadata is emitted before model-output redaction and without extra
+    provider/target requests; native sitemap nodes lacking methods do not manufacture GET observations.
+- date: '2026-10-29'
+  decision: >-
+    Keep one bounded mixed collector queue and one publisher for HTTP, selected Caido rows and exact
+    report notifications. A definite invalid/unavailable report drops only its own item; allocation,
+    storage and retry-budget failures retain the existing whole-collector stop semantics. Closing
+    never chains a new publisher after cancellation; cleanup joins the active work before returning.
+- date: '2026-10-29'
+  decision: >-
+    The new evidence writer exposed a snapshot mismatch: an explicitly selected original consumer
+    input can contain the exact producer report under a different Run/ref. Match only configured
+    original-input descriptors by digest/media/size, rebind and deduplicate evidence, then use the
+    existing ordinary frozen forks. Foreign provenance alone never authorizes a read. Real-store
+    verification deletes both producer Runs before snapshot creation and preserves retained bytes
+    after consumer working-history eviction. Empty-result reports retain source gaps without inventing
+    a member evidence locator.
+- date: '2026-10-29'
+  decision: >-
+    Import tool arguments are format and artifact_ref so ordinary scalar and Artifact bindings in
+    model-free Workers can invoke it. No nested-argument engine is added. The existing common
+    256-KiB encoded command admission bound also applies after report projection; a pathological
+    report exceeding it fails permanently instead of adding continuation or widening shared limits.
+- date: '2026-10-29'
+  decision: >-
+    User boundary correction supersedes the earlier Server report parser and Caido projection decision:
+    all provider/report preprocessing belongs to Runtime tool adapters. Server accepts one strict
+    normalized observation batch for any source identifier, without provider enums, format switches,
+    source-specific row repair or report-payload reads. Domain grouping, canonical identities, validation,
+    rights, exact Artifact metadata verification, keyed receipts and publication stay on Server.
+    Runtime reads selected exact reports through ArtifactClient, prepares a bounded batch once and
+    retries the same bytes/key. Receipt replay of that prepared batch works after source eviction;
+    a new explicit import invocation must read its exact input and fails if those bytes disappeared.
+    No new receipt-lookup endpoint or source-specific durable checkpoint is introduced to reproduce
+    the superseded selection-only replay guarantee. Source labels affect provenance, not algorithms.
+
+implementation_commit: a07ab173e74e9f135d3b73c92402715e40800cd5
+verification:
+  date: '2026-10-29'
+  result: passed
+  tested_commit: a07ab173e74e9f135d3b73c92402715e40800cd5
+  commands:
+  - command: make test-project-sitemap-postgres
+    result: Passed all 14 complete packages and 35 mandatory real-PostgreSQL cases with zero mandatory skips. Arbitrary provider labels and opaque evidence prove the Server does not parse source reports; prepared-batch replay performs no Artifact reads after source and map eviction.
+  - command: make test-project-sitemap-tools-e2e
+    result: Passed all three mandatory real Server/Runtime/PostgreSQL scenarios with zero skips, including model-free explicit ffuf/Katana imports, repeated Runs, malformed input isolation, selected Caido metadata, live reads and retained snapshots.
+  - command: make test-http-caido-e2e
+    result: Passed the complete heterogeneous-runtime process scenario in 77.586 seconds; collection-disabled target behavior and provider calls remain unchanged.
+  - command: uv run --project runtime pytest -q runtime/tests/test_sitemap_*.py runtime/tests/test_observation_metadata.py runtime/tests/test_tool_worker*.py runtime/tests/test_tool_report_publication.py runtime/tests/test_http_*.py runtime/tests/test_scan_ffuf.py runtime/tests/test_scan_katana.py runtime/tests/test_scan_katana_lifecycle.py runtime/tests/test_caido_*.py runtime/tests/test_allocation*.py runtime/tests/test_capabilities.py
+    result: Passed 743 tests with zero skips, errors or failures on the final integrated source. Covers source preprocessing, strict report formats and bounds, shared host syntax, prepared-payload retries, failure isolation, cancellation and collector lifecycle.
+  - command: make test-wire-cross-language
+    result: Passed 454 shared fixtures with 362 Go and 271 Python shared readers, 1619 selected Python tests and the complete 504-test Runtime contract/performance selection.
+  - command: make verify-public-api
+    result: Passed registry validation, generated client checks and complete public-operation coverage with extensible source-label grammar.
+  - command: make ui-verify
+    result: Passed generation, lint, typecheck and build; 204 test files and 2525 UI tests passed with one existing expected failure, plus 17 Node tests.
+  - command: make lint
+    result: Passed generated checks, Go vet/staticcheck/testonlyexports, tasks/specifications, release graph, deployment checks, Ruff and all four Runtime import-layer contracts.
+  notes:
+  - No new table, receipt journal, retention owner, source-specific Server endpoint or ArtifactStore branch was introduced. Runtime source adapters feed one generic collector and one normalized publication contract.
+  - The source-independent boundary supersedes the earlier intermediate Go report parser and Caido row-repair implementation; both were removed before delivery.
+  - A new explicit import invocation must still read its exact source. Only the already prepared batch is retried after ambiguous publication or source eviction; this narrower contract is documented in SMT-R23.
+  - Additional compatibility diagnostics ran 104 pentest allocation/identity/socket/target tests successfully on a reachable RFC1918 LAN interface, changing only the fixture address in memory. An earlier unmodified diagnostic selected an unreachable VPN interface and timed out; it is not counted as a passing gate, and no production transport or repository fixture was changed.
+  - Independent Server-boundary and Runtime parser/collector reviews found no remaining blockers. Optional Caido preprocessing errors and cancellation are covered by regressions and cannot replace the original tool result.

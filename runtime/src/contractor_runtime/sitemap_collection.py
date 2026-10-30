@@ -1,16 +1,19 @@
-"""Best-effort allocation-private HTTP batching; Go owns sitemap semantics."""
+"""One bounded allocation queue for observations and published report references."""
 
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import logging
 import time
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import suppress
+from dataclasses import dataclass
 from uuid import uuid4
 
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
+from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.sitemap import SitemapClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -19,12 +22,18 @@ MAX_BYTES = 256 << 10
 FLUSH_INTERVAL_SECONDS = 5.0
 FLUSH_BUDGET_SECONDS = 15.0
 MAX_ATTEMPTS = 3
+MAX_GAP_COUNT = 2**53 - 1
+_REPORT_REJECTION_CODES = frozenset(
+    {"invalid_request", "artifact_not_found", "artifact_access_denied"}
+)
 _LOG_FAILURE_CODES = frozenset(
     {
         "artifact_history_protected",
         "artifact_history_maintenance_pending",
         "storage_transaction_conflict",
         "invalid_request",
+        "artifact_not_found",
+        "artifact_access_denied",
         "allocation_not_active",
         "forbidden",
         "not_found",
@@ -33,15 +42,29 @@ _LOG_FAILURE_CODES = frozenset(
 )
 
 
-def _wire_bytes(value: dict) -> int:
+def _wire_bytes(kind: str | None, value: dict) -> int:
     # This is only private transport sizing, never a sitemap identity/hash.
     return len(
         json.dumps(
-            {"apiVersion": "contractor/v1alpha1", "input": value},
+            {
+                "apiVersion": "contractor/v1alpha1",
+                **(
+                    {"report": value}
+                    if kind is None
+                    else {"input": {"kind": kind, **value}, "automatic": True}
+                ),
+            },
             ensure_ascii=False,
             separators=(",", ":"),
         ).encode()
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _Pending:
+    kind: str | None
+    value: dict
+    size: int
 
 
 class SitemapCollector:
@@ -49,12 +72,16 @@ class SitemapCollector:
         self,
         client: SitemapClient,
         *,
+        report_projector: Callable[[str, ArtifactRef], Awaitable[dict]] | None = None,
+        report_formats: Mapping[str, str] | None = None,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         wait: Callable[[float], Awaitable[None]] = asyncio.sleep,
     ) -> None:
         self._client, self._clock, self._sleep, self._wait = client, clock, sleep, wait
-        self._pending: list[dict] = []
+        self._reports = report_projector
+        self._report_formats = dict(report_formats or {})
+        self._pending: list[_Pending] = []
         self._bytes = 0
         self._since = clock()
         self._timer: asyncio.Task | None = None
@@ -66,31 +93,62 @@ class SitemapCollector:
         self._failure: ArtifactAPIError | None = None
         self._buffer_warning = False
 
-    async def receive(self, observations: Sequence[dict]) -> None:
-        """Admit one small private frame without awaiting any storage/network I/O.
+    async def receive_report(self, tool: str, artifact: ArtifactRef) -> None:
+        """Queue an already-published report reference without reading its bytes."""
+        format_ = self._report_formats.get(tool)
+        if format_ is not None and self._reports is not None:
+            self._admit(
+                None,
+                {"format": format_, "artifact": artifact.require_exact().model_dump(by_alias=True)},
+            )
 
-        No headers/bodies, durable queue, URL keys or sitemap hashes are built.
-        The existing Go projector runs before receipt hashing and Artifact
-        publication.
-        """
-        if self._closed or self._closing or self._disabled or not observations:
+    async def receive_source(
+        self, kind: str, observations: Sequence[dict], *, gaps: Sequence[dict] = ()
+    ) -> None:
+        """Admit source metadata without awaiting storage or network I/O."""
+        if self._closed or self._closing or self._disabled:
+            return
+        if gaps:
+            self._admit(kind, {"observations": [], "gaps": list(gaps[:16])})
+            if len(gaps) > 16:
+                self._warn_full()
+        # A selected provider page is at most 100 rows, but may exceed one
+        # publication's byte bound. Admit rows separately: a large page or one
+        # oversized row must not discard every representable observation.
+        for observation in observations[:MAX_ITEMS]:
+            self._admit(kind, {"observations": [observation]})
+        if len(observations) > MAX_ITEMS:
+            self._warn_full()
+
+    def _warn_full(self) -> None:
+        if not self._buffer_warning:
+            _LOGGER.warning("sitemap collection buffer full")
+            self._buffer_warning = True
+
+    def _admit(self, kind: str | None, value: dict) -> None:
+        if self._closed or self._closing or self._disabled:
             return
         try:
-            rows = [*self._pending, *observations]
-            size = _wire_bytes({"observations": rows})
-            if len(rows) > MAX_ITEMS or size > MAX_BYTES:
+            # Charge each row's full standalone envelope. This conservatively
+            # bounds a mixed queue and every batch assembled from it.
+            value = copy.deepcopy(value)
+            size = _wire_bytes(kind, value)
+            if size > MAX_BYTES:
+                self._warn_full()
+                return
+            if len(self._pending) == MAX_ITEMS or self._bytes + size > MAX_BYTES:
                 self._kick()
-                rows = [*self._pending, *observations]
-                size = _wire_bytes({"observations": rows})
-            if len(rows) > MAX_ITEMS or size > MAX_BYTES:
-                if not self._buffer_warning:
-                    _LOGGER.warning("sitemap collection buffer full")
-                    self._buffer_warning = True
+            if len(self._pending) == MAX_ITEMS or self._bytes + size > MAX_BYTES:
+                self._warn_full()
                 return
             if not self._pending:
                 self._since = self._clock()
-            self._pending, self._bytes = rows, size
-            if len(rows) >= MAX_ITEMS or self._clock() - self._since >= FLUSH_INTERVAL_SECONDS:
+            self._pending.append(_Pending(kind, value, size))
+            self._bytes += size
+            if (
+                len(self._pending) >= MAX_ITEMS
+                or self._clock() - self._since >= FLUSH_INTERVAL_SECONDS
+            ):
                 self._kick()
             self._arm()
         except Exception as error:
@@ -133,22 +191,50 @@ class SitemapCollector:
     def _kick(self) -> None:
         if self._publisher is not None or self._disabled or not self._pending:
             return
-        payload = {"observations": self._pending}
+        kind = self._pending[0].kind
+        count = 1
+        if kind is not None:
+            while count < len(self._pending) and self._pending[count].kind == kind:
+                count += 1
+        selected, self._pending = self._pending[:count], self._pending[count:]
+        self._bytes -= sum(item.size for item in selected)
+        if kind is None:
+            payload = selected[0].value
+        else:
+            gaps: dict[str, int] = {}
+            rows = []
+            for item in selected:
+                rows.extend(item.value["observations"])
+                for gap in item.value.get("gaps", ()):
+                    reason = gap["reason"]
+                    gaps[reason] = min(MAX_GAP_COUNT, gaps.get(reason, 0) + gap["count"])
+            payload = {"kind": kind, "observations": rows}
+            if gaps:
+                payload["gaps"] = [
+                    {"reason": reason, "count": count} for reason, count in gaps.items()
+                ]
         deadline = min(
             [
                 self._clock() + FLUSH_BUDGET_SECONDS,
                 *self._checkpoint_deadlines,
             ]
         )
-        self._pending, self._bytes = [], 0
         self._publisher = asyncio.create_task(
-            self._publish(payload, deadline), name="sitemap-publisher"
+            self._publish(kind, payload, deadline), name="sitemap-publisher"
         )
 
-    async def _publish(self, payload: dict, deadline: float) -> None:
+    async def _publish(self, kind: str | None, payload: dict, deadline: float) -> None:
         key = str(uuid4())
         try:
             async with asyncio.timeout(max(0.0, deadline - self._clock())):
+                if kind is None:
+                    if self._reports is None:
+                        raise RuntimeError("report projector is not installed")
+                    # Exact reads and source parsing happen once. Retry only
+                    # this prepared batch, including after source eviction.
+                    payload = await self._reports(
+                        payload["format"], ArtifactRef.model_validate(payload["artifact"])
+                    )
                 for attempt in range(MAX_ATTEMPTS):
                     if self._clock() >= deadline:
                         raise TimeoutError
@@ -172,11 +258,19 @@ class SitemapCollector:
                             raise
                         await self._sleep(delay)
         except (Exception, asyncio.CancelledError) as error:
-            self._disabled = True
+            self._disabled = not (
+                kind is None
+                and isinstance(error, ArtifactAPIError)
+                and not error.retryable
+                and error.code in _REPORT_REJECTION_CODES
+            )
             self._record_failure(error)
         finally:
             self._publisher = None
-            if not self._closed and not self._disabled:
+            # During close, only checkpoint may start another group under its
+            # shared deadline. A cancelled close joins its current publisher
+            # and must not leave an automatically chained publisher alive.
+            if not self._closed and not self._closing and not self._disabled:
                 if self._pending and (
                     len(self._pending) >= MAX_ITEMS
                     or self._clock() - self._since >= FLUSH_INTERVAL_SECONDS

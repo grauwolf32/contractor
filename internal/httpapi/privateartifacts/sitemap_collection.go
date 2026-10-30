@@ -3,6 +3,7 @@ package privateartifacts
 import (
 	"context"
 	"net/http"
+	"slices"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/controlplane"
@@ -12,6 +13,7 @@ import (
 type sitemapCollectionRequest struct {
 	APIVersion string                           `json:"apiVersion" strictjson:"required"`
 	Input      projectsitemap.CollectionIngress `json:"input" strictjson:"required"`
+	Automatic  bool                             `json:"automatic" strictjson:"required"`
 }
 
 func sitemapCollector(grant controlplane.AllocationGrant) bool {
@@ -38,12 +40,17 @@ func (h *handler) collectSitemapObservations(w http.ResponseWriter, r *http.Requ
 		h.handleError(w, err)
 		return
 	}
-	if input.APIVersion != contracts.APIVersion {
+	if input.APIVersion != contracts.APIVersion || input.Input.Validate() != nil {
 		h.handleError(w, errInvalidRequest)
 		return
 	}
-	err = h.withSitemapGrant(r, sitemapCollector, func(ctx context.Context, access projectsitemap.AllocationAccess) error {
-		result, err := h.dependencies.Sitemap.CollectHTTPAllocation(ctx, access, keys[0], input.Input)
+	err = h.withSitemapGrant(r, func(grant controlplane.AllocationGrant) bool {
+		if input.Automatic {
+			return sitemapCollector(grant) && (input.Input.Artifact == nil || input.Input.Artifact.Namespace == grant.Namespace)
+		}
+		return grant.WritePolicy == controlplane.WriteInputsAndIntermediates && slices.Contains(grant.SitemapTools, contracts.SitemapImportTool)
+	}, func(ctx context.Context, access projectsitemap.AllocationAccess) error {
+		result, err := h.dependencies.Sitemap.CollectAllocation(ctx, access, keys[0], input.Input)
 		if err != nil {
 			return err
 		}

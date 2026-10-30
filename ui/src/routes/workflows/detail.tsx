@@ -103,8 +103,9 @@ function StageContract({
           ) : null}
         </span>
         <span className="ui-caption">
-          {stage.planner.plannerId}@{stage.planner.version} ·{" "}
-          {plural(Object.keys(stage.agents).length, "logical Worker")}
+          {stage.operation
+            ? `Server · ${stage.operation.ref}`
+            : `${stage.planner?.plannerId}@${stage.planner?.version} · ${plural(Object.keys(stage.agents).length, "logical Worker")}`}
         </span>
       </summary>
       <div className="workflow-stage-body">
@@ -116,83 +117,96 @@ function StageContract({
           layout="list"
           size="sm"
           className="workflow-stage-facts"
-          items={[
-            {
-              term: "Planner",
-              value: (
-                <code>
-                  {stage.planner.plannerId}@{stage.planner.version}
-                </code>
-              ),
-            },
-            {
-              term: "Instructions",
-              value: (
-                <>
-                  <code>{stage.instructions.ref}</code>
-                  <small title={stage.instructions.digest}>
-                    {compactDigest(stage.instructions.digest)}
-                  </small>
-                </>
-              ),
-            },
-          ]}
+          items={
+            stage.operation
+              ? [
+                  {
+                    term: "Server operation",
+                    value: <code>{stage.operation.ref}</code>,
+                  },
+                ]
+              : [
+                  {
+                    term: "Planner",
+                    value: (
+                      <code>
+                        {stage.planner?.plannerId}@{stage.planner?.version}
+                      </code>
+                    ),
+                  },
+                  {
+                    term: "Instructions",
+                    value: (
+                      <>
+                        <code>{stage.instructions?.ref}</code>
+                        <small title={stage.instructions?.digest ?? ""}>
+                          {compactDigest(stage.instructions?.digest ?? "")}
+                        </small>
+                      </>
+                    ),
+                  },
+                ]
+          }
         />
-        <div>
-          <h4>Logical Workers</h4>
-          <ul className="workflow-agent-list">
-            {Object.entries(stage.agents)
-              .sort(([left], [right]) => left.localeCompare(right))
-              .map(([logicalName, binding]) => (
-                <li key={logicalName}>
-                  <strong>{logicalName}</strong>
-                  <Link
-                    to={agentPath(
-                      binding.template.templateId,
-                      binding.template.version,
+        {!stage.operation && (
+          <div>
+            <h4>Logical Workers</h4>
+            <ul className="workflow-agent-list">
+              {Object.entries(stage.agents)
+                .sort(([left], [right]) => left.localeCompare(right))
+                .map(([logicalName, binding]) => (
+                  <li key={logicalName}>
+                    <strong>{logicalName}</strong>
+                    <Link
+                      to={agentPath(
+                        binding.template.templateId,
+                        binding.template.version,
+                      )}
+                      state={{
+                        returnTo: locationDestination(location),
+                        returnLabel: workflowSelector(workflow),
+                        returnState: location.state,
+                      }}
+                    >
+                      {binding.template.templateId}@{binding.template.version}
+                    </Link>
+                    <span>namespace {binding.namespace}</span>
+                    {(binding.skills ?? []).length === 0 ? (
+                      <span className="muted-copy">No global Skills</span>
+                    ) : (
+                      <span className="workflow-skill-links">
+                        Skills:{" "}
+                        {(binding.skills ?? []).map((skill) => (
+                          <Link
+                            key={`${skill.namespace}/${skill.name}`}
+                            to={artifactDetailPath(
+                              { kind: "user" },
+                              {
+                                namespace: skill.namespace,
+                                name: skill.name,
+                              },
+                            )}
+                          >
+                            {skill.namespace}/{skill.name}
+                          </Link>
+                        ))}
+                      </span>
                     )}
-                    state={{
-                      returnTo: locationDestination(location),
-                      returnLabel: workflowSelector(workflow),
-                      returnState: location.state,
-                    }}
-                  >
-                    {binding.template.templateId}@{binding.template.version}
-                  </Link>
-                  <span>namespace {binding.namespace}</span>
-                  {(binding.skills ?? []).length === 0 ? (
-                    <span className="muted-copy">No global Skills</span>
-                  ) : (
-                    <span className="workflow-skill-links">
-                      Skills:{" "}
-                      {(binding.skills ?? []).map((skill) => (
-                        <Link
-                          key={`${skill.namespace}/${skill.name}`}
-                          to={artifactDetailPath(
-                            { kind: "user" },
-                            {
-                              namespace: skill.namespace,
-                              name: skill.name,
-                            },
-                          )}
-                        >
-                          {skill.namespace}/{skill.name}
-                        </Link>
-                      ))}
-                    </span>
-                  )}
-                </li>
-              ))}
-          </ul>
-        </div>
-        <div>
-          <h4>Resolved base execution config</h4>
-          <ConsumerConfigList
-            config={stage.executionConfig}
-            workerLabel={(name) => `Agent ${name}`}
-            className="workflow-consumer-list"
-          />
-        </div>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
+        {!stage.operation && (
+          <div>
+            <h4>Resolved base execution config</h4>
+            <ConsumerConfigList
+              config={stage.executionConfig}
+              workerLabel={(name) => `Agent ${name}`}
+              className="workflow-consumer-list"
+            />
+          </div>
+        )}
         <div>
           <h4>Scheduler transitions</h4>
           <Facts

@@ -89,7 +89,7 @@ The write fence is defined in [Artifact store](../artifacts/artifact-store.md);
 ```mermaid
 stateDiagram-v2
     [*] --> preparing: StageExecution created, StageContext pinned
-    preparing --> running: fixed allocation set ready, Planner started
+    preparing --> running: Planner ready or Server operation admitted
     preparing --> aborting: preparation failure or Scheduler-owned cancellation or interruption
     running --> finalizing: durable candidate (wins compare-and-set from running)
     running --> aborting: Scheduler-owned cancellation or interruption (wins compare-and-set from running)
@@ -106,8 +106,8 @@ stateDiagram-v2
 | State | Meaning |
 | --- | --- |
 | `preparing` | The StageContext artifact snapshot is pinned, exact templates are loaded and required allocations are prepared. |
-| `running` | One Planner invocation may use the fixed Worker set. |
-| `finalizing` | Planner has stopped and its candidate result plus exact artifact versions are durable; allocations are draining and reports are collected. |
+| `running` | The selected Planner invocation or Server operation is executing. |
+| `finalizing` | The executor has returned and its candidate plus exact artifact versions are durable; any Worker allocations are draining and reports are collected. |
 | `aborting` | Scheduler has durably rejected semantic completion, stored the StageTermination and fenced further work; cancellation and drain are bounded by the recorded abort deadline. |
 | `succeeded`, `failed` | Terminal; contain an accepted StageResult. |
 | `cancelled`, `interrupted` | Terminal; contain a StageTermination. |
@@ -487,8 +487,8 @@ publishes declared outputs.
 `preparing | running -> aborting -> cancelled | interrupted`, with the state
 meanings given in [StageExecution lifecycle](#stageexecution-lifecycle).
 
-**SCH-R43.** The cardinalities of a StageExecution depend on its lifecycle
-state:
+**SCH-R43.** The cardinalities of a Planner StageExecution depend on its
+lifecycle state; Server operations instead follow SCH-R183:
 
 - before Planner starts, Planner invocation, Planner Session, StageResult and
   StageTermination may all be absent;
@@ -504,9 +504,22 @@ state:
   when termination happened during preparation and present when Planner had
   already started.
 
+**SCH-R183.** For a Server operation selected under WFL-R89, Scheduler uses
+all ordinary Stage states, the Run claim and `admittedAt` as the start of the
+existing admitted Stage deadline (`plannerTimeout` process setting). No
+Planner session/invocation/start timestamp or allocation exists in any state.
+`running`, `finalizing`, `succeeded` and `failed` require admission. Candidate,
+accepted result, finalization/abort identity, termination phase and terminal
+marker retain their common state invariants. Recovery of `running` dispatches
+the same operation directly, without Planner session recovery. Finalization
+validates exact declared output bindings and media types and performs ordinary
+output binding/freezing and progression. Domain writes fence Run/Stage/claim
+ownership in their transaction; no operation work survives cancellation return.
+See [Server operations](server-operations.md) for call/replay ownership.
+
 **SCH-R44.** Every terminal StageExecution contains exactly one of an accepted
 `StageResult` or a `StageTermination`, never both (LIM-SCH-4). A StageResult
-belongs to Planner completion; a StageTermination belongs to
+belongs to the selected executor completion; a StageTermination belongs to
 Scheduler-controlled interruption or cancellation. A rejected or superseded
 Planner candidate may be retained for audit but is not an accepted StageResult
 (LIFE-SCH-1).

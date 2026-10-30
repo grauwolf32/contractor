@@ -54,6 +54,96 @@ func (e AgentSkillRefNamespace) Valid() bool {
 	}
 }
 
+// Defines values for ArgumentBinding0Source.
+const (
+	ArgumentBinding0SourceParameter ArgumentBinding0Source = "parameter"
+)
+
+// Valid indicates whether the value is a known member of the ArgumentBinding0Source enum.
+func (e ArgumentBinding0Source) Valid() bool {
+	switch e {
+	case ArgumentBinding0SourceParameter:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArgumentBinding1Parse.
+const (
+	ArgumentBinding1ParseInteger ArgumentBinding1Parse = "integer"
+)
+
+// Valid indicates whether the value is a known member of the ArgumentBinding1Parse enum.
+func (e ArgumentBinding1Parse) Valid() bool {
+	switch e {
+	case ArgumentBinding1ParseInteger:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArgumentBinding1Source.
+const (
+	ArgumentBinding1SourceParameter ArgumentBinding1Source = "parameter"
+)
+
+// Valid indicates whether the value is a known member of the ArgumentBinding1Source enum.
+func (e ArgumentBinding1Source) Valid() bool {
+	switch e {
+	case ArgumentBinding1SourceParameter:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArgumentBinding2Optional.
+const (
+	ArgumentBinding2OptionalTrue ArgumentBinding2Optional = true
+)
+
+// Valid indicates whether the value is a known member of the ArgumentBinding2Optional enum.
+func (e ArgumentBinding2Optional) Valid() bool {
+	switch e {
+	case ArgumentBinding2OptionalTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArgumentBinding2Source.
+const (
+	ArgumentBinding2SourceArtifact ArgumentBinding2Source = "artifact"
+)
+
+// Valid indicates whether the value is a known member of the ArgumentBinding2Source enum.
+func (e ArgumentBinding2Source) Valid() bool {
+	switch e {
+	case ArgumentBinding2SourceArtifact:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArgumentBinding3Source.
+const (
+	ArgumentBinding3SourceLiteral ArgumentBinding3Source = "literal"
+)
+
+// Valid indicates whether the value is a known member of the ArgumentBinding3Source enum.
+func (e ArgumentBinding3Source) Valid() bool {
+	switch e {
+	case ArgumentBinding3SourceLiteral:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ArtifactArchiveEntryKind.
 const (
 	Directory ArtifactArchiveEntryKind = "directory"
@@ -2295,6 +2385,114 @@ func (e ScanSweepMemberState) Valid() bool {
 	}
 }
 
+// Defines values for ServerOperationConfigArguments0Source.
+const (
+	ServerOperationConfigArguments0SourceParameter ServerOperationConfigArguments0Source = "parameter"
+)
+
+// Valid indicates whether the value is a known member of the ServerOperationConfigArguments0Source enum.
+func (e ServerOperationConfigArguments0Source) Valid() bool {
+	switch e {
+	case ServerOperationConfigArguments0SourceParameter:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ServerOperationConfigArguments1Parse.
+const (
+	ServerOperationConfigArguments1ParseInteger ServerOperationConfigArguments1Parse = "integer"
+)
+
+// Valid indicates whether the value is a known member of the ServerOperationConfigArguments1Parse enum.
+func (e ServerOperationConfigArguments1Parse) Valid() bool {
+	switch e {
+	case ServerOperationConfigArguments1ParseInteger:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ServerOperationConfigArguments1Source.
+const (
+	ServerOperationConfigArguments1SourceParameter ServerOperationConfigArguments1Source = "parameter"
+)
+
+// Valid indicates whether the value is a known member of the ServerOperationConfigArguments1Source enum.
+func (e ServerOperationConfigArguments1Source) Valid() bool {
+	switch e {
+	case ServerOperationConfigArguments1SourceParameter:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ServerOperationConfigArguments2Optional.
+const (
+	ServerOperationConfigArguments2OptionalTrue ServerOperationConfigArguments2Optional = true
+)
+
+// Valid indicates whether the value is a known member of the ServerOperationConfigArguments2Optional enum.
+func (e ServerOperationConfigArguments2Optional) Valid() bool {
+	switch e {
+	case ServerOperationConfigArguments2OptionalTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ServerOperationConfigArguments2Source.
+const (
+	ServerOperationConfigArguments2SourceArtifact ServerOperationConfigArguments2Source = "artifact"
+)
+
+// Valid indicates whether the value is a known member of the ServerOperationConfigArguments2Source enum.
+func (e ServerOperationConfigArguments2Source) Valid() bool {
+	switch e {
+	case ServerOperationConfigArguments2SourceArtifact:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ServerOperationConfigArguments3Source.
+const (
+	ServerOperationConfigArguments3SourceLiteral ServerOperationConfigArguments3Source = "literal"
+)
+
+// Valid indicates whether the value is a known member of the ServerOperationConfigArguments3Source enum.
+func (e ServerOperationConfigArguments3Source) Valid() bool {
+	switch e {
+	case ServerOperationConfigArguments3SourceLiteral:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ServerOperationConfigRef.
+const (
+	SitemapApplyOpenapi1 ServerOperationConfigRef = "sitemap-apply-openapi@1"
+	SitemapOpenapiJoin1  ServerOperationConfigRef = "sitemap-openapi-join@1"
+)
+
+// Valid indicates whether the value is a known member of the ServerOperationConfigRef enum.
+func (e ServerOperationConfigRef) Valid() bool {
+	switch e {
+	case SitemapApplyOpenapi1:
+		return true
+	case SitemapOpenapiJoin1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SitemapMutationOperation.
 const (
 	Annotate      SitemapMutationOperation = "annotate"
@@ -2316,39 +2514,6 @@ func (e SitemapMutationOperation) Valid() bool {
 	case ReplaceSource:
 		return true
 	case Restore:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SitemapProvenanceKind.
-const (
-	Caido     SitemapProvenanceKind = "caido"
-	Dirsearch SitemapProvenanceKind = "dirsearch"
-	Ffuf      SitemapProvenanceKind = "ffuf"
-	Http      SitemapProvenanceKind = "http"
-	Katana    SitemapProvenanceKind = "katana"
-	Manual    SitemapProvenanceKind = "manual"
-	Openapi   SitemapProvenanceKind = "openapi"
-)
-
-// Valid indicates whether the value is a known member of the SitemapProvenanceKind enum.
-func (e SitemapProvenanceKind) Valid() bool {
-	switch e {
-	case Caido:
-		return true
-	case Dirsearch:
-		return true
-	case Ffuf:
-		return true
-	case Http:
-		return true
-	case Katana:
-		return true
-	case Manual:
-		return true
-	case Openapi:
 		return true
 	default:
 		return false
@@ -2442,96 +2607,6 @@ func (e ToolDiagnosticPageStatus) Valid() bool {
 	case ToolDiagnosticPageStatusPending:
 		return true
 	case ToolDiagnosticPageStatusUnavailable:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ToolExecutionConfigArguments0Source.
-const (
-	ToolExecutionConfigArguments0SourceParameter ToolExecutionConfigArguments0Source = "parameter"
-)
-
-// Valid indicates whether the value is a known member of the ToolExecutionConfigArguments0Source enum.
-func (e ToolExecutionConfigArguments0Source) Valid() bool {
-	switch e {
-	case ToolExecutionConfigArguments0SourceParameter:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ToolExecutionConfigArguments1Parse.
-const (
-	Integer ToolExecutionConfigArguments1Parse = "integer"
-)
-
-// Valid indicates whether the value is a known member of the ToolExecutionConfigArguments1Parse enum.
-func (e ToolExecutionConfigArguments1Parse) Valid() bool {
-	switch e {
-	case Integer:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ToolExecutionConfigArguments1Source.
-const (
-	ToolExecutionConfigArguments1SourceParameter ToolExecutionConfigArguments1Source = "parameter"
-)
-
-// Valid indicates whether the value is a known member of the ToolExecutionConfigArguments1Source enum.
-func (e ToolExecutionConfigArguments1Source) Valid() bool {
-	switch e {
-	case ToolExecutionConfigArguments1SourceParameter:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ToolExecutionConfigArguments2Optional.
-const (
-	True ToolExecutionConfigArguments2Optional = true
-)
-
-// Valid indicates whether the value is a known member of the ToolExecutionConfigArguments2Optional enum.
-func (e ToolExecutionConfigArguments2Optional) Valid() bool {
-	switch e {
-	case True:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ToolExecutionConfigArguments2Source.
-const (
-	Artifact ToolExecutionConfigArguments2Source = "artifact"
-)
-
-// Valid indicates whether the value is a known member of the ToolExecutionConfigArguments2Source enum.
-func (e ToolExecutionConfigArguments2Source) Valid() bool {
-	switch e {
-	case Artifact:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ToolExecutionConfigArguments3Source.
-const (
-	Literal ToolExecutionConfigArguments3Source = "literal"
-)
-
-// Valid indicates whether the value is a known member of the ToolExecutionConfigArguments3Source enum.
-func (e ToolExecutionConfigArguments3Source) Valid() bool {
-	switch e {
-	case Literal:
 		return true
 	default:
 		return false
@@ -3151,6 +3226,71 @@ type AllocationResourceSummary struct {
 	Stage            ConfigId                `json:"stage"`
 	StageExecutionId ResourceId              `json:"stageExecutionId"`
 	Status           interface{}             `json:"status"`
+}
+
+// ArgumentBinding defines model for ArgumentBinding.
+type ArgumentBinding struct {
+	union json.RawMessage
+}
+
+// ArgumentBinding0 defines model for ArgumentBinding.0.
+type ArgumentBinding0 struct {
+	Default *string                `json:"default,omitempty"`
+	Name    string                 `json:"name"`
+	Source  ArgumentBinding0Source `json:"source"`
+}
+
+// ArgumentBinding0Source defines model for ArgumentBinding.0.Source.
+type ArgumentBinding0Source string
+
+// ArgumentBinding1 defines model for ArgumentBinding.1.
+type ArgumentBinding1 struct {
+	Default *int                   `json:"default,omitempty"`
+	Name    string                 `json:"name"`
+	Parse   ArgumentBinding1Parse  `json:"parse"`
+	Source  ArgumentBinding1Source `json:"source"`
+}
+
+// ArgumentBinding1Parse defines model for ArgumentBinding.1.Parse.
+type ArgumentBinding1Parse string
+
+// ArgumentBinding1Source defines model for ArgumentBinding.1.Source.
+type ArgumentBinding1Source string
+
+// ArgumentBinding2 defines model for ArgumentBinding.2.
+type ArgumentBinding2 struct {
+	Name     string                    `json:"name"`
+	Optional *ArgumentBinding2Optional `json:"optional,omitempty"`
+	Source   ArgumentBinding2Source    `json:"source"`
+}
+
+// ArgumentBinding2Optional defines model for ArgumentBinding.2.Optional.
+type ArgumentBinding2Optional bool
+
+// ArgumentBinding2Source defines model for ArgumentBinding.2.Source.
+type ArgumentBinding2Source string
+
+// ArgumentBinding3 defines model for ArgumentBinding.3.
+type ArgumentBinding3 struct {
+	Source ArgumentBinding3Source  `json:"source"`
+	Value  ArgumentBinding_3_Value `json:"value"`
+}
+
+// ArgumentBinding3Source defines model for ArgumentBinding.3.Source.
+type ArgumentBinding3Source string
+
+// ArgumentBinding3Value0 defines model for ArgumentBinding.3.Value.0.
+type ArgumentBinding3Value0 = string
+
+// ArgumentBinding3Value1 defines model for ArgumentBinding.3.Value.1.
+type ArgumentBinding3Value1 = bool
+
+// ArgumentBinding3Value2 defines model for ArgumentBinding.3.Value.2.
+type ArgumentBinding3Value2 = float32
+
+// ArgumentBinding_3_Value defines model for ArgumentBinding.3.Value.
+type ArgumentBinding_3_Value struct {
+	union json.RawMessage
 }
 
 // ArtifactArchive Classic single-disk ZIP with Store/Deflate entries. Unsafe paths, links and duplicates are rejected.
@@ -7856,6 +7996,80 @@ type SchedulerSettings struct {
 // Selector defines model for Selector.
 type Selector = string
 
+// ServerOperationConfig defines model for ServerOperationConfig.
+type ServerOperationConfig struct {
+	Arguments map[string]ServerOperationConfig_Arguments_AdditionalProperties `json:"arguments"`
+	Ref       ServerOperationConfigRef                                        `json:"ref"`
+}
+
+// ServerOperationConfigArguments0 defines model for ServerOperationConfig.Arguments.0.
+type ServerOperationConfigArguments0 struct {
+	Default *string                               `json:"default,omitempty"`
+	Name    string                                `json:"name"`
+	Source  ServerOperationConfigArguments0Source `json:"source"`
+}
+
+// ServerOperationConfigArguments0Source defines model for ServerOperationConfig.Arguments.0.Source.
+type ServerOperationConfigArguments0Source string
+
+// ServerOperationConfigArguments1 defines model for ServerOperationConfig.Arguments.1.
+type ServerOperationConfigArguments1 struct {
+	Default *int                                  `json:"default,omitempty"`
+	Name    string                                `json:"name"`
+	Parse   ServerOperationConfigArguments1Parse  `json:"parse"`
+	Source  ServerOperationConfigArguments1Source `json:"source"`
+}
+
+// ServerOperationConfigArguments1Parse defines model for ServerOperationConfig.Arguments.1.Parse.
+type ServerOperationConfigArguments1Parse string
+
+// ServerOperationConfigArguments1Source defines model for ServerOperationConfig.Arguments.1.Source.
+type ServerOperationConfigArguments1Source string
+
+// ServerOperationConfigArguments2 defines model for ServerOperationConfig.Arguments.2.
+type ServerOperationConfigArguments2 struct {
+	Name     string                                   `json:"name"`
+	Optional *ServerOperationConfigArguments2Optional `json:"optional,omitempty"`
+	Source   ServerOperationConfigArguments2Source    `json:"source"`
+}
+
+// ServerOperationConfigArguments2Optional defines model for ServerOperationConfig.Arguments.2.Optional.
+type ServerOperationConfigArguments2Optional bool
+
+// ServerOperationConfigArguments2Source defines model for ServerOperationConfig.Arguments.2.Source.
+type ServerOperationConfigArguments2Source string
+
+// ServerOperationConfigArguments3 defines model for ServerOperationConfig.Arguments.3.
+type ServerOperationConfigArguments3 struct {
+	Source ServerOperationConfigArguments3Source   `json:"source"`
+	Value  ServerOperationConfig_Arguments_3_Value `json:"value"`
+}
+
+// ServerOperationConfigArguments3Source defines model for ServerOperationConfig.Arguments.3.Source.
+type ServerOperationConfigArguments3Source string
+
+// ServerOperationConfigArguments3Value0 defines model for ServerOperationConfig.Arguments.3.Value.0.
+type ServerOperationConfigArguments3Value0 = string
+
+// ServerOperationConfigArguments3Value1 defines model for ServerOperationConfig.Arguments.3.Value.1.
+type ServerOperationConfigArguments3Value1 = bool
+
+// ServerOperationConfigArguments3Value2 defines model for ServerOperationConfig.Arguments.3.Value.2.
+type ServerOperationConfigArguments3Value2 = float32
+
+// ServerOperationConfig_Arguments_3_Value defines model for ServerOperationConfig.Arguments.3.Value.
+type ServerOperationConfig_Arguments_3_Value struct {
+	union json.RawMessage
+}
+
+// ServerOperationConfig_Arguments_AdditionalProperties defines model for ServerOperationConfig.arguments.AdditionalProperties.
+type ServerOperationConfig_Arguments_AdditionalProperties struct {
+	union json.RawMessage
+}
+
+// ServerOperationConfigRef defines model for ServerOperationConfig.Ref.
+type ServerOperationConfigRef string
+
 // SitemapEditorRule defines model for SitemapEditorRule.
 type SitemapEditorRule struct {
 	Method     string                       `json:"method"`
@@ -7892,13 +8106,12 @@ type SitemapMutationOperation string
 
 // SitemapProvenance defines model for SitemapProvenance.
 type SitemapProvenance struct {
-	Deployment *ResourceId           `json:"deployment,omitempty"`
-	Kind       SitemapProvenanceKind `json:"kind"`
-	SourceId   ResourceId            `json:"sourceId"`
-}
+	Deployment *ResourceId `json:"deployment,omitempty"`
 
-// SitemapProvenanceKind defines model for SitemapProvenance.Kind.
-type SitemapProvenanceKind string
+	// Kind Source label using the shared name grammar. Observed sources are extensible; manual and openapi identify domain editing and declaration provenance.
+	Kind     string     `json:"kind"`
+	SourceId ResourceId `json:"sourceId"`
+}
 
 // SitemapResult defines model for SitemapResult.
 type SitemapResult struct {
@@ -8157,75 +8370,10 @@ type ToolDiagnosticPageStatus string
 
 // ToolExecutionConfig defines model for ToolExecutionConfig.
 type ToolExecutionConfig struct {
-	Arguments      map[string]ToolExecutionConfig_Arguments_AdditionalProperties `json:"arguments"`
-	ResultArtifact string                                                        `json:"resultArtifact"`
-	TimeoutSeconds int                                                           `json:"timeoutSeconds"`
-	Tool           string                                                        `json:"tool"`
-}
-
-// ToolExecutionConfigArguments0 defines model for ToolExecutionConfig.Arguments.0.
-type ToolExecutionConfigArguments0 struct {
-	Default *string                             `json:"default,omitempty"`
-	Name    string                              `json:"name"`
-	Source  ToolExecutionConfigArguments0Source `json:"source"`
-}
-
-// ToolExecutionConfigArguments0Source defines model for ToolExecutionConfig.Arguments.0.Source.
-type ToolExecutionConfigArguments0Source string
-
-// ToolExecutionConfigArguments1 defines model for ToolExecutionConfig.Arguments.1.
-type ToolExecutionConfigArguments1 struct {
-	Default *int                                `json:"default,omitempty"`
-	Name    string                              `json:"name"`
-	Parse   ToolExecutionConfigArguments1Parse  `json:"parse"`
-	Source  ToolExecutionConfigArguments1Source `json:"source"`
-}
-
-// ToolExecutionConfigArguments1Parse defines model for ToolExecutionConfig.Arguments.1.Parse.
-type ToolExecutionConfigArguments1Parse string
-
-// ToolExecutionConfigArguments1Source defines model for ToolExecutionConfig.Arguments.1.Source.
-type ToolExecutionConfigArguments1Source string
-
-// ToolExecutionConfigArguments2 defines model for ToolExecutionConfig.Arguments.2.
-type ToolExecutionConfigArguments2 struct {
-	Name     string                                 `json:"name"`
-	Optional *ToolExecutionConfigArguments2Optional `json:"optional,omitempty"`
-	Source   ToolExecutionConfigArguments2Source    `json:"source"`
-}
-
-// ToolExecutionConfigArguments2Optional defines model for ToolExecutionConfig.Arguments.2.Optional.
-type ToolExecutionConfigArguments2Optional bool
-
-// ToolExecutionConfigArguments2Source defines model for ToolExecutionConfig.Arguments.2.Source.
-type ToolExecutionConfigArguments2Source string
-
-// ToolExecutionConfigArguments3 defines model for ToolExecutionConfig.Arguments.3.
-type ToolExecutionConfigArguments3 struct {
-	Source ToolExecutionConfigArguments3Source   `json:"source"`
-	Value  ToolExecutionConfig_Arguments_3_Value `json:"value"`
-}
-
-// ToolExecutionConfigArguments3Source defines model for ToolExecutionConfig.Arguments.3.Source.
-type ToolExecutionConfigArguments3Source string
-
-// ToolExecutionConfigArguments3Value0 defines model for ToolExecutionConfig.Arguments.3.Value.0.
-type ToolExecutionConfigArguments3Value0 = string
-
-// ToolExecutionConfigArguments3Value1 defines model for ToolExecutionConfig.Arguments.3.Value.1.
-type ToolExecutionConfigArguments3Value1 = bool
-
-// ToolExecutionConfigArguments3Value2 defines model for ToolExecutionConfig.Arguments.3.Value.2.
-type ToolExecutionConfigArguments3Value2 = float32
-
-// ToolExecutionConfig_Arguments_3_Value defines model for ToolExecutionConfig.Arguments.3.Value.
-type ToolExecutionConfig_Arguments_3_Value struct {
-	union json.RawMessage
-}
-
-// ToolExecutionConfig_Arguments_AdditionalProperties defines model for ToolExecutionConfig.arguments.AdditionalProperties.
-type ToolExecutionConfig_Arguments_AdditionalProperties struct {
-	union json.RawMessage
+	Arguments      map[string]ArgumentBinding `json:"arguments"`
+	ResultArtifact string                     `json:"resultArtifact"`
+	TimeoutSeconds int                        `json:"timeoutSeconds"`
+	Tool           string                     `json:"tool"`
 }
 
 // ToolsetSelection defines model for ToolsetSelection.
@@ -8427,19 +8575,32 @@ type WorkflowStageContract struct {
 	Agents           map[string]WorkflowAgentBinding    `json:"agents"`
 	ContextArtifacts map[string]WorkflowContextArtifact `json:"contextArtifacts"`
 	ExecutionConfig  ResolvedStageExecutionConfig       `json:"executionConfig"`
-	Instructions     InstructionsRef                    `json:"instructions"`
+	Instructions     *InstructionsRef                   `json:"instructions,omitempty"`
 	Objective        string                             `json:"objective"`
 	On               WorkflowTransitions                `json:"on"`
-	Planner          PlannerRef                         `json:"planner"`
+	Operation        *ServerOperationConfig             `json:"operation,omitempty"`
+	Planner          *PlannerRef                        `json:"planner,omitempty"`
 	ResultArtifacts  map[string]StageResultArtifactSlot `json:"resultArtifacts"`
 
 	// Session Resolved Worker session mode. Always present; omission in source Workflow YAML resolves to isolated before publication.
 	Session         WorkflowStageContractSession `json:"session"`
 	WorkflowOutputs map[string]ArtifactName      `json:"workflowOutputs"`
+	union           json.RawMessage
 }
 
 // WorkflowStageContractSession Resolved Worker session mode. Always present; omission in source Workflow YAML resolves to isolated before publication.
 type WorkflowStageContractSession string
+
+// WorkflowStageContract0 defines model for WorkflowStageContract.0.
+type WorkflowStageContract0 struct {
+	Agents interface{} `json:"agents,omitempty"`
+}
+
+// WorkflowStageContract1 defines model for WorkflowStageContract.1.
+type WorkflowStageContract1 struct {
+	Agents  interface{} `json:"agents,omitempty"`
+	Session interface{} `json:"session,omitempty"`
+}
 
 // WorkflowSucceedTransition defines model for WorkflowSucceedTransition.
 type WorkflowSucceedTransition struct {
@@ -9954,6 +10115,208 @@ type CreateScanSweepJSONRequestBody = CreateScanSweepRequest
 
 // ReplaceGitKeyJSONRequestBody defines body for ReplaceGitKey for application/json ContentType.
 type ReplaceGitKeyJSONRequestBody ReplaceGitKeyJSONBody
+
+// AsArgumentBinding0 returns the union data inside the ArgumentBinding as a ArgumentBinding0
+func (t ArgumentBinding) AsArgumentBinding0() (ArgumentBinding0, error) {
+	var body ArgumentBinding0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromArgumentBinding0 overwrites any union data inside the ArgumentBinding as the provided ArgumentBinding0
+func (t *ArgumentBinding) FromArgumentBinding0(v ArgumentBinding0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeArgumentBinding0 performs a merge with any union data inside the ArgumentBinding, using the provided ArgumentBinding0
+func (t *ArgumentBinding) MergeArgumentBinding0(v ArgumentBinding0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsArgumentBinding1 returns the union data inside the ArgumentBinding as a ArgumentBinding1
+func (t ArgumentBinding) AsArgumentBinding1() (ArgumentBinding1, error) {
+	var body ArgumentBinding1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromArgumentBinding1 overwrites any union data inside the ArgumentBinding as the provided ArgumentBinding1
+func (t *ArgumentBinding) FromArgumentBinding1(v ArgumentBinding1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeArgumentBinding1 performs a merge with any union data inside the ArgumentBinding, using the provided ArgumentBinding1
+func (t *ArgumentBinding) MergeArgumentBinding1(v ArgumentBinding1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsArgumentBinding2 returns the union data inside the ArgumentBinding as a ArgumentBinding2
+func (t ArgumentBinding) AsArgumentBinding2() (ArgumentBinding2, error) {
+	var body ArgumentBinding2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromArgumentBinding2 overwrites any union data inside the ArgumentBinding as the provided ArgumentBinding2
+func (t *ArgumentBinding) FromArgumentBinding2(v ArgumentBinding2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeArgumentBinding2 performs a merge with any union data inside the ArgumentBinding, using the provided ArgumentBinding2
+func (t *ArgumentBinding) MergeArgumentBinding2(v ArgumentBinding2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsArgumentBinding3 returns the union data inside the ArgumentBinding as a ArgumentBinding3
+func (t ArgumentBinding) AsArgumentBinding3() (ArgumentBinding3, error) {
+	var body ArgumentBinding3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromArgumentBinding3 overwrites any union data inside the ArgumentBinding as the provided ArgumentBinding3
+func (t *ArgumentBinding) FromArgumentBinding3(v ArgumentBinding3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeArgumentBinding3 performs a merge with any union data inside the ArgumentBinding, using the provided ArgumentBinding3
+func (t *ArgumentBinding) MergeArgumentBinding3(v ArgumentBinding3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ArgumentBinding) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ArgumentBinding) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsArgumentBinding3Value0 returns the union data inside the ArgumentBinding_3_Value as a ArgumentBinding3Value0
+func (t ArgumentBinding_3_Value) AsArgumentBinding3Value0() (ArgumentBinding3Value0, error) {
+	var body ArgumentBinding3Value0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromArgumentBinding3Value0 overwrites any union data inside the ArgumentBinding_3_Value as the provided ArgumentBinding3Value0
+func (t *ArgumentBinding_3_Value) FromArgumentBinding3Value0(v ArgumentBinding3Value0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeArgumentBinding3Value0 performs a merge with any union data inside the ArgumentBinding_3_Value, using the provided ArgumentBinding3Value0
+func (t *ArgumentBinding_3_Value) MergeArgumentBinding3Value0(v ArgumentBinding3Value0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsArgumentBinding3Value1 returns the union data inside the ArgumentBinding_3_Value as a ArgumentBinding3Value1
+func (t ArgumentBinding_3_Value) AsArgumentBinding3Value1() (ArgumentBinding3Value1, error) {
+	var body ArgumentBinding3Value1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromArgumentBinding3Value1 overwrites any union data inside the ArgumentBinding_3_Value as the provided ArgumentBinding3Value1
+func (t *ArgumentBinding_3_Value) FromArgumentBinding3Value1(v ArgumentBinding3Value1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeArgumentBinding3Value1 performs a merge with any union data inside the ArgumentBinding_3_Value, using the provided ArgumentBinding3Value1
+func (t *ArgumentBinding_3_Value) MergeArgumentBinding3Value1(v ArgumentBinding3Value1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsArgumentBinding3Value2 returns the union data inside the ArgumentBinding_3_Value as a ArgumentBinding3Value2
+func (t ArgumentBinding_3_Value) AsArgumentBinding3Value2() (ArgumentBinding3Value2, error) {
+	var body ArgumentBinding3Value2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromArgumentBinding3Value2 overwrites any union data inside the ArgumentBinding_3_Value as the provided ArgumentBinding3Value2
+func (t *ArgumentBinding_3_Value) FromArgumentBinding3Value2(v ArgumentBinding3Value2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeArgumentBinding3Value2 performs a merge with any union data inside the ArgumentBinding_3_Value, using the provided ArgumentBinding3Value2
+func (t *ArgumentBinding_3_Value) MergeArgumentBinding3Value2(v ArgumentBinding3Value2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ArgumentBinding_3_Value) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ArgumentBinding_3_Value) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // AsAudit0 returns the union data inside the Audit as a Audit0
 func (t Audit) AsAudit0() (Audit0, error) {
@@ -14173,6 +14536,208 @@ func (t *RuntimeResourceSummary) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsServerOperationConfigArguments3Value0 returns the union data inside the ServerOperationConfig_Arguments_3_Value as a ServerOperationConfigArguments3Value0
+func (t ServerOperationConfig_Arguments_3_Value) AsServerOperationConfigArguments3Value0() (ServerOperationConfigArguments3Value0, error) {
+	var body ServerOperationConfigArguments3Value0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerOperationConfigArguments3Value0 overwrites any union data inside the ServerOperationConfig_Arguments_3_Value as the provided ServerOperationConfigArguments3Value0
+func (t *ServerOperationConfig_Arguments_3_Value) FromServerOperationConfigArguments3Value0(v ServerOperationConfigArguments3Value0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerOperationConfigArguments3Value0 performs a merge with any union data inside the ServerOperationConfig_Arguments_3_Value, using the provided ServerOperationConfigArguments3Value0
+func (t *ServerOperationConfig_Arguments_3_Value) MergeServerOperationConfigArguments3Value0(v ServerOperationConfigArguments3Value0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsServerOperationConfigArguments3Value1 returns the union data inside the ServerOperationConfig_Arguments_3_Value as a ServerOperationConfigArguments3Value1
+func (t ServerOperationConfig_Arguments_3_Value) AsServerOperationConfigArguments3Value1() (ServerOperationConfigArguments3Value1, error) {
+	var body ServerOperationConfigArguments3Value1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerOperationConfigArguments3Value1 overwrites any union data inside the ServerOperationConfig_Arguments_3_Value as the provided ServerOperationConfigArguments3Value1
+func (t *ServerOperationConfig_Arguments_3_Value) FromServerOperationConfigArguments3Value1(v ServerOperationConfigArguments3Value1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerOperationConfigArguments3Value1 performs a merge with any union data inside the ServerOperationConfig_Arguments_3_Value, using the provided ServerOperationConfigArguments3Value1
+func (t *ServerOperationConfig_Arguments_3_Value) MergeServerOperationConfigArguments3Value1(v ServerOperationConfigArguments3Value1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsServerOperationConfigArguments3Value2 returns the union data inside the ServerOperationConfig_Arguments_3_Value as a ServerOperationConfigArguments3Value2
+func (t ServerOperationConfig_Arguments_3_Value) AsServerOperationConfigArguments3Value2() (ServerOperationConfigArguments3Value2, error) {
+	var body ServerOperationConfigArguments3Value2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerOperationConfigArguments3Value2 overwrites any union data inside the ServerOperationConfig_Arguments_3_Value as the provided ServerOperationConfigArguments3Value2
+func (t *ServerOperationConfig_Arguments_3_Value) FromServerOperationConfigArguments3Value2(v ServerOperationConfigArguments3Value2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerOperationConfigArguments3Value2 performs a merge with any union data inside the ServerOperationConfig_Arguments_3_Value, using the provided ServerOperationConfigArguments3Value2
+func (t *ServerOperationConfig_Arguments_3_Value) MergeServerOperationConfigArguments3Value2(v ServerOperationConfigArguments3Value2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ServerOperationConfig_Arguments_3_Value) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ServerOperationConfig_Arguments_3_Value) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsServerOperationConfigArguments0 returns the union data inside the ServerOperationConfig_Arguments_AdditionalProperties as a ServerOperationConfigArguments0
+func (t ServerOperationConfig_Arguments_AdditionalProperties) AsServerOperationConfigArguments0() (ServerOperationConfigArguments0, error) {
+	var body ServerOperationConfigArguments0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerOperationConfigArguments0 overwrites any union data inside the ServerOperationConfig_Arguments_AdditionalProperties as the provided ServerOperationConfigArguments0
+func (t *ServerOperationConfig_Arguments_AdditionalProperties) FromServerOperationConfigArguments0(v ServerOperationConfigArguments0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerOperationConfigArguments0 performs a merge with any union data inside the ServerOperationConfig_Arguments_AdditionalProperties, using the provided ServerOperationConfigArguments0
+func (t *ServerOperationConfig_Arguments_AdditionalProperties) MergeServerOperationConfigArguments0(v ServerOperationConfigArguments0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsServerOperationConfigArguments1 returns the union data inside the ServerOperationConfig_Arguments_AdditionalProperties as a ServerOperationConfigArguments1
+func (t ServerOperationConfig_Arguments_AdditionalProperties) AsServerOperationConfigArguments1() (ServerOperationConfigArguments1, error) {
+	var body ServerOperationConfigArguments1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerOperationConfigArguments1 overwrites any union data inside the ServerOperationConfig_Arguments_AdditionalProperties as the provided ServerOperationConfigArguments1
+func (t *ServerOperationConfig_Arguments_AdditionalProperties) FromServerOperationConfigArguments1(v ServerOperationConfigArguments1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerOperationConfigArguments1 performs a merge with any union data inside the ServerOperationConfig_Arguments_AdditionalProperties, using the provided ServerOperationConfigArguments1
+func (t *ServerOperationConfig_Arguments_AdditionalProperties) MergeServerOperationConfigArguments1(v ServerOperationConfigArguments1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsServerOperationConfigArguments2 returns the union data inside the ServerOperationConfig_Arguments_AdditionalProperties as a ServerOperationConfigArguments2
+func (t ServerOperationConfig_Arguments_AdditionalProperties) AsServerOperationConfigArguments2() (ServerOperationConfigArguments2, error) {
+	var body ServerOperationConfigArguments2
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerOperationConfigArguments2 overwrites any union data inside the ServerOperationConfig_Arguments_AdditionalProperties as the provided ServerOperationConfigArguments2
+func (t *ServerOperationConfig_Arguments_AdditionalProperties) FromServerOperationConfigArguments2(v ServerOperationConfigArguments2) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerOperationConfigArguments2 performs a merge with any union data inside the ServerOperationConfig_Arguments_AdditionalProperties, using the provided ServerOperationConfigArguments2
+func (t *ServerOperationConfig_Arguments_AdditionalProperties) MergeServerOperationConfigArguments2(v ServerOperationConfigArguments2) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsServerOperationConfigArguments3 returns the union data inside the ServerOperationConfig_Arguments_AdditionalProperties as a ServerOperationConfigArguments3
+func (t ServerOperationConfig_Arguments_AdditionalProperties) AsServerOperationConfigArguments3() (ServerOperationConfigArguments3, error) {
+	var body ServerOperationConfigArguments3
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromServerOperationConfigArguments3 overwrites any union data inside the ServerOperationConfig_Arguments_AdditionalProperties as the provided ServerOperationConfigArguments3
+func (t *ServerOperationConfig_Arguments_AdditionalProperties) FromServerOperationConfigArguments3(v ServerOperationConfigArguments3) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeServerOperationConfigArguments3 performs a merge with any union data inside the ServerOperationConfig_Arguments_AdditionalProperties, using the provided ServerOperationConfigArguments3
+func (t *ServerOperationConfig_Arguments_AdditionalProperties) MergeServerOperationConfigArguments3(v ServerOperationConfigArguments3) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ServerOperationConfig_Arguments_AdditionalProperties) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ServerOperationConfig_Arguments_AdditionalProperties) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsStageContentResult0 returns the union data inside the StageContentResult as a StageContentResult0
 func (t StageContentResult) AsStageContentResult0() (StageContentResult0, error) {
 	var body StageContentResult0
@@ -14373,208 +14938,6 @@ func (t *StageContentResult) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsToolExecutionConfigArguments3Value0 returns the union data inside the ToolExecutionConfig_Arguments_3_Value as a ToolExecutionConfigArguments3Value0
-func (t ToolExecutionConfig_Arguments_3_Value) AsToolExecutionConfigArguments3Value0() (ToolExecutionConfigArguments3Value0, error) {
-	var body ToolExecutionConfigArguments3Value0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromToolExecutionConfigArguments3Value0 overwrites any union data inside the ToolExecutionConfig_Arguments_3_Value as the provided ToolExecutionConfigArguments3Value0
-func (t *ToolExecutionConfig_Arguments_3_Value) FromToolExecutionConfigArguments3Value0(v ToolExecutionConfigArguments3Value0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeToolExecutionConfigArguments3Value0 performs a merge with any union data inside the ToolExecutionConfig_Arguments_3_Value, using the provided ToolExecutionConfigArguments3Value0
-func (t *ToolExecutionConfig_Arguments_3_Value) MergeToolExecutionConfigArguments3Value0(v ToolExecutionConfigArguments3Value0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsToolExecutionConfigArguments3Value1 returns the union data inside the ToolExecutionConfig_Arguments_3_Value as a ToolExecutionConfigArguments3Value1
-func (t ToolExecutionConfig_Arguments_3_Value) AsToolExecutionConfigArguments3Value1() (ToolExecutionConfigArguments3Value1, error) {
-	var body ToolExecutionConfigArguments3Value1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromToolExecutionConfigArguments3Value1 overwrites any union data inside the ToolExecutionConfig_Arguments_3_Value as the provided ToolExecutionConfigArguments3Value1
-func (t *ToolExecutionConfig_Arguments_3_Value) FromToolExecutionConfigArguments3Value1(v ToolExecutionConfigArguments3Value1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeToolExecutionConfigArguments3Value1 performs a merge with any union data inside the ToolExecutionConfig_Arguments_3_Value, using the provided ToolExecutionConfigArguments3Value1
-func (t *ToolExecutionConfig_Arguments_3_Value) MergeToolExecutionConfigArguments3Value1(v ToolExecutionConfigArguments3Value1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsToolExecutionConfigArguments3Value2 returns the union data inside the ToolExecutionConfig_Arguments_3_Value as a ToolExecutionConfigArguments3Value2
-func (t ToolExecutionConfig_Arguments_3_Value) AsToolExecutionConfigArguments3Value2() (ToolExecutionConfigArguments3Value2, error) {
-	var body ToolExecutionConfigArguments3Value2
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromToolExecutionConfigArguments3Value2 overwrites any union data inside the ToolExecutionConfig_Arguments_3_Value as the provided ToolExecutionConfigArguments3Value2
-func (t *ToolExecutionConfig_Arguments_3_Value) FromToolExecutionConfigArguments3Value2(v ToolExecutionConfigArguments3Value2) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeToolExecutionConfigArguments3Value2 performs a merge with any union data inside the ToolExecutionConfig_Arguments_3_Value, using the provided ToolExecutionConfigArguments3Value2
-func (t *ToolExecutionConfig_Arguments_3_Value) MergeToolExecutionConfigArguments3Value2(v ToolExecutionConfigArguments3Value2) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t ToolExecutionConfig_Arguments_3_Value) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *ToolExecutionConfig_Arguments_3_Value) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsToolExecutionConfigArguments0 returns the union data inside the ToolExecutionConfig_Arguments_AdditionalProperties as a ToolExecutionConfigArguments0
-func (t ToolExecutionConfig_Arguments_AdditionalProperties) AsToolExecutionConfigArguments0() (ToolExecutionConfigArguments0, error) {
-	var body ToolExecutionConfigArguments0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromToolExecutionConfigArguments0 overwrites any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties as the provided ToolExecutionConfigArguments0
-func (t *ToolExecutionConfig_Arguments_AdditionalProperties) FromToolExecutionConfigArguments0(v ToolExecutionConfigArguments0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeToolExecutionConfigArguments0 performs a merge with any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties, using the provided ToolExecutionConfigArguments0
-func (t *ToolExecutionConfig_Arguments_AdditionalProperties) MergeToolExecutionConfigArguments0(v ToolExecutionConfigArguments0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsToolExecutionConfigArguments1 returns the union data inside the ToolExecutionConfig_Arguments_AdditionalProperties as a ToolExecutionConfigArguments1
-func (t ToolExecutionConfig_Arguments_AdditionalProperties) AsToolExecutionConfigArguments1() (ToolExecutionConfigArguments1, error) {
-	var body ToolExecutionConfigArguments1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromToolExecutionConfigArguments1 overwrites any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties as the provided ToolExecutionConfigArguments1
-func (t *ToolExecutionConfig_Arguments_AdditionalProperties) FromToolExecutionConfigArguments1(v ToolExecutionConfigArguments1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeToolExecutionConfigArguments1 performs a merge with any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties, using the provided ToolExecutionConfigArguments1
-func (t *ToolExecutionConfig_Arguments_AdditionalProperties) MergeToolExecutionConfigArguments1(v ToolExecutionConfigArguments1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsToolExecutionConfigArguments2 returns the union data inside the ToolExecutionConfig_Arguments_AdditionalProperties as a ToolExecutionConfigArguments2
-func (t ToolExecutionConfig_Arguments_AdditionalProperties) AsToolExecutionConfigArguments2() (ToolExecutionConfigArguments2, error) {
-	var body ToolExecutionConfigArguments2
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromToolExecutionConfigArguments2 overwrites any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties as the provided ToolExecutionConfigArguments2
-func (t *ToolExecutionConfig_Arguments_AdditionalProperties) FromToolExecutionConfigArguments2(v ToolExecutionConfigArguments2) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeToolExecutionConfigArguments2 performs a merge with any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties, using the provided ToolExecutionConfigArguments2
-func (t *ToolExecutionConfig_Arguments_AdditionalProperties) MergeToolExecutionConfigArguments2(v ToolExecutionConfigArguments2) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsToolExecutionConfigArguments3 returns the union data inside the ToolExecutionConfig_Arguments_AdditionalProperties as a ToolExecutionConfigArguments3
-func (t ToolExecutionConfig_Arguments_AdditionalProperties) AsToolExecutionConfigArguments3() (ToolExecutionConfigArguments3, error) {
-	var body ToolExecutionConfigArguments3
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromToolExecutionConfigArguments3 overwrites any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties as the provided ToolExecutionConfigArguments3
-func (t *ToolExecutionConfig_Arguments_AdditionalProperties) FromToolExecutionConfigArguments3(v ToolExecutionConfigArguments3) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeToolExecutionConfigArguments3 performs a merge with any union data inside the ToolExecutionConfig_Arguments_AdditionalProperties, using the provided ToolExecutionConfigArguments3
-func (t *ToolExecutionConfig_Arguments_AdditionalProperties) MergeToolExecutionConfigArguments3(v ToolExecutionConfigArguments3) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t ToolExecutionConfig_Arguments_AdditionalProperties) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *ToolExecutionConfig_Arguments_AdditionalProperties) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
 // AsWorkflowNextTransition returns the union data inside the WorkflowFailureTransition as a WorkflowNextTransition
 func (t WorkflowFailureTransition) AsWorkflowNextTransition() (WorkflowNextTransition, error) {
 	var body WorkflowNextTransition
@@ -14748,6 +15111,234 @@ func (t WorkflowNextOrFailTransition) MarshalJSON() ([]byte, error) {
 
 func (t *WorkflowNextOrFailTransition) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsWorkflowStageContract0 returns the union data inside the WorkflowStageContract as a WorkflowStageContract0
+func (t WorkflowStageContract) AsWorkflowStageContract0() (WorkflowStageContract0, error) {
+	var body WorkflowStageContract0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromWorkflowStageContract0 overwrites any union data inside the WorkflowStageContract as the provided WorkflowStageContract0
+func (t *WorkflowStageContract) FromWorkflowStageContract0(v WorkflowStageContract0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeWorkflowStageContract0 performs a merge with any union data inside the WorkflowStageContract, using the provided WorkflowStageContract0
+func (t *WorkflowStageContract) MergeWorkflowStageContract0(v WorkflowStageContract0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsWorkflowStageContract1 returns the union data inside the WorkflowStageContract as a WorkflowStageContract1
+func (t WorkflowStageContract) AsWorkflowStageContract1() (WorkflowStageContract1, error) {
+	var body WorkflowStageContract1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromWorkflowStageContract1 overwrites any union data inside the WorkflowStageContract as the provided WorkflowStageContract1
+func (t *WorkflowStageContract) FromWorkflowStageContract1(v WorkflowStageContract1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeWorkflowStageContract1 performs a merge with any union data inside the WorkflowStageContract, using the provided WorkflowStageContract1
+func (t *WorkflowStageContract) MergeWorkflowStageContract1(v WorkflowStageContract1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t WorkflowStageContract) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	object := make(map[string]json.RawMessage)
+	if t.union != nil {
+		err = json.Unmarshal(b, &object)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if t.Agents != nil {
+		object["agents"], err = json.Marshal(t.Agents)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'agents': %w", err)
+		}
+	}
+
+	if t.ContextArtifacts != nil {
+		object["contextArtifacts"], err = json.Marshal(t.ContextArtifacts)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'contextArtifacts': %w", err)
+		}
+	}
+
+	object["executionConfig"], err = json.Marshal(t.ExecutionConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'executionConfig': %w", err)
+	}
+
+	if t.Instructions != nil {
+		object["instructions"], err = json.Marshal(t.Instructions)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'instructions': %w", err)
+		}
+	}
+
+	object["objective"], err = json.Marshal(t.Objective)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'objective': %w", err)
+	}
+
+	object["on"], err = json.Marshal(t.On)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'on': %w", err)
+	}
+
+	if t.Operation != nil {
+		object["operation"], err = json.Marshal(t.Operation)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'operation': %w", err)
+		}
+	}
+
+	if t.Planner != nil {
+		object["planner"], err = json.Marshal(t.Planner)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'planner': %w", err)
+		}
+	}
+
+	if t.ResultArtifacts != nil {
+		object["resultArtifacts"], err = json.Marshal(t.ResultArtifacts)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'resultArtifacts': %w", err)
+		}
+	}
+
+	object["session"], err = json.Marshal(t.Session)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'session': %w", err)
+	}
+
+	if t.WorkflowOutputs != nil {
+		object["workflowOutputs"], err = json.Marshal(t.WorkflowOutputs)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'workflowOutputs': %w", err)
+		}
+	}
+	b, err = json.Marshal(object)
+	return b, err
+}
+
+func (t *WorkflowStageContract) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	if err != nil {
+		return err
+	}
+	object := make(map[string]json.RawMessage)
+	err = json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["agents"]; found {
+		err = json.Unmarshal(raw, &t.Agents)
+		if err != nil {
+			return fmt.Errorf("error reading 'agents': %w", err)
+		}
+	}
+
+	if raw, found := object["contextArtifacts"]; found {
+		err = json.Unmarshal(raw, &t.ContextArtifacts)
+		if err != nil {
+			return fmt.Errorf("error reading 'contextArtifacts': %w", err)
+		}
+	}
+
+	if raw, found := object["executionConfig"]; found {
+		err = json.Unmarshal(raw, &t.ExecutionConfig)
+		if err != nil {
+			return fmt.Errorf("error reading 'executionConfig': %w", err)
+		}
+	}
+
+	if raw, found := object["instructions"]; found {
+		err = json.Unmarshal(raw, &t.Instructions)
+		if err != nil {
+			return fmt.Errorf("error reading 'instructions': %w", err)
+		}
+	}
+
+	if raw, found := object["objective"]; found {
+		err = json.Unmarshal(raw, &t.Objective)
+		if err != nil {
+			return fmt.Errorf("error reading 'objective': %w", err)
+		}
+	}
+
+	if raw, found := object["on"]; found {
+		err = json.Unmarshal(raw, &t.On)
+		if err != nil {
+			return fmt.Errorf("error reading 'on': %w", err)
+		}
+	}
+
+	if raw, found := object["operation"]; found {
+		err = json.Unmarshal(raw, &t.Operation)
+		if err != nil {
+			return fmt.Errorf("error reading 'operation': %w", err)
+		}
+	}
+
+	if raw, found := object["planner"]; found {
+		err = json.Unmarshal(raw, &t.Planner)
+		if err != nil {
+			return fmt.Errorf("error reading 'planner': %w", err)
+		}
+	}
+
+	if raw, found := object["resultArtifacts"]; found {
+		err = json.Unmarshal(raw, &t.ResultArtifacts)
+		if err != nil {
+			return fmt.Errorf("error reading 'resultArtifacts': %w", err)
+		}
+	}
+
+	if raw, found := object["session"]; found {
+		err = json.Unmarshal(raw, &t.Session)
+		if err != nil {
+			return fmt.Errorf("error reading 'session': %w", err)
+		}
+	}
+
+	if raw, found := object["workflowOutputs"]; found {
+		err = json.Unmarshal(raw, &t.WorkflowOutputs)
+		if err != nil {
+			return fmt.Errorf("error reading 'workflowOutputs': %w", err)
+		}
+	}
+
 	return err
 }
 

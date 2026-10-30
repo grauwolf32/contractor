@@ -1,5 +1,15 @@
 # Contractor private wire contracts v1alpha1
 
+`project-sitemap.schema.json` includes allocation-only typed mutations, snapshot
+commands and one source-independent normalized collection command. Runtime tools
+preprocess source reports and provider metadata. `SitemapCollectionRequest`
+carries `input` (source label, observations, optional omission counts and an exact
+current-Run evidence ArtifactRef) and a required composition-owned `automatic`
+flag. Automatic collection and explicit imports both return `SitemapMutationResponse`.
+Server has no report-format enum or provider-specific import endpoint. The shared direction-aware
+`sitemap-wire-cases.json` exercises these wrappers; domain document definitions
+are generated from the public owning schema.
+
 These JSON Schema documents describe Contractor-owned payloads exchanged
 between the Go Server and Python Runtime Agent. Every standalone request and
 response carries `"apiVersion": "contractor/v1alpha1"`, uses camelCase fields,

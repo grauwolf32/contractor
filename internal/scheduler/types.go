@@ -15,11 +15,12 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
+	"github.com/grauwolf32/contractor/internal/operations"
 	"github.com/grauwolf32/contractor/internal/planner"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/grauwolf32/contractor/internal/sourcezip"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
@@ -141,6 +142,15 @@ type TerminationProgression struct {
 	RunID            string
 	StageExecutionID string
 	Progression      StageProgression
+}
+
+// ServerOperationExecutor is invoked directly by Scheduler, outside Planner.
+type ServerOperationExecutor interface {
+	Run(context.Context, string, operations.Call) (stageresult.StageContentResult, error)
+}
+
+type operationPersistence interface {
+	StartStageOperation(context.Context, string, string, string) (runstore.StageExecution, error)
 }
 
 // AtomicPersistence is deliberately high-level: implementations either commit
@@ -299,8 +309,9 @@ func (realClock) After(duration time.Duration) <-chan time.Time { return time.Af
 // Options carries the resolved ServerConfig budgets; each duration below
 // names its ServerConfig path and is required (OPS-R15).
 type Options struct {
-	GatewayRecovery *gatewayrecovery.Service
-	PlannerSessions sessionRecovery
+	ServerOperations ServerOperationExecutor
+	GatewayRecovery  *gatewayrecovery.Service
+	PlannerSessions  sessionRecovery
 	// PollInterval is scheduler.pollInterval: the lane refill and terminal
 	// release recovery period, and the retry period after a failed claim
 	// renewal.

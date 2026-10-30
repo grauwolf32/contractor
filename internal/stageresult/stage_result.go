@@ -1,7 +1,6 @@
-// Package stageresult holds the result a Planner returns for one Stage
-// (PLN-R1). It is a leaf of the planner packages: RunStore, which persists
-// Stage results, and the public API read them without importing the Planner
-// implementations.
+// Package stageresult owns the common result contract for Stage executors.
+// Scheduler, Planner, Server operations, RunStore and the public API share
+// these types without importing a particular executor implementation.
 package stageresult
 
 import (
@@ -31,7 +30,7 @@ const (
 	StageFailed    StageOutcome = "failed"
 )
 
-// StageContentResult is what Planner.Run returns to the Scheduler (PLN-R1),
+// StageContentResult is what a Planner or Server operation returns to Scheduler,
 // which RunStore persists with the Stage. It never crosses the Server/Runtime
 // boundary; its members keep their JSON names because stored Stage results
 // carry them.

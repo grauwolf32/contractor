@@ -66,31 +66,46 @@ func (s *Service) Mutate(ctx context.Context, a Authority, idempotencyKey string
 	if m.ExpectedRevision != "" && !contracts.ValidResourceID(m.ExpectedRevision) {
 		return Result{}, ErrInvalid
 	}
-	ctx, cancel := context.WithTimeout(ctx, OperationTimeout)
-	defer cancel()
-	var result Result
-	var err error
-	for attempt := 0; attempt < MaxAttempts; attempt++ {
-		err = postgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-			result = Result{}
-			var inner error
-			result, inner = mutateTransaction(ctx, tx, a, idempotencyKey, m)
-			return inner
-		})
-		if errors.Is(err, postgres.ErrReceiptMismatch) {
-			return Result{}, contracts.ErrIdempotencyConflict
+	if m.Artifact != nil {
+		if m.Operation != "observe" || m.Artifact.ValidateExact() != nil {
+			return Result{}, ErrInvalid
 		}
-		if errors.Is(err, artifacts.ErrHistoryMaintenancePending) {
-			return Result{}, artifacts.NewPostgresRepository(s.pool).MaintainHistory(ctx, err)
-		}
-		if err == nil || (!postgres.IsTransactionConflict(err) && !((m.Operation == "observe" || m.Operation == "replace-source" && m.ExpectedRevision == "") && errors.Is(err, artifacts.ErrArtifactConflict))) {
-			return result, err
-		}
-		if ctx.Err() != nil {
-			return Result{}, ctx.Err()
+		if artifactpolicy.IsRunSystemNamespace(m.Artifact.Namespace) {
+			return Result{}, artifacts.ErrReservedNamespace
 		}
 	}
-	return Result{}, err
+	appendCompatible := m.Operation == "observe" || m.Operation == "replace-source" && m.ExpectedRevision == ""
+	var result Result
+	err := s.mutationTransaction(ctx, appendCompatible, func(ctx context.Context, tx pgx.Tx) error {
+		var err error
+		result, err = mutateTransaction(ctx, tx, a, idempotencyKey, m)
+		return err
+	})
+	return result, err
+}
+
+// mutationTransaction is shared by map commands and artifact join operations.
+// It retains one deadline and the existing receipt/CAS/maintenance owners.
+func (s *Service) mutationTransaction(ctx context.Context, appendCompatible bool, action func(context.Context, pgx.Tx) error) error {
+	ctx, cancel := context.WithTimeout(ctx, OperationTimeout)
+	defer cancel()
+	var err error
+	for range MaxAttempts {
+		err = postgres.InTx(ctx, s.pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return action(ctx, tx) })
+		if errors.Is(err, postgres.ErrReceiptMismatch) {
+			return contracts.ErrIdempotencyConflict
+		}
+		if errors.Is(err, artifacts.ErrHistoryMaintenancePending) {
+			return artifacts.NewPostgresRepository(s.pool).MaintainHistory(ctx, err)
+		}
+		if err == nil || (!postgres.IsTransactionConflict(err) && !(appendCompatible && errors.Is(err, artifacts.ErrArtifactConflict))) {
+			return err
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+	}
+	return err
 }
 
 // receiptRecord keeps only the bounded selector choices and policy conflicts
@@ -147,16 +162,8 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 		}
 		defer release()
 		ctx = admitted
-		read, err = store.Read(ctx, mapRef())
-		if err == nil {
-			if read.Payload.MediaType != MediaType {
-				return Result{}, ErrInvalid
-			}
-			current, err = Decode(read.Payload.Data)
-			if err != nil {
-				return Result{}, err
-			}
-		} else if !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		read, current, err = readMap(ctx, store)
+		if err != nil {
 			return Result{}, err
 		}
 		policy = current.Rules
@@ -190,24 +197,30 @@ func mutateTransaction(ctx context.Context, tx pgx.Tx, a Authority, idempotencyK
 				return postgres.Receipt{}, err
 			}
 		}
-		_, data, err := Reduce(current, m, a)
+		next, data, err := Reduce(current, m, a)
 		if err != nil {
 			return postgres.Receipt{}, err
 		}
-		result := Result{Ref: read.Ref, Changed: !bytes.Equal(read.Payload.Data, data)}
-		if result.Changed {
-			scope, _ := artifacts.ProjectScope(a.ProjectID)
-			payload := artifacts.Payload{MediaType: MediaType, Data: data}
-			var written artifacts.WriteResult
-			if revision == nil {
-				written, err = service.Create(ctx, scope, mapRef(), payload)
-			} else {
-				written, err = service.Replace(ctx, scope, mapRef(), payload, *revision)
-			}
+		if m.Artifact != nil {
+			consumer, err := service.Run(a.RunID)
 			if err != nil {
 				return postgres.Receipt{}, err
 			}
-			result.Ref = written.Ref
+			// Exact metadata confirms the authorized locator; adapters already read
+			// and prepared its bytes. Replay never resolves it or the map again.
+			metadata, err := consumer.Metadata(ctx, *m.Artifact)
+			if err != nil {
+				return postgres.Receipt{}, err
+			}
+			attachEvidence(&next, m.Observations, a.SourceID, Evidence{RunID: a.RunID, Artifact: metadata.Exact()})
+			data, err = encode(next)
+			if err != nil {
+				return postgres.Receipt{}, err
+			}
+		}
+		result, err := publishMap(ctx, service, a.ProjectID, read, data)
+		if err != nil {
+			return postgres.Receipt{}, err
 		}
 		response, err := json.Marshal(receiptRecord{Result: result, Policy: replayPolicy})
 		if len(response) > 1<<20 {
@@ -375,4 +388,42 @@ func addReplayPolicy(saved, rules []Rule, origin, method, route, path string, va
 	}
 	slices.SortFunc(saved[index].Structural, func(a, b StructuralParameter) int { return strings.Compare(a.Name, b.Name) })
 	return saved
+}
+
+func readMap(ctx context.Context, store artifacts.ScopedStore) (artifacts.ReadResult, Document, error) {
+	read, err := store.Read(ctx, mapRef())
+	if errors.Is(err, artifacts.ErrArtifactNotFound) {
+		return artifacts.ReadResult{}, Empty(), nil
+	}
+	if err != nil {
+		return artifacts.ReadResult{}, Document{}, err
+	}
+	if read.Payload.MediaType != MediaType {
+		return artifacts.ReadResult{}, Document{}, ErrInvalid
+	}
+	document, err := Decode(read.Payload.Data)
+	return read, document, err
+}
+
+func publishMap(ctx context.Context, service *artifacts.Service, projectID string, previous artifacts.ReadResult, data []byte) (Result, error) {
+	result := Result{Ref: previous.Ref, Changed: !bytes.Equal(previous.Payload.Data, data)}
+	if !result.Changed {
+		return result, nil
+	}
+	scope, err := artifacts.ProjectScope(projectID)
+	if err != nil {
+		return Result{}, err
+	}
+	payload := artifacts.Payload{MediaType: MediaType, Data: data}
+	var written artifacts.WriteResult
+	if previous.Ref.Revision == nil {
+		written, err = service.Create(ctx, scope, mapRef(), payload)
+	} else {
+		written, err = service.Replace(ctx, scope, mapRef(), payload, *previous.Ref.Revision)
+	}
+	if err != nil {
+		return Result{}, err
+	}
+	result.Ref = written.Ref
+	return result, nil
 }

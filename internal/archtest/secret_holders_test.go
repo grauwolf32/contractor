@@ -176,6 +176,7 @@ func TestSecretHolderGuardReportsEachRule(t *testing.T) {
 		fixture("nestedInMap") + " reaches internal/contracts.SecretString through .values[][]",
 		fixture("onePointer") + " reaches " + fixture("RedactingHolder") + " through .inner*",
 		fixture("plainPassword") + " reaches the plain-text secret field .password",
+		fixture("plainSecretFields") + " reaches the plain-text secret field .SecretFields",
 		fixture("pointerFormatted") + " reaches internal/contracts.SecretString through .token",
 		fixture("stringOnlySecret") + " writes a redaction marker in String or GoString but does not implement " +
 			"fmt.Formatter, slog.LogValuer, json.Marshaler",

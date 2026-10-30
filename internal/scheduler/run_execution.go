@@ -115,8 +115,10 @@ func (s *Scheduler) executeRun(
 		}
 		return s.prepareAndPlan(ctx, run, workflow, execution)
 	case runstore.StageRunning:
-		if handled, err := s.recoverCompletedSummary(ctx, run, workflow, execution); handled || err != nil {
-			return err
+		if workflow.stage.Operation == nil {
+			if handled, err := s.recoverCompletedSummary(ctx, run, workflow, execution); handled || err != nil {
+				return err
+			}
 		}
 		return s.prepareAndPlan(ctx, run, workflow, execution)
 	case runstore.StageFinalizing:

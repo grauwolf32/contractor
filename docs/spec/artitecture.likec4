@@ -375,6 +375,18 @@ model {
         #contractor
       }
 
+      serverOperations = component 'Server Operation Registry — Scheduler-only dispatch, pinned inputs and declared outputs' {
+        #contractor
+      }
+
+      sitemapOperations = component 'Sitemap Operation Adapters — pure OpenAPI join and explicit guarded apply' {
+        #contractor
+      }
+
+      projectSitemap = component 'Project Sitemap Domain — deterministic contract join, grouping, edits and common receipts' {
+        #contractor
+      }
+
       plannerFactories = component 'PlannerFactory Registry' {
         #contractor
       }
@@ -685,6 +697,12 @@ model {
     orchestration.workflowScheduler -> workspaceLifecycle.ownerQueueGate 'Serialize every normal Stage admission against durable pause'
     orchestration.workflowScheduler -> workspaceLifecycle.runStore 'CAS Run lifecycle; persist attempts, candidates and terminal outcomes'
     orchestration.workflowScheduler -> runtimeOperations.controlPlane 'Prepare / finalize / abort / release allocations'
+    orchestration.workflowScheduler -> orchestration.serverOperations 'Invoke operation Stage directly under Run claim and admitted deadline'
+    orchestration.serverOperations -> orchestration.sitemapOperations 'Dispatch registered code with exact Stage context and output bindings'
+    orchestration.sitemapOperations -> orchestration.projectSitemap 'Adapt calls; domain owns join and guarded publication'
+    orchestration.projectSitemap -> orchestration.scanRequestPreparation 'Reuse existing Go OpenAPI decoder and bounded local-reference resolver'
+    orchestration.projectSitemap -> workspaceLifecycle.runStore 'Fence Run, Stage and Scheduler claim inside the mutation transaction'
+    orchestration.projectSitemap -> artifactPlane.artifactService 'Read exact artifacts; atomically create outputs and optional live map publication'
     orchestration.workflowScheduler -> orchestration.plannerFactories 'Select declared PlannerFactory'
     orchestration.workflowScheduler -> artifactPlane.artifactService 'Fork exact inputs; freeze Run outputs; publish ordinary Project outputs; audit-managed skips outputs/<slot>'
     orchestration.workflowScheduler -> runtimeOperations.telemetry 'Assemble bounded StageMetrics while finalizing or aborting'

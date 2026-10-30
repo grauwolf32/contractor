@@ -1,11 +1,11 @@
 schema_version: '1.0'
 id: V410-005
-title: Reconcile exact OpenAPI declarations with live sitemap members
+title: Join exact OpenAPI and sitemap artifacts in a server operation stage
 milestone: project-sitemap-2026-10
 epic: projects-artifacts
 kind: feature
 priority: P1
-status: pending
+status: completed
 depends_on:
 - V410-002
 - V55-007
@@ -16,8 +16,8 @@ languages:
 - json
 - yaml
 - markdown
-goal: Reuse the existing source-import operation and Go OpenAPI normalization to add guarded declarations/grouping
-  and a bounded reconciliation result.
+goal: Run a server-side operation stage that joins exact OpenAPI and sitemap artifacts using existing Go decoding,
+  guarded domain reduction and ordinary ArtifactStore publication, without allocating a Runtime Worker.
 context:
   authority: 'User requested an implementation task breakdown of the reviewed proposals 0033 and 0042 on 2026-10-24;
     this task records planned work, not implementation or verification evidence. User review on 2026-10-27 supersedes
@@ -40,9 +40,17 @@ context:
   - docs/spec/tools/scanners.md
   - docs/spec/execution/worker.md
   - docs/spec/tools/toolsets.md
+  - docs/spec/configuration/workflows.md
+  - docs/spec/execution/planners.md
+  - docs/spec/execution/scheduler.md
+  - docs/spec/execution/server-operations.md
   boundary: The live sitemap is shared research context, not current Audit coverage, complete traffic archival or
     proof. The HTTP/OpenAPI first slice has no dependency on proposal 0033 implementation or V61/V62/V64 work.
   code:
+  - internal/operations
+  - internal/config/resolved
+  - internal/scheduler
+  - internal/app
   - internal/scanplan/prepare.go
   - internal/scanplan/operation.go
   - internal/scanplan/references.go
@@ -53,22 +61,23 @@ context:
   - api/testdata
 scope:
   in:
-  - Reuse/extract the existing Go normalized OpenAPI operation/reference logic with callers retained in both scan
-    preparation and sitemap reconciliation; do not implement a second Runtime parser.
-  - Extend the existing import_sitemap_source dispatcher with exact OpenAPI reconciliation, callable from tool@1;
-    reuse policy/grants instead of inventing another tool or independent import protocol.
+  - Add a small common Server operation execution path through the existing Stage lifecycle and Run claim, with exact inputs,
+    declared outputs, deadline, cancellation and existing Stage recovery, accepting no Worker bindings.
+  - Put operation adapters in internal/operations and its per-operation modules; keep the actual join algorithm and
+    sitemap-specific storage behavior in internal/projectsitemap. Composition registers the concrete adapter.
+  - Reuse the existing Go OpenAPI source decoder and bounded local-reference semantics. OpenAPI is an API contract
+    artifact used by a domain operation, not a provider-ingestion format or an extension of import_sitemap_source.
   - Return a bounded result naming exact inputs and actual publication ref. Materialize an exact context artifact
     only for a declared Workflow/Audit consumer; do not require an enriched-map copy, patch artifact and separate
     report all at once.
-  - Implement declared-only/observed-only comparisons, concrete-path precedence, ambiguous-template gaps, parameter/media/outcome
-    differences and exact selected context snapshots.
+  - Implement declared-only/observed-only comparisons, concrete-path precedence, ambiguous-template gaps, parameter/outcome differences, explicit media/body comparison limitations and exact selected context snapshots.
   - Apply optional shared source changes through the same guarded reducer and receipt/quota boundary; pure computation
     alone does not imply publication.
   out:
   - Generating or rewriting OpenAPI, remote reference fetching, guessed origins, new semantic Audit steps or vulnerability
     verdicts.
   - Recovering discarded concrete members or widening suppressed/manual selections during regrouping.
-  - Shipped Workflow/Audit catalog composition (V410-006).
+  - Shipped Workflow/Audit catalog composition (V410-006), Runtime parser duplication and a Runtime round trip for join.
   - Unconsumed output copies, default patch artifacts, another reconciliation/import tool surface or collection-completeness
     states.
 requirements:
@@ -89,7 +98,7 @@ requirements:
     and manual state. A stale old-schema Workflow cannot refresh its predecessor and retry as a new intended source
     replacement. A predecessor ref is a CAS condition, not a retention hold or a chain pinning map history.
 - id: R6
-  text: Keep the tool result bounded. Produce large exact context/output artifacts only for declared consumers, through
+  text: Keep the Stage result and optional comparison report bounded. Produce large exact context/output artifacts only for declared consumers, through
     existing snapshot/Artifact paths. Every permitted reader uses the same shared metadata and grouping; absent schema
     bytes never hide known routes or make declarations into observations. snapshotInputs permits only needed original
     Run file retention in the snapshot transaction, independently of map visibility and ordinary owner-selected inputs.
@@ -100,7 +109,7 @@ failure_outcomes:
   retryable: Only storage/Artifact transport failures retry against the same exact inputs and operation deadline.
   ambiguous: Reconcile exact result publication identities; do not rerun target traffic because this tool performs
     none.
-  cancelled: Join bounded computation/output assembly before allocation cleanup.
+  cancelled: Join bounded computation/output assembly before returning; the transactional Run/Stage/claim fence prevents later effects.
   timeout: The reconciliation deadline owns parse/reindex/output work; budgets bound nested reference expansion and
     source bytes.
 - operation: Optional guarded live source replacement
@@ -110,7 +119,7 @@ failure_outcomes:
     backpressure retries publication only. Source conflicts never refresh intent automatically.
   ambiguous: Existing keyed receipt confirms the original generation/revision even after eviction without republishing;
     unavailable exact bytes never substitute latest.
-  cancelled: A fenced allocation cannot publish after cleanup begins.
+  cancelled: A cancelled Run, expired/replaced Scheduler claim or deleting Project cannot publish later effects.
   timeout: Publication acknowledgement reconciliation has its own remaining operation allowance and never changes
     pinned input intent.
 cardinality:
@@ -136,8 +145,8 @@ lifecycle:
 acceptance_criteria:
 - id: A1
   given: Exact OpenAPI/map inputs and supported/unsupported reference/origin fixtures
-  when: The registered tool computes repeatedly
-  then: Canonical outputs match and bounded gaps replace guesses or external fetches; the ordinary scan preparation
+  when: The registered Server operation computes repeatedly
+  then: Canonical outputs match and explicit bounded limitations or atomic permanent failures replace guesses or external fetches; the ordinary scan preparation
     regressions remain correct.
 - id: A2
   given: Concrete /users/me, template /users/{id}, ambiguous templates and observed extra parameters
@@ -156,7 +165,7 @@ acceptance_criteria:
     predecessor.
 - id: A5
   given: Mixed source kinds, missing source files, large output, a lost publication reply and a concurrent hold/eviction race
-  when: A permitted tool computes/publishes through production boundaries
+  when: A permitted operation computes/publishes through production boundaries
   then: Authorized outputs are materialized only in declared needed slots. Source publication receipts and exact selected
     holds keep their existing semantics without republishing, source substitution, implicit pinning or a cumulative
     Run quota. Dedicated views expose the same complete shared metadata to every permitted reader. A referenced file
@@ -165,16 +174,14 @@ acceptance_criteria:
     regardless of that flag, preserving existing frozen-context replay. Ordinary owner-selected inputs remain usable
     in full; no missing file is silently replaced with current content.
 deliverables:
-- path: internal/scanplan
-  description: Reuse the existing normalization/reference authority; extract common lower-layer types only with both
-    production callers and architecture classification.
-- path: runtime/src/contractor_runtime/toolsets/sitemap
-  description: OpenAPI support in the existing source-import dispatcher, with bounded results and only caller-required
-    exact artifact outputs.
+- path: internal/operations
+  description: Common Server-operation Stage adapter and the concrete sitemap join module, without duplicating domain algorithms.
+- path: internal/projectsitemap
+  description: Join exact OpenAPI and sitemap artifacts using existing Go decoding, deterministic grouping and shared Artifact lifecycle mechanisms.
 - path: api/testdata
-  description: Cross-language canonical, source-conflict, grouping and safe-output fixtures.
+  description: Server/UI operation-selection fixtures, preserving the existing shared canonical sitemap and argument-binding cases.
 tests:
-- command: go test ./internal/scanplan/... ./internal/contracts/... ./internal/projectsitemap/...
+- command: go test ./internal/config/... ./internal/operations/... ./internal/stageresult/... ./internal/scheduler/... ./internal/runstore/... ./internal/scanplan/... ./internal/contracts/... ./internal/projectsitemap/...
   covers:
   - A1
   - A2
@@ -212,17 +219,86 @@ tests:
   - A3
   - A4
   - A5
+- command: make verify-public-api
+  covers: [A1, A5]
+- command: make ui-verify
+  covers: [A1, A5]
+- command: make verify-architecture
+  covers: [A1, A5]
 test_prerequisites:
 - Register deterministic reconciliation process cases in the sitemap gate. No target network, installed scanner, browser
   or external model is needed. PostgreSQL-backed source races and receipt/quota cases are mandatory.
 execution:
-  released_on: '2026-10-26'
-  previous_branch: codex/v410-sitemap
-  note: Returned to pending at the user's request to finish V410-002 and pause. Implementation of this task has not
-    started; the prior batch reservation is released.
+  branch: codex/v410-005-sitemap-openapi
+  claimed_on: '2026-10-29'
+  note: Started after V410-004 and the user-requested module-boundary guidance landed in main. The earlier Go-parser
+    source-import plan is superseded by the user's explicit distinction between external-provider adaptation and
+    domain operations over existing artifacts. Implementation follows the server-operation design below.
 implementation_decisions:
+- date: '2026-10-30'
+  decision: Implement the approved operation field as a closed alternative to Planner stages. Pure sitemap-openapi-join@1
+    and explicit sitemap-apply-openapi@1 run only through Scheduler, without Runtime allocations or Planner sessions.
+    Move the common Stage result to internal/stageresult. Domain writes share the existing Project receipt and Artifact
+    transaction, fenced by the Run claim; the first slice requires a Project Run for this existing lifecycle owner.
+    Exact inputs and output bindings remain unchanged on recovery. Apply preserves appended observations and rejects
+    stale source or manual intent. Unsupported selected structures fail atomically; comparison reports explicit limitations,
+    bounded omitted counts and unresolved declarations separately from declared-only. No second decoder, operation
+    journal or new receipt/claim table is introduced. Standalone pure execution can be reopened only with a concrete
+    consumer and a common retention/replay owner, not an additional sitemap-specific journal.
+- date: '2026-10-29'
+  decision: The user explicitly requires Scheduler, not Planner, to invoke Server operations. A Stage selects exactly
+    one execution path, Planner or Server operation. internal/operations has no Planner dependency; the Stage result
+    contract is shared outside the Planner module. Use existing Stage state, Run claim, artifact publication and
+    recovery rather than Planner sessions or an additional operation journal. This supersedes the earlier proposal
+    to adapt operations through the Planner registry. The initial uncommitted Planner adapter changes were removed.
+- date: '2026-10-29'
+  decision: The user clarified that OpenAPI is an API contract artifact and join is a Server domain operation, requested
+    an explicit Stage and a separate folder of operation modules with the actual body in sitemap. This supersedes
+    both previous import_sitemap_source plans. Use internal/operations for the generic executor and thin concrete
+    adapter modules; reuse the existing Planner registry/session and Stage result lifecycle. The scheduler does not
+    parse OpenAPI or branch on sitemap operation names. Server execution permits zero Workers only for its registered
+    model-free operation runner. The join algorithm remains in internal/projectsitemap and reuses Go source decoding.
+- date: '2026-10-29'
+  decision: Runtime owns OpenAPI document decoding, local-reference extraction and bounded comparison. Server receives
+    normalized declarations through its existing guarded source-replacement/reducer and ordinary Artifact metadata,
+    receipt and publication mechanisms. Exact caller-selected map context fixes the expected source predecessor;
+    retries never refresh it. Shared source-file locators use current-Run Artifact authority and snapshotInputs retains
+    only the original inputs needed by an explicitly selected snapshot. No parallel report store or import journal.
 - date: '2026-10-27'
   decision: 'Reconciliation has a concrete consumer: it supplies declarations/grouping for the current map and exact
     selected context when a Workflow/Audit requests it. Reuse import_sitemap_source and the Go operation/reference
     parser. Remove mandatory parallel enriched-map/patch/report outputs that have no separate consumer; preserve guarded
     source replacement and immutable exact input selection.'
+
+implementation_commit: a7eea66277f28e135d5c4c231313b0ae77b86c45
+verification:
+  date: '2026-10-30'
+  result: passed
+  tested_commit: a7eea66277f28e135d5c4c231313b0ae77b86c45
+  commands:
+  - command: go test -count=1 -timeout=15m ./...
+    result: Passed all Go packages with PostgreSQL enabled. The final output-selection refinement was followed by complete owner-package and PostgreSQL suites below.
+  - command: go test ./internal/config/... ./internal/operations/... ./internal/stageresult/... ./internal/scheduler/... ./internal/runstore/... ./internal/scanplan/... ./internal/contracts/... ./internal/projectsitemap/...
+    result: Passed complete owner-package suites on the final implementation with PostgreSQL enabled.
+  - command: make test-project-sitemap-postgres
+    result: Passed 17 complete packages and 40 mandatory cases with zero mandatory skips on a dedicated database. Covers native lifecycle, claim ownership, replay, cancellation, append preservation, manual conflicts, atomic rollback and optional materialization, plus all prior Artifact/sitemap lifecycle and scale cases.
+  - command: make test-project-sitemap-tools-e2e
+    result: Passed all four mandatory process scenarios with zero skips. The new Server-only scenario exercises public Workflow/Run creation, pure join, apply, apply without a Run copy and permanent remote-reference rejection without any Runtime process or Gateway.
+  - command: make test-wire-cross-language
+    result: Passed 455 shared fixtures with 363 Go and 271 Python shared tests, 1619 selected Python fixture tests and 504 Runtime contract/performance tests. The new operation-mode fixture is shared by Server and Studio; Runtime never receives operation stages.
+  - command: uv run --project runtime pytest runtime/tests/test_openapi_toolset.py runtime/tests/test_sitemap_*.py
+    result: Passed all 197 selected Runtime regressions.
+  - command: make verify-public-api
+    result: Passed error registry, public policy/example checks and complete operation coverage, including the operation projection and generated Go client without synthetic Planner fields.
+  - command: make ui-verify
+    result: Passed generation, lint, typecheck, build and server checks; 205 test files, 2536 tests passed with one existing expected failure, and 17 Node tests passed.
+  - command: make verify-architecture
+    result: Passed the updated LikeC4 model. Package layer and contracts importer checks also pass in the Go/lint gates.
+  - command: make lint
+    result: Passed generation, dependency graph, vet, staticcheck, test-only exports, release graph, task/spec/fixture checks, deployment checks, Ruff and all four Runtime import-layer contracts.
+  notes:
+  - No new table, operation journal, receipt/claim family, Runtime parser or ArtifactStore-specific branch was introduced. Migration 000059 adds the native execution alternative to existing Stage state invariants.
+  - Source/manual intent remains pinned while appended observations survive. A lost finalization acknowledgement replays the existing Project receipt without republishing; unrequested map/report copies are absent.
+  - Media/body/security validation is explicitly unavailable in this metadata comparison. Ambiguous declarations remain unresolved, and retained-member/report limits are explicit.
+  - Pure and apply operations currently require a Project Run to reuse its existing receipt and deletion owner. Shipped Workflow/Audit composition remains V410-006.
+  - An initial PostgreSQL gate lacked tests in the new thin adapter package; adapter boundary tests were added. A later parallel gate collided with another check's database-wide Server lease; the final isolated-database gate passed all packages. Neither failed run is counted as passing evidence.

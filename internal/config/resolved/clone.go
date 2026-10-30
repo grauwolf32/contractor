@@ -62,6 +62,14 @@ func CloneArtifactSlots(source map[string]ArtifactSlot) map[string]ArtifactSlot 
 
 func cloneStage(source ResolvedStage) ResolvedStage {
 	result := source
+	if source.Operation != nil {
+		value := *source.Operation
+		value.Arguments = make(map[string]contracts.ToolArgumentBinding, len(source.Operation.Arguments))
+		for key, binding := range source.Operation.Arguments {
+			value.Arguments[key] = binding
+		}
+		result.Operation = &value
+	}
 	if source.ModelDefaults != nil {
 		result.ModelDefaults = make(map[string]contracts.ResolvedModelPolicy, len(source.ModelDefaults))
 		for role, policy := range source.ModelDefaults {

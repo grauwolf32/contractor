@@ -266,17 +266,15 @@ def test_import_dispatch_seam_is_explicit_and_uses_same_allocation_client():
         transport = SitemapTransport()
         tools, _ = await tools_for(transport, ["import_sitemap_source"], dispatcher=dispatcher)
         result = await tools["import_sitemap_source"](
-            {
-                "format": "test-only",
-                "ref": {"namespace": "inputs", "name": "report", "revision": "exact"},
-            },
+            "test-only",
+            {"namespace": "inputs", "name": "report", "revision": "exact"},
             "import-key",
         )
         assert (
             result == {"ok": True, "gaps": [], "status": "completed"}
             and calls[0][1] == "import-key"
         )
-        assert calls[0][2] is tools["import_sitemap_source"]._session.client
+        assert calls[0][2] is tools["import_sitemap_source"]._client
         assert transport.requests == []
         await tools["import_sitemap_source"].close()
 

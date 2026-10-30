@@ -8,13 +8,13 @@ introduced_by: V411-005
 priority: P2
 status: completed
 implementation_commit: 55984ad7340d2a837af6942dbcbff10e437c9849
-depends_on: [V411-025]
+depends_on: [V411-029]
 languages: [python]
 goal: Expired cookies leave the live jar and cannot cause false count exhaustion in controlled or ordinary HTTP sessions.
 context:
   authority: User explicitly requested expired-cookie cleanup during the V411 session review on 2026-10-29.
   severity: medium
-  provenance: Cookie counting without expiry cleanup originated in b725c01bcc3b84ed7e3d61a362ccc2cfea187c57 (V411-005) and remained in V411-025.
+  provenance: Cookie counting without expiry cleanup originated in b725c01bcc3b84ed7e3d61a362ccc2cfea187c57 (V411-005) and remained in V411-029.
   specification:
   - docs/spec/tools/http-caido.md#HTP-R128
   - docs/spec/tools/http-caido.md#HTP-R143

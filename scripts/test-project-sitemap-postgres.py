@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PREFIX = "github.com/grauwolf32/contractor/"
 PACKAGES = (
+    "internal/scheduler", "internal/operations", "internal/operations/sitemapjoin",
     "internal/projectsitemap", "internal/artifacts", "internal/projectstore",
     "internal/projectlifecycle", "internal/persistence/postgres",
     "internal/httpapi/public", "internal/cli", "internal/publicclient",
@@ -19,6 +20,12 @@ REQUIRED = {
     "TestPostgresSitemapReceiptsOwnershipAndHistory",
     "TestPostgresSitemapHTTPCollectionProjectionAndReceipt",
     "TestPostgresSitemapRepeatedRunsAggregateBehavior",
+    "TestPostgresSitemapPreparedBatchReplaysAfterEvidenceAndMapEviction",
+    "TestPostgresSitemapObservationsAggregateAcrossRunsAndBoundEvidence",
+    "TestPostgresSitemapObservationBatchBoundaryAndRollback",
+    "TestPostgresSitemapObservationEvidenceVisibilityAndProjectLifecycle",
+    "TestPostgresSitemapSnapshotRebindsReportEvidenceToAuthorizedOriginalInput",
+    "TestPostgresSitemapNormalizedObservationBatchRejectsInvalidRows",
     "TestPostgresSitemapManualRunsShareMetadataAndIsolateReceipts",
     "TestPostgresSitemapSharedMapSnapshotAndReplay",
     "TestPostgresSitemapEditorsShareMembersAndDeriveProjectAuthority",
@@ -35,8 +42,15 @@ REQUIRED = {
     "TestPostgresSitemapCommitsCommonMaintenanceAfterRollback",
 }
 
-REQUIRED_CASES = {(PREFIX + "internal/projectsitemap", case) for case in REQUIRED} | {
+REQUIRED_CASES = {(PREFIX + "internal/scheduler", case) for case in {
+    "TestPostgresServerOperationStagePublishesWithoutPlannerOrRuntime",
+    "TestPostgresServerOperationRecoveryReplaysReceipt",
+    "TestPostgresServerOperationMaterializesOnlyDeclaredOutputs",
+    "TestPostgresServerOperationClaimFenceRejectsOldOwner",
+    "TestPostgresServerOperationPreservesAppendsAndRejectsChangedIntent",
+}} | {(PREFIX + "internal/projectsitemap", case) for case in REQUIRED} | {
     (PREFIX + "internal/httpapi/privateartifacts", "TestPostgresPrivateSitemapRolesSafeBytesScopeAndFence"),
+    (PREFIX + "internal/httpapi/privateartifacts", "TestPostgresPrivateSitemapImportAuthorityAndExactSources"),
     (PREFIX + "internal/controlplane", "TestSitemapGrantPinsSelectedOperationsAndNeverAliasesPolicy"),
     (PREFIX + "internal/httpapi/privateartifacts", "TestPostgresPrivateProjectArtifactReadsUseConcreteTargetAndNoCacheHolds"),
     (PREFIX + "internal/runstore", "TestPostgresRunProjectContextUsesCallerTransaction"),

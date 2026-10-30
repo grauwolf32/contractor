@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/planner/stageresult"
+	"github.com/grauwolf32/contractor/internal/stageresult"
 )
 
 // The transient publication failure count belongs to one finalizing

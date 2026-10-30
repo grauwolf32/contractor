@@ -2553,8 +2553,8 @@ export interface components {
         };
         SitemapProvenance: {
             sourceId: components["schemas"]["ResourceId"];
-            /** @enum {string} */
-            kind: "manual" | "http" | "caido" | "ffuf" | "katana" | "dirsearch" | "openapi";
+            /** @description Source label using the shared name grammar. Observed sources are extensible; manual and openapi identify domain editing and declaration provenance. */
+            kind: string;
             deployment?: components["schemas"]["ResourceId"];
         };
         SitemapSummary: {
@@ -2611,7 +2611,7 @@ export interface components {
         SitemapGap: {
             sourceId: "" | components["schemas"]["ResourceId"];
             /** @enum {string} */
-            reason: "structural" | "members" | "groups" | "summaries" | "examples" | "regrouping" | "incomplete" | "parameters" | "source-unavailable" | "ambiguous" | "projection";
+            reason: "structural" | "members" | "groups" | "summaries" | "examples" | "regrouping" | "incomplete" | "parameters" | "source-unavailable" | "ambiguous" | "projection" | "report-truncated" | "request-errors" | "evidence";
             count: number;
         };
         SitemapMutation: {
@@ -6069,8 +6069,9 @@ export interface components {
         };
         WorkflowStageContract: {
             objective: string;
-            instructions: components["schemas"]["InstructionsRef"];
-            planner: components["schemas"]["PlannerRef"];
+            instructions?: components["schemas"]["InstructionsRef"];
+            planner?: components["schemas"]["PlannerRef"];
+            operation?: components["schemas"]["ServerOperationConfig"];
             /**
              * @description Resolved Worker session mode. Always present; omission in source Workflow YAML resolves to isolated before publication.
              * @enum {string}
@@ -6090,6 +6091,19 @@ export interface components {
                 [key: string]: components["schemas"]["ArtifactName"];
             };
             on: components["schemas"]["WorkflowTransitions"];
+        } & ({
+            agents?: unknown;
+        } | {
+            agents?: unknown;
+            /** @constant */
+            session?: "isolated";
+        });
+        ServerOperationConfig: {
+            /** @enum {string} */
+            ref: "sitemap-openapi-join@1" | "sitemap-apply-openapi@1";
+            arguments: {
+                [key: string]: components["schemas"]["ArgumentBinding"] & unknown;
+            };
         };
         /**
          * @example {
@@ -6294,30 +6308,31 @@ export interface components {
             resultArtifact: string;
             timeoutSeconds: number;
             arguments: {
-                [key: string]: {
-                    /** @constant */
-                    source: "parameter";
-                    name: string;
-                    default?: string;
-                } | {
-                    /** @constant */
-                    source: "parameter";
-                    name: string;
-                    /** @constant */
-                    parse: "integer";
-                    default?: number;
-                } | {
-                    /** @constant */
-                    source: "artifact";
-                    name: string;
-                    /** @constant */
-                    optional?: true;
-                } | {
-                    /** @constant */
-                    source: "literal";
-                    value: string | boolean | number;
-                };
+                [key: string]: components["schemas"]["ArgumentBinding"];
             };
+        };
+        ArgumentBinding: {
+            /** @constant */
+            source: "parameter";
+            name: string;
+            default?: string;
+        } | {
+            /** @constant */
+            source: "parameter";
+            name: string;
+            /** @constant */
+            parse: "integer";
+            default?: number;
+        } | {
+            /** @constant */
+            source: "artifact";
+            name: string;
+            /** @constant */
+            optional?: true;
+        } | {
+            /** @constant */
+            source: "literal";
+            value: string | boolean | number;
         };
         ExecutionConfigSelection: {
             modelPolicy?: components["schemas"]["ModelPolicyRef"];

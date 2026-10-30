@@ -176,3 +176,8 @@ type genericBox[T any] struct {
 type boxedSecret struct {
 	box genericBox[contracts.SecretString]
 }
+
+// Finding: the field contains secret values; matching its name never grants an exception.
+type plainSecretFields struct {
+	SecretFields []string
+}

@@ -55,7 +55,7 @@ from contractor_runtime.toolsets.security_findings.facades import (
     GeneralFindingsToolsetFactory,
     HTTPFindingsToolsetFactory,
 )
-from contractor_runtime.toolsets.sitemap.tools import SitemapToolsetFactory
+from contractor_runtime.toolsets.sitemap.tools import SitemapToolsetFactory, import_sitemap_report
 from contractor_runtime.toolsets.source_analysis.tools import SourceAnalysisToolsetFactory
 from contractor_runtime.toolsets.taint_annotations.tools import TaintAnnotationsToolsetFactory
 from contractor_runtime.toolsets.text_artifacts.tools import TextArtifactsToolsetFactory
@@ -257,7 +257,7 @@ def built_in_factories(
     edit_files_toolset = EditFilesToolsetFactory()
     workspace_changes_toolset = WorkspaceChangesToolsetFactory()
     artifact_toolset = RunArtifactsToolsetFactory(artifact_client_factory)
-    sitemap_toolset = SitemapToolsetFactory(artifact_client_factory)
+    sitemap_toolset = SitemapToolsetFactory(artifact_client_factory, import_sitemap_report)
     audit_results_toolset = AuditResultsToolsetFactory(artifact_client_factory)
     likec4_toolset = LikeC4ToolsetFactory(artifact_client_factory)
     memory_toolset = MemoryToolsetFactory(artifact_client_factory)

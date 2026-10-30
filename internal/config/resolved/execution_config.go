@@ -98,7 +98,7 @@ func applyResolvedStageExecutionConfigOverride(
 		if !resolvedExecutionSelectionOverrideHasAny(*override.Planner) {
 			return fmt.Errorf("planner must select at least one field")
 		}
-		if IsModelFreePlanner(stage.Planner) {
+		if IsModelFreeStage(*stage) {
 			return fmt.Errorf("%s@%s does not accept Planner model configuration", stage.Planner.PlannerID, stage.Planner.Version)
 		}
 		if stage.ExecutionConfig.Planner == nil {
@@ -263,7 +263,7 @@ func ValidateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 		return err
 	}
 	plannerRef := stage.Planner.PlannerID + "@" + stage.Planner.Version
-	if IsModelFreePlanner(stage.Planner) {
+	if IsModelFreeStage(stage) {
 		if stage.ExecutionConfig.Planner != nil {
 			return fmt.Errorf("Stage %q %s must not have Planner executionConfig", stageName, plannerRef)
 		}

@@ -165,15 +165,9 @@
         },
         "kind": {
           "type": "string",
-          "enum": [
-            "manual",
-            "http",
-            "caido",
-            "ffuf",
-            "katana",
-            "dirsearch",
-            "openapi"
-          ]
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
         },
         "deployment": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
@@ -400,7 +394,10 @@
             "parameters",
             "source-unavailable",
             "ambiguous",
-            "projection"
+            "projection",
+            "report-truncated",
+            "request-errors",
+            "evidence"
           ]
         },
         "count": {
@@ -10370,7 +10367,6 @@
         },
         "agents": {
           "type": "object",
-          "minProperties": 1,
           "additionalProperties": {
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConsumerExecutionConfig"
           }
@@ -11501,8 +11497,6 @@
       "additionalProperties": false,
       "required": [
         "objective",
-        "instructions",
-        "planner",
         "session",
         "agents",
         "executionConfig",
@@ -11510,6 +11504,26 @@
         "resultArtifacts",
         "workflowOutputs",
         "on"
+      ],
+      "oneOf": [
+        {
+          "required": ["planner", "instructions"],
+          "not": { "required": ["operation"] },
+          "properties": { "agents": { "minProperties": 1 } }
+        },
+        {
+          "required": ["operation"],
+          "not": {
+            "anyOf": [
+              { "required": ["planner"] },
+              { "required": ["instructions"] }
+            ]
+          },
+          "properties": {
+            "agents": { "maxProperties": 0 },
+            "session": { "const": "isolated" }
+          }
+        }
       ],
       "properties": {
         "objective": { "type": "string", "minLength": 1, "maxLength": 65536 },
@@ -11519,10 +11533,12 @@
         "planner": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PlannerRef"
         },
+        "operation": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ServerOperationConfig"
+        },
         "session": { "type": "string", "enum": ["isolated", "shared"] },
         "agents": {
           "type": "object",
-          "minProperties": 1,
           "additionalProperties": {
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowAgentBinding"
           }
@@ -11550,6 +11566,37 @@
         },
         "on": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowTransitions"
+        }
+      }
+    },
+    "ServerOperationConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "arguments"],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "enum": ["sitemap-openapi-join@1", "sitemap-apply-openapi@1"]
+        },
+        "arguments": {
+          "type": "object",
+          "maxProperties": 32,
+          "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$" },
+          "additionalProperties": {
+            "allOf": [
+              {
+                "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArgumentBinding"
+              },
+              {
+                "not": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "required": ["source"],
+                  "properties": { "source": { "const": "artifact" } }
+                }
+              }
+            ]
+          }
         }
       }
     },
@@ -11856,81 +11903,72 @@
           "maxProperties": 32,
           "propertyNames": { "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$" },
           "additionalProperties": {
-            "oneOf": [
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["source", "name"],
-                "properties": {
-                  "source": { "type": "string", "const": "parameter" },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  },
-                  "default": {
-                    "type": "string",
-                    "maxLength": 8192,
-                    "x-maxBytes": 8192
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["source", "name", "parse"],
-                "properties": {
-                  "source": { "type": "string", "const": "parameter" },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  },
-                  "parse": { "type": "string", "const": "integer" },
-                  "default": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 9007199254740991
-                  }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["source", "name"],
-                "properties": {
-                  "source": { "type": "string", "const": "artifact" },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 128
-                  },
-                  "optional": { "type": "boolean", "const": true }
-                }
-              },
-              {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["source", "value"],
-                "properties": {
-                  "source": { "type": "string", "const": "literal" },
-                  "value": {
-                    "oneOf": [
-                      { "type": "string", "maxLength": 8192 },
-                      { "type": "boolean" },
-                      {
-                        "type": "number",
-                        "minimum": -9007199254740991,
-                        "maximum": 9007199254740991
-                      }
-                    ]
-                  }
-                }
-              }
-            ]
+            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArgumentBinding"
           }
         }
       }
+    },
+    "ArgumentBinding": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "name"],
+          "properties": {
+            "source": { "type": "string", "const": "parameter" },
+            "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "default": {
+              "type": "string",
+              "maxLength": 8192,
+              "x-maxBytes": 8192
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "name", "parse"],
+          "properties": {
+            "source": { "type": "string", "const": "parameter" },
+            "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "parse": { "type": "string", "const": "integer" },
+            "default": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "name"],
+          "properties": {
+            "source": { "type": "string", "const": "artifact" },
+            "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "optional": { "type": "boolean", "const": true }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "value"],
+          "properties": {
+            "source": { "type": "string", "const": "literal" },
+            "value": {
+              "oneOf": [
+                { "type": "string", "maxLength": 8192 },
+                { "type": "boolean" },
+                {
+                  "type": "number",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                }
+              ]
+            }
+          }
+        }
+      ]
     },
     "ExecutionConfigSelection": {
       "type": "object",

@@ -87,7 +87,7 @@ export function buildGraph(draft: Draft): StudioGraph {
         path,
         "stage",
         name,
-        `${name === spec.entryStage ? "Entry · " : ""}${textValue(stage.planner) || "Planner needed"}`,
+        `${name === spec.entryStage ? "Entry · " : ""}${textValue(record(stage.operation).ref) || textValue(stage.planner) || "Executor needed"}`,
         true,
       );
       for (const outcome of OUTCOMES) {

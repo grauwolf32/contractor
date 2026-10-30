@@ -1,5 +1,5 @@
 schema_version: '1.0'
-id: V411-025
+id: V411-029
 title: Share HTTP session state and accept user supplied pentest cookies without automatic login
 milestone: autonomous-http-pentest-2026-10
 epic: http-tools
