@@ -5,7 +5,7 @@ milestone: controlled-pentest-scanners-2026-10
 epic: scan-tools
 kind: feature
 priority: P2
-status: pending
+status: in_progress
 depends_on: [V422-002]
 languages: [go, python, yaml]
 goal: >-
@@ -74,11 +74,42 @@ acceptance_criteria:
     when: "The integration is enabled for engagement Audits"
     then: "Standalone behavior and normalized reports retain their contracts"
 tests:
-  - command: "Real installed Nuclei integration against disposable local HTTP targets, including denied routes and cancellation"
-    covers: [A1, A2, A3]
-  - command: make test-runtime
+  - command: "cd runtime && uv run pytest -W error tests/test_scan_toolset.py tests/test_http_proxy_bridge.py tests/test_nuclei_engagement.py tests/test_shared_engagement_allocation.py tests/test_engagement_allocation.py"
     covers: [A1, A2, A3, A4]
-  - command: "Go tests for every changed Server package and relevant process gate with disposable PostgreSQL"
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/config/... ./internal/contracts/... ./internal/auditservice/... ./internal/controlplane/..."
     covers: [A1, A2, A4]
+  - command: make test-engagement-http-process
+    covers: [A1, A2, A3]
+  - command: make test-nuclei-web-e2e
+    covers: [A4]
+  - command: "cd ui && corepack pnpm exec vitest --run src/routes/checks/start/rulepack-metadata.test.ts"
+    covers: [A4]
   - command: make lint
     covers: [A1, A2, A3, A4]
+
+decisions:
+  boundary: >-
+    Engagement remains scanner-neutral. The common Runtime HTTP transport owns
+    destination/credential authority, optional slot limits, TLS and retry. An
+    allocation-owned local HTTP proxy bridge delegates every accepted request to
+    that same transport; Nuclei owns template selection, matching and normalized
+    scanner output. Other scanners remain denied under engagement until their
+    real execution path can use the common boundary; no provider-specific fields
+    are added to engagement.
+  execution: >-
+    Use the installed Nuclei HTTP engine with zero scanner retries, disabled
+    redirects/updates/OAST and a private authenticated per-invocation proxy config.
+    HTTPS CONNECT terminates locally; target TLS is verified by the existing
+    transport. Only selected snapshotted HTTP templates with an admitted normal
+    HTTP feature set execute. Raw/unsafe/pipeline/race, external protocols, flow,
+    external payload files and impure DSL helpers fail before target traffic.
+    Native cookie handling is disabled in the private execution copy, because
+    credential and learned-cookie state belong to the shared Runtime transport.
+  lifecycle: >-
+    The complete scanner invocation is registered with the allocation HTTP owner.
+    Cancellation joins the scanner process and bridge connections before scratch
+    removal; no private proxy credential or target credential reaches argv or
+    automatic report diagnostics. Bridge failures cannot become a successful scan.
+  reversal: >-
+    Expand the admitted template features or scanner set only with a concrete
+    caller and real traffic evidence that the same boundary remains enforceable.

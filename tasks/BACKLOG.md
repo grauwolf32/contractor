@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-109 open tasks: 37 in progress, 61 pending, 11 deferred. 1213 finished: 1203 completed, 10 archived.
+109 open tasks: 38 in progress, 60 pending, 11 deferred. 1213 finished: 1203 completed, 10 archived.
 
 ## In progress
 
@@ -48,6 +48,7 @@ the epics are in [epics.yml](epics.yml).
 | [V414-021](v414-021-migration-file-deadline.yml) | persistence | defect | P3 | Decide the client deadline of a migration file: per statement or a migration budget of its own |
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | evals | chore | P3 | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
 | [V414-024](v414-024-plan-tests-exact-reads.yml) | persistence | chore | P3 | Measure the V407-025 drain and held-credential row budgets with explaintest Analysis.Reads |
+| [V422-003](v422-003-nuclei-engagement-transport.yml) | scan-tools | feature | P2 | Run Nuclei with the engagement's allocation-local HTTP authority |
 
 ## Pending
 
@@ -81,7 +82,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020 | Gate controlled ffuf execution through the pentest transport |
-| [V422-003](v422-003-nuclei-engagement-transport.yml) | feature | P2 | — | Run Nuclei with the engagement's allocation-local HTTP authority |
 
 ### Findings tools and collections (`findings`)
 
