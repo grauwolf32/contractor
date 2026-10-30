@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -160,8 +161,8 @@ func TestPlacementRuntimeCredentialsDoNotBorrowAnotherConnection(t *testing.T) {
 			barrier := credentials.NewLifecycleBarrier()
 			service, err := credentials.NewRuntimeCredentialService(credentials.RuntimeCredentialServiceOptions{
 				Pool: limited, Lease: leasetest.Hold(t, limited).Lease, Cipher: cipher,
-				Usage:  credentials.NewRuntimeCredentialRepository(limited),
-				Audits: noRuntimeCredentialAuditHolds{}, Barrier: barrier,
+				Usage:    credentials.NewRuntimeCredentialRepository(limited),
+				Projects: projectstore.NewPostgresStore(limited), Audits: noRuntimeCredentialAuditHolds{}, Barrier: barrier,
 			})
 			if err != nil {
 				t.Fatal(err)

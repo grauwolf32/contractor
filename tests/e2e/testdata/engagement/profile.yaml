@@ -1,0 +1,39 @@
+apiVersion: contractor/v1alpha1
+kind: AuditProfile
+metadata: {name: engagement-fixture, version: "1"}
+spec:
+  mode: custom-checklist
+  standards: []
+  inputs:
+    checklist: {required: true, mediaTypes: [application/json]}
+    engagement: {required: true, mediaTypes: [application/vnd.contractor.engagement+json]}
+  inventory:
+    implementation: checklist@1
+    source: {source: audit-input, name: checklist}
+    itemWorkflowRole: check
+  workflows:
+    check:
+      kind: check
+      ref: engagement-fixture-check@1
+      workerCompletion: {kind: audit-check-results@1, stage: check, agent: checker}
+      inputs:
+        task: {source: item-package}
+        execution_manifest: {source: execution-manifest}
+      parameters: {}
+      outputs: {result: result}
+  execution:
+    roundMode: fixed-barrier
+    maxRounds: 1
+    batchSize: 1
+    maxItemsPerRound: 1
+    maxItemsTotal: 1
+    maxSubmittedRuns: 1
+    maxItemRunAttempts: 1
+    deadlineSeconds: 180
+    maxEvidenceBytes: 1048576
+    incompleteRound: assess-with-gaps
+  interaction:
+    activeChecks: automatic
+    findingConfirmation: disabled
+    notApplicable: profile-rule
+    reportAcceptance: automatic

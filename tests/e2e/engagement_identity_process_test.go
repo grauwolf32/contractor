@@ -1,0 +1,147 @@
+//go:build e2e
+
+package e2e
+
+import (
+	"encoding/base64"
+	"net/http"
+	"sync"
+	"testing"
+)
+
+func TestEngagementIdentitySessionsAcrossProcesses(t *testing.T) {
+	secure := newEngagementTargetFixture(t)
+	target := newEngagementHTTPObserver(t, engagementFixtureIP(t, secure))
+	other := newEngagementHTTPObserver(t, engagementFixtureIP(t, secure))
+	h := startEngagementProcessHarnessOptions(t, secure.caFile, "duplicate", nil, true)
+	pool := engagementPool(t, h)
+	seeds := []string{target.server.URL + "/private", target.server.URL + "/restricted", target.server.URL + "/available"}
+	seeds = append(seeds, other.server.URL+"/resource")
+	f := newEngagementIdentityAudit(t, h, []string{target.server.URL, other.server.URL}, seeds)
+	const password = "private-basic-password-canary"
+	const token = "private-bearer-token-canary"
+	const project = "private-project-inheritance-canary"
+	basicHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte("alice:"+password))
+	basic := engagementCredential(t, h, "target-basic", "target-basic@1", map[string]string{"username": "alice", "password": password}, password, basicHeader)
+	f.addIdentity(t, "basic", "basic", basic)
+	bearer := engagementCredential(t, h, "target-bearer", "target-bearer@1", map[string]string{"token": token}, token)
+	f.addIdentity(t, "bearer", "bearer", bearer)
+	projectCredential := engagementCredential(t, h, "project-origin", "http-origin-bearer@1", map[string]string{"token": project}, project)
+	updateProjectTarget(t, h.client, h.baseURL, f.project.ProjectID, f.project.Revision, map[string]any{"url": target.server.URL, "credential": projectCredential}, http.StatusOK)
+	sessions := map[string]string{"account-a": "private-cookie-account-a-canary", "account-b": "private-cookie-account-b-canary"}
+	for _, id := range []string{"account-a", "account-b"} {
+		ref := engagementCredential(t, h, "cookies-"+id, "target-cookies@1", map[string]any{"cookies": map[string]string{"session": sessions[id]}}, sessions[id])
+		f.addIdentity(t, id, "cookies", ref)
+		f.document.Identities[len(f.document.Identities)-1].Origins = []string{target.server.URL}
+	}
+	var mu sync.Mutex
+	local, foreign := map[string]int{}, map[string]int{}
+	violations := 0
+	observe := func(r *http.Request, destination map[string]int, external bool) {
+		identity := "anonymous"
+		authorization := r.Header.Get("Authorization")
+		cookie := engagementCookie(r, "session")
+		switch {
+		case authorization == basicHeader:
+			identity = "basic"
+		case authorization == "Bearer "+token:
+			identity = "bearer"
+		case cookie == sessions["account-a"]:
+			identity = "account-a"
+		case cookie == sessions["account-b"]:
+			identity = "account-b"
+		case authorization != "" || cookie != "":
+			violations++
+		}
+		if authorization == "Bearer "+project || authorization != "" && cookie != "" {
+			violations++
+		}
+		if marker := engagementCookie(r, "identity-marker"); marker != "" && (external || marker != identity) {
+			violations++
+		}
+		if external && (identity == "account-a" || identity == "account-b") {
+			violations++
+		}
+		destination[identity]++
+	}
+	target.setHandler(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		observe(r, local, false)
+		id := "anonymous"
+		switch {
+		case r.Header.Get("Authorization") == basicHeader:
+			id = "basic"
+		case r.Header.Get("Authorization") == "Bearer "+token:
+			id = "bearer"
+		case engagementCookie(r, "session") == sessions["account-a"]:
+			id = "account-a"
+		case engagementCookie(r, "session") == sessions["account-b"]:
+			id = "account-b"
+		}
+		http.SetCookie(w, &http.Cookie{Name: "identity-marker", Value: id, Path: "/"})
+		switch r.URL.Path {
+		case "/private":
+			w.WriteHeader(http.StatusUnauthorized)
+		case "/restricted":
+			w.WriteHeader(http.StatusForbidden)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	})
+	other.setHandler(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		observe(r, foreign, true)
+		w.WriteHeader(http.StatusOK)
+	})
+	f.requests = nil
+	for _, identity := range f.document.Identities {
+		for _, url := range seeds {
+			if identity.Kind == "cookies" && url == other.server.URL+"/resource" {
+				continue
+			}
+			request := map[string]any{"url": url}
+			if identity.Credential != nil {
+				request["credential_id"] = identity.Credential.CredentialID
+			}
+			f.requests = append(f.requests, request)
+		}
+	}
+	audit := f.start(t)
+	select {
+	case <-h.gateway.blockedRequest():
+	case <-h.ctx.Done():
+		t.Fatal("Worker did not reach Gateway")
+	}
+	if len(target.requests())+len(other.requests()) != 0 {
+		t.Fatal("prepare sent target traffic")
+	}
+	h.gateway.releaseBlockedRequest()
+	waitForAuditProgram(t, h.ctx, h.server, h.runtimeProcess, h.gateway, h.client, h.baseURL, audit, 1)
+	t.Run("anonymous_basic_bearer_and_project_isolation", func(t *testing.T) {
+		mu.Lock()
+		defer mu.Unlock()
+		if violations != 0 || len(local) != 5 || len(foreign) != 3 {
+			t.Fatalf("identity isolation: violations=%d local=%v foreign=%v", violations, local, foreign)
+		}
+	})
+	t.Run("supplied_cookies_keep_identity_across_http_denials", func(t *testing.T) {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, id := range []string{"anonymous", "basic", "bearer", "account-a", "account-b"} {
+			if local[id] != 3 {
+				t.Fatalf("identity %s made %d explicit requests", id, local[id])
+			}
+		}
+	})
+	h.gateway.releaseBlockedRequest()
+	waitForAuditProgram(t, h.ctx, h.server, h.runtimeProcess, h.gateway, h.client, h.baseURL, audit, 1)
+	t.Run("private_canaries_and_physical_requests", func(t *testing.T) {
+		assertEngagementSecretsAbsent(t, h, pool)
+		if got := len(target.requests()) + len(other.requests()); got != 18 {
+			t.Fatalf("physical identity request count = %d, want 18", got)
+		}
+	})
+	h.proxy.verify(t)
+}

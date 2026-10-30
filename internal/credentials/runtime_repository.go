@@ -215,26 +215,6 @@ func (r *RuntimeCredentialRepository) InspectRuntimeCredentialUsage(
 	if err := rows.Err(); err != nil {
 		return RuntimeCredentialUsage{}, persistencepostgres.WrapError("iterate active Runtime credential bindings", err)
 	}
-	projectRows, err := r.db.Query(ctx, `
-SELECT project_id
-FROM projects
-WHERE http_target_credential_id = $1
-ORDER BY project_id
-LIMIT $2`, credentialID, limit)
-	if err != nil {
-		return RuntimeCredentialUsage{}, persistencepostgres.WrapError("inspect Runtime credential Project targets", err)
-	}
-	defer projectRows.Close()
-	for projectRows.Next() {
-		var projectID string
-		if err := projectRows.Scan(&projectID); err != nil {
-			return RuntimeCredentialUsage{}, persistencepostgres.WrapError("read Runtime credential Project target", err)
-		}
-		usage.ProjectIDs = append(usage.ProjectIDs, projectID)
-	}
-	if err := projectRows.Err(); err != nil {
-		return RuntimeCredentialUsage{}, persistencepostgres.WrapError("iterate Runtime credential Project targets", err)
-	}
 	runRows, err := r.db.Query(ctx, runtimeCredentialRunUsageSQL, credentialID, limit)
 	if err != nil {
 		return RuntimeCredentialUsage{}, persistencepostgres.WrapError("inspect Runtime credential Run snapshots", err)

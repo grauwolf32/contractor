@@ -34,7 +34,7 @@ func TestPostgresAuditLabelsMigrationPreservesSnapshots(t *testing.T) {
 		t.Helper()
 		var value string
 		if err := pool.QueryRow(ctx, `SELECT jsonb_build_array(
- to_jsonb(a)-ARRAY['input_selection','baseline_snapshot','pentest_active_us','pentest_active_since','pentest_clock_valid','pentest_action_count','pentest_request_count','pentest_held_count','pentest_cooldown_generation','pentest_recovery_after'],
+ to_jsonb(a)-ARRAY['input_selection','baseline_snapshot','engagement_active_us','engagement_active_since','engagement_clock_valid','engagement_action_count','engagement_request_count','engagement_held_count','engagement_cooldown_generation','engagement_recovery_after'],
  input_selection-ARRAY['labels','requiredPlacementLabels'],
  baseline_snapshot-ARRAY['labels','requiredPlacementLabels'])::text
  FROM audits a WHERE audit_id=$1`, id).Scan(&value); err != nil {

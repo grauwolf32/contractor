@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
@@ -95,7 +95,7 @@ func validateLifecycleRequest(apiVersion, allocationID, idField, idValue string,
 }
 
 type AllocationSpec struct {
-	PentestEngagement               *pentestcontract.AllocationProjection           `json:"pentestEngagement,omitempty"`
+	Engagement                      *engagementcontract.AllocationProjection        `json:"engagement,omitempty"`
 	SummarizerModelPolicy           *contracts.ResolvedModelPolicy                  `json:"summarizerModelPolicy,omitempty"`
 	CompletionContract              *contracts.WorkerCompletionContract             `json:"completionContract,omitempty"`
 	APIVersion                      string                                          `json:"apiVersion" strictjson:"required"`
@@ -117,32 +117,32 @@ type AllocationSpec struct {
 }
 
 func (s AllocationSpec) Validate() error {
-	if len(s.RuntimeSettings.PentestIdentities) > 0 && (s.PentestEngagement == nil || s.PentestEngagement.HTTP == nil) {
-		return contracts.Invalidf("pentest material requires an assigned identity")
+	if len(s.RuntimeSettings.HTTPIdentities) > 0 && (s.Engagement == nil || s.Engagement.HTTP == nil) {
+		return contracts.Invalidf("engagement material requires an assigned identity")
 	}
-	if s.PentestEngagement != nil && s.PentestEngagement.HTTP != nil {
+	if s.Engagement != nil && s.Engagement.HTTP != nil {
 		expected := 0
-		for _, identity := range s.PentestEngagement.HTTP.Identities {
+		for _, identity := range s.Engagement.HTTP.Identities {
 			if identity.Credential == nil {
 				continue
 			}
 			expected++
-			material, ok := s.RuntimeSettings.PentestIdentities[identity.ID]
+			material, ok := s.RuntimeSettings.HTTPIdentities[identity.ID]
 			if !ok || material.Credential != *identity.Credential {
-				return contracts.Invalidf("pentest private credential differs from assignment")
+				return contracts.Invalidf("engagement private credential differs from assignment")
 			}
 		}
-		if expected != len(s.RuntimeSettings.PentestIdentities) {
-			return contracts.Invalidf("unassigned pentest private material")
+		if expected != len(s.RuntimeSettings.HTTPIdentities) {
+			return contracts.Invalidf("unassigned engagement private material")
 		}
 	}
 
-	if s.PentestEngagement != nil {
-		if err := s.PentestEngagement.Validate(); err != nil {
+	if s.Engagement != nil {
+		if err := s.Engagement.Validate(); err != nil {
 			return err
 		}
-		if s.PentestEngagement.AccessMode == "blackbox" && s.Workspace != nil && (len(s.Workspace.Sources) != 0 || s.Workspace.State != nil) {
-			return contracts.Invalidf("blackbox pentest allocation forbids repository workspace hydration")
+		if s.Engagement.AccessMode == "blackbox" && s.Workspace != nil && (len(s.Workspace.Sources) != 0 || s.Workspace.State != nil) {
+			return contracts.Invalidf("blackbox engagement allocation forbids repository workspace hydration")
 		}
 	}
 	if s.CompletionContract != nil {

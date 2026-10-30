@@ -37,12 +37,12 @@ WITH reconcilable AS (
       FROM audits AS audit
      WHERE audit.state IN ` + reconcilableAuditStatesSQL + `
        AND CASE audit.state
-               WHEN 'paused' THEN EXISTS (SELECT 1 FROM audit_action_attempts action WHERE action.audit_id=audit.audit_id AND (action.held OR action.state='prepared')) OR EXISTS (
+               WHEN 'paused' THEN EXISTS (
                    SELECT 1 FROM audit_executions AS execution
                     WHERE execution.audit_id = audit.audit_id
                       AND execution.state IN ('submitted', 'collecting')
                )
-               WHEN 'waiting_review' THEN EXISTS (SELECT 1 FROM audit_action_attempts action WHERE action.audit_id=audit.audit_id AND (action.held OR action.state='prepared')) OR (
+               WHEN 'waiting_review' THEN (
                    (
                        audit.deadline_at <= clock_timestamp()
                        AND NOT EXISTS (

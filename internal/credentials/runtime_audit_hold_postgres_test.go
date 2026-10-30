@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 )
 
 // recordingRuntimeAuditHolds is an Audit dispatch-hold lookup with fixed
@@ -50,17 +51,23 @@ func TestRuntimeCredentialDeletionRejectsAuditDispatchHold(t *testing.T) {
 	holds := &recordingRuntimeAuditHolds{held: map[string][]string{"held-auth": {"audit-z", "audit-a"}}}
 	lease := leasetest.Hold(t, pool).Lease
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
-		Pool: pool, Lease: lease, Cipher: cipher, Usage: NewRuntimeCredentialRepository(pool), Audits: holds,
-		Barrier: NewLifecycleBarrier(),
+		Pool: pool, Lease: lease, Cipher: cipher, Usage: NewRuntimeCredentialRepository(pool),
+		Projects: projectstore.NewPostgresStore(pool), Audits: holds, Barrier: NewLifecycleBarrier(),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
 		Pool: pool, Lease: lease, Cipher: cipher, Usage: NewRuntimeCredentialRepository(pool),
-		Barrier: NewLifecycleBarrier(),
+		Projects: projectstore.NewPostgresStore(pool), Barrier: NewLifecycleBarrier(),
 	}); err == nil {
 		t.Fatal("a Runtime credential service without the Audit hold lookup was configured")
+	}
+	if _, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
+		Pool: pool, Lease: lease, Cipher: cipher, Usage: NewRuntimeCredentialRepository(pool),
+		Audits: holds, Barrier: NewLifecycleBarrier(),
+	}); err == nil {
+		t.Fatal("a Runtime credential service without the Project lookup was configured")
 	}
 	material, err := NewOTLPHeadersCredential(map[string]string{"Authorization": "Bearer held-secret"})
 	if err != nil {

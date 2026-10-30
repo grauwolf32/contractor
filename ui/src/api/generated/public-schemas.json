@@ -5429,9 +5429,9 @@
         "manual_applicability_unsupported",
         "report_acceptance_unsupported",
         "manual_item_unsupported",
-        "pentest_capability_unsupported",
-        "pentest_source_closure_unsupported",
-        "pentest_active_checks_unsupported"
+        "engagement_capability_unsupported",
+        "engagement_source_closure_unsupported",
+        "engagement_active_checks_unsupported"
       ]
     },
     "AuditProfile": {
@@ -6868,53 +6868,6 @@
           "type": "integer",
           "minimum": 0,
           "maximum": 31536000
-        }
-      }
-    },
-    "AuditPreflightResponse": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "auditId",
-        "revision",
-        "baselineInputDigest",
-        "compatibleCapabilities",
-        "missingCapabilities",
-        "reasons",
-        "serverCompatible"
-      ],
-      "properties": {
-        "auditId": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
-        },
-        "revision": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 18446744073709552000
-        },
-        "baselineInputDigest": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/Digest"
-        },
-        "serverCompatible": { "type": "boolean" },
-        "compatibleCapabilities": {
-          "type": "array",
-          "maxItems": 256,
-          "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
-        },
-        "missingCapabilities": {
-          "type": "array",
-          "maxItems": 256,
-          "uniqueItems": true,
-          "items": { "type": "string", "minLength": 1, "maxLength": 256 }
-        },
-        "reasons": {
-          "type": "array",
-          "maxItems": 15,
-          "uniqueItems": true,
-          "items": {
-            "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCompatibilityReason"
-          }
         }
       }
     },
@@ -9363,7 +9316,7 @@
             "http-proxy@1",
             "caido-graphql@1",
             "interactsh-http@1",
-            "pentest-target-http@1"
+            "http-target@1"
           ]
         },
         "operations": {

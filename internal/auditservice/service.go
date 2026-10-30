@@ -18,7 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -149,7 +149,7 @@ func (s *Service) CreateDraft(
 	var engagement *engagementSelection
 	hasEngagement := false
 	for _, exact := range inputs {
-		hasEngagement = hasEngagement || exact.MediaType == pentestcontract.MediaType
+		hasEngagement = hasEngagement || exact.MediaType == engagementcontract.MediaType
 	}
 	if hasEngagement {
 		err = s.credentialGuard.WithRunCreation(ctx, func() error {
@@ -173,6 +173,7 @@ func (s *Service) CreateDraft(
 		MaxEvidenceBytes: profile.Execution.MaxEvidenceBytes,
 	}
 	if engagement != nil {
+		limits.MaxItemRunAttempts = 1
 		limits.MaxRounds = min(limits.MaxRounds, int(engagement.document.Budgets.Rounds))
 		limits.MaxSubmittedRuns = min(limits.MaxSubmittedRuns, int(engagement.document.Budgets.SubmittedRuns))
 		limits.MaxItemsTotal = min(limits.MaxItemsTotal, limits.MaxSubmittedRuns*limits.BatchSize)
