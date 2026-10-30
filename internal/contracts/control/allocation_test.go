@@ -318,6 +318,7 @@ func TestSharedPrivateAllocationSpecComposesValidatedSettingsAndProvenance(t *te
 		APIVersion: active.APIVersion, AllocationID: active.AllocationID, RunID: active.RunID,
 		StageExecutionID: active.StageExecutionID, LogicalAgentName: active.LogicalAgentName,
 		Namespace: active.Namespace, WorkerSessionMode: active.WorkerSessionMode,
+		ContextManagement: active.ContextManagement,
 		RunMetadataLabels: active.RunMetadataLabels.Clone(),
 		LeaseExpiresAt:    active.LeaseExpiresAt,
 		AgentTemplate:     active.AgentTemplate, ResolvedSkills: active.ResolvedSkills,

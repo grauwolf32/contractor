@@ -19,6 +19,7 @@ export function stageContract(
         template: { templateId: "analyst", version: "1", digest: DIGEST },
         namespace: "analysis",
         skills: [],
+        contextManagement: { strategy: "template@1" },
       },
     },
     executionConfig: { agents: { analyst: {} } },

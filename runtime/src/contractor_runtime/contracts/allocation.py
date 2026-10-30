@@ -27,11 +27,13 @@ from contractor_runtime.contracts.engagement_allocation import EngagementAllocat
 from contractor_runtime.contracts.reports import PerformanceMetricsRequest
 from contractor_runtime.contracts.settings import (
     AgentTemplateRef,
+    CompactWorkerContextManagement,
     ResolvedAgentTemplate,
     ResolvedModelPolicy,
     ResolvedRuntimeConfigProvenance,
     ResolvedSkill,
     RuntimeSettings,
+    WorkerContextManagement,
     WorkerRuntimeRef,
     _require_worker_policy,
     _require_worker_summarizer_policy,
@@ -127,6 +129,7 @@ class AllocationSpec(VersionedWireModel):
     logical_agent_name: str
     namespace: str
     worker_session_mode: WorkerSessionMode
+    context_management: WorkerContextManagement
     run_metadata_labels: dict[str, str]
     lease_expires_at: datetime
     agent_template: ResolvedAgentTemplate
@@ -187,6 +190,7 @@ class AllocationSpec(VersionedWireModel):
             raise ValueError("resolvedSkills must be sorted and unique")
         if names != [skill.name for skill in self.agent_template.skills]:
             raise ValueError("resolvedSkills must exactly match AgentTemplate skills")
+        self._validate_context_management()
         if self.agent_template.is_tool_worker:
             if (
                 "model_policy" in self.model_fields_set
@@ -214,9 +218,16 @@ class AllocationSpec(VersionedWireModel):
             ),
         )
         if self.summarizer_model_policy is not None:
-            if self.agent_template.summarizer is None:
-                raise ValueError("summarizerModelPolicy requires an enabled summarizer")
             _require_worker_summarizer_policy(self.summarizer_model_policy)
+        if isinstance(self.context_management, CompactWorkerContextManagement):
+            if (
+                self.model_policy.context_window_tokens is None
+                or self.model_policy.max_output_tokens is None
+            ):
+                raise ValueError(
+                    "compact@1 Worker modelPolicy requires contextWindowTokens and maxOutputTokens"
+                )
+            return self
         if (
             self.agent_template.summarizer is not None
             and self.agent_template.summarizer.cumulative_budget is not None
@@ -233,6 +244,28 @@ class AllocationSpec(VersionedWireModel):
         ):
             raise ValueError("summarized effective Worker modelPolicy requires contextWindowTokens")
         return self
+
+    def _validate_context_management(self) -> None:
+        """Checks the one effective context branch (WRK-R190)."""
+        strategy = self.context_management.strategy
+        summarizer = self.agent_template.summarizer
+        if strategy == "none" and summarizer is not None:
+            raise ValueError("contextManagement none requires a template without summarizer")
+        if strategy == "terminal@1" and (summarizer is None or self.agent_template.is_tool_worker):
+            raise ValueError("contextManagement terminal@1 requires the template summarizer")
+        if self.summarizer_model_policy is not None and strategy != "terminal@1":
+            raise ValueError("summarizerModelPolicy requires terminal@1 context management")
+        if strategy != "compact@1":
+            return
+        if self.agent_template.is_tool_worker:
+            raise ValueError("compact@1 requires a modeled ADK Worker")
+        if self.worker_session_mode != "isolated":
+            raise ValueError("compact@1 supports only isolated Worker sessions")
+        if self.completion_contract is not None or any(
+            selection.ref.toolset_id == "audit-results" and selection.ref.version == "2"
+            for selection in self.agent_template.toolsets
+        ):
+            raise ValueError("compact@1 does not support Audit completion Workers")
 
 
 class PrepareAllocationResponse(VersionedWireModel):

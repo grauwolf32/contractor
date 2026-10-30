@@ -19,12 +19,14 @@ import (
 var contextRequired = map[string]string{
 	"contracts.ArtifactRef.revision": "exact refs (stage content, Worker results, Skills, completion " +
 		"contracts, read results) require it; ArtifactRef.ValidateExact checks it there",
-	"contracts.ResolvedModelPolicy.contextWindowTokens": "a Worker summarizer's policy requires it; " +
-		"ResolvedModelPolicy.ValidateForWorkerSummarizer checks it",
-	"contracts.ResolvedModelPolicy.maxModelCalls": "a Worker summarizer's policy requires it; " +
-		"ResolvedModelPolicy.ValidateForWorkerSummarizer checks it",
-	"contracts.ResolvedModelPolicy.maxOutputTokens": "a Worker summarizer's policy requires it; " +
-		"ResolvedModelPolicy.ValidateForWorkerSummarizer checks it",
+	"contracts.ResolvedModelPolicy.contextWindowTokens": "Worker summarizer and compactor policies require it; " +
+		"ResolvedModelPolicy.ValidateForWorkerSummarizer and ValidateForWorkerCompactor check it",
+	"contracts.ResolvedModelPolicy.maxModelCalls": "Worker summarizer and compactor policies require it; " +
+		"ResolvedModelPolicy.ValidateForWorkerSummarizer and ValidateForWorkerCompactor check it",
+	"contracts.ResolvedModelPolicy.maxOutputTokens": "Worker summarizer and compactor policies require it; " +
+		"ResolvedModelPolicy.ValidateForWorkerSummarizer and ValidateForWorkerCompactor check it",
+	"contracts.ResolvedModelPolicy.maxTotalTokens": "a Worker compactor's policy requires it; " +
+		"ResolvedModelPolicy.ValidateForWorkerCompactor checks it",
 }
 
 // TestSharedRequiredMembersMatchSchemas pins the Go decoding table, the

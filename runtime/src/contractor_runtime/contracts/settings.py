@@ -7,7 +7,7 @@ import math
 import re
 import ssl
 import unicodedata
-from typing import Self
+from typing import Annotated, Literal, Self
 from urllib.parse import urlsplit
 
 from pydantic import (
@@ -760,6 +760,63 @@ class WorkerSummarizerConfig(WireModel):
         if not math.isfinite(self.context_window_ratio):
             raise ValueError("Worker summarizer contextWindowRatio must be finite")
         return self
+
+
+# compact@1 bounds, LIM-WRK-28 and LIM-TPL-12.
+MAX_WORKER_COMPACTIONS = 16
+MAX_WORKER_COMPACTION_RECENT_GROUPS = 16
+MAX_WORKER_CONTEXT_INSTRUCTIONS_CHARACTERS = 8000
+
+
+def _require_worker_compactor_policy(policy: ResolvedModelPolicy) -> None:
+    if (
+        policy.context_window_tokens is None
+        or policy.max_output_tokens is None
+        or policy.max_total_tokens is None
+        or policy.max_model_calls != 1
+        or policy.max_tool_calls is not None
+        or policy.max_worker_calls is not None
+    ):
+        raise ValueError("modelPolicy is incompatible with the Worker context compactor")
+
+
+class NoWorkerContextManagement(WireModel):
+    """The allocation has no context branch: no summarizer, hard budgets only."""
+
+    strategy: Literal["none"]
+
+
+class TerminalWorkerContextManagement(WireModel):
+    """The AgentTemplate terminal summarizer is the effective branch."""
+
+    strategy: Literal["terminal@1"]
+
+
+class CompactWorkerContextManagement(WireModel):
+    """The Workflow-selected compact@1 branch; it wholly replaces the summarizer."""
+
+    strategy: Literal["compact@1"]
+    model_policy: ResolvedModelPolicy
+    instructions: ResolvedInstructions
+    include_reasoning: bool
+    context_window_ratio: float = Field(gt=0, lt=1)
+    keep_recent_groups: int = Field(ge=1, le=MAX_WORKER_COMPACTION_RECENT_GROUPS)
+    max_compactions: int = Field(ge=1, le=MAX_WORKER_COMPACTIONS)
+
+    @model_validator(mode="after")
+    def validate_compaction(self) -> Self:
+        if len(self.instructions.text) > MAX_WORKER_CONTEXT_INSTRUCTIONS_CHARACTERS:
+            raise ValueError("compact@1 instructions must contain at most 8000 Unicode characters")
+        _require_worker_compactor_policy(self.model_policy)
+        if not math.isfinite(self.context_window_ratio):
+            raise ValueError("compact@1 contextWindowRatio must be finite")
+        return self
+
+
+WorkerContextManagement = Annotated[
+    NoWorkerContextManagement | TerminalWorkerContextManagement | CompactWorkerContextManagement,
+    Field(discriminator="strategy"),
+]
 
 
 class ResolvedAgentTemplate(WireModel):

@@ -137,5 +137,6 @@
   },
   "stageExecutionId": "019c-stage-1",
   "workerSessionMode": "isolated",
+  "contextManagement": {"strategy": "none"},
   "engagement": null
 }

@@ -97,6 +97,9 @@ type StageResultContract struct {
 type ResolvedAgentBinding struct {
 	Template  contracts.ResolvedAgentTemplate `json:"template"`
 	Namespace string                          `json:"namespace"`
+	// ContextManagement is the explicit Workflow selection (WFL-R90); a
+	// snapshot reader never infers it.
+	ContextManagement contracts.WorkerContextManagement `json:"contextManagement"`
 }
 
 // ExecutionConfigOrigins records which authoring layer selected each resolved

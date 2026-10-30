@@ -138,6 +138,7 @@ func workflowResourceReadModel(workflow resolved.ResolvedWorkflow) workflowResou
 				Skills: append(
 					[]contracts.ArtifactRef{}, binding.Template.Skills...,
 				),
+				ContextManagement: newWorkflowContextManagementResponse(binding.ContextManagement),
 			}
 		}
 		result.Stages[name] = workflowStageResponse{

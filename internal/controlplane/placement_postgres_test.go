@@ -755,7 +755,7 @@ func (f *placementFixture) request() ReservationRequest {
 		RunID:                   f.runID, StageExecutionID: f.stageExecutionID, RuntimeConfig: &f.runtimeSnapshot,
 		Bindings: []BindingRequirement{{
 			LogicalAgentName: "builder", Namespace: "builder", AgentTemplate: f.template,
-			WorkerSessionMode: contracts.WorkerSessionIsolated,
+			WorkerSessionMode: contracts.WorkerSessionIsolated, ContextManagement: contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyNone},
 			ExecutionConfig: AllocationExecutionConfig{
 				ModelPolicy: f.selection.ModelPolicy.Ref, LLMGateway: f.selection.LLMGateway.Ref,
 				Credential: f.selection.Credential,

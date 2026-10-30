@@ -537,6 +537,7 @@ func (r *InMemoryRegistry) reserveAll(
 			Grant:                  grant, ControlURL: entry.registration.ControlURL, A2AURL: entry.registration.A2AURL,
 			AgentTemplate:             binding.AgentTemplate.Clone(),
 			WorkerSessionMode:         binding.WorkerSessionMode,
+			ContextManagement:         binding.ContextManagement.Clone(),
 			ResolvedSkills:            contracts.CloneResolvedSkills(binding.ResolvedSkills),
 			ExecutionConfig:           cloneAllocationExecutionConfig(binding.ExecutionConfig),
 			Workspace:                 contracts.CloneAllocationWorkspaceSpec(binding.Workspace),
@@ -1202,6 +1203,22 @@ func isCapacityLive(entry *agentEntry, monotonicNow time.Duration) bool {
 		entry.blockedByInstanceID == nil && entry.confirmedLeaseDeadline > monotonicNow
 }
 
+// validateBindingContextManagement checks the effective branch against the
+// binding's immutable selection before any candidate is reserved (WRK-R190).
+func validateBindingContextManagement(binding BindingRequirement) error {
+	context := contracts.AllocationContext{
+		Template:           binding.AgentTemplate,
+		SessionMode:        binding.WorkerSessionMode,
+		CompletionContract: binding.CompletionContract,
+		WorkerPolicy:       binding.AgentTemplate.ModelPolicy,
+	}
+	if binding.RuntimeSelection != nil {
+		context.WorkerPolicy = binding.RuntimeSelection.ModelPolicy
+		context.SummarizerModelPolicy = binding.RuntimeSelection.SummarizerModelPolicy
+	}
+	return binding.ContextManagement.ValidateAllocation(context)
+}
+
 func isBindingCompatible(registration control.AgentRegistration, binding BindingRequirement) bool {
 	return resolved.ValidateWorkerCompletionSelection(binding.CompletionContract, binding.Namespace, binding.AgentTemplate) == nil &&
 		contracts.SupportsWorkerCompletion(registration.Capabilities, binding.CompletionContract) &&
@@ -1301,6 +1318,9 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 		if err := binding.WorkerSessionMode.Validate(); err != nil {
 			return "", nil, fmt.Errorf("%w: invalid Worker session mode for %q", ErrInvalidRequest, binding.LogicalAgentName)
 		}
+		if err := validateBindingContextManagement(binding); err != nil {
+			return "", nil, fmt.Errorf("%w: invalid context management for %q: %v", ErrInvalidRequest, binding.LogicalAgentName, err)
+		}
 		resolvedSkills := binding.ResolvedSkills
 		if resolvedSkills == nil && len(binding.AgentTemplate.Skills) == 0 {
 			resolvedSkills = []contracts.ResolvedSkill{}
@@ -1338,6 +1358,7 @@ func normalizeReservationRequest(request ReservationRequest) (string, []BindingR
 			CompletionContract: contracts.CloneWorkerCompletionContract(binding.CompletionContract),
 			LogicalAgentName:   binding.LogicalAgentName, Namespace: binding.Namespace,
 			WorkerSessionMode: binding.WorkerSessionMode,
+			ContextManagement: binding.ContextManagement.Clone(),
 			AgentTemplate:     binding.AgentTemplate.Clone(),
 			ResolvedSkills:    contracts.CloneResolvedSkills(resolvedSkills),
 			ExecutionConfig:   cloneAllocationExecutionConfig(binding.ExecutionConfig),

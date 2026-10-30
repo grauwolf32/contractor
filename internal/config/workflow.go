@@ -362,9 +362,14 @@ func (l *loader) resolveAgentBindings(source map[string]agentBindingSource) (map
 		if artifactpolicy.IsPurposeReservedNamespace(namespace) {
 			return nil, fmt.Errorf("agents.%s.namespace %q is reserved", logicalName, namespace)
 		}
+		contextManagement, err := l.resolveContextManagement(binding.ContextManagement)
+		if err != nil {
+			return nil, fmt.Errorf("agents.%s.contextManagement: %w", logicalName, err)
+		}
 		result[logicalName] = resolved.ResolvedAgentBinding{
-			Template:  template.Clone(),
-			Namespace: namespace,
+			Template:          template.Clone(),
+			Namespace:         namespace,
+			ContextManagement: contextManagement,
 		}
 	}
 	return result, nil

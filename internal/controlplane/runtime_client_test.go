@@ -849,6 +849,8 @@ func testReservation(
 			Namespace: logicalName, ReadPolicy: ReadCurrentRun, WritePolicy: WriteInputsAndIntermediates,
 		},
 		ControlURL: controlURL, A2AURL: a2aURL, WorkerSessionMode: contracts.WorkerSessionIsolated,
+		ContextManagement: contracts.EffectiveContextManagement(
+			contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyTemplate}, template),
 		AgentTemplate: template, LeaseExpiresAt: lease,
 		PerformanceCollectionPolicy: reporting.PerformanceCollectionDisabled,
 	}

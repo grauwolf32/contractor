@@ -24,7 +24,7 @@ func TestToolWorkerPlacementRequiresSelectedScannerWithoutModel(t *testing.T) {
 	registration.SupportedToolsets = []control.ToolsetCapability{{Ref: "scan@1", Tools: []string{"scan_naabu"}}}
 	registerReadyWith(t, registry, registration)
 	request := ReservationRequest{RunID: "tool-run", StageExecutionID: "tool-stage", Bindings: []BindingRequirement{{
-		LogicalAgentName: "scanner", Namespace: "scanner", AgentTemplate: template, WorkerSessionMode: contracts.WorkerSessionIsolated,
+		LogicalAgentName: "scanner", Namespace: "scanner", AgentTemplate: template, WorkerSessionMode: contracts.WorkerSessionIsolated, ContextManagement: contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyNone},
 	}}}
 	if _, err := registry.ReserveAll(request); !errors.Is(err, ErrInsufficientCapacity) {
 		t.Fatalf("missing nuclei: %v", err)

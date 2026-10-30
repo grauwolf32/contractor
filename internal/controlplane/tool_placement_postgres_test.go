@@ -30,7 +30,7 @@ func TestPlacementPostgresToolWorkerWithoutModel(t *testing.T) {
 		RunID: fixture.runID, StageExecutionID: fixture.stageExecutionID, RuntimeConfig: &fixture.runtimeSnapshot,
 		Bindings: []BindingRequirement{{
 			LogicalAgentName: "scanner", Namespace: "scanner", AgentTemplate: fixture.template,
-			WorkerSessionMode: contracts.WorkerSessionIsolated, RuntimeSelection: &fixture.selection,
+			WorkerSessionMode: contracts.WorkerSessionIsolated, ContextManagement: contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyNone}, RuntimeSelection: &fixture.selection,
 		}},
 	}
 	runtimeConfig, err := fixture.allocator.resolveCandidate(ctx, pool, request, request.Bindings[0], AuthenticatedPrincipal{

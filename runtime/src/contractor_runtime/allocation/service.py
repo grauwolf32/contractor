@@ -37,11 +37,13 @@ from contractor_runtime.contracts import (
     AgentStateSnapshot,
     AllocationFinalResponse,
     AllocationSpec,
+    CompactWorkerContextManagement,
     FinalizeAllocationRequest,
     PrepareAllocationResponse,
     ReleaseAllocationRequest,
     TerminationError,
     WorkerHandle,
+    WorkerSummarizerConfig,
 )
 from contractor_runtime.factories import (
     FactoryRegistry,
@@ -75,6 +77,16 @@ from contractor_runtime.toolsets.security_findings.collection import FindingsErr
 from contractor_runtime.worker.adk_caches import release_adk_tool_caches
 from contractor_runtime.worker.state import WorkerStateStore
 from contractor_runtime.workspace import AllocationWorkspace
+
+
+def _effective_summarizer(spec: AllocationSpec) -> WorkerSummarizerConfig | None:
+    """Returns the terminal summarizer only when it is the effective branch."""
+    summarizer = spec.agent_template.summarizer
+    if spec.context_management.strategy != "terminal@1" or summarizer is None:
+        return None
+    if spec.summarizer_model_policy is None:
+        return summarizer
+    return summarizer.model_copy(update={"model_policy": spec.summarizer_model_policy})
 
 
 class _SourceObservationSink:
@@ -376,13 +388,11 @@ class AllocationService:
                         a2a_base_url=self._a2a_base_url,
                         runtime_settings=worker_settings,
                         sensitive_output_tools=self._factories.sensitive_output_tools,
-                        summarizer=(
-                            spec.agent_template.summarizer.model_copy(
-                                update={"model_policy": spec.summarizer_model_policy}
-                            )
-                            if spec.summarizer_model_policy is not None
-                            and spec.agent_template.summarizer is not None
-                            else spec.agent_template.summarizer
+                        summarizer=_effective_summarizer(spec),
+                        compaction=(
+                            spec.context_management
+                            if isinstance(spec.context_management, CompactWorkerContextManagement)
+                            else None
                         ),
                         completion_contract=spec.completion_contract,
                         adapter_handles=adapter_host.handles.for_worker(),

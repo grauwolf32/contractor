@@ -135,6 +135,9 @@ from contractor_runtime.contracts.reports import WorkerSummarizerMetrics as Work
 from contractor_runtime.contracts.settings import AgentTemplateRef as AgentTemplateRef
 from contractor_runtime.contracts.settings import CaidoSettings as CaidoSettings
 from contractor_runtime.contracts.settings import (
+    CompactWorkerContextManagement as CompactWorkerContextManagement,
+)
+from contractor_runtime.contracts.settings import (
     GatewayFailureSignature as GatewayFailureSignature,
 )
 from contractor_runtime.contracts.settings import (
@@ -149,6 +152,9 @@ from contractor_runtime.contracts.settings import InteractshSettings as Interact
 from contractor_runtime.contracts.settings import LLMCredentialRef as LLMCredentialRef
 from contractor_runtime.contracts.settings import LLMGatewayConfigRef as LLMGatewayConfigRef
 from contractor_runtime.contracts.settings import ModelPolicyRef as ModelPolicyRef
+from contractor_runtime.contracts.settings import (
+    NoWorkerContextManagement as NoWorkerContextManagement,
+)
 from contractor_runtime.contracts.settings import ResolvedAgentTemplate as ResolvedAgentTemplate
 from contractor_runtime.contracts.settings import ResolvedInstructions as ResolvedInstructions
 from contractor_runtime.contracts.settings import ResolvedModelPolicy as ResolvedModelPolicy
@@ -166,8 +172,14 @@ from contractor_runtime.contracts.settings import SandboxProfileRef as SandboxPr
 from contractor_runtime.contracts.settings import TelemetryExportSettings as TelemetryExportSettings
 from contractor_runtime.contracts.settings import TelemetryRetrySettings as TelemetryRetrySettings
 from contractor_runtime.contracts.settings import TelemetrySettings as TelemetrySettings
+from contractor_runtime.contracts.settings import (
+    TerminalWorkerContextManagement as TerminalWorkerContextManagement,
+)
 from contractor_runtime.contracts.settings import ToolsetRef as ToolsetRef
 from contractor_runtime.contracts.settings import ToolsetSelection as ToolsetSelection
+from contractor_runtime.contracts.settings import (
+    WorkerContextManagement as WorkerContextManagement,
+)
 from contractor_runtime.contracts.settings import WorkerRuntimeRef as WorkerRuntimeRef
 from contractor_runtime.contracts.settings import WorkerSummarizerConfig as WorkerSummarizerConfig
 from contractor_runtime.contracts.sitemap import ProjectSitemapPolicy as ProjectSitemapPolicy

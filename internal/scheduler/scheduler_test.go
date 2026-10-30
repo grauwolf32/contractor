@@ -3121,8 +3121,8 @@ func (a *memoryAllocator) reservationForRequest(request controlplane.Reservation
 			ReadPolicy: controlplane.ReadCurrentRun, WritePolicy: controlplane.WriteInputsAndIntermediates,
 		},
 		ControlURL: "https://runtime.test", A2AURL: "https://runtime.test",
-		WorkerSessionMode: binding.WorkerSessionMode,
-		AgentTemplate:     binding.AgentTemplate, ResolvedSkills: contracts.CloneResolvedSkills(binding.ResolvedSkills),
+		WorkerSessionMode: binding.WorkerSessionMode, ContextManagement: binding.ContextManagement.Clone(),
+		AgentTemplate: binding.AgentTemplate, ResolvedSkills: contracts.CloneResolvedSkills(binding.ResolvedSkills),
 		RunMetadataLabels:         request.RunMetadataLabels.Clone(),
 		ExecutionConfig:           binding.ExecutionConfig,
 		RuntimeAgentLabelRevision: 1, LeaseExpiresAt: a.clock.now.Add(time.Minute),
@@ -3144,6 +3144,7 @@ func (a *memoryAllocator) reservation(stageExecutionID string) (controlplane.Res
 		Bindings: []controlplane.BindingRequirement{{
 			LogicalAgentName: "builder", Namespace: binding.Namespace, AgentTemplate: binding.Template,
 			WorkerSessionMode: a.workflow.Stages[a.workflow.EntryStage].Session,
+			ContextManagement: contracts.EffectiveContextManagement(binding.ContextManagement, binding.Template),
 			ResolvedSkills:    []contracts.ResolvedSkill{},
 			ExecutionConfig:   allocationExecutionConfig(a.workflow.Stages[a.workflow.EntryStage], "builder"),
 			RuntimeSelection:  &selection,

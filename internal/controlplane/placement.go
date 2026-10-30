@@ -629,7 +629,8 @@ func (a *PlacementAllocator) resolveCandidateWithCache(
 		return runtimeconfig.ResolvedRuntimeConfig{}, err
 	}
 	var summarizerModelPolicy *contracts.ResolvedModelPolicy
-	if binding.AgentTemplate.Summarizer != nil {
+	// Only the terminal branch has a summarizer consumer (WRK-R190).
+	if binding.ContextManagement.Strategy == contracts.ContextStrategyTerminal {
 		policy := binding.AgentTemplate.Summarizer.ModelPolicy
 		summarizerModelPolicy = &policy
 	}

@@ -66,6 +66,11 @@ func DecodeResolvedStageSnapshot(data []byte) (ResolvedStage, error) {
 	if err := validateStageAgentNames("persisted Stage", stage.Agents); err != nil {
 		return ResolvedStage{}, err
 	}
+	for name, binding := range stage.Agents {
+		if err := binding.ContextManagement.ValidateBinding(); err != nil {
+			return ResolvedStage{}, fmt.Errorf("persisted Stage Agent %q: %w", name, err)
+		}
+	}
 	if err := stage.Session.Validate(); err != nil {
 		return ResolvedStage{}, err
 	}

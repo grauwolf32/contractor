@@ -81,6 +81,7 @@ func cloneStage(source ResolvedStage) ResolvedStage {
 	result.Agents = make(map[string]ResolvedAgentBinding, len(source.Agents))
 	for name, binding := range source.Agents {
 		binding.Template = binding.Template.Clone()
+		binding.ContextManagement = binding.ContextManagement.Clone()
 		result.Agents[name] = binding
 	}
 	result.ExecutionConfig = cloneStageExecutionConfig(source.ExecutionConfig)

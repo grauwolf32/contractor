@@ -61,6 +61,90 @@ function mediaTypesProblem(value: unknown): string | undefined {
   return undefined;
 }
 
+const COMPACT_MEMBERS = new Set([
+  "strategy",
+  "modelPolicy",
+  "instructions",
+  "includeReasoning",
+  "contextWindowRatio",
+  "keepRecentGroups",
+  "maxCompactions",
+]);
+
+function boundedInteger(value: unknown, minimum: number, maximum: number) {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= minimum &&
+    value <= maximum
+  );
+}
+
+/**
+ * Why an agent binding's contextManagement is refused, as the Server refuses
+ * it (api/testdata/workflow-context-management-cases.json): template@1 alone,
+ * or compact@1 for an isolated stage without a summarized outcome. Catalog
+ * checks (policy limits, Audit completion, model-free templates) stay with the
+ * Server.
+ */
+function contextManagementProblems(
+  value: unknown,
+  stage: Record<string, unknown>,
+): [Path, string][] {
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    return [[[], "Expected a mapping with a strategy."]];
+  const context = record(value),
+    strategy = context.strategy,
+    problems: [Path, string][] = [];
+  if (strategy === "template@1") {
+    if (Object.keys(context).length !== 1)
+      problems.push([[], "template@1 accepts only strategy."]);
+    return problems;
+  }
+  if (strategy !== "compact@1")
+    return [[["strategy"], "Strategy must be template@1 or compact@1."]];
+  for (const name of Object.keys(context))
+    if (!COMPACT_MEMBERS.has(name))
+      problems.push([[name], "compact@1 does not accept this member."]);
+  if (
+    typeof context.modelPolicy !== "string" ||
+    !isConfigSelector(context.modelPolicy)
+  )
+    problems.push([["modelPolicy"], SELECTOR_MESSAGE]);
+  const instructions = record(context.instructions).ref;
+  if (typeof instructions !== "string" || !instructions.trim())
+    problems.push([
+      ["instructions", "ref"],
+      "Select the compaction instructions.",
+    ]);
+  if (typeof context.includeReasoning !== "boolean")
+    problems.push([
+      ["includeReasoning"],
+      "Choose whether provider reasoning reaches the compactor.",
+    ]);
+  const ratio = context.contextWindowRatio;
+  if (
+    ratio !== undefined &&
+    (typeof ratio !== "number" || !(ratio > 0 && ratio < 1))
+  )
+    problems.push([["contextWindowRatio"], "Use a ratio between 0 and 1."]);
+  if (
+    context.keepRecentGroups !== undefined &&
+    !boundedInteger(context.keepRecentGroups, 1, 16)
+  )
+    problems.push([["keepRecentGroups"], "Keep 1 to 16 recent groups."]);
+  if (
+    context.maxCompactions !== undefined &&
+    !boundedInteger(context.maxCompactions, 1, 16)
+  )
+    problems.push([["maxCompactions"], "Allow 1 to 16 compactions."]);
+  if (stage.session === "shared")
+    problems.push([[], "compact@1 supports only isolated stages."]);
+  if (record(stage.on).summarized !== undefined)
+    problems.push([[], "compact@1 cannot produce a summarized outcome."]);
+  return problems;
+}
+
 /** Rules available from authored YAML. Bundle/catalog resolution stays in CLI. */
 export function validateDraft(draft: Draft): Problem[] {
   const problems: Problem[] = [];
@@ -177,8 +261,19 @@ export function validateDraft(draft: Draft): Problem[] {
           [...p, "agents"],
           "This planner requires exactly one agent; other planners need at least one.",
         );
-      for (const agent of Object.keys(agents))
+      for (const agent of Object.keys(agents)) {
         selector([...p, "agents", agent, "template"]);
+        const context = record(agents[agent]).contextManagement;
+        if (context !== undefined)
+          for (const [path, message] of contextManagementProblems(
+            context,
+            stage,
+          ))
+            error(
+              [...p, "agents", agent, "contextManagement", ...path],
+              message,
+            );
+      }
       slots([...p, "result", "artifacts"]);
       const exports = record(record(record(stage.context).workspace).export);
       const namespaces = Object.entries(agents).map(

@@ -224,6 +224,7 @@ func bindingRequirements(
 			LogicalAgentName:  name,
 			Namespace:         binding.Namespace,
 			WorkerSessionMode: stage.Session,
+			ContextManagement: contracts.EffectiveContextManagement(binding.ContextManagement, binding.Template),
 			AgentTemplate:     binding.Template,
 			ResolvedSkills:    resolvedSkills,
 			ExecutionConfig:   allocationExecutionConfig(stage, name),

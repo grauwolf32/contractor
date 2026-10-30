@@ -151,6 +151,7 @@
   },
   "stageExecutionId": "019c-stage-summarizer",
   "workerSessionMode": "isolated",
+  "contextManagement": {"strategy": "terminal@1"},
   "summarizerModelPolicy": {
     "contextWindowTokens": 65536,
     "maxModelCalls": 2,

@@ -16451,7 +16451,7 @@ components:
     WorkflowAgentBinding:
       type: object
       additionalProperties: false
-      required: [template, namespace, skills]
+      required: [template, namespace, skills, contextManagement]
       properties:
         template: {$ref: '#/components/schemas/AgentTemplateRef'}
         namespace: {$ref: '#/components/schemas/ArtifactName'}
@@ -16460,6 +16460,34 @@ components:
           maxItems: 32
           uniqueItems: true
           items: {$ref: '#/components/schemas/AgentSkillRef'}
+        contextManagement: {$ref: '#/components/schemas/WorkflowContextManagement'}
+    WorkflowContextManagement:
+      description: >-
+        The binding's explicit Worker context selection. template@1 keeps the
+        AgentTemplate's terminal summarizer or hard budgets; compact@1
+        continues the same subtask after bounded context compaction and
+        wholly replaces the template summarizer.
+      oneOf:
+        - {$ref: '#/components/schemas/WorkflowTemplateContextManagement'}
+        - {$ref: '#/components/schemas/WorkflowCompactContextManagement'}
+    WorkflowTemplateContextManagement:
+      type: object
+      additionalProperties: false
+      required: [strategy]
+      properties:
+        strategy: {type: string, const: template@1}
+    WorkflowCompactContextManagement:
+      type: object
+      additionalProperties: false
+      required: [strategy, modelPolicy, instructions, includeReasoning, contextWindowRatio, keepRecentGroups, maxCompactions]
+      properties:
+        strategy: {type: string, const: compact@1}
+        modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
+        instructions: {$ref: '#/components/schemas/InstructionsRef'}
+        includeReasoning: {type: boolean}
+        contextWindowRatio: {type: number, exclusiveMinimum: 0, exclusiveMaximum: 1}
+        keepRecentGroups: {type: integer, minimum: 1, maximum: 16}
+        maxCompactions: {type: integer, minimum: 1, maximum: 16}
     WorkflowNextTransition:
       type: object
       additionalProperties: false
@@ -16637,6 +16665,7 @@ components:
                   digest: sha256:1111111111111111111111111111111111111111111111111111111111111111
                 namespace: builder
                 skills: []
+                contextManagement: {strategy: template@1}
             executionConfig:
               agents:
                 builder:

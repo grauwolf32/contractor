@@ -2,7 +2,7 @@
   "ref": {
     "name": "openapi-sqlmap-scan",
     "version": "1",
-    "digest": "sha256:a011789cffbe65cee70e2c8f4965e693a3c6593ac05e6a1cff65cf5a8b6da390"
+    "digest": "sha256:55fe03d44261668c520462c01fd709a75582938e6b4645047168f844357e76f1"
   },
   "mode": "risk-assessment",
   "standards": [],
@@ -164,7 +164,10 @@
                     "version": "1"
                   }
                 },
-                "namespace": "scanner"
+                "namespace": "scanner",
+                "contextManagement": {
+                  "strategy": "template@1"
+                }
               }
             },
             "executionConfig": {

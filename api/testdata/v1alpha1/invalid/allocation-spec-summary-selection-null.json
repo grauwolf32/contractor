@@ -151,5 +151,6 @@
   },
   "stageExecutionId": "019c-stage-summarizer",
   "workerSessionMode": "isolated",
+  "contextManagement": {"strategy": "terminal@1"},
   "summarizerModelPolicy": null
 }

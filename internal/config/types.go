@@ -210,8 +210,21 @@ type stageSource struct {
 }
 
 type agentBindingSource struct {
-	Template  string  `yaml:"template"`
-	Namespace *string `yaml:"namespace,omitempty"`
+	Template          string                   `yaml:"template"`
+	Namespace         *string                  `yaml:"namespace,omitempty"`
+	ContextManagement *contextManagementSource `yaml:"contextManagement,omitempty"`
+}
+
+// contextManagementSource is the closed authoring union of WFL-R90: strategy
+// template@1 alone, or compact@1 with its policy members.
+type contextManagementSource struct {
+	Strategy           string                 `yaml:"strategy"`
+	ModelPolicy        string                 `yaml:"modelPolicy,omitempty"`
+	Instructions       *instructionsRefSource `yaml:"instructions,omitempty"`
+	IncludeReasoning   yaml.Node              `yaml:"includeReasoning,omitempty"`
+	ContextWindowRatio *float64               `yaml:"contextWindowRatio,omitempty"`
+	KeepRecentGroups   *int                   `yaml:"keepRecentGroups,omitempty"`
+	MaxCompactions     *int                   `yaml:"maxCompactions,omitempty"`
 }
 
 type stageContextSource struct {

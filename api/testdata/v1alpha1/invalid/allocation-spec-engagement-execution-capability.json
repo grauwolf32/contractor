@@ -137,6 +137,7 @@
   },
   "stageExecutionId": "019c-stage-1",
   "workerSessionMode": "isolated",
+  "contextManagement": {"strategy": "none"},
   "engagement": {
     "schema": "contractor.engagement.allocation.v1",
     "auditId": "audit-engagement",

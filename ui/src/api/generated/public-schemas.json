@@ -11600,7 +11600,7 @@
     "WorkflowAgentBinding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["template", "namespace", "skills"],
+      "required": ["template", "namespace", "skills", "contextManagement"],
       "properties": {
         "template": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AgentTemplateRef"
@@ -11615,7 +11615,56 @@
           "items": {
             "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AgentSkillRef"
           }
+        },
+        "contextManagement": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowContextManagement"
         }
+      }
+    },
+    "WorkflowContextManagement": {
+      "oneOf": [
+        {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowTemplateContextManagement"
+        },
+        {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowCompactContextManagement"
+        }
+      ]
+    },
+    "WorkflowTemplateContextManagement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy"],
+      "properties": { "strategy": { "type": "string", "const": "template@1" } }
+    },
+    "WorkflowCompactContextManagement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "modelPolicy",
+        "instructions",
+        "includeReasoning",
+        "contextWindowRatio",
+        "keepRecentGroups",
+        "maxCompactions"
+      ],
+      "properties": {
+        "strategy": { "type": "string", "const": "compact@1" },
+        "modelPolicy": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelPolicyRef"
+        },
+        "instructions": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/InstructionsRef"
+        },
+        "includeReasoning": { "type": "boolean" },
+        "contextWindowRatio": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "keepRecentGroups": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "maxCompactions": { "type": "integer", "minimum": 1, "maximum": 16 }
       }
     },
     "WorkflowNextTransition": {

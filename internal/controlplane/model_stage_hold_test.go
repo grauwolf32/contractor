@@ -128,7 +128,7 @@ func holdScanRequest(t *testing.T, stageExecutionID string) ReservationRequest {
 		RunID: "run-" + stageExecutionID, StageExecutionID: stageExecutionID, ModelFree: true,
 		Bindings: []BindingRequirement{{
 			LogicalAgentName: "scanner", Namespace: "scanner", AgentTemplate: template,
-			WorkerSessionMode: contracts.WorkerSessionIsolated,
+			WorkerSessionMode: contracts.WorkerSessionIsolated, ContextManagement: contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyNone},
 		}},
 	}
 }

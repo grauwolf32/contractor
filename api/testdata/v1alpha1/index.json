@@ -180,6 +180,10 @@
     "engagement-allocation-cookies.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json"
+    },
+    "allocation-spec-compact.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json"
     }
   },
   "invalid": {
@@ -593,6 +597,51 @@
       "type": "AllocationSpec",
       "strict": true,
       "reason": "invariant"
+    },
+    "allocation-spec-compact-summarizer-selection.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-compact-shared.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-compact-two-calls.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-compact-no-context-window.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-compact-ratio.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-compact-missing-reasoning.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-context-extra-member.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-terminal-without-summarizer.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
+    },
+    "allocation-spec-none-with-summarizer.json": {
+      "type": "AllocationSpec",
+      "schema": "allocation.schema.json",
+      "strict": true
     }
   }
 }
