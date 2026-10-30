@@ -751,11 +751,11 @@ released and a later pass attempts the same write again (FAIL-AUX-4).
 closed by AUX-R99, so they write only values the Store accepts:
 
 - the closing transition bounds its stop reason message to 4 KiB of valid
-  UTF-8 without NUL, replacing invalid bytes and NUL and cutting a longer
+  UTF-8 without NUL (LIM-PER-15), replacing invalid bytes and NUL and cutting a longer
   message a builder composed;
 - settlement of undispatched items, the barrier every closure waits for
   (AUD-R186), appends its closure gap only while the item's gap array stays
-  within its stored bound of 1 MiB of JSON text, and otherwise records the
+  within its stored bound of 1 MiB of JSON text (LIM-PER-17), and otherwise records the
   closure through the item's final disposition and rationale alone;
 - the other drain writes (review expiry, terminal observation, intent
   failure, child Run cancellation and deletion, hold release and purge)
