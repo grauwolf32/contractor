@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-111 open tasks: 5 in progress, 95 pending, 11 deferred. 1210 finished: 1200 completed, 10 archived.
+112 open tasks: 5 in progress, 96 pending, 11 deferred. 1210 finished: 1200 completed, 10 archived.
 
 ## In progress
 
@@ -69,6 +69,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020 | Gate controlled ffuf execution through the pentest transport |
+| [V422-003](v422-003-nuclei-engagement-transport.yml) | feature | P2 | V422-002 | Run Nuclei with the engagement's allocation-local HTTP authority |
 
 ### Findings tools and collections (`findings`)
 
@@ -215,7 +216,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
 | HTTP and Caido tools (`http-tools`) | 7 | 22 | 25 | 9 | 23 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 16 | 9 | 9 | 18 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 4 | 17 | 8 | 8 | 13 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 34 | 11 | 54 |
