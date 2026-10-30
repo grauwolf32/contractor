@@ -98,6 +98,23 @@ const (
 	StageCancelled   StageExecutionState = "cancelled"
 )
 
+// activeStageStates and terminalStageStates partition the StageExecution
+// states (SCH-R42). They are the one definition of both sets: Go code asks
+// StageExecutionState.Terminal, and the StageStateSets tests hold the OpenAPI
+// enum, every StageExecution-state list in Go SQL and the stage_executions
+// CHECKs and partial-index predicates to them. SQL spells the lists as
+// literals for the reason the Run state lists do: PostgreSQL proves a
+// partial-index predicate only from constants written in the query.
+var (
+	activeStageStates   = [...]StageExecutionState{StagePreparing, StageRunning, StageFinalizing, StageAborting}
+	terminalStageStates = [...]StageExecutionState{StageSucceeded, StageFailed, StageInterrupted, StageCancelled}
+)
+
+// Terminal reports whether s is a terminal StageExecution state (SCH-R42).
+func (s StageExecutionState) Terminal() bool {
+	return slices.Contains(terminalStageStates[:], s)
+}
+
 type Reason struct {
 	Code    string
 	Message string

@@ -126,9 +126,10 @@ func (s *Scheduler) executeRun(
 		return s.resumeFinalizing(ctx, run, workflow, execution, nil)
 	case runstore.StageAborting:
 		return s.resumeAborting(ctx, run, workflow, execution, nil)
-	case runstore.StageInterrupted, runstore.StageCancelled, runstore.StageSucceeded, runstore.StageFailed:
-		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("running WorkflowRun selected a terminal StageExecution"))
 	default:
+		if execution.State.Terminal() {
+			return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("running WorkflowRun selected a terminal StageExecution"))
+		}
 		return s.failInvalidRunState(ctx, run.RunID, fmt.Errorf("unknown StageExecution state %q", execution.State))
 	}
 }
