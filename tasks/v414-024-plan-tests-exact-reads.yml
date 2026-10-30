@@ -84,3 +84,49 @@ tests:
     covers: [A3]
   - command: make lint
     covers: [A1]
+decisions:
+  - >-
+    2026-10-30, measured on PostgreSQL 17.11. The drain check of the drained Project reads,
+    of workflow_runs, 328 entries on the fixture and 470 after the history grows: the
+    BitmapAnd's inputs, 214 then 356 entries of workflow_runs_owner_project_created_idx (the
+    target's Runs) and 112 of workflow_runs_runtime_credentials_idx (every owner's active
+    Runs), plus 2 planning entries; the probe of workflow_runs_run_project_key per unreleased
+    allocation returns none because the Project condition rejects the entry inside the index.
+    Stage tables: 34 stage_executions and 32 stage_allocations for 30 unreleased allocations.
+    Audits 0; purge recheck 0 and 0. The statement before V407-025 read 114 workflow_runs
+    entries but 267 blocks against 161. Budgets: workflow_runs <= target Runs + active Runs
+    + unreleased + 8 planning entries; each Stage table <= unreleased + 8; audits == 0; purge
+    recheck workflow_runs == 0 and audits == 0, with the counts taken from the fixture by
+    query. The held-credential check reads exactly the matching held Audits (20, 0, 20), so
+    its budget is the matching count with no planning slack (no statement compares an indexed
+    column with a probed value).
+  - >-
+    Dead entries: the held test now measures before its rolled-back release/new-hold case
+    (it read 21 = 20 + the rolled-back Audit 3010's GIN entry before). The drain test's
+    second measurement follows the rolled-back result cases; plain VACUUM bypassed index
+    cleanup for so few dead rows and left 3 entries in the active-Run GIN index (115 instead
+    of 112, also in a database of its own), so analyzeDrainFixture runs VACUUM (INDEX_CLEANUP
+    ON, ANALYZE), and the drain fixture moved to explaintest.Database, per its rule for
+    fixtures whose measured tables carry superseded versions. The test comment and the
+    waitForDrainSQL comment now state the index entries the check reads instead of "at most
+    one row per unreleased allocation".
+  - >-
+    Node.Examined had no caller left, so it is removed with its unit-test assertions and the
+    tableScans map only it used; the explaintest package documentation says why per-loop
+    averages undercount.
+  - >-
+    A2 mutations (temporary edits of the statements, reverted): D1 adds to the drain check's
+    allocation join a filter (SELECT count(*) FROM audits WHERE audit_id = 'audit-' ||
+    (run number - 5400)) < 2, an inner Index Only Scan on audits that finds a row in 3 of 30
+    loops (rows=0 per loop): the Reads assertion fails ("read 3 rows of audits, budget 0"),
+    the Examined assertions at 19f7477f pass. D2 is the same with run number / 10 (a row in
+    every loop): both fail (Reads 30; Examined "read 30 Audits"). H1 adds to the held
+    lookup's ORDER BY a scalar subquery reading held Audit n + 2800, which exists for one of
+    the 20 matching Audits (audit-02900 names llm-20): the Reads assertion fails (21 for 20
+    matching, llm-10 and runtime-10), the Examined assertion at 19f7477f passes. H2 reads
+    held Audit n + 50 in every loop: both fail (40 for 20).
+  - >-
+    Out of scope, reported: the drain check's index reads grow with the target Project's
+    terminal history (214 to 356 entries as the fixture grows from 6000 to 9999 Runs) and
+    include every owner's active Runs, though it visits no heap page; the statement and its
+    indexes are out of this task's scope.

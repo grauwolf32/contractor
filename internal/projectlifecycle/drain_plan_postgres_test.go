@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -39,6 +42,9 @@ const (
 	drainTarget      = "project-0-0"
 	drainEmpty       = "project-0-4"
 	drainOwner       = "owner-0"
+	// drainPlanningEntries bounds the index entries the planner reads to
+	// find a column's current extremes (see explaintest); row budgets add it.
+	drainPlanningEntries = 8
 )
 
 // The statements as they were before V407-025, kept to record their plans on
@@ -212,9 +218,14 @@ func drainRunID(i int) string {
 	return string(id)
 }
 
+// analyzeDrainFixture refreshes the statistics and removes the index entries
+// of rolled-back changes. Without INDEX_CLEANUP ON, VACUUM skips the indexes
+// when few pages hold dead rows, and the active-Run index the drain check
+// reads would keep an entry for each Run a result case inserted.
 func analyzeDrainFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 	t.Helper()
-	if _, err := pool.Exec(ctx, `VACUUM ANALYZE projects, workflow_runs, stage_executions, stage_allocations, audits`); err != nil {
+	if _, err := pool.Exec(ctx, `
+VACUUM (INDEX_CLEANUP ON, ANALYZE) projects, workflow_runs, stage_executions, stage_allocations, audits`); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -222,15 +233,26 @@ func analyzeDrainFixture(t *testing.T, ctx context.Context, pool *pgxpool.Pool) 
 // TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations explains
 // the drain check and the purge recheck of Project deletion on a realistic
 // database, before and after its Run history grows by two thirds. The drain
-// check of a drained Project finds its Runs by owner and Project and starts
-// from the unreleased allocations, so it reads at most one row of each table
-// per unreleased allocation; the purge recheck of a Project without Runs
-// descends one index of each table. Both answer as the statements before
-// V407-025 did, which the test explains on the same data for the record.
+// check of a drained Project reads, of workflow_runs, the index entries of
+// the Project's Runs and of the active Runs, whose intersection finds no Run
+// row, and at most one Run per unreleased allocation; of the Stage tables at
+// most one row per unreleased allocation; and no Audit. The purge recheck of
+// a Project without Runs descends one index of each table and reads no entry.
+// Both answer as the statements before V407-025 did, which the test explains
+// on the same data for the record. The result cases roll back changes that
+// the second measurement must not count, so the fixture has a database of
+// its own (explaintest.Database).
 func TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	pool := isolatedPool(t, ctx)
+	pool := explaintest.Database(t, ctx, databaseURL, func(ctx context.Context, pool *pgxpool.Pool) error {
+		_, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{})
+		return err
+	})
 	if _, err := pool.Exec(ctx, drainProjectsSQL, drainOwners, drainProjects); err != nil {
 		t.Fatal(err)
 	}
@@ -252,8 +274,8 @@ func TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations(t *testing
 	// dead index entries that only the next VACUUM removes.
 	checkDrainPlans(t, ctx, pool, "fixture")
 	checkDrainResults(t, ctx, pool)
-	// More terminal history, in the target Project too, changes nothing the
-	// checks read.
+	// More terminal history, in the target Project too, adds only the index
+	// entries of the target's new Runs to what the checks read.
 	populateDrainRuns(t, ctx, pool, drainRuns+1, drainGrownRuns, 0)
 	analyzeDrainFixture(t, ctx, pool)
 	checkDrainPlans(t, ctx, pool, "grown history")
@@ -367,47 +389,76 @@ var errRollback = errors.New("rolled back")
 
 // checkDrainPlans explains both statements on the target and the empty
 // Project in their custom and generic plans and holds them to their bounds.
+// The row budgets count what explaintest.Reads counts: the rows sequential
+// scans return and the entries index scans return, a bitmap's inputs
+// included, so a row an inner scan reads in a few of its loops counts
+// although EXPLAIN rounds its rows per loop to zero.
 func checkDrainPlans(t *testing.T, ctx context.Context, pool *pgxpool.Pool, label string) {
 	t.Helper()
-	var unreleased int64
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM stage_allocations WHERE release_completed_at IS NULL`).Scan(&unreleased); err != nil {
+	// projectRuns are the target's Runs, all terminal, and activeRuns every
+	// owner's active Runs: the two inputs of the bitmap intersection that
+	// finds the target's active Runs.
+	var unreleased, projectRuns, activeRuns int64
+	if err := pool.QueryRow(ctx, `
+SELECT (SELECT count(*) FROM stage_allocations WHERE release_completed_at IS NULL),
+       (SELECT count(*) FROM workflow_runs WHERE owner_id = $2 AND project_id = $1),
+       (SELECT count(*) FROM workflow_runs
+         WHERE state IN ('initializing', 'pending', 'running', 'waiting', 'cancelling'))`,
+		drainTarget, drainOwner).Scan(&unreleased, &projectRuns, &activeRuns); err != nil {
 		t.Fatal(err)
 	}
-	if unreleased == 0 {
-		t.Fatal("the fixture has no unreleased allocation")
+	if unreleased == 0 || projectRuns == 0 || activeRuns == 0 {
+		t.Fatalf("the fixture has %d unreleased allocations, %d Runs in the target and %d active Runs, want some of each",
+			unreleased, projectRuns, activeRuns)
 	}
-	explain := func(sql string, args ...any) explaintest.Node {
+	explain := func(sql string, args ...any) explaintest.Analysis {
 		t.Helper()
 		analysis, err := explaintest.Explain(ctx, pool, sql, args...)
 		if err != nil {
 			t.Fatalf("%s: explain: %v", label, err)
 		}
-		return analysis.Plan
+		return analysis
 	}
-	tables := []string{"workflow_runs", "stage_executions", "stage_allocations", "audits"}
+	reads := func(analysis explaintest.Analysis) string {
+		var counts []string
+		for _, table := range []string{"workflow_runs", "stage_executions", "stage_allocations", "audits"} {
+			counts = append(counts, fmt.Sprintf("%s %d", table, analysis.Reads.Of(table)))
+		}
+		return strings.Join(counts, ", ")
+	}
 
 	drain, originalDrain := explain(waitForDrainSQL, drainTarget, drainOwner), explain(originalWaitForDrainSQL, drainTarget)
-	t.Logf("%s, %d unreleased allocations: drain check of the drained Project, %d blocks:\n%s\nbefore V407-025, %d blocks:\n%s",
-		label, unreleased, drain.Blocks(), drain, originalDrain.Blocks(), originalDrain)
-	for _, table := range tables {
-		if examined := drain.Examined(table); examined > unreleased {
-			t.Errorf("%s: the drain check read %d rows of %s, more than the %d unreleased allocations", label, examined, table, unreleased)
+	t.Logf("%s, %d unreleased allocations, %d Runs in the target, %d active Runs: drain check of the drained Project, reads %s, %d blocks:\n%s\nbefore V407-025, reads %s, %d blocks:\n%s",
+		label, unreleased, projectRuns, activeRuns, reads(drain), drain.Plan.Blocks(), drain.Plan,
+		reads(originalDrain), originalDrain.Plan.Blocks(), originalDrain.Plan)
+	for table, budget := range map[string]int64{
+		// The index entries of the target's Runs and of the active Runs, and
+		// one Run for each unreleased allocation.
+		"workflow_runs": projectRuns + activeRuns + unreleased + drainPlanningEntries,
+		// One Stage and one allocation for each unreleased allocation.
+		"stage_executions":  unreleased + drainPlanningEntries,
+		"stage_allocations": unreleased + drainPlanningEntries,
+		// The target has no Audit, and no other Project's Audit is read.
+		"audits": 0,
+	} {
+		if read := drain.Reads.Of(table); read > budget {
+			t.Errorf("%s: the drain check read %d rows of %s, budget %d:\n%s", label, read, table, budget, drain.Plan)
 		}
 	}
-	if examined := drain.Examined("audits"); examined != 0 {
-		t.Errorf("%s: the drain check read %d Audits of other Projects", label, examined)
-	}
-	if drain.Blocks() >= originalDrain.Blocks() {
-		t.Errorf("%s: the drain check reads %d blocks, no fewer than the %d it read before V407-025", label, drain.Blocks(), originalDrain.Blocks())
+	if drain.Plan.Blocks() >= originalDrain.Plan.Blocks() {
+		t.Errorf("%s: the drain check reads %d blocks, no fewer than the %d it read before V407-025",
+			label, drain.Plan.Blocks(), originalDrain.Plan.Blocks())
 	}
 
 	purge, originalPurge := explain(purgeRemainsSQL, drainEmpty, drainOwner), explain(originalPurgeRemainsSQL, drainEmpty)
-	t.Logf("%s: purge recheck of the Project without Runs, %d blocks:\n%s\nbefore V407-025, %d blocks:\n%s",
-		label, purge.Blocks(), purge, originalPurge.Blocks(), originalPurge)
-	// One descent of an index of at most three levels per table.
-	if purge.Blocks() > 6 || purge.Examined("workflow_runs") != 0 || purge.Examined("audits") != 0 ||
-		!purge.Uses("workflow_runs_owner_project_created_idx") {
-		t.Errorf("%s: the purge recheck reads more than one index descent per table:\n%s", label, purge)
+	t.Logf("%s: purge recheck of the Project without Runs, reads %s, %d blocks:\n%s\nbefore V407-025, %d blocks:\n%s",
+		label, reads(purge), purge.Plan.Blocks(), purge.Plan, originalPurge.Plan.Blocks(), originalPurge.Plan)
+	// One descent of an index of at most three levels per table, which
+	// finds no entry.
+	if purge.Plan.Blocks() > 6 || purge.Reads.Of("workflow_runs") != 0 || purge.Reads.Of("audits") != 0 ||
+		!purge.Plan.Uses("workflow_runs_owner_project_created_idx") {
+		t.Errorf("%s: the purge recheck reads more than one index descent per table, reads %s:\n%s",
+			label, reads(purge), purge.Plan)
 	}
 
 	conn, err := pool.Acquire(ctx)

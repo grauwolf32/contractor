@@ -57,3 +57,43 @@ func TestSplitStatementsEndsStatementsWherePsqlDoes(t *testing.T) {
 		}
 	}
 }
+
+func TestReadBodyFindsWritesCallsAndDynamicSQL(t *testing.T) {
+	for _, test := range []struct {
+		name, source  string
+		writes, calls []Name
+		dynamic       bool
+	}{
+		{name: "plain writes", source: "BEGIN INSERT INTO a VALUES (1); UPDATE b SET x = 1; DELETE FROM c; MERGE INTO d USING e ON true WHEN MATCHED THEN DELETE; END",
+			writes: []Name{{Object: "a"}, {Object: "b"}, {Object: "c"}, {Object: "d"}}, calls: []Name{{Object: "values"}}},
+		{name: "quoted and folded names", source: `INSERT INTO "Log" VALUES (1); update ONLY Runs SET x = 1; DELETE FROM ONLY "a""b"`,
+			writes: []Name{{Object: "Log"}, {Object: "runs"}, {Object: `a"b`}}, calls: []Name{{Object: "values"}}},
+		{name: "qualified names", source: `DELETE FROM public.runs; INSERT INTO "My Schema"."Log" (note) SELECT s.f(1); UPDATE ONLY x.y SET a = 1`,
+			writes: []Name{{Schema: "public", Object: "runs"}, {Schema: "My Schema", Object: "Log"}, {Schema: "x", Object: "y"}},
+			calls:  []Name{{Schema: "My Schema", Object: "Log"}, {Schema: "s", Object: "f"}}},
+		{name: "comment marker in a constant", source: "BEGIN RAISE NOTICE 'a -- b'; DELETE FROM log; END",
+			writes: []Name{{Object: "log"}}},
+		{name: "constants and comments are not SQL", source: "BEGIN IF TG_OP = 'DELETE' THEN RAISE NOTICE $n$DELETE FROM a -- it's$n$; END IF; " +
+			"RAISE NOTICE E'UPDATE b SET \\' x'; -- INSERT INTO c\n /* DELETE FROM d /* nested */ */ PERFORM f(OLD.id); END",
+			calls: []Name{{Object: "f"}}},
+		{name: "updates that name no table", source: "INSERT INTO a VALUES (1) ON CONFLICT (k) DO UPDATE SET v = 1; SELECT 1 FROM b FOR UPDATE OF b SKIP LOCKED; SELECT 1 FOR UPDATE NOWAIT; SELECT 1 FOR NO KEY UPDATE",
+			writes: []Name{{Object: "a"}}, calls: []Name{{Object: "values"}, {Object: "conflict"}}},
+		{name: "dynamic SQL", source: "BEGIN EXECUTE format('DELETE FROM %I', t); END",
+			calls: []Name{{Object: "format"}}, dynamic: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			body, err := ReadBody(test.source)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(body.Writes, test.writes) || !slices.Equal(body.Calls, test.calls) || body.Dynamic != test.dynamic {
+				t.Fatalf("ReadBody(%q) = %+v, want writes %v, calls %v, dynamic %t", test.source, body, test.writes, test.calls, test.dynamic)
+			}
+		})
+	}
+	for _, source := range []string{"DELETE FROM 'a", "BEGIN $x$ DELETE FROM a; END", `UPDATE "a SET x = 1`} {
+		if body, err := ReadBody(source); err == nil {
+			t.Errorf("ReadBody(%q) = %+v, want an error", source, body)
+		}
+	}
+}

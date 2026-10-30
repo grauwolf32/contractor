@@ -2,10 +2,10 @@ package runstore
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/grauwolf32/contractor/internal/pagelimit"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // ListRunQueue returns only non-terminal Runs in deterministic oldest-first
@@ -66,7 +66,7 @@ func (s *PostgresStore) ListRunQueue(
 		if item.EventCursor.Sequence < 0 || item.EventCursor.Generation == "" {
 			return nil, fmt.Errorf("stored WorkflowRun queue event cursor is invalid")
 		}
-		if err := json.Unmarshal(encodedLabels, &item.MetadataLabels); err != nil {
+		if err := strictjson.Decode(encodedLabels, &item.MetadataLabels); err != nil {
 			return nil, fmt.Errorf("decode WorkflowRun queue metadata labels: %w", err)
 		}
 		if err := item.MetadataLabels.Validate(); err != nil {

@@ -357,9 +357,9 @@ func (c *CLI) captureScanSweep(ctx context.Context, client *publicclient.Client,
 		switch {
 		case unavailable[id]:
 			member.SkipReason = "project_unavailable"
-		case project.Lifecycle == publicapi.Deleting:
+		case project.Lifecycle == publicapi.ProjectLifecycleDeleting:
 			member.SkipReason = "project_deleting"
-		case project.Lifecycle != publicapi.Active:
+		case project.Lifecycle != publicapi.ProjectLifecycleActive:
 			return manifest, errors.New("invalid Project lifecycle")
 		case project.HttpTarget == nil:
 			member.SkipReason = "http_target_missing"

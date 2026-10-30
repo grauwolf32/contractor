@@ -13,6 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -225,7 +226,7 @@ func (s *PostgresStore) listStageAllocations(ctx context.Context, stageExecution
 			return nil, fmt.Errorf("scan StageExecution allocation: %w", err)
 		}
 		if completion != nil {
-			if err := json.Unmarshal(completion, &allocation.CompletionContract); err != nil {
+			if err := strictjson.Decode(completion, &allocation.CompletionContract); err != nil {
 				return nil, err
 			}
 			if allocation.CompletionContract == nil || allocation.CompletionContract.Validate() != nil {
@@ -235,10 +236,10 @@ func (s *PostgresStore) listStageAllocations(ctx context.Context, stageExecution
 		if allocation.RuntimePlacementLabels == nil || contracts.ValidatePlacementLabels(allocation.RuntimePlacementLabels) != nil {
 			return nil, fmt.Errorf("invalid persisted allocation placement labels")
 		}
-		if err := json.Unmarshal(templateRef, &allocation.AgentTemplateRef); err != nil {
+		if err := strictjson.Decode(templateRef, &allocation.AgentTemplateRef); err != nil {
 			return nil, fmt.Errorf("decode persisted AgentTemplate ref: %w", err)
 		}
-		if err := json.Unmarshal(runtimeRef, &allocation.WorkerRuntimeRef); err != nil {
+		if err := strictjson.Decode(runtimeRef, &allocation.WorkerRuntimeRef); err != nil {
 			return nil, fmt.Errorf("decode persisted WorkerRuntime ref: %w", err)
 		}
 		if runtimeAgentID == nil || runtimeAgentLabelRevision == nil || runtimeConfigurationVersion == nil || runtimeConfiguration == nil {
@@ -252,7 +253,7 @@ func (s *PostgresStore) listStageAllocations(ctx context.Context, stageExecution
 			return nil, fmt.Errorf("decode persisted Runtime Agent label revision")
 		}
 		var configuration AllocationRuntimeConfiguration
-		if err := json.Unmarshal(runtimeConfiguration, &configuration); err != nil || configuration.Validate() != nil {
+		if err := strictjson.Decode(runtimeConfiguration, &configuration); err != nil || configuration.Validate() != nil {
 			return nil, fmt.Errorf("decode persisted allocation Runtime configuration")
 		}
 		if (allocation.WorkerRuntimeRef == (contracts.WorkerRuntimeRef{RuntimeID: "tool", Version: "1"})) != (configuration.ModelPolicy == (contracts.ModelPolicyRef{})) {

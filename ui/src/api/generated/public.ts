@@ -2850,13 +2850,13 @@ export interface components {
             title: string;
             titleTruncated: boolean;
             state: components["schemas"]["AuditFindingState"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             severitySuggestion: "" | "critical" | "high" | "medium" | "low" | "informational";
             analystVerdict?: components["schemas"]["AuditAnalystVerdict"];
             analystSeverity?: components["schemas"]["AuditFindingSeverity"];
             semanticAssessment?: string;
             origin: components["schemas"]["FindingComparisonOrigin"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             correlationRole?: "representative" | "automatic-duplicate";
             assessmentId?: components["schemas"]["ResourceId"];
             decisionId?: components["schemas"]["ResourceId"];
@@ -2870,7 +2870,7 @@ export interface components {
             nextCursor: string;
         };
         FindingCandidateReason: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             kind: "primary-equality" | "selected-producer-equality" | "structural-site" | "project-subject-family";
             key: string;
             sourceReceiptId: components["schemas"]["ResourceId"];
@@ -2891,9 +2891,9 @@ export interface components {
             findingId: components["schemas"]["ResourceId"];
             receiptId: components["schemas"]["ResourceId"];
             firstReceiptId: components["schemas"]["ResourceId"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             hintsAvailability: "available" | "unavailable";
-            /** @enum {unknown} */
+            /** @enum {string} */
             hintsReason?: "not_recorded" | "discarded";
             familiesAvailable: boolean;
         };
@@ -2911,12 +2911,12 @@ export interface components {
             page: components["schemas"]["FindingCorrelationPageInfo"];
         };
         FindingComparisonRow: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             kind: "both" | "left-only" | "right-only" | "unmatched";
             rowKey: string;
             groupKey?: string;
             basis?: components["schemas"]["FindingCorrelationBasis"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             unavailableReason?: "not_recorded" | "no_qualified_key" | "primary_key_ambiguous";
             representative: components["schemas"]["FindingCorrelationReference"];
             left?: components["schemas"]["FindingComparisonPreview"];
@@ -3678,7 +3678,7 @@ export interface components {
         EvalErrorDetails: {
             /** @constant */
             kind: "eval";
-            /** @enum {unknown} */
+            /** @enum {string} */
             recovery: "edit_draft" | "reload" | "retry_same_request" | "inspect_execution" | "wait" | "duplicate" | "none";
         };
         GitKeyState: {
@@ -3811,7 +3811,7 @@ export interface components {
         ActiveChecksPolicy: "prohibited" | "automatic" | "approval-required";
         HTTPOriginCredentialRef: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             kind: "http-origin-basic@1" | "http-origin-bearer@1";
         };
         ProjectHTTPTarget: {
@@ -3856,7 +3856,7 @@ export interface components {
             name: components["schemas"]["ConfigurationName"];
             version: components["schemas"]["ConfigVersion"];
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditProfileMode: "risk-assessment" | "requirements-verification" | "custom-checklist" | "operation-tracing" | "finding-verification";
         AuditStandardRef: {
             scheme: string;
@@ -3869,12 +3869,12 @@ export interface components {
             revision?: string;
         };
         AuditStandardLicense: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             id: "CC-BY-4.0" | "CC-BY-SA-4.0" | "Apache-2.0" | "MIT" | "LicenseRef-Proprietary";
             /** Format: uri */
             url: string;
             attribution: string;
-            /** @enum {unknown} */
+            /** @enum {string} */
             disclosure: "metadata" | "identifiers" | "full";
         };
         AuditStandardEvidenceContractRef: {
@@ -3882,13 +3882,13 @@ export interface components {
             version: string;
         };
         AuditStandardApplicability: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             mode: "always" | "profile-rule" | "human-review";
             rule?: string;
         };
         AuditStandardEntry: {
             id: string;
-            /** @enum {unknown} */
+            /** @enum {string} */
             kind: "risk" | "requirement";
             title?: string;
             statement?: string;
@@ -3904,7 +3904,7 @@ export interface components {
             evidenceKinds: ("artifact" | "observation" | "tool-result" | "manual-attestation" | "runtime-metric")[];
             minimumEvidence: number;
             maximumEvidence: number;
-            /** @enum {unknown} */
+            /** @enum {string} */
             humanReview: "never" | "on-inconclusive" | "required";
             rationaleRequired: boolean;
         };
@@ -3912,7 +3912,7 @@ export interface components {
             key: string;
             entryIds: string[];
             workflowRole: string;
-            /** @enum {unknown} */
+            /** @enum {string} */
             method: "source-analysis" | "configuration-review" | "documentation-review" | "active-test" | "manual-review";
             evidenceContract: components["schemas"]["AuditStandardEvidenceContractRef"];
             title: string;
@@ -3977,7 +3977,7 @@ export interface components {
         };
         NucleiRuleFilter: string;
         AuditInventory: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             implementation: "checklist@1" | "openapi-operations@1" | "openapi-scans@1" | "web-scans@1" | "finding-candidates@1" | "standard-mappings@1";
             source?: components["schemas"]["AuditInventoryArtifact"];
             settings?: components["schemas"]["AuditInventoryArtifact"];
@@ -3987,14 +3987,14 @@ export interface components {
             /** @constant */
             implementation?: "standard-mappings@1";
         } | {
-            /** @enum {unknown} */
+            /** @enum {string} */
             implementation?: "openapi-scans@1" | "web-scans@1";
         } | {
-            /** @enum {unknown} */
+            /** @enum {string} */
             implementation?: "checklist@1" | "openapi-operations@1" | "finding-candidates@1";
         });
         AuditInventoryArtifact: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             source: "audit-input" | "prepare-output";
             name: components["schemas"]["ArtifactName"];
             role?: components["schemas"]["ArtifactName"];
@@ -4011,22 +4011,22 @@ export interface components {
             entryIds: string[];
         };
         AuditWorkflowInputMapping: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             source: "audit-input" | "item-package" | "execution-manifest" | "retained-output" | "prepare-output" | "round-results" | "retained-dependency";
             name?: components["schemas"]["ArtifactName"];
             role?: components["schemas"]["ArtifactName"];
         } & ({
-            /** @enum {unknown} */
+            /** @enum {string} */
             source?: "audit-input" | "retained-dependency";
         } | {
-            /** @enum {unknown} */
+            /** @enum {string} */
             source?: "item-package" | "execution-manifest" | "round-results";
         } | {
-            /** @enum {unknown} */
+            /** @enum {string} */
             source?: "retained-output" | "prepare-output";
         });
         AuditWorkflowParameterMapping: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             source: "literal" | "item-field" | "scope-field";
             name?: components["schemas"]["ArtifactName"];
             value?: string;
@@ -4043,13 +4043,13 @@ export interface components {
         AuditCheckMethodMapping: {
             /** @constant */
             planSchema: "contractor.audit.finding-check-plan.v1";
-            /** @enum {unknown} */
+            /** @enum {string} */
             method: "verify" | "replay" | "applicability" | "alternative" | "static-trace" | "http-probe";
             workflowRole: string;
             requiredCapabilities: components["schemas"]["AuditCheckCapabilityRequirement"][];
         };
         AuditProfileWorkflow: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             kind: "prepare" | "check" | "discovery" | "assessment";
             maxRunAttempts?: number;
             workflow: components["schemas"]["WorkflowRef"];
@@ -4066,7 +4066,7 @@ export interface components {
             /** @constant */
             kind?: "prepare";
         } | {
-            /** @enum {unknown} */
+            /** @enum {string} */
             kind?: "check" | "discovery" | "assessment";
         });
         AuditExecutionPolicy: {
@@ -4080,19 +4080,19 @@ export interface components {
             maxItemRunAttempts: number;
             deadlineSeconds: number;
             maxEvidenceBytes: number;
-            /** @enum {unknown} */
+            /** @enum {string} */
             incompleteRound: "assess-with-gaps" | "fail";
         };
         AuditInteractionPolicy: {
             activeChecks: components["schemas"]["ActiveChecksPolicy"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             findingConfirmation: "disabled" | "human-required";
-            /** @enum {unknown} */
+            /** @enum {string} */
             notApplicable: "human-required" | "profile-rule";
-            /** @enum {unknown} */
+            /** @enum {string} */
             reportAcceptance: "automatic" | "human-required";
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "active_check_approval_unsupported" | "finding_confirmation_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported" | "pentest_capability_unsupported" | "pentest_source_closure_unsupported" | "pentest_active_checks_unsupported";
         AuditProfile: {
             ref: components["schemas"]["AuditProfileRef"];
@@ -4193,7 +4193,7 @@ export interface components {
             itemCount: number;
             gaps: string[];
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditPhase: "not-started" | "preparing" | "inventory" | "rounds";
         AuditPreparationOutput: {
             artifact: components["schemas"]["AuditExactArtifact"] & unknown;
@@ -4202,7 +4202,7 @@ export interface components {
             workflowOutput: components["schemas"]["ArtifactName"];
         };
         AuditPreparationRole: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             status: "pending" | "running" | "accepted" | "failed";
             attempts: number;
             maxAttempts: number;
@@ -4218,7 +4218,7 @@ export interface components {
             attempts?: 0;
             outputs?: unknown;
         } | {
-            /** @enum {unknown} */
+            /** @enum {string} */
             status?: "running" | "failed";
             attempts?: unknown;
             outputs?: unknown;
@@ -4233,11 +4233,11 @@ export interface components {
                 [key: string]: components["schemas"]["AuditPreparationRole"];
             };
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditState: "draft" | "active" | "waiting_review" | "paused" | "finalizing" | "cancelling" | "completed" | "cancelled" | "failed" | "deleting";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditDispatchState: "open" | "closed";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditHoldState: "pending" | "held" | "released";
         AuditLimits: {
             maxRounds: number;
@@ -4303,7 +4303,7 @@ export interface components {
             /** @constant */
             phase?: "not-started";
         } | {
-            /** @enum {unknown} */
+            /** @enum {string} */
             phase?: "preparing" | "inventory";
         } | {
             /** @constant */
@@ -4317,10 +4317,10 @@ export interface components {
             outcome?: components["schemas"]["AuditTerminalOutcome"];
             disposition?: components["schemas"]["AuditCollectionDisposition"];
             subjectKind?: components["schemas"]["AuditReviewSubjectKind"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             kind?: "finding-triage" | "active-check-approval" | "requirement-applicability" | "report-acceptance";
             action?: components["schemas"]["AuditReviewAction"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             verdict?: "true_positive" | "false_positive" | "needs_evidence" | "duplicate" | "reopen";
             runId?: components["schemas"]["ResourceId"];
             subjectId?: components["schemas"]["ResourceId"];
@@ -4352,7 +4352,7 @@ export interface components {
             items: components["schemas"]["Audit"][];
             page: components["schemas"]["PageInfo"];
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditRoundState: "proposed" | "accepted" | "executing" | "assessing" | "closed";
         AuditRound: {
             roundId: components["schemas"]["ResourceId"];
@@ -4366,17 +4366,17 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditItemState: "pending" | "awaiting_review" | "ready" | "submitted" | "collecting" | "settled";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditFinalDisposition: "accepted-result" | "missing-output" | "invalid-result" | "execution-failed" | "execution-cancelled" | "excluded" | "not-applicable";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditExecutionRole: "prepare" | "discovery" | "check" | "assessment";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditExecutionItemState: "submitted" | "collecting" | "settled";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditTerminalOutcome: "succeeded" | "failed" | "cancelled" | "submission-failed";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditCollectionDisposition: "accepted-result" | "missing-output" | "invalid-result" | "execution-failed" | "execution-cancelled" | "collection-contract-invalid";
         AuditWorkflowProvenance: {
             name: components["schemas"]["ConfigurationName"];
@@ -4478,7 +4478,7 @@ export interface components {
             items: components["schemas"]["AuditItem"][];
             page: components["schemas"]["PageInfo"];
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditCoverageStatus: "not-tested" | "inconclusive" | "satisfied" | "violated" | "not-applicable" | "blocked" | "excluded" | "traced-complete" | "traced-partial" | "unmapped";
         AuditCoverage: {
             status: components["schemas"]["AuditCoverageStatus"];
@@ -4488,7 +4488,7 @@ export interface components {
             rationale?: string;
         };
         AuditScanProvenance: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             scanner: "sqlmap" | "nuclei";
             operation: string;
             source: components["schemas"]["AuditExactArtifact"];
@@ -4539,7 +4539,7 @@ export interface components {
             /** @description The Audit revision every row of this page was read at. */
             auditRevision: number;
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditItemApprovalKind: "none" | "active-check-approval" | "requirement-applicability";
         /** @description Exact retained Markdown summary; historical text/plain summaries are unsupported. */
         AuditReportSummaryArtifact: {
@@ -4549,7 +4549,7 @@ export interface components {
             mediaType: "text/markdown";
             sizeBytes?: number;
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditReportStatus: "pending" | "proposed" | "ready" | "unavailable";
         AuditReport: {
             review?: components["schemas"]["AuditReviewRequest"];
@@ -4586,7 +4586,7 @@ export interface components {
             };
         } | {
             audit?: {
-                /** @enum {unknown} */
+                /** @enum {string} */
                 phase?: "preparing" | "inventory";
             };
             items?: unknown;
@@ -4603,7 +4603,7 @@ export interface components {
             schema: "contractor.finding.fingerprint-projection.v1";
             /** @constant */
             availability: "unavailable";
-            /** @enum {unknown} */
+            /** @enum {string} */
             reason: "not_recorded" | "not_provided" | "input_limit" | "producer_key_unavailable" | "producer_report_invalid" | "producer_record_ambiguous" | "asset_unavailable" | "discarded";
         } | {
             /** @constant */
@@ -4635,9 +4635,9 @@ export interface components {
             file: string;
             startLine: number;
             endLine: number;
-            /** @enum {unknown} */
+            /** @enum {string} */
             language: "python" | "javascript" | "typescript";
-            /** @enum {unknown} */
+            /** @enum {string} */
             profile: "python/statement-v1" | "javascript/statement-v1" | "typescript/statement-v1";
             /** @constant */
             grammar: "tree-sitter-language-pack/1.14.3;tree-sitter/0.25.2";
@@ -4670,7 +4670,7 @@ export interface components {
             schema: "contractor.finding.anchors-projection.v1";
             /** @constant */
             availability: "unavailable";
-            /** @enum {unknown} */
+            /** @enum {string} */
             reason: "not_recorded" | "not_provided" | "input_limit" | "asset_unavailable" | "selector_unavailable" | "anchor_language_unsupported" | "anchor_parser_unavailable" | "source_invalid" | "source_missing" | "parse_error" | "anchor_ambiguous" | "discarded";
         } | {
             /** @constant */
@@ -4693,7 +4693,7 @@ export interface components {
             findingId: components["schemas"]["ResourceId"];
         };
         FindingCorrelationBasis: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             algorithm: "contractor/producer-issue/v1" | "contractor/snapshot-issue-anchor/v1";
             value: string;
         };
@@ -4707,7 +4707,7 @@ export interface components {
             projectRevision: number;
             /** @constant */
             availability: "unavailable";
-            /** @enum {unknown} */
+            /** @enum {string} */
             reason: "not_recorded" | "no_qualified_key" | "primary_key_ambiguous";
             /** @constant */
             automaticDuplicate: false;
@@ -4858,7 +4858,7 @@ export interface components {
             standard_refs: components["schemas"]["FindingStandardReference"][];
             evidence_ids: string[];
             proposed_checks: components["schemas"]["FindingProposedCheck"][];
-            /** @enum {unknown} */
+            /** @enum {string} */
             severity_suggestion: "" | "informational" | "low" | "medium" | "high" | "critical";
             /** @description Each value is limited to 512 UTF-8 bytes by the Server. */
             limitations: string[];
@@ -4905,7 +4905,7 @@ export interface components {
             document: components["schemas"]["FindingProposalDocument"];
             evidence: components["schemas"]["FindingExactArtifact"][];
             origin: components["schemas"]["FindingOrigin"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             retention: "source-held" | "audit-held" | "discarded";
             auditHolds: components["schemas"]["FindingAuditHold"][];
             /** Format: date-time */
@@ -4923,23 +4923,23 @@ export interface components {
             hold: components["schemas"]["FindingAuditHold"];
             replayed: boolean;
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditFindingState: "proposed" | "confirmed" | "rejected" | "duplicate" | "needs-evidence";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditFindingSeverity: "informational" | "low" | "medium" | "high" | "critical";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditAnalystVerdict: "true_positive" | "false_positive" | "duplicate" | "reopen" | "needs_evidence";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditReviewAction: "approve" | "reject" | "not_applicable";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditReviewRequestedAction: "true_positive" | "false_positive" | "duplicate" | "reopen" | "needs_evidence" | "approve" | "reject" | "not_applicable";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditReviewSubjectKind: "finding" | "audit-item-action" | "audit-report";
-        /** @enum {unknown} */
+        /** @enum {string} */
         AuditReviewState: "pending" | "decided" | "expired";
         AuditFindingAssessment: {
             assessmentId: components["schemas"]["ResourceId"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             semanticAssessment: "supported" | "refuted" | "inconclusive" | "blocked" | "satisfied" | "violated" | "not-tested";
             result: components["schemas"]["AuditExactArtifact"];
             receiptId: components["schemas"]["ResourceId"];
@@ -4973,7 +4973,7 @@ export interface components {
             findingId?: components["schemas"]["ResourceId"];
             subjectKind: components["schemas"]["AuditReviewSubjectKind"];
             subjectId: components["schemas"]["ResourceId"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             kind: "finding-triage" | "active-check-approval" | "requirement-applicability" | "report-acceptance";
             subjectRevision: number;
             subjectDigest: components["schemas"]["Digest"];
@@ -4992,7 +4992,7 @@ export interface components {
             findingId: components["schemas"]["ResourceId"];
             auditId: components["schemas"]["ResourceId"];
             state: components["schemas"]["AuditFindingState"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             rejectionReason?: "false-positive" | "policy" | "out-of-scope";
             duplicateTargetId?: components["schemas"]["ResourceId"];
             firstProposal: components["schemas"]["FindingProposalReceipt"];
@@ -5054,10 +5054,10 @@ export interface components {
         };
         AuditFindingProvenance: {
             recordId: components["schemas"]["ResourceId"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             kind: "source-proposal" | "check-attempt" | "direct-verification";
             receiptId: components["schemas"]["ResourceId"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             relation?: "first" | "contributing" | "verification";
             proposal: components["schemas"]["AuditExactArtifact"];
             origin: components["schemas"]["FindingOrigin"];
@@ -5149,7 +5149,7 @@ export interface components {
         RunNotDeletableDetails: {
             /** @constant */
             kind: "run_not_deletable";
-            /** @enum {unknown} */
+            /** @enum {string} */
             reason: "run_not_terminal" | "allocation_release_pending" | "audit_collection_pending";
         };
         RuntimeCredentialInUseDetails: {
@@ -5261,12 +5261,12 @@ export interface components {
             page: components["schemas"]["PageInfo"];
         };
         ArtifactLineageEdge: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             kind: "input_fork" | "output_bind" | "project_output_publish" | "context_projection";
-            /** @enum {unknown} */
+            /** @enum {string} */
             sourceScope: "user" | "project" | "run";
             source: components["schemas"]["ExactArtifactRef"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             targetScope: "user" | "project" | "run";
             target: components["schemas"]["ExactArtifactRef"];
             runId?: components["schemas"]["ResourceId"];
@@ -5278,15 +5278,15 @@ export interface components {
             items: components["schemas"]["ArtifactLineageEdge"][];
             page: components["schemas"]["PageInfo"];
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         WorkflowRunState: "initializing" | "pending" | "running" | "waiting" | "cancelling" | "succeeded" | "failed" | "cancelled";
-        /** @enum {unknown} */
+        /** @enum {string} */
         WorkflowRunLifecycle: "active" | "terminal";
-        /** @enum {unknown} */
+        /** @enum {string} */
         NonTerminalWorkflowRunState: "initializing" | "pending" | "running" | "waiting" | "cancelling";
-        /** @enum {unknown} */
+        /** @enum {string} */
         StageExecutionState: "preparing" | "running" | "finalizing" | "aborting" | "succeeded" | "failed" | "interrupted" | "cancelled";
-        /** @enum {unknown} */
+        /** @enum {string} */
         StageOutcome: "succeeded" | "failed";
         TerminationError: {
             code: components["schemas"]["ConfigId"];
@@ -5306,37 +5306,37 @@ export interface components {
             summarized?: boolean;
             summaryArtifact?: components["schemas"]["ExactArtifactRef"];
         } & ({
-            /** @enum {unknown} */
+            /** @enum {string} */
             outcome?: "succeeded";
-            /** @enum {unknown} */
+            /** @enum {boolean} */
             summarized?: false;
         } | {
-            /** @enum {unknown} */
+            /** @enum {string} */
             outcome?: "failed";
-            /** @enum {unknown} */
+            /** @enum {boolean} */
             summarized?: false;
             error: {
                 code?: unknown;
             };
         } | {
-            /** @enum {unknown} */
+            /** @enum {string} */
             outcome?: "failed";
-            /** @enum {unknown} */
+            /** @enum {boolean} */
             summarized: true;
             error: {
-                /** @enum {unknown} */
+                /** @enum {string} */
                 code?: "worker_summarized";
-                /** @enum {unknown} */
+                /** @enum {boolean} */
                 retryable?: false;
             };
         });
         StageTermination: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             outcome: "cancelled" | "interrupted";
             code: components["schemas"]["ConfigId"];
             message: string;
             retryable: boolean;
-            /** @enum {unknown} */
+            /** @enum {string} */
             phase: "preparing" | "running";
             /** Format: date-time */
             occurredAt: string;
@@ -5372,7 +5372,7 @@ export interface components {
             failureCode?: string;
         };
         AttemptDiagnostic: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             participant: "planner" | "worker";
             completion?: components["schemas"]["WorkerCompletionDiagnostics"];
             logicalAgent?: components["schemas"]["ConfigId"];
@@ -5622,7 +5622,7 @@ export interface components {
         RuntimeLabelMutation: {
             config: components["schemas"]["RuntimeConfigRef"];
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-cookies@1";
         RuntimeCredentialMetadata: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
@@ -5743,7 +5743,7 @@ export interface components {
             labels: components["schemas"]["PinnedRuntimeConfig"][];
         };
         RuntimeFieldOrigin: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             layer: "default" | "workflow_execution_config" | "run_labels" | "run_execution_config" | "escalation_execution_config" | "agent_labels";
             configs?: components["schemas"]["RuntimeConfigRef"][];
         };
@@ -5762,7 +5762,7 @@ export interface components {
             agentLabels: components["schemas"]["PinnedRuntimeConfig"][];
             runtimeAdapters: components["schemas"]["RuntimeCapabilityRef"][];
             origins: components["schemas"]["StageRuntimeOrigins"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             status: "pinned" | "release_pending" | "released";
         };
         StageRuntimeConfiguration: {
@@ -5802,7 +5802,7 @@ export interface components {
             };
         };
         StageExecutionConfig: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             variant: "base" | "failed_escalation" | "interrupted_escalation" | "summary_escalation";
             escalationOrdinal?: number;
             ref?: components["schemas"]["ExecutionConfigRef"];
@@ -5837,7 +5837,7 @@ export interface components {
         };
         StageTransition: {
             sourceExecutionId: components["schemas"]["ResourceId"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             action: "next" | "retry" | "escalate" | "succeed" | "fail";
             targetStage?: components["schemas"]["ConfigId"];
             targetExecutionId?: components["schemas"]["ResourceId"];
@@ -5852,7 +5852,7 @@ export interface components {
         };
         OutputPublication: {
             output: components["schemas"]["ConfigId"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             status: "published" | "already_present" | "failed";
             source: components["schemas"]["ExactArtifactRef"];
             target?: components["schemas"]["ExactArtifactRef"];
@@ -5862,7 +5862,7 @@ export interface components {
             createdAt: string;
         };
         RunRecovery: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             code: "model_unavailable" | "gateway_unavailable" | "gateway_timeout" | "gateway_rate_limited";
             /** Format: date-time */
             since: string;
@@ -5915,20 +5915,20 @@ export interface components {
         };
         RunRepeatDraftNotice: {
             code: string;
-            /** @enum {unknown} */
+            /** @enum {string} */
             severity: "warning" | "blocking";
             field?: string;
             message: string;
         };
         RunRepeatExecutionConfig: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             status: "available";
             value: components["schemas"]["ExecutionConfigPatch"];
         };
         RunRepeatInput: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             status: "available" | "unavailable";
-            /** @enum {unknown} */
+            /** @enum {string} */
             sourceScope?: "user" | "project";
             artifact?: components["schemas"]["ExactArtifactRef"];
             metadata?: components["schemas"]["ArtifactMetadata"];
@@ -5950,7 +5950,7 @@ export interface components {
         /** @description A retained ordinary request produces a draft. Missing or invalid request authority produces a blocking notice with no draft; Audit-managed Runs also have no ordinary draft. */
         RunRepeatDraftResponse: {
             sourceRunId: components["schemas"]["ResourceId"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             authority: "ordinary" | "audit-managed";
             workflow: components["schemas"]["WorkflowRef"];
             projectId?: components["schemas"]["ResourceId"];
@@ -6051,7 +6051,7 @@ export interface components {
             id: string;
             objective: string;
             instructions: string;
-            /** @enum {unknown} */
+            /** @enum {string} */
             status: "pending" | "running" | "succeeded" | "failed";
         };
         PlannerDispatch: {
@@ -6482,7 +6482,7 @@ export interface components {
         ConfigurationResource: {
             ref: components["schemas"]["ConfigurationRef"];
             body: components["schemas"]["ModelPolicyBody"] | components["schemas"]["LLMGatewayBody"] | components["schemas"]["AgentTemplateBody"] | components["schemas"]["ExecutionConfigBody"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             source: "operator" | "managed";
         };
         ConfigurationPage: {
@@ -6591,7 +6591,7 @@ export interface components {
             maxFileBytes: number;
         };
         WorkspaceCapabilities: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             storage: "local" | "memory";
             modes: ("direct" | "overlay")[];
             limits: components["schemas"]["WorkspaceLimits"];
@@ -6607,9 +6607,9 @@ export interface components {
             supportedSandboxProfiles: components["schemas"]["RuntimeCapabilityRef"][];
             supportedRuntimeAdapters: components["schemas"]["RuntimeCapabilityRef"][];
             workspaceCapabilities?: components["schemas"]["WorkspaceCapabilities"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             observedState: "idle" | "allocated" | "draining" | "fenced";
-            /** @enum {unknown} */
+            /** @enum {string} */
             slotState: "idle" | "reserved" | "busy" | "draining" | "fenced";
             /** Format: date-time */
             lastAcceptedHeartbeat?: string;
@@ -6619,7 +6619,7 @@ export interface components {
             authoritativeAllocationId?: components["schemas"]["ResourceId"];
             reconciliationReason?: components["schemas"]["SafeReason"];
         };
-        /** @enum {unknown} */
+        /** @enum {string} */
         RuntimeAgentPrincipalAvailability: "available" | "offline" | "busy" | "slot_unavailable" | "adapter_capability_mismatch";
         RuntimeAgentPrincipal: {
             runtimeAgentId: string;
@@ -6646,7 +6646,7 @@ export interface components {
         /** @description Finite nonnegative measurement. Unknown values are omitted, never replaced with zero. */
         PerformanceNumber: number;
         PerformanceInteger: number;
-        /** @enum {unknown} */
+        /** @enum {string} */
         PerformanceReason: "unsupported_platform" | "read_failed" | "sampling_gap" | "counter_reset" | "missing_baseline" | "permission_denied" | "statistics_disabled" | "database_unavailable" | "budget_exceeded" | "record_limit" | "gpu_not_available" | "unsupported_metric";
         PerformanceCoverage: {
             /** Format: date-time */
@@ -6659,7 +6659,7 @@ export interface components {
         };
         /** @description observedAt is the last successful observation, not the read time. Two missed intervals make the group stale; unavailable or never observed groups omit measurements. */
         PerformanceFreshness: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             status: "ok" | "partial" | "unavailable";
             reason?: components["schemas"]["PerformanceReason"];
             /** Format: date-time */
@@ -6677,7 +6677,7 @@ export interface components {
             buckets: components["schemas"]["PerformanceInteger"][];
         };
         PerformanceHTTPSurface: {
-            /** @enum {unknown} */
+            /** @enum {string} */
             surface: "public" | "private";
             inFlight: components["schemas"]["PerformanceInteger"];
             /** @description Rows GET,HEAD,POST,PUT,DELETE,CONNECT,OPTIONS,TRACE,PATCH,other; columns 1xx,2xx,3xx,4xx,5xx,no_response. No request-specific dimensions. */
@@ -6903,7 +6903,7 @@ export interface components {
             generation: string;
             /** Format: date-time */
             minuteStart: string;
-            /** @enum {unknown} */
+            /** @enum {string} */
             status: "ok" | "partial" | "unavailable";
             omittedWindows: components["schemas"]["PerformanceInteger"];
             coverageSeconds: components["schemas"]["PerformanceNumber"];
@@ -6935,7 +6935,7 @@ export interface components {
             from: string;
             /** Format: date-time */
             to: string;
-            /** @enum {unknown} */
+            /** @enum {string} */
             step: "15s" | "1m" | "5m" | "1h";
             points: (components["schemas"]["PerformanceFineHistoryPoint"] | components["schemas"]["PerformanceAggregateHistoryPoint"])[];
         };
@@ -6945,9 +6945,9 @@ export interface components {
             version: 1;
             /** @constant */
             scope: "runtime_process";
-            /** @enum {unknown} */
+            /** @enum {string} */
             status: "complete" | "partial" | "unavailable";
-            /** @enum {unknown} */
+            /** @enum {string} */
             reason?: "unsupported_platform" | "read_failed" | "sampling_gap" | "counter_reset" | "invalid_report";
             durationSeconds?: components["schemas"]["PerformanceNumber"];
             cpuUserSeconds?: components["schemas"]["PerformanceNumber"];
@@ -6963,7 +6963,7 @@ export interface components {
             rssSampleCount: unknown;
             maxSampleGapSeconds: unknown;
         } | {
-            /** @enum {unknown} */
+            /** @enum {string} */
             status?: "partial" | "unavailable";
         });
         /**
@@ -6989,13 +6989,13 @@ export interface components {
             outcome: components["schemas"]["StageExecutionState"];
             /** Format: date-time */
             finishedAt: string;
-            /** @enum {unknown} */
+            /** @enum {string} */
             collectionPolicy: "requested" | "disabled" | "unsupported";
-            /** @enum {unknown} */
+            /** @enum {string} */
             status: "disabled" | "unsupported" | "pending" | "available" | "partial" | "unavailable";
             /**
              * @description Why resources are partial or unavailable. `report_missing`: the released allocation has no report with usable resources; `report_expired`: its report was received and has since expired under the 30-day telemetry retention.
-             * @enum {unknown}
+             * @enum {string}
              */
             reason?: "unsupported_platform" | "read_failed" | "sampling_gap" | "counter_reset" | "invalid_report" | "report_missing" | "report_expired";
             resources?: components["schemas"]["RuntimeResourceSummary"];
@@ -7012,16 +7012,16 @@ export interface components {
             logicalWorker: components["schemas"]["ConfigId"];
             agentTemplate: components["schemas"]["AgentTemplateRef"];
             executionConfig: components["schemas"]["ConsumerExecutionConfig"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             authoritativePhase: "preparing" | "active" | "finalizing" | "aborting" | "releasing";
             /**
              * @description Allocated proves preparation, not that an A2A call is currently executing.
-             * @enum {unknown}
+             * @enum {string}
              */
             observedPhase: "absent" | "prepared" | "draining" | "fenced";
             reason?: components["schemas"]["SafeReason"];
             metrics: components["schemas"]["MetricsSummary"];
-            /** @enum {unknown} */
+            /** @enum {string} */
             exhaustedDimension?: "model_calls" | "tool_calls" | "total_tokens" | "worker_calls" | "wall_time";
         };
         /**
