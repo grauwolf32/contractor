@@ -17,12 +17,24 @@ import (
 const ownershipRegistryFile = "internal/persistence/table_ownership.txt"
 
 // ownershipRegistry is the parsed table ownership registry: the owner of
-// every relation, the reads other packages may make, and the known foreign
-// accesses that a task still has to remove.
+// every relation, the reads other packages may make, the known foreign
+// accesses that a task still has to remove, and the other owners' relations
+// that migration functions reach for a package.
 type ownershipRegistry struct {
 	relations map[string]ownedRelation
 	reads     map[accessPair]*registryRead
 	known     map[accessPair]*knownAccess
+	routines  map[routineAccess]*routineEntry
+}
+
+// routineAccess is a package, a migration function whose body reaches a
+// relation of another owner for that package, and the relation.
+type routineAccess struct{ pkg, function, relation string }
+
+type routineEntry struct {
+	write  bool
+	reason string
+	line   int
 }
 
 type ownedRelation struct {
@@ -49,6 +61,7 @@ type knownAccess struct {
 var (
 	registryPackage  = regexp.MustCompile(`^(api|cmd|internal|tools)(/[a-z0-9_]+)*$`)
 	registryRelation = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
+	registryFunction = registryRelation
 	// registryTask is a task ID as scripts/check_tasks.py accepts it.
 	registryTask = regexp.MustCompile(`^(MVP|V[0-9]+)-[0-9]{3}[A-Z]?$`)
 )
@@ -60,6 +73,7 @@ func parseOwnershipRegistry(source string) (ownershipRegistry, []string) {
 		relations: map[string]ownedRelation{},
 		reads:     map[accessPair]*registryRead{},
 		known:     map[accessPair]*knownAccess{},
+		routines:  map[routineAccess]*routineEntry{},
 	}
 	var problems []string
 	fail := func(line int, format string, args ...any) {
@@ -72,6 +86,7 @@ func parseOwnershipRegistry(source string) (ownershipRegistry, []string) {
 		line int
 	}
 	var pairs []pendingPair
+	var routines []pendingPair
 	for index, text := range strings.Split(source, "\n") {
 		line := index + 1
 		trimmed := strings.TrimSpace(text)
@@ -89,8 +104,8 @@ func parseOwnershipRegistry(source string) (ownershipRegistry, []string) {
 		}
 		reason = nil
 		if strings.HasPrefix(trimmed, "[") {
-			if trimmed != "[relations]" && trimmed != "[reads]" && trimmed != "[known]" {
-				fail(line, "unknown section %s; use [relations], [reads] or [known]", trimmed)
+			if trimmed != "[relations]" && trimmed != "[reads]" && trimmed != "[known]" && trimmed != "[routines]" {
+				fail(line, "unknown section %s; use [relations], [reads], [known] or [routines]", trimmed)
 			}
 			section = trimmed
 			continue
@@ -143,6 +158,20 @@ func parseOwnershipRegistry(source string) (ownershipRegistry, []string) {
 			registry.known[pair] = entry
 			reason = &entry.reason
 			pairs = append(pairs, pendingPair{pair: pair, line: line})
+		case "[routines]":
+			if len(fields) < 5 || !registryFunction.MatchString(fields[1]) || (fields[2] != "read" && fields[2] != "write") {
+				fail(line, "a routine line is: <package> <function> read|write <relation> <reason>")
+				continue
+			}
+			key := routineAccess{pkg: fields[0], function: fields[1], relation: fields[3]}
+			if previous, ok := registry.routines[key]; ok {
+				fail(line, "%s reaching %s for %s is already listed at line %d", key.function, key.relation, key.pkg, previous.line)
+				continue
+			}
+			entry := &routineEntry{write: fields[2] == "write", reason: strings.Join(fields[4:], " "), line: line}
+			registry.routines[key] = entry
+			reason = &entry.reason
+			routines = append(routines, pendingPair{pair: accessPair{pkg: key.pkg, relation: key.relation}, line: line})
 		default:
 			fail(line, "entry outside a section")
 		}
@@ -162,6 +191,18 @@ func parseOwnershipRegistry(source string) (ownershipRegistry, []string) {
 		if known, ok := registry.known[pair]; ok && granted && read.line == pending.line {
 			fail(pending.line, "the read of %s by %s is also a known access at line %d; keep one entry",
 				pair.relation, pair.pkg, known.line)
+		}
+	}
+	for _, pending := range routines {
+		pair := pending.pair
+		relation, ok := registry.relations[pair.relation]
+		switch {
+		case !registryPackage.MatchString(pair.pkg):
+			fail(pending.line, "%q is not a package path", pair.pkg)
+		case !ok:
+			fail(pending.line, "%s is not listed under [relations]", pair.relation)
+		case relation.owner == pair.pkg:
+			fail(pending.line, "%s owns %s and needs no entry", pair.pkg, pair.relation)
 		}
 	}
 	return registry, problems
@@ -292,14 +333,14 @@ func loadOwnershipRegistry(t *testing.T, root string) ownershipRegistry {
 func TestSQLAccessFollowsTableOwnership(t *testing.T) {
 	root := moduleRootDir(t)
 	registry := loadOwnershipRegistry(t, root)
-	accesses, files, err := scanModuleSQL(root, registry.relationNames())
+	scanned, files, err := scanModuleSQL(root, registry.relationNames(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if files < 100 {
 		t.Fatalf("scanned only %d Go files; the repository walk is broken", files)
 	}
-	for _, problem := range checkTableOwnership(registry, accesses, openTaskIn(root)) {
+	for _, problem := range checkTableOwnership(registry, scanned.accesses, openTaskIn(root)) {
 		t.Error(problem)
 	}
 }
@@ -497,11 +538,11 @@ func scanTestSources(t *testing.T, sources map[string]map[string]string, relatio
 		for name, source := range sources[pkg] {
 			files[name] = []byte(source)
 		}
-		found, err := scanPackageSQL(pkg, files, relations)
+		found, err := scanPackageSQL(pkg, files, relations, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		accesses = append(accesses, found...)
+		accesses = append(accesses, found.accesses...)
 	}
 	return accesses
 }
@@ -548,6 +589,81 @@ func TestTableOwnershipCheckRejectsAnUnlistedForeignUpdate(t *testing.T) {
 
 // TestTableOwnershipCheckReportsEachRule checks every rule on a synthetic
 // registry, independently of the repository.
+// TestTableOwnershipCheckSeesHelperArgumentsAndAppendedLocks is acceptance
+// A1 of V372-009: a write of another package's table through the relation
+// argument of a SQL helper, a FOR UPDATE appended with +=, and a lock clause
+// passed to a helper as its mode each fail the check, at the call or the
+// append; the same forms that only read pass with the granted read.
+func TestTableOwnershipCheckSeesHelperArgumentsAndAppendedLocks(t *testing.T) {
+	registry, problems := parseOwnershipRegistry("[relations]\nruns internal/runstore exec\n\n" +
+		"[reads]\ninternal/gatewayrecovery runs waiting reads the Run state\n")
+	if len(problems) > 0 {
+		t.Fatal(problems)
+	}
+	probes := []struct {
+		name, lock string
+		lines      []string
+		write      int // the line of the write, 0 for none
+	}{
+		{name: "helper argument", lines: []string{
+			/* 3 */ "func deleteFrom(relation string) string {",
+			/* 4 */ "\treturn `DELETE FROM ` + relation + ` WHERE run_id = $1`",
+			/* 5 */ "}",
+			/* 6 */ "",
+			/* 7 */ "func purge() { _ = deleteFrom(\"runs\") }",
+		}, write: 7},
+		{name: "appended lock", lock: "FOR UPDATE", lines: []string{
+			/* 3 */ "func waiting(q querier, lock bool) {",
+			/* 4 */ "\tquery := `SELECT state FROM runs WHERE run_id = $1`",
+			/* 5 */ "\tif lock {",
+			/* 6 */ "\t\tquery += ` LOCK`",
+			/* 7 */ "\t}",
+			/* 8 */ "\t_, _ = q.Query(nil, query)",
+			/* 9 */ "}",
+		}, write: 6},
+		{name: "lock clause argument", lock: "FOR NO KEY UPDATE", lines: []string{
+			/* 3 */ "func (s *store) lockRuns(mode string) string {",
+			/* 4 */ "\treturn `SELECT state FROM runs WHERE run_id = $1 ` + mode",
+			/* 5 */ "}",
+			/* 6 */ "",
+			/* 7 */ "func (s *store) fence() string { return s.lockRuns(\"LOCK\") }",
+		}, write: 7},
+		{name: "appended shared lock", lock: "FOR SHARE", lines: []string{
+			/* 3 */ "func waiting(q querier) {",
+			/* 4 */ "\tquery := `SELECT state FROM runs WHERE run_id = $1`",
+			/* 5 */ "\tquery += ` LOCK`",
+			/* 6 */ "\t_, _ = q.Query(nil, query)",
+			/* 7 */ "}",
+		}},
+		{name: "shared lock clause argument", lock: "FOR KEY SHARE", lines: []string{
+			/* 3 */ "func lockRuns(mode string) string { return `SELECT state FROM runs WHERE run_id = $1 ` + mode }",
+			/* 4 */ "func fence() string { return lockRuns(\"LOCK\") }",
+		}},
+	}
+	for _, probe := range probes {
+		t.Run(probe.name, func(t *testing.T) {
+			source := "package gatewayrecovery\n\n" + strings.ReplaceAll(strings.Join(probe.lines, "\n"), "LOCK", probe.lock) + "\n"
+			sources := map[string]map[string]string{
+				"internal/runstore":        {"internal/runstore/store.go": "package runstore\n\nconst q = `UPDATE runs SET state = $1`\n"},
+				"internal/gatewayrecovery": {"internal/gatewayrecovery/waiting.go": source},
+			}
+			got := checkTableOwnership(registry, scanTestSources(t, sources, registry.relationNames()), func(string) string { return "" })
+			if probe.write == 0 {
+				if len(got) > 0 {
+					t.Fatalf("problems = %q, want none", got)
+				}
+				return
+			}
+			// A probe that only writes leaves the granted read unused.
+			got = slices.DeleteFunc(got, func(problem string) bool { return strings.HasPrefix(problem, ownershipRegistryFile) })
+			want := fmt.Sprintf("internal/gatewayrecovery/waiting.go:%d: internal/gatewayrecovery writes runs, which internal/runstore owns", probe.write)
+			if len(got) != 1 || !strings.HasPrefix(got[0], want) {
+				t.Fatalf("problems = %q, want one starting %q", got, want)
+			}
+		})
+	}
+}
+
 func TestTableOwnershipCheckReportsEachRule(t *testing.T) {
 	registry, problems := parseOwnershipRegistry(testRegistry)
 	if len(problems) > 0 {
@@ -613,6 +729,13 @@ internal/scheduler write runs no-task missing task
 internal/scheduler read runs V370-001 first
 internal/scheduler write runs V370-001 second
 
+[routines]
+internal/telemetry contractor_mark write runs marks the allocation
+internal/telemetry contractor_mark read runs listed twice
+internal/telemetry contractor_mark lock runs not an access kind
+internal/runstore contractor_mark write runs the owner's own relation
+internal/telemetry contractor_mark write missing no such relation
+
 [other]
 `)
 	want := []string{
@@ -624,10 +747,14 @@ internal/scheduler write runs V370-001 second
 		":17: a known access line is: <package> read|write <relation> <task ID> <reason>",
 		":18: a known access line is: <package> read|write <relation> <task ID> <reason>",
 		":20: the access of runs by internal/scheduler is already listed at line 19; a write also covers reads",
-		":22: unknown section [other]; use [relations], [reads] or [known]",
+		":24: contractor_mark reaching runs for internal/telemetry is already listed at line 23",
+		":25: a routine line is: <package> <function> read|write <relation> <reason>",
+		":29: unknown section [other]; use [relations], [reads], [known] or [routines]",
 		":10: internal/runstore owns runs and needs no entry",
 		":11: missing is not listed under [relations]",
 		":12: the read of runs by internal/telemetry is also a known access at line 16; keep one entry",
+		":26: internal/runstore owns runs and needs no entry",
+		":27: missing is not listed under [relations]",
 	}
 	for index := range want {
 		want[index] = ownershipRegistryFile + want[index]

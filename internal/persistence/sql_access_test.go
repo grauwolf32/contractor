@@ -36,12 +36,26 @@ import (
 // "DELETE FROM " + table, every string literal of that declaration that
 // names a relation counts as an access of that kind.
 //
-// Limits: a relation name that reaches SQL only through a function argument
-// or a variable of another declaration is not seen, and neither is a lock
-// clause kept apart from its FROM clause, as in query += " FOR UPDATE". A
-// fragment starting with a column name is inspected only when a containing
-// concatenation supplies its SQL prefix; extend candidate detection if another
-// production assembly form needs such fragments scanned independently.
+// Inside a function, a local variable stands for the text last assigned to
+// it before the statement that uses it, and query += clause appends to that
+// text, so a lock clause added apart from its FROM clause locks the
+// relations of that FROM clause. A call of a function or method of the same
+// package whose string parameter reaches SQL in its body is scanned again
+// with the text of each argument that is a literal, a constant or a known
+// local: the statements that use such a parameter count at the call, so a
+// relation name or a lock clause passed to a SQL helper is seen.
+//
+// The scan also finds calls of the migration functions it is given: a name
+// of one followed by an opening parenthesis anywhere in SQL text, statement
+// or not. TestMigrationRoutinesFollowTableOwnership reads what they do.
+//
+// Limits: text that reaches SQL through anything else is unknown SQL: a
+// function's result, a struct field, a variable of another declaration, a
+// parameter of a function that another package calls, a parameter whose
+// argument is itself unknown, and fmt formatting. A fragment starting with a
+// column name is inspected only when a containing concatenation supplies its
+// SQL prefix; extend candidate detection if another production assembly form
+// needs such fragments scanned independently.
 
 // sourceRoots are the module directories whose non-test Go files hold the
 // Server's SQL, as in internal/archtest.
@@ -58,19 +72,35 @@ type sqlAccess struct {
 	position string // file:line of the SQL text, relative to the module root
 }
 
-// scanModuleSQL returns the relation accesses of every non-test Go file under
-// the source roots of the module at root, and how many files it parsed.
-func scanModuleSQL(root string, relations map[string]bool) ([]sqlAccess, int, error) {
-	var accesses []sqlAccess
+// sqlCall is one call of a migration function in the SQL of a package.
+type sqlCall struct {
+	pkg      string
+	function string
+	position string
+}
+
+// scannedSQL is what the SQL text of Go code does: the relations it reads
+// and writes, and the migration functions it calls.
+type scannedSQL struct {
+	accesses []sqlAccess
+	calls    []sqlCall
+}
+
+// scanModuleSQL scans every non-test Go file under the source roots of the
+// module at root and returns what its SQL does with relations and with
+// functions, and how many files it parsed. functions may be nil.
+func scanModuleSQL(root string, relations, functions map[string]bool) (scannedSQL, int, error) {
+	var found scannedSQL
 	parsed, err := eachSourcePackage(root, func(pkg string, sources map[string][]byte) error {
-		found, err := scanPackageSQL(pkg, sources, relations)
-		accesses = append(accesses, found...)
+		scanned, err := scanPackageSQL(pkg, sources, relations, functions)
+		found.accesses = append(found.accesses, scanned.accesses...)
+		found.calls = append(found.calls, scanned.calls...)
 		return err
 	})
 	if err != nil {
-		return nil, 0, err
+		return scannedSQL{}, 0, err
 	}
-	return accesses, parsed, nil
+	return found, parsed, nil
 }
 
 // eachSourcePackage calls visit, in package order, with the directory of each
@@ -128,23 +158,32 @@ func eachSourcePackage(root string, visit func(pkg string, sources map[string][]
 	return read, nil
 }
 
-// scanPackageSQL returns the relation accesses of one package, given the
-// source of each of its files by path.
-func scanPackageSQL(pkg string, sources map[string][]byte, relations map[string]bool) ([]sqlAccess, error) {
+// scanPackageSQL returns what the SQL of one package does, given the source
+// of each of its files by path.
+func scanPackageSQL(pkg string, sources map[string][]byte, relations, functions map[string]bool) (scannedSQL, error) {
 	fset := token.NewFileSet()
 	var files []*ast.File
 	for _, name := range slices.Sorted(maps.Keys(sources)) {
 		file, err := parser.ParseFile(fset, name, sources[name], parser.SkipObjectResolution)
 		if err != nil {
-			return nil, err
+			return scannedSQL{}, err
 		}
 		files = append(files, file)
 	}
 	scanner := &packageScanner{
-		pkg: pkg, fset: fset, relations: relations, constants: map[string]ast.Expr{}, resolving: map[string]bool{},
+		pkg: pkg, fset: fset, relations: relations, functions: functions,
+		constants: map[string]ast.Expr{}, resolving: map[string]bool{},
+		helpers: map[string][]*ast.FuncDecl{}, methods: map[string][]*ast.FuncDecl{}, expanding: map[*ast.FuncDecl]bool{},
 	}
 	for _, file := range files {
 		for _, decl := range file.Decls {
+			if function, ok := decl.(*ast.FuncDecl); ok && function.Body != nil {
+				if function.Recv == nil {
+					scanner.helpers[function.Name.Name] = append(scanner.helpers[function.Name.Name], function)
+				} else {
+					scanner.methods[function.Name.Name] = append(scanner.methods[function.Name.Name], function)
+				}
+			}
 			general, ok := decl.(*ast.GenDecl)
 			if !ok || (general.Tok != token.CONST && general.Tok != token.VAR) {
 				continue
@@ -165,27 +204,41 @@ func scanPackageSQL(pkg string, sources map[string][]byte, relations map[string]
 			scanner.scanDeclaration(decl)
 		}
 	}
-	return scanner.accesses, nil
+	return scannedSQL{accesses: scanner.accesses, calls: scanner.calls}, nil
 }
 
 type packageScanner struct {
 	pkg       string
 	fset      *token.FileSet
 	relations map[string]bool
+	functions map[string]bool
 	// constants are the package-level constants and variables by name, so a
 	// statement built from them can be read whole.
 	constants map[string]ast.Expr
 	resolving map[string]bool
-	accesses  []sqlAccess
+	// helpers and methods are the package's functions and methods by name,
+	// whose bodies are scanned again for a call with known arguments.
+	helpers, methods map[string][]*ast.FuncDecl
+	accesses         []sqlAccess
+	calls            []sqlCall
 
-	// Per declaration: statements with an unknown relation, and the string
-	// literals that name a relation.
+	// Per declaration: statements with an unknown relation, the string
+	// literals that name a relation, and the text of local variables.
 	unknownRead, unknownWrite bool
 	named                     []*ast.BasicLit
+	locals                    map[string]string
+
+	// While a helper's body is scanned for a call: the call, the locals that
+	// hold an argument's text or text built from one, whether the text being
+	// flattened used one, and the helpers being expanded.
+	call      token.Pos
+	bound     map[string]bool
+	usedBound bool
+	expanding map[*ast.FuncDecl]bool
 }
 
 func (s *packageScanner) scanDeclaration(decl ast.Decl) {
-	s.unknownRead, s.unknownWrite, s.named = false, false, nil
+	s.unknownRead, s.unknownWrite, s.named, s.locals = false, false, nil, map[string]string{}
 	s.walk(decl)
 	if !s.unknownRead && !s.unknownWrite {
 		return
@@ -208,23 +261,37 @@ func (s *packageScanner) walk(node ast.Node) {
 			}
 			return false
 		case *ast.CompositeLit:
-			if relation, ok := s.copyTarget(node); ok {
+			if relation, ok := s.copyTarget(node); ok && s.call == token.NoPos {
 				s.record(relation, true, node.Pos())
 			}
+		case *ast.AssignStmt:
+			s.assign(node)
+			return false
+		case *ast.ValueSpec:
+			for _, value := range node.Values {
+				s.walk(value)
+			}
+			for index, name := range node.Names {
+				if len(node.Names) == len(node.Values) {
+					s.setLocal(name.Name, node.Values[index])
+				}
+			}
+			return false
+		case *ast.CallExpr:
+			s.expandCall(node)
 		case *ast.BinaryExpr:
 			if node.Op != token.ADD || !s.isStringConcatenation(node) {
 				return true
 			}
-			var text strings.Builder
 			var opaque []ast.Expr
-			s.flatten(node, &text, &opaque)
-			s.scanText(text.String(), node.Pos())
+			text := s.text(node, &opaque)
+			s.scanText(text, node.Pos())
 			for _, operand := range opaque {
 				s.walk(operand)
 			}
 			return false
 		case *ast.BasicLit:
-			if node.Kind != token.STRING {
+			if node.Kind != token.STRING || s.call != token.NoPos {
 				return true
 			}
 			value, err := strconv.Unquote(node.Value)
@@ -238,6 +305,136 @@ func (s *packageScanner) walk(node ast.Node) {
 		}
 		return true
 	})
+}
+
+// text returns the text of a string expression and whether it used an
+// argument of the call being expanded; see flatten.
+func (s *packageScanner) text(expr ast.Expr, opaque *[]ast.Expr) string {
+	s.usedBound = false
+	var text strings.Builder
+	s.flatten(expr, &text, opaque)
+	return text.String()
+}
+
+// assign keeps the text of local string variables: x = text and x := text
+// replace it, x += text appends to it and scans the whole statement, so a
+// clause appended apart from its FROM clause applies to that clause.
+func (s *packageScanner) assign(node *ast.AssignStmt) {
+	for _, expr := range node.Lhs {
+		s.walk(expr)
+	}
+	for _, expr := range node.Rhs {
+		s.walk(expr)
+	}
+	if node.Tok == token.ADD_ASSIGN {
+		name, ok := node.Lhs[0].(*ast.Ident)
+		if !ok {
+			return
+		}
+		base, known := s.locals[name.Name]
+		if !known || !s.isStringConcatenation(node.Rhs[0]) {
+			return
+		}
+		wasBound := s.bound[name.Name]
+		var opaque []ast.Expr
+		text := base + s.text(node.Rhs[0], &opaque)
+		s.usedBound = s.usedBound || wasBound
+		s.scanText(text, node.Pos())
+		s.locals[name.Name] = text
+		if s.bound != nil && s.usedBound {
+			s.bound[name.Name] = true
+		}
+		return
+	}
+	for index, expr := range node.Lhs {
+		name, ok := expr.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		if len(node.Lhs) != len(node.Rhs) {
+			delete(s.locals, name.Name)
+			continue
+		}
+		s.setLocal(name.Name, node.Rhs[index])
+	}
+}
+
+// setLocal records the text of a local variable assigned value, or forgets
+// it when value is not a string expression.
+func (s *packageScanner) setLocal(name string, value ast.Expr) {
+	if name == "_" {
+		return
+	}
+	if !s.isStringConcatenation(value) {
+		delete(s.locals, name)
+		if s.bound != nil {
+			delete(s.bound, name)
+		}
+		return
+	}
+	var opaque []ast.Expr
+	s.locals[name] = s.text(value, &opaque)
+	if s.bound != nil {
+		if s.usedBound {
+			s.bound[name] = true
+		} else {
+			delete(s.bound, name)
+		}
+	}
+}
+
+// expandCall scans again the body of the package function or method that a
+// call names, with each string parameter bound to the text of its argument
+// when that text is known. Only the SQL that uses an argument is recorded,
+// at the call.
+func (s *packageScanner) expandCall(call *ast.CallExpr) {
+	var candidates []*ast.FuncDecl
+	switch callee := call.Fun.(type) {
+	case *ast.Ident:
+		candidates = s.helpers[callee.Name]
+	case *ast.SelectorExpr:
+		candidates = s.methods[callee.Sel.Name]
+	}
+	for _, callee := range candidates {
+		if s.expanding[callee] {
+			continue
+		}
+		bindings := map[string]string{}
+		position := 0
+		for _, field := range callee.Type.Params.List {
+			if _, variadic := field.Type.(*ast.Ellipsis); variadic {
+				break
+			}
+			names := field.Names
+			if len(names) == 0 {
+				position++
+				continue
+			}
+			for _, name := range names {
+				if position < len(call.Args) && s.isStringConcatenation(call.Args[position]) {
+					var opaque []ast.Expr
+					bindings[name.Name] = s.text(call.Args[position], &opaque)
+				}
+				position++
+			}
+		}
+		if len(bindings) == 0 {
+			continue
+		}
+		saved := *s
+		s.locals, s.bound = bindings, map[string]bool{}
+		for name := range bindings {
+			s.bound[name] = true
+		}
+		if s.call == token.NoPos {
+			s.call = call.Pos()
+		}
+		s.expanding[callee] = true
+		s.walk(callee.Body)
+		delete(s.expanding, callee)
+		s.unknownRead, s.unknownWrite, s.named = saved.unknownRead, saved.unknownWrite, saved.named
+		s.locals, s.bound, s.usedBound, s.call = saved.locals, saved.bound, saved.usedBound, saved.call
+	}
 }
 
 // copyTarget returns the relation of a pgx.Identifier composite literal,
@@ -258,7 +455,8 @@ func (s *packageScanner) copyTarget(literal *ast.CompositeLit) (string, bool) {
 	return value, err == nil && s.relations[value]
 }
 
-// isStringConcatenation reports whether a + expression has a string operand.
+// isStringConcatenation reports whether an expression is a string literal,
+// constant or known local, or a + expression with such an operand.
 func (s *packageScanner) isStringConcatenation(expr ast.Expr) bool {
 	switch expr := expr.(type) {
 	case *ast.ParenExpr:
@@ -268,6 +466,9 @@ func (s *packageScanner) isStringConcatenation(expr ast.Expr) bool {
 	case *ast.BasicLit:
 		return expr.Kind == token.STRING
 	case *ast.Ident:
+		if _, ok := s.locals[expr.Name]; ok {
+			return true
+		}
 		value, ok := s.constants[expr.Name]
 		if !ok || s.resolving[expr.Name] {
 			return false
@@ -279,9 +480,10 @@ func (s *packageScanner) isStringConcatenation(expr ast.Expr) bool {
 	return false
 }
 
-// flatten writes the text of a string expression: literals and constants
-// contribute their text, any other operand unknownSQL. Those other operands
-// are returned in opaque, so the SQL inside them is scanned separately.
+// flatten writes the text of a string expression: literals, constants and
+// known locals contribute their text, any other operand unknownSQL. Those
+// other operands are returned in opaque, so the SQL inside them is scanned
+// separately. It sets usedBound when the text includes a call's argument.
 func (s *packageScanner) flatten(expr ast.Expr, text *strings.Builder, opaque *[]ast.Expr) {
 	switch expr := expr.(type) {
 	case *ast.ParenExpr:
@@ -299,6 +501,11 @@ func (s *packageScanner) flatten(expr ast.Expr, text *strings.Builder, opaque *[
 			return
 		}
 	case *ast.Ident:
+		if value, ok := s.locals[expr.Name]; ok {
+			text.WriteString(value)
+			s.usedBound = s.usedBound || s.bound[expr.Name]
+			return
+		}
 		if value, ok := s.constants[expr.Name]; ok && !s.resolving[expr.Name] {
 			s.resolving[expr.Name] = true
 			var inner strings.Builder
@@ -315,6 +522,17 @@ func (s *packageScanner) flatten(expr ast.Expr, text *strings.Builder, opaque *[
 }
 
 func (s *packageScanner) scanText(text string, at token.Pos) {
+	if s.call != token.NoPos {
+		// A helper expanded for a call: only SQL that uses an argument, at
+		// the call.
+		if !s.usedBound {
+			return
+		}
+		at = s.call
+	}
+	for _, function := range sqlFunctionCalls(text, s.functions) {
+		s.calls = append(s.calls, sqlCall{pkg: s.pkg, function: function, position: s.position(at)})
+	}
 	for _, access := range sqlRelationAccesses(text, s.relations) {
 		switch {
 		case access.relation != "":
@@ -328,11 +546,32 @@ func (s *packageScanner) scanText(text string, at token.Pos) {
 }
 
 func (s *packageScanner) record(relation string, write bool, at token.Pos) {
+	if s.call != token.NoPos {
+		at = s.call
+	}
+	s.accesses = append(s.accesses, sqlAccess{pkg: s.pkg, relation: relation, write: write, position: s.position(at)})
+}
+
+func (s *packageScanner) position(at token.Pos) string {
 	position := s.fset.Position(at)
-	s.accesses = append(s.accesses, sqlAccess{
-		pkg: s.pkg, relation: relation, write: write,
-		position: fmt.Sprintf("%s:%d", position.Filename, position.Line),
-	})
+	return fmt.Sprintf("%s:%d", position.Filename, position.Line)
+}
+
+// sqlFunctionCalls returns the functions of SQL text, statement or fragment,
+// that a name of functions followed by an opening parenthesis calls.
+func sqlFunctionCalls(text string, functions map[string]bool) []string {
+	if len(functions) == 0 {
+		return nil
+	}
+	var calls []string
+	tokens := lexSQL(text)
+	for index := 0; index+1 < len(tokens); index++ {
+		name := strings.ToLower(tokens[index].text)
+		if tokens[index].kind == sqlWord && functions[name] && tokens[index+1] == (sqlToken{kind: sqlPunct, text: "("}) {
+			calls = append(calls, name)
+		}
+	}
+	return calls
 }
 
 // relationAccess is one access found in SQL text; an empty relation is a
@@ -846,19 +1085,25 @@ func TestSQLAccessScanReadsStatementsAsTheRepositoryWritesThem(t *testing.T) {
 		/* 40 */ "const copyIn = `COPY charts (chart_id) FROM STDIN`",
 		/* 41 */ "const copyOut = `COPY pairs TO STDOUT`",
 		/* 42 */ "const escaped = `SELECT E'it\\'s FROM audits' AS note FROM settings`",
+		/* 43 */ "func reassigned(q pgx.Tx) {",
+		/* 44 */ "\tquery := `SELECT 1 FROM settings`",
+		/* 45 */ "\tquery = build()",
+		/* 46 */ "\t_, _ = q.Exec(nil, query+` FOR UPDATE`)",
+		/* 47 */ "}",
+		/* 48 */ "func local(q pgx.Tx) { table := `charts`; _, _ = q.Exec(nil, `DELETE FROM `+table) }",
 	}
 	relations := map[string]bool{}
 	for _, name := range []string{"runs", "stages", "audits", "projects", "items", "events", "settings", "pairs", "charts"} {
 		relations[name] = true
 	}
-	accesses, err := scanPackageSQL("internal/sample", map[string][]byte{
+	scanned, err := scanPackageSQL("internal/sample", map[string][]byte{
 		"internal/sample/sample.go": []byte(strings.Join(lines, "\n") + "\n"),
-	}, relations)
+	}, relations, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	found := map[string]bool{}
-	for _, access := range accesses {
+	for _, access := range scanned.accesses {
 		if access.pkg != "internal/sample" {
 			t.Fatalf("access attributed to %s", access.pkg)
 		}
@@ -883,6 +1128,8 @@ func TestSQLAccessScanReadsStatementsAsTheRepositoryWritesThem(t *testing.T) {
 		"39 write runs",
 		"40 write charts", "41 read pairs",
 		"42 read settings",
+		"44 read settings",
+		"48 write charts",
 	}
 	for index, entry := range want {
 		want[index] = "internal/sample/sample.go:" + entry
@@ -891,6 +1138,42 @@ func TestSQLAccessScanReadsStatementsAsTheRepositoryWritesThem(t *testing.T) {
 	slices.Sort(want)
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("accesses =\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// TestSQLAccessScanFindsMigrationFunctionCalls checks that a call of a
+// migration function counts in statements, in fragments that start with the
+// call and at the call of a helper that builds it, but not in prose or in a
+// string constant of SQL.
+func TestSQLAccessScanFindsMigrationFunctionCalls(t *testing.T) {
+	lines := []string{
+		/* 1 */ "package sample",
+		/* 2 */ "",
+		/* 3 */ "const gate = `WITH g AS MATERIALIZED (SELECT public.contractor_gate($1, $2) FROM audits) SELECT 1`",
+		/* 4 */ "func events(id string) string { return \"Contractor_Append(\" + id + \", '[]')\" }",
+		/* 5 */ "const prose = \"contractor_gate guards the Project\"",
+		/* 6 */ "const quoted = `SELECT 'contractor_gate(1)', count(*) FROM audits`",
+		/* 7 */ "func run() string { return events(\"audit.audit_id\") }",
+	}
+	scanned, err := scanPackageSQL("internal/sample", map[string][]byte{
+		"internal/sample/sample.go": []byte(strings.Join(lines, "\n") + "\n"),
+	}, map[string]bool{"audits": true}, map[string]bool{"contractor_gate": true, "contractor_append": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, call := range scanned.calls {
+		got = append(got, call.position+" "+call.function)
+	}
+	slices.Sort(got)
+	got = slices.Compact(got)
+	want := []string{
+		"internal/sample/sample.go:3 contractor_gate",
+		"internal/sample/sample.go:4 contractor_append",
+		"internal/sample/sample.go:7 contractor_append",
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("calls = %q, want %q", got, want)
 	}
 }
 
