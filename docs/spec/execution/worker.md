@@ -1630,9 +1630,9 @@ memory for the active invocation and is cleared when it ends; only the
 allocation-wide checkpoint count survives until release (LIFE-WRK-6).
 Besides the session's own events, which are not copied, one invocation holds
 at most the retained projection (LIM-WRK-34), one compactor input document
-under construction (LIM-WRK-32, built off the event loop, with at most one
-reasoning-free copy of a selected group at a time), one summary (LIM-WRK-33)
-and one history page (LIM-WRK-36). A history page addresses its first group
+(LIM-WRK-32; it is assembled off the event loop from per-group strings, so
+at most twice its bound while it is joined), one summary (LIM-WRK-33) and one
+history page (LIM-WRK-36). A history page addresses its first group
 by ordinal and serializes at most one page, so a read never rescans the
 archive. Successful and failed checkpoints are reported through the span
 below and the `context_compactor` model phase; richer counters are not part

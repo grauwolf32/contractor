@@ -21,6 +21,20 @@ context:
     includeReasoning independently deliverable. This record plans work; it does not start implementation
     or change existing delivery priorities. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-worker together with V417-001, V417-003 and V420-002.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
+  decision_needed: >-
+    2026-10-31 (lane cmp-worker): R1 is implemented as written: resolved bindings,
+    Workflow/Stage snapshots and AuditProfile-embedded Workflows always carry the explicit
+    contextManagement strategy (template@1 included), and a persisted snapshot without it is
+    invalid on read (WFL-R91, as WFL-R34 did for session). Consequence: every Workflow
+    closure digest changes, and Runs, Audits and Eval pins created before this revision are
+    unreadable or rejected after deployment (the demo database keeps the rows, but reads of
+    those snapshots fail). V420-002 chose the other encoding for Planner compaction: none is
+    an absent member, so existing digests stay unchanged. Options: (a) keep R1 (current
+    state; no legacy reader, consistent with WFL-R34); (b) encode template@1 as an absent
+    member in resolved snapshots and AllocationSpec-derived digests, matching V420-002 and
+    keeping old snapshots readable, at the cost of reworking the Go, Python, UI and fixture
+    readers of this slice. Recommendation: (a), unless the demo history must stay readable,
+    then (b) in a follow-up task before the demo deployment.
   specification:
   - docs/spec/configuration/workflows.md#WFL-R86
   - docs/spec/configuration/agent-templates.md#TPL-R48
@@ -306,3 +320,48 @@ delivery_note: 'This slice is intentionally vertical: splitting unsupported conf
   first production consumer would violate AGENTS.md. Shared and Audit combinations remain explicit validation
   errors until V417-004 and V417-005 land. Basic safety, archive recovery and limits are not postponed
   to the exit task.'
+decisions:
+- >-
+  2026-10-31 (lane cmp-worker): contextManagement is one flat tagged union on the binding and
+  on AllocationSpec ({strategy} alone, or compact@1 with every member beside it), decoded with
+  strictjson in Go and a discriminated union in Python. compact@1 keeps the explicit JSON/YAML
+  boolean includeReasoning that R2 requires; the terminal summarizer's true-only encoding
+  (TPL-R116, V417-001) is not reused here pending the coordinator's decision on it.
+- >-
+  2026-10-31 (lane cmp-worker): the compactor policy is pinned by the Workflow binding
+  (WFL-R94). Deployment model selection does not retarget it; scripts/generate_model_config.py
+  emits a non-selectable compactor@1 (own compactor-model route, default model, maxModelCalls 1,
+  finite maxTotalTokens, no tool limits) that stays out of configs/model-selection.json.
+  Overrides belong to V417-006. The Server resolves it into the allocation runtime
+  configuration only for credential authorization and Gateway recovery routes (CTL-R154).
+- >-
+  2026-10-31 (lane cmp-worker): one compactor ModelPolicy rule (TPL-R118) for Planner and
+  Worker: ResolvedModelPolicy.ValidateForCompactor replaced the duplicate
+  resolved.ValidatePlannerCompactorModelPolicy that V420-002 landed in parallel.
+- >-
+  2026-10-31 (lane cmp-worker): history scope and safety. Groups are indexed incrementally
+  from persisted session events and projected once with the terminal summarizer projection
+  (redaction, part bounds, tagged reasoning). Skill tool results are replaced by a fixed
+  notice in compactor input and read_context_history, so the Worker must call the Skill tool
+  again and reserve its disclosure budget again (SKL-R98), instead of re-charging the budget
+  per history read. Evidence is selected before reasoning: reasoning does not count against
+  the 128 KiB recent-group bound, the 8 MiB input reserves 64 KiB for it and reasoning is
+  admitted newest group first (WRK-R188). The proposal bounds of R12 are registered unchanged
+  (LIM-WRK-30 to LIM-WRK-36, LIM-WFL-9 to LIM-WFL-12); no live measurement of representative
+  sizes was made, so they are proposal values tested at their exact ceilings.
+- >-
+  2026-10-31 (lane cmp-worker): marker commit reuses the ADK session as its receipt: a failed
+  append is followed by one bounded session read; an exactly equal stored marker is committed,
+  no marker means not committed (worker_compaction_failed, no fence) and a conflicting marker
+  or an unreadable session fences the session lifecycle (WRK-R190). A summary that is not
+  smaller than the evidence it replaces is ineffective before commit; ineffectiveness first
+  seen in the next measured main response keeps the marker and stops (WRK-R193).
+- >-
+  2026-10-31 (lane cmp-worker): R16 status is the contractor.worker.context_compaction span
+  (generation, outcome, bounded cause) and the model.phase=context_compactor span; no new
+  Worker State or ExecutionMetrics field is exposed (richer reporting is V417-007).
+- >-
+  2026-10-31 (lane cmp-worker): opt-in example taint-trace-from-workspace-compact@1 is a
+  copy of taint-trace-from-workspace@4 with compact@1 on its analyst and no on.summarized
+  escalation; existing Workflows are unchanged. Specification numbers: WFL-R91 to WFL-R95
+  (V420-002 took WFL-R90), WRK-R184 to WRK-R195, FAIL-WRK-8, LIFE-WRK-6.
