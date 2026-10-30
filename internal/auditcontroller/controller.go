@@ -454,8 +454,7 @@ func (c *Controller) dispatchClosureReason(
 			Code: "deadline_exhausted", Message: "The Audit time limit was reached. Existing Runs can finish; extend or disable the limit to continue.",
 		}
 	}
-	if (audit.Phase == auditdomain.AuditPhasePreparing || audit.Phase == auditdomain.AuditPhaseInventory) &&
-		snapshot.Round == nil && audit.CurrentRoundID == nil {
+	if audit.Phase.PrecedesRounds() && snapshot.Round == nil && audit.CurrentRoundID == nil {
 		return nil
 	}
 	if audit.Limits.BatchSize < 1 || audit.Limits.BatchSize > auditstore.MaxCollectionItems ||

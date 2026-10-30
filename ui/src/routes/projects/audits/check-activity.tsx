@@ -10,6 +10,7 @@ import type {
   AuditReviewPage,
   AuditWorkspace,
 } from "../../../api/audits";
+import { auditPrecedesRounds } from "../../../api/states";
 import { ContextLink } from "../../../app/context-navigation";
 import { RecordedTime } from "../../../app/recorded-time";
 import {
@@ -244,7 +245,7 @@ function Issues({
         )}
       </p>
     );
-  if (audit.phase === "preparing" || audit.phase === "inventory")
+  if (auditPrecedesRounds(audit.phase))
     return (
       <Block title="Issues and possible issues">
         <p className="ui-caption">

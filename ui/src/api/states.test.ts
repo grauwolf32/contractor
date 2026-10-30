@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
+import type { components } from "./generated/public";
 import * as states from "./states";
+
+type AuditPhase = components["schemas"]["AuditPhase"];
 
 const schemas = (
   parse(readFileSync("../api/openapi/contractor-public-v1.yaml", "utf8")) as {
@@ -51,6 +54,23 @@ describe("state lists", () => {
       }
     },
   );
+
+  it("names the Audit phases before Rounds as the Server does", () => {
+    // Typed by the generated enum, so a new phase must be added here.
+    const precedesRounds: Record<AuditPhase, boolean> = {
+      "not-started": false,
+      preparing: true,
+      inventory: true,
+      rounds: false,
+    };
+    const phases = contractEnum("AuditPhase") as AuditPhase[];
+    expect(Object.keys(precedesRounds).sort()).toEqual([...phases].sort());
+    for (const phase of phases) {
+      expect(states.auditPrecedesRounds(phase), phase).toBe(
+        precedesRounds[phase],
+      );
+    }
+  });
 
   it("keeps the Audit subsets consistent with each other", () => {
     expect(["draft", ...states.AUDIT_STATES_WITH_FINDINGS, "deleting"]).toEqual(
