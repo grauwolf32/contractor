@@ -3,8 +3,6 @@ package scheduler
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"strings"
 	"sync"
 	"testing"
@@ -17,7 +15,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
-	"github.com/grauwolf32/contractor/internal/telemetry"
 )
 
 // postgresClaimAttempts records every PostgreSQL claim attempt, with or
@@ -64,30 +61,12 @@ func TestPostgresSchedulerSupervisorClaimsOncePerIdleRoundAndFillsLanes(t *testi
 		current.MaxConcurrentRuns != 1 || current.MaxConcurrentToolRuns != 2 {
 		t.Fatalf("migrated Scheduler settings = (%+v, %v), want 1 model and 2 tool lanes", current, err)
 	}
-	const poll = time.Hour
 	store := &postgresClaimAttempts{
 		postgresLaneBlockingStore: newPostgresLaneBlockingStore(postgresStore),
 		attempts:                  make(map[resolved.LaneClass]int), attempted: make(chan resolved.LaneClass, 64),
 	}
 	clock := newManualPollClock()
-	scheduler, err := New(
-		store, laneNoopPersistence{}, laneNoopArtifacts{}, laneNoopAllocator{},
-		laneNoopWorkers{}, laneNoopPlanners{}, Options{
-			PollInterval: poll, ClaimDuration: time.Hour, Clock: clock,
-			PlannerSessions:  uncompletedSessions{},
-			OperationTimeout: 5 * time.Second, PlannerTimeout: time.Second,
-			FinalizationTimeout: time.Second, AbortTimeout: time.Second,
-			LeaseScanInterval: time.Minute,
-			RuntimeTransport: RuntimeTransportSettings{
-				ArtifactAPIURL: "https://control.test/private/v1", RequestTimeoutSeconds: 1,
-			},
-			Reports:  telemetry.NewRepository(pool),
-			Settings: settings, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	scheduler := newPostgresSupervisor(t, pool, store, settings, clock)
 	started := countLaneStarts(scheduler)
 	run := func() (context.CancelFunc, chan error) {
 		runContext, stop := context.WithCancel(ctx)
@@ -99,18 +78,18 @@ func TestPostgresSchedulerSupervisorClaimsOncePerIdleRoundAndFillsLanes(t *testi
 	stop, done := run()
 	for round := 1; round <= 2; round++ {
 		if round > 1 {
-			clock.fireWhenArmed(t, poll, 2)
+			clock.fireWhenArmedBefore(t, ctx, postgresSupervisorPoll, 2)
 		}
 		got := map[resolved.LaneClass]int{}
 		for range len(resolved.LaneClasses) {
-			got[receiveClass(t, store.attempted, "idle PostgreSQL claim")]++
+			got[awaitValue(t, ctx, store.attempted, "idle PostgreSQL claim")]++
 		}
 		if got[resolved.LaneClassModel] != 1 || got[resolved.LaneClassTool] != 1 {
 			t.Fatalf("idle round %d claims = %v, want one per pool", round, got)
 		}
 	}
 	stop()
-	if err := receiveError(t, done, 10*time.Second, "idle PostgreSQL Scheduler shutdown"); err != nil {
+	if err := awaitValue(t, ctx, done, "idle PostgreSQL Scheduler shutdown"); err != nil {
 		t.Fatal(err)
 	}
 	if attempts := store.counts(); attempts[resolved.LaneClassModel] != 2 || attempts[resolved.LaneClassTool] != 2 ||
@@ -138,10 +117,10 @@ func TestPostgresSchedulerSupervisorClaimsOncePerIdleRoundAndFillsLanes(t *testi
 	stop, done = run()
 	claimed := map[string]bool{}
 	for range 3 {
-		claimed[receiveString(t, store.claimed, 10*time.Second, "PostgreSQL claim")] = true
+		claimed[awaitValue(t, ctx, store.claimed, "PostgreSQL claim")] = true
 	}
 	for range 3 {
-		receiveClass(t, store.attempted, "PostgreSQL claim attempt")
+		awaitValue(t, ctx, store.attempted, "PostgreSQL claim attempt")
 	}
 	if !claimed["run-model-1"] || !claimed["run-tool-1"] || !claimed["run-tool-2"] {
 		t.Fatalf("claimed %v, want the first model and the first two tool Runs", claimed)
@@ -150,7 +129,7 @@ func TestPostgresSchedulerSupervisorClaimsOncePerIdleRoundAndFillsLanes(t *testi
 		t.Fatalf("lanes holding Runs = %d (maximum %d), want all three before any completes", active, maximum)
 	}
 	stop()
-	if err := receiveError(t, done, 10*time.Second, "busy PostgreSQL Scheduler shutdown"); err != nil {
+	if err := awaitValue(t, ctx, done, "busy PostgreSQL Scheduler shutdown"); err != nil {
 		t.Fatal(err)
 	}
 	if attempts := store.counts(); attempts[resolved.LaneClassModel] != 3 || attempts[resolved.LaneClassTool] != 4 ||

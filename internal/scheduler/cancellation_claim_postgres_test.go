@@ -20,6 +20,8 @@ import (
 
 // Hold cancellation cleanup beyond the original lease. Another lane must not
 // acquire the Run while the first lane is still responsible for its cleanup.
+// The lease runs out by the database clock, and the lane renews its claim only
+// when the test releases a renewal, so no local timer decides the outcome.
 func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 	for _, notify := range []bool{true, false} {
 		name := "polled cancellation"
@@ -27,7 +29,7 @@ func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 			name = "immediate cancellation"
 		}
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(t.Context(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 			defer cancel()
 			pool := isolatedSchedulerPool(t, ctx)
 			postgresStore := runstore.NewPostgresStore(pool)
@@ -58,7 +60,7 @@ func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 			}
 			store := &cancellationClaimStore{
 				PostgresStore: postgresStore, started: make(chan string, 1),
-				cleaning: make(chan string, 1), finish: make(chan struct{}),
+				cleaning: make(chan string, 1), finish: make(chan struct{}), renewed: make(chan error, 8),
 			}
 			s := newLaneTestScheduler(t, newLaneTestStore(), newMutableSchedulerSettings(2, time.Second), 20*time.Millisecond)
 			s.store = store
@@ -69,22 +71,26 @@ func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 				t.Fatal(err)
 			}
 			s.persistence = persistence
-			s.options.ClaimDuration = 200 * time.Millisecond
+			s.options.OperationTimeout = time.Minute
+			clock := newRenewalClock(s.options.ClaimDuration)
+			s.options.Clock = clock
+			laneContext, stopLane := context.WithCancel(ctx)
 			done := make(chan error, 1)
 			go func() {
 				defer close(done)
-				_, err := s.progressOneClaim(ctx, resolved.LaneClassModel, nil)
+				_, err := s.progressOneClaim(laneContext, resolved.LaneClassModel, nil)
 				done <- err
 			}()
 			defer func() {
-				cancel()
+				stopLane()
 				select {
 				case <-done:
-				case <-time.After(time.Second):
-					t.Error("cancellation lane did not stop")
+				case <-ctx.Done():
+					t.Error("cancellation lane did not stop before the test deadline")
 				}
 			}()
-			receiveString(t, store.started, time.Second, "initial Run work")
+			awaitValue(t, ctx, store.started, "initial Run work")
+			claimID := storedRunClaim(t, ctx, pool, runID)
 			if _, err := postgresStore.RequestRunCancellation(ctx, runID, runstore.WorkflowRunCancellation{
 				Code: runstore.CancellationUserRequested, RequestedAt: time.Now(),
 			}); err != nil {
@@ -92,20 +98,27 @@ func TestPostgresCancellationCleanupRetainsRunClaim(t *testing.T) {
 			}
 			if notify {
 				s.Cancel(runID)
+			} else {
+				// The renewal reports the cancelling Run to the lane.
+				clock.renew(t, ctx)
+				if err := awaitValue(t, ctx, store.renewed, "renewal that reports the cancellation"); err != nil {
+					t.Fatalf("renewal before cleanup = %v", err)
+				}
 			}
-			receiveString(t, store.cleaning, time.Second, "cancellation cleanup")
-			timer := time.NewTimer(3 * s.options.ClaimDuration)
-			defer timer.Stop()
-			select {
-			case <-ctx.Done():
-				t.Fatal(ctx.Err())
-			case <-timer.C:
+			awaitValue(t, ctx, store.cleaning, "cancellation cleanup")
+			// The original lease runs out by the database clock while the
+			// cleanup holds the Run; only the lane's renewal keeps the claim.
+			expireRunClaim(t, ctx, pool, runID, claimID)
+			clock.renew(t, ctx)
+			if err := awaitValue(t, ctx, store.renewed, "renewal during cleanup"); err != nil {
+				t.Fatalf("cleanup lost the claim: renewal = %v", err)
 			}
+			requireUnexpiredRunClaim(t, ctx, pool, runID, claimID)
 			if run, err := postgresStore.ClaimRunnableRun(ctx, "competing-lane", time.Minute, nil, resolved.LaneClassModel); !errors.Is(err, runstore.ErrNoWork) {
 				t.Fatalf("cleanup lost exclusive ownership: competing claim = %s, %v", run.RunID, err)
 			}
 			close(store.finish)
-			if err := receiveError(t, done, time.Second, "completed cancellation"); err != nil {
+			if err := awaitValue(t, ctx, done, "completed cancellation"); err != nil {
 				t.Fatal(err)
 			}
 			run, err := postgresStore.GetRun(ctx, runID)
@@ -122,6 +135,7 @@ type cancellationClaimStore struct {
 	started  chan string
 	cleaning chan string
 	finish   chan struct{}
+	renewed  chan error
 }
 
 func (s *cancellationClaimStore) HasStageExecutions(ctx context.Context, runID string) (bool, error) {
@@ -133,6 +147,19 @@ func (s *cancellationClaimStore) HasStageExecutions(ctx context.Context, runID s
 		return false, ctx.Err()
 	}
 	return s.PostgresStore.HasStageExecutions(ctx, runID)
+}
+
+// RenewRunClaim reports the outcome of each renewal, which the renewal clock
+// lets happen only when the test releases it.
+func (s *cancellationClaimStore) RenewRunClaim(
+	ctx context.Context, runID, claimID string, duration time.Duration,
+) (runstore.WorkflowRunState, error) {
+	state, err := s.PostgresStore.RenewRunClaim(ctx, runID, claimID, duration)
+	select {
+	case s.renewed <- err:
+	default:
+	}
+	return state, err
 }
 
 // ListStageExecutionsWithUnreleasedAllocations is the first read of the
