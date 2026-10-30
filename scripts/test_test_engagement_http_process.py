@@ -68,7 +68,7 @@ class EngagementHTTPGateTests(unittest.TestCase):
     def python_report(self):
         suite = ET.Element("testsuite")
         for identity in gate.matrix()["python"]:
-            module, name = identity.rsplit("::", 1)
+            module, name = identity.split("::", 1)
             ET.SubElement(suite, "testcase", classname=module, name=name)
         ET.SubElement(ET.SubElement(suite, "testcase", classname="tests.optional",
                                    name="test_optional"), "skipped")

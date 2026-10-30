@@ -107,3 +107,34 @@ def test_bridge_refuses_unauthenticated_local_client_before_forwarding(tmp_path)
             assert owner.calls == []
 
     asyncio.run(scenario())
+
+
+def test_bridge_early_engine_exit_joins_and_reports_unfinished_exchange(tmp_path):
+    async def scenario():
+        entered, joined = asyncio.Event(), asyncio.Event()
+
+        class PendingOwner(Owner):
+            async def request(self, *_, **__):
+                entered.set()
+                try:
+                    await asyncio.Event().wait()
+                finally:
+                    joined.set()
+
+        async with (
+            HTTPProxyBridge(
+                PendingOwner(), tmp_path, credential_id=None, deadline=time.monotonic() + 15
+            ) as bridge,
+            httpx.AsyncClient(proxy=bridge.proxy_url, trust_env=False) as client,
+        ):
+            pending = asyncio.create_task(client.get("http://nonresolving.invalid/allowed"))
+            await entered.wait()
+            # Model an engine stopping while its target exchange is pending.
+            await bridge.__aexit__()
+            with pytest.raises(httpx.HTTPError):
+                await pending
+        assert joined.is_set()
+        assert bridge.error_code == "scan_request_failed"
+        assert not bridge._tasks and not bridge._writers
+
+    asyncio.run(scenario())

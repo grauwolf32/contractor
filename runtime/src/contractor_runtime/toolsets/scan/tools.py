@@ -271,17 +271,22 @@ class _ScanSession:
                             directory,
                             max(0.001, deadline - time.monotonic()),
                         )
-                        return await threads.to_thread_until_done(
+                        result = await threads.to_thread_until_done(
                             lambda: replace(
                                 result,
-                                error_code=result.error_code
-                                or bridge.error_code
-                                or ("scan_request_failed" if bridge.requests == 0 else None),
                                 stdout=bridge.redact(result.stdout),
                                 stderr=bridge.redact(result.stderr),
                             ),
                             name="scanner-private-output-redaction",
                         )
+                    # Cleanup joins every bridge task. An early engine exit can
+                    # otherwise race a still-pending exchange or its failure.
+                    return replace(
+                        result,
+                        error_code=result.error_code
+                        or bridge.error_code
+                        or ("scan_request_failed" if bridge.requests == 0 else None),
+                    )
             except TimeoutError:
                 return ProcessResult(None, error_code="scan_timeout")
             except (HTTPTransportError, OSError, ValueError):

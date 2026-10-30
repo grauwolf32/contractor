@@ -241,6 +241,8 @@ class HTTPProxyBridge:
                     connection, request, body = await self._message(reader)
                 await self._forward(connection, request, body, authority, reader, writer)
         except asyncio.CancelledError:
+            if authenticated:
+                self.error_code = self.error_code or "scan_request_failed"
             raise
         except _EmptyConnection:
             if authenticated:
