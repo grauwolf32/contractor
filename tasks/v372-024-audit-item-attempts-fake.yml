@@ -48,6 +48,16 @@ context:
     store and is correct. The UI reads item.attempts without a null check
     (ui/src/routes/projects/audits/executions.tsx:99, 116 and 242,
     activity-model.ts:133), which is correct for a schema-valid response.
+  implementation: >-
+    2026-10-30. The interface comment states the store's guarantee; the double answers every
+    requested item (empty list without attempts); listAuditItems keeps the read model's empty list
+    when an item has no entry. Tests: TestAuditItemPageRendersEmptyAttemptsForAnItemWithout validates
+    the page against the contract with a store-like read and with a read that omits the item (A1;
+    with the old merge the second fails contract validation, checked for A3);
+    TestAuditItemAttemptDoubleAnswersLikeTheStore and pgstore
+    TestListItemAttemptsAnswersEveryRequestedItem pin the same answer for the double and the store
+    (A2). Siblings ruled out: listAuditItems is the only public handler that merges a slice-valued
+    map; the ListItems and ListCoverage doubles return their rows unmerged, so no null can arise.
 scope:
   in:
     - "The double fills an empty list for every requested item without attempts, and its comment states the store's rule; the ListItemAttempts interface comment (audit_handlers.go:47) states the guarantee."
