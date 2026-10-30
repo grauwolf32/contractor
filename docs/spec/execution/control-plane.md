@@ -203,6 +203,8 @@ AllocationSpec
   exact resolvedSkills refs and package digests selected by WorkflowRun
   effective ModelPolicy + exact ref
   optional independently resolved summarizerModelPolicy + exact ref
+  effective contextManagement branch (none, terminal@1 or compact@1 with
+    its pinned compactor ModelPolicy and instructions; WRK-R184)
   exact WorkerRuntimeRef
   RuntimeSettings supplied by Control Plane
   exact lease_expires_at, deadline and resource limits
@@ -1424,7 +1426,11 @@ Runtime verifies its digest and uses it only in a private copy of the Worker
 build context; it must not mutate the digest-bearing AgentTemplate. Neither
 Runtime nor Control Plane consults current deployment defaults. Effective
 summary policy participates in credential authorization and Gateway recovery
-route tracking, alongside the main policy.
+route tracking, alongside the main policy. The `compact@1` compactor policy
+pinned in `contextManagement` (WFL-R93) is resolved into the allocation's
+runtime configuration the same way: the selected credential must authorize
+its model, and its Gateway route is tracked for recovery. It is mutually
+exclusive with `summarizerModelPolicy`.
 
 ## Interfaces
 

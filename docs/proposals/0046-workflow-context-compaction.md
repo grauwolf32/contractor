@@ -12,6 +12,12 @@ lock, а не повторно на исторической 2.8.0. Обновл
 compaction остаётся предложением. V417-001 с terminal `includeReasoning`
 остаётся независимой.
 
+V417-003 (31 октября 2026 года) реализует `compact@1` для isolated обычных
+Workers; нормативные правила теперь в
+[WFL-R90–WFL-R94](../spec/configuration/workflows.md) и
+[WRK-R184–WRK-R195](../spec/execution/worker.md). Shared sessions (V417-004)
+и Audit completion (V417-005) остаются предложением.
+
 Результат integration spike от 26 октября 2026 года:
 [V417-002 evidence](../../tasks/evidence/v417-002-adk-compaction-spike.md).
 Выбран публичный request-projection callback по точным IDs/ordinals: native

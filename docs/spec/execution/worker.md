@@ -72,8 +72,8 @@ Terms are defined once in the [glossary](../glossary.md).
 | Workspace observation coverage | What the Worker actually exposed to the model during one A2A invocation. |
 | `lean@1` | The fixed, Runtime-authored compact observation projection carried by `WorkerResult`. |
 | Terminal summarization | Stopping the normal Worker loop, making one separate tool-free model call and returning a final `WorkerResult` with `summarized: true`. |
-| Context compaction | Rewriting older events so that the same Worker can continue using tools. |
-| Context boundary | The prompt-token boundary at which an enabled summarizer is requested. |
+| Context compaction | Replacing the oldest complete history groups of an isolated invocation with one Runtime-committed summary checkpoint so that the same Worker can continue using tools (`compact@1`, WRK-R184 to WRK-R195). |
+| Context boundary | The prompt-token boundary at which an enabled summarizer or a `compact@1` checkpoint is requested. |
 | Cumulative budget | The optional soft boundary on summed provider-reported tokens of the normal loop in one invocation. |
 
 ## Model
@@ -1475,6 +1475,176 @@ Cancellation winning before its result stops the call and produces no
 `WorkerResult`; normal bounded abort semantics apply
 (FAIL-WRK-6).
 
+### Context compaction
+
+A Workflow binding may select `compact@1`
+([WFL-R90 to WFL-R94](../configuration/workflows.md)). The Worker then
+continues the same isolated subtask past its context boundary: Runtime
+summarizes the oldest complete history groups into one checkpoint and keeps
+the recent ones. Proposal 0046 records the design and the ADK 2.13 evidence
+it builds on. Shared sessions and Audit completion Workers are outside this
+version.
+
+#### Selection and boundary
+
+**WRK-R184.** AllocationSpec carries exactly one effective
+`contextManagement` branch: `none` (the template has no summarizer),
+`terminal@1` (the template summarizer of WRK-R140 onward) or `compact@1`
+with every member of the binding policy, including the pinned compactor
+ModelPolicy and instruction text. Server derives it from the binding and the
+template; the template itself is not rewritten. Go and Runtime validation and
+the allocation schema reject a branch that disagrees with the template
+(`none` with a summarizer, `terminal@1` without one), `compact@1` for a
+`tool@1` template, a `shared` session, an Audit completion contract or an
+`audit-results@2` template, a `summarizerModelPolicy` outside `terminal@1`,
+and a compacted Worker policy without `contextWindowTokens` or
+`maxOutputTokens`. Runtime never falls back from `compact@1` to terminal
+summarization.
+
+**WRK-R185.** The compaction boundary is
+`min(floor(contextWindowTokens * contextWindowRatio), contextWindowTokens -
+maxOutputTokens)` of the effective main Worker policy. Before each main model
+request, Runtime compares the provider-reported prompt tokens of the latest
+main model response of the invocation with the boundary; when it is reached,
+the request is not sent or charged and a checkpoint starts instead. Missing
+usage never triggers a checkpoint and is never estimated from bytes. After a
+committed checkpoint the measurement is cleared, so the next decision waits
+for the first main response in the new context.
+
+**WRK-R186.** The compactor is one tool-free, one-shot model call per
+checkpoint through its own model client, built from the pinned compactor
+ModelPolicy with no tools, Skills, workspace or summarizer. It charges the
+owning invocation's hard budgets and metrics like the result finalizer: one
+model call and its reported tokens, under the separate model phase
+`context_compactor`. Its usage never replaces the main prompt measurement of
+WRK-R185. It also stays within the compactor policy's own `maxModelCalls: 1`
+and `maxTotalTokens`. Exhausting the owning invocation's budget returns
+`worker_budget_exhausted`; exceeding the compactor's own limits returns
+`worker_compaction_failed`.
+
+#### History and selection
+
+**WRK-R187.** Runtime indexes the persisted events of the invocation into
+ordered complete groups: one plain model event, or one function-call event
+with exactly the function responses that answer its call identifiers. Events
+authored by the user or Runtime are not history. A duplicate, partial or
+error event, a branch or isolation scope, native ADK compaction, a new call
+before the previous group is answered, a response to an unknown call or plain
+content inside an open group makes the history unsafe; a checkpoint is then
+refused with `worker_compaction_failed` and its cause. Each group is
+projected once, off the event loop, with the terminal summarizer projection
+(WRK-R146, WRK-R147): credentials and private endpoints redacted, part bounds
+applied, and a Skill tool response (`list_skills`, `load_skill`,
+`load_skill_resource`) replaced by a fixed notice so history cannot bypass the
+Skill disclosure budget. A checkpoint selects the longest prefix of
+uncompacted groups that leaves the newest `keepRecentGroups` untouched and
+fits the compactor input bound. Bounds and their outcomes
+(`worker_context_limit_exceeded` unless stated):
+
+- at most `maxCompactions` checkpoints per invocation (LIM-WFL-9) and 32 per
+  allocation (LIM-WRK-30);
+- the protected recent groups at most 128 KiB (LIM-WRK-31);
+- the compactor input document at most 8 MiB (LIM-WRK-32), failing only when
+  not even one eligible group fits;
+- the retained history of an invocation at most 4,096 groups (LIM-WRK-35)
+  and 32 MiB (LIM-WRK-34);
+- no eligible group at all is `worker_compaction_failed` with cause
+  `ineffective`.
+
+**WRK-R188.** With `includeReasoning: true`, each projected group keeps the
+tagged provider-reasoning parts of WRK-R181 and WRK-R182, and the compactor
+instruction receives the fixed clause of WRK-R183. Evidence is selected first:
+reasoning bytes do not count against LIM-WRK-31, the input bound reserves
+LIM-WRK-29 for reasoning, and reasoning is admitted newest group first within
+that budget. The checkpoint header then carries `reasoningTruncated`, true
+when any reasoning was omitted or cut. With `includeReasoning: false`,
+reasoning is neither retained nor sent. The main model never sees reasoning
+from compacted or retained groups.
+
+#### Output and commit
+
+**WRK-R189.** The compactor's only output is a strict object with one
+non-blank `summary` string. Empty or thought-only output, invalid JSON or
+members, a summary above 16 KiB of UTF-8 (LIM-WRK-33), a summary not smaller
+than the evidence bytes it replaces, a response that reached its output
+limit, and a summary exposing a credential or private endpoint value each
+return `worker_compaction_failed` with a bounded cause. The new summary
+replaces the previous one; the compactor receives the previous summary in its
+input.
+
+**WRK-R190.** A valid summary is committed by appending one marker event to
+the ADK session: a Runtime-authored event whose metadata records only the
+generation and the first and last compacted group, never summary text. Before
+appending, Runtime rechecks that the history has not changed since the
+selection. When the append fails, Runtime re-reads the session once: an
+exactly equal stored marker counts as committed; no stored marker returns
+`worker_compaction_failed` (`marker_not_committed`) without further effect; a
+conflicting marker or an unreadable session fences the allocation's session
+lifecycle and returns `worker_compaction_failed` (`marker_unverified`). The
+checkpoint becomes visible to the Worker only after the commit. Runtime never
+appends a second marker for the same checkpoint.
+
+#### Continuation
+
+**WRK-R191.** A compacted Worker has one extra read-only tool,
+`read_context_history(group, position)`. It returns compacted groups of the
+current invocation only, marked as historical data: whole groups as projected
+JSON while they fit one page of 32 KiB and 8 groups (LIM-WRK-36), otherwise
+one bounded fragment of one group with its position, a completion flag and
+the next position. A group outside the compacted range, a position that is not
+a returned continuation, or a call from another invocation is a tool input
+error. The tool returns the same redacted projection the compactor saw, without
+reasoning unless it was selected, and with the Skill notice in place of Skill
+content.
+
+**WRK-R192.** After a commit, the same logical invocation continues in a new
+SDK turn. Each main model request is projected by exact event identity: one
+leading user content holding the subtask prompt, the checkpoint summary
+labelled as model-written historical data with unverified references, and a
+continuation hint, followed by the retained uncompacted events with thought
+parts removed. Markers and compacted events are omitted; an unknown event in
+the session returns `worker_compaction_failed` (`foreign_event`). The
+continuation keeps the invocation's deadline, budgets, tool history,
+observations and artifact authority. A valid result after compaction is an
+ordinary `WorkerResult` with `summarized: false`, finalized as usual
+(WRK-R46).
+
+**WRK-R193.** When the first main response after a commit still reports a
+prompt at or above the boundary, Runtime stops with
+`worker_compaction_failed` (`ineffective`) instead of starting another
+checkpoint.
+
+#### Failures and lifecycle
+
+**WRK-R194.** Compaction failures use two codes. `worker_compaction_failed`
+covers unsafe history, compactor provider and output failures, stale
+selections and marker commit outcomes; it is retryable except when it wraps a
+permanent Gateway failure, whose retryability it preserves (FAIL-WRK-8).
+`worker_context_limit_exceeded` covers the bounds of WRK-R187 and is not
+retryable, because a new attempt would reach the same bound. Messages carry
+only the bounded cause, never content.
+
+**WRK-R195.** Checkpoint state (archived group projections, summary, markers
+known to the invocation and selection cursors) lives only in the allocation's
+memory for the active invocation and is cleared when it ends; only the
+allocation-wide checkpoint count survives until release (LIFE-WRK-6).
+Besides the session's own events, which are not copied, one invocation holds
+at most the retained projection (LIM-WRK-34), one compactor input document
+under construction (LIM-WRK-32, built off the event loop, with at most one
+reasoning-free copy of a selected group at a time), one summary (LIM-WRK-33)
+and one history page (LIM-WRK-36). A history page addresses its first group
+by ordinal and serializes at most one page, so a read never rescans the
+archive. Successful and failed checkpoints are reported through the span
+below and the `context_compactor` model phase; richer counters are not part
+of this version. The
+session itself, including markers, follows LIFE-WRK-2. A checkpoint is
+semantic work: it runs only inside the active invocation, checks the deadline
+and cancellation before the compactor call and before the commit, and never
+runs during finalize, abort, report collection or release. Cancellation
+before the commit leaves no marker and no visible checkpoint
+(FAIL-WRK-8). Each checkpoint emits one `contractor.worker.context_compaction`
+span with the generation, outcome and bounded cause.
+
 ## Interfaces
 
 ### A2A Worker completion
@@ -1585,6 +1755,15 @@ Limits ([registry](../platform/limits.md)):
   (WRK-R182).
 - LIM-WRK-29: serialized provider reasoning per consumer input document
   64 KiB (WRK-R182).
+- LIM-WRK-30: 32 committed compactions per allocation (WRK-R187).
+- LIM-WRK-31: protected recent groups 128 KiB (WRK-R187).
+- LIM-WRK-32: compactor input document 8 MiB (WRK-R187).
+- LIM-WRK-33: compactor summary 16 KiB (WRK-R189).
+- LIM-WRK-34: retained history 32 MiB per invocation (WRK-R187).
+- LIM-WRK-35: retained history 4,096 groups per invocation (WRK-R187).
+- LIM-WRK-36: `read_context_history` page 32 KiB and 8 groups (WRK-R191).
+- Used here, owned by Workflows: LIM-WFL-9 to LIM-WFL-12 (`compact@1`
+  members, WFL-R91).
 
 Errors ([registry](../platform/errors.md)):
 
@@ -1599,6 +1778,8 @@ Errors ([registry](../platform/errors.md)):
   `worker_budget_exhausted` and domain and runtime failures
   (WRK-R57 to WRK-R61);
 - `worker_summarization_failed` (WRK-R152);
+- `worker_compaction_failed` and `worker_context_limit_exceeded`
+  (WRK-R194);
 - `worker_session_lifecycle_failed` and its bounded history causes
   (WRK-R177);
 - `tool_call_not_executed`, `tool_call_cancelled` and
@@ -1624,6 +1805,8 @@ Failure outcomes ([failure model](../platform/failure-model.md)):
   (WRK-R152, WRK-R156).
 - FAIL-WRK-7: interrupted tool-history reconciliation and settlement
   (WRK-R174 to WRK-R177).
+- FAIL-WRK-8: one context checkpoint: compactor call and marker commit
+  (WRK-R186, WRK-R189, WRK-R190, WRK-R195).
 
 Lifecycle ([registry](../platform/lifecycle.md)):
 
@@ -1636,6 +1819,7 @@ Lifecycle ([registry](../platform/lifecycle.md)):
 - LIFE-WRK-4: summarizer input and output (WRK-R154).
 - LIFE-WRK-5: the transient interrupted-history ledger and SDK turn
   identities (WRK-R175, WRK-R177).
+- LIFE-WRK-6: compaction checkpoint state of one invocation (WRK-R195).
 
 ## Security
 
@@ -1670,6 +1854,8 @@ mTLS peer identity itself is owned by [Security](../platform/security.md).
   WRK-R138.
 - Summarizer State and the `ExecutionMetrics` summarizer aggregate:
   WRK-R108, WRK-R155.
+- Context compaction: the `contractor.worker.context_compaction` span and the
+  `model.phase=context_compactor` span (WRK-R186, WRK-R195).
 
 Metrics and OTLP conventions shared by every component are owned by
 [Observability](../platform/observability.md).
@@ -1759,10 +1945,12 @@ These properties follow from the cited requirements, which are authoritative.
 - User-defined observation reducers or YAML A/B profiles.
 - Exact byte or range coverage, and claims that static-analysis scanning equals
   model-visible file reading.
-- Context compaction: Google ADK has experimental compaction machinery, but
-  Contractor neither enables nor wraps it. ADK `EventsCompactionConfig` and
-  continuing after compaction are not supported; an explicit future compaction
-  strategy is separate from the terminal path.
+- ADK native compaction: Contractor neither enables nor wraps ADK
+  `EventsCompactionConfig`, token-triggered or post-invocation compaction, or
+  SDK resumability. `compact@1` (WRK-R184) is Runtime-owned, selected by a
+  Workflow binding and separate from the terminal path; compaction of shared
+  sessions, of Audit completion Workers, cumulative-spend triggers and durable
+  checkpoint recovery after a process restart are not supported.
 - Rolling, hierarchical, extractive and artifact-backed summarization
   strategies; introducing one requires an explicit discriminator rather than
   changing `terminal@1` semantics.

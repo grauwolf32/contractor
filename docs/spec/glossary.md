@@ -236,7 +236,7 @@ Terms used across the specification. Each entry names the document that owns the
 
 **Context boundary** — The prompt-token boundary `min(floor(contextWindowTokens * contextWindowRatio), contextWindowTokens - maxOutputTokens)` at which an enabled summarizer is requested. Owner: [Worker](execution/worker.md).
 
-**Context compaction** — Rewriting older conversation events so the same Worker can continue using tools, which Contractor does not enable. Owner: [Worker](execution/worker.md).
+**Context compaction** — Replacing the oldest complete history groups of an isolated Worker invocation with one Runtime-committed summary so the same Worker can continue using tools; selected per Workflow binding as `compact@1`. Owner: [Worker](execution/worker.md).
 
 **Contractor v2** — An Application Security orchestration platform in which Workflows define reusable security checks and supporting analyses, and Audits coordinate WorkflowRuns into Project-bound assessments with shared scope, evidence, findings, coverage and review. Owner: [System overview](overview.md).
 

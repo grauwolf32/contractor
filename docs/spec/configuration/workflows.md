@@ -351,6 +351,71 @@ Namespaces of specialized namespace-bound toolsets within one Stage, with
 deliberate reuse by a later Stage ([ART-R29](../artifacts/artifact-store.md)),
 are owned by the Artifact store.
 
+### Worker context management
+
+**WFL-R90.** Each object-valued Agent binding has one closed
+`contextManagement` selection: `template@1`, which keeps exactly what the
+AgentTemplate defines (its terminal summarizer or none), or `compact@1`, which
+lets an isolated Worker compress old history and continue the same subtask.
+Omitting the member in authored YAML normalizes to `{strategy: template@1}`.
+Resolved bindings, Workflow and Stage snapshots, AuditProfile-embedded
+Workflows and the public Workflow read model always carry the explicit
+strategy; snapshot readers never infer it, and a snapshot without it is
+invalid (no legacy reader). `template@1` has no other member.
+
+```yaml
+agents:
+  analyst:
+    template: workspace_taint_analyst@3
+    contextManagement:
+      strategy: compact@1
+      modelPolicy: compactor@1
+      instructions:
+        ref: instructions/worker-compaction.md
+      includeReasoning: false
+      contextWindowRatio: 0.75   # default
+      keepRecentGroups: 4        # default
+      maxCompactions: 8          # default
+```
+
+**WFL-R91.** `compact@1` requires an exact compactor `modelPolicy`
+selector, an `instructions.ref` resource and an explicit YAML boolean
+`includeReasoning`; a quoted or otherwise textual value is invalid.
+`contextWindowRatio` (LIM-WFL-11), `keepRecentGroups` (LIM-WFL-10) and
+`maxCompactions` (LIM-WFL-9) default during resolution and are explicit
+afterwards. The compactor policy is one tool-free consumer: it requires
+`contextWindowTokens`, `maxOutputTokens`, `maxModelCalls: 1` and a finite
+`maxTotalTokens`, and it rejects `maxToolCalls` and `maxWorkerCalls`. The
+instruction text is non-blank and at most 8,000 Unicode characters
+(LIM-WFL-12). The effective Worker ModelPolicy must define
+`contextWindowTokens` and `maxOutputTokens`. A `compact@1` binding wholly
+replaces the template summarizer, its instructions, ratio and
+`cumulativeBudget` for that binding only; the AgentTemplate and its digest do
+not change.
+
+**WFL-R92.** Configuration resolution rejects `compact@1`, instead of
+falling back to terminal summarization, for: a model-free (`tool@1`) template;
+a Stage with `session: shared` (until shared compaction is specified); a
+template that selects `audit-results@2` or a binding used for Audit completion
+(until Audit completion compaction is specified); a Stage that declares
+`on.summarized`; and an effective `workers.summarizerModelPolicy` selection,
+which would have no consumer. The same combinations are rejected when a
+persisted snapshot is read and when an allocation is admitted
+([WRK-R184](../execution/worker.md)).
+
+**WFL-R93.** Resolution pins the compactor policy body, the instruction
+ref, digest and text and every resolved member into the Workflow, Run, Stage
+and allocation snapshots. Deployment model selection does not retarget the
+pinned compactor policy. A changed policy or instruction text therefore
+changes the Workflow digest, and an AuditProfile embedding the Workflow reports
+it like any other pinned dependency.
+
+**WFL-R94.** What the Worker does with a `compact@1` selection is owned by
+[WRK-R184 to WRK-R195](../execution/worker.md). A continuation that ends in
+a valid result is an ordinary Stage result with `summarized: false`;
+`compact@1` never produces a summary artifact, a `summarized` outcome or a
+Planner handoff.
+
 ### Worker session policy
 
 **WFL-R27.** Each Stage has one Worker `session` policy shared by all of
@@ -739,7 +804,7 @@ Stage fields:
 | `instructions.ref` | Planner instruction resource | WFL-R19 |
 | `planner` | Exact Planner factory selector | WFL-R14; [Planners](../execution/planners.md) |
 | `session` | `isolated` or `shared` | WFL-R27 to WFL-R34 |
-| `agents` | Logical Agent name to `{template, namespace?}` | WFL-R22 to WFL-R26 |
+| `agents` | Logical Agent name to `{template, namespace?, contextManagement?}` | WFL-R22 to WFL-R26, WFL-R90 to WFL-R94 |
 | `context.artifacts` | Stage-local name to `{namespace, name, required}` | WFL-R59, WFL-R60 |
 | `context.workspace` | Workspace hydration | [Workspace](../tools/workspace.md) |
 | `result.artifacts` | Stage-local result name to slot contract plus `from` (omitted only by a workspace export slot) | WFL-R61 to WFL-R65 |
@@ -784,6 +849,13 @@ Limits ([registry](../platform/limits.md)):
 - LIM-WFL-7 — ArtifactRefs bound per slot: at most 1 (WFL-R57).
 - LIM-WFL-8 — Stage and logical Agent names: at most 128 characters in the
   shared name grammar (WFL-R84).
+- LIM-WFL-9 — `compact@1` `maxCompactions`: 1 to 16 per Worker invocation,
+  default 8 (WFL-R91).
+- LIM-WFL-10 — `compact@1` `keepRecentGroups`: 1 to 16, default 4 (WFL-R91).
+- LIM-WFL-11 — `compact@1` `contextWindowRatio`: strictly between 0 and 1,
+  default 0.75 (WFL-R91).
+- LIM-WFL-12 — `compact@1` instruction text: non-blank, at most 8,000 Unicode
+  characters (WFL-R91).
 - Used here, owned elsewhere: LIM-ART-2 (media type length), LIM-SCH-5
   (escalation `maxAttempts`), LIM-WSP-1 to LIM-WSP-3 (workspace sources and
   targets).

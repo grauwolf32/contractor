@@ -752,7 +752,11 @@ native dispatch, a Runtime-owned ADK callback computes and atomically reserves
 a deterministic conservative charge no smaller than the complete model-visible
 result; UTF-8 structured envelopes include descriptions and frontmatter. A
 binary asset reserves only its bounded text status and envelope, since its
-bytes are never model-visible.
+bytes are never model-visible. Context compaction cannot bypass the budget:
+the compactor input and `read_context_history` replace the result of every
+Skill tool call with a fixed notice ([WRK-R187, WRK-R191](../execution/worker.md)),
+so a Worker that needs the content again calls the Skill tool again and
+reserves again (SKL-R99).
 
 **SKL-R99.** Repeated calls reserve again; reservations are not
 refunded when native dispatch later returns an error (FAIL-SKL-5).

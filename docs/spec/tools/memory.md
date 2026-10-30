@@ -150,7 +150,10 @@ and model-tool wrapper over those artifacts.
 **MEM-R2.** Memory is coordination state, not hidden prompt
 context. No note is injected automatically into a Planner or Worker
 conversation; a participant sees a note only by calling an explicitly selected
-MemoryTools operation.
+MemoryTools operation. A `compact@1` checkpoint summary
+([WRK-R192](../execution/worker.md)) may restate notes the same Worker
+invocation already read through these tools; the compactor has no
+MemoryTools and adds no other note.
 
 ### Toolset and selection
 

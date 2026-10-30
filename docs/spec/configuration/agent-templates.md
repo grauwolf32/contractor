@@ -1002,7 +1002,10 @@ cumulative trigger, and is invalid for a Planner or model-free Worker. Omission
 uses the template's summary policy unless a canonical deployment role default
 applies. Run and escalation overrides follow TPL-R79 and TPL-R80. Credential
 model authorization checks both effective main and summary policies. The
-AgentTemplate body and its digest remain unchanged.
+AgentTemplate body and its digest remain unchanged. A Workflow binding that
+selects `compact@1` replaces the template summarizer for that binding
+([WFL-R91](workflows.md)), so a `summarizerModelPolicy` selection for it is
+rejected ([WFL-R92](workflows.md)).
 
 **TPL-R113.** Run history and consumer projections expose the stored requested
 model aliases and exact policy refs/digests for main and explicitly resolved
