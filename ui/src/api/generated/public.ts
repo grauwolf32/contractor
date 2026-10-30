@@ -3704,6 +3704,8 @@ export interface components {
             importedAt: string;
             analysis?: components["schemas"]["GitAnalysis"];
         };
+        /** @description An unencrypted SSH private key in a form that golang.org/x/crypto/ssh parses, at most 32 KiB of UTF-8 (LIM-GIT-3). */
+        GitPrivateKey: string;
         GitImportRequest: {
             repositoryUrl: string;
             /**
@@ -4452,13 +4454,17 @@ export interface components {
             entryIds: string[];
             evidenceContract: components["schemas"]["AuditStandardEvidenceOrigin"];
         };
+        /** @description The logical key of one committed Audit receipt link, at most 512 UTF-8 bytes (LIM-AUD-39). */
+        AuditArtifactKey: string;
+        /** @description The subject key of an Audit item, at most 512 UTF-8 bytes (LIM-AUD-40). */
+        AuditSubjectKey: string;
         AuditItem: {
             itemId: components["schemas"]["ResourceId"];
             roundId: components["schemas"]["ResourceId"];
             itemKey: string;
             ordinal: number;
             kind: string;
-            subjectKey: string;
+            subjectKey: components["schemas"]["AuditSubjectKey"];
             task: components["schemas"]["AuditExactArtifact"];
             origin: components["schemas"]["AuditItemOrigin"];
             workflowRole: components["schemas"]["ArtifactName"];
@@ -4526,7 +4532,7 @@ export interface components {
             itemId: components["schemas"]["ResourceId"];
             ordinal: number;
             itemKey: string;
-            subjectKey: string;
+            subjectKey: components["schemas"]["AuditSubjectKey"];
             coverage: components["schemas"]["AuditCoverage"];
             details?: components["schemas"]["AuditCoverageDetails"];
             result?: components["schemas"]["AuditExactArtifact"];
@@ -5122,6 +5128,8 @@ export interface components {
         InstructionPath: string;
         Digest: string;
         Revision: string;
+        /** @description A relative path of one archive member, at most 1,024 UTF-8 bytes (LIM-API-27). */
+        ArchiveFilePath: string;
         ArtifactName: string;
         MediaType: "*/*" | string;
         /**
@@ -5520,16 +5528,18 @@ export interface components {
             /** Format: uri */
             proxyUrl: string;
             credential?: components["schemas"]["RuntimeCredentialId"];
-            caBundlePem?: string;
+            caBundlePem?: components["schemas"]["CABundlePEM"];
             targets: ("llm-gateway" | "tool-http" | "tool-subprocess")[];
         };
+        /** @description One to eight PEM CERTIFICATE blocks (RCF-R86, LIM-RCF-11). The grammar is ASCII, so maxLength counts bytes. */
+        CABundlePEM: string;
         RuntimeCaidoConfig: {
             /** @constant */
             adapter: "caido-graphql@1";
             /** Format: uri */
             endpoint: string;
             credential?: components["schemas"]["RuntimeCredentialId"];
-            caBundlePem?: string;
+            caBundlePem?: components["schemas"]["CABundlePEM"];
             requestTimeoutSeconds?: number;
         };
         RuntimeInteractshConfig: {
@@ -5538,7 +5548,7 @@ export interface components {
             /** Format: uri */
             endpoint: string;
             credential?: components["schemas"]["RuntimeCredentialId"];
-            caBundlePem?: string;
+            caBundlePem?: components["schemas"]["CABundlePEM"];
             requestTimeoutSeconds?: number;
         };
         RuntimeLLMGatewayAuthorPatch: {
@@ -9278,7 +9288,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
-                    privateKey: string;
+                    privateKey: components["schemas"]["GitPrivateKey"];
                 };
             };
         };
@@ -9916,7 +9926,7 @@ export interface operations {
         parameters: {
             query: {
                 revision: components["schemas"]["Revision"];
-                path: string;
+                path: components["schemas"]["ArchiveFilePath"];
             };
             header?: never;
             path: {
@@ -10714,7 +10724,7 @@ export interface operations {
                 cursor?: components["parameters"]["Cursor"];
                 round?: components["schemas"]["ResourceId"];
                 state?: components["schemas"]["AuditItemState"];
-                subject?: string;
+                subject?: components["schemas"]["AuditSubjectKey"];
             };
             header?: never;
             path: {
@@ -10781,8 +10791,8 @@ export interface operations {
     getAuditArtifact: {
         parameters: {
             query: {
-                key: string;
-                revision: string;
+                key: components["schemas"]["AuditArtifactKey"];
+                revision: components["schemas"]["Revision"];
                 member?: string;
             };
             header?: never;
@@ -11894,7 +11904,7 @@ export interface operations {
         parameters: {
             query: {
                 revision: components["schemas"]["Revision"];
-                path: string;
+                path: components["schemas"]["ArchiveFilePath"];
             };
             header?: never;
             path: {
@@ -12153,7 +12163,7 @@ export interface operations {
         parameters: {
             query: {
                 revision: components["schemas"]["Revision"];
-                path: string;
+                path: components["schemas"]["ArchiveFilePath"];
             };
             header?: never;
             path: {

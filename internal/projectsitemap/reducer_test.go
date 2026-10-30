@@ -91,37 +91,51 @@ func TestSharedProjectSitemapCases(t *testing.T) {
 	}
 }
 
+// TestSharedSitemapTextBoundsCountUTF8Bytes checks every shared sitemap byte
+// bound with each shared character at and one byte over it. A URL's run sits
+// in its fragment, which projection drops before the canonical URL is
+// checked, so only the raw 8 KiB bound (LIM-SMT-2) applies to it.
 func TestSharedSitemapTextBoundsCountUTF8Bytes(t *testing.T) {
 	characters, fields := contractstest.ReadUTF8ByteBoundCases(t)
+	bounds := map[string]int{"LIM-SMT-2": MaxMemberKeyBytes, "LIM-SMT-6": MaxNoteBytes, "LIM-SMT-11": MaxTagBytes, "LIM-SMT-16": MaxPointerBytes}
 	checked := map[string]bool{}
 	for _, field := range fields {
-		if !strings.HasPrefix(field.Schema, "Sitemap") {
+		bound, owned := bounds[field.Rule]
+		if !owned {
 			continue
-		}
-		bound := MaxTagBytes
-		if field.Rule == "LIM-SMT-6" {
-			bound = MaxNoteBytes
 		}
 		if bound != field.MaxBytes {
 			t.Fatalf("shared bound drift: %+v", field)
 		}
 		checked[field.Rule] = true
-		for _, value := range field.Values(characters) {
+		values := field.Values(characters)
+		if field.Rule == "LIM-SMT-2" {
+			values = field.EmbeddedValues(characters, "https://example.test/#", "")
+		}
+		for _, value := range values {
 			var err error
-			if field.Rule == "LIM-SMT-6" {
+			switch field.Rule {
+			case "LIM-SMT-2":
+				_, _, _, err = projectURL(value.Value)
+			case "LIM-SMT-6":
 				_, err = projectAnnotation(value.Value, nil, Authority{})
-			} else {
+			case "LIM-SMT-11":
 				_, err = projectAnnotation("", []string{value.Value}, Authority{})
+			case "LIM-SMT-16":
+				err = validateRule(Rule{
+					SourceID: "owner", Origin: "https://example.test", Method: "GET", Path: "/items",
+					Pointer: value.Value, Parameters: []string{}, Structural: []StructuralParameter{},
+				})
 			}
 			// Metadata is retained within its UTF-8 byte limit; over-bound
 			// metadata remains a permanent error.
 			if (err == nil) != value.Within {
-				t.Fatalf("%s %s of %d bytes: %v", field.Schema, field.Rule, len(value.Value), err)
+				t.Fatalf("%s %s of %d bytes of %q: %v", field.Schema, field.Rule, len(value.Value), value.Character, err)
 			}
 		}
 	}
-	if len(checked) != 2 {
-		t.Fatal("shared sitemap text rules are incomplete")
+	if len(checked) != len(bounds) {
+		t.Fatalf("shared sitemap byte bounds checked: %v", checked)
 	}
 }
 

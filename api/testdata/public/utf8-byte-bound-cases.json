@@ -1,5 +1,5 @@
 {
-  "description": "Public strings that the Server bounds in UTF-8 bytes rather than in characters. Each OpenAPI schema below declares its bound as x-max-utf8-bytes next to an equal maxLength (in code points, which no longer binds first); rule names the limits.md entry. A reader builds, for each character, the string of exactly maxBytes bytes (the character repeated, padded with a) and that string plus one a: the first is within the bound and the second is not. Go checks the declarations and each owning validator; the UI checks src/api/contract.ts stringRule.",
+  "description": "Public strings that the Server bounds in UTF-8 bytes rather than in characters. Each OpenAPI component schema below, at path (empty for the component itself), declares its bound as x-max-utf8-bytes next to an equal maxLength (in code points, which no longer binds first); rule names the limits.md entry. A reader builds, for each character, the string of exactly maxBytes bytes (the character repeated, padded with a) and that string plus one a: the first is within the bound and the second is not. An owner whose value has structure (a URL, an SSH key, a sitemap rule) embeds the character run in an otherwise valid value of the same byte length. Go checks the declarations and each owning validator; the UI checks src/api/contract.ts stringRule. Every other public request string with a maxLength declares an ASCII-only grammar, under which maxLength counts bytes, or is listed in internal/httpapi/public/utf8_byte_bounds_test.go with the reason its Server bound is not a byte bound.",
   "characters": [
     "a",
     "é",
@@ -283,6 +283,134 @@
       ],
       "maxBytes": 64,
       "rule": "LIM-SMT-11"
+    },
+    {
+      "schema": "GitImportRequest",
+      "path": [
+        "properties",
+        "ref"
+      ],
+      "maxBytes": 1024,
+      "rule": "LIM-GIT-22"
+    },
+    {
+      "schema": "GitImportRequest",
+      "path": [
+        "properties",
+        "repositoryUrl"
+      ],
+      "maxBytes": 4096,
+      "rule": "LIM-GIT-23"
+    },
+    {
+      "schema": "GitPrivateKey",
+      "path": [],
+      "maxBytes": 32768,
+      "rule": "LIM-GIT-3"
+    },
+    {
+      "schema": "GatewayFailureSignature",
+      "path": [
+        "properties",
+        "messageEquals"
+      ],
+      "maxBytes": 512,
+      "rule": "LIM-RCF-1"
+    },
+    {
+      "schema": "GatewayFailureSignature",
+      "path": [
+        "properties",
+        "litellmWrapped"
+      ],
+      "maxBytes": 512,
+      "rule": "LIM-RCF-1"
+    },
+    {
+      "schema": "BasicCredentialUsername",
+      "path": [],
+      "maxBytes": 256,
+      "rule": "LIM-RCF-23"
+    },
+    {
+      "schema": "BasicCredentialPassword",
+      "path": [],
+      "maxBytes": 8192,
+      "rule": "LIM-RCF-23"
+    },
+    {
+      "schema": "CreateScanSweepRequest",
+      "path": [
+        "properties",
+        "parameters",
+        "propertyNames"
+      ],
+      "maxBytes": 128,
+      "rule": "LIM-SCN-94"
+    },
+    {
+      "schema": "CreateScanSweepRequest",
+      "path": [
+        "properties",
+        "parameters",
+        "additionalProperties"
+      ],
+      "maxBytes": 2048,
+      "rule": "LIM-SCN-94"
+    },
+    {
+      "schema": "ArchiveFilePath",
+      "path": [],
+      "maxBytes": 1024,
+      "rule": "LIM-API-27"
+    },
+    {
+      "schema": "AuditArtifactKey",
+      "path": [],
+      "maxBytes": 512,
+      "rule": "LIM-AUD-39"
+    },
+    {
+      "schema": "AuditSubjectKey",
+      "path": [],
+      "maxBytes": 512,
+      "rule": "LIM-AUD-40"
+    },
+    {
+      "schema": "SitemapMutation",
+      "path": [
+        "properties",
+        "url"
+      ],
+      "maxBytes": 8192,
+      "rule": "LIM-SMT-2"
+    },
+    {
+      "schema": "SitemapEditorRule",
+      "path": [
+        "properties",
+        "pointer"
+      ],
+      "maxBytes": 2048,
+      "rule": "LIM-SMT-16"
+    },
+    {
+      "schema": "SitemapRule",
+      "path": [
+        "properties",
+        "pointer"
+      ],
+      "maxBytes": 2048,
+      "rule": "LIM-SMT-16"
+    },
+    {
+      "schema": "SitemapDeclaration",
+      "path": [
+        "properties",
+        "pointer"
+      ],
+      "maxBytes": 2048,
+      "rule": "LIM-SMT-16"
     }
   ]
 }

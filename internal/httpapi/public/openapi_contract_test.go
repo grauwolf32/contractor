@@ -114,6 +114,10 @@ func TestPublicOpenAPIContractIsValidAndPolicySafe(t *testing.T) {
 	assertClosedObjectSchemas(t, source, "$")
 	assertSafePublicSchemaFields(t, source, "$")
 	assertExamplesContainNoSecrets(t, source, "$")
+	gitKeyBody := document.Paths.Value("/v1/settings/git-key").Put.RequestBody.Value.Content["application/json"].Schema.Value
+	if privateKey := gitKeyBody.Properties["privateKey"]; privateKey == nil || privateKey.Value == nil || !privateKey.Value.WriteOnly {
+		t.Error("Git private key must be write-only")
+	}
 	for _, violation := range enumTypeViolations(source, "$") {
 		t.Error(violation)
 	}
@@ -1117,10 +1121,8 @@ func assertSafePublicSchemaFields(t *testing.T, value any, path string) {
 		if properties, ok := current["properties"].(map[string]any); ok {
 			for name := range properties {
 				if name == "privateKey" && path == "$/paths//v1/settings/git-key/put/requestBody/content/application/json/schema" {
-					schema, ok := properties[name].(map[string]any)
-					if !ok || schema["writeOnly"] != true {
-						t.Error("Git private key must be write-only")
-					}
+					// The Git key body is the one place a private key enters;
+					// the test above holds its schema write-only.
 					continue
 				}
 				if _, rejected := forbidden[strings.ToLower(name)]; rejected {

@@ -82,7 +82,8 @@ paths:
           "schema": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 8192,
+            "pattern": "^[A-Za-z0-9_-]+$"
           }
         },
         {
@@ -215,7 +216,8 @@ paths:
           "schema": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 8192,
+            "pattern": "^[A-Za-z0-9_-]+$"
           }
         }
       ],
@@ -463,7 +465,8 @@ paths:
           "schema": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 8192,
+            "pattern": "^[A-Za-z0-9_-]+$"
           }
         }
       ],
@@ -689,7 +692,8 @@ paths:
           "schema": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 8192,
+            "pattern": "^[A-Za-z0-9_-]+$"
           }
         },
         {
@@ -1405,7 +1409,8 @@ paths:
           "schema": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 8192,
+            "pattern": "^[A-Za-z0-9_-]+$"
           }
         },
         {
@@ -1447,7 +1452,8 @@ paths:
           "schema": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 8192,
+            "pattern": "^[A-Za-z0-9_-]+$"
           }
         },
         {
@@ -2088,7 +2094,8 @@ paths:
           "schema": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 8192,
+            "pattern": "^[A-Za-z0-9_-]+$"
           }
         }
       ],
@@ -2325,7 +2332,8 @@ paths:
           "schema": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 8192,
+            "pattern": "^[A-Za-z0-9_-]+$"
           }
         },
         {
@@ -2367,7 +2375,8 @@ paths:
           "schema": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 8192,
+            "pattern": "^[A-Za-z0-9_-]+$"
           }
         },
         {
@@ -2625,7 +2634,8 @@ paths:
           "schema": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 8192
+            "maxLength": 8192,
+            "pattern": "^[A-Za-z0-9_-]+$"
           }
         },
         {
@@ -3109,7 +3119,7 @@ paths:
               additionalProperties: false
               required: [privateKey]
               properties:
-                privateKey: {type: string, minLength: 1, maxLength: 32768, writeOnly: true}
+                privateKey: {$ref: '#/components/schemas/GitPrivateKey'}
       responses:
         '200': {$ref: '#/components/responses/GitKeyState'}
         '400': {$ref: '#/components/responses/BadRequest'}
@@ -3659,7 +3669,7 @@ paths:
         - name: path
           in: query
           required: true
-          schema: {type: string, minLength: 1, maxLength: 1024}
+          schema: {$ref: '#/components/schemas/ArchiveFilePath'}
       responses:
         '200':
           description: Complete text of the selected file
@@ -4314,7 +4324,7 @@ paths:
         - name: subject
           in: query
           required: false
-          schema: {type: string, minLength: 1, maxLength: 512}
+          schema: {$ref: '#/components/schemas/AuditSubjectKey'}
       responses:
         '200':
           description: Stable item page after filters
@@ -4369,9 +4379,9 @@ paths:
       tags: [Audits]
       summary: Download one exact committed Audit receipt artifact or package member
       parameters:
-        - {name: key, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 512}}
-        - {name: revision, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 256}}
-        - {name: member, in: query, required: false, schema: {type: string, minLength: 1, maxLength: 128}}
+        - {name: key, in: query, required: true, schema: {$ref: '#/components/schemas/AuditArtifactKey'}}
+        - {name: revision, in: query, required: true, schema: {$ref: '#/components/schemas/Revision'}}
+        - {name: member, in: query, required: false, schema: {type: string, minLength: 1, maxLength: 128, pattern: '^[A-Za-z0-9][A-Za-z0-9._:-]*$'}}
       responses:
         '200': {$ref: '#/components/responses/ArtifactBytes'}
         '400': {$ref: '#/components/responses/BadRequest'}
@@ -5308,7 +5318,7 @@ paths:
         - name: path
           in: query
           required: true
-          schema: {type: string, minLength: 1, maxLength: 1024}
+          schema: {$ref: '#/components/schemas/ArchiveFilePath'}
       responses:
         '200':
           description: Complete text of the selected file
@@ -5537,7 +5547,7 @@ paths:
         - name: path
           in: query
           required: true
-          schema: {type: string, minLength: 1, maxLength: 1024}
+          schema: {$ref: '#/components/schemas/ArchiveFilePath'}
       responses:
         '200':
           description: Complete text of the selected file
@@ -6561,6 +6571,7 @@ paths:
           type: string
           minLength: 1
           maxLength: 1024
+          pattern: '^[A-Za-z0-9_-]+$'
       - name: scope
         in: query
         required: false
@@ -7125,7 +7136,7 @@ components:
       name: cursor
       in: query
       required: false
-      schema: {type: string, minLength: 1, maxLength: 512}
+      schema: {type: string, minLength: 1, maxLength: 512, pattern: '^[A-Za-z0-9_-]+$'}
     CatalogQuery:
       name: q
       in: query
@@ -7716,7 +7727,8 @@ components:
           $ref: '#/components/schemas/SitemapProvenance'
         pointer:
           type: string
-          maxLength: 8192
+          maxLength: 2048
+          x-max-utf8-bytes: 2048
         parameters:
           type: array
           maxItems: 100
@@ -7770,7 +7782,8 @@ components:
           maxLength: 8192
         pointer:
           type: string
-          maxLength: 8192
+          maxLength: 2048
+          x-max-utf8-bytes: 2048
         parameters:
           type: array
           maxItems: 100
@@ -7894,6 +7907,7 @@ components:
         url:
           type: string
           maxLength: 8192
+          x-max-utf8-bytes: 8192
         method:
           type: string
           pattern: ^[A-Z]{1,16}$
@@ -7903,7 +7917,8 @@ components:
           maxItems: 64
           items:
             type: string
-            maxLength: 8192
+            maxLength: 64
+            pattern: ^[0-9a-f]{64}$
         note:
           type: string
           maxLength: 4096
@@ -7955,7 +7970,8 @@ components:
           maxLength: 8192
         pointer:
           type: string
-          maxLength: 8192
+          maxLength: 2048
+          x-max-utf8-bytes: 2048
         parameters:
           type: array
           maxItems: 100
@@ -8020,9 +8036,11 @@ components:
         parameters:
           type: object
           maxProperties: 32
+          propertyNames: {type: string, maxLength: 128, x-max-utf8-bytes: 128}
           additionalProperties:
             type: string
             maxLength: 2048
+            x-max-utf8-bytes: 2048
         rulepack:
           $ref: '#/components/schemas/ExactArtifactRef'
     ScanSweep:
@@ -12837,14 +12855,21 @@ components:
         resolvedCommit: {type: string, pattern: '^[0-9a-f]{40}$'}
         importedAt: {type: string, format: date-time}
         analysis: {$ref: '#/components/schemas/GitAnalysis'}
+    GitPrivateKey:
+      type: string
+      minLength: 1
+      maxLength: 32768
+      x-max-utf8-bytes: 32768
+      writeOnly: true
+      description: An unencrypted SSH private key in a form that golang.org/x/crypto/ssh parses, at most 32 KiB of UTF-8 (LIM-GIT-3).
     GitImportRequest:
       type: object
       additionalProperties: false
       required: [repositoryUrl]
       properties:
-        repositoryUrl: {type: string, minLength: 1, maxLength: 4096}
+        repositoryUrl: {type: string, minLength: 1, maxLength: 4096, x-max-utf8-bytes: 4096}
         mode: {type: string, enum: [snapshot, analysis], default: snapshot}
-        ref: {type: string, minLength: 1, maxLength: 1024}
+        ref: {type: string, minLength: 1, maxLength: 1024, x-max-utf8-bytes: 1024}
     GitImportResult:
       type: object
       additionalProperties: false
@@ -13934,6 +13959,18 @@ components:
           uniqueItems: true
           items: {type: string, minLength: 1, maxLength: 128}
         evidenceContract: {$ref: '#/components/schemas/AuditStandardEvidenceOrigin'}
+    AuditArtifactKey:
+      type: string
+      minLength: 1
+      maxLength: 512
+      x-max-utf8-bytes: 512
+      description: The logical key of one committed Audit receipt link, at most 512 UTF-8 bytes (LIM-AUD-39).
+    AuditSubjectKey:
+      type: string
+      minLength: 1
+      maxLength: 512
+      x-max-utf8-bytes: 512
+      description: The subject key of an Audit item, at most 512 UTF-8 bytes (LIM-AUD-40).
     AuditItem:
       type: object
       additionalProperties: false
@@ -13944,7 +13981,7 @@ components:
         itemKey: {type: string, minLength: 1, maxLength: 256}
         ordinal: {type: integer, minimum: 0, maximum: 9999}
         kind: {type: string, minLength: 1, maxLength: 128}
-        subjectKey: {type: string, minLength: 1, maxLength: 512}
+        subjectKey: {$ref: '#/components/schemas/AuditSubjectKey'}
         task: {$ref: '#/components/schemas/AuditExactArtifact'}
         origin: {$ref: '#/components/schemas/AuditItemOrigin'}
         workflowRole: {$ref: '#/components/schemas/ArtifactName'}
@@ -14027,7 +14064,7 @@ components:
         itemId: {$ref: '#/components/schemas/ResourceId'}
         ordinal: {type: integer, minimum: 0, maximum: 9999}
         itemKey: {type: string, minLength: 1, maxLength: 256}
-        subjectKey: {type: string, minLength: 1, maxLength: 512}
+        subjectKey: {$ref: '#/components/schemas/AuditSubjectKey'}
         coverage: {$ref: '#/components/schemas/AuditCoverage'}
         details: {$ref: '#/components/schemas/AuditCoverageDetails'}
         result: {$ref: '#/components/schemas/AuditExactArtifact'}
@@ -14859,6 +14896,12 @@ components:
       minLength: 1
       maxLength: 256
       pattern: '^[A-Za-z0-9][A-Za-z0-9_.:-]*$'
+    ArchiveFilePath:
+      type: string
+      minLength: 1
+      maxLength: 1024
+      x-max-utf8-bytes: 1024
+      description: A relative path of one archive member, at most 1,024 UTF-8 bytes (LIM-API-27).
     ArtifactName:
       type: string
       minLength: 1
@@ -15444,13 +15487,19 @@ components:
         proxyUrl: {type: string, format: uri, minLength: 8, maxLength: 2048}
         credential:
           $ref: '#/components/schemas/RuntimeCredentialId'
-        caBundlePem: {type: string, minLength: 1, maxLength: 65536}
+        caBundlePem: {$ref: '#/components/schemas/CABundlePEM'}
         targets:
           type: array
           minItems: 1
           maxItems: 128
           uniqueItems: true
           items: {type: string, enum: [llm-gateway, tool-http, tool-subprocess]}
+    CABundlePEM:
+      type: string
+      minLength: 1
+      maxLength: 65536
+      pattern: '^[\t\n\f\r\x20-\x7E]+$'
+      description: One to eight PEM CERTIFICATE blocks (RCF-R86, LIM-RCF-11). The grammar is ASCII, so maxLength counts bytes.
     RuntimeCaidoConfig:
       type: object
       additionalProperties: false
@@ -15460,7 +15509,7 @@ components:
         endpoint: {type: string, format: uri, minLength: 8, maxLength: 2048}
         credential:
           $ref: '#/components/schemas/RuntimeCredentialId'
-        caBundlePem: {type: string, minLength: 1, maxLength: 65536}
+        caBundlePem: {$ref: '#/components/schemas/CABundlePEM'}
         requestTimeoutSeconds: {type: integer, minimum: 1, maximum: 120}
     RuntimeInteractshConfig:
       type: object
@@ -15471,7 +15520,7 @@ components:
         endpoint: {type: string, format: uri, minLength: 8, maxLength: 2048}
         credential:
           $ref: '#/components/schemas/RuntimeCredentialId'
-        caBundlePem: {type: string, minLength: 1, maxLength: 65536}
+        caBundlePem: {$ref: '#/components/schemas/CABundlePEM'}
         requestTimeoutSeconds: {type: integer, minimum: 1, maximum: 120}
     RuntimeLLMGatewayAuthorPatch:
       type: object
@@ -15653,7 +15702,7 @@ components:
           type: object
           minProperties: 1
           maxProperties: 32
-          propertyNames: {type: string, minLength: 1, maxLength: 64}
+          propertyNames: {type: string, minLength: 1, maxLength: 64, pattern: "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"}
           additionalProperties:
             type: string
             minLength: 1
@@ -15707,12 +15756,14 @@ components:
       type: string
       minLength: 1
       maxLength: 256
+      x-max-utf8-bytes: 256
       pattern: '^[^\x00-\x1F\x7F:]+$'
       description: The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
     BasicCredentialPassword:
       type: string
       minLength: 1
       maxLength: 8192
+      x-max-utf8-bytes: 8192
       pattern: '^[^\x00-\x1F\x7F]+$'
       writeOnly: true
       description: The password of a Basic credential, at most 8,192 UTF-8 bytes without control characters (RCF-R114).
@@ -16695,8 +16746,8 @@ components:
         - required: [litellmWrapped]
       properties:
         status: {type: integer, enum: [400, 404, 409, 422]}
-        messageEquals: {type: string, minLength: 1, maxLength: 512}
-        litellmWrapped: {type: string, minLength: 1, maxLength: 512}
+        messageEquals: {type: string, minLength: 1, maxLength: 512, x-max-utf8-bytes: 512}
+        litellmWrapped: {type: string, minLength: 1, maxLength: 512, x-max-utf8-bytes: 512}
     GatewayFailureSignatures:
       type: object
       description: >-

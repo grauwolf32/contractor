@@ -31,7 +31,12 @@ const (
 	// MaxStopReasonMessageBytes bounds a stop reason message, as the
 	// audits_stop_reason_message_check constraint does.
 	MaxStopReasonMessageBytes = 4 << 10
-	ItemOriginSchema          = auditdomain.ItemOriginSchema
+	// MaxArtifactLogicalKeyBytes bounds the logical key of an Audit receipt
+	// link (LIM-AUD-39) and MaxSubjectKeyBytes the subject key of an Audit
+	// item (LIM-AUD-40), both in UTF-8 bytes as the public schemas declare.
+	MaxArtifactLogicalKeyBytes = 512
+	MaxSubjectKeyBytes         = 512
+	ItemOriginSchema           = auditdomain.ItemOriginSchema
 )
 
 type AuditState string

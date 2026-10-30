@@ -24,9 +24,12 @@ const (
 	RuntimeCredentialSchemaVersion = "contractor.runtime-credentials/v1"
 	MaximumRuntimePlaintextBytes   = 32 * 1024
 	MaximumRuntimeSecretBytes      = 8 * 1024
-	MaximumOTLPHeaderValueBytes    = 4 * 1024
-	MaximumOTLPHeaderValuesBytes   = 16 * 1024
-	MaximumOTLPHeaders             = 32
+	// MaximumBasicUsernameBytes bounds a Basic credential username
+	// (LIM-RCF-23); its password is bounded by MaximumRuntimeSecretBytes.
+	MaximumBasicUsernameBytes    = 256
+	MaximumOTLPHeaderValueBytes  = 4 * 1024
+	MaximumOTLPHeaderValuesBytes = 16 * 1024
+	MaximumOTLPHeaders           = 32
 	// Supplied cookies fit the existing encrypted plaintext envelope.
 	MaximumTargetCookies     = 128
 	MaximumTargetCookieBytes = 16 * 1024
@@ -100,7 +103,7 @@ func NewOTLPHeadersCredential(headers map[string]string) (RuntimeCredentialMater
 }
 
 func NewHTTPProxyBasicCredential(username, password string) (RuntimeCredentialMaterial, error) {
-	if !validBoundedSecret(username, 256) || !validBoundedSecret(password, MaximumRuntimeSecretBytes) || strings.Contains(username, ":") {
+	if !validBoundedSecret(username, MaximumBasicUsernameBytes) || !validBoundedSecret(password, MaximumRuntimeSecretBytes) || strings.Contains(username, ":") {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("HTTP proxy basic credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialProxyBasic, struct {
@@ -137,7 +140,7 @@ func NewInteractshTokenCredential(token string) (RuntimeCredentialMaterial, erro
 }
 
 func NewHTTPOriginBasicCredential(username, password string) (RuntimeCredentialMaterial, error) {
-	if !validBoundedSecret(username, 256) || !validBoundedSecret(password, MaximumRuntimeSecretBytes) || strings.Contains(username, ":") {
+	if !validBoundedSecret(username, MaximumBasicUsernameBytes) || !validBoundedSecret(password, MaximumRuntimeSecretBytes) || strings.Contains(username, ":") {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("HTTP origin basic credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialOriginBasic, struct {
@@ -158,7 +161,7 @@ func NewHTTPOriginBearerCredential(token string) (RuntimeCredentialMaterial, err
 // NewTargetBasicCredential is a pentest target identity's Basic pair. It
 // keeps the HTTP origin Basic bounds (RCF-R114).
 func NewTargetBasicCredential(username, password string) (RuntimeCredentialMaterial, error) {
-	if !validBoundedSecret(username, 256) || !validBoundedSecret(password, MaximumRuntimeSecretBytes) || strings.Contains(username, ":") {
+	if !validBoundedSecret(username, MaximumBasicUsernameBytes) || !validBoundedSecret(password, MaximumRuntimeSecretBytes) || strings.Contains(username, ":") {
 		return RuntimeCredentialMaterial{}, runtimeInvalid("Target basic credential is invalid")
 	}
 	return newRuntimeCredentialMaterial(RuntimeCredentialTargetBasic, struct {

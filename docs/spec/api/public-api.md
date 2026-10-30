@@ -257,7 +257,24 @@ Server bounds in UTF-8 bytes declares that bound as `x-max-utf8-bytes` next to
 an equal `maxLength`, so text outside ASCII reaches the byte bound first: Run
 cancellation reasons (LIM-RUN-10), Project names and descriptions (LIM-PRJ-3,
 LIM-PRJ-5), Audit scope fields (LIM-AUD-29), review rationales (LIM-REV-11),
-Run metadata label values (LIM-RUN-5) and the login password (LIM-SEC-7).
+Run metadata label values (LIM-RUN-5), the login password (LIM-SEC-7), Git
+import refs and repository URLs (LIM-GIT-22, LIM-GIT-23), the Git SSH key
+(LIM-GIT-3), Gateway failure signature texts (LIM-RCF-1), Basic credentials
+(LIM-RCF-23), scan sweep parameters (LIM-SCN-94), archive file paths
+(LIM-API-27), Audit artifact keys and item subject keys (LIM-AUD-39,
+LIM-AUD-40), sitemap mutation URLs (LIM-SMT-2) and sitemap rule pointers
+(LIM-SMT-16). Every other request string with a `maxLength`, in a body or a
+parameter, either declares an ASCII-only grammar (a `pattern`, or `format: uri`
+for an RFC 3986 URI), under which `maxLength` counts bytes, or is one the
+Server does not reject for its UTF-8 size: one it bounds in code points, such as
+a credential label or a catalog search, or a lookup value it only compares.
+Server-issued opaque values declare their ASCII grammar: sealed cursors and
+Eval bin tokens are unpadded base64url, and Artifact revisions, Audit package
+member IDs and sitemap member IDs keep their identifier grammars. A Run label
+selector `key=value` and a sitemap rule origin and path keep a code-point
+`maxLength`, because their parts are bounded separately (the label key by its
+ASCII grammar and the value by LIM-RUN-5; origin and path together by
+LIM-SMT-2), which one string schema cannot express.
 
 **API-R5.** An Artifact over its 64 MiB limit
 ([ART-R65](../artifacts/artifact-store.md),

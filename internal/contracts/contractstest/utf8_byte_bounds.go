@@ -9,8 +9,9 @@ import (
 )
 
 // UTF8ByteBound is one public string of api/testdata/public/utf8-byte-bound-cases.json:
-// the OpenAPI schema and path that declare it, its bound in UTF-8 bytes and
-// the limits.md rule that owns the bound.
+// the OpenAPI component schema and the path below it that declare it (empty
+// for the component itself), its bound in UTF-8 bytes and the limits.md rule
+// that owns the bound.
 type UTF8ByteBound struct {
 	Schema   string   `json:"schema"`
 	Path     []string `json:"path"`
@@ -30,12 +31,21 @@ type UTF8ByteBoundValue struct {
 // bytes (the character repeated, padded with "a") and the same string with
 // one more "a".
 func (b UTF8ByteBound) Values(characters []string) []UTF8ByteBoundValue {
+	return b.EmbeddedValues(characters, "", "")
+}
+
+// EmbeddedValues is Values for a value with structure, such as a URL or an
+// SSH key: the run of each character fills the bytes between prefix and
+// suffix, so the value is exactly MaxBytes bytes, and the value one byte
+// over the bound has one more "a" at the end of the run.
+func (b UTF8ByteBound) EmbeddedValues(characters []string, prefix, suffix string) []UTF8ByteBoundValue {
 	values := make([]UTF8ByteBoundValue, 0, 2*len(characters))
+	room := b.MaxBytes - len(prefix) - len(suffix)
 	for _, character := range characters {
-		at := strings.Repeat(character, b.MaxBytes/len(character)) + strings.Repeat("a", b.MaxBytes%len(character))
+		run := strings.Repeat(character, room/len(character)) + strings.Repeat("a", room%len(character))
 		values = append(values,
-			UTF8ByteBoundValue{Character: character, Value: at, Within: true},
-			UTF8ByteBoundValue{Character: character, Value: at + "a", Within: false},
+			UTF8ByteBoundValue{Character: character, Value: prefix + run + suffix, Within: true},
+			UTF8ByteBoundValue{Character: character, Value: prefix + run + "a" + suffix, Within: false},
 		)
 	}
 	return values
@@ -71,7 +81,7 @@ func ReadUTF8ByteBoundCases(t testing.TB) ([]string, []UTF8ByteBound) {
 		t.Fatal("utf8-byte-bound-cases.json needs characters of different UTF-8 widths")
 	}
 	for _, field := range fixture.Fields {
-		if field.Schema == "" || len(field.Path) == 0 || field.MaxBytes <= 0 || field.Rule == "" {
+		if field.Schema == "" || field.Path == nil || field.MaxBytes <= 0 || field.Rule == "" {
 			t.Fatalf("incomplete UTF-8 byte bound %+v", field)
 		}
 	}
