@@ -5,7 +5,7 @@ milestone: review-v407-v409-followups-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on:
   - V414-001
   - V414-002
@@ -113,6 +113,17 @@ context:
     V414-032 at the user's request. Defects and gaps found by the delivery
     lanes themselves were filed as V414-034 to V414-039 on 2026-10-25 at the
     user's request, to be fixed before the next delivery wave.
+    Recorded on 2026-10-30 when the last V414 dependencies closed:
+    (1) owned by V425-015 (generic-plan budgets for every listed statement);
+    (2) V414-032 is completed; (3) V372-020 is completed and registered the
+    Planner, Worker-invocation and Stage failure codes (planner_cancelled,
+    planner_initialization_failed, planner_session_invalid and
+    worker_task_failed now have errors.md rows); the two Runtime allocation
+    codes it did not cover are owned by V425-008; (4) unchanged, closed;
+    (5) moot: V414-006 and V414-008 are both completed; (6) owned by
+    V425-016, whose decision_needed asks the user to choose a bound with a
+    metric or a metric only, both with batched deletion; (7) owned by
+    V425-017.
 scope:
   in:
     - "Reconcile every V414 dependency: completed with its implementation_commit and moved to tasks/done/, or archived by the user's decision with the reason, the evidence and its removal from depends_on in the same metadata change. Archived or deferred tasks never count as completed."
