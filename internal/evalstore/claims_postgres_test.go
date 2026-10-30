@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 func TestPostgresClaimSkipsIdlePausedAndFindsActionableWork(t *testing.T) {
@@ -92,25 +94,23 @@ func TestPostgresClaimPlanSkipsRetainedTerminalExperiments(t *testing.T) {
 	pool := testPool(t)
 	scope := setupProject(t, pool, "claim-plan-owner", "claim-plan-project")
 	ctx := t.Context()
-	_, err := pool.Exec(ctx, `
+	seedWithoutStatementTimeout(ctx, t, pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `
 INSERT INTO eval_experiments
   (experiment_id,owner_id,project_id,portable_id,control_mode,name,state,max_in_flight,wall_ms)
 SELECT 'finished-'||n, $1, $2, 'finished-'||n, 'external', 'finished fixture', 'finished', 1, 1000
-FROM generate_series(1,20000) AS n`, scope.OwnerID, scope.ProjectID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = pool.Exec(ctx, `INSERT INTO eval_experiments
+FROM generate_series(1,20000) AS n`, scope.OwnerID, scope.ProjectID); err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO eval_experiments
   (experiment_id,owner_id,project_id,portable_id,control_mode,name,state,max_in_flight,wall_ms)
-VALUES ('running-one',$1,$2,'running-one','external','running fixture','running',1,1000)`, scope.OwnerID, scope.ProjectID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = pool.Exec(ctx, `INSERT INTO eval_controller_claims(experiment_id)
+VALUES ('running-one',$1,$2,'running-one','external','running fixture','running',1,1000)`, scope.OwnerID, scope.ProjectID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO eval_controller_claims(experiment_id)
 SELECT experiment_id FROM eval_experiments`)
-	if err != nil {
-		t.Fatal(err)
-	}
+		return err
+	})
 	for _, table := range []string{"eval_experiments", "eval_controller_claims", "eval_commands", "eval_projection_queue"} {
 		if _, err := pool.Exec(ctx, "ANALYZE "+table); err != nil {
 			t.Fatal(err)

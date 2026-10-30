@@ -53,10 +53,11 @@ SELECT 'exp-records', m.member_id, kind, 'sha256:' || encode(sha256(record.docum
 
 // loadConsolidationFixture loads four evaluation Projects for each of three
 // owners, 20 dataset revisions in each Project and consolidationExperimentsSQL,
-// runs each statement in more, and analyzes the tables.
+// runs each statement in more, and analyzes the tables. The loads run without
+// the test pool's statement timeout.
 func loadConsolidationFixture(ctx context.Context, t *testing.T, pool *pgxpool.Pool, more ...func(pgx.Tx) error) {
 	t.Helper()
-	for _, statement := range []string{
+	statements := []string{
 		`INSERT INTO projects (project_id, owner_id, kind, name, request_idempotency_key, request_digest)
 SELECT 'project-' || o || '-' || p, 'owner-' || o, 'evaluation', 'Eval', 'create-' || p, 'sha256:' || repeat('a', 64)
   FROM generate_series(0, 2) AS o, generate_series(0, 3) AS p`,
@@ -64,15 +65,17 @@ SELECT 'project-' || o || '-' || p, 'owner-' || o, 'evaluation', 'Eval', 'create
 SELECT 'owner-' || o, 'project-' || o || '-' || p, 'dataset-' || d, '1', convert_to('{}', 'UTF8'), '{}'::jsonb
   FROM generate_series(0, 2) AS o, generate_series(0, 3) AS p, generate_series(0, 19) AS d`,
 		consolidationExperimentsSQL,
-	} {
-		if _, err := pool.Exec(ctx, statement); err != nil {
-			t.Fatal(err)
-		}
 	}
-	for _, load := range more {
-		if err := pgx.BeginFunc(ctx, pool, load); err != nil {
-			t.Fatal(err)
+	seedWithoutStatementTimeout(ctx, t, pool, func(tx pgx.Tx) error {
+		for _, statement := range statements {
+			if _, err := tx.Exec(ctx, statement); err != nil {
+				return err
+			}
 		}
+		return nil
+	})
+	for _, load := range more {
+		seedWithoutStatementTimeout(ctx, t, pool, load)
 	}
 	if _, err := pool.Exec(ctx, `VACUUM ANALYZE eval_experiments, eval_records, eval_collections, projects`); err != nil {
 		t.Fatal(err)

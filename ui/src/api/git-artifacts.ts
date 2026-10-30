@@ -1,5 +1,6 @@
 import type { PublicAPI } from "./client";
 import { ARTIFACT_NAME_PATTERN } from "./artifacts";
+import { stringRule } from "./contract";
 import { invalidAPIResponse, publicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 
@@ -10,6 +11,8 @@ export type GitImportMode = NonNullable<
 export type GitImportResult = components["schemas"]["GitImportResult"];
 export type GitSource = components["schemas"]["GitSource"];
 export const gitKeyQueryKey = ["settings", "git-key"] as const;
+/** The SSH key bound the Server applies, 32 KiB of UTF-8 (LIM-GIT-3). */
+export const GIT_PRIVATE_KEY = stringRule("GitPrivateKey");
 
 export async function getGitKey(
   api: PublicAPI,

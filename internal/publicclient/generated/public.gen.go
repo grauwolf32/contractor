@@ -6469,6 +6469,9 @@ type AllocationResourceSummaryReason string
 // AllocationResourceSummaryStatus defines model for AllocationResourceSummary.Status.
 type AllocationResourceSummaryStatus string
 
+// ArchiveFilePath A relative path of one archive member, at most 1,024 UTF-8 bytes (LIM-API-27).
+type ArchiveFilePath = string
+
 // ArgumentBinding defines model for ArgumentBinding.
 type ArgumentBinding struct {
 	union json.RawMessage
@@ -6764,6 +6767,9 @@ type AuditActor = string
 // AuditAnalystVerdict defines model for AuditAnalystVerdict.
 type AuditAnalystVerdict string
 
+// AuditArtifactKey The logical key of one committed Audit receipt link, at most 512 UTF-8 bytes (LIM-AUD-39).
+type AuditArtifactKey = string
+
 // AuditBaseline defines model for AuditBaseline.
 type AuditBaseline struct {
 	// ActiveChecks Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
@@ -6863,15 +6869,17 @@ type AuditCoveragePage struct {
 
 // AuditCoverageRow defines model for AuditCoverageRow.
 type AuditCoverageRow struct {
-	Coverage   AuditCoverage         `json:"coverage"`
-	Details    *AuditCoverageDetails `json:"details,omitempty"`
-	ItemId     ResourceId            `json:"itemId"`
-	ItemKey    string                `json:"itemKey"`
-	Ordinal    int                   `json:"ordinal"`
-	Result     *AuditExactArtifact   `json:"result,omitempty"`
-	RoundId    ResourceId            `json:"roundId"`
-	SubjectKey string                `json:"subjectKey"`
-	UpdatedAt  time.Time             `json:"updatedAt"`
+	Coverage AuditCoverage         `json:"coverage"`
+	Details  *AuditCoverageDetails `json:"details,omitempty"`
+	ItemId   ResourceId            `json:"itemId"`
+	ItemKey  string                `json:"itemKey"`
+	Ordinal  int                   `json:"ordinal"`
+	Result   *AuditExactArtifact   `json:"result,omitempty"`
+	RoundId  ResourceId            `json:"roundId"`
+
+	// SubjectKey The subject key of an Audit item, at most 512 UTF-8 bytes (LIM-AUD-40).
+	SubjectKey AuditSubjectKey `json:"subjectKey"`
+	UpdatedAt  time.Time       `json:"updatedAt"`
 }
 
 // AuditCoverageStatus defines model for AuditCoverageStatus.
@@ -7191,10 +7199,12 @@ type AuditItem struct {
 	Origin              AuditItemOrigin        `json:"origin"`
 	RoundId             ResourceId             `json:"roundId"`
 	State               AuditItemState         `json:"state"`
-	SubjectKey          string                 `json:"subjectKey"`
-	Task                AuditExactArtifact     `json:"task"`
-	UpdatedAt           time.Time              `json:"updatedAt"`
-	WorkflowRole        ArtifactName           `json:"workflowRole"`
+
+	// SubjectKey The subject key of an Audit item, at most 512 UTF-8 bytes (LIM-AUD-40).
+	SubjectKey   AuditSubjectKey    `json:"subjectKey"`
+	Task         AuditExactArtifact `json:"task"`
+	UpdatedAt    time.Time          `json:"updatedAt"`
+	WorkflowRole ArtifactName       `json:"workflowRole"`
 }
 
 // AuditItemApprovalKind defines model for AuditItemApprovalKind.
@@ -7775,6 +7785,9 @@ type AuditStopReason struct {
 	Message string `json:"message"`
 }
 
+// AuditSubjectKey The subject key of an Audit item, at most 512 UTF-8 bytes (LIM-AUD-40).
+type AuditSubjectKey = string
+
 // AuditTerminalOutcome defines model for AuditTerminalOutcome.
 type AuditTerminalOutcome string
 
@@ -7879,6 +7892,9 @@ type BasicCredentialPassword = string
 
 // BasicCredentialUsername The username of a Basic credential, at most 256 UTF-8 bytes without control characters or a colon (RCF-R114).
 type BasicCredentialUsername = string
+
+// CABundlePEM One to eight PEM CERTIFICATE blocks (RCF-R86, LIM-RCF-11). The grammar is ASCII, so maxLength counts bytes.
+type CABundlePEM = string
 
 // CaidoBearerMaterial defines model for CaidoBearerMaterial.
 type CaidoBearerMaterial struct {
@@ -10026,6 +10042,9 @@ type GitKeyState struct {
 	UpdatedAt   *time.Time `json:"updatedAt,omitempty"`
 }
 
+// GitPrivateKey An unencrypted SSH private key in a form that golang.org/x/crypto/ssh parses, at most 32 KiB of UTF-8 (LIM-GIT-3).
+type GitPrivateKey = string
+
 // GitSource defines model for GitSource.
 type GitSource struct {
 	Analysis       *GitAnalysis              `json:"analysis,omitempty"`
@@ -11131,11 +11150,13 @@ type RuntimeAgentPrincipalPage struct {
 
 // RuntimeCaidoConfig defines model for RuntimeCaidoConfig.
 type RuntimeCaidoConfig struct {
-	Adapter               RuntimeCaidoConfigAdapter `json:"adapter"`
-	CaBundlePem           *string                   `json:"caBundlePem,omitempty"`
-	Credential            *RuntimeCredentialId      `json:"credential,omitempty"`
-	Endpoint              string                    `json:"endpoint"`
-	RequestTimeoutSeconds *int                      `json:"requestTimeoutSeconds,omitempty"`
+	Adapter RuntimeCaidoConfigAdapter `json:"adapter"`
+
+	// CaBundlePem One to eight PEM CERTIFICATE blocks (RCF-R86, LIM-RCF-11). The grammar is ASCII, so maxLength counts bytes.
+	CaBundlePem           *CABundlePEM         `json:"caBundlePem,omitempty"`
+	Credential            *RuntimeCredentialId `json:"credential,omitempty"`
+	Endpoint              string               `json:"endpoint"`
+	RequestTimeoutSeconds *int                 `json:"requestTimeoutSeconds,omitempty"`
 }
 
 // RuntimeCaidoConfigAdapter defines model for RuntimeCaidoConfig.Adapter.
@@ -11295,8 +11316,10 @@ type RuntimeFieldOriginLayer string
 
 // RuntimeHTTPProxyConfig defines model for RuntimeHTTPProxyConfig.
 type RuntimeHTTPProxyConfig struct {
-	Adapter     RuntimeHTTPProxyConfigAdapter   `json:"adapter"`
-	CaBundlePem *string                         `json:"caBundlePem,omitempty"`
+	Adapter RuntimeHTTPProxyConfigAdapter `json:"adapter"`
+
+	// CaBundlePem One to eight PEM CERTIFICATE blocks (RCF-R86, LIM-RCF-11). The grammar is ASCII, so maxLength counts bytes.
+	CaBundlePem *CABundlePEM                    `json:"caBundlePem,omitempty"`
 	Credential  *RuntimeCredentialId            `json:"credential,omitempty"`
 	ProxyUrl    string                          `json:"proxyUrl"`
 	Targets     []RuntimeHTTPProxyConfigTargets `json:"targets"`
@@ -11313,11 +11336,13 @@ type RuntimeInfrastructureId = string
 
 // RuntimeInteractshConfig defines model for RuntimeInteractshConfig.
 type RuntimeInteractshConfig struct {
-	Adapter               RuntimeInteractshConfigAdapter `json:"adapter"`
-	CaBundlePem           *string                        `json:"caBundlePem,omitempty"`
-	Credential            *RuntimeCredentialId           `json:"credential,omitempty"`
-	Endpoint              string                         `json:"endpoint"`
-	RequestTimeoutSeconds *int                           `json:"requestTimeoutSeconds,omitempty"`
+	Adapter RuntimeInteractshConfigAdapter `json:"adapter"`
+
+	// CaBundlePem One to eight PEM CERTIFICATE blocks (RCF-R86, LIM-RCF-11). The grammar is ASCII, so maxLength counts bytes.
+	CaBundlePem           *CABundlePEM         `json:"caBundlePem,omitempty"`
+	Credential            *RuntimeCredentialId `json:"credential,omitempty"`
+	Endpoint              string               `json:"endpoint"`
+	RequestTimeoutSeconds *int                 `json:"requestTimeoutSeconds,omitempty"`
 }
 
 // RuntimeInteractshConfigAdapter defines model for RuntimeInteractshConfig.Adapter.
@@ -12486,8 +12511,8 @@ type GetArtifactArchiveParams struct {
 
 // GetArtifactArchiveFileParams defines parameters for GetArtifactArchiveFile.
 type GetArtifactArchiveFileParams struct {
-	Revision Revision `form:"revision" json:"revision"`
-	Path     string   `form:"path" json:"path"`
+	Revision Revision        `form:"revision" json:"revision"`
+	Path     ArchiveFilePath `form:"path" json:"path"`
 }
 
 // ImportGitArtifactParams defines parameters for ImportGitArtifact.
@@ -12555,9 +12580,9 @@ type DeleteAuditParams struct {
 
 // GetAuditArtifactParams defines parameters for GetAuditArtifact.
 type GetAuditArtifactParams struct {
-	Key      string  `form:"key" json:"key"`
-	Revision string  `form:"revision" json:"revision"`
-	Member   *string `form:"member,omitempty" json:"member,omitempty"`
+	Key      AuditArtifactKey `form:"key" json:"key"`
+	Revision Revision         `form:"revision" json:"revision"`
+	Member   *string          `form:"member,omitempty" json:"member,omitempty"`
 }
 
 // CancelAuditParams defines parameters for CancelAudit.
@@ -12663,11 +12688,11 @@ type CreateAuditFindingReviewParams struct {
 
 // ListAuditItemsParams defines parameters for ListAuditItems.
 type ListAuditItemsParams struct {
-	Limit   *Limit          `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor  *Cursor         `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Round   *ResourceId     `form:"round,omitempty" json:"round,omitempty"`
-	State   *AuditItemState `form:"state,omitempty" json:"state,omitempty"`
-	Subject *string         `form:"subject,omitempty" json:"subject,omitempty"`
+	Limit   *Limit           `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor  *Cursor          `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Round   *ResourceId      `form:"round,omitempty" json:"round,omitempty"`
+	State   *AuditItemState  `form:"state,omitempty" json:"state,omitempty"`
+	Subject *AuditSubjectKey `form:"subject,omitempty" json:"subject,omitempty"`
 }
 
 // PauseAuditParams defines parameters for PauseAudit.
@@ -13227,8 +13252,8 @@ type GetProjectArtifactArchiveParams struct {
 
 // GetProjectArtifactArchiveFileParams defines parameters for GetProjectArtifactArchiveFile.
 type GetProjectArtifactArchiveFileParams struct {
-	Revision Revision `form:"revision" json:"revision"`
-	Path     string   `form:"path" json:"path"`
+	Revision Revision        `form:"revision" json:"revision"`
+	Path     ArchiveFilePath `form:"path" json:"path"`
 }
 
 // ImportProjectGitArtifactParams defines parameters for ImportProjectGitArtifact.
@@ -13448,8 +13473,8 @@ type GetRunArtifactArchiveParams struct {
 
 // GetRunArtifactArchiveFileParams defines parameters for GetRunArtifactArchiveFile.
 type GetRunArtifactArchiveFileParams struct {
-	Revision Revision `form:"revision" json:"revision"`
-	Path     string   `form:"path" json:"path"`
+	Revision Revision        `form:"revision" json:"revision"`
+	Path     ArchiveFilePath `form:"path" json:"path"`
 }
 
 // GetRunArtifactLineageParams defines parameters for GetRunArtifactLineage.
@@ -13565,7 +13590,8 @@ type DeleteGitKeyParams struct {
 
 // ReplaceGitKeyJSONBody defines parameters for ReplaceGitKey.
 type ReplaceGitKeyJSONBody struct {
-	PrivateKey *string `json:"privateKey,omitempty"`
+	// PrivateKey An unencrypted SSH private key in a form that golang.org/x/crypto/ssh parses, at most 32 KiB of UTF-8 (LIM-GIT-3).
+	PrivateKey *GitPrivateKey `json:"privateKey,omitempty"`
 }
 
 // ReplaceGitKeyParams defines parameters for ReplaceGitKey.

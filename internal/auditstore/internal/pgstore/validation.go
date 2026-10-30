@@ -163,7 +163,7 @@ func validateListItems(params auditstore.ListItemsParams) error {
 		return invalidf("Audit item state is invalid")
 	}
 	if params.SubjectKey != nil {
-		if err := validateText("subjectKey", *params.SubjectKey, 512, true); err != nil {
+		if err := validateText("subjectKey", *params.SubjectKey, auditstore.MaxSubjectKeyBytes, true); err != nil {
 			return err
 		}
 	}
@@ -590,7 +590,7 @@ func validateRoundItems(items []auditstore.MaterializedItem) error {
 		if err := validateText("item kind", item.Kind, 128, true); err != nil {
 			return err
 		}
-		if err := validateText("item subject", item.SubjectKey, 512, true); err != nil {
+		if err := validateText("item subject", item.SubjectKey, auditstore.MaxSubjectKeyBytes, true); err != nil {
 			return err
 		}
 		if err := validateText("item Workflow role", item.WorkflowRole, 128, true); err != nil {
@@ -918,7 +918,7 @@ func validateArtifactLinks(links []auditstore.ArtifactLink) (int64, error) {
 	var retainedBytes int64
 	retainedArtifacts := make(map[string]struct{}, len(links))
 	for _, link := range links {
-		if err := validateText("artifact logical key", link.LogicalKey, 512, true); err != nil {
+		if err := validateText("artifact logical key", link.LogicalKey, auditstore.MaxArtifactLogicalKeyBytes, true); err != nil {
 			return 0, err
 		}
 		if _, duplicate := seenLinks[link.LogicalKey]; duplicate {

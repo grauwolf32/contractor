@@ -33,6 +33,14 @@ const MaxDecodedBytes = 256 << 20
 const maxAdvertisementBytes = 4 << 20
 const maxReferences = 100000
 
+// MaximumRemoteURLBytes bounds the repository URL as the caller sends it
+// (LIM-GIT-23), and MaximumRefBytes the requested branch or tag (LIM-GIT-22);
+// both count UTF-8 bytes, as the public schemas declare.
+const (
+	MaximumRemoteURLBytes = 4096
+	MaximumRefBytes       = 1024
+)
+
 var (
 	ErrURL         = apierror.New(apierror.GitURLInvalid, "invalid Git repository URL")
 	ErrRemote      = apierror.New(apierror.GitRemoteUnavailable, "Git repository is unavailable")
@@ -74,7 +82,7 @@ type Remote struct {
 var sshUserPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9_-]{0,63}$`)
 
 func ParseRemote(raw string) (Remote, error) {
-	if len(raw) == 0 || len(raw) > 4096 || strings.TrimSpace(raw) != raw || strings.ContainsAny(raw, "\x00\r\n\\") {
+	if len(raw) == 0 || len(raw) > MaximumRemoteURLBytes || strings.TrimSpace(raw) != raw || strings.ContainsAny(raw, "\x00\r\n\\") {
 		return Remote{}, ErrURL
 	}
 	if strings.HasPrefix(raw, "git@") && !strings.Contains(raw, "://") {
@@ -220,7 +228,7 @@ func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, mode Mode
 	if !c.Allowed(remote) {
 		return Snapshot{}, ErrDestination
 	}
-	if len(ref) > 1024 || strings.ContainsAny(ref, "\x00\r\n") {
+	if !validRef(ref) {
 		return Snapshot{}, ErrRef
 	}
 	var adv *packp.AdvRefs
@@ -592,4 +600,10 @@ func (c *wireBudgetConn) Read(p []byte) (int, error) {
 		c.exhausted.Store(true)
 	}
 	return n, err
+}
+
+// validRef reports whether a requested ref fits its byte bound and holds no
+// NUL or line break; an empty ref selects the remote default branch.
+func validRef(ref string) bool {
+	return len(ref) <= MaximumRefBytes && !strings.ContainsAny(ref, "\x00\r\n")
 }

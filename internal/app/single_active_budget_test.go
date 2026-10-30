@@ -442,13 +442,13 @@ func TestControlPlaneLeaseStartupStallEndsAtItsBudgetOwner(t *testing.T) {
 		// assertStartupEnd checks how startup ended after the step's owner,
 		// the configured budget or the caller, ended the stalled step with
 		// cause. A Server that stood by instead returns no lease once it is
-		// shut down; how it reports that shutdown is not a startup budget and
-		// is not asserted here.
+		// shut down and reports that shutdown as its context's cancellation,
+		// so the process exits without an error (FAIL-PER-2).
 		assertStartupEnd := func(t *testing.T, err error, cause error) {
 			t.Helper()
 			if stage.failure == "" {
-				if err == nil {
-					t.Fatal("a standing-by Server returned a lease after its shutdown")
+				if !errors.Is(err, context.Canceled) || strings.Contains(err.Error(), "readiness listener") {
+					t.Fatalf("standing-by Server shutdown = %v, want its context's cancellation", err)
 				}
 				return
 			}

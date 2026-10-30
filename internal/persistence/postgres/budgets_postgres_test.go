@@ -18,6 +18,45 @@ func smallDatabaseBudgets() Budgets {
 	return Budgets{100 * time.Millisecond, 500 * time.Millisecond, 300 * time.Millisecond, 75 * time.Millisecond, 200 * time.Millisecond}
 }
 
+// ordinaryWaitBudgets is the pool policy whose server-side budgets
+// TestPostgresOrdinaryWaitBudgetsAndRecovery proves by the SQLSTATE each one
+// raises. They are far apart, so machine load cannot change which budget ends
+// an operation: the lock timeout fires long before the statement timeout,
+// whose error reaches the client long before the client-side query timeout,
+// and a transaction is idle between its statements far less than the idle
+// timeout.
+func ordinaryWaitBudgets() Budgets {
+	return Budgets{
+		AcquireTimeout: 100 * time.Millisecond, QueryTimeout: time.Minute, StatementTimeout: time.Second,
+		LockTimeout: 75 * time.Millisecond, IdleTransactionTimeout: 2 * time.Second,
+	}
+}
+
+// clientBudgetOnly is a pool policy whose client-side query timeout is the
+// only budget a statement can reach once its transaction disables the
+// server's statement timeout.
+func clientBudgetOnly() Budgets {
+	return Budgets{
+		AcquireTimeout: 100 * time.Millisecond, QueryTimeout: 500 * time.Millisecond, StatementTimeout: 300 * time.Millisecond,
+		LockTimeout: 75 * time.Millisecond, IdleTransactionTimeout: 2 * time.Second,
+	}
+}
+
+// requireSessionBudgets checks the server-side budgets that db's session
+// applies.
+func requireSessionBudgets(t *testing.T, ctx context.Context, db DBTX, want Budgets) {
+	t.Helper()
+	var statement, lock, idle int64
+	if err := db.QueryRow(ctx, `SELECT (extract(epoch FROM current_setting('statement_timeout')::interval)*1000)::bigint,
+(extract(epoch FROM current_setting('lock_timeout')::interval)*1000)::bigint,
+(extract(epoch FROM current_setting('idle_in_transaction_session_timeout')::interval)*1000)::bigint`).Scan(&statement, &lock, &idle); err != nil {
+		t.Fatal(err)
+	}
+	if statement != want.StatementTimeout.Milliseconds() || lock != want.LockTimeout.Milliseconds() || idle != want.IdleTransactionTimeout.Milliseconds() {
+		t.Fatalf("settings=%d/%d/%d want %+v", statement, lock, idle, want)
+	}
+}
+
 func budgetTestDatabaseURL(t *testing.T) string {
 	t.Helper()
 	url := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
@@ -56,26 +95,26 @@ func budgetTestPool(t *testing.T, ctx context.Context, base *pgxpool.Pool, optio
 	return pool
 }
 
+// TestPostgresOrdinaryWaitBudgetsAndRecovery proves each ordinary budget by
+// the outcome only that budget produces, never by elapsed time: the pool's
+// session settings, the SQLSTATE of a server-side timeout, a client deadline
+// where the server's timeouts cannot fire, and a reaped idle transaction. Each
+// wait outlasts its budget, so a budget that does not apply fails the test;
+// go test -timeout bounds a wait that nothing ends.
 func TestPostgresOrdinaryWaitBudgetsAndRecovery(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
-	defer cancel()
+	ctx := t.Context()
 	base, _ := isolatedPools(t, ctx, budgetTestDatabaseURL(t))
 	var logs bytes.Buffer
-	pool := budgetTestPool(t, ctx, base, PoolOptions{MaxConnections: 1, Budgets: smallDatabaseBudgets(), Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+	pool := budgetTestPool(t, ctx, base, PoolOptions{MaxConnections: 1, Budgets: ordinaryWaitBudgets(), Logger: slog.New(slog.NewJSONHandler(&logs, nil))})
+	requireSessionBudgets(t, ctx, pool, ordinaryWaitBudgets())
 	if _, err := pool.Exec(ctx, `CREATE TABLE budget_rows (id integer PRIMARY KEY,value integer NOT NULL); INSERT INTO budget_rows VALUES(1,0)`); err != nil {
 		t.Fatal(err)
 	}
-	assertReusable := func() {
+	assertReusable := func(pool *pgxpool.Pool) {
 		t.Helper()
 		var value int
 		if err := pool.QueryRow(ctx, `SELECT value FROM budget_rows WHERE id=1`).Scan(&value); err != nil || value != 0 {
 			t.Fatalf("pool/rollback not reusable: value=%d error=%v", value, err)
-		}
-	}
-	assertBounded := func(start time.Time) {
-		t.Helper()
-		if time.Since(start) > 2*time.Second {
-			t.Fatalf("operation escaped its budget: %s", time.Since(start))
 		}
 	}
 	t.Run("exhausted-pool", func(t *testing.T) {
@@ -83,9 +122,7 @@ func TestPostgresOrdinaryWaitBudgetsAndRecovery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		start := time.Now()
 		_, err = pool.Exec(context.Background(), `SELECT 'secret-sql-argument'`)
-		assertBounded(start)
 		held.Release()
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("unbounded acquire cause: %v", err)
@@ -96,24 +133,22 @@ func TestPostgresOrdinaryWaitBudgetsAndRecovery(t *testing.T) {
 		if !strings.Contains(logs.String(), "PostgreSQL pool acquire pressure") || !strings.Contains(logs.String(), "acquired_connections") || strings.Contains(logs.String(), "secret") || strings.Contains(logs.String(), "postgres://") {
 			t.Fatalf("unsafe/missing pressure diagnostics: %s", logs.String())
 		}
-		assertReusable()
+		assertReusable(pool)
 	})
 	t.Run("statement-abort-no-retry", func(t *testing.T) {
 		calls := 0
-		start := time.Now()
 		err := InTxWithRetry(context.Background(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			calls++
 			if _, err := tx.Exec(context.Background(), `UPDATE budget_rows SET value=1`); err != nil {
 				return err
 			}
-			_, err := tx.Exec(context.Background(), `SELECT pg_sleep(3)`)
+			_, err := tx.Exec(context.Background(), `SELECT pg_sleep(30)`)
 			return err
 		})
-		assertBounded(start)
 		if SQLState(err) != SQLStateQueryCanceled || calls != 1 || IsTransactionConflict(err) {
 			t.Fatalf("statement timeout: state=%s attempts=%d error=%v", SQLState(err), calls, err)
 		}
-		assertReusable()
+		assertReusable(pool)
 	})
 	t.Run("row-lock-abort-no-retry", func(t *testing.T) {
 		locker, err := base.Begin(ctx)
@@ -124,39 +159,36 @@ func TestPostgresOrdinaryWaitBudgetsAndRecovery(t *testing.T) {
 		if _, err := locker.Exec(ctx, `SELECT 1 FROM budget_rows WHERE id=1 FOR UPDATE`); err != nil {
 			t.Fatal(err)
 		}
-		start := time.Now()
 		calls := 0
 		err = InTxWithRetry(context.Background(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			calls++
 			_, err := tx.Exec(context.Background(), `UPDATE budget_rows SET value=2 WHERE id=1`)
 			return err
 		})
-		assertBounded(start)
 		if SQLState(err) != SQLStateLockNotAvailable || calls != 1 || IsTransactionConflict(err) {
 			t.Fatalf("lock timeout: state=%s attempts=%d error=%v", SQLState(err), calls, err)
 		}
 		if err := locker.Rollback(ctx); err != nil {
 			t.Fatal(err)
 		}
-		assertReusable()
+		assertReusable(pool)
 	})
 	t.Run("client-budget-even-with-server-timeout-disabled", func(t *testing.T) {
-		start := time.Now()
-		err := InTx(context.Background(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		client := budgetTestPool(t, ctx, base, PoolOptions{MaxConnections: 1, Budgets: clientBudgetOnly()})
+		err := InTx(context.Background(), client, pgx.TxOptions{}, func(tx pgx.Tx) error {
 			if _, err := tx.Exec(context.Background(), `SET LOCAL statement_timeout=0`); err != nil {
 				return err
 			}
 			if _, err := tx.Exec(context.Background(), `UPDATE budget_rows SET value=3`); err != nil {
 				return err
 			}
-			_, err := tx.Exec(context.Background(), `SELECT pg_sleep(3)`)
+			_, err := tx.Exec(context.Background(), `SELECT pg_sleep(30)`)
 			return err
 		})
-		assertBounded(start)
 		if !errors.Is(err, context.DeadlineExceeded) || IsTransactionConflict(err) {
 			t.Fatalf("client timeout identity: %v", err)
 		}
-		assertReusable()
+		assertReusable(client)
 	})
 	t.Run("caller-cancellation-and-rollback", func(t *testing.T) {
 		short, cancel := context.WithTimeout(ctx, 50*time.Millisecond)
@@ -171,7 +203,7 @@ func TestPostgresOrdinaryWaitBudgetsAndRecovery(t *testing.T) {
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("caller cancellation lost: %v", err)
 		}
-		assertReusable()
+		assertReusable(pool)
 	})
 	t.Run("idle-transaction-is-reaped", func(t *testing.T) {
 		tx, err := pool.Begin(ctx)
@@ -183,8 +215,8 @@ func TestPostgresOrdinaryWaitBudgetsAndRecovery(t *testing.T) {
 		if _, err := tx.Exec(ctx, `UPDATE budget_rows SET value=5`); err != nil {
 			t.Fatal(err)
 		}
-		deadline := time.NewTimer(2 * time.Second)
-		defer deadline.Stop()
+		// Only the idle timeout ends this session; without it the loop
+		// waits for go test -timeout.
 		tick := time.NewTicker(10 * time.Millisecond)
 		defer tick.Stop()
 		for {
@@ -195,35 +227,21 @@ func TestPostgresOrdinaryWaitBudgetsAndRecovery(t *testing.T) {
 			if !exists {
 				break
 			}
-			select {
-			case <-deadline.C:
-				t.Fatal("idle transaction was not reaped")
-			case <-tick.C:
-			}
+			<-tick.C
 		}
 		_ = tx.Rollback(ctx)
-		assertReusable()
+		assertReusable(pool)
 	})
 }
 
+// TestPostgresMaintenanceBudgetsRestorePoolSettings proves the budgets
+// through session settings; go test -timeout bounds it, so applying every
+// migration takes as long as the machine needs.
 func TestPostgresMaintenanceBudgetsRestorePoolSettings(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
-	defer cancel()
+	ctx := t.Context()
 	base, _ := isolatedPools(t, ctx, budgetTestDatabaseURL(t))
 	pool := budgetTestPool(t, ctx, base, PoolOptions{MaxConnections: 1, Budgets: smallDatabaseBudgets()})
-	check := func(ctx context.Context, db DBTX, want Budgets) {
-		t.Helper()
-		var statement, lock, idle int64
-		if err := db.QueryRow(ctx, `SELECT (extract(epoch FROM current_setting('statement_timeout')::interval)*1000)::bigint,
-(extract(epoch FROM current_setting('lock_timeout')::interval)*1000)::bigint,
-(extract(epoch FROM current_setting('idle_in_transaction_session_timeout')::interval)*1000)::bigint`).Scan(&statement, &lock, &idle); err != nil {
-			t.Fatal(err)
-		}
-		if statement != want.StatementTimeout.Milliseconds() || lock != want.LockTimeout.Milliseconds() || idle != want.IdleTransactionTimeout.Milliseconds() {
-			t.Fatalf("settings=%d/%d/%d want %+v", statement, lock, idle, want)
-		}
-	}
-	check(ctx, pool, smallDatabaseBudgets())
+	requireSessionBudgets(t, ctx, pool, smallDatabaseBudgets())
 	migration := func(budgets MigrationBudgets) func(context.Context) (context.Context, context.CancelFunc) {
 		return func(ctx context.Context) (context.Context, context.CancelFunc) {
 			ctx, cancel, err := WithMigrationBudgets(ctx, budgets)
@@ -239,7 +257,7 @@ func TestPostgresMaintenanceBudgetsRestorePoolSettings(t *testing.T) {
 		for _, rollback := range []bool{false, true} {
 			maintenance, done := budget(ctx)
 			err := InTx(maintenance, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
-				check(maintenance, tx, maintenance.Value(maintenanceBudgetKey{}).(Budgets))
+				requireSessionBudgets(t, maintenance, tx, maintenance.Value(maintenanceBudgetKey{}).(Budgets))
 				if _, err := tx.Exec(maintenance, `SELECT pg_sleep(0.65)`); err != nil {
 					return err
 				}
@@ -252,7 +270,7 @@ func TestPostgresMaintenanceBudgetsRestorePoolSettings(t *testing.T) {
 			if (!rollback && err != nil) || (rollback && (err == nil || err.Error() != "injected rollback")) {
 				t.Fatalf("maintenance outcome: %v", err)
 			}
-			check(ctx, pool, smallDatabaseBudgets())
+			requireSessionBudgets(t, ctx, pool, smallDatabaseBudgets())
 		}
 	}
 	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
@@ -264,14 +282,23 @@ func TestPostgresMaintenanceBudgetsRestorePoolSettings(t *testing.T) {
 	if result, err := ApplyMigrations(ctx, pool, MigrationBudgets{StatementTimeout: 3 * time.Minute, LockTimeout: 20 * time.Second}); err != nil || len(result.AppliedVersions) != 0 {
 		t.Fatalf("migration replay: %+v %v", result, err)
 	}
-	check(ctx, pool, smallDatabaseBudgets())
+	requireSessionBudgets(t, ctx, pool, smallDatabaseBudgets())
 }
 
+// TestPostgresMigrationLockCancellationLeavesCapacityReusable cancels a
+// migrator once it is observed waiting for its leader, not after a timer, and
+// then applies every migration through the same one-connection pool; go test
+// -timeout bounds the test.
 func TestPostgresMigrationLockCancellationLeavesCapacityReusable(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
-	defer cancel()
+	ctx := t.Context()
 	base, _ := isolatedPools(t, ctx, budgetTestDatabaseURL(t))
 	pool := budgetTestPool(t, ctx, base, PoolOptions{MaxConnections: 1})
+	connection, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	migrator := int32(connection.Conn().PgConn().PID())
+	connection.Release()
 	locker, err := base.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -280,10 +307,16 @@ func TestPostgresMigrationLockCancellationLeavesCapacityReusable(t *testing.T) {
 	if _, err := locker.Exec(ctx, `SELECT pg_advisory_xact_lock(`+migrationLockKeySQL+`)`, migrationLockKey); err != nil {
 		t.Fatal(err)
 	}
-	short, stop := context.WithTimeout(ctx, 100*time.Millisecond)
-	_, err = ApplyMigrations(short, pool, MigrationBudgets{})
+	waiting, stop := context.WithCancel(ctx)
+	defer stop()
+	done := make(chan error, 1)
+	go func() {
+		_, err := ApplyMigrations(waiting, pool, MigrationBudgets{})
+		done <- err
+	}()
+	awaitMigrationLeaderPoll(t, ctx, base, migrator, done)
 	stop()
-	if !errors.Is(err, context.DeadlineExceeded) {
+	if err := <-done; !errors.Is(err, context.Canceled) {
 		t.Fatalf("migration lock cancellation: %v", err)
 	}
 	if err := locker.Rollback(ctx); err != nil {
@@ -291,6 +324,30 @@ func TestPostgresMigrationLockCancellationLeavesCapacityReusable(t *testing.T) {
 	}
 	if _, err := ApplyMigrations(ctx, pool, MigrationBudgets{}); err != nil {
 		t.Fatalf("migration after cancellation: %v", err)
+	}
+}
+
+// awaitMigrationLeaderPoll waits until the backend pid has polled for the
+// migration lock, which the test holds, so its migrator waits for a leader.
+func awaitMigrationLeaderPoll(t *testing.T, ctx context.Context, observer *pgxpool.Pool, pid int32, done <-chan error) {
+	t.Helper()
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		var polled bool
+		if err := observer.QueryRow(ctx, `
+SELECT coalesce(bool_or(query LIKE '%pg_try_advisory_xact_lock%'), false) FROM pg_stat_activity WHERE pid = $1`,
+			pid).Scan(&polled); err != nil {
+			t.Fatal(err)
+		}
+		if polled {
+			return
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("migrator stopped before it waited for its leader: %v", err)
+		case <-tick.C:
+		}
 	}
 }
 

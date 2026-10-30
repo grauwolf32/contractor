@@ -22,6 +22,7 @@ const (
 	MaxMemberKeyBytes        = 8 << 10
 	MaxExamples              = 8
 	MaxExampleBytes          = 2 << 10
+	MaxPointerBytes          = 2 << 10
 	MaxSummaries             = 16
 	MaxProvenance            = 8
 	MaxSources               = 128

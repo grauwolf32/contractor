@@ -449,6 +449,15 @@ Notes:
 - A table needs a named reader; a transaction-scoped lookup uses the
   transaction, never a second pool connection (nested acquisition deadlocked
   under `MaxConns=1`, V60-003, V60-015).
+- Every table and view has one owner package, the only one whose SQL writes
+  it (PER-R23); the registry is
+  `internal/persistence/table_ownership.txt`. A new or renamed table needs, in
+  the same change: its `[relations]` line (owner and ERD group), its row in
+  the "Table owners" table of `docs/spec/platform/persistence.md`, its entry in
+  `scripts/erd/meta.json`, and a page rebuilt with `make docs-erd`. Another
+  package's read needs a `[reads]` line with its reason; a write goes through
+  the owner's Go API. `make docs-erd` also runs whenever a package starts or
+  stops using a table, since the page lists the packages that use each one.
 
 ### Python Runtime
 

@@ -72,3 +72,21 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2, A3]
+decisions:
+  - >-
+    2026-10-30: the scan stays test code in internal/persistence; TestERDUsageMatchesTheSQLScan
+    (erd_usage_test.go) is both the source and the check. With CONTRACTOR_ERD_USAGE_OUT set
+    it writes the usage lists as JSON, which scripts/erd/build_erd.py runs it for; otherwise
+    it compares them with the page's data. make lint runs it with the variable emptied, and
+    scripts/check_release_verify_graph.py keeps it in the lint stage. Moving the scanner
+    into a non-test package for a command would have exported its types for one caller.
+  - >-
+    2026-10-30: a usage list is every package directory whose SQL the ownership scan sees
+    reading or writing the table (test helper packages such as
+    internal/auditstore/auditstoretest included, since the scan reads them), named as the
+    registry names it; the template no longer prefixes internal/. Access only through a
+    migration function or trigger is not listed: telling it needs the migrated bodies, so
+    neither build_erd.py nor make lint could do it without a database. Rebuilt page: only
+    the usage lists changed (projects loses cli, the prose finding, and credentials, which
+    V372-008 inverted). On b523ae77's page the check reports 72 tables, including cli for
+    projects.

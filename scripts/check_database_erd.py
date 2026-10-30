@@ -6,7 +6,9 @@ the tables of that schema. Without a database, this check requires that
 schemaVersion to be the newest migration and the page's tables to be exactly
 the tables the migrations leave behind after every CREATE TABLE, DROP TABLE
 and ALTER TABLE ... RENAME TO. Regenerate the page with make docs-erd (see
-scripts/erd/README.md); make lint runs this check.
+scripts/erd/README.md); make lint runs this check, and also
+TestERDUsageMatchesTheSQLScan of internal/persistence, which compares the
+page's usage lists with the table ownership scan.
 """
 
 import importlib.util

@@ -53,3 +53,37 @@ func TestSharedGrammarCases(t *testing.T) {
 		t.Fatalf("nine certificates error = %v, want ErrInvalid", err)
 	}
 }
+
+// TestSharedBundlesAreASCII pins the ASCII grammar that the public CABundlePEM
+// schema declares (LIM-RCF-11): a valid bundle with any shared non-ASCII
+// character before, inside or after its block is rejected, so maxLength
+// counts its bytes.
+func TestSharedBundlesAreASCII(t *testing.T) {
+	t.Parallel()
+	data := contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "ca-bundle-cases.json")
+	var cases struct {
+		Valid []struct {
+			Value string `json:"value"`
+		} `json:"valid"`
+	}
+	if err := json.Unmarshal(data, &cases); err != nil || len(cases.Valid) == 0 {
+		t.Fatalf("shared CA bundle cases: %v", err)
+	}
+	bundle := cases.Valid[0].Value
+	characters, _ := contractstest.ReadUTF8ByteBoundCases(t)
+	for _, character := range characters {
+		if len(character) == 1 {
+			continue
+		}
+		middle := strings.Index(bundle, "\n-----END")
+		for name, value := range map[string]string{
+			"before": character + "\n" + bundle,
+			"inside": bundle[:middle] + character + bundle[middle:],
+			"after":  bundle + character + "\n",
+		} {
+			if err := Validate(value); !errors.Is(err, ErrInvalid) {
+				t.Errorf("%q %s the block: error = %v, want ErrInvalid", character, name, err)
+			}
+		}
+	}
+}

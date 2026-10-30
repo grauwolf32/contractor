@@ -10,6 +10,7 @@ from dataclasses import replace
 
 import jcs
 import pytest
+from fakes.clock import advance_clock, run_with_advanceable_clock
 from test_artifacts import TIMESTAMP_HEADERS, json_response
 from test_audit_results_toolset import digest, fixture_batch_inputs, fixture_inputs
 
@@ -211,12 +212,24 @@ def test_actual_evidence_amplification_hits_collected_limit_without_large_indivi
 class ScriptedArtifactTransport:
     """Exercise real API CAS/receipt checks with controlled lost replies and fencing."""
 
-    def __init__(self, steps=(), *, existing=None, media_type="application/zip", on_io=None):
+    def __init__(
+        self,
+        steps=(),
+        *,
+        existing=None,
+        media_type="application/zip",
+        on_io=None,
+        hang_advances=None,
+    ):
         self.steps = list(steps)
         self.existing = existing
         self.media_type = media_type
         self.requests = []
         self.on_io = on_io
+        # With hang_advances, a hanging request moves the loop clock
+        # (fakes.clock) that far, so the timer that must end it fires at
+        # once, and fails the test if nothing has ended it after HANG_GUARD.
+        self.hang_advances = hang_advances
 
     async def request(self, method, path, *, headers, body, max_response_bytes):
         self.requests.append((method, path, dict(headers), body, max_response_bytes))
@@ -228,7 +241,11 @@ class ScriptedArtifactTransport:
         if isinstance(action, ArtifactHTTPResponse):
             return action
         if action == "hang":
-            await asyncio.Event().wait()
+            if self.hang_advances is None:
+                await asyncio.Event().wait()
+            advance_clock(self.hang_advances)
+            await asyncio.sleep(HANG_GUARD)
+            raise AssertionError("no timer ended the hanging request")
         if action == "lost":
             raise ArtifactTransportError("private request must not leak")
         if method == "PUT":
@@ -261,6 +278,11 @@ class ScriptedArtifactTransport:
             },
             self.existing,
         )
+
+
+# Loop-clock seconds a hanging request waits after moving the clock. Only a
+# broken timeout lets it pass, so it bounds a failing test, never a passing one.
+HANG_GUARD = 30
 
 
 def api_error(status, code, retryable=True):
@@ -470,47 +492,58 @@ def test_cancellation_never_becomes_success_or_retry(phase):
     asyncio.run(scenario())
 
 
+# Deadlines and request timeouts machine load cannot exhaust before the
+# scripted request hangs; the hang moves the loop clock past the one under test.
+PUBLICATION_DEADLINE = 600
+REQUEST_TIMEOUT = 60
+
+
 @pytest.mark.parametrize("phase", ["before", "write", "read"])
 def test_deadline_bounds_each_io_and_reconciliation(phase):
     async def scenario():
         snapshot, inputs = assigned()
         transport = ScriptedArtifactTransport(
             ["lost", "hang"] if phase == "read" else ["hang"],
+            hang_advances=PUBLICATION_DEADLINE + 1,
         )
-        deadline = asyncio.get_running_loop().time() + (-1 if phase == "before" else 0.01)
+        now = asyncio.get_running_loop().time()
+        deadline = now - 1 if phase == "before" else now + PUBLICATION_DEADLINE
         with pytest.raises(AuditResultError, match="audit_result_publication_failed"):
             await publisher(snapshot, transport).publish(snapshot, inputs=inputs, deadline=deadline)
         assert len(transport.requests) == {"before": 0, "write": 1, "read": 2}[phase]
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 def test_each_publication_attempt_has_its_own_request_timeout():
     async def scenario():
         snapshot, inputs = assigned()
-        transport = ScriptedArtifactTransport(["hang", "hang"])
+        # Each hang outlasts one request timeout but not the publication
+        # deadline: a timeout shared by the attempts would end the whole
+        # publication at the first hang, and a missing one would leave the hang
+        # to its guard.
+        transport = ScriptedArtifactTransport(["hang", "hang"], hang_advances=REQUEST_TIMEOUT + 1)
         started = asyncio.get_running_loop().time()
         receipt = await publisher(snapshot, transport).publish(
             snapshot,
             inputs=inputs,
-            deadline=started + 1,
-            request_timeout=0.01,
+            deadline=started + PUBLICATION_DEADLINE,
+            request_timeout=REQUEST_TIMEOUT,
         )
         assert receipt.revision == "exact-r1"
         assert [request[0] for request in transport.requests] == ["PUT", "GET", "PUT"]
-        assert asyncio.get_running_loop().time() - started < 0.5
 
-        exhausted = ScriptedArtifactTransport(["hang"] * 4)
+        exhausted = ScriptedArtifactTransport(["hang"] * 4, hang_advances=REQUEST_TIMEOUT + 1)
         with pytest.raises(AuditResultError, match="audit_result_publication_failed"):
             await publisher(snapshot, exhausted).publish(
                 snapshot,
                 inputs=inputs,
-                deadline=asyncio.get_running_loop().time() + 1,
-                request_timeout=0.01,
+                deadline=asyncio.get_running_loop().time() + PUBLICATION_DEADLINE,
+                request_timeout=REQUEST_TIMEOUT,
             )
         assert [request[0] for request in exhausted.requests] == ["PUT", "GET", "PUT", "GET"]
 
-    asyncio.run(scenario())
+    run_with_advanceable_clock(scenario())
 
 
 def test_publisher_pins_binding_rejects_foreign_owner_and_preserves_fatal_failure():

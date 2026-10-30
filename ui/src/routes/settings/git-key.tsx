@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { usePublicAPI } from "../../api/context";
 import {
+  GIT_PRIVATE_KEY,
   getGitKey,
   gitKeyQueryKey,
   removeGitKey,
@@ -40,10 +41,7 @@ export function GitKeySettings({
   useEffect(() => () => operation.current?.abort(), []);
   async function change(remove: boolean) {
     if (pending) return;
-    if (
-      !remove &&
-      (privateKey === "" || new TextEncoder().encode(privateKey).length > 32768)
-    ) {
+    if (!remove && !GIT_PRIVATE_KEY.test(privateKey)) {
       setError(
         new Error("Enter an unencrypted private key of at most 32 KiB."),
       );
