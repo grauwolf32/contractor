@@ -496,7 +496,7 @@ type ResolvedRuntimeConfigProvenance struct {
 }
 
 func (p ResolvedRuntimeConfigProvenance) Validate() error {
-	if p.Default.Label != "default" || p.Default.BindingRevision == 0 {
+	if p.Default.Label != DefaultRuntimeLabel || p.Default.BindingRevision == 0 {
 		return contracts.Invalidf("provenance default binding is invalid")
 	}
 	if err := p.Default.Config.Validate(); err != nil {

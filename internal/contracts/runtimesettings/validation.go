@@ -68,19 +68,23 @@ func validateCABundle(owner, value string) error {
 }
 
 func validateProvenanceBindings(field string, values []RuntimeLabelBindingProvenance) error {
-	if values == nil || len(values) > 32 {
-		return contracts.Invalidf("provenance %s must be a non-null bounded array", field)
+	if values == nil {
+		return contracts.Invalidf("provenance %s must be a non-null array", field)
 	}
-	previous := ""
+	labels := make([]string, 0, len(values))
 	for _, value := range values {
-		if len(value.Label) == 0 || len(value.Label) > 63 || value.Label == "default" ||
-			!contracts.ValidIdentifier(value.Label) || value.Label <= previous || value.BindingRevision == 0 {
+		labels = append(labels, value.Label)
+	}
+	if err := ValidateCanonicalRuntimeLabels(labels); err != nil {
+		return contracts.Invalidf("provenance %s contains invalid or unsorted bindings", field)
+	}
+	for _, value := range values {
+		if value.BindingRevision == 0 {
 			return contracts.Invalidf("provenance %s contains invalid or unsorted bindings", field)
 		}
 		if err := value.Config.Validate(); err != nil {
 			return err
 		}
-		previous = value.Label
 	}
 	return nil
 }

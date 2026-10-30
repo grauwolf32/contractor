@@ -1044,6 +1044,15 @@ on a Run or assigned to an Agent.
 response and durable forms lexicographically. Duplicates, unknown labels and
 malformed names are rejected.
 
+**RCF-R185.** RCF-R117 to RCF-R120 and LIM-RCF-26 make one label set rule for
+the labels a Run or an Audit selects, the labels a Runtime Agent holds or
+registers with, and the label provenance of Runtime settings. The Server
+defines it once; a set it reads or sends is already in lexical order, and a
+set a request names is accepted in any order and normalized. The browser and
+the Runtime give the Server's verdicts on the shared cases of
+[`runtime-label-set-cases.json`](../../../api/testdata/v1alpha1/runtime-label-set-cases.json).
+Runtime placement labels follow their own rule.
+
 **RCF-R121.** A label is active when a binding exists. There is no `enabled` or
 `disabled` state and no disable toggle; a label without a binding cannot be
 selected.

@@ -23,7 +23,9 @@ from contractor_runtime.contracts.base import (
     _CERTIFICATE_BLOCK_PATTERN,
     _FORBIDDEN_RUNTIME_HEADERS,
     _HEADER_NAME_PATTERN,
+    DEFAULT_RUNTIME_LABEL,
     ID_PATTERN,
+    MAX_RUNTIME_LABELS,
     NATIVE_SKILL_TOOL_NAMES,
     SKILL_NAME_PATTERN,
     HTTPProxyTarget,
@@ -32,7 +34,7 @@ from contractor_runtime.contracts.base import (
     WireModel,
     _require_digest,
     _require_runtime_endpoint,
-    _require_runtime_label,
+    _require_runtime_labels,
     _require_selector,
     _require_sorted_unique,
     _require_text,
@@ -716,8 +718,8 @@ class ResolvedRuntimeConfigProvenance(WireModel):
     nullable_fields = frozenset({"llm_gateway_config", "llm_credential"})
 
     default: RuntimeLabelBindingProvenance
-    run_labels: list[RuntimeLabelBindingProvenance] = Field(max_length=32)
-    agent_labels: list[RuntimeLabelBindingProvenance] = Field(max_length=32)
+    run_labels: list[RuntimeLabelBindingProvenance] = Field(max_length=MAX_RUNTIME_LABELS)
+    agent_labels: list[RuntimeLabelBindingProvenance] = Field(max_length=MAX_RUNTIME_LABELS)
     runtime_adapters: list[RuntimeAdapterRef] = Field(max_length=64)
     llm_gateway_config: LLMGatewayConfigRef | None = None
     llm_credential: LLMCredentialRef | None = None
@@ -725,15 +727,13 @@ class ResolvedRuntimeConfigProvenance(WireModel):
 
     @model_validator(mode="after")
     def validate_provenance(self) -> Self:
-        if self.default.label != "default":
+        if self.default.label != DEFAULT_RUNTIME_LABEL:
             raise ValueError("provenance default binding is invalid")
         for field, values in (
             ("runLabels", self.run_labels),
             ("agentLabels", self.agent_labels),
         ):
-            for value in values:
-                _require_runtime_label(field, value.label)
-            _require_sorted_unique(field, [value.label for value in values], maximum=32)
+            _require_runtime_labels(field, [value.label for value in values])
         _require_sorted_unique("runtimeAdapters", self.runtime_adapters, maximum=64)
         if self.llm_credential is not None and self.llm_gateway_config is None:
             raise ValueError("LLM credential provenance requires a Gateway config ref")

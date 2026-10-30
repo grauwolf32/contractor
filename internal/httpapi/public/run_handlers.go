@@ -273,7 +273,7 @@ func (h *runHandlers) createRunFromProject(
 		handleError(w, err)
 		return
 	}
-	normalizedLabels, err := runtimeconfig.NormalizeRunLabels([]string(request.RuntimeLabels))
+	normalizedLabels, err := runtimeconfig.NormalizeLabels([]string(request.RuntimeLabels))
 	if err != nil {
 		handleError(w, err)
 		return

@@ -95,7 +95,7 @@ func (o ResolvedRuntimeConfigOrigins) Validate() error {
 func (o RuntimeFieldOrigin) validate() error {
 	switch o.Layer {
 	case LayerDefault, LayerRunLabels, LayerAgentLabels:
-		if len(o.Configs) == 0 || len(o.Configs) > MaximumRunLabels {
+		if len(o.Configs) == 0 || len(o.Configs) > runtimesettings.MaxRuntimeLabels {
 			return ErrInvalid
 		}
 	case LayerWorkflow, LayerRunOverride, LayerEscalation:
@@ -352,16 +352,18 @@ func mergePinnedLayer(
 ) (Spec, layerOrigins, []PinnedRuntimeConfig, error) {
 	ordered := append([]PinnedRuntimeConfig{}, values...)
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Label < ordered[j].Label })
-	entries := make([]LayerEntry, 0, len(ordered))
-	previous := ""
+	labels := make([]string, 0, len(ordered))
 	for _, value := range ordered {
-		if value.Label == DefaultLabel || value.Label == previous {
-			return Spec{}, layerOrigins{}, nil, resolutionError(ResolutionInvalid, string(layer), ErrInvalid)
-		}
+		labels = append(labels, value.Label)
+	}
+	if runtimesettings.ValidateCanonicalRuntimeLabels(labels) != nil {
+		return Spec{}, layerOrigins{}, nil, resolutionError(ResolutionInvalid, string(layer), ErrInvalid)
+	}
+	entries := make([]LayerEntry, 0, len(ordered))
+	for _, value := range ordered {
 		if err := validatePinned(value, value.Label); err != nil {
 			return Spec{}, layerOrigins{}, nil, err
 		}
-		previous = value.Label
 		spec := value.Spec
 		if agent {
 			if !modelFree && !workerApplicable(spec.Worker) {

@@ -179,7 +179,7 @@ func normalizeScope(value Scope) (Scope, error) {
 }
 
 func normalizeLabels(value []string) ([]string, error) {
-	return runtimeconfig.NormalizeRunLabels(value)
+	return runtimeconfig.NormalizeLabels(value)
 }
 
 func validateExactArtifact(value auditstore.ExactArtifact, metadata bool) error {

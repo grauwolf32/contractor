@@ -13,6 +13,7 @@ import {
 import { invalidAPIResponse, publicAPIError, requireData } from "./error";
 import { loadCompletePages } from "./pages";
 import type { components } from "./generated/public";
+import { canonicalRuntimeLabels } from "./runtime-configuration";
 import {
   CONFIG_NAME_PATTERN,
   CONFIG_VERSION_PATTERN,
@@ -477,13 +478,8 @@ export async function replaceRuntimeAgentPrincipalLabels(
   if (!/^[1-9][0-9]{0,19}$/.test(revision)) {
     throw new TypeError("Runtime Agent principal revision is invalid");
   }
-  const normalized = [...labels].sort();
-  normalized.forEach((label) => requireRuntimeIdentity(label));
-  if (
-    normalized.length > 32 ||
-    new Set(normalized).size !== normalized.length ||
-    normalized.includes("default")
-  ) {
+  const normalized = canonicalRuntimeLabels(labels);
+  if (normalized === undefined) {
     throw new TypeError("Runtime Agent principal labels are invalid");
   }
   const headers = api.mutationHeaders({

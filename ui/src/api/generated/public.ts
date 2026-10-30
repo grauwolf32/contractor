@@ -4107,6 +4107,7 @@ export interface components {
             inputs: {
                 [key: string]: components["schemas"]["ExactArtifactRef"];
             };
+            /** @description Runtime labels in any order: at most 32 labels of the label grammar, unique, never the reserved default label (RCF-R117 to RCF-R120). The Server stores and answers them in lexical order. */
             runtimeLabels?: components["schemas"]["RuntimeInfrastructureId"][];
             scope?: components["schemas"]["AuditScope"];
         };
@@ -4152,6 +4153,7 @@ export interface components {
                 [key: string]: components["schemas"]["AuditExactArtifact"];
             };
             scope: components["schemas"]["AuditScope"];
+            /** @description Selected Runtime labels in lexical order; never the reserved default label (RCF-R118). */
             runtimeLabels: components["schemas"]["RuntimeInfrastructureId"][];
             runtimeConfig: components["schemas"]["AuditRuntimeSnapshot"];
             skills: components["schemas"]["AuditSkill"][];
@@ -4240,6 +4242,7 @@ export interface components {
                 [key: string]: components["schemas"]["AuditExactArtifact"];
             };
             scope: components["schemas"]["AuditScope"];
+            /** @description Selected Runtime labels in lexical order; never the reserved default label (RCF-R118). */
             runtimeLabels: components["schemas"]["RuntimeInfrastructureId"][];
             baseline?: components["schemas"]["AuditBaseline"];
             state: components["schemas"]["AuditState"];
@@ -5855,6 +5858,7 @@ export interface components {
             state: components["schemas"]["WorkflowRunState"];
             /** @description True only when terminal release and every applicable retention receipt are durable. */
             deletable: boolean;
+            /** @description Selected Runtime labels in lexical order; never the reserved default label (RCF-R118). */
             runtimeLabels: components["schemas"]["ConfigId"][];
             labels: components["schemas"]["RunMetadataLabels"];
             runtimeConfiguration: components["schemas"]["RunRuntimeConfiguration"];
@@ -5912,6 +5916,7 @@ export interface components {
             parameters: {
                 [key: string]: string;
             };
+            /** @description Selected Runtime labels in lexical order; never the reserved default label (RCF-R118). */
             runtimeLabels: components["schemas"]["ConfigId"][];
             labels: components["schemas"]["RunMetadataLabels"];
             executionConfig: components["schemas"]["RunRepeatExecutionConfig"];
@@ -5975,6 +5980,7 @@ export interface components {
             runId: components["schemas"]["ResourceId"];
             projectId?: components["schemas"]["ResourceId"];
             state: components["schemas"]["WorkflowRunState"];
+            /** @description Selected Runtime labels in lexical order; never the reserved default label (RCF-R118). */
             runtimeLabels: components["schemas"]["ConfigId"][];
             labels: components["schemas"]["RunMetadataLabels"];
             runtimeConfiguration: components["schemas"]["RunRuntimeConfiguration"];
@@ -6009,6 +6015,7 @@ export interface components {
         };
         CreateRunRequest: {
             workflow: components["schemas"]["Selector"];
+            /** @description Runtime labels in any order: at most 32 labels of the label grammar, unique, never the reserved default label (RCF-R117 to RCF-R120). The Server stores and answers them in lexical order. */
             runtimeLabels?: components["schemas"]["ConfigId"][];
             labels?: components["schemas"]["RunMetadataLabels"];
             parameters?: {
@@ -6613,6 +6620,7 @@ export interface components {
             page: components["schemas"]["PageInfo"];
         };
         RuntimeAgentLabelsMutation: {
+            /** @description The Runtime Agent's complete label set in any order: at most 32 labels of the label grammar, unique, never the reserved default label (RCF-R117 to RCF-R120). The Server stores it in lexical order. */
             labels: components["schemas"]["RuntimeInfrastructureId"][];
         };
         /** @description Finite nonnegative measurement. Unknown values are omitted, never replaced with zero. */
