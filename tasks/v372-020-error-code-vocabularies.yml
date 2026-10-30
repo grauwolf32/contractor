@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: api-contracts
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, typescript, json, yaml, markdown]
 goal: "The event schema and the browser client accept only the error frame codes the Server sends, the UI test fixtures answer only registered codes with their registered status, the Run recovery cause vocabulary is declared apart from the error code it shares a name with, the private API codes that are also public codes are checked against the registry, and every Planner, Worker-invocation and Scheduler Stage failure code the Server reports is registered in errors.md."

@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V370-026
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "A regression in the cost of reading a changed Worker State at the contract maximum fails a deterministic test, BenchmarkWorkerStateChangedRevision runs again, and the 60 ms target of V370-026 is confirmed on a quiet host or CI, or replaced by a measured one."

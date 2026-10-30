@@ -6,7 +6,7 @@ epic: planner-worker
 kind: chore
 introduced_by: V384-001
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [markdown, go]
 goal: >-

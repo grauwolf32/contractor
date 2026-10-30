@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: execution-core
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: "The active and terminal StageExecution state sets (SCH-R42) have one Go definition in runstore that every Go switch uses, and tests hold every state list in production Go SQL and the OpenAPI StageExecutionState enum to it, as V367-003 did for the Run state sets."

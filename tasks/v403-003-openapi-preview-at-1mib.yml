@@ -6,7 +6,7 @@ epic: ui
 kind: defect
 introduced_by: V403-001
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [typescript]
 goal: >-

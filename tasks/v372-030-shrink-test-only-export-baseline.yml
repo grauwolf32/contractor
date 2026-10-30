@@ -5,7 +5,7 @@ milestone: hub-audit-structure-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: [V369-007]
 languages: [go]
 goal: "tools/testonlyexports/baseline.txt names no entry of this task: each identifier below has a production caller, lives in a test file or a test helper package, or is gone."

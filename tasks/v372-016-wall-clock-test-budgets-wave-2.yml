@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python]
 goal: "The tests listed here end attempts, seed fixtures and prove budgets through hooks, injected clocks and database settings rather than elapsed wall time, so machine load cannot fail them while each still fails when the behaviour it checks breaks."

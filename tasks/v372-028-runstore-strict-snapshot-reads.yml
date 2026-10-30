@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: execution-core
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "runstore decodes every persisted struct-shaped JSON document it reads with strictjson, so a stored document with an unknown member or a member spelled in another case fails to read instead of being silently accepted or dropped."

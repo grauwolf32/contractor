@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: findings
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python, markdown]
 goal: "The 64 MiB of evidence per proposal that finding intake enforces is defined in the limits registry and the findings specification with its failure outcome, and both proposal quotas (with LIM-FND-46) are held to one definition by a test."

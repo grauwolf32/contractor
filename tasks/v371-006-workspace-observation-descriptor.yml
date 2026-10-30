@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: planner-worker
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, python]
 goal: "The Server decides whether a Worker binding has workspace observations from the same descriptor data the Runtime uses to record them, not from its own tool list."

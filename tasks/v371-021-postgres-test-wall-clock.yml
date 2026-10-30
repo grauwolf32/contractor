@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "The Scheduler cancellation, claim-loss and supervisor PostgreSQL tests and the runstore listener test wait on events and the database clock within the test's own deadline, so machine load cannot fail them."

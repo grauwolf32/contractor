@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: api-contracts
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "The idempotency request digests of Project creation, Audit creation and lifecycle actions and Audit review mutations are computed by the packages that own those requests, as runservice.PublicRequestDigest does for Runs, with their pinned values unchanged."
