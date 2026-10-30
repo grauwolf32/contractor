@@ -60,16 +60,20 @@ func ApplyMigrations(ctx context.Context, pool *pgxpool.Pool, budgets MigrationB
 }
 
 // applyMigrations applies the migrations of available that the ledger lacks
-// in one transaction. Each migration file is one Exec call, so the client
-// deadline of one call, the statement timeout plus migrationQueryMargin,
-// covers all statements of the file together, while PostgreSQL applies the
-// statement timeout to each of them.
+// in one transaction. Each migration file is one Exec call under the run
+// deadline, while PostgreSQL applies the statement timeout to each statement
+// of the file; every other call of the run is one statement under the client
+// deadline of the statement timeout plus migrationQueryMargin (PER-R31).
 func applyMigrations(ctx context.Context, pool *pgxpool.Pool, budgets MigrationBudgets, available []migration) (MigrationResult, error) {
 	ctx, cancel, err := WithMigrationBudgets(ctx, budgets)
 	if err != nil {
 		return MigrationResult{}, err
 	}
 	defer cancel()
+	fileCtx, err := withMigrationFileBudget(ctx)
+	if err != nil {
+		return MigrationResult{}, err
+	}
 	var result MigrationResult
 	err = InTx(ctx, pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		if err := waitForMigrationLock(ctx, tx); err != nil {
@@ -95,7 +99,7 @@ CREATE TABLE IF NOT EXISTS contractor_schema_migrations (
 		}
 		result.CurrentVersion = state.currentVersion
 		for _, item := range state.pending {
-			if _, err := tx.Exec(ctx, string(item.contents)); err != nil {
+			if _, err := tx.Exec(fileCtx, string(item.contents)); err != nil {
 				return fmt.Errorf("apply migration %s: %w", item.name, err)
 			}
 			if _, err := tx.Exec(ctx,
