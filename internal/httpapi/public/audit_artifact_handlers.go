@@ -5,13 +5,14 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
+	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/httpapi/artifacttransfer"
 )
 
 func (h *auditHandlers) getAuditArtifact(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	query, err := exactQuery(r.URL.RawQuery, "key", "revision", "member")
-	if err != nil || query.Get("key") == "" || len(query.Get("key")) > 512 || query.Get("revision") == "" || len(query.Get("revision")) > 256 || len(query.Get("member")) > 128 {
+	if err != nil || !validAuditArtifactSelector(query.Get("key"), query.Get("revision"), query.Get("member")) {
 		handleError(w, errInvalidRequest)
 		return
 	}
@@ -50,4 +51,14 @@ func (h *auditHandlers) getAuditArtifact(w http.ResponseWriter, r *http.Request)
 	}
 	transfer.BoundWrite(int64(len(read.Payload.Data)))
 	writeArtifactBytes(w, read, "")
+}
+
+// validAuditArtifactSelector bounds the selector of one Audit artifact read
+// (ASC-R148): a logical key of 1 to 512 UTF-8 bytes (LIM-AUD-39), a revision
+// of 1 to 256 bytes and an optional member ID of at most 128 bytes. Revisions
+// and member IDs are ASCII by their grammars, which the public schema
+// declares; a value outside them matches nothing and reads as 404.
+func validAuditArtifactSelector(key, revision, member string) bool {
+	return key != "" && len(key) <= auditstore.MaxArtifactLogicalKeyBytes &&
+		revision != "" && len(revision) <= 256 && len(member) <= 128
 }

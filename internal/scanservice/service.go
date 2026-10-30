@@ -29,6 +29,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// A sweep carries at most 32 parameters, each name and value bounded in UTF-8
+// bytes as the public schema declares (LIM-SCN-94).
+const (
+	MaximumParameterNameBytes  = 128
+	MaximumParameterValueBytes = 2048
+)
+
 type Request struct {
 	ProjectIDs  []string               `json:"projectIds,omitempty"`
 	AllProjects bool                   `json:"allProjects,omitempty"`
@@ -88,7 +95,7 @@ func normalize(r Request) (Request, error) {
 		return Request{}, scanstore.ErrInvalid
 	}
 	for key, value := range r.Parameters {
-		if len(key) > 128 || len(value) > 2048 {
+		if len(key) > MaximumParameterNameBytes || len(value) > MaximumParameterValueBytes {
 			return Request{}, scanstore.ErrInvalid
 		}
 	}

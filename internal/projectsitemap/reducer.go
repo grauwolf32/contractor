@@ -212,7 +212,7 @@ func validateDocument(d Document) error {
 			return ErrInvalid
 		}
 		for _, declaration := range g.Declarations {
-			if declaration.Parameters == nil || !admittedProvenance(declaration.Provenance, sources) || !validNames(declaration.Parameters) || len(declaration.Pointer) > MaxExampleBytes ||
+			if declaration.Parameters == nil || !admittedProvenance(declaration.Provenance, sources) || !validNames(declaration.Parameters) || len(declaration.Pointer) > MaxPointerBytes ||
 				!validText(declaration.Pointer) {
 				return ErrInvalid
 			}
@@ -286,7 +286,7 @@ func validRoute(origin, path string) bool {
 }
 func validateRule(rule Rule) error {
 	if !contracts.ValidResourceID(rule.SourceID) || !methodPattern.MatchString(rule.Method) || !validRoute(rule.Origin, rule.Path) ||
-		!validNames(rule.Parameters) || len(rule.Pointer) > MaxExampleBytes || !validText(rule.Pointer) {
+		!validNames(rule.Parameters) || len(rule.Pointer) > MaxPointerBytes || !validText(rule.Pointer) {
 		return ErrInvalid
 	}
 	for _, segment := range strings.Split(rule.Path, "/") {

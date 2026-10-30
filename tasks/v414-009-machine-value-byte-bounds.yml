@@ -62,6 +62,34 @@ context:
     existing shared grammar fixture) and assert the Go validator rejects non-ASCII, with no byte
     extension; (c) opaque Server-issued values (cursors, revisions): declare them ASCII. Changes are
     additive within /v1.
+  implementation: >-
+    2026-10-30. Scope: client-sent strings (request bodies and parameters, following $refs); a
+    response schema is declared only where it shares the request's component (AuditSubjectKey) or
+    rule (sitemap pointers). (a) x-max-utf8-bytes and fixture entries: GitImportRequest ref and
+    repositoryUrl (new LIM-GIT-22, LIM-GIT-23), GitPrivateKey (new component, LIM-GIT-3),
+    GatewayFailureSignature texts (LIM-RCF-1), BasicCredentialUsername/Password (LIM-RCF-23), scan
+    sweep parameter names and values (new LIM-SCN-94), ArchiveFilePath (new component, LIM-API-27),
+    AuditArtifactKey and AuditSubjectKey (new components, LIM-AUD-39, LIM-AUD-40), SitemapMutation.url
+    (LIM-SMT-2) and the sitemap rule/declaration pointers (new LIM-SMT-16; OpenAPI said 8192 while
+    the reducer bounds them at 2 KiB, so the declaration was corrected, the Server is unchanged).
+    Literal Go bounds became named constants (gitimport, credentials, scanservice, auditstore,
+    projectsitemap). (b) CABundlePEM (new component, ASCII class) and OTLP header names (HTTP token
+    pattern), with Go tests that non-ASCII is rejected. (c) sealed cursors and Eval bin tokens declare
+    unpadded base64url; the Audit artifact revision uses Revision and member the identifier
+    grammar; sitemap memberIds declare SHA-256 hex. format uri counts as an ASCII grammar (RFC 3986;
+    the Go URL validators also accept IRIs and percent-encode them, which is wider than the contract
+    and never a size rejection of a conforming value). TestSharedUTF8ByteBoundsAreDeclared now finds
+    every x-max-utf8-bytes anywhere in the raw document (each must be a listed component location)
+    and classifies every request string with a maxLength; TestUTF8ByteBoundCheckFindsProbes pins
+    that it can fail. A4 was checked by running the extended gate against the unchanged document:
+    it fails for ref, messageEquals and both Basic credential schemas, among others. Exceptions,
+    listed with reasons in requestStringsWithoutByteBound: code-point bounds (credential label,
+    ModelPolicy model, catalog q), Eval lookups that the Server only compares (projectId, suiteId,
+    variantId, viewSnapshot), Eval documents (validated by the embedded Eval JSON Schemas, code
+    points), and two composites whose parts carry separate bounds: Run label selectors key=value
+    (key grammar, LIM-RUN-5 value bytes) and sitemap rule origin+path (one shared 8 KiB). Reopen
+    the composites if label selectors become separate key and value parameters or the sitemap rule
+    takes a single route string.
 scope:
   in:
     - "Inventory every public string, inline schema and parameter whose Go bound counts bytes, starting from the V407-021 list, and classify it as (a), (b) or (c)."

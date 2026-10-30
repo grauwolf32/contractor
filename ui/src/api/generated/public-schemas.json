@@ -242,7 +242,11 @@
         "provenance": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/SitemapProvenance"
         },
-        "pointer": { "type": "string", "maxLength": 8192 },
+        "pointer": {
+          "type": "string",
+          "maxLength": 2048,
+          "x-max-utf8-bytes": 2048
+        },
         "parameters": {
           "type": "array",
           "maxItems": 100,
@@ -296,7 +300,11 @@
           "maxLength": 16
         },
         "path": { "type": "string", "maxLength": 8192 },
-        "pointer": { "type": "string", "maxLength": 8192 },
+        "pointer": {
+          "type": "string",
+          "maxLength": 2048,
+          "x-max-utf8-bytes": 2048
+        },
         "parameters": {
           "type": "array",
           "maxItems": 100,
@@ -419,7 +427,11 @@
         "expectedRevision": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
-        "url": { "type": "string", "maxLength": 8192 },
+        "url": {
+          "type": "string",
+          "maxLength": 8192,
+          "x-max-utf8-bytes": 8192
+        },
         "method": {
           "type": "string",
           "pattern": "^[A-Z]{1,16}$",
@@ -428,7 +440,11 @@
         "memberIds": {
           "type": "array",
           "maxItems": 64,
-          "items": { "type": "string", "maxLength": 8192 }
+          "items": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[0-9a-f]{64}$"
+          }
         },
         "note": {
           "type": "string",
@@ -484,7 +500,11 @@
           "maxLength": 16
         },
         "path": { "type": "string", "maxLength": 8192 },
-        "pointer": { "type": "string", "maxLength": 8192 },
+        "pointer": {
+          "type": "string",
+          "maxLength": 2048,
+          "x-max-utf8-bytes": 2048
+        },
         "parameters": {
           "type": "array",
           "maxItems": 100,
@@ -547,7 +567,16 @@
         "parameters": {
           "type": "object",
           "maxProperties": 32,
-          "additionalProperties": { "type": "string", "maxLength": 2048 }
+          "propertyNames": {
+            "type": "string",
+            "maxLength": 128,
+            "x-max-utf8-bytes": 128
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 2048,
+            "x-max-utf8-bytes": 2048
+          }
         },
         "rulepack": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
@@ -4108,6 +4137,13 @@
         }
       }
     },
+    "GitPrivateKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32768,
+      "x-max-utf8-bytes": 32768,
+      "writeOnly": true
+    },
     "GitImportRequest": {
       "type": "object",
       "additionalProperties": false,
@@ -4116,14 +4152,20 @@
         "repositoryUrl": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 4096
+          "maxLength": 4096,
+          "x-max-utf8-bytes": 4096
         },
         "mode": {
           "type": "string",
           "enum": ["snapshot", "analysis"],
           "default": "snapshot"
         },
-        "ref": { "type": "string", "minLength": 1, "maxLength": 1024 }
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024,
+          "x-max-utf8-bytes": 1024
+        }
       }
     },
     "GitImportResult": {
@@ -6486,6 +6528,18 @@
         }
       }
     },
+    "AuditArtifactKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "x-max-utf8-bytes": 512
+    },
+    "AuditSubjectKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "x-max-utf8-bytes": 512
+    },
     "AuditItem": {
       "type": "object",
       "additionalProperties": false,
@@ -6515,7 +6569,9 @@
         "itemKey": { "type": "string", "minLength": 1, "maxLength": 256 },
         "ordinal": { "type": "integer", "minimum": 0, "maximum": 9999 },
         "kind": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "subjectKey": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "subjectKey": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditSubjectKey"
+        },
         "task": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
         },
@@ -6723,7 +6779,9 @@
         },
         "ordinal": { "type": "integer", "minimum": 0, "maximum": 9999 },
         "itemKey": { "type": "string", "minLength": 1, "maxLength": 256 },
-        "subjectKey": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "subjectKey": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditSubjectKey"
+        },
         "coverage": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditCoverage"
         },
@@ -8508,6 +8566,12 @@
       "maxLength": 256,
       "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]*$"
     },
+    "ArchiveFilePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "x-max-utf8-bytes": 1024
+    },
     "ArtifactName": {
       "type": "string",
       "minLength": 1,
@@ -9603,7 +9667,9 @@
         "credential": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
         },
-        "caBundlePem": { "type": "string", "minLength": 1, "maxLength": 65536 },
+        "caBundlePem": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CABundlePEM"
+        },
         "targets": {
           "type": "array",
           "minItems": 1,
@@ -9615,6 +9681,12 @@
           }
         }
       }
+    },
+    "CABundlePEM": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 65536,
+      "pattern": "^[\\t\\n\\f\\r\\x20-\\x7E]+$"
     },
     "RuntimeCaidoConfig": {
       "type": "object",
@@ -9631,7 +9703,9 @@
         "credential": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
         },
-        "caBundlePem": { "type": "string", "minLength": 1, "maxLength": 65536 },
+        "caBundlePem": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CABundlePEM"
+        },
         "requestTimeoutSeconds": {
           "type": "integer",
           "minimum": 1,
@@ -9654,7 +9728,9 @@
         "credential": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
         },
-        "caBundlePem": { "type": "string", "minLength": 1, "maxLength": 65536 },
+        "caBundlePem": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/CABundlePEM"
+        },
         "requestTimeoutSeconds": {
           "type": "integer",
           "minimum": 1,
@@ -10009,7 +10085,8 @@
           "propertyNames": {
             "type": "string",
             "minLength": 1,
-            "maxLength": 64
+            "maxLength": 64,
+            "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$"
           },
           "additionalProperties": {
             "type": "string",
@@ -10079,12 +10156,14 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 256,
+      "x-max-utf8-bytes": 256,
       "pattern": "^[^\\x00-\\x1F\\x7F:]+$"
     },
     "BasicCredentialPassword": {
       "type": "string",
       "minLength": 1,
       "maxLength": 8192,
+      "x-max-utf8-bytes": 8192,
       "pattern": "^[^\\x00-\\x1F\\x7F]+$",
       "writeOnly": true
     },
@@ -11950,8 +12029,18 @@
       ],
       "properties": {
         "status": { "type": "integer", "enum": [400, 404, 409, 422] },
-        "messageEquals": { "type": "string", "minLength": 1, "maxLength": 512 },
-        "litellmWrapped": { "type": "string", "minLength": 1, "maxLength": 512 }
+        "messageEquals": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "x-max-utf8-bytes": 512
+        },
+        "litellmWrapped": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "x-max-utf8-bytes": 512
+        }
       }
     },
     "GatewayFailureSignatures": {
