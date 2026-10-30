@@ -46,6 +46,16 @@ context:
     Trigger functions run only after the restore and are out of scope unless
     a table definition also calls them. Other places that redact a password
     with strings.ReplaceAll are in scope for the empty-value case.
+  additional_finding: >-
+    2026-10-30, found while seeding the restore rehearsal: with only the
+    audit_items functions fixed, pg_restore still failed for every backup that
+    holds a Run, at COPY workflow_runs, with a violation of
+    workflow_runs_runtime_config_snapshot_shape. The PL/pgSQL validator
+    contractor_valid_run_runtime_snapshot calls contractor_valid_pinned_runtime_config
+    unqualified, and its EXCEPTION WHEN OTHERS handler turned the unresolved
+    call into false. That call came with 61dd24c5d (V8-005); the rehearsal
+    never held a Run, so it stayed hidden. The guard reached 19 functions:
+    14 directly from table definitions and 5 helpers behind them.
 scope:
   in:
     - "A new migration that redefines every in-scope function so pg_restore resolves its references: prefer SQL-standard BEGIN ATOMIC bodies, which bind referenced objects when the function is created and stay inlinable; otherwise schema-independent qualification that still works in per-test schemas. Record the choice and its reason in docs/spec/platform/persistence.md."
@@ -69,3 +79,25 @@ tests:
     covers: [A2]
   - command: make lint
     covers: [A1, A2, A3]
+delivery:
+  decisions: >-
+    Recorded as PER-R46 in docs/spec/platform/persistence.md with its decision
+    paragraph. Migration 000063 gives the 16 reachable LANGUAGE sql functions
+    SQL-standard BEGIN ATOMIC bodies with unchanged statements and attributes,
+    rewrites contractor_valid_run_runtime_snapshot from PL/pgSQL into a
+    SQL-standard body whose ordered CASE arms keep inputs of the wrong JSON
+    type away from jsonb_object_keys and the array functions (its exception
+    handler used to absorb those errors), and pins search_path = pg_catalog on
+    the two PL/pgSQL validators that name only built-in objects. Minimum
+    PostgreSQL 14 for SQL-standard bodies; the project runs PostgreSQL 17.
+    The routine ownership check (PER-R23) now reads SQL-standard bodies through
+    pg_get_function_sqlbody instead of reporting them unreadable.
+  sibling_repairs: >-
+    TestPostgresRemovePentestJournalPreservesAuditData (V422-002) asserted that
+    upgrading from 000061 applies exactly one migration, so any later migration
+    failed it; it now checks that the upgrade starts at its migration, as the
+    other upgrade tests do. Redaction siblings tests/e2e/process_test.go,
+    tests/ui-stack/process_test.go, internal/secretmatch, the Runtime redaction
+    helpers and scripts/check_postgres_client_version.py and
+    scripts/release_test_reports.py already skip an empty secret.
+
