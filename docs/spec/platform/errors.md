@@ -452,12 +452,6 @@ The codes of the public API's HTTP error envelope and WebSocket error frames
 | `method_not_allowed` | 405 | no | The path belongs to a public operation but not with this method, including HEAD where the operation defines none. | [API-R73](../api/public-api.md) |
 | `not_found` | 404; also a WebSocket error frame | no | The resource does not exist or is not visible to the principal, and the answer does not disclose which: ownership checks use the same 404 for another owner's resource, and a Runtime credential the principal may not use is reported like a missing one. As a WebSocket error frame, the subscribed stream or subscription is not found. | [API-R25](../api/public-api.md), [PRJ-R75](../artifacts/projects.md) |
 | `overloaded` | — (WebSocket error frame) | yes | The Server cannot currently read the subscribed Run or Operations stream; the subscription ends and the client resubscribes after its backoff. | [API-R64](../api/public-api.md), [API-R72](../api/public-api.md) |
-| `pentest_action_conflict` | 409 | no | The semantic action already exists with a different request or transition. | [AUX-R104](../audits/execution.md) |
-| `pentest_action_fenced` | 409 | no | The allocation or Audit can no longer start this target action. | [AUX-R104](../audits/execution.md) |
-| `pentest_action_invalid` | 400 | no | The closed action command or attempt transition is invalid; nothing changes. | [AUX-R104](../audits/execution.md) |
-| `pentest_budget_exhausted` | 409 | no | The pinned request, action, concurrency or active-time budget rejects the action. | [AUX-R104](../audits/execution.md) |
-| `pentest_scope_denied` | 403 | no | The pinned target scope, identity or protected infrastructure policy rejects the request. | [AUX-R104](../audits/execution.md) |
-| `pentest_transport_unsupported` | 400 | no | The controlled transport cannot enforce the pinned target policy. | [AUX-R104](../audits/execution.md) |
 | `precondition_failed` | 412 | no | A strong If-Match revision is not the current revision of the resource (Project, Audit, Run Queue control, Scheduler settings, RuntimeConfig binding, Agent labels); nothing changes, and the client re-reads before deciding again. | [API-R26](../api/public-api.md), [OPS-R57](../operations/operations.md), [RCF-R175](../configuration/runtime-config.md) |
 | `project_deleting` | 409 | no | The Project, or the scope of the Run, Audit or Artifact the request names, is being deleted; the request is refused for good. | [DEL-R40](../artifacts/retention-and-deletion.md) |
 | `rate_limited` | 429 | yes | Failed login attempts exceeded the per-client-IP or process-wide limiter (the answer carries a bounded Retry-After and creates no account lockout), or the browser session already holds its maximum of event sockets (LIM-API-10). | [SEC-R51](security.md), [API-R62](../api/public-api.md) |
@@ -536,9 +530,9 @@ Assembled from every document.
 | `planner_tool_selection_invalid` | — | no | Execution report error of a rejected parallel or unknown Planner tool selection; the model may correct it and the invocation continues. | [PLN-R122](../execution/planners.md) |
 | `planner_worker_unknown` | — | no | Tool error of execute_current_subtask for a Worker name that names no available logical Worker; no A2A side effect, and the Planner continues. | [PLN-R122](../execution/planners.md) |
 | `project_active_checks_prohibited` | — | no | Reason code of audit_profile_unsupported for active tools prohibited by Project settings. | [AUD-R89](../audits/audits.md) |
-| `pentest_capability_unsupported` | — | no | Engagement requires a Server capability that is not implemented; metadata support never implies target execution. | [AUD-R246](../audits/audits.md) |
-| `pentest_source_closure_unsupported` | — | no | Blackbox closure would expose source or has unclassified source provenance. | [AUD-R246](../audits/audits.md) |
-| `pentest_active_checks_unsupported` | — | no | Effective Project/profile active-check policy is incompatible with the engagement. | [AUD-R246](../audits/audits.md) |
+| `engagement_capability_unsupported` | — | no | Engagement requires a Server capability that is not implemented; metadata support never implies target execution. | [AUD-R247](../audits/audits.md) |
+| `engagement_source_closure_unsupported` | — | no | Blackbox closure would expose source or has unclassified source provenance. | [AUD-R247](../audits/audits.md) |
+| `engagement_active_checks_unsupported` | — | no | Effective Project/profile active-check policy is incompatible with the engagement. | [AUD-R247](../audits/audits.md) |
 | `batching_unsupported` | — | not specified | Reserved reason value of audit_profile_unsupported kept for compatible clients; the Server does not produce it. | [AUD-R91](../audits/audits.md) |
 | `binary_file_unsupported` | — | not specified | Binary file unsupported by the workspace tools | [ERR-R10](errors.md), [WSP-R54](../tools/workspace.md) |
 | `caido_not_configured` | — | not specified | Caido not configured | [ERR-R13](errors.md), [HTP-R114](../tools/http-caido.md) |
@@ -587,7 +581,6 @@ Assembled from every document.
 | `http_cookie_write_denied` | — | no | Permanent Artifact rejection, including fenced allocation or revision budget | [ERR-R13](errors.md), [HTP-R131](../tools/http-caido.md) |
 | `http_cookie_storage_unavailable` | — | yes | Cookie storage timeout or unconfirmed transient operation; retry storage through session inspection | [ERR-R13](errors.md), [HTP-R131](../tools/http-caido.md) |
 | `http_credential_unavailable` | — | no | Credential is absent from the current Audit assignment or unavailable to this HTTP session; no target action is created | [HTP-R140](../tools/http-caido.md) |
-| `http_request_unknown_outcome` | — | no | Controlled HTTP may have sent bytes; report uncertainty without repeating the request | [HTP-R144](../tools/http-caido.md) |
 | `http_request_failed` | — | yes | HTTP tool request failed: a transport failure of the target exchange (an httpx error or OSError, including a TLS record failure) or a `tool-http` route failure, after the bounded retries of an idempotent send (FAIL-HTP-1, HTP-R55, HTP-R133); more redirects than LIM-HTP-7 allows; or expiry of the call deadline (HTP-R30) | [ERR-R13](errors.md), [HTP-R30](../tools/http-caido.md), [HTP-R133](../tools/http-caido.md) |
 | `http_request_invalid` | — | no | Invalid HTTP tool request, rejected as invalid input before it is sent (SEC-R67, HTP-R25) | [ERR-R13](errors.md), [HTP-R25](../tools/http-caido.md) |
 | `http_response_invalid` | — | not specified | Invalid HTTP response | [ERR-R13](errors.md), [HTP-R58](../tools/http-caido.md) |

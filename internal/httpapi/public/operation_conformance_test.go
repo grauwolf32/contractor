@@ -240,12 +240,6 @@ func conformAuditOperations(t *testing.T, router routers.Router) {
 	for _, path := range []string{"/v1/projects/project_fixed/audits", "/v1/audits", "/v1/audits/audit-one"} {
 		call(jsonContractRequest(http.MethodGet, path, ""), http.StatusOK)
 	}
-	management.preflight = auditservice.PreflightResult{
-		AuditID: draft.AuditID, Revision: draft.Revision, BaselineInputDigest: auditHandlerDigest("preflight-inputs"),
-		CompatibleCapabilities: []string{}, MissingCapabilities: []string{}, Reasons: []auditservice.CompatibilityReason{}, ServerCompatible: true,
-	}
-	call(jsonContractRequest(http.MethodPost, "/v1/audits/audit-one/preflight", "",
-		"If-Match", `"1"`), http.StatusOK)
 	call(jsonContractRequest(http.MethodPost, "/v1/audits/audit-one/start", "",
 		"Idempotency-Key", "start-audit", "If-Match", `"1"`), http.StatusOK)
 

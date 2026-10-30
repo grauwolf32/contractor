@@ -36,6 +36,16 @@ var routePathParameter = regexp.MustCompile(`\{[^/{}]+\}`)
 // malformedRouteQuery is a query that every operation rejects as invalid.
 const malformedRouteQuery = "?limit=not-a-number&unexpected=1"
 
+func TestRemovedAuditPreflightIsUnknownRoute(t *testing.T) {
+	fixture := newHandlerFixture(t)
+	request := authenticatedRequest(http.MethodPost, "/v1/audits/audit-one/preflight", bytes.NewReader(nil))
+	response := httptest.NewRecorder()
+	fixture.handler.ServeHTTP(response, request)
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("removed Audit preflight = %d: %s", response.Code, response.Body.String())
+	}
+}
+
 // TestHeadNeverReachesAPublicOperationHandler registers the whole route
 // table with handlers that record their entry, behind the Operations
 // authorization that NewHandler puts in front of the mux. Each route's own

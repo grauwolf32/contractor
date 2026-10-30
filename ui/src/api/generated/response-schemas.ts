@@ -255,7 +255,6 @@ export type PublicSchemaName =
   | "AuditReportStatus"
   | "AuditReport"
   | "AuditTimeLimitRequest"
-  | "AuditPreflightResponse"
   | "AuditStartResponse"
   | "FindingExactArtifact"
   | "FindingFingerprintProjection"
@@ -1298,19 +1297,6 @@ export const RESPONSE_SCHEMAS = {
     "500": "Error",
     "503": "Error",
   },
-  "POST /v1/audits/{auditId}/preflight": {
-    "200": "AuditPreflightResponse",
-    "400": "Error",
-    "401": "Error",
-    "403": "Error",
-    "404": "Error",
-    "409": "Error",
-    "412": "Error",
-    "413": "Error",
-    "422": "Error",
-    "500": "Error",
-    "503": "Error",
-  },
   "POST /v1/audits/{auditId}/start": {
     "200": "AuditStartResponse",
     "400": "Error",
@@ -2274,11 +2260,6 @@ export const REQUEST_HEADER_SCHEMAS = {
   },
   "DELETE /v1/audits/{auditId}": {
     "Idempotency-Key": "IdempotencyKeyHeader",
-    "If-Match": "RequiredIfMatchHeader",
-    Origin: "OptionalOriginHeader",
-    "X-CSRF-Token": "OptionalCSRFTokenHeader",
-  },
-  "POST /v1/audits/{auditId}/preflight": {
     "If-Match": "RequiredIfMatchHeader",
     Origin: "OptionalOriginHeader",
     "X-CSRF-Token": "OptionalCSRFTokenHeader",

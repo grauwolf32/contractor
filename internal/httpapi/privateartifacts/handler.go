@@ -30,7 +30,6 @@ type AllocationRegistry interface {
 }
 
 type Dependencies struct {
-	PentestActions  PentestActions
 	GatewayRecovery *gatewayrecovery.Service
 	Registry        AllocationRegistry
 	Artifacts       *artifacts.Service
@@ -90,7 +89,6 @@ func (h *handler) routes() []httpx.Route {
 	const allocation = "/private/v1/allocations/{allocationID}"
 	return []httpx.Route{
 		{Method: http.MethodPost, Path: allocation + "/gateway-recovery", Handler: h.gatewayRecovery},
-		{Method: http.MethodPost, Path: allocation + "/pentest-actions", Handler: h.pentestAction},
 		{Method: http.MethodGet, Path: allocation + "/artifacts", Handler: h.listArtifacts},
 		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}", Handler: h.getArtifact},
 		{Method: http.MethodGet, Path: allocation + "/artifacts/{namespace}/{name}/metadata", Handler: h.getArtifactMetadata},

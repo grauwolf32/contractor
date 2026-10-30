@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+"""Require the independent HTTP, socket and durable-accounting conformance cases."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import signal
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import release_test_reports as reports
+
+ROOT = Path(__file__).resolve().parents[1]
+MATRIX = ROOT / "scripts/engagement-http-matrix.json"
+PACKAGE = "github.com/grauwolf32/contractor/tests/e2e"
+GateError = reports.GateError
+
+
+def matrix() -> dict:
+    value = json.loads(MATRIX.read_text(), object_pairs_hook=reports.json_object)
+    if not isinstance(value, dict) or set(value) != {"process", "accounting", "python"}:
+        raise GateError("conformance matrix needs process, accounting and python cases")
+    for group in ("process", "accounting"):
+        if not isinstance(value[group], dict) or not value[group]:
+            raise GateError("empty conformance selection: " + group)
+        for package, cases in value[group].items():
+            if not package.startswith("github.com/grauwolf32/contractor/"):
+                raise GateError("conformance package is outside this repository")
+            validate_cases(cases)
+    validate_cases(value["python"])
+    if set(value["process"]) != {PACKAGE}:
+        raise GateError("process conformance must select the actual e2e package")
+    return value
+
+
+def validate_cases(cases) -> None:
+    if not isinstance(cases, list) or not 1 <= len(cases) <= 512:
+        raise GateError("conformance cases must be a nonempty bounded list")
+    if any(not isinstance(case, str) or not case.strip() for case in cases):
+        raise GateError("invalid conformance case identity")
+    if len(set(cases)) != len(cases):
+        raise GateError("duplicate conformance case identity")
+
+
+def process_cases() -> dict:
+    cases = list(matrix()["process"][PACKAGE])
+    return {PACKAGE: sorted(set(cases))}
+
+
+def verify_process_report(path: Path) -> list[str]:
+    required = process_cases()
+    return reports.verify_go_report(path, required, root_pattern=reports.pattern(required[PACKAGE]))
+
+
+def verify_accounting_report(path: Path) -> list[str]:
+    return reports.verify_go_report(path, matrix()["accounting"])
+
+
+def verify_python_report(path: Path) -> list[str]:
+    try:
+        root = ET.parse(path).getroot()
+    except (ET.ParseError, OSError) as error:
+        raise GateError("pytest did not produce a valid conformance report") from error
+    required = set(matrix()["python"])
+    modules = {case.split("::", 1)[0] for case in required}
+    observed = set()
+    for case in root.iter("testcase"):
+        module = case.get("classname", "")
+        if not any(module == name or module.startswith(name + ".") for name in modules):
+            continue
+        name = module + "::" + case.get("name", "")
+        if any(case.find(tag) is not None for tag in ("skipped", "failure", "error")):
+            raise GateError("Python conformance case did not pass: " + name)
+        if name in observed:
+            raise GateError("duplicate Python conformance result: " + name)
+        observed.add(name)
+    if required - observed:
+        raise GateError("mandatory Python conformance cases did not execute: " +
+                        ", ".join(sorted(required - observed)))
+    return sorted(observed)
+
+
+def run() -> None:
+    if not os.environ.get("CONTRACTOR_TEST_DATABASE_URL", "").strip():
+        raise GateError("CONTRACTOR_TEST_DATABASE_URL is required; use disposable PostgreSQL")
+    selection = matrix()
+    output = ROOT / "reports/engagement-http"
+    output.mkdir(parents=True, exist_ok=True)
+    directory = Path(tempfile.mkdtemp(prefix="run-", dir=output))
+    print(f"Engagement HTTP conformance reports: {directory}", flush=True)
+    process = directory / "process.jsonl"
+    accounting = directory / "accounting.jsonl"
+    junit = directory / "runtime.xml"
+    files = sorted({name.split("::", 1)[0].replace(".", "/") + ".py"
+                    for name in selection["python"]})
+    accounting_names = [case for cases in selection["accounting"].values() for case in cases]
+    accounting_packages = ["./" + package.removeprefix("github.com/grauwolf32/contractor/")
+                           for package in selection["accounting"]]
+    # Dependency discovery emits ordinary text, not Go test JSON events.
+    with (directory / "go-setup.log").open("w") as setup:
+        result = subprocess.run(
+            ["go", "list", "-deps", "-test", "-tags=e2e,integration",
+             "./tests/e2e", *accounting_packages],
+            cwd=ROOT, stdout=setup, stderr=subprocess.STDOUT, timeout=300, check=False,
+        )
+    if result.returncode:
+        raise GateError("dependency setup failed; see " + str(directory / "go-setup.log"))
+    commands = (
+        (process, ["go", "test", "-json", "-tags=e2e", "-count=1", "-timeout=20m",
+                   "./tests/e2e", "-run", reports.pattern(process_cases()[PACKAGE])], ROOT, 1230),
+        (accounting, ["go", "test", "-json", "-race", "-tags=integration", "-count=1",
+                      "-timeout=8m", *accounting_packages,
+                      "-run", reports.pattern(accounting_names)], ROOT, 510),
+        (directory / "runtime.log", ["uv", "run", "--frozen", "pytest", "-W", "error",
+                                    *files, "--junitxml", str(junit)], ROOT / "runtime", 510),
+    )
+    for report, command, cwd, timeout in commands:
+        if reports.capture(report, command, cwd=cwd, timeout_seconds=timeout,
+                           max_report_bytes=64 << 20, display_events=False):
+            raise GateError("conformance command failed; see " + str(report))
+    processes = verify_process_report(process)
+    stored = verify_accounting_report(accounting)
+    sockets = verify_python_report(junit)
+    reports.write_evidence(directory / "result.json", {
+        "status": "passed", "matrix_digest": reports.digest(MATRIX),
+        "process": processes, "accounting": stored, "python": sockets,
+        "reports": {path.name: reports.digest(path) for path in (process, accounting, junit)},
+    }, max_bytes=128 << 10)
+    print(f"Engagement HTTP conformance passed: {len(processes)} process cases, "
+          f"{len(stored)} accounting cases, {len(sockets)} Runtime cases; zero selected skips.")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--process-names", action="store_true")
+    parser.add_argument("--verify-process-report", type=Path)
+    parser.add_argument("--verify-accounting-report", type=Path)
+    parser.add_argument("--verify-python-report", type=Path)
+    args = parser.parse_args()
+    try:
+        if args.process_names:
+            print("|".join(sorted({case.split("/", 1)[0] for case in process_cases()[PACKAGE]})))
+        elif args.verify_process_report:
+            verify_process_report(args.verify_process_report)
+        elif args.verify_accounting_report:
+            verify_accounting_report(args.verify_accounting_report)
+        elif args.verify_python_report:
+            verify_python_report(args.verify_python_report)
+        else:
+            run()
+    except (GateError, OSError, ValueError) as error:
+        print(reports.redact(f"Engagement HTTP conformance failed: {error}"), file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    previous = signal.signal(signal.SIGTERM, reports.interrupt)
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("Engagement HTTP conformance cancelled", file=sys.stderr)
+        sys.exit(130)
+    finally:
+        signal.signal(signal.SIGTERM, previous)

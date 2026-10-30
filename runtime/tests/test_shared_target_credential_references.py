@@ -32,7 +32,7 @@ TARGET_KINDS = {"target-basic@1", "target-bearer@1", "target-cookies@1"}
 
 
 def test_shared_target_cookie_material_cases():
-    from contractor_runtime.contracts.settings import PentestIdentityMaterial
+    from contractor_runtime.contracts.settings import HTTPIdentityMaterial
     from contractor_runtime.strict_json import strict_json_loads
 
     cases = json.loads(FIXTURE.read_text())["materials"]
@@ -46,7 +46,7 @@ def test_shared_target_cookie_material_cases():
             if not isinstance(material, dict) or set(material) != {"cookies"}:
                 raise ValueError("cookie material shape differs")
             decode_private(
-                PentestIdentityMaterial,
+                HTTPIdentityMaterial,
                 json.dumps(
                     {
                         "credential": {"credentialId": "fixture", "kind": "target-cookies@1"},

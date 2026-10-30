@@ -1,0 +1,90 @@
+schema_version: "1.0"
+id: V422-001
+title: "Remove the uncalled public Audit preflight operation"
+milestone: autonomous-http-pentest-2026-10
+epic: audits
+kind: chore
+introduced_by: V411-002
+priority: P2
+status: completed
+implementation_commit: 08b59223546ad0c851d05f3613ecf65b475d1270
+depends_on: []
+languages: [go, typescript, yaml]
+goal: >-
+  Audit start remains the only public check of a pentest engagement; the
+  separate non-executing preflight operation, which no UI, CLI or Server
+  caller uses, no longer exists in any layer.
+context:
+  authority: >-
+    User decision on 2026-10-30: keep the typed engagement and its allocation
+    projection, remove separate APIs that exist without a caller.
+  severity: low
+  finding: >-
+    POST /v1/audits/{auditId}/preflight (preflightAudit,
+    internal/httpapi/public/routes.go:122, internal/httpapi/public/audit_preflight.go,
+    internal/auditservice/engagement.go Preflight) has no production caller.
+    Start repeats engagement, credential and compatibility checks in
+    internal/auditservice/start.go:307-316 and rejects audit_profile_unsupported.
+  siblings: >-
+    OpenAPI operation and AuditPreflightResponse; both generated clients;
+    AuditManagement interface; AUD-R246, FAIL-AUD-12 and LIM-AUD-35;
+    handler and service tests. Compatibility reason codes remain for Start.
+  specification:
+    - docs/spec/audits/audits.md#AUD-R247
+    - docs/spec/api/public-api.md#API-R3
+  code:
+    - internal/httpapi/public
+    - internal/auditservice
+    - api/openapi/contractor-public-v1.yaml
+    - internal/publicclient/generated
+    - ui/src/api/generated/public.ts
+scope:
+  in:
+    - "Remove the route, handler, service method and result types of Audit preflight"
+    - "Remove the OpenAPI operation and response schema; regenerate both clients"
+    - "Remove AUD-R246, FAIL-AUD-12, LIM-AUD-35 and their links; record removal and reversal condition"
+    - "Remove operation-only tests; keep Start compatibility coverage"
+  out:
+    - "Start engagement validation and compatibility reasons"
+    - "Eval and private Runtime identity preflight"
+    - "Engagement fields, transport journal and slot-limit simplification (separate task)"
+acceptance_criteria:
+  - id: A1
+    text: "No Audit preflight route, handler, service method, schema or client remains; its POST is an unknown route"
+  - id: A2
+    text: "Start rejects unsupported engagements with audit_profile_unsupported and unchanged reason codes"
+  - id: A3
+    text: "The spec no longer describes the operation; a future pentest setup screen may restore compatibility reporting in the draft read model, not a separate POST"
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditservice/... ./internal/httpapi/public/..."
+    covers: [A1, A2]
+  - command: "go test -count=1 ./internal/publicclient/..."
+    covers: [A1]
+  - command: make verify-public-api
+    covers: [A1]
+  - command: make ui-verify
+    covers: [A1]
+  - command: make lint
+    covers: [A1, A3]
+decisions:
+  removal: >-
+    Remove the uncalled duplicate validation surface. Start is authoritative
+    and retains its existing engagement and credential validation and reasons.
+  reversal_condition: >-
+    A later pentest setup screen with a production consumer may expose local
+    compatibility in the draft read model, not through a separate POST.
+
+verification:
+  date: "2026-10-30"
+  database: contractor_v422_preflight (dedicated disposable PostgreSQL database)
+  results:
+    - "Full auditservice and public HTTP package suites with PostgreSQL: passed"
+    - "Full publicclient package suites: passed"
+    - "make verify-public-api: passed; all public operations covered"
+    - "make ui-verify: passed with Node 24.20.0 and pinned pnpm"
+    - "make lint: passed"
+  coverage: >-
+    Removed URL returns 404. Start retains real-store checks for unsupported
+    capabilities, source closure, current Project policy, exact input metadata,
+    credential ownership/kind, baseline holds and idempotent replay. Public
+    Start responses preserve the three pentest compatibility reason codes.

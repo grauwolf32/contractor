@@ -42,8 +42,6 @@ func TestPrepareAllRefreshesLeaseAfterDeferredAdmission(t *testing.T) {
 	if err != nil || !replayed[0].LeaseExpiresAt.Equal(originalLease) {
 		t.Fatalf("replayed pinned reservation = (%+v, %v)", replayed, err)
 	}
-	targetDeadline := clock.Now().Add(30 * time.Second)
-	replayed[0].PentestDeadline = targetDeadline
 	runtime := &recordingRuntime{}
 	controller, err := NewRuntimeBatchController(runtime, registry, RuntimeBatchOptions{
 		Now: clock.Now, PrepareTimeout: time.Minute, CleanupTimeout: time.Minute,
@@ -61,8 +59,7 @@ func TestPrepareAllRefreshesLeaseAfterDeferredAdmission(t *testing.T) {
 	}
 	if len(runtime.preparedReservations) != 1 ||
 		!runtime.preparedReservations[0].LeaseExpiresAt.Equal(agent.ConfirmedLeaseExpiresAt) ||
-		!replayed[0].LeaseExpiresAt.Equal(agent.ConfirmedLeaseExpiresAt) ||
-		!runtime.preparedReservations[0].PentestDeadline.Equal(targetDeadline) || !replayed[0].PentestDeadline.Equal(targetDeadline) {
+		!replayed[0].LeaseExpiresAt.Equal(agent.ConfirmedLeaseExpiresAt) {
 		t.Fatalf("prepare lease = %+v; confirmed lease = %s", runtime.preparedReservations, agent.ConfirmedLeaseExpiresAt)
 	}
 	stored, err := registry.GetReservation(replayed[0].Grant.AllocationID)

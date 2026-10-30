@@ -193,19 +193,24 @@ func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 		t.Fatalf("foreign Audit = %d %s", foreignResponse.Code, foreignResponse.Body.String())
 	}
 
-	management.err = &auditservice.UnsupportedError{Reasons: []auditservice.CompatibilityReason{
+	for _, reason := range []auditservice.CompatibilityReason{
 		auditservice.ReasonActiveCheckApprovalUnsupported,
-	}}
-	unsupported := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/audit-fixed/start", nil)
-	unsupported.SetPathValue("auditId", "audit-fixed")
-	unsupported.Header.Set("Idempotency-Key", "unsupported-audit")
-	unsupported.Header.Set("If-Match", `"1"`)
-	unsupportedResponse := httptest.NewRecorder()
-	h.startAudit(unsupportedResponse, unsupported)
-	if unsupportedResponse.Code != http.StatusUnprocessableEntity ||
-		!strings.Contains(unsupportedResponse.Body.String(), `"code":"audit_profile_unsupported"`) ||
-		!strings.Contains(unsupportedResponse.Body.String(), `"active_check_approval_unsupported"`) {
-		t.Fatalf("unsupported Audit = %d %s", unsupportedResponse.Code, unsupportedResponse.Body.String())
+		auditservice.ReasonEngagementCapabilityUnsupported,
+		auditservice.ReasonEngagementSourceClosureUnsupported,
+		auditservice.ReasonEngagementActiveChecksUnsupported,
+	} {
+		management.err = &auditservice.UnsupportedError{Reasons: []auditservice.CompatibilityReason{reason}}
+		unsupported := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/audit-fixed/start", nil)
+		unsupported.SetPathValue("auditId", "audit-fixed")
+		unsupported.Header.Set("Idempotency-Key", "unsupported-audit")
+		unsupported.Header.Set("If-Match", `"1"`)
+		unsupportedResponse := httptest.NewRecorder()
+		h.startAudit(unsupportedResponse, unsupported)
+		if unsupportedResponse.Code != http.StatusUnprocessableEntity ||
+			!strings.Contains(unsupportedResponse.Body.String(), `"code":"audit_profile_unsupported"`) ||
+			!strings.Contains(unsupportedResponse.Body.String(), `"`+string(reason)+`"`) {
+			t.Fatalf("unsupported Audit lost reason %s = %d %s", reason, unsupportedResponse.Code, unsupportedResponse.Body.String())
+		}
 	}
 }
 
@@ -561,11 +566,6 @@ func TestAuditLifecycleHandlersRequireCASAndIdempotency(t *testing.T) {
 }
 
 type fakeAuditManagement struct {
-	preflight           auditservice.PreflightResult
-	preflightOwner      string
-	preflightAudit      string
-	preflightRevision   uint64
-	preflightCalls      int
 	events              auditservice.EventPage
 	eventParams         auditstore.EventListParams
 	ownerFindings       auditstore.OwnerFindingListParams
@@ -728,25 +728,6 @@ func (f *fakeAuditManagement) Start(
 ) (auditservice.StartedAudit, error) {
 	f.start = params
 	return f.started, f.err
-}
-
-func (f *fakeAuditManagement) Preflight(_ context.Context, params auditservice.PreflightParams) (auditservice.PreflightResult, error) {
-	ownerID, auditID, revision := params.OwnerID, params.AuditID, params.ExpectedRevision
-	f.preflightCalls++
-	f.preflightOwner, f.preflightAudit, f.preflightRevision = ownerID, auditID, revision
-	if f.err != nil {
-		return auditservice.PreflightResult{}, f.err
-	}
-	if f.audit.OwnerID != ownerID || f.audit.AuditID != auditID {
-		return auditservice.PreflightResult{}, auditstore.ErrNotFound
-	}
-	if f.audit.Revision != revision {
-		return auditservice.PreflightResult{}, auditstore.ErrPrecondition
-	}
-	if f.audit.State != auditstore.AuditDraft {
-		return auditservice.PreflightResult{}, auditstore.ErrConflict
-	}
-	return f.preflight, nil
 }
 
 func (f *fakeAuditManagement) Pause(

@@ -65,7 +65,7 @@ var layers = []layerSpec{
 			"internal/auth",
 			"internal/contracts",
 			"internal/contracts/control",
-			"internal/contracts/pentestcontract",
+			"internal/contracts/engagementcontract",
 			"internal/contracts/llmgateway",
 			"internal/contracts/reporting",
 			"internal/contracts/runlabels",

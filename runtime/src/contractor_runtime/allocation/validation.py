@@ -169,8 +169,8 @@ def validate_spec(
             required_infrastructure_channels.update(channels)
             if (
                 toolset_ref == "http-tools@1"
-                and spec.pentestEngagement is not None
-                and spec.pentestEngagement.http is not None
+                and spec.engagement is not None
+                and spec.engagement.http is not None
             ):
                 uncontrolled_channels.update(channels - {"runtime-http-client"})
             else:
@@ -194,19 +194,19 @@ def validate_spec(
                 status_code=422,
             )
 
-    if spec.pentestEngagement is not None and (
+    if spec.engagement is not None and (
         uncontrolled_channels - {"sandbox-execution"} or sandbox_ref == "podman-network@1"
     ):
         raise AllocationError(
             "unsupported_toolset",
-            "pentest metadata does not authorize target transport",
+            "engagement metadata does not authorize target transport",
             retryable=False,
             status_code=422,
         )
 
-    if spec.pentestEngagement is not None and spec.pentestEngagement.http is not None:
-        factory = factories.pentest_target_factory
-        adapter = spec.pentestEngagement.http.adapter
+    if spec.engagement is not None and spec.engagement.http is not None:
+        factory = factories.http_transport_factory
+        adapter = spec.engagement.http.adapter
         if (
             factory is None
             or factory.ref != adapter
@@ -214,7 +214,7 @@ def validate_spec(
         ):
             raise AllocationError(
                 "unsupported_runtime_adapter",
-                "pentest target transport is unavailable",
+                "engagement target transport is unavailable",
                 retryable=False,
                 status_code=422,
             )

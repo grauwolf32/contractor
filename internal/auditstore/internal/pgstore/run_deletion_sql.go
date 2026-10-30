@@ -28,9 +28,7 @@ SELECT audit.audit_id
 const collectedExecutionPredicate = `
 execution.state = 'collected'
    AND execution.run_provenance IS NOT NULL
-   AND execution.collection_receipt_id IS NOT NULL
-   AND NOT EXISTS (SELECT 1 FROM audit_action_attempts action
-    WHERE action.run_id=execution.run_id AND (action.held OR action.state='prepared'))`
+   AND execution.collection_receipt_id IS NOT NULL`
 
 // markExecutionRunDeletedSQL stamps run_deleted_at (first value kept) on
 // AuditExecution $1 of Run $2 when it passes collectedExecutionPredicate, and

@@ -57,7 +57,7 @@ def _schema_validator() -> Draft202012Validator:
         [(schema["$id"], Resource.from_contents(schema)) for schema in schemas]
     )
     allocation = next(
-        schema for schema in schemas if schema["$id"].endswith("allocation.schema.json")
+        schema for schema in schemas if schema["$id"].rsplit("/", 1)[-1] == "allocation.schema.json"
     )
     return Draft202012Validator(
         {"$ref": allocation["$id"] + "#/$defs/RuntimeSettings"}, registry=registry

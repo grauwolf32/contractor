@@ -22,12 +22,11 @@ MODULE = "github.com/grauwolf32/contractor/"
 
 # Union of the process e2e names selected by release-verify before V155.
 EXPECTED_PROCESS_TESTS = {
-    "TestPentestActionAcrossProductionProcesses",
-    "TestPentestHTTPRouteMatrixAcrossProcesses",
-    "TestPentestHTTPBoundsAcrossProcesses",
-    "TestPentestHTTPLifecycleAcrossProcesses",
-    "TestPentestIdentitySessionsAcrossProcesses",
-    "TestPentestIdentityLifecycleAcrossProcesses",
+    "TestEngagementHTTPRouteMatrixAcrossProcesses",
+    "TestEngagementHTTPBoundsAcrossProcesses",
+    "TestEngagementHTTPLifecycleAcrossProcesses",
+    "TestEngagementIdentitySessionsAcrossProcesses",
+    "TestEngagementIdentityLifecycleAcrossProcesses",
     "TestNucleiWebWithDeterministicScannerAcrossProcesses",
     "TestAgentSkillsMVPProcesses",
     "TestArtifactHistoryAcrossProductionProcesses",
@@ -476,9 +475,8 @@ def script_go_tests(relative: str, command: str = "") -> list[GoTest]:
         )]
     if relative == "scripts/test-project-sitemap-postgres.py":
         return [GoTest(relative, frozenset({"integration"}), tuple("./" + name for name in module.PACKAGES), None)]
-    if relative == "scripts/test-pentest-action-process.py":
-        return [GoTest(relative, frozenset({"e2e"}), ("./tests/e2e",), "^(" + "|".join(module.PROCESS_TESTS) + ")$")]
-    if relative == "scripts/test-pentest-http-process.py":
+
+    if relative == "scripts/test-engagement-http-process.py":
         if "--verify-" in command:
             return []
         process = module.process_cases()
