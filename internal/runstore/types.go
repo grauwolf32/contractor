@@ -463,6 +463,21 @@ type StageExecution struct {
 	TerminalAt                   *time.Time
 }
 
+// StageLineage is the identity, state, execution configuration and lineage
+// of one StageExecution without any of its snapshots: what the Scheduler
+// reads of a Run's Stage history to count escalation attempts (SCH-R164).
+type StageLineage struct {
+	StageExecutionID        string
+	RunID                   string
+	StageName               string
+	Attempt                 int
+	State                   StageExecutionState
+	ExecutionConfigVariant  StageExecutionConfigVariant
+	EscalationOrdinal       *int
+	PreviousExecutionID     *string
+	ResumeSourceExecutionID *string
+}
+
 // StageTransitionAction is the durable Scheduler decision made after one
 // StageExecution reaches a semantic terminal outcome. A next/retry/escalate
 // decision identifies the newly-created execution in the same transaction.

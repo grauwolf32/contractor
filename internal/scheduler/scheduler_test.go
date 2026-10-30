@@ -2087,8 +2087,9 @@ type memorySchedulerStore struct {
 	// deferrals counts deferred releases.
 	claimedClasses []resolved.LaneClass
 	deferrals      int
-	// activeStageReads and stageListReads count the Stage reads, so a test
-	// can prove a progression attempt reads one Stage, not the history.
+	// activeStageReads counts the active Stage reads and stageListReads the
+	// Stage history reads (existence probe and lineage), so a test can prove
+	// a progression attempt reads one Stage, not the history.
 	activeStageReads int
 	stageListReads   int
 	events           *eventRecorder
@@ -2237,14 +2238,42 @@ func (s *memorySchedulerStore) GetActiveStageExecution(
 	}
 }
 
-func (s *memorySchedulerStore) ListStageExecutions(
-	_ context.Context, runID string,
-) ([]runstore.StageExecution, error) {
+// HasStageExecutions answers as the PostgreSQL probe does. The double holds
+// the stages of one Run: another Run's history is a failed read.
+func (s *memorySchedulerStore) HasStageExecutions(_ context.Context, runID string) (bool, error) {
+	s.stageListReads++
+	if runID != s.run.RunID {
+		return false, runstore.ErrNotFound
+	}
+	return len(s.stages) > 0, nil
+}
+
+// ListStageLineage selects, like the PostgreSQL statement, the lineage of the
+// Run's attempts of one Stage in attempt order. The double holds the stages
+// of one Run: another Run's history is a failed read.
+func (s *memorySchedulerStore) ListStageLineage(
+	_ context.Context, runID, stageName string,
+) ([]runstore.StageLineage, error) {
 	s.stageListReads++
 	if runID != s.run.RunID {
 		return nil, runstore.ErrNotFound
 	}
-	return append([]runstore.StageExecution(nil), s.stages...), nil
+	var result []runstore.StageLineage
+	for _, execution := range s.stages {
+		if execution.StageName != stageName {
+			continue
+		}
+		result = append(result, runstore.StageLineage{
+			StageExecutionID: execution.StageExecutionID, RunID: execution.RunID,
+			StageName: execution.StageName, Attempt: execution.Attempt, State: execution.State,
+			ExecutionConfigVariant:  execution.ExecutionConfigVariant,
+			EscalationOrdinal:       execution.EscalationOrdinal,
+			PreviousExecutionID:     execution.PreviousExecutionID,
+			ResumeSourceExecutionID: execution.ResumeSourceExecutionID,
+		})
+	}
+	slices.SortFunc(result, func(left, right runstore.StageLineage) int { return left.Attempt - right.Attempt })
+	return result, nil
 }
 
 // ListStageExecutionsWithUnreleasedAllocations selects, like the PostgreSQL
