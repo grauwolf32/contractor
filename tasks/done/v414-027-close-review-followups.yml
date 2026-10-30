@@ -5,7 +5,7 @@ milestone: review-v407-v409-followups-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on:
   - V414-001
   - V414-002
@@ -159,3 +159,31 @@ tests:
     covers: [A3]
   - command: "CONTRACTOR_TEST_DATABASE_URL=\"${CONTRACTOR_TEST_DATABASE_URL:?Set a disposable PostgreSQL URL}\" make test-wire-cross-language"
     covers: [A3]
+implementation_commit: d715afcd93c46c01507dfb7a43a661602593ab56
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max); Go 1.26.9; Node 24.20.0 with pnpm 11.24.0;
+    the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. All V414 tasks are on main; the wave branches
+    claude/fix-* are merged and deleted.
+  commands:
+    - >-
+      make lint passed on main fde39a943.
+    - >-
+      make test-wire-cross-language passed on f527d2dbf after V425-018 removed
+      the orphan engagement fixture left by V422-002.
+    - >-
+      In place of make test-go: go test -tags integration -count=1 over every
+      package except tests/e2e, with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (environment: no podman alpine image on
+      this Mac) and TestBackupRestorePreservesExactArtifactsAndCAS, a defect
+      that predates the V414 work (fails on b222f41fc too), owned by V425-003.
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped (Linux-only
+      Podman tests declared by V401-007), 2 failed: the macOS defects V425-001
+      and V425-002.
+    - >-
+      make ui-verify, make verify-public-api-postgres passed on acb704b2c.
+    - >-
+      User decision on 2026-10-30: close the wave on this record.

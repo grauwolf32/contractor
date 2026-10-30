@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-89 open tasks: 11 in progress, 67 pending, 11 deferred. 1251 finished: 1236 completed, 15 archived.
+88 open tasks: 10 in progress, 67 pending, 11 deferred. 1252 finished: 1237 completed, 15 archived.
 
 ## In progress
 
@@ -17,7 +17,6 @@ the epics are in [epics.yml](epics.yml).
 | [V372-030](v372-030-shrink-test-only-export-baseline.yml) | quality | chore | P3 | Resolve the exported identifiers that only tests use and empty the test-only export baseline |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V414-027](v414-027-close-review-followups.yml) | quality | chore | P3 | Close the V407/V409 review follow-ups |
 | [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | planner-worker | feature | P1 | Make terminal summarizer reasoning input explicitly configurable |
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
@@ -214,4 +213,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 43 | 7 | 18 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 38 | 25 | 14 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 26 | 45 | 13 |
-| Quality, CI and process (`quality`) | 13 | 1 | 27 | 104 | 25 |
+| Quality, CI and process (`quality`) | 12 | 1 | 27 | 104 | 25 |
