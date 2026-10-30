@@ -6,7 +6,7 @@ epic: http-tools
 kind: chore
 introduced_by: V411-027
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V411-027]
 languages: [go]
 goal: Exercise authenticated authority, fencing and classified errors with a valid current prepare request instead of failing before the tested boundary.
@@ -55,3 +55,4 @@ tests:
   covers: [A1, A2, A3]
 
 implementation_evidence: tasks/evidence/v411-030-verification.json
+implementation_commit: 8448b1f6bf3493c5dd4c8435ae49a110303460a4
