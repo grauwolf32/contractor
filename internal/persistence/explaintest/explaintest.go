@@ -16,9 +16,10 @@
 // sequential scans returned plus the entries the table's indexes returned,
 // as the transaction's own statistics counters count them. It is the one
 // count of rows read that the package offers, and row budgets use it. The
-// count is exact where EXPLAIN rounds each node's rows to a per-loop average
-// (Node.Examined reads those averages to describe a plan's table scans), and
-// for a fixed fixture it is deterministic; it never measures time. Rows a
+// count is exact where EXPLAIN rounds each node's rows to a per-loop average,
+// so a row that an inner scan reads in fewer than half of its loops counts
+// although the plan reports none, and for a fixed fixture it is
+// deterministic; it never measures time. Rows a
 // parallel worker reads never reach the counters, so a counted statement is
 // planned without parallel workers. The
 // count includes rows a filter discarded later, the entries of an index-only
@@ -89,12 +90,6 @@ type Node struct {
 	SharedHit        int64   `json:"Shared Hit Blocks"`
 	SharedRead       int64   `json:"Shared Read Blocks"`
 	Children         []Node  `json:"Plans"`
-}
-
-// tableScans are the node types that read rows of a table.
-var tableScans = map[string]bool{
-	"Seq Scan": true, "Sample Scan": true, "Index Scan": true, "Index Only Scan": true,
-	"Bitmap Heap Scan": true, "Tid Scan": true, "Tid Range Scan": true,
 }
 
 // Explain runs sql with args under EXPLAIN (ANALYZE, BUFFERS) in a savepoint
@@ -307,24 +302,6 @@ func parse(output []byte) (Analysis, error) {
 // SubPlans included; planning is not counted.
 func (n Node) Blocks() int64 {
 	return n.SharedHit + n.SharedRead
-}
-
-// Examined returns the rows of relation that the plan's table scans returned
-// or discarded over all their loops: the rows they returned and the rows
-// their filters and index rechecks removed. Index entries that a scan passed
-// over without producing a row, as a bitmap index scan or a whole-index walk
-// does, count in Blocks only. It describes the shape of one plan from
-// EXPLAIN's per-loop averages, which EXPLAIN rounds, so it is exact only
-// where each scan returns whole rows per loop; it is not the rows the
-// statement read, which Analysis.Reads counts for row budgets.
-func (n Node) Examined(relation string) int64 {
-	var examined float64
-	n.walk(func(node Node, _ int) {
-		if node.Relation == relation && tableScans[node.Type] {
-			examined += (node.Rows + node.RemovedByFilter + node.RemovedByRecheck) * node.Loops
-		}
-	})
-	return int64(examined + 0.5)
 }
 
 // Nodes returns the plan's nodes, the root first and each node before its

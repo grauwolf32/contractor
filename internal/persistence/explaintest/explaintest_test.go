@@ -49,13 +49,6 @@ func TestParseReadsThePlanAndItsTriggers(t *testing.T) {
 	if got := plan.Blocks(); got != 42 {
 		t.Errorf("Blocks = %d, want the root's hit and read blocks, 42", got)
 	}
-	// The ModifyTable node names runs but scans nothing; the bitmap index
-	// entries are not rows.
-	for relation, want := range map[string]int64{"runs": 4, "stages": 8, "audits": 0, "other": 0} {
-		if got := plan.Examined(relation); got != want {
-			t.Errorf("Examined(%s) = %d, want %d", relation, got, want)
-		}
-	}
 	var nodes []string
 	for _, node := range plan.Nodes() {
 		nodes = append(nodes, node.Type)
