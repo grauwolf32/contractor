@@ -410,6 +410,14 @@ export function validateAdvanced(draft: Draft): Problem[] {
           "Context window ratio must be greater than 0 and less than 1.",
         );
     }
+    if (
+      Object.hasOwn(record(spec.summarizer), "includeReasoning") &&
+      typeof record(spec.summarizer).includeReasoning !== "boolean"
+    )
+      error(
+        ["spec", "summarizer", "includeReasoning"],
+        "Include model reasoning must be true or false.",
+      );
   }
   return problems;
 }

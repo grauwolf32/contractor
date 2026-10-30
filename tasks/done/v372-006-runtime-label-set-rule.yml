@@ -1,0 +1,157 @@
+schema_version: "1.0"
+id: V372-006
+title: "Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it"
+milestone: hub-audit-defects-2026-10
+epic: runtime-config
+kind: chore
+priority: P3
+status: completed
+depends_on: []
+languages: [go, typescript, python]
+goal: "Run label selection, Runtime Agent principal labels and the public label replacement apply RCF-R118 to RCF-R120 and LIM-RCF-26 through one Go definition, and the UI and the Runtime registration models give the same verdict on one shared case list."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2f: V370-011, V370-012), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/configuration/runtime-config.md#RCF-R119"
+  revalidated: >-
+    2026-10-24 on b523ae77: the finding still holds; every file:line below
+    was re-read and updated. The UI Run label check moved from
+    ui/src/api/runs.ts and ui/src/api/workflows.ts (which now check only
+    canonical order) to ui/src/run-drafts/validation.ts, and the binding
+    form in ui/src/routes/operations/runtime-configs/bindings.tsx has its
+    own default exclusion. V405-001..007 added Runtime placement labels
+    (cloud/ and local/ chains, api/testdata/v1alpha1/placement-label-cases.json),
+    a separate rule with its own grammar and shared cases; it is out of
+    scope here and needs no change. V407-021 and V407-024 did not touch the
+    RuntimeConfig label set rule.
+  finding: >-
+    normalizeRuntimeAgentLabels
+    (internal/httpapi/public/runtime_agent_principal_handlers.go:188-200,
+    called by putRuntimeAgentLabels at :113) repeats the Runtime Agent label
+    set rule with a literal 32: at most 32 labels, each valid under
+    validRuntimeInfrastructureID (runtime_configuration_handlers.go:68-70),
+    none equal to runtimeconfig.DefaultLabel, no duplicates, sorted.
+    runtimeconfig.ValidateAgentLabels (internal/runtimeconfig/agent_labels.go:42-54,
+    bound maxAgentLabels at :14) owns the same rule, and agentprincipal
+    applies it again on every write (service.go:78, 193 and 373;
+    repository.go:206 and 308). runtimeconfig keeps a second Go form of
+    RCF-R118 to RCF-R120 for Runs, NormalizeRunLabels with its own constant
+    MaximumRunLabels (run_snapshot.go:16 and 49-65, also read by
+    resolver.go:98 and the snapshot check at run_snapshot.go:166-172), for
+    the same LIM-RCF-26 bound; its callers are run_handlers.go:270,
+    audit_models.go:146, runservice/public.go:284, runservice/digest.go:17
+    and auditservice/model.go:167. The copies agree today, but nothing ties
+    them together (AGENTS.md 3.1). Predates the shallow history (boundary
+    6349621).
+  siblings: >-
+    UI: replaceRuntimeAgentPrincipalLabels (ui/src/api/operations.ts:469-488)
+    sorts and checks the bound, uniqueness and default itself; the Run draft
+    check validateRunDraft (ui/src/run-drafts/validation.ts:88-95) repeats
+    the bound, uniqueness and default exclusion; the binding form
+    (ui/src/routes/operations/runtime-configs/bindings.tsx:311) excludes
+    default for a single label; canonicalLabelPins
+    (ui/src/api/runtime-configuration.ts:19-24) checks order and default for
+    returned pins. Runtime: _require_runtime_label
+    (runtime/src/contractor_runtime/contracts/base.py:384-392, default
+    excluded) and _require_sorted_unique (base.py:343-345) with maximum 32
+    for the registration response labels and initialLabels
+    (contracts/registration.py:81-82, 150 and 177-179). OpenAPI:
+    RuntimeAgentLabelsMutation (api/openapi/contractor-public-v1.yaml:15818-15827)
+    and the Audit creation runtimeLabels (:12593-12597) state maxItems 32 and
+    uniqueItems but not the default exclusion. The label grammar itself
+    (contracts.ValidIdentifier with a 63-byte bound) has its shared cases
+    already and stays as it is. Runtime placement labels (V405) are a
+    different rule and are not touched.
+  decision: >-
+    2026-10-30 (fix-rules lane): the one Go definition lives in
+    internal/contracts/runtimesettings/runtime_labels.go
+    (CanonicalRuntimeLabels, ValidateCanonicalRuntimeLabels,
+    MaxRuntimeLabels, DefaultRuntimeLabel), not in runtimeconfig, because
+    the kernel wire contracts hold two more copies the finding did not
+    list: the provenance runLabels and agentLabels of Runtime settings
+    (runtimesettings/validation.go validateProvenanceBindings) and the
+    registration initialLabels (contracts/control/registration.go
+    validateSortedLabels), and the execution-layer runtimeconfig cannot be
+    imported there. runtimeconfig keeps the domain entry points
+    (NormalizeLabels, which replaces NormalizeRunLabels, and
+    ValidateAgentLabels) on top of it, and its resolver's Run and Agent
+    label layer check uses it too. RCF-R185 records the rule; reversal
+    condition: none expected, the wire contract is the lowest layer that
+    every reader shares.
+scope:
+  in:
+    - "One Go definition of the label set rule (count bound, label grammar, default exclusion, uniqueness and canonical order) in runtimeconfig, used by Run selection, the Run snapshot check, agentprincipal and the public handler, which keeps only the request decoding; one exported bound replaces maxAgentLabels, MaximumRunLabels and the handler's literal 32."
+    - "A shared case list under api/testdata (declared in readers.json) to which the Go definition (Run and Agent forms), the UI label checks (operations.ts, run-drafts/validation.ts) and the Runtime registration models give one verdict; the OpenAPI descriptions of RuntimeAgentLabelsMutation.labels and the Run and Audit runtimeLabels name the default exclusion."
+  out:
+    - "The label grammar and the 32-label bound (LIM-RCF-26) themselves."
+    - "Label binding, pinning and replacement semantics."
+    - "Runtime placement labels (V405-001, placement-label-cases.json)."
+acceptance_criteria:
+  - id: A1
+    given: "the Go sources outside internal/runtimeconfig"
+    when: "the source scan runs"
+    then: "no code counts, deduplicates or checks the default exclusion of a Runtime label set, and a probe copy (for example a literal 32 bound with a DefaultLabel comparison in internal/httpapi/public) fails the scan"
+  - id: A2
+    given: "every case of the shared label set case list (empty set, 32 and 33 labels, duplicate, default, unsorted input, invalid grammar, 63- and 64-byte label)"
+    when: "Run selection and Agent label validation in Go, the UI checks and the Runtime registration models evaluate it"
+    then: "all give the case's verdict, and Run selection returns the canonical order"
+  - id: A3
+    text: "Existing label replacement, Run creation, Audit creation and registration tests pass unchanged."
+  - id: A4
+    text: "The shared-case tests and the source scan fail on b523ae77 (the handler's own copy and the second bound are reported)."
+tests:
+  - command: "go test ./internal/runtimeconfig ./internal/agentprincipal ./internal/httpapi/public ./internal/runservice ./internal/auditservice"
+    covers: [A1, A2, A3, A4]
+  - command: "cd runtime && uv run pytest tests/test_contracts.py"
+    covers: [A2, A3]
+  - command: "cd ui && corepack pnpm test --run src/api src/run-drafts src/routes/operations"
+    covers: [A2, A3]
+  - command: "make test-wire-cross-language"
+    covers: [A2]
+  - command: "make verify-public-api"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: 4f8d7f576c83e435b49a23fd398b5658522090f8
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): 4f8d7f576c83:
+      go test runtimesettings+contracts/control (full) ok; runtimeconfig -run
+      Label|Snapshot|Resolv|Merge|Layer|Origin|Shared ok; httpapi/public -run
+      RuntimeAgent|Label|CreateRun|Principal ok; agentprincipal -run
+      Label|Principal|Replace|Register (PG) ok; runservice+auditservice (PG)
+      ok; controlplane -run Registration|Label|Register ok; archtest ok;
+      pytest test_shared_runtime_label_set.py test_contracts.py ok;
+      ruff+lint-imports ok; vitest src/api src/run-drafts
+      src/routes/operations (901) + runtime-labels.test.ts ok; ui typecheck
+      ok; make ui-generate+generate-public-client; shared_fixture_gate
+      --sources-only ok; check_spec ok; check_tasks ok
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.

@@ -122,6 +122,9 @@ type workerSummarizerSource struct {
 	ModelPolicy        string                 `yaml:"modelPolicy"`
 	ContextWindowRatio *float64               `yaml:"contextWindowRatio,omitempty"`
 	CumulativeBudget   *int                   `yaml:"cumulativeBudget,omitempty"`
+	// A node, so an explicit null or a non-boolean scalar is rejected rather
+	// than read as omission (TPL-R47).
+	IncludeReasoning yaml.Node `yaml:"includeReasoning,omitempty"`
 }
 
 type artifactRefSource struct {

@@ -3,11 +3,13 @@ package config
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/clone"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
+	"go.yaml.in/yaml/v4"
 )
 
 func (l *loader) resolveAgentTemplate(
@@ -147,6 +149,11 @@ func (l *loader) resolveWorkerSummarizer(
 	if source.ContextWindowRatio != nil {
 		result.ContextWindowRatio = *source.ContextWindowRatio
 	}
+	includeReasoning, err := resolveIncludeReasoning(source.IncludeReasoning)
+	if err != nil {
+		return nil, err
+	}
+	result.IncludeReasoning = includeReasoning
 	if source.Instructions != nil {
 		instructions, err := l.resolveInstructions(source.Instructions)
 		if err != nil {
@@ -158,6 +165,23 @@ func (l *loader) resolveWorkerSummarizer(
 		return nil, err
 	}
 	return result, nil
+}
+
+// resolveIncludeReasoning resolves the authoring choice of TPL-R47: omission is
+// false, and only a YAML boolean is accepted; null, strings and other scalars
+// are rejected rather than read as omission.
+func resolveIncludeReasoning(node yaml.Node) (bool, error) {
+	if node.IsZero() {
+		return false, nil
+	}
+	if node.Kind != yaml.ScalarNode || node.ShortTag() != "!!bool" {
+		return false, fmt.Errorf("includeReasoning must be a boolean")
+	}
+	value, err := strconv.ParseBool(node.Value)
+	if err != nil {
+		return false, fmt.Errorf("includeReasoning must be a boolean")
+	}
+	return value, nil
 }
 
 func resolveSkills(source *[]artifactRefSource) ([]contracts.ArtifactRef, error) {

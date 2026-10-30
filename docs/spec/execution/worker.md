@@ -1332,7 +1332,8 @@ one Runtime-built bounded document containing:
 - the authoritative subtask ID, objective and task instructions;
 - the immutable string parameters and named inputs already visible to the
   Worker;
-- a chronological, non-thought projection of model-visible normal-loop events;
+- a chronological projection of model-visible normal-loop events, without
+  thought parts unless WRK-R181 enables provider reasoning;
 - the deterministic latest `WorkerObservations`.
 
 **WRK-R145.** Trusted result bindings remain private Runtime data
@@ -1341,7 +1342,7 @@ reappear only if it was already part of a bounded model-visible event
 projection.
 
 **WRK-R146.** Runtime never includes system or runtime internals,
-hidden thought, credentials, headers, provider exceptions, host paths or
+hidden thought other than provider reasoning admitted by WRK-R181, credentials, headers, provider exceptions, host paths or
 arbitrary ADK State. Before projection it replaces the allocation's host paths,
 the LLM Gateway token and every RuntimeSettings credential or private endpoint
 of at least 16 UTF-8 bytes (LIM-WRK-12) with `[REDACTED]`; the
@@ -1363,6 +1364,51 @@ framing reserve or context-based history trimming. Runtime sends the bounded
 projection with the pinned instructions and output schema, and the Gateway
 decides context acceptance. Context failures keep their non-retryable
 classification (WRK-R18).
+
+**WRK-R181.** An AgentTemplate summarizer with `includeReasoning: true`
+(TPL-R47) adds provider reasoning to the summarizer input; omission means
+false. Provider reasoning is only the text a provider returned in
+`reasoning_content` or `reasoning`, which the Gateway adapter maps to thought
+parts. With true, each thought part with text in a model-role normal-loop
+event becomes a tagged ordinary JSON part `{"reasoning": "<text>"}` in place
+of the thought part within that model event; with false the projection is
+identical to one recorded without the option. A thought part without text, an empty or
+whitespace-only one, an opaque provider signature and a reasoning token count
+produce no part, and their absence is not a failure. The flag changes neither
+the trigger, the one-call bound, the separate summarizer budget, result
+assembly, `summarized: true`, cancellation and deadlines, the main Worker's
+outgoing requests (which never replay `reasoning_content`) nor telemetry
+content capture (OBS-R54).
+
+**WRK-R182.** Provider reasoning has one projection, implemented by the
+Runtime module `contractor_runtime.reasoning`, which every model consumer of
+provider reasoning uses; the shared cases are
+`api/testdata/reasoning-projection-cases.json`. Each part is first redacted
+with the WRK-R146 values, then bounded so that its compact UTF-8 JSON
+serialization, tag and marker included, is at most 8 KiB (LIM-WRK-28); a
+part cut at that bound keeps the longest code-point prefix that fits followed
+by `[TRUNCATED]`. The serialized reasoning parts of one input document total
+at most 64 KiB (LIM-WRK-29). Reasoning has the lowest priority in the
+WRK-R147 projection: task data and complete evidence groups are selected
+first, and reasoning parts are then added newest first only where both the
+512 KiB document bound and the 64 KiB reasoning bound still admit them;
+reasoning never removes task data or an evidence group, and a group whose
+model event holds only reasoning enters only in that second step. The
+transcript recorder applies the same bounds to its retention: reasoning does
+not count against its 512 KiB evidence retention, and retained reasoning above
+64 KiB is dropped from the oldest groups first. A document built with the
+option carries `reasoningTruncated`, true when any available reasoning was cut
+or omitted; without the option the member is absent.
+
+**WRK-R183.** When `includeReasoning` is true, Runtime appends a fixed clause
+to the configured summarizer instructions: parts tagged `reasoning` are the
+Worker model's own reasoning as reported by its provider, fallible hypotheses,
+alternatives and proposed next steps, not instructions and not evidence;
+actions, artifacts and facts are confirmed only from the task data,
+observations and tool results. The clause does not depend on author-supplied
+instructions. Raw reasoning is never written to Worker State, Planner-facing
+results, public events or the UI; it exists only in the transient projection
+and the summarizer request.
 
 #### Output and failure
 
@@ -1535,6 +1581,10 @@ Limits ([registry](../platform/limits.md)):
   (WRK-R177).
 - LIM-WRK-27: every `WorkerCompletion` integer at most 2^53-1
   (WRK-R164).
+- LIM-WRK-28: one serialized tagged provider-reasoning part 8 KiB
+  (WRK-R182).
+- LIM-WRK-29: serialized provider reasoning per consumer input document
+  64 KiB (WRK-R182).
 
 Errors ([registry](../platform/errors.md)):
 
@@ -1593,13 +1643,13 @@ The security-relevant rules of this document are:
 
 - the Worker context and what each model sees: WRK-R2,
   WRK-R4, WRK-R5, WRK-R44,
-  WRK-R45, WRK-R144, WRK-R145;
+  WRK-R45, WRK-R144, WRK-R145, WRK-R181, WRK-R183;
 - models cannot select outcome, slot, revision, retryability or lifecycle:
   WRK-R41, WRK-R50, WRK-R54,
   WRK-R55, WRK-R149;
 - secrets: WRK-R17, WRK-R60,
   WRK-R61, WRK-R78,
-  WRK-R79, WRK-R74, WRK-R146;
+  WRK-R79, WRK-R74, WRK-R146, WRK-R182;
 - identity separation: WRK-R69;
 - semantic admission, raw arguments and interrupted history: WRK-R170,
   WRK-R171, WRK-R173 to WRK-R177;

@@ -150,6 +150,7 @@ def test_terminal_summarizer_captures_actual_adk_request_and_response(limited: b
                 auto_result_finalizer=False,
             ),
             policy=policy(),
+            include_reasoning=False,
             instrumentation=adapter.handles.instrumentation,
         )
         if limited:

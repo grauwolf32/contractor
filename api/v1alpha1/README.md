@@ -185,7 +185,12 @@ one normal Worker invocation. `contextWindowRatio` is required on the resolved
 wire (authoring omission defaults to `0.9`) and combines with the effective
 Worker ModelPolicy's required `contextWindowTokens` and `maxOutputTokens` to
 derive the prompt boundary. Omission of the complete summarizer block is the
-only disabled representation.
+only disabled representation. In the same way `includeReasoning` is present
+only as `true`, which admits the Worker model's provider reasoning into the
+summarizer input as tagged, redacted and bounded ordinary text; omission is the
+only representation of `false` (authoring omission resolves to it) and both
+sides reject an explicit `false` or `null`. It joins the AgentTemplate digest
+manifest only when `true`.
 
 An optional `summarizer.instructions` contains the resolved `ref`, `digest`, and
 `text`, like Worker instructions. Its text is nonblank and at most 8,000 Unicode

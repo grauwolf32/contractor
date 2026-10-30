@@ -54,6 +54,13 @@ def test_omitted_summarizer_is_absent_and_behaviorally_disabled() -> None:
         lambda value: value["modelPolicy"].__setitem__("maxToolCalls", 1),
         lambda value: value["modelPolicy"].__setitem__("maxWorkerCalls", 1),
         lambda value: value.__setitem__("unknown", True),
+        # Omission is the only false (TPL-R47); aliases are unknown members.
+        lambda value: value.__setitem__("includeReasoning", False),
+        lambda value: value.__setitem__("includeReasoning", None),
+        lambda value: value.__setitem__("includeReasoning", "true"),
+        lambda value: value.__setitem__("includeReasoning", 1),
+        lambda value: value.__setitem__("include_reasoning", True),
+        lambda value: value.__setitem__("IncludeReasoning", True),
     ],
 )
 def test_shared_invalid_summarizer_wire_shape_is_rejected(mutation: Any) -> None:
@@ -115,6 +122,26 @@ def test_shared_summary_instruction_golden_and_digest_tampering() -> None:
     template.summarizer.instructions.text += "Changed."
     with pytest.raises(TemplateDigestMismatch, match="instruction digest"):
         verify_template_digests(template)
+
+
+def test_shared_include_reasoning_is_true_or_omitted_and_digested() -> None:
+    enabled_raw = (FIXTURES / "allocation-spec-summarizer-instructions.json").read_text(
+        encoding="utf-8"
+    )
+    disabled_raw = (FIXTURES / "allocation-spec-summarizer.json").read_text(encoding="utf-8")
+    enabled = AllocationSpec.model_validate_json(enabled_raw).agent_template
+    disabled = AllocationSpec.model_validate_json(disabled_raw).agent_template
+    assert enabled.summarizer is not None and enabled.summarizer.include_reasoning is True
+    assert disabled.summarizer is not None and disabled.summarizer.include_reasoning is False
+    assert enabled.summarizer.model_dump(by_alias=True)["includeReasoning"] is True
+    assert "includeReasoning" not in disabled.summarizer.model_dump(by_alias=True)
+    verify_template_digests(enabled)
+    verify_template_digests(disabled)
+
+    # The member is part of the AgentTemplate digest manifest when true.
+    enabled.summarizer.include_reasoning = False
+    with pytest.raises(TemplateDigestMismatch, match="AgentTemplate"):
+        verify_template_digests(enabled)
 
 
 @pytest.mark.parametrize(

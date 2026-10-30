@@ -1393,6 +1393,7 @@
         "/agentTemplate/summarizer",
         "/agentTemplate/summarizer/contextWindowRatio",
         "/agentTemplate/summarizer/cumulativeBudget",
+        "/agentTemplate/summarizer/includeReasoning",
         "/agentTemplate/summarizer/instructions",
         "/agentTemplate/summarizer/instructions/digest",
         "/agentTemplate/summarizer/instructions/ref",

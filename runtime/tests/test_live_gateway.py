@@ -112,7 +112,7 @@ def test_live_terminal_summarizer_returns_one_strict_worker_result() -> None:
             maxModelCalls=1,
             temperature=0,
         )
-        summarizer = TerminalSummarizer(model=model, policy=policy)
+        summarizer = TerminalSummarizer(model=model, policy=policy, include_reasoning=False)
         prompt = (
             "Contractor terminal Worker summary input (JSON):\n"
             '{"observations":{"profile":"lean@1","tools":{},"truncated":false},'

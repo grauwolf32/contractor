@@ -95,10 +95,11 @@ func (r migrationRoutines) reach(function string) ([]routineEffect, map[string]s
 }
 
 // routinesFunctionsSQL lists the functions of the current schema with their
-// language and source; a SQL function with a BEGIN ATOMIC body keeps no
-// source text.
+// language and body text: the source of a text body, or the deparsed
+// statements of a SQL-standard body (PER-R46), which name the current
+// schema's objects without a schema.
 const routinesFunctionsSQL = `
-SELECT p.proname::text, l.lanname::text, p.prosrc, p.prosqlbody IS NOT NULL
+SELECT p.proname::text, l.lanname::text, coalesce(pg_get_function_sqlbody(p.oid), p.prosrc)
 FROM pg_proc AS p JOIN pg_language AS l ON l.oid = p.prolang
 WHERE p.pronamespace = current_schema()::regnamespace
 ORDER BY 1`
@@ -124,13 +125,12 @@ func loadMigrationRoutines(ctx context.Context, pool *pgxpool.Pool, relations ma
 	type functionSource struct{ name, text string }
 	var sources []functionSource
 	var name, language, text string
-	var atomic bool
 	rows, err := pool.Query(ctx, routinesFunctionsSQL)
 	if err != nil {
 		return migrationRoutines{}, err
 	}
 	routines := migrationRoutines{bodies: map[string]*routineBody{}}
-	if _, err := pgx.ForEachRow(rows, []any{&name, &language, &text, &atomic}, func() error {
+	if _, err := pgx.ForEachRow(rows, []any{&name, &language, &text}, func() error {
 		body := routines.bodies[name]
 		if body == nil {
 			body = &routineBody{}
@@ -139,8 +139,6 @@ func loadMigrationRoutines(ctx context.Context, pool *pgxpool.Pool, relations ma
 		switch {
 		case language != "plpgsql" && language != "sql":
 			body.unreadable = "it is written in " + language
-		case atomic:
-			body.unreadable = "its BEGIN ATOMIC body keeps no source text"
 		default:
 			sources = append(sources, functionSource{name: name, text: text})
 		}

@@ -232,6 +232,7 @@ func agentTemplateResourceBody(template contracts.ResolvedAgentTemplate) map[str
 		summarizer := map[string]any{
 			"modelPolicy":        template.Summarizer.ModelPolicy.Ref,
 			"contextWindowRatio": template.Summarizer.ContextWindowRatio,
+			"includeReasoning":   template.Summarizer.IncludeReasoning,
 		}
 		if template.Summarizer.CumulativeBudget != nil {
 			summarizer["cumulativeBudget"] = *template.Summarizer.CumulativeBudget

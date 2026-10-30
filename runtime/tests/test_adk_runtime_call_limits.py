@@ -229,7 +229,9 @@ def test_one_shot_sdk_limit_keeps_owned_outcomes_and_one_http_dispatch(
                 )
             else:
                 config = allocation_spec(summarizer=True).agent_template.summarizer
-                consumer = TerminalSummarizer(model=model, policy=config.model_policy)
+                consumer = TerminalSummarizer(
+                    model=model, policy=config.model_policy, include_reasoning=False
+                )
                 operation = consumer.run(prompt="Summarize once", invocation_id="worker-invocation")
             if repair:
                 expected_error = RuntimeError if role == "finalizer" else SummarizerFailure

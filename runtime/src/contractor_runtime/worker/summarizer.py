@@ -33,6 +33,16 @@ from contractor_runtime.contracts import (
     WorkerObservations,
 )
 from contractor_runtime.llm.usage import project_token_usage
+from contractor_runtime.reasoning import (
+    MAX_REASONING_TOTAL_BYTES,
+    REASONING_INPUT_INSTRUCTION,
+    REASONING_TAG,
+    REASONING_TRUNCATED_MEMBER,
+    ReasoningBudget,
+    reasoning_part,
+    redact_known_values,
+    tagged_size,
+)
 from contractor_runtime.worker.one_shot import OneShotModel, generation_config, one_shot_session
 
 MAX_SUMMARIZER_INPUT_BYTES = 512 * 1024
@@ -105,27 +115,53 @@ class _OneShotModel(OneShotModel):
             raise
 
 
-class TranscriptRecorder:
-    """Retain bounded, model-visible, complete normal-loop event groups only."""
+@dataclass(slots=True)
+class _RetainedGroup:
+    events: list[dict[str, Any]]
+    # Bytes of the group without reasoning parts: only these count against the
+    # 512 KiB retention, so reasoning never evicts task or tool evidence.
+    evidence_bytes: int
+    reasoning_bytes: int
 
-    def __init__(self, *, secrets: Sequence[str] = ()) -> None:
+
+class TranscriptRecorder:
+    """Retain bounded, model-visible, complete normal-loop event groups only.
+
+    With ``include_reasoning`` a model event also keeps its provider reasoning
+    as tagged parts (WRK-R181). Retained reasoning is bounded separately, to
+    LIM-WRK-29 in total, by dropping the reasoning of the oldest groups first.
+    """
+
+    def __init__(self, *, include_reasoning: bool, secrets: Sequence[str] = ()) -> None:
         self._secrets = tuple(secret for secret in secrets if secret)
-        self._groups: deque[tuple[list[dict[str, Any]], int]] = deque()
+        self._include_reasoning = include_reasoning
+        self._groups: deque[_RetainedGroup] = deque()
         self._groups_bytes = 0
+        self._reasoning = ReasoningBudget()
         self._pending: list[dict[str, Any]] = []
+        self._pending_reasoning_bytes = 0
         self._pending_responses: Counter[str] = Counter()
         self._truncated = False
+        self._reasoning_truncated = False
 
     @property
     def truncated(self) -> bool:
         return self._truncated
 
+    @property
+    def reasoning_truncated(self) -> bool:
+        """Whether available reasoning was cut or dropped before the prompt was built."""
+
+        return self._reasoning_truncated or self._reasoning.omitted
+
     def record(self, event: Event) -> None:
-        projected, calls, responses, truncated = _project_event(event, self._secrets)
-        self._truncated = self._truncated or truncated
-        if projected is None:
+        projected = _project_event(event, self._secrets, include_reasoning=self._include_reasoning)
+        self._truncated = self._truncated or projected.truncated
+        self._reasoning_truncated = self._reasoning_truncated or projected.reasoning_truncated
+        if projected.event is None:
             return
-        projected_bytes = _json_size(projected)
+        calls, responses = projected.calls, projected.responses
+        projected_bytes = _evidence_size([projected.event])
         if projected_bytes > MAX_SUMMARIZER_INPUT_BYTES:
             self._discard_pending()
             self._truncated = True
@@ -138,7 +174,8 @@ class TranscriptRecorder:
             if self._pending:
                 self._discard_pending()
                 self._truncated = True
-            self._pending = [projected]
+            self._pending = [projected.event]
+            self._pending_reasoning_bytes = projected.reasoning_bytes
             self._pending_responses = Counter(calls)
             return
         if responses and self._pending:
@@ -147,12 +184,13 @@ class TranscriptRecorder:
                 self._discard_pending()
                 self._truncated = True
                 return
-            self._pending.append(projected)
+            self._pending.append(projected.event)
+            self._pending_reasoning_bytes += projected.reasoning_bytes
             self._pending_responses.subtract(observed)
             self._pending_responses += Counter()
             if not self._pending_responses:
-                if _json_size(self._pending) <= MAX_SUMMARIZER_INPUT_BYTES:
-                    self._append_group(self._pending)
+                if _evidence_size(self._pending) <= MAX_SUMMARIZER_INPUT_BYTES:
+                    self._append_group(self._pending, self._pending_reasoning_bytes)
                 else:
                     self._truncated = True
                 self._discard_pending()
@@ -167,29 +205,62 @@ class TranscriptRecorder:
             # group cannot be proven complete and is excluded closed.
             self._discard_pending()
             self._truncated = True
-        self._append_group([projected])
+        self._append_group([projected.event], projected.reasoning_bytes)
 
     def finish(self) -> tuple[tuple[dict[str, Any], ...], ...]:
+        """Retained groups in order; reasoning parts are tagged ``reasoning``."""
+
         if self._pending:
             self._discard_pending()
             self._truncated = True
-        return tuple(tuple(event for event in group) for group, _ in self._groups)
+        return tuple(tuple(group.events) for group in self._groups)
 
-    def _append_group(self, group: list[dict[str, Any]]) -> None:
+    def _append_group(self, group: list[dict[str, Any]], reasoning_bytes: int) -> None:
         stored = list(group)
-        group_bytes = _json_size(stored)
-        if group_bytes > MAX_SUMMARIZER_INPUT_BYTES:
+        evidence_bytes = _evidence_size(stored)
+        if evidence_bytes > MAX_SUMMARIZER_INPUT_BYTES:
             self._truncated = True
             return
-        self._groups.append((stored, group_bytes))
-        self._groups_bytes += group_bytes
+        if reasoning_bytes > MAX_REASONING_TOTAL_BYTES:
+            # One model event is bounded to LIM-WRK-29 when it is projected,
+            # so this is unreachable; drop the reasoning closed if it is not.
+            stored = _without_reasoning(stored)
+            reasoning_bytes = 0
+            self._reasoning_truncated = True
+            if not stored:
+                return
+        while reasoning_bytes and not self._reasoning.fits(reasoning_bytes):
+            self._drop_oldest_reasoning()
+        if reasoning_bytes:
+            self._reasoning.admit(reasoning_bytes)
+        self._groups.append(_RetainedGroup(stored, evidence_bytes, reasoning_bytes))
+        self._groups_bytes += evidence_bytes
         while self._groups_bytes > MAX_SUMMARIZER_INPUT_BYTES and self._groups:
-            _, removed_bytes = self._groups.popleft()
-            self._groups_bytes -= removed_bytes
+            removed = self._groups.popleft()
+            self._groups_bytes -= removed.evidence_bytes
+            if removed.reasoning_bytes:
+                self._reasoning.release(removed.reasoning_bytes)
             self._truncated = True
+
+    def _drop_oldest_reasoning(self) -> None:
+        # Groups are bounded by the Worker's model-call limit (LIM-TPL-3), so
+        # this scan stays small; it runs only while reasoning exceeds its bound.
+        for index, group in enumerate(self._groups):
+            if not group.reasoning_bytes:
+                continue
+            self._reasoning.release(group.reasoning_bytes)
+            group.reasoning_bytes = 0
+            group.events = _without_reasoning(group.events)
+            if not group.events:
+                # A reasoning-only group has no evidence left to retain.
+                self._groups_bytes -= group.evidence_bytes
+                del self._groups[index]
+            return
+        raise RuntimeError("retained reasoning has no group to release")
 
     def _discard_pending(self) -> None:
         self._pending.clear()
+        self._pending_reasoning_bytes = 0
         self._pending_responses.clear()
 
 
@@ -202,11 +273,16 @@ class TerminalSummarizer:
         model: BaseLlm,
         policy: ResolvedModelPolicy,
         instructions: str | None = None,
+        include_reasoning: bool,
         instrumentation: RuntimeInstrumentation | None = None,
         check_admission: Callable[[], None] | None = None,
     ) -> None:
         self._policy = policy
         self._instructions = _SYSTEM_INSTRUCTION if instructions is None else instructions
+        if include_reasoning:
+            # Runtime-owned and fixed, so reasoning stays a hypothesis even when
+            # configured instructions do not mention it (WRK-R183).
+            self._instructions += "\n\n" + REASONING_INPUT_INSTRUCTION
         self._model = _OneShotModel(model)
         self._instrumentation = instrumentation
         self._check_admission = check_admission
@@ -296,9 +372,17 @@ def build_summarizer_prompt(
     groups: Sequence[Sequence[Mapping[str, Any]]],
     *,
     transcript_truncated: bool,
+    include_reasoning: bool,
+    reasoning_truncated: bool = False,
     secrets: Sequence[str] = (),
 ) -> str:
-    """Build a deterministic UTF-8 document no larger than 512 KiB."""
+    """Build a deterministic UTF-8 document no larger than 512 KiB.
+
+    Task data, observations and the newest complete groups are selected
+    first. Only then, with ``include_reasoning``, is tagged reasoning added to
+    selected groups, newest first, within LIM-WRK-29 and the space left, so it
+    never displaces task or tool evidence (WRK-R182).
+    """
 
     protected_values = tuple(secret for secret in secrets if secret)
     task = {
@@ -328,6 +412,8 @@ def build_summarizer_prompt(
         # when the final projection needs to report truncation.
         "transcriptTruncated": False,
     }
+    if include_reasoning:
+        payload[REASONING_TRUNCATED_MEMBER] = False
     if _document_size(payload) > MAX_SUMMARIZER_INPUT_BYTES:
         workspace = observation_value.get("workspace")
         if isinstance(workspace, dict):
@@ -345,20 +431,49 @@ def build_summarizer_prompt(
         raise SummarizerFailure("input_too_large")
 
     base_size = _document_size(payload)
-    selected_newest_first: list[Sequence[Mapping[str, Any]]] = []
+    evidence = [_without_reasoning(group) for group in groups]
+    evidence_sizes = [_json_size(group) if group else 0 for group in evidence]
+    # Index -> the form of that group entering the transcript.
+    chosen: dict[int, Sequence[Mapping[str, Any]]] = {}
     selected_size = 0
     omitted = bool(transcript_truncated)
-    for group in reversed(groups):
-        group_size = _json_size(group)
-        separator_size = 1 if selected_newest_first else 0
+    for index in reversed(range(len(groups))):
+        if not evidence[index]:
+            continue  # reasoning only; considered with the other reasoning below
+        separator_size = 1 if chosen else 0
+        group_size = evidence_sizes[index]
         if base_size + selected_size + separator_size + group_size <= MAX_SUMMARIZER_INPUT_BYTES:
-            selected_newest_first.append(group)
+            chosen[index] = evidence[index]
             selected_size += separator_size + group_size
         else:
             omitted = True
-    selected = list(reversed(selected_newest_first))
+    reasoning_omitted = bool(reasoning_truncated)
+    if include_reasoning:
+        budget = ReasoningBudget()
+        for index in reversed(range(len(groups))):
+            cost = _reasoning_size(groups[index])
+            if not cost:
+                continue
+            if evidence[index] and index not in chosen:
+                reasoning_omitted = True  # its evidence did not fit
+                continue
+            full_size = _json_size(groups[index])
+            if index in chosen:
+                added = full_size - evidence_sizes[index]
+            else:
+                added = full_size + (1 if chosen else 0)
+            if base_size + selected_size + added <= MAX_SUMMARIZER_INPUT_BYTES and budget.admit(
+                cost
+            ):
+                chosen[index] = groups[index]
+                selected_size += added
+            else:
+                reasoning_omitted = True
+        reasoning_omitted = reasoning_omitted or budget.omitted
+        payload[REASONING_TRUNCATED_MEMBER] = reasoning_omitted
+    selected = [chosen[index] for index in sorted(chosen)]
     payload["transcript"] = selected
-    payload["transcriptTruncated"] = omitted or len(selected) != len(groups)
+    payload["transcriptTruncated"] = omitted
     document = _DOCUMENT_PREAMBLE + json.dumps(
         payload,
         ensure_ascii=False,
@@ -371,23 +486,45 @@ def build_summarizer_prompt(
     return document
 
 
+@dataclass(frozen=True, slots=True)
+class _ProjectedEvent:
+    event: dict[str, Any] | None = None
+    calls: tuple[str, ...] = ()
+    responses: tuple[str, ...] = ()
+    truncated: bool = False
+    reasoning_bytes: int = 0
+    reasoning_truncated: bool = False
+
+
 def _project_event(
-    event: Event, secrets: tuple[str, ...]
-) -> tuple[dict[str, Any] | None, tuple[str, ...], tuple[str, ...], bool]:
+    event: Event, secrets: tuple[str, ...], *, include_reasoning: bool
+) -> _ProjectedEvent:
     if bool(getattr(event, "partial", False)) or event.content is None:
-        return None, (), (), False
+        return _ProjectedEvent()
     role = event.content.role
     if role not in {"model", "user"}:
-        return None, (), (), False
+        return _ProjectedEvent()
     source_parts = event.content.parts or []
     if len(source_parts) > _MAX_PROJECTED_ITEMS:
-        return None, (), (), True
+        return _ProjectedEvent(truncated=True)
     parts: list[dict[str, Any]] = []
     calls: list[str] = []
     responses: list[str] = []
     truncated = False
+    reasoning = ReasoningBudget()
+    reasoning_truncated = False
     for part in source_parts:
         if bool(getattr(part, "thought", False)):
+            # Only provider reasoning text of a model turn, and only when the
+            # consumer enables it; a thought signature alone is opaque.
+            if not include_reasoning or role != "model" or part.text is None:
+                continue
+            projected_reasoning = reasoning_part(part.text, secrets)
+            if projected_reasoning is None:
+                continue
+            reasoning_truncated = reasoning_truncated or projected_reasoning.truncated
+            if reasoning.admit(projected_reasoning.size):
+                parts.append(projected_reasoning.tagged())
             continue
         if part.text is not None:
             value, changed = _bound_text(part.text, secrets)
@@ -409,9 +546,47 @@ def _project_event(
             )
             responses.append(_tool_pair_key(response.id, response.name))
             truncated = truncated or changed
+    reasoning_truncated = reasoning_truncated or reasoning.omitted
     if not parts:
-        return None, (), (), truncated
-    return {"role": role, "parts": parts}, tuple(calls), tuple(responses), truncated
+        return _ProjectedEvent(truncated=truncated, reasoning_truncated=reasoning_truncated)
+    return _ProjectedEvent(
+        {"role": role, "parts": parts},
+        tuple(calls),
+        tuple(responses),
+        truncated,
+        reasoning.used,
+        reasoning_truncated,
+    )
+
+
+def _is_reasoning(part: Mapping[str, Any]) -> bool:
+    return REASONING_TAG in part
+
+
+def _without_reasoning(group: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """The group without reasoning parts; events left with no part are dropped."""
+
+    result: list[dict[str, Any]] = []
+    for event in group:
+        parts = [part for part in event["parts"] if not _is_reasoning(part)]
+        if parts:
+            result.append({"role": event["role"], "parts": parts})
+    return result
+
+
+def _reasoning_size(group: Sequence[Mapping[str, Any]]) -> int:
+    """Serialized bytes of the group's tagged reasoning parts (LIM-WRK-29)."""
+
+    return sum(
+        tagged_size(part[REASONING_TAG])
+        for event in group
+        for part in event["parts"]
+        if _is_reasoning(part)
+    )
+
+
+def _evidence_size(group: Sequence[Mapping[str, Any]]) -> int:
+    return _json_size(_without_reasoning(group))
 
 
 def _tool_pair_key(identifier: Any, name: Any) -> str:
@@ -489,10 +664,7 @@ def _bound_text(value: str, secrets: tuple[str, ...]) -> tuple[str, bool]:
 
 
 def _redact_known_values(value: str, secrets: tuple[str, ...]) -> str:
-    projected = value
-    for secret in secrets:
-        projected = projected.replace(secret, "[REDACTED]")
-    return projected
+    return redact_known_values(value, secrets)
 
 
 def _usage_projection(usage: Any | None) -> SummarizerUsage:

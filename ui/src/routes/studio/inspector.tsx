@@ -645,6 +645,7 @@ export function Inspector({
                 false,
                 true,
               )}
+              {check("Include model reasoning", [...p, "includeReasoning"])}
             </>
           ) : null}
           {node.type === "toolset" ? (

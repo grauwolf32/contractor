@@ -389,3 +389,106 @@ spec:
   maxTotalTokens: 16000
   temperature: 0.1
 `
+
+func TestWorkerSummarizerIncludeReasoningResolvesPinsAndDigests(t *testing.T) {
+	t.Parallel()
+
+	load := func(t *testing.T, line string) *Snapshot {
+		t.Helper()
+		root := copyCoreFixture(t)
+		installWorkerSummarizer(t, root)
+		if line != "" {
+			replaceFile(t, templatePath(root), "    cumulativeBudget: 20000\n", "    cumulativeBudget: 20000\n"+line+"\n")
+		}
+		return mustLoad(t, root)
+	}
+	template := func(t *testing.T, snapshot *Snapshot) contracts.ResolvedAgentTemplate {
+		t.Helper()
+		value, err := snapshot.AgentTemplate("artifact_builder@1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return value
+	}
+	omitted := template(t, load(t, ""))
+	explicitFalse := template(t, load(t, "    includeReasoning: false"))
+	enabledSnapshot := load(t, "    includeReasoning: true")
+	enabled := template(t, enabledSnapshot)
+
+	if omitted.Summarizer.IncludeReasoning || explicitFalse.Summarizer.IncludeReasoning ||
+		!enabled.Summarizer.IncludeReasoning {
+		t.Fatalf("resolved includeReasoning = %v/%v/%v, want false/false/true",
+			omitted.Summarizer.IncludeReasoning, explicitFalse.Summarizer.IncludeReasoning,
+			enabled.Summarizer.IncludeReasoning)
+	}
+	// Authoring omission and explicit false are the same body; enabling
+	// reasoning is a different exact body.
+	if omitted.Ref.Digest != explicitFalse.Ref.Digest || enabled.Ref.Digest == omitted.Ref.Digest {
+		t.Fatalf("digests = %s/%s/%s", omitted.Ref.Digest, explicitFalse.Ref.Digest, enabled.Ref.Digest)
+	}
+
+	workflow, err := enabledSnapshot.ResolveRunWorkflow(
+		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, enabledSnapshot),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinned := workflow.Stages["copy"].Agents["builder"].Template
+	if pinned.Summarizer == nil || !pinned.Summarizer.IncludeReasoning || pinned.Ref.Digest != enabled.Ref.Digest {
+		t.Fatalf("Run-resolved summarizer = %+v", pinned.Summarizer)
+	}
+	encoded, err := resolved.EncodeResolvedWorkflowSnapshot(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := resolved.DecodeResolvedWorkflowSnapshot(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reloaded.Stages["copy"].Agents["builder"].Template.Summarizer.IncludeReasoning {
+		t.Fatal("persisted snapshot lost includeReasoning")
+	}
+
+	for _, test := range []struct {
+		snapshot *Snapshot
+		want     bool
+	}{{load(t, ""), false}, {enabledSnapshot, true}} {
+		resource, err := test.snapshot.Configuration(ConfigurationAgentTemplates, "artifact_builder@1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		safe := resource.Body.(map[string]any)["summarizer"].(map[string]any)
+		if safe["includeReasoning"] != test.want {
+			t.Fatalf("public AgentTemplate summarizer = %#v, want includeReasoning %v", safe, test.want)
+		}
+	}
+}
+
+func TestWorkerSummarizerIncludeReasoningRejectsInvalidAuthoring(t *testing.T) {
+	t.Parallel()
+
+	for name, test := range map[string]struct{ line, want string }{
+		"null":             {"    includeReasoning: null", "includeReasoning must be a boolean"},
+		"tilde":            {"    includeReasoning: ~", "includeReasoning must be a boolean"},
+		"empty":            {"    includeReasoning:", "includeReasoning must be a boolean"},
+		"quoted string":    {`    includeReasoning: "true"`, "includeReasoning must be a boolean"},
+		"YAML 1.1 yes":     {"    includeReasoning: yes", "includeReasoning must be a boolean"},
+		"integer":          {"    includeReasoning: 1", "includeReasoning must be a boolean"},
+		"tagged string":    {"    includeReasoning: !!bool yes", "includeReasoning must be a boolean"},
+		"sequence":         {"    includeReasoning: [true]", "includeReasoning must be a boolean"},
+		"duplicate":        {"    includeReasoning: true\n    includeReasoning: false", "already defined"},
+		"case alias":       {"    IncludeReasoning: true", "not found"},
+		"snake case alias": {"    include_reasoning: true", "not found"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			root := copyCoreFixture(t)
+			installWorkerSummarizer(t, root)
+			replaceFile(t, templatePath(root), "    cumulativeBudget: 20000\n", "    cumulativeBudget: 20000\n"+test.line+"\n")
+			snapshot, err := Load(root)
+			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
+			}
+		})
+	}
+}

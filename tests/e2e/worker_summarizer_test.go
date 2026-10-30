@@ -145,6 +145,11 @@ func TestWorkerSummarizerProductionBoundaries(t *testing.T) {
 		// never guesses it into either soft rule.
 		{workflow: "worker-summarizer@1", mode: "missing-usage", state: "succeeded", normalCalls: 3, normalTokens: 20, tokenUsageUnavailable: 1},
 		{workflow: "worker-summarizer-disabled@1", mode: "disabled", state: "succeeded", normalCalls: 3, normalTokens: 25_020},
+		// Provider reasoning reaches the summary request only when the pinned
+		// AgentTemplate enables it; a provider without reasoning still completes.
+		{workflow: "worker-summarizer-reasoning@1", mode: "reasoning-on", state: "failed", summarized: true, normalCalls: 1, normalTokens: 20_000},
+		{workflow: "worker-summarizer@1", mode: "reasoning-off", state: "failed", summarized: true, normalCalls: 1, normalTokens: 20_000},
+		{workflow: "worker-summarizer-reasoning@1", mode: "reasoning-absent", state: "failed", summarized: true, normalCalls: 1, normalTokens: 20_000},
 	} {
 		runID, allocationID := runSummarizerProcessScenario(
 			t, ctx, server, runtimeProcess, gateway, publicClient, controlClient,
@@ -447,7 +452,7 @@ func assertRequestedSummarizerState(
 		snapshot.State.CurrentInvocation.Summarizer.ModelCalls != 0 {
 		t.Fatalf("active summarizer State = %+v", snapshot.State.CurrentInvocation)
 	}
-	for _, forbidden := range []string{llmGatewayToken, summarizerTranscriptCanary} {
+	for _, forbidden := range []string{llmGatewayToken, summarizerTranscriptCanary, summarizerReasoningCanary} {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("active Worker State retained forbidden summarizer data")
 		}
@@ -472,26 +477,33 @@ func cancelWorkflowRun(t *testing.T, client *http.Client, baseURL, runID string)
 func assertSummarizerGatewayCaptures(t *testing.T, gateway *summarizerGateway) {
 	t.Helper()
 	captures := gateway.Captures()
-	summaryCount := 0
+	summaryCount, reasoningCount := 0, 0
 	for _, capture := range captures {
 		if capture.Model != "worker-summarizer-model" {
 			continue
 		}
 		summaryCount++
+		if capture.ReasoningTagged {
+			reasoningCount++
+			if capture.Mode != "reasoning-on" {
+				t.Fatalf("%s summarizer received reasoning it did not enable", capture.Mode)
+			}
+		}
 		if len(capture.Tools) != 0 || !capture.ResponseSchema ||
 			capture.MaxOutputTokens != 2048 || !capture.TranscriptPresent ||
 			!capture.SecretRedacted {
 			t.Fatalf("unsafe or unpinned summarizer capture: %+v", capture)
 		}
 	}
-	if summaryCount != 9 {
-		t.Fatalf("terminal summarizer requests = %d, want 9", summaryCount)
+	if summaryCount != 12 || reasoningCount != 1 {
+		t.Fatalf("terminal summarizer requests = %d with reasoning %d, want 12 and 1",
+			summaryCount, reasoningCount)
 	}
 	encoded, err := json.Marshal(captures)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, forbidden := range []string{llmGatewayToken, summarizerTranscriptCanary} {
+	for _, forbidden := range []string{llmGatewayToken, summarizerTranscriptCanary, summarizerReasoningCanary} {
 		if bytes.Contains(encoded, []byte(forbidden)) {
 			t.Fatalf("Gateway retained forbidden request material")
 		}
@@ -590,7 +602,7 @@ func assertSummarizerRetentionSafe(
 				t.Fatalf("read retained summarizer surface for %s: %v", runID, err)
 			}
 			for _, forbidden := range []string{
-				publicToken, llmGatewayToken, summarizerTranscriptCanary,
+				publicToken, llmGatewayToken, summarizerTranscriptCanary, summarizerReasoningCanary,
 				"Contractor terminal Worker summary input",
 			} {
 				if strings.Contains(retained, forbidden) {
@@ -601,7 +613,7 @@ func assertSummarizerRetentionSafe(
 	}
 	for _, process := range []*childProcess{server, runtimeProcess} {
 		logs := process.logs.redacted()
-		for _, forbidden := range []string{publicToken, llmGatewayToken, summarizerTranscriptCanary} {
+		for _, forbidden := range []string{publicToken, llmGatewayToken, summarizerTranscriptCanary, summarizerReasoningCanary} {
 			if strings.Contains(logs, forbidden) {
 				t.Fatalf("%s logs exposed summarizer credential/transcript data", process.name)
 			}

@@ -194,8 +194,13 @@ make test-backup-restore
 Set `CONTRACTOR_TEST_DATABASE_URL` to an isolated PostgreSQL installation. The
 test creates and removes only its own randomly named databases. It backs up,
 destroys the original store and restores both supported backends, checking two
-exact revisions, binary bytes, digests, idempotency and stale/current CAS. A
-database-only filesystem restore must fail to read the absent payload. This
+exact revisions, binary bytes, digests, idempotency and stale/current CAS. The
+backup also holds a row in every table whose CHECK constraints or generated
+columns call a schema function, which `pg_restore` runs while it loads them
+([PER-R46](../spec/platform/persistence.md)); those rows must come back
+unchanged. A failing tool's output is printed with only a configured password
+hidden. A database-only filesystem restore must fail to read the absent
+payload. This
 is an offline logical recovery rehearsal, not a point-in-time recovery or
 power-loss durability test.
 

@@ -16787,12 +16787,18 @@ components:
     WorkerSummarizerConfigBody:
       type: object
       additionalProperties: false
-      required: [modelPolicy, contextWindowRatio]
+      required: [modelPolicy, contextWindowRatio, includeReasoning]
       properties:
         instructions: {$ref: '#/components/schemas/InstructionsRef'}
         modelPolicy: {$ref: '#/components/schemas/ModelPolicyRef'}
         cumulativeBudget: {type: integer, minimum: 1, maximum: 100000000}
         contextWindowRatio: {type: number, exclusiveMinimum: 0, exclusiveMaximum: 1}
+        includeReasoning:
+          type: boolean
+          description: >-
+            Whether the terminal summarizer input includes the Worker model's
+            provider-supplied reasoning as tagged, redacted and bounded text.
+            Authoring omission resolves to false.
     AgentTemplateBody:
       type: object
       additionalProperties: false

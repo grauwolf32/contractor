@@ -698,7 +698,10 @@ class AdkWorkerRuntime:
         transcript: TranscriptRecorder | None = None
         if self._context.summarizer is not None:
             summary_secrets = _summarizer_secrets(self._context)
-            transcript = TranscriptRecorder(secrets=summary_secrets)
+            transcript = TranscriptRecorder(
+                include_reasoning=self._context.summarizer.include_reasoning,
+                secrets=summary_secrets,
+            )
         self._invocation_observed_refs.clear()
         completion = self._completion
         # The Planner's deadline covers the whole logical invocation, ordinary
@@ -1273,6 +1276,8 @@ class AdkWorkerRuntime:
                 observations,
                 groups,
                 transcript_truncated=transcript.truncated,
+                include_reasoning=config.include_reasoning,
+                reasoning_truncated=transcript.reasoning_truncated,
                 secrets=secrets,
             )
             summary_context = replace(
@@ -1292,6 +1297,7 @@ class AdkWorkerRuntime:
                 model=summary_model,
                 policy=config.model_policy,
                 instructions=config.instructions.text if config.instructions is not None else None,
+                include_reasoning=config.include_reasoning,
                 instrumentation=self._instrumentation,
                 check_admission=self._admit_semantic_work,
             )
