@@ -27,8 +27,7 @@ const (
 	// cannot reach it. The check at read counts
 	// the stored text. The constant also pre-checks the submitted Planner
 	// session state in StartPlanner and AppendPlannerEvent, which the
-	// planner_session_state_size CHECK bounds in storage; that is the 2 MiB
-	// session JSON of WFL-R87, which has no registry entry.
+	// planner_session_state_size CHECK bounds in storage (LIM-PLN-9).
 	maxRunEventDataBytes = 2 * 1024 * 1024
 	// maxRunEventPageDataBytes is the budget of persisted data one
 	// ListRunEvents page returns (LIM-API-24), counted as the octet length of

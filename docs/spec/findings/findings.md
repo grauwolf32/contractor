@@ -959,7 +959,7 @@ is protected by the destination Audit's own exact holds (LIFE-FND-1).
 The discarded receipt retains its receipt/proposal IDs, submission and request
 digest, client key, source owner/Project/Run/Stage/allocation/runtime identities,
 Workflow identity and closure digest, optional Audit origin, retention state
-and timestamps. Their existing identity bounds still apply: receipt/proposal
+and timestamps. Their existing identity bounds still apply (LIM-FND-51): receipt/proposal
 IDs and owner/Run/Stage/allocation/runtime IDs are at most 256 bytes, invocation,
 submission, logical Agent and Workflow identity strings at most 128 bytes,
 and the stored client key at most 160 ASCII bytes. The Workflow configuration
@@ -1728,7 +1728,7 @@ analysis still exports its identity, text and independent review, with
 **FND-R188.** Finding intake derives a private
 `contractor.audit.finding-checks-projection.v1` index from the final exact
 proposal bytes and the same validated document it publishes. The index holds
-at most 512 ordinal headers and 256 KiB serialized JSON: byte offsets, lengths
+at most 512 ordinal headers and 256 KiB serialized JSON (LIM-FND-52): byte offsets, lengths
 and fragment digests, registered method/phase and canonical plan digest/size,
 plus exact subject and limitations fragment locations. It stores no objective
 prose and grants no source, route or execution authority. Unknown methods and
@@ -1765,7 +1765,8 @@ finding readers and profiles without typed mappings retain their existing path.
   revisions LIM-FND-13; collection bounds LIM-FND-14 to LIM-FND-23;
   publication selectors LIM-FND-24 and LIM-FND-25; reader page size
   LIM-FND-26, previews LIM-FND-27 and LIM-FND-28, response LIM-FND-29 and
-  cursor LIM-FND-30 and LIM-FND-31; producer fingerprints LIM-FND-33 to LIM-FND-37. Bounds cited here but owned elsewhere: the
+  cursor LIM-FND-30 and LIM-FND-31; producer fingerprints LIM-FND-33 to LIM-FND-37; retained receipt
+  identities LIM-FND-51 and the checks projection LIM-FND-52. Bounds cited here but owned elsewhere: the
   `contractor.audit.package.v1` transport bounds by
   [audits](../audits/audits.md) (AUD-R128); the Artifact name bound of
   `clientKey` (LIM-ART-1) by [artifact store](../artifacts/artifact-store.md)

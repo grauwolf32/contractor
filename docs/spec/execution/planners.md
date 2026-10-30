@@ -921,6 +921,18 @@ likely repeat the rejection after another full invocation. Reopen this when a
 retried invocation is given a smaller state budget than the one that was
 refused.
 
+**PLN-R124.** The durable state of one Planner session, which holds its
+request, plan, recorded facts and completion, is at most 2 MiB (2,097,152
+bytes) of stored jsonb text, counted as `octet_length(state::text)`
+(LIM-PLN-9). The PostgreSQL CHECK constraint `planner_session_state_size` is
+the authoritative measure. Before each write the Planner session service and
+the Run store check the submitted compact JSON against the same 2 MiB, and the
+session service checks the stored state it reads. jsonb re-serialisation can
+lengthen a value, adding a space after every `:` and `,` as it does for Run
+event data ([LIM-API-25](../platform/limits.md)), so a state that passes the
+pre-checks can still be refused by the constraint. Either refusal is the
+deterministic rejection of PLN-R106.
+
 **PLN-R107.** The record is not authority for resuming a partially
 completed model invocation: a session still running after process loss yields
 the stable retryable error `planner_invocation_in_progress`, and Workflow
@@ -988,6 +1000,8 @@ Limits ([registry](../platform/limits.md)):
 - LIM-PLN-5 — tool calls executed per model turn: 1 (PLN-R41).
 - LIM-PLN-6 — projection collection `limit`: 1..100, default 100
   (PLN-R49, PLN-R60).
+- LIM-PLN-9 — durable state of one Planner session: at most 2 MiB of stored
+  jsonb text (PLN-R124).
 - Planner instances, invocations and Sessions per StageExecution (LIM-SCH-2)
   belong to [Scheduler](scheduler.md); Planner budget fields to
   [AgentTemplates](../configuration/agent-templates.md).

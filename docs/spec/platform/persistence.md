@@ -1044,6 +1044,35 @@ Current readers strictly require the new projection; old accepted report
 artifacts remain downloadable as their exact historical bytes. The metadata
 lock is not a mixed-version writer protocol.
 
+### Stored-size CHECK constraints
+
+**PER-R44.** Every CHECK constraint that bounds a stored value with
+`octet_length` has one recorded disposition in the stored-size CHECK registry
+(`internal/persistence/stored_size_checks.txt`). The constraint enforces a
+registered bound, and that bound's [limits registry](limits.md) entry names the
+constraint among its enforcement points (LIM-R7); or it is a storage backstop
+that admits more than a registered bound which the Server checks before it
+writes the value, and the registry cites that entry; or it is an internal
+invariant: a fixed width, a Server-generated identity of fixed width or a
+consistency rule between columns. A PostgreSQL test compares the registry with
+the CHECK constraints of a migrated schema and with the limits registry, so a
+new stored-size CHECK cannot land without its disposition.
+
+Rationale: the constraints came with their tables, before the limits registry
+existed, and nothing recorded which of them enforce a domain bound, which only
+guard storage and which state a bound no document registers.
+
+**PER-R45.** A bound on a stored value that no domain requirement states
+belongs to the store that keeps the value and is registered here, as
+LIM-PER-14 to LIM-PER-21. Its CHECK constraint declares it, and the store may
+check the value before it writes. That pre-check measures the compact JSON the
+Server encodes, while a CHECK on a `jsonb` column counts the stored text,
+`octet_length(column::text)`, which jsonb re-serialisation lengthens with a
+space after every `:` and `,`; a value just within the pre-check can therefore
+still be refused by the constraint, as the `invalid` outcome of PER-R13. A
+domain requirement that relies on one of these bounds cites its entry
+(LIM-R2).
+
 ## Limits, failures and errors
 
 Limits ([registry](limits.md)):
@@ -1076,6 +1105,14 @@ Limits ([registry](limits.md)):
 - LIM-PER-12 — idle-in-transaction timeout of a migration run: 60 s
   (PER-R31).
 - LIM-PER-13 — connection acquisition of a migration run: 5 s (PER-R31).
+- LIM-PER-14 to LIM-PER-21 — stored bounds that no domain requirement states
+  (PER-R45): exact Artifact references and descriptors in Audit rows
+  (LIM-PER-14), Audit text (LIM-PER-15), Audit snapshots (LIM-PER-16), Audit
+  item and execution JSON (LIM-PER-17), Audit links, review requests, events,
+  Round result progress and report pages (LIM-PER-18), credential journal and
+  metadata (LIM-PER-19), keyed mutation receipts and failed output publications
+  (LIM-PER-20), and Managed Eval JSON that is not a portable evaluation document
+  (LIM-PER-21).
 
 Failure outcomes ([failure model](failure-model.md)):
 
