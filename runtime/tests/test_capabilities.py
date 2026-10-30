@@ -316,15 +316,23 @@ def test_optional_probe_timeout_and_failure_are_omitted_without_leaking_details(
         with caplog.at_level(logging.INFO, logger="contractor_runtime.capabilities"):
             snapshot = await discover_capabilities(
                 factories,
-                per_factory_timeout_seconds=0.01,
-                total_timeout_seconds=1,
+                per_factory_timeout_seconds=PROBE_BUDGET_SECONDS,
+                total_timeout_seconds=TOTAL_PROBE_BUDGET_SECONDS,
             )
         assert snapshot.runtimes == ("adk@1",)
         assert snapshot.sandbox_profiles == ("local-workdir@1",)
         assert snapshot.toolsets == ()
         assert snapshot.runtime_adapters == ("http-proxy@1",)
 
-    asyncio.run(scenario())
+    asyncio.run(scenario(), loop_factory=JumpingClockLoop)
+    assert probe_outcomes(caplog) == {
+        ("runtime", "adk@1"): "available",
+        ("sandbox", "local-workdir@1"): "available",
+        ("toolset", "failed@1"): "failed",
+        ("toolset", "hanging@1"): "timeout",
+        ("runtime_adapter", "http-proxy@1"): "available",
+        ("runtime_adapter", "otlp-http@1"): "failed",
+    }
     rendered = "\n".join(record.getMessage() for record in caplog.records)
     assert secret not in rendered
     assert local_path not in rendered
@@ -357,12 +365,7 @@ def test_negative_probe_results_are_logged_as_unavailable(
         assert snapshot.toolsets == ()
 
     asyncio.run(scenario())
-    outcomes = {
-        (record.capabilityKind, record.capabilityRef): record.probeOutcome
-        for record in caplog.records
-        if hasattr(record, "probeOutcome")
-    }
-    assert outcomes == {
+    assert probe_outcomes(caplog) == {
         ("runtime", "adk@1"): "available",
         ("runtime", "negative@1"): "unavailable",
         ("sandbox", "local-workdir@1"): "available",
@@ -417,7 +420,10 @@ def test_unregistrable_toolset_capability_stops_startup(tools: list[str]) -> Non
     assert len(largest.toolsets[0].tools) == 256
 
 
-def test_runtime_adapter_probe_timeout_is_omitted(tmp_path: Path) -> None:
+def test_runtime_adapter_probe_timeout_is_omitted(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     factories = FactoryRegistry(
         worker_runtimes={"adk@1": StubADKWorkerRuntimeFactory()},
         sandbox_profiles={"local-workdir@1": LocalWorkdirFactory(tmp_path / "work")},
@@ -426,14 +432,59 @@ def test_runtime_adapter_probe_timeout_is_omitted(tmp_path: Path) -> None:
     )
 
     async def scenario() -> None:
-        snapshot = await discover_capabilities(
-            factories,
-            per_factory_timeout_seconds=0.01,
-            total_timeout_seconds=1,
-        )
+        with caplog.at_level(logging.INFO, logger="contractor_runtime.capabilities"):
+            snapshot = await discover_capabilities(
+                factories,
+                per_factory_timeout_seconds=PROBE_BUDGET_SECONDS,
+                total_timeout_seconds=TOTAL_PROBE_BUDGET_SECONDS,
+            )
+        assert snapshot.runtimes == ("adk@1",)
+        assert snapshot.sandbox_profiles == ("local-workdir@1",)
         assert snapshot.runtime_adapters == ()
 
-    asyncio.run(scenario())
+    asyncio.run(scenario(), loop_factory=JumpingClockLoop)
+    assert probe_outcomes(caplog)[("runtime_adapter", "http-proxy@1")] == "timeout"
+
+
+# Every probe gets a budget machine load cannot exhaust; a hanging probe ends
+# its own budget by moving the loop clock past it (hang_past_probe_budget), so
+# only that probe times out and no test waits for wall time.
+PROBE_BUDGET_SECONDS = 60.0
+TOTAL_PROBE_BUDGET_SECONDS = 600.0
+
+
+class JumpingClockLoop(asyncio.SelectorEventLoop):
+    """An event loop whose clock a hanging probe moves forward."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.offset = 0.0
+
+    def time(self) -> float:
+        return super().time() + self.offset
+
+
+async def hang_past_probe_budget() -> None:
+    """Hang after moving the loop clock past the per-factory probe budget.
+
+    discover_capabilities bounds each probe with asyncio.wait_for on the loop
+    clock, so the probe's timeout fires on the next loop iteration while the
+    total deadline, which reads time.monotonic(), and every other probe's
+    budget are untouched.
+    """
+    loop = asyncio.get_running_loop()
+    if not isinstance(loop, JumpingClockLoop):
+        raise AssertionError("a hanging probe needs the JumpingClockLoop")
+    loop.offset += PROBE_BUDGET_SECONDS + 1
+    await asyncio.Event().wait()
+
+
+def probe_outcomes(caplog: pytest.LogCaptureFixture) -> dict[tuple[str, str], str]:
+    return {
+        (record.capabilityKind, record.capabilityRef): record.probeOutcome
+        for record in caplog.records
+        if hasattr(record, "probeOutcome")
+    }
 
 
 COMPLETION_TOOLS = frozenset({"read_audit_task", "submit_check_result"})
@@ -520,7 +571,7 @@ class HangingToolset:
     infrastructure_channels = MappingProxyType({})
 
     async def probe(self) -> frozenset[str]:
-        await asyncio.Event().wait()
+        await hang_past_probe_budget()
         return self.exported_tools
 
     async def create_selected(self, **_: object) -> dict[str, object]:
@@ -687,7 +738,7 @@ class HangingAdapter:
         self.ref = ref
 
     async def probe(self) -> bool:
-        await asyncio.Event().wait()
+        await hang_past_probe_budget()
         return True
 
 
