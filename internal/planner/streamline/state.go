@@ -160,6 +160,26 @@ func (s *executionState) rejectedGatewayResponse(rejected *gatewayResponseReject
 	))
 }
 
+// chargeUsage charges the known usage of an accepted compactor response to
+// the cumulative Planner token budget, once (PLN-R127).
+func (s *executionState) chargeUsage(usage *genai.GenerateContentResponseUsageMetadata) *planner.Error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if usage == nil {
+		return s.setFailureLocked(planner.NewError(
+			"planner_gateway_invalid_response", "Planner Gateway returned invalid token usage", true, nil,
+		))
+	}
+	s.inputTokens += int64(usage.PromptTokenCount)
+	s.outputTokens += int64(usage.CandidatesTokenCount)
+	if s.inputTokens+s.outputTokens > s.limits.MaxTokens {
+		return s.setFailureLocked(limitError(
+			"planner_token_limit", "Planner exhausted its cumulative token limit",
+		))
+	}
+	return nil
+}
+
 func (s *executionState) reserveWorkerCall() *planner.Error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

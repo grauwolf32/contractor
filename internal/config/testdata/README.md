@@ -29,6 +29,9 @@ copies, not to the shipped catalog.
   `security-analysis@4` Workflow closures selected by AuditProfile tests.
 - `workflow-examples/`: the Streamline and Router examples retargeted to the
   core fixture's builder and Planner policy.
+- `planner-compaction/`: the `compacting-review@1` Streamline Workflow whose
+  Stage selects `compact@1`, its compactor and windowed Planner ModelPolicies
+  and the compaction instructions.
 
 `audit-profile-template.yaml` is not a catalog slice: it is the custom-checklist
 AuditProfile manifest with a `PROFILE_NAME` placeholder that AuditProfile tests

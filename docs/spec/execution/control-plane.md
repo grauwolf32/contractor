@@ -1427,7 +1427,7 @@ build context; it must not mutate the digest-bearing AgentTemplate. Neither
 Runtime nor Control Plane consults current deployment defaults. Effective
 summary policy participates in credential authorization and Gateway recovery
 route tracking, alongside the main policy. The `compact@1` compactor policy
-pinned in `contextManagement` (WFL-R93) is resolved into the allocation's
+pinned in `contextManagement` (WFL-R94) is resolved into the allocation's
 runtime configuration the same way: the selected credential must authorize
 its model, and its Gateway route is tracked for recovery. It is mutually
 exclusive with `summarizerModelPolicy`.

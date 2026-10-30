@@ -434,6 +434,8 @@ type consumerExecutionConfigRefsResponse struct {
 	Model                 string                          `json:"model,omitempty"`
 	SummarizerModelPolicy *contracts.ModelPolicyRef       `json:"summarizerModelPolicy,omitempty"`
 	SummarizerModel       string                          `json:"summarizerModel,omitempty"`
+	CompactorModelPolicy  *contracts.ModelPolicyRef       `json:"compactorModelPolicy,omitempty"`
+	CompactorModel        string                          `json:"compactorModel,omitempty"`
 	ModelPolicy           contracts.ModelPolicyRef        `json:"modelPolicy,omitzero"`
 	LLMGateway            *llmgateway.LLMGatewayConfigRef `json:"llmGateway,omitempty"`
 	Credential            *llmgateway.LLMCredentialRef    `json:"credential,omitempty"`
@@ -454,6 +456,11 @@ func consumerExecutionConfigRefs(
 		ref := selection.SummarizerModelPolicy.Ref
 		result.SummarizerModelPolicy = &ref
 		result.SummarizerModel = selection.SummarizerModelPolicy.Model
+	}
+	if selection.CompactorModelPolicy != nil {
+		ref := selection.CompactorModelPolicy.Ref
+		result.CompactorModelPolicy = &ref
+		result.CompactorModel = selection.CompactorModelPolicy.Model
 	}
 	if selection.LLMGateway != nil {
 		gateway := selection.LLMGateway.Ref

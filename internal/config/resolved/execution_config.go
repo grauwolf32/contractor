@@ -106,6 +106,9 @@ func applyResolvedStageExecutionConfigOverride(
 		if stage.ExecutionConfig.Planner == nil {
 			return fmt.Errorf("modeled Planner has no base executionConfig")
 		}
+		if override.Planner.CompactorModelPolicy != nil && !PlannerCompactsContext(*stage) {
+			return fmt.Errorf("planner compactorModelPolicy requires plannerContextManagement %s", PlannerContextCompact)
+		}
 		if err := applyResolvedExecutionSelectionOverride(
 			stage.ExecutionConfig.Planner, *override.Planner, origin+".planner",
 		); err != nil {
@@ -126,6 +129,9 @@ func applyResolvedStageExecutionConfigOverride(
 		}
 		if stage.Agents[logicalName].Template.IsToolWorker() {
 			return fmt.Errorf("tool@1 does not accept model execution overrides")
+		}
+		if patch.CompactorModelPolicy != nil {
+			return fmt.Errorf("agents.%s: compactorModelPolicy applies only to a Planner", logicalName)
 		}
 		if err := applyResolvedExecutionSelectionOverride(
 			&selection, patch, origin+".agents."+logicalName,
@@ -157,6 +163,14 @@ func applyResolvedExecutionSelectionOverride(
 		selection.SummarizerModelPolicy = &policy
 		selection.Origins.SummarizerModelPolicy = origin
 	}
+	if override.CompactorModelPolicy != nil {
+		if err := override.CompactorModelPolicy.ValidateForCompactor(); err != nil {
+			return err
+		}
+		policy := override.CompactorModelPolicy.Clone()
+		selection.CompactorModelPolicy = &policy
+		selection.Origins.CompactorModelPolicy = origin
+	}
 	if override.LLMGateway != nil {
 		if err := override.LLMGateway.Validate(); err != nil {
 			return fmt.Errorf("llmGateway is invalid: %w", err)
@@ -183,7 +197,8 @@ func applyResolvedExecutionSelectionOverride(
 }
 
 func resolvedExecutionSelectionOverrideHasAny(value ResolvedExecutionSelectionOverride) bool {
-	return value.ModelPolicy != nil || value.SummarizerModelPolicy != nil || value.LLMGateway != nil || value.Credential != nil
+	return value.ModelPolicy != nil || value.SummarizerModelPolicy != nil || value.CompactorModelPolicy != nil ||
+		value.LLMGateway != nil || value.Credential != nil
 }
 
 func escalationExecutionConfigOrigin(
@@ -265,6 +280,9 @@ func ValidateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 		return err
 	}
 	plannerRef := stage.Planner.Selector()
+	if err := validatePlannerContextManagement(stage); err != nil {
+		return fmt.Errorf("Stage %q: %w", stageName, err)
+	}
 	if IsModelFreeStage(stage) {
 		if stage.ExecutionConfig.Planner != nil {
 			return fmt.Errorf("Stage %q %s must not have Planner executionConfig", stageName, plannerRef)
@@ -289,6 +307,9 @@ func ValidateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 			return fmt.Errorf("Stage %q Agent %q contextManagement: %w", stageName, logicalName, err)
 		}
 		hasTools := len(binding.Template.Toolsets) > 0 || len(binding.Template.Skills) > 0
+		if selection.CompactorModelPolicy != nil || selection.Origins.CompactorModelPolicy != "" {
+			return fmt.Errorf("Stage %q Agent %q: compactorModelPolicy applies only to a Planner", stageName, logicalName)
+		}
 		if binding.Template.IsToolWorker() {
 			if !selection.ModelPolicy.IsZero() || selection.SummarizerModelPolicy != nil || selection.LLMGateway != nil || selection.Credential != nil || selection.Origins != (ExecutionConfigOrigins{}) {
 				return fmt.Errorf("tool@1 does not accept model execution configuration")
@@ -314,7 +335,7 @@ func ValidateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 		} else if selection.Origins.SummarizerModelPolicy != "" {
 			return fmt.Errorf("absent summarizerModelPolicy must not have an origin")
 		}
-		// compact@1 wholly replaces the template summarizer (WFL-R91).
+		// compact@1 wholly replaces the template summarizer (WFL-R92).
 		if binding.Template.Summarizer != nil && !binding.ContextManagement.IsCompact() {
 			if err := binding.Template.Summarizer.Validate(selection.ModelPolicy); err != nil {
 				return fmt.Errorf("Stage %q Agent %q summarizer: %w", stageName, logicalName, err)
@@ -371,7 +392,7 @@ func validateConsumerExecutionConfig(
 }
 
 // validateAgentContextManagement checks one binding's explicit context
-// selection against its Stage and effective execution selection (WFL-R92):
+// selection against its Stage and effective execution selection (WFL-R93):
 // compact@1 needs a modeled, isolated, non-Audit-completion Worker whose
 // effective policy pins its context window, produces no summarized outcome
 // and accepts no summarizer-only selection it would ignore.

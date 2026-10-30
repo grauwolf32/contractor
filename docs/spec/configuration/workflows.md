@@ -251,6 +251,25 @@ Common context pinning, result media types, explicit `from`, Workflow output
 mappings and transitions remain in force. Execution and recovery are owned by
 [Server operations](../execution/server-operations.md), never Planner.
 
+**WFL-R90.** A Stage whose Planner is `streamline@1` or `router@1` may declare
+`plannerContextManagement`, a strict union whose `strategy` selects the branch.
+`strategy: none`, the default when the member is omitted, accepts no other
+field and keeps the whole Planner conversation. `strategy: compact@1` requires
+an exact compactor `modelPolicy` selector and an `instructions.ref` resource
+pinned by digest like Planner instructions (WFL-R19), and accepts
+`contextWindowRatio` (exclusive 0 to 1, default 0.75, LIM-PLN-10),
+`keepRecentGroups` (1 to 16, default 4, LIM-PLN-11) and `maxCompactions` (1 to
+16, default 8, LIM-PLN-12). A null member, a null or unknown field, a
+duplicate key, a mixed branch, a Planner summarizer or terminal setting and any
+other strategy are invalid. The member is invalid on a `passthrough@1`, other
+model-free or operation Stage. `compact@1` also requires the Stage's effective
+Planner ModelPolicy to declare `contextWindowTokens` with `maxOutputTokens`
+below it; the compactor policy rules are TPL-R118. The resolved Stage carries
+the `compact@1` branch with every default made explicit and no member for
+`none`; the public read model always shows the branch, `{strategy: none}`
+included. Runtime execution is owned by
+[Planners](../execution/planners.md#context-compaction) (PLN-R125).
+
 **WFL-R15.** Every Planner Stage declares a mandatory non-empty literal
 `objective` and one mandatory Planner-instruction resource ref,
 `instructions`:
@@ -353,7 +372,7 @@ are owned by the Artifact store.
 
 ### Worker context management
 
-**WFL-R90.** Each object-valued Agent binding has one closed
+**WFL-R91.** Each object-valued Agent binding has one closed
 `contextManagement` selection: `template@1`, which keeps exactly what the
 AgentTemplate defines (its terminal summarizer or none), or `compact@1`, which
 lets an isolated Worker compress old history and continue the same subtask.
@@ -378,14 +397,13 @@ agents:
       maxCompactions: 8          # default
 ```
 
-**WFL-R91.** `compact@1` requires an exact compactor `modelPolicy`
+**WFL-R92.** `compact@1` requires an exact compactor `modelPolicy`
 selector, an `instructions.ref` resource and an explicit YAML boolean
 `includeReasoning`; a quoted or otherwise textual value is invalid.
 `contextWindowRatio` (LIM-WFL-11), `keepRecentGroups` (LIM-WFL-10) and
 `maxCompactions` (LIM-WFL-9) default during resolution and are explicit
-afterwards. The compactor policy is one tool-free consumer: it requires
-`contextWindowTokens`, `maxOutputTokens`, `maxModelCalls: 1` and a finite
-`maxTotalTokens`, and it rejects `maxToolCalls` and `maxWorkerCalls`. The
+afterwards. The compactor policy satisfies the one compactor ModelPolicy rule
+([TPL-R118](agent-templates.md)) that Planner compaction also uses. The
 instruction text is non-blank and at most 8,000 Unicode characters
 (LIM-WFL-12). The effective Worker ModelPolicy must define
 `contextWindowTokens` and `maxOutputTokens`. A `compact@1` binding wholly
@@ -393,7 +411,7 @@ replaces the template summarizer, its instructions, ratio and
 `cumulativeBudget` for that binding only; the AgentTemplate and its digest do
 not change.
 
-**WFL-R92.** Configuration resolution rejects `compact@1`, instead of
+**WFL-R93.** Configuration resolution rejects `compact@1`, instead of
 falling back to terminal summarization, for: a model-free (`tool@1`) template;
 a Stage with `session: shared` (until shared compaction is specified); a
 template that selects `audit-results@2` or a binding used for Audit completion
@@ -403,14 +421,14 @@ which would have no consumer. The same combinations are rejected when a
 persisted snapshot is read and when an allocation is admitted
 ([WRK-R184](../execution/worker.md)).
 
-**WFL-R93.** Resolution pins the compactor policy body, the instruction
+**WFL-R94.** Resolution pins the compactor policy body, the instruction
 ref, digest and text and every resolved member into the Workflow, Run, Stage
 and allocation snapshots. Deployment model selection does not retarget the
 pinned compactor policy. A changed policy or instruction text therefore
 changes the Workflow digest, and an AuditProfile embedding the Workflow reports
 it like any other pinned dependency.
 
-**WFL-R94.** What the Worker does with a `compact@1` selection is owned by
+**WFL-R95.** What the Worker does with a `compact@1` selection is owned by
 [WRK-R184 to WRK-R195](../execution/worker.md). A continuation that ends in
 a valid result is an ordinary Stage result with `summarized: false`;
 `compact@1` never produces a summary artifact, a `summarized` outcome or a
@@ -803,8 +821,9 @@ Stage fields:
 | `objective` | Literal Stage outcome | WFL-R15 to WFL-R18, WFL-R20 |
 | `instructions.ref` | Planner instruction resource | WFL-R19 |
 | `planner` | Exact Planner factory selector | WFL-R14; [Planners](../execution/planners.md) |
+| `plannerContextManagement` | `none` or `compact@1` Planner context management | WFL-R90; [Planners](../execution/planners.md) PLN-R125 |
 | `session` | `isolated` or `shared` | WFL-R27 to WFL-R34 |
-| `agents` | Logical Agent name to `{template, namespace?, contextManagement?}` | WFL-R22 to WFL-R26, WFL-R90 to WFL-R94 |
+| `agents` | Logical Agent name to `{template, namespace?, contextManagement?}` | WFL-R22 to WFL-R26, WFL-R91 to WFL-R95 |
 | `context.artifacts` | Stage-local name to `{namespace, name, required}` | WFL-R59, WFL-R60 |
 | `context.workspace` | Workspace hydration | [Workspace](../tools/workspace.md) |
 | `result.artifacts` | Stage-local result name to slot contract plus `from` (omitted only by a workspace export slot) | WFL-R61 to WFL-R65 |
@@ -850,12 +869,12 @@ Limits ([registry](../platform/limits.md)):
 - LIM-WFL-8 — Stage and logical Agent names: at most 128 characters in the
   shared name grammar (WFL-R84).
 - LIM-WFL-9 — `compact@1` `maxCompactions`: 1 to 16 per Worker invocation,
-  default 8 (WFL-R91).
-- LIM-WFL-10 — `compact@1` `keepRecentGroups`: 1 to 16, default 4 (WFL-R91).
+  default 8 (WFL-R92).
+- LIM-WFL-10 — `compact@1` `keepRecentGroups`: 1 to 16, default 4 (WFL-R92).
 - LIM-WFL-11 — `compact@1` `contextWindowRatio`: strictly between 0 and 1,
-  default 0.75 (WFL-R91).
+  default 0.75 (WFL-R92).
 - LIM-WFL-12 — `compact@1` instruction text: non-blank, at most 8,000 Unicode
-  characters (WFL-R91).
+  characters (WFL-R92).
 - Used here, owned elsewhere: LIM-ART-2 (media type length), LIM-SCH-5
   (escalation `maxAttempts`), LIM-WSP-1 to LIM-WSP-3 (workspace sources and
   targets).

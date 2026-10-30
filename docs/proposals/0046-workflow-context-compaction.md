@@ -14,7 +14,7 @@ compaction остаётся предложением. V417-001 с terminal `incl
 
 V417-003 (31 октября 2026 года) реализует `compact@1` для isolated обычных
 Workers; нормативные правила теперь в
-[WFL-R90–WFL-R94](../spec/configuration/workflows.md) и
+[WFL-R91–WFL-R95](../spec/configuration/workflows.md) и
 [WRK-R184–WRK-R195](../spec/execution/worker.md). Shared sessions (V417-004)
 и Audit completion (V417-005) остаются предложением.
 

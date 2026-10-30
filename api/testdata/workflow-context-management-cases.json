@@ -1,5 +1,5 @@
 {
-  "description": "Workflow agent binding contextManagement authoring cases (WFL-R90..WFL-R92). Each case sets path, relative to the compact-copy Workflow spec, to value; catalogOnly cases need catalog resolution that the Studio editor does not perform.",
+  "description": "Workflow agent binding contextManagement authoring cases (WFL-R91..WFL-R93). Each case sets path, relative to the compact-copy Workflow spec, to value; catalogOnly cases need catalog resolution that the Studio editor does not perform.",
   "cases": [
     {"name": "compact defaults", "path": ["stages", "copy", "agents", "builder", "contextManagement", "keepRecentGroups"], "value": 4, "valid": true},
     {"name": "template strategy", "path": ["stages", "copy", "agents", "builder", "contextManagement"], "value": {"strategy": "template@1"}, "valid": true},

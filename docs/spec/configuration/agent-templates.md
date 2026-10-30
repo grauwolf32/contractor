@@ -1004,8 +1004,8 @@ applies. Run and escalation overrides follow TPL-R79 and TPL-R80. Credential
 model authorization checks both effective main and summary policies. The
 AgentTemplate body and its digest remain unchanged. A Workflow binding that
 selects `compact@1` replaces the template summarizer for that binding
-([WFL-R91](workflows.md)), so a `summarizerModelPolicy` selection for it is
-rejected ([WFL-R92](workflows.md)).
+([WFL-R92](workflows.md)), so a `summarizerModelPolicy` selection for it is
+rejected ([WFL-R93](workflows.md)).
 
 **TPL-R113.** Run history and consumer projections expose the stored requested
 model aliases and exact policy refs/digests for main and explicitly resolved
@@ -1013,6 +1013,30 @@ summary selections. A Workflow may use several models across Stages, roles and
 attempts. Profile digests identify operator configuration, not observed provider
 weights. Unknown provider revision remains unknown; changing current defaults
 never relabels historical execution.
+
+**TPL-R117.** `compactorModelPolicy` selects the exact tool-free compactor
+policy of a `compact@1` Planner ([PLN-R125](../execution/planners.md)). The
+Stage's `plannerContextManagement.modelPolicy` is its lowest-precedence
+origin, `workflow.stages.<name>.plannerContextManagement`; a Workflow
+`executionConfig.planner`, a Run Planner override and an escalation Planner
+selection replace it with the precedence of TPL-R79 and TPL-R80. A Planner
+selection that names `compactorModelPolicy` applies only to `compact@1`
+Stages: a selection that would apply it to no such Stage, a Worker selection
+and an Agent binding selection are invalid. It cannot enable compaction or
+alter its instructions or thresholds, and there is no deployment default role
+for it. The compactor uses the Planner's effective LLMGatewayConfig and
+credential. Consumer projections expose the requested compactor alias, the exact policy
+ref and its origin beside the Planner's (TPL-R113).
+
+**TPL-R118.** A compactor ModelPolicy declares `contextWindowTokens`, a
+positive `maxOutputTokens` below it, `maxModelCalls: 1` (one call per
+compaction) and a finite positive `maxTotalTokens`; it declares neither
+`maxToolCalls` nor `maxWorkerCalls`. Its own window may be smaller than the
+main Planner window. The main Planner's cumulative budgets stay authoritative
+for every compactor call (PLN-R127). The Worker compactor of a `compact@1`
+Agent binding follows the same rule ([WFL-R92](workflows.md)); there the
+owning Worker invocation's budgets stay authoritative
+([WRK-R186](../execution/worker.md)).
 
 ### Read endpoints
 

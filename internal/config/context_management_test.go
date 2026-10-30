@@ -17,7 +17,7 @@ import (
 const compactWorkflowPath = "workflows/compact_copy.yaml"
 
 // TestSharedWorkflowContextManagementCases holds Workflow authoring to the
-// cases the Studio editor also reads (WFL-R90..WFL-R92).
+// cases the Studio editor also reads (WFL-R91..WFL-R93).
 func TestSharedWorkflowContextManagementCases(t *testing.T) {
 	var fixture struct {
 		Description string

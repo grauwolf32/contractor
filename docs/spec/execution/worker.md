@@ -1478,7 +1478,7 @@ Cancellation winning before its result stops the call and produces no
 ### Context compaction
 
 A Workflow binding may select `compact@1`
-([WFL-R90 to WFL-R94](../configuration/workflows.md)). The Worker then
+([WFL-R91 to WFL-R95](../configuration/workflows.md)). The Worker then
 continues the same isolated subtask past its context boundary: Runtime
 summarizes the oldest complete history groups into one checkpoint and keeps
 the recent ones. Proposal 0046 records the design and the ADK 2.13 evidence
@@ -1763,7 +1763,7 @@ Limits ([registry](../platform/limits.md)):
 - LIM-WRK-35: retained history 4,096 groups per invocation (WRK-R187).
 - LIM-WRK-36: `read_context_history` page 32 KiB and 8 groups (WRK-R191).
 - Used here, owned by Workflows: LIM-WFL-9 to LIM-WFL-12 (`compact@1`
-  members, WFL-R91).
+  members, WFL-R92).
 
 Errors ([registry](../platform/errors.md)):
 

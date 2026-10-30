@@ -65,7 +65,7 @@ func TestSharedAuditPreparationAuthoringFixtures(t *testing.T) {
 // TestAuditProfilesWithoutPreparationKeepDigests pins frozen fixture digests:
 // a profile without a prepare role keeps its digest when preparation fields
 // join the algorithm. The pins changed once when every resolved Agent binding
-// gained its explicit contextManagement selection (WFL-R90).
+// gained its explicit contextManagement selection (WFL-R91).
 func TestAuditProfilesWithoutPreparationKeepDigests(t *testing.T) {
 	snapshot := mustLoad(t, copyCoreFixture(t, "audit-scan-catalog"))
 	for ref, digest := range map[string]string{

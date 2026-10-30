@@ -51,37 +51,7 @@ func (m *openAICompatibleModel) GenerateContent(
 			yield(nil, fmt.Errorf("Planner LLM Gateway streaming is disabled"))
 			return
 		}
-		payload, err := encodeChatRequest(request, m.settings.Model, m.settings.MaxOutputTokens)
-		if err != nil || len(payload) > maxGatewayRequestBytes {
-			if err == nil {
-				err = fmt.Errorf("Planner Gateway request is oversized")
-			}
-			yield(nil, err)
-			return
-		}
-		httpRequest, err := http.NewRequestWithContext(
-			ctx, http.MethodPost, m.settings.URL+"/chat/completions", bytes.NewReader(payload),
-		)
-		if err != nil {
-			yield(nil, fmt.Errorf("build Planner Gateway request"))
-			return
-		}
-		if token := m.settings.Token.Reveal(); token != "" {
-			httpRequest.Header.Set("Authorization", "Bearer "+token)
-		}
-		httpRequest.Header.Set("Content-Type", "application/json")
-		httpRequest.Header.Set(requestid.Header, requestid.Ensure(ctx))
-		// Both paths classify a failed model request with the Gateway's failure
-		// signatures; Recovery retries a transient one, and a reported failure
-		// is a *gatewayrecovery.FailureError.
-		var body []byte
-		if m.settings.Recovery != nil {
-			body, err = m.settings.Recovery.Do(httpRequest, m.settings.HTTPClient, maxGatewayResponseBytes)
-		} else {
-			body, err = gatewayrecovery.Send(
-				httpRequest, m.settings.HTTPClient, maxGatewayResponseBytes, m.settings.FailureSignatures,
-			)
-		}
+		body, err := m.send(ctx, request)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -89,6 +59,83 @@ func (m *openAICompatibleModel) GenerateContent(
 		result, err := decodeChatResponse(body)
 		yield(result, err)
 	}
+}
+
+// send encodes one bounded chat request and returns the Gateway's response
+// body. Both paths classify a failed model request with the Gateway's
+// failure signatures; Recovery retries a transient one, and a reported
+// failure is a *gatewayrecovery.FailureError.
+func (m *openAICompatibleModel) send(ctx context.Context, request *model.LLMRequest) ([]byte, error) {
+	payload, err := encodeChatRequest(request, m.settings.Model, m.settings.MaxOutputTokens)
+	if err != nil || len(payload) > maxGatewayRequestBytes {
+		if err == nil {
+			err = fmt.Errorf("Planner Gateway request is oversized")
+		}
+		return nil, err
+	}
+	httpRequest, err := http.NewRequestWithContext(
+		ctx, http.MethodPost, m.settings.URL+"/chat/completions", bytes.NewReader(payload),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("build Planner Gateway request")
+	}
+	if token := m.settings.Token.Reveal(); token != "" {
+		httpRequest.Header.Set("Authorization", "Bearer "+token)
+	}
+	httpRequest.Header.Set("Content-Type", "application/json")
+	httpRequest.Header.Set(requestid.Header, requestid.Ensure(ctx))
+	if m.settings.Recovery != nil {
+		return m.settings.Recovery.Do(httpRequest, m.settings.HTTPClient, maxGatewayResponseBytes)
+	}
+	return gatewayrecovery.Send(
+		httpRequest, m.settings.HTTPClient, maxGatewayResponseBytes, m.settings.FailureSignatures,
+	)
+}
+
+// compactorReply is one received compactor response with its explicit
+// provider finish reason. The compaction owner, not the adapter, decides
+// whether it is a usable summary (PLN-R128).
+type compactorReply struct {
+	text         string
+	toolCalls    int
+	finishReason string
+	usage        *genai.GenerateContentResponseUsageMetadata
+}
+
+// compactionModel is the Planner Gateway path of the tool-free compactor. It
+// keeps the raw finish reason that the ordinary main-response decoding drops.
+type compactionModel interface {
+	compact(context.Context, *model.LLMRequest) (compactorReply, error)
+}
+
+func (m *openAICompatibleModel) compact(ctx context.Context, request *model.LLMRequest) (compactorReply, error) {
+	body, err := m.send(ctx, request)
+	if err != nil {
+		return compactorReply{}, err
+	}
+	return decodeCompactorResponse(body)
+}
+
+// decodeCompactorResponse reads one compactor reply. Unparseable JSON or
+// usage is the ordinary invalid Gateway response; every other defect is left
+// to compactor validation with its known usage.
+func decodeCompactorResponse(payload []byte) (compactorReply, error) {
+	var response chatResponse
+	if err := json.NewDecoder(bytes.NewReader(payload)).Decode(&response); err != nil {
+		return compactorReply{}, &gatewayResponseRejected{reason: "invalid JSON"}
+	}
+	usage, err := chatResponseUsage(response.Usage)
+	if err != nil {
+		return compactorReply{}, err
+	}
+	reply := compactorReply{usage: usage}
+	if len(response.Choices) > 0 {
+		choice := response.Choices[0]
+		reply.text = choice.Message.Content
+		reply.toolCalls = len(choice.Message.ToolCalls)
+		reply.finishReason = choice.FinishReason
+	}
+	return reply, nil
 }
 
 type chatRequest struct {
@@ -305,16 +352,9 @@ func decodeChatResponse(payload []byte) (*model.LLMResponse, error) {
 	if err := decoder.Decode(&response); err != nil {
 		return nil, &gatewayResponseRejected{reason: "invalid JSON"}
 	}
-	if response.Usage == nil || response.Usage.PromptTokens < 0 ||
-		response.Usage.CompletionTokens < 0 || response.Usage.TotalTokens <= 0 ||
-		int64(response.Usage.TotalTokens) <
-			int64(response.Usage.PromptTokens)+int64(response.Usage.CompletionTokens) {
-		return nil, &gatewayResponseRejected{reason: "invalid token usage"}
-	}
-	usage := &genai.GenerateContentResponseUsageMetadata{
-		PromptTokenCount:     response.Usage.PromptTokens,
-		CandidatesTokenCount: response.Usage.CompletionTokens,
-		TotalTokenCount:      response.Usage.TotalTokens,
+	usage, err := chatResponseUsage(response.Usage)
+	if err != nil {
+		return nil, err
 	}
 	reject := func(reason string) (*model.LLMResponse, error) {
 		return nil, &gatewayResponseRejected{reason: reason, usage: usage}
@@ -350,4 +390,19 @@ func decodeChatResponse(payload []byte) (*model.LLMResponse, error) {
 	}, nil
 }
 
+// chatResponseUsage validates the token usage every Planner Gateway response
+// must carry (PLN-R86).
+func chatResponseUsage(usage *chatUsage) (*genai.GenerateContentResponseUsageMetadata, error) {
+	if usage == nil || usage.PromptTokens < 0 || usage.CompletionTokens < 0 || usage.TotalTokens <= 0 ||
+		int64(usage.TotalTokens) < int64(usage.PromptTokens)+int64(usage.CompletionTokens) {
+		return nil, &gatewayResponseRejected{reason: "invalid token usage"}
+	}
+	return &genai.GenerateContentResponseUsageMetadata{
+		PromptTokenCount:     usage.PromptTokens,
+		CandidatesTokenCount: usage.CompletionTokens,
+		TotalTokenCount:      usage.TotalTokens,
+	}, nil
+}
+
 var _ model.LLM = (*openAICompatibleModel)(nil)
+var _ compactionModel = (*openAICompatibleModel)(nil)

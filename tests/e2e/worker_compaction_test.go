@@ -151,7 +151,7 @@ func TestWorkerCompactionContinuesIsolatedWorker(t *testing.T) {
 		t.Fatalf("Stage result: %v (%s)", err, attempt.Result)
 	}
 	// A useful continuation is a normal result: nothing is summarized and no
-	// handoff is fabricated (WFL-R94).
+	// handoff is fabricated (WFL-R95).
 	if stageResult.Outcome != stageresult.StageSucceeded || stageResult.Error != nil ||
 		stageResult.Summarized || stageResult.SummaryArtifact != nil {
 		t.Fatalf("compaction Stage result = %+v", stageResult)

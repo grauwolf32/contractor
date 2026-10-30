@@ -76,6 +76,7 @@ func cloneStage(source ResolvedStage) ResolvedStage {
 			result.ModelDefaults[role] = policy.Clone()
 		}
 	}
+	result.PlannerContextManagement = source.PlannerContextManagement.Clone()
 	result.ScanPlan = cloneScanPlanPolicy(source.ScanPlan)
 	result.AuditScan = cloneAuditScan(source.AuditScan)
 	result.Agents = make(map[string]ResolvedAgentBinding, len(source.Agents))
@@ -140,6 +141,10 @@ func cloneConsumerExecutionConfig(source ResolvedConsumerExecutionConfig) Resolv
 		policy := source.SummarizerModelPolicy.Clone()
 		result.SummarizerModelPolicy = &policy
 	}
+	if source.CompactorModelPolicy != nil {
+		policy := source.CompactorModelPolicy.Clone()
+		result.CompactorModelPolicy = &policy
+	}
 	if source.LLMGateway != nil {
 		gateway := source.LLMGateway.Clone()
 		result.LLMGateway = &gateway
@@ -181,6 +186,10 @@ func cloneExecutionSelectionOverride(
 	if source.SummarizerModelPolicy != nil {
 		policy := source.SummarizerModelPolicy.Clone()
 		result.SummarizerModelPolicy = &policy
+	}
+	if source.CompactorModelPolicy != nil {
+		policy := source.CompactorModelPolicy.Clone()
+		result.CompactorModelPolicy = &policy
 	}
 	if source.ModelPolicy != nil {
 		policy := source.ModelPolicy.Clone()

@@ -8,10 +8,10 @@ import (
 )
 
 // resolveContextManagement normalizes one binding's authored selection
-// (WFL-R90, WFL-R91). Omission selects template@1; compact@1 requires an
+// (WFL-R91, WFL-R92). Omission selects template@1; compact@1 requires an
 // explicit includeReasoning and exact modelPolicy and instructions refs, and
 // its other members take the documented defaults. Stage and execution
-// compatibility is checked with the resolved Stage (WFL-R92).
+// compatibility is checked with the resolved Stage (WFL-R93).
 func (l *loader) resolveContextManagement(source *contextManagementSource) (contracts.WorkerContextManagement, error) {
 	if source == nil {
 		return contracts.WorkerContextManagement{Strategy: contracts.ContextStrategyTemplate}, nil

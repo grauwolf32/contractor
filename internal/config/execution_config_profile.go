@@ -211,6 +211,13 @@ func (l *loader) resolveExecutionSelectionOverride(
 		pinned := policy.Clone()
 		result.SummarizerModelPolicy = &pinned
 	}
+	if patch.CompactorModelPolicy.Present {
+		policy, err := l.compactorPolicy(patch.CompactorModelPolicy.Value)
+		if err != nil {
+			return result, err
+		}
+		result.CompactorModelPolicy = &policy
+	}
 	if patch.LLMGateway.Present {
 		selector, err := resolved.ParseSelector(patch.LLMGateway.Value)
 		if err != nil {

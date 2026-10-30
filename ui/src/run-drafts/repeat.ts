@@ -28,6 +28,9 @@ function consumerDraft(patch?: SelectionPatch): ConsumerOverrideDraft {
     ...(patch?.summarizerModelPolicy === undefined
       ? {}
       : { summarizerModelPolicy: patch.summarizerModelPolicy }),
+    ...(patch?.compactorModelPolicy === undefined
+      ? {}
+      : { compactorModelPolicy: patch.compactorModelPolicy }),
     llmGateway: patch?.llmGateway ?? "",
     credential:
       patch?.credential === null

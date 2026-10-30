@@ -289,22 +289,39 @@ func (l *loader) resolveStage(
 	if err != nil {
 		return resolved.ResolvedStage{}, err
 	}
+	contextManagement, compactor, err := l.resolvePlannerContextManagement(
+		source.PlannerContextManagement, source.Operation != nil,
+	)
+	if err != nil {
+		return resolved.ResolvedStage{}, fmt.Errorf("plannerContextManagement: %w", err)
+	}
 
 	// The decoded source belongs to this load alone and the Snapshot keeps
 	// deep copies, so the Stage takes the scan policies without copying them.
 	stage := resolved.ResolvedStage{
-		Operation:       source.Operation,
-		Objective:       source.Objective,
-		Instructions:    instructions,
-		Planner:         plannerRef,
-		ScanPlan:        source.ScanPlan,
-		AuditScan:       source.AuditScan,
-		Session:         session,
-		Agents:          agents,
-		Context:         context,
-		Result:          result,
-		WorkflowOutputs: mappings,
-		On:              transitions,
+		Operation:                source.Operation,
+		Objective:                source.Objective,
+		Instructions:             instructions,
+		Planner:                  plannerRef,
+		PlannerContextManagement: contextManagement,
+		ScanPlan:                 source.ScanPlan,
+		AuditScan:                source.AuditScan,
+		Session:                  session,
+		Agents:                   agents,
+		Context:                  context,
+		Result:                   result,
+		WorkflowOutputs:          mappings,
+		On:                       transitions,
+	}
+	if compactor != nil {
+		// The Stage's compactor is the lowest-precedence compactor selection;
+		// executionConfig layers may replace it (PLN-R125, TPL-R79).
+		stage.ExecutionConfig.Planner = &resolved.ResolvedConsumerExecutionConfig{
+			CompactorModelPolicy: compactor,
+			Origins: resolved.ExecutionConfigOrigins{
+				CompactorModelPolicy: "workflow.stages." + stageName + ".plannerContextManagement",
+			},
+		}
 	}
 	if source.Operation != nil && source.Planner != "" {
 		return resolved.ResolvedStage{}, fmt.Errorf("Stage must select exactly one of planner or operation")

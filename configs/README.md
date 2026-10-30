@@ -58,6 +58,16 @@ Existing Streamline variants already use that Planner. Bounded Audit Workers
 have no terminal summarizer; the short artifact-copy and Podman smoke fixtures
 retain their direct passthrough completion and failure checks.
 
+Planner context compaction is opt-in per Streamline/Router Stage. Copy
+[`examples/streamline_compaction_workflow.yaml`](examples/streamline_compaction_workflow.yaml)
+under `workflows/` and
+[`examples/planner_compactor_policy.yaml`](examples/planner_compactor_policy.yaml)
+under `model-policies/` to load a review Workflow whose Planner replaces earlier
+steps with a rolling summary once its prompt reaches 75% of the Planner window,
+keeping exact earlier Worker results readable. The compactor policy has no
+deployment model-selection role, so its `model` must name a live Gateway route.
+No bundled Workflow enables compaction.
+
 Set optional `spec.maxSubtasks` on a Workflow to bound each Streamline/Router
 plan, including summary continuation. For example, `maxSubtasks: 64` allows up
 to 64 records per invocation. Omission selects 32; explicit values must be
@@ -271,7 +281,7 @@ summary of the oldest complete call groups, keeps the most recent groups
 read compacted groups again with `read_context_history`. A Workflow that uses
 `compact@1` cannot also declare `on.summarized`, and shared sessions and Audit
 completion Workers are rejected for now. See
-[Workflows](../docs/spec/configuration/workflows.md#WFL-R90).
+[Workflows](../docs/spec/configuration/workflows.md#WFL-R91).
 
 The local LiteLLM model and request timeouts are 240 seconds; the Worker client
 timeout is 300 seconds. Planner execution retains its 30-minute timeout;

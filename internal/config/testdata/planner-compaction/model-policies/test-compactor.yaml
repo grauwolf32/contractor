@@ -1,0 +1,13 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: test-compactor
+  version: "1"
+
+spec:
+  model: compactor-model
+  contextWindowTokens: 32768
+  maxOutputTokens: 2048
+  maxModelCalls: 1
+  maxTotalTokens: 32768

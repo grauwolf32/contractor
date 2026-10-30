@@ -1,0 +1,21 @@
+# Copy this file under configs/model-policies/ to load it, together with
+# streamline_compaction_workflow.yaml. A compactor ModelPolicy is tool-free:
+# one call per compaction (maxModelCalls: 1), an exact context window, an
+# output limit below it and a finite total; no tool or Worker budget
+# (TPL-R118). There is no deployment model-selection role for it, so `model`
+# must name a live Gateway route: this one is the summarizer route that
+# `make model-config` generates today; update it when that route changes.
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+
+metadata:
+  name: planner-compactor
+  version: "1"
+
+spec:
+  model: openrouter/z-ai/glm-5.3-flash@cc78cc13596ab7d7/summarizer-model
+  contextWindowTokens: 1000000
+  maxOutputTokens: 8192
+  maxModelCalls: 1
+  maxTotalTokens: 1000000
+  temperature: 0.6

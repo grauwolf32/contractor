@@ -1,6 +1,6 @@
 package contracts
 
-// Workflow-selected Worker context management (WFL-R90..WFL-R94) and its
+// Workflow-selected Worker context management (WFL-R91..WFL-R95) and its
 // effective allocation branch (WRK-R184).
 
 import (
@@ -106,7 +106,7 @@ func (c WorkerContextManagement) Clone() WorkerContextManagement {
 }
 
 // ValidateBinding checks a resolved Workflow binding selection: explicit
-// template@1, or a complete compact@1 policy (WFL-R90).
+// template@1, or a complete compact@1 policy (WFL-R91).
 func (c WorkerContextManagement) ValidateBinding() error {
 	switch c.Strategy {
 	case ContextStrategyTemplate:
@@ -222,20 +222,22 @@ func ValidateCompactedWorkerPolicy(policy ResolvedModelPolicy) error {
 	return nil
 }
 
-// ValidateForWorkerCompactor checks the tool-free compactor consumer: one
-// call per cycle with explicit context, output and finite token limits.
-func (p ResolvedModelPolicy) ValidateForWorkerCompactor() error {
+// ValidateForCompactor checks the one compactor ModelPolicy rule shared by
+// the Planner and Worker compact@1 consumers (TPL-R118): an exact context
+// window, one bounded response below it (validateModelPolicy), exactly one
+// model call per compaction, a finite total and no tool or Worker budget.
+func (p ResolvedModelPolicy) ValidateForCompactor() error {
 	if err := validateModelPolicy(p); err != nil {
 		return err
 	}
 	if p.ContextWindowTokens <= 0 || p.MaxOutputTokens <= 0 || p.MaxTotalTokens <= 0 {
-		return Invalidf("Worker compactor modelPolicy requires contextWindowTokens, maxOutputTokens and maxTotalTokens")
+		return Invalidf("compactor modelPolicy requires contextWindowTokens, maxOutputTokens and maxTotalTokens")
 	}
 	if p.MaxModelCalls != 1 {
-		return Invalidf("Worker compactor modelPolicy requires maxModelCalls=1")
+		return Invalidf("compactor modelPolicy requires maxModelCalls=1")
 	}
 	if p.MaxToolCalls != 0 || p.MaxWorkerCalls != 0 {
-		return Invalidf("Worker compactor modelPolicy must omit maxToolCalls and maxWorkerCalls")
+		return Invalidf("compactor modelPolicy must omit maxToolCalls and maxWorkerCalls")
 	}
 	return nil
 }
@@ -245,7 +247,7 @@ func (c WorkerContextManagement) validateCompaction() error {
 	if compaction == nil {
 		return Invalidf("contextManagement compact@1 requires its compaction policy")
 	}
-	if err := compaction.ModelPolicy.ValidateForWorkerCompactor(); err != nil {
+	if err := compaction.ModelPolicy.ValidateForCompactor(); err != nil {
 		return err
 	}
 	instructions := compaction.Instructions

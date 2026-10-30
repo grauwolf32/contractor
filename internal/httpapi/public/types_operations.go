@@ -99,6 +99,36 @@ type instructionsRefResponse struct {
 	Digest string `json:"digest"`
 }
 
+// plannerContextManagementResponse renders a Planner Stage's context
+// management explicitly: strategy none, or the compact@1 thresholds.
+type plannerContextManagementResponse struct {
+	Strategy           string                   `json:"strategy"`
+	Instructions       *instructionsRefResponse `json:"instructions,omitempty"`
+	ContextWindowRatio *float64                 `json:"contextWindowRatio,omitempty"`
+	KeepRecentGroups   int                      `json:"keepRecentGroups,omitempty"`
+	MaxCompactions     int                      `json:"maxCompactions,omitempty"`
+}
+
+func plannerContextManagementReadModel(stage resolved.ResolvedStage) *plannerContextManagementResponse {
+	if stage.Operation != nil {
+		return nil
+	}
+	compaction := stage.PlannerContextManagement
+	if compaction == nil {
+		return &plannerContextManagementResponse{Strategy: resolved.PlannerContextNone}
+	}
+	ratio := compaction.ContextWindowRatio
+	return &plannerContextManagementResponse{
+		Strategy: compaction.Strategy,
+		Instructions: &instructionsRefResponse{
+			Ref: compaction.Instructions.Ref, Digest: compaction.Instructions.Digest,
+		},
+		ContextWindowRatio: &ratio,
+		KeepRecentGroups:   compaction.KeepRecentGroups,
+		MaxCompactions:     compaction.MaxCompactions,
+	}
+}
+
 type workflowAgentBindingResponse struct {
 	Template          contracts.AgentTemplateRef        `json:"template"`
 	Namespace         string                            `json:"namespace"`
@@ -107,7 +137,7 @@ type workflowAgentBindingResponse struct {
 }
 
 // workflowContextManagementResponse is the reference-only public projection
-// of one binding's explicit context selection (WFL-R90): compaction members
+// of one binding's explicit context selection (WFL-R91): compaction members
 // are present exactly for compact@1, and instruction text is not repeated.
 type workflowContextManagementResponse struct {
 	Strategy           contracts.WorkerContextStrategy `json:"strategy"`
@@ -138,17 +168,19 @@ func newWorkflowContextManagementResponse(value contracts.WorkerContextManagemen
 }
 
 type workflowStageResponse struct {
-	Objective        string                                  `json:"objective"`
-	Instructions     instructionsRefResponse                 `json:"instructions,omitzero"`
-	Operation        *resolved.ServerOperationConfig         `json:"operation,omitempty"`
-	Planner          resolved.PlannerRef                     `json:"planner,omitzero"`
-	Session          contracts.WorkerSessionMode             `json:"session"`
-	Agents           map[string]workflowAgentBindingResponse `json:"agents"`
-	ExecutionConfig  resolvedStageExecutionConfigResponse    `json:"executionConfig"`
-	ContextArtifacts map[string]resolved.ContextArtifact     `json:"contextArtifacts"`
-	ResultArtifacts  map[string]resolved.ArtifactSlot        `json:"resultArtifacts"`
-	WorkflowOutputs  map[string]string                       `json:"workflowOutputs"`
-	On               workflowTransitionsResponse             `json:"on"`
+	Objective    string                          `json:"objective"`
+	Instructions instructionsRefResponse         `json:"instructions,omitzero"`
+	Operation    *resolved.ServerOperationConfig `json:"operation,omitempty"`
+	Planner      resolved.PlannerRef             `json:"planner,omitzero"`
+	// PlannerContextManagement is present for every Planner Stage.
+	PlannerContextManagement *plannerContextManagementResponse       `json:"plannerContextManagement,omitempty"`
+	Session                  contracts.WorkerSessionMode             `json:"session"`
+	Agents                   map[string]workflowAgentBindingResponse `json:"agents"`
+	ExecutionConfig          resolvedStageExecutionConfigResponse    `json:"executionConfig"`
+	ContextArtifacts         map[string]resolved.ContextArtifact     `json:"contextArtifacts"`
+	ResultArtifacts          map[string]resolved.ArtifactSlot        `json:"resultArtifacts"`
+	WorkflowOutputs          map[string]string                       `json:"workflowOutputs"`
+	On                       workflowTransitionsResponse             `json:"on"`
 }
 
 type resolvedStageExecutionConfigResponse struct {

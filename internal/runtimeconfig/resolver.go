@@ -201,7 +201,7 @@ func (r ResolvedRuntimeConfig) Validate() error {
 		}
 	}
 	if r.CompactorModelPolicy != nil {
-		if err := r.CompactorModelPolicy.ValidateForWorkerCompactor(); err != nil || r.SummarizerModelPolicy != nil {
+		if err := r.CompactorModelPolicy.ValidateForCompactor(); err != nil || r.SummarizerModelPolicy != nil {
 			return resolutionError(ResolutionInvalid, "compactorModelPolicy", ErrInvalid)
 		}
 	}
@@ -258,7 +258,7 @@ func ResolveRuntimeConfig(input ResolveRuntimeConfigInput) (ResolvedRuntimeConfi
 		}
 	}
 	if input.CompactorModelPolicy != nil {
-		if err := input.CompactorModelPolicy.ValidateForWorkerCompactor(); err != nil || input.SummarizerModelPolicy != nil {
+		if err := input.CompactorModelPolicy.ValidateForCompactor(); err != nil || input.SummarizerModelPolicy != nil {
 			return ResolvedRuntimeConfig{}, resolutionError(
 				ResolutionInvalid, "contextManagement.modelPolicy", ErrInvalid,
 			)
