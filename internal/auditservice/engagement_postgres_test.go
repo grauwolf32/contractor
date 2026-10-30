@@ -99,7 +99,7 @@ func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string,
 	if err != nil {
 		t.Fatal(err)
 	}
-	creds, err := credentials.NewRuntimeCredentialService(credentials.RuntimeCredentialServiceOptions{Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher, Usage: credentials.NewRuntimeCredentialRepository(pool), Audits: hookstore.NewCredentialHolds(pool), Barrier: barrier})
+	creds, err := credentials.NewRuntimeCredentialService(credentials.RuntimeCredentialServiceOptions{Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher, Usage: credentials.NewRuntimeCredentialRepository(pool), Projects: projectstore.NewPostgresStore(pool), Audits: hookstore.NewCredentialHolds(pool), Barrier: barrier})
 	if err != nil {
 		t.Fatal(err)
 	}

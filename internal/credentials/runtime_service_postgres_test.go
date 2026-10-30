@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -21,6 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/persistence/leasetest"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runstore/runstoretest"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
@@ -44,7 +46,7 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 	}
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
 		Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher, Usage: repository,
-		Audits: staticAuditDispatchHolds{}, Barrier: barrier,
+		Projects: projectstore.NewPostgresStore(pool), Audits: staticAuditDispatchHolds{}, Barrier: barrier,
 		Now: func() time.Time { return time.Date(2026, 8, 31, 18, 0, 0, 0, time.UTC) },
 	})
 	if err != nil {
@@ -258,7 +260,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	now := time.Date(2026, 8, 31, 19, 0, 0, 0, time.UTC)
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
 		Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher, Usage: repository,
-		Audits: staticAuditDispatchHolds{}, Barrier: barrier,
+		Projects: projectstore.NewPostgresStore(pool), Audits: staticAuditDispatchHolds{}, Barrier: barrier,
 		Now: func() time.Time { return now },
 	})
 	if err != nil {
@@ -642,7 +644,7 @@ func TestInteractshCredentialDeletionIsFencedByPublishedBindings(t *testing.T) {
 	now := time.Date(2026, 8, 31, 19, 0, 0, 0, time.UTC)
 	service, err := NewRuntimeCredentialService(RuntimeCredentialServiceOptions{
 		Pool: pool, Lease: leasetest.Hold(t, pool).Lease, Cipher: cipher, Usage: repository,
-		Audits: staticAuditDispatchHolds{}, Barrier: barrier,
+		Projects: projectstore.NewPostgresStore(pool), Audits: staticAuditDispatchHolds{}, Barrier: barrier,
 		Now: func() time.Time { return now },
 	})
 	if err != nil {
@@ -758,4 +760,64 @@ func TestInteractshCredentialDeletionIsFencedByPublishedBindings(t *testing.T) {
 		t.Fatalf("delete after restoring default binding: %v", err)
 	}
 
+}
+
+// TestRuntimeCredentialPostgresDeleteRefusesAProjectHTTPTarget checks the Project
+// arm of Runtime credential usage on PostgreSQL: projectstore reports the
+// Projects whose HTTP target names the credential, deletion refuses with
+// their IDs, and succeeds once no Project targets it.
+func TestRuntimeCredentialPostgresDeleteRefusesAProjectHTTPTarget(t *testing.T) {
+	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("CONTRACTOR_TEST_DATABASE_URL is not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	pool := isolatedCredentialPool(t, ctx, databaseURL)
+	service := newTargetCredentialService(t, pool, staticAuditDispatchHolds{})
+	material, err := NewHTTPOriginBearerCredential("origin-secret-never-persist")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer material.Destroy()
+	const credentialID = "origin-project"
+	if _, err := service.Create(ctx, RuntimeCredentialCreateRequest{
+		CredentialID: credentialID, Material: material,
+		IdempotencyKey: "create-" + credentialID, ActorID: targetCredentialOwner,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	projects := projectstore.NewPostgresStore(pool)
+	project, _, err := projects.Create(ctx, projectstore.CreateParams{
+		ProjectID: "project-target-usage", OwnerID: targetCredentialOwner, Kind: projectstore.KindProject,
+		Name: "Target usage", IdempotencyKey: "project-target-usage", RequestDigest: raceDigest("4"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	targeted, err := projects.Update(ctx, projectstore.UpdateParams{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: project.Revision,
+		Name: project.Name, HTTPTarget: &runtimesettings.HTTPOriginTargetRef{
+			URL: "https://app.example.test/api",
+			Credential: &runtimesettings.RuntimeCredentialRef{
+				CredentialID: credentialID, Kind: runtimesettings.RuntimeCredentialOriginBearer,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var inUse *RuntimeCredentialInUseError
+	if _, err := service.Delete(ctx, credentialID, targetCredentialOwner); !errors.As(err, &inUse) ||
+		!slices.Equal(inUse.Usage.ProjectIDs, []string{project.ProjectID}) {
+		t.Fatalf("delete a Project's target credential = %v, usage %+v", err, inUse)
+	}
+	if _, err := projects.Update(ctx, projectstore.UpdateParams{
+		ProjectID: project.ProjectID, OwnerID: project.OwnerID, ExpectedRevision: targeted.Revision, Name: project.Name,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Delete(ctx, credentialID, targetCredentialOwner); err != nil {
+		t.Fatalf("delete a credential no Project targets: %v", err)
+	}
 }
