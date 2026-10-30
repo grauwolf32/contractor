@@ -9,6 +9,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const workflowRunColumns = `
@@ -53,7 +54,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		return WorkflowRun{}, err
 	}
 	if auditCompletion != nil {
-		if err := json.Unmarshal(auditCompletion, &result.AuditCompletion); err != nil {
+		if err := strictjson.Decode(auditCompletion, &result.AuditCompletion); err != nil {
 			return WorkflowRun{}, fmt.Errorf("decode Audit completion: %w", err)
 		}
 		if result.AuditCompletion == nil || result.AuditCompletion.Validate() != nil || result.PublicationMode != PublicationAuditManaged {
@@ -80,7 +81,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	}
 	if cancellation != nil {
 		var decoded WorkflowRunCancellation
-		if err := json.Unmarshal(cancellation, &decoded); err != nil {
+		if err := strictjson.Decode(cancellation, &decoded); err != nil {
 			return WorkflowRun{}, fmt.Errorf("decode WorkflowRun cancellation: %w", err)
 		}
 		if err := decoded.Validate(); err != nil {
@@ -89,10 +90,10 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		result.Cancellation = &decoded
 	}
 	result.WorkflowSnapshot = append(json.RawMessage(nil), snapshot...)
-	if err := json.Unmarshal(parameters, &result.Parameters); err != nil {
+	if err := strictjson.Decode(parameters, &result.Parameters); err != nil {
 		return WorkflowRun{}, fmt.Errorf("decode WorkflowRun parameters: %w", err)
 	}
-	if err := json.Unmarshal(runtimeConfig, &result.RuntimeConfig); err != nil {
+	if err := strictjson.Decode(runtimeConfig, &result.RuntimeConfig); err != nil {
 		return WorkflowRun{}, fmt.Errorf("decode WorkflowRun RuntimeConfig snapshot: %w", err)
 	}
 	if err := result.RuntimeConfig.Validate(); err != nil {
@@ -100,7 +101,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	}
 	if projectHTTPTarget != nil {
 		var decoded runtimesettings.HTTPOriginTargetRef
-		if err := json.Unmarshal(projectHTTPTarget, &decoded); err != nil {
+		if err := strictjson.Decode(projectHTTPTarget, &decoded); err != nil {
 			return WorkflowRun{}, fmt.Errorf("decode WorkflowRun Project HTTP target snapshot: %w", err)
 		}
 		if err := decoded.Validate(); err != nil {
@@ -108,7 +109,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 		}
 		result.ProjectHTTPTarget = &decoded
 	}
-	if err := json.Unmarshal(skillSnapshot, &result.SkillSnapshot); err != nil {
+	if err := strictjson.Decode(skillSnapshot, &result.SkillSnapshot); err != nil {
 		return WorkflowRun{}, fmt.Errorf("decode WorkflowRun Skill snapshot: %w", err)
 	}
 	if err := validateRunSkillSnapshot(result.SkillSnapshot, false); err != nil {
@@ -119,7 +120,7 @@ func scanWorkflowRun(row rowScanner) (WorkflowRun, error) {
 	}
 	result.RuntimeLabels = append([]string{}, result.RuntimeLabels...)
 	result.MetadataLabels = make(RunMetadataLabels)
-	if err := json.Unmarshal(metadataLabels, &result.MetadataLabels); err != nil {
+	if err := strictjson.Decode(metadataLabels, &result.MetadataLabels); err != nil {
 		return WorkflowRun{}, fmt.Errorf("decode persisted Run metadata labels: %w", err)
 	}
 	if err := result.MetadataLabels.Validate(); err != nil {
