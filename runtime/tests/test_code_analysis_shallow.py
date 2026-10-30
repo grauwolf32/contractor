@@ -6,7 +6,6 @@ import re
 import threading
 import time
 from collections import Counter
-from itertools import pairwise
 from pathlib import Path, PurePosixPath
 from types import SimpleNamespace
 from typing import Any
@@ -30,6 +29,7 @@ from contractor_runtime.projectfs import (
 from contractor_runtime.telemetry.metrics import MetricsState
 from contractor_runtime.toolsets.code_analysis.languages import (
     EXTENSION_LANGUAGES,
+    PARSE_CHUNK_BYTES,
     Language,
     load_parser,
     parse_symbols,
@@ -1284,37 +1284,68 @@ async def _tools(
     return dict(tools), metrics
 
 
-def test_real_four_mib_parser_keeps_event_loop_gaps_below_100_ms() -> None:
-    # Many syntax nodes exercise the native parser rather than a sleeping fake.
+class _RecordingParser:
+    """Forwards to the real parser and records how each parse reads its input."""
+
+    def __init__(self, parser: Any) -> None:
+        self._parser = parser
+        self.direct_sources: list[int] = []
+        self.chunks: list[tuple[int, int]] = []
+
+    def parse(self, source: Any) -> Any:
+        if not callable(source):
+            self.direct_sources.append(len(source))
+            return self._parser.parse(source)
+
+        def read(byte_offset: int, position: object) -> bytes:
+            chunk = source(byte_offset, position)
+            self.chunks.append((byte_offset, len(chunk)))
+            return chunk
+
+        return self._parser.parse(read)
+
+
+def test_real_four_mib_parse_runs_on_a_worker_in_bounded_yielding_chunks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # CAN-R60: one parse of at most 4 MiB is the only uninterrupted stall, and
+    # how often the event loop runs during it is platform scheduling (macOS
+    # hands the GIL back rarely). So this checks the mechanism, not a duration:
+    # the real parser runs on a worker thread and reads a large file in bounded
+    # chunks, releasing the GIL before each.
     unit = b'def handler():\n    return "a moderately long value"\n'
     source = unit * ((4 << 20) // len(unit))
     source += b"#" * ((4 << 20) - len(source))
+    parsers: list[_RecordingParser] = []
+    real_load_parser = code_analysis_languages.load_parser
+
+    def load_parser(language: Any) -> _RecordingParser:
+        parsers.append(_RecordingParser(real_load_parser(language)))
+        return parsers[-1]
+
+    real_parse = code_analysis_languages.parse_symbols
+    parse_threads: list[int] = []
+
+    def parse_symbols(*args: Any, **kwargs: Any) -> Any:
+        parse_threads.append(threading.get_ident())
+        return real_parse(*args, **kwargs)
+
+    yields: list[float] = []
+    monkeypatch.setattr(code_analysis_languages, "load_parser", load_parser)
+    monkeypatch.setattr(code_analysis_languages, "parse_symbols", parse_symbols)
+    monkeypatch.setattr(code_analysis_languages, "time", SimpleNamespace(sleep=yields.append))
 
     async def scenario() -> None:
-        ticks: list[float] = []
-        running = True
-
-        async def heartbeat() -> None:
-            while running:
-                ticks.append(time.monotonic())
-                await asyncio.sleep(0.001)
-
-        task = asyncio.create_task(heartbeat())
-        await asyncio.sleep(0.01)
-        result = await asyncio.to_thread(
-            code_analysis_languages.parse_symbols,
-            code_analysis_languages.load_parser(code_analysis_languages.Language.PYTHON),
-            source,
-            "large.py",
-            code_analysis_languages.Language.PYTHON,
-            1,
-        )
-        await asyncio.sleep(0.01)
-        running = False
-        await task
-        gap = max(b - a for a, b in pairwise(ticks))
-        assert gap < 0.1, f"native parsing stalled the event loop for {gap:.3f}s"
-        assert result.symbol_limit_reached and not result.parse_error
-        assert len(result.symbols) == 1 and result.symbols[0].name == "handler"
+        reader = MutableReader({"large.py": source.decode(), "small.py": "def small(): pass\n"})
+        tools, _ = await _tools(reader, tmp_path)
+        result = await tools["list_symbols"](limit=1)
+        assert result["coverage"]["analyzedFiles"] == 2
+        assert result["items"]
+        assert parse_threads and threading.get_ident() not in parse_threads
 
     asyncio.run(scenario())
+    (parser,) = parsers
+    assert parser.direct_sources == [len(b"def small(): pass\n")]
+    assert parser.chunks and len(yields) == len(parser.chunks) and set(yields) == {0}
+    assert all(size <= PARSE_CHUNK_BYTES for _, size in parser.chunks)
+    assert {offset + size for offset, size in parser.chunks if size} >= {len(source)}

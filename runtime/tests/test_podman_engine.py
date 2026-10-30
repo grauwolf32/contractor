@@ -4,7 +4,6 @@ import asyncio
 import copy
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -600,8 +599,12 @@ def test_root_engine_identity_is_rejected(tmp_path: Path, monkeypatch):
 
 
 def fake_executable(tmp_path: Path) -> Path:
+    # The test interpreter runs the fake: a platform python3 may be a launcher
+    # that adds its own variables (macOS /usr/bin/python3 adds SDKROOT and
+    # others), which the environment assertions would blame on the CLI.
+    source = (Path(__file__).parent / "fakes/podman_cli.py").read_text()
     target = tmp_path / "fake-podman"
-    shutil.copyfile(Path(__file__).parent / "fakes/podman_cli.py", target)
+    target.write_text(f"#!{sys.executable}\n{source}")
     target.chmod(0o700)
     return target
 
@@ -612,6 +615,11 @@ def test_real_cli_transport_preserves_argv_and_does_not_inherit_secrets(
     monkeypatch.setenv("CONTAINER_HOST", "ssh://private")
     monkeypatch.setenv("HTTP_PROXY", "https://secret")
     monkeypatch.setenv("CONTRACTOR_TOKEN", "private-token")
+    # CoreFoundation in a macOS child sets __CF_USER_TEXT_ENCODING when its
+    # environment lacks it and keeps a value it inherits, so only the parent's
+    # own value proves the CLI passed it on.
+    inherited_cf_encoding = "0x1F5:0x8000100:0x52"
+    monkeypatch.setenv("__CF_USER_TEXT_ENCODING", inherited_cf_encoding)
 
     async def scenario():
         cli = LocalPodmanCLI(fake_executable(tmp_path))
@@ -624,8 +632,10 @@ def test_real_cli_transport_preserves_argv_and_does_not_inherit_secrets(
             "--log-level=error",
             "--events-backend=none",
         ]
-        assert not {"CONTAINER_HOST", "HTTP_PROXY", "CONTRACTOR_TOKEN"} & observed["env"].keys()
-        assert set(observed["env"]) <= {
+        child_env = dict(observed["env"])
+        assert child_env.pop("__CF_USER_TEXT_ENCODING", None) != inherited_cf_encoding
+        assert not {"CONTAINER_HOST", "HTTP_PROXY", "CONTRACTOR_TOKEN"} & child_env.keys()
+        assert set(child_env) <= {
             "HOME",
             "PATH",
             "XDG_RUNTIME_DIR",
@@ -633,7 +643,7 @@ def test_real_cli_transport_preserves_argv_and_does_not_inherit_secrets(
             "LANG",
             "LC_CTYPE",
         }
-        assert observed["env"]["PATH"] == "/usr/bin:/bin"
+        assert child_env["PATH"] == "/usr/bin:/bin"
 
     asyncio.run(scenario())
 

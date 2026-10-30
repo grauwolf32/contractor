@@ -8,6 +8,7 @@ import uuid
 
 import pytest
 from fakes.podman_lifecycle import owner
+from platform_markers import linux_podman
 from test_projectfs_storage import local_settings
 
 from contractor_runtime.capabilities import CapabilityDiscoveryError, discover_capabilities
@@ -16,6 +17,8 @@ from contractor_runtime.sandbox.contracts import SandboxContractError, SandboxEr
 from contractor_runtime.sandbox.podman.lifecycle import PodmanLifecycle
 from contractor_runtime.sandbox.podman.probe import PROBE_FAILURES
 from contractor_runtime.sandbox.podman.settings import PodmanSettings
+
+pytestmark = linux_podman
 
 
 @pytest.mark.parametrize(

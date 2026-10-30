@@ -50,6 +50,33 @@ export TMPDIR="$(cd "${TMPDIR:-/tmp}" && pwd -P)"
 Do not work around the failure by relaxing the blob store's symlink check; a
 symlinked blob directory stays refused in production.
 
+## Runtime suite on macOS
+
+The ordinary Runtime targets Linux and macOS, while the allocation-scoped
+Podman backend needs Linux host capabilities
+([OPS-R1](../spec/operations/operations.md)). Unit tests of that backend's
+owner, supervisor and allocation protocol open `AF_UNIX` `SOCK_SEQPACKET`
+socket pairs or call `pidfd_open`, which macOS lacks, so they carry the
+`linux_podman` marker of
+[`runtime/tests/platform_markers.py`](../../runtime/tests/platform_markers.py):
+`make test-runtime` reports them as skipped with the OPS-R1 reason on any
+host other than Linux, and nothing skips them on Linux. The real-engine
+Podman suites skip on every host unless their explicit gate variable is set.
+
+Every other Runtime test must pass on both. A test that needs the path of an
+open descriptor uses `descriptor_path` of
+[`runtime/tests/descriptor_paths.py`](../../runtime/tests/descriptor_paths.py)
+rather than `/proc/self/fd`, runs fake executables with the test interpreter
+rather than `/usr/bin/python3` (a launcher on macOS that adds its own
+environment variables), and compares resource limits with
+`resource.RLIM_INFINITY` rather than `-1`. These macOS failures are open
+defects, each owned by a task; any other failure on macOS is a new defect:
+
+- V425-001: `test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification`
+  (an NFD opaque leaf is readable through its NFC name on APFS).
+- V425-002: `test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor`
+  (the Trailmark mirror exceeds the 1,024-byte macOS `PATH_MAX`).
+
 ## Release gate stages
 
 `make release-verify` runs the stages below in this order, cheapest first, so

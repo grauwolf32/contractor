@@ -13,6 +13,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from descriptor_paths import descriptor_path
 from test_filesystem_toolset import create_tools
 from test_projectfs_zip import archive, settings, workspace_inputs
 
@@ -238,13 +239,16 @@ def test_content_scan_stops_after_first_binary_chunk(
         async with workspace(tmp_path) as (session, root):
             path = root / "large-binary"
             path.write_bytes(marker + b"x" * (4 * 65536 - 1))
+            written = path.stat()
+            identity = (written.st_dev, written.st_ino)
             original = os.read
             read_bytes = 0
 
             def counted(descriptor: int, count: int) -> bytes:
                 nonlocal read_bytes
                 data = original(descriptor, count)
-                if os.readlink(f"/proc/self/fd/{descriptor}") == str(path):
+                opened = os.fstat(descriptor)
+                if (opened.st_dev, opened.st_ino) == identity:
                     read_bytes += len(data)
                 return data
 
@@ -540,7 +544,7 @@ def test_failed_temp_write_preserves_workspace_and_guard(
             original = os.write
 
             def disk_full(descriptor: int, data: bytes) -> int:
-                target = os.readlink(f"/proc/self/fd/{descriptor}")
+                target = descriptor_path(descriptor)
                 if "/.contractor-write-" in target:
                     raise OSError(code, "private disk detail")
                 return original(descriptor, data)
@@ -624,7 +628,7 @@ def test_failed_first_mkdir_and_failed_temp_cleanup_have_distinct_fences(
             original_unlink = os.unlink
 
             def fail_write(descriptor: int, data: bytes) -> int:
-                if "/.contractor-write-" in os.readlink(f"/proc/self/fd/{descriptor}"):
+                if "/.contractor-write-" in descriptor_path(descriptor):
                     raise OSError(errno.ENOSPC, "private disk detail")
                 return original_write(descriptor, data)
 

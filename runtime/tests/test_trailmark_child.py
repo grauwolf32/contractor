@@ -19,12 +19,13 @@ from contractor_runtime.toolsets.code_analysis.trailmark_host import (
 )
 
 
+# A None hard limit is the host's RLIM_INFINITY: -1 on Linux, 2**63-1 on macOS.
 @pytest.mark.parametrize(
     "platform,hard_limit,expected",
     [
-        ("linux", -1, 1024**3),
+        ("linux", None, 1024**3),
         ("linux", 512 * 1024**2, 512 * 1024**2),
-        ("darwin", -1, 5 * 1024**3),
+        ("darwin", None, 5 * 1024**3),
         ("darwin", 6 * 1024**3, 5 * 1024**3),
         ("darwin", 3 * 1024**3, 3 * 1024**3),
     ],
@@ -32,6 +33,8 @@ from contractor_runtime.toolsets.code_analysis.trailmark_host import (
 def test_address_space_budget_accounts_for_darwin_mappings_and_hard_limit(
     monkeypatch, platform, hard_limit, expected
 ):
+    if hard_limit is None:
+        hard_limit = child_module.resource.RLIM_INFINITY
     monkeypatch.setattr(child_module.sys, "platform", platform)
     monkeypatch.setattr(child_module.resource, "getrlimit", lambda _: (hard_limit, hard_limit))
 

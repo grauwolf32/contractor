@@ -5,6 +5,7 @@ import asyncio
 import pytest
 from fakes.podman_lifecycle import owner
 from fakes.podman_workflow import ArtifactPeer, Commands, exercise_sample, sample_model, sample_spec
+from platform_markers import linux_podman
 from test_projectfs_storage import local_settings
 
 from contractor_runtime.allocation import AllocationService
@@ -13,6 +14,7 @@ from contractor_runtime.factories import built_in_factories
 from contractor_runtime.state import RuntimeState
 
 
+@linux_podman
 @pytest.mark.parametrize("publish", [True, False])
 def test_sample_selected_tools_disk_edits_and_only_explicit_artifacts(tmp_path, publish):
     async def scenario():

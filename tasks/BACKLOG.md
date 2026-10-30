@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-110 open tasks: 38 in progress, 61 pending, 11 deferred. 1212 finished: 1202 completed, 10 archived.
+112 open tasks: 38 in progress, 63 pending, 11 deferred. 1212 finished: 1202 completed, 10 archived.
 
 ## In progress
 
@@ -64,6 +64,18 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | — | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
+
+### Run workspaces and project filesystem (`workspaces`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V425-001](v425-001-apfs-opaque-leaf-normalization.yml) | defect | P3 | — | Keep an NFD opaque leaf unreadable through its NFC name on a normalization-insensitive volume |
+
+### Code analysis and taint annotations (`code-analysis`)
+
+| Task | Kind | Priority | Waiting for | Title |
+| --- | --- | --- | --- | --- |
+| [V425-002](v425-002-trailmark-mirror-path-max.yml) | defect | P3 | — | Build the Trailmark graph for workspace paths longer than the host PATH_MAX |
 
 ### HTTP and Caido tools (`http-tools`)
 
@@ -196,8 +208,8 @@ tasks in `introduced_by`.
 | Runtime labels, configuration and credentials (`runtime-config`) | 10 | 26 | 13 | 5 | 43 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
-| Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
-| Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
+| Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
+| Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 7 | 22 | 25 | 9 | 23 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 4 | 17 | 8 | 8 | 13 |

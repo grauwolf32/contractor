@@ -6,6 +6,7 @@ import time
 import pytest
 from fakes.podman_lifecycle import owner
 from fakes.podman_probe import install
+from platform_markers import linux_podman
 from test_podman_allocation import finalization, release, service_for
 from test_podman_engine import IMAGE, ScriptedEngine, deadline
 from test_projectfs_storage import local_settings
@@ -21,6 +22,7 @@ from contractor_runtime.sandbox.podman.engine import PodmanEngine
 from contractor_runtime.sandbox.podman.settings import PodmanSettings
 
 
+@linux_podman
 @pytest.mark.parametrize("enabled,failed_network", [(False, False), (True, False), (True, True)])
 def test_network_profile_requires_operator_opt_in_and_its_own_probe(
     tmp_path, monkeypatch, enabled, failed_network
@@ -67,6 +69,7 @@ def test_network_profile_requires_operator_opt_in_and_its_own_probe(
     asyncio.run(scenario())
 
 
+@linux_podman
 @pytest.mark.parametrize(
     "enabled,network_failure", [(False, None), (True, None), (True, "execution")]
 )
@@ -143,6 +146,7 @@ def test_network_operator_setting_is_strict_and_requires_podman():
     settings.validate_network("none")
 
 
+@linux_podman
 def test_allocation_service_selects_networked_execution_and_releases_it(tmp_path):
     async def scenario():
         async with owner(tmp_path, network_enabled=True) as fixture:
@@ -170,6 +174,7 @@ def test_allocation_service_selects_networked_execution_and_releases_it(tmp_path
     asyncio.run(scenario())
 
 
+@linux_podman
 @pytest.mark.parametrize("network_enabled", [False, True])
 def test_close_joins_health_pulses_before_waiting_for_owner_receipt(tmp_path, network_enabled):
     async def scenario():

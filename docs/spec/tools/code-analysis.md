@@ -570,12 +570,16 @@ AST.
 **CAN-R61.** The shallow cache may accelerate later calls but
 cannot change results or cursor ordering.
 
-Rationale: offloading a parse does not keep the event loop responsive during
-it. The pinned binding holds the GIL for the whole `Parser.parse` call, so the
-loop stalls for the full parse, which grows with file size and syntactic
-density (tens of milliseconds for a few MiB of long lines, around a second for
-4 MiB of dense code on a loaded host). The per-file ceiling is the only bound
-on one stall. Result-page fitting also runs in a worker thread; it encodes each
+Rationale: offloading a parse alone does not keep the event loop responsive
+during it. The pinned binding holds the GIL while it parses, so the loop can
+stall for the full parse, which grows with file size and syntactic density
+(tens of milliseconds for a few MiB of long lines, around a second for 4 MiB of
+dense code on a loaded host). A file of 64 KiB or more is therefore read
+through a callback that releases the GIL before each 8 KiB chunk, but whether
+the loop thread runs then is platform scheduling: on macOS arm64 a 4 MiB parse
+of 0.19 s still stalled the loop for up to 0.18 s (2026-10-30). The per-file
+ceiling is the only bound on one stall, so tests check that the parse runs on
+a worker thread in bounded chunks rather than measuring loop gaps. Result-page fitting also runs in a worker thread; it encodes each
 row once and only the small envelope per tried page size, so it keeps the loop
 running apart from interpreter pauses such as garbage collection.
 
