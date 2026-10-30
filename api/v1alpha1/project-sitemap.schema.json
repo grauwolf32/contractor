@@ -24,7 +24,8 @@
         },
         "url": {
           "type": "string",
-          "maxLength": 8192
+          "maxLength": 8192,
+          "x-maxBytes": 8192
         },
         "method": {
           "type": "string",
@@ -36,7 +37,8 @@
           "maxItems": 64,
           "items": {
             "type": "string",
-            "maxLength": 8192
+            "maxLength": 64,
+            "pattern": "^[0-9a-f]{64}$"
           }
         },
         "note": {
@@ -773,7 +775,8 @@
         },
         "pointer": {
           "type": "string",
-          "maxLength": 8192
+          "maxLength": 2048,
+          "x-maxBytes": 2048
         },
         "parameters": {
           "type": "array",
