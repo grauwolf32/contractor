@@ -1,0 +1,138 @@
+schema_version: "1.0"
+id: V372-015
+title: "Stop locals from shadowing imported packages and drop config's copy of clone.Map"
+milestone: hub-audit-defects-2026-10
+epic: workflows
+kind: chore
+introduced_by: V370-006
+priority: P3
+status: completed
+depends_on: []
+languages: [go]
+goal: "No Go file declares a local with the name of a package it imports (resolved above all), a check keeps it that way, and internal/config uses clone.Map instead of its own cloneMap."
+context:
+  review: "Out-of-scope findings of the hub audit fix batch, wave 2 (group w2e: V370-006), recorded 2026-10-12; file:line verified on b2b09ea"
+  revalidated: >-
+    2026-10-24 on b523ae77: both findings still hold. An AST probe (every
+    := assignment, var declaration, range variable and function parameter
+    or result in non-generated Go under api, cmd, internal, tests and tools,
+    compared with the file's import names) found 87 declarations shadowing an
+    imported package, all under internal/: 37 named resolved (22 in
+    production code, 15 in tests; the b2b09ea list moved and grew with
+    scheduler/allocation_reservations.go and more placement.go sites) and 50
+    named after another imported package (7 in production code, 43 in
+    tests). The site lists below replace the b2b09ea list. cloneMap moved to
+    internal/config/manager.go:594-600.
+  finding: >-
+    V370-006 (c8cbf2e) moved the resolved Workflow model into the package
+    internal/config/resolved, and files that import it still declare locals
+    named resolved, which hide the package for the rest of their scope.
+    Production code: internal/auditcontroller/builder.go:577,
+    config/loader.go:172, config/manager.go:240 and 698,
+    controlplane/placement.go:217, 332, 372, 450, 488 and 554,
+    controlplane/registry.go:606, controlplane/registry_clone.go:73,
+    evalservice/preflight_binding.go:78, planner/streamline/factory.go:365,
+    scheduler/allocation_reservations.go:179 and 233,
+    scheduler/execution_preparation.go:45 and 138,
+    scheduler/gateway_recovery.go:17, scheduler/stage_finalization.go:160,
+    scheduler/stage_preparation.go:67 and scheduler/workflow.go:214. Tests:
+    config/summarizer_test.go:305, controlplane/tool_placement_postgres_test.go:36,
+    credentials/lifecycle_postgres_test.go:73,
+    credentials/provider_encrypted_test.go:42,
+    credentials/runtime_service_postgres_test.go:91,
+    httpapi/public/handler_test.go:1488, httpapi/public/query_handlers_test.go:75
+    and 103, scheduler/scheduler_test.go:492, 646, 1124, 2847, 2937, 2959 and
+    3386. A later edit that needs the package inside such a scope fails to
+    compile or, worse, reads the local. Separately, cloneMap
+    (internal/config/manager.go:594-600, called at :579, 583 and 586)
+    repeats clone.Map (internal/clone/clone.go:17-21) apart from one spare
+    slot of capacity; it predates the shallow history (boundary 6349621).
+  siblings: >-
+    The same shadowing with other imported packages, which the general
+    check also rejects. Production code: auditservice/start.go:548
+    (credentials), auditstandards/validate.go:142 (contracts),
+    cli/root.go:211 (context), evalstore/resources.go:57 (path),
+    httpapi/public/run_handlers.go:676 (planner),
+    planner/streamline/planner.go:370 (context) and scheduler/summary.go:102
+    (context). Tests: planner/streamline/planner_test.go and
+    memory_tools_test.go (23 locals named model, 2 named artifacts),
+    planner/streamline/artifact_verification_test.go:175 and
+    planner/router/factory_test.go:716 (artifacts),
+    scheduler/stage_end_cost_test.go (6 named credentials),
+    credentials/runtime_types_test.go:146, 201 and 253 (cipher),
+    persistence/sql_access_test.go:626 and 742 (token),
+    httpapi/public/postgres_integration_test.go:417 and
+    runservice/service_postgres_test.go:446 (config),
+    httpapi/public/request_body_bounds_test.go:35 (bytes),
+    contracts/mutation_cases_test.go:138 (kind) and
+    scheduler/scheduler_test.go:250 (context). auditdomain.copyStringMap
+    (internal/auditdomain/canonical.go:226-235) returns nil for an empty map
+    where clone.Map returns an empty one, and auditdomain's cloneMap
+    (inventory.go:401-410) copies JSON values deeply; both differ in meaning
+    and stay unless a caller shows they should not.
+scope:
+  in:
+    - "Rename every local listed in finding and siblings, and add a source check (in internal/archtest, or a vet analyzer run by make lint) that rejects a local identifier (short variable declaration, var, range variable, function parameter or named result) equal to the name of a package the file imports, in production and test files."
+    - "Replace config's cloneMap with clone.Map."
+  out:
+    - "Behaviour of the touched code."
+    - "auditdomain's copyStringMap and cloneMap (different semantics)."
+acceptance_criteria:
+  - id: A1
+    given: "the non-generated Go sources of the repository"
+    when: "the source check runs"
+    then: "it reports no local named after a package its file imports, and a probe file that declares one (for example resolved := ... in a file importing internal/config/resolved) fails the check"
+  - id: A2
+    text: "internal/config has no map copy helper of its own."
+  - id: A3
+    text: "Existing tests pass unchanged; tests are edited only to follow renamed locals."
+  - id: A4
+    text: "The source check fails on b523ae77 (it reports the 87 declarations listed above)."
+tests:
+  - command: "go test ./internal/archtest ./internal/config/... ./internal/controlplane ./internal/scheduler ./internal/evalservice ./internal/auditcontroller ./internal/planner/... ./internal/credentials ./internal/httpapi/public ./internal/auditservice ./internal/auditstandards ./internal/cli ./internal/evalstore ./internal/persistence ./internal/runservice ./internal/contracts/..."
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: c532b486795ac2545bbcab7782ff751b2dc9d3ed
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): c532b486795a:
+      go build ./... and go vet -tags=integration,e2e ./internal/... ./cmd/...
+      ./tests/... PASS; go test -run
+      TestLocalsDoNotShadow|TestImportShadow|TestPlannerIdent|TestLayerDependencies
+      ./internal/archtest PASS; targeted -run selections (PostgreSQL DB set)
+      PASS in internal/config, controlplane, credentials, planner,
+      planner/router, planner/streamline, contracts (TestSharedMutationCases),
+      auditstandards, cli, evalstore, evalservice, persistence,
+      auditcontroller, auditservice, runservice, httpapi/public, auditimport
+      (-tags integration), scheduler (38 tests)
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.

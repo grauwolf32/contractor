@@ -1,11 +1,18 @@
 # Optional Audit hypothesis search
 
+Pentest integration update, 2026-10-30: the current V64-018 task replaces the
+original proof-specific bridge with composition of ordinary HTTP checks,
+evidence and reports. Archived V411-008/009/012 are historical context, not
+prerequisites or implementation instructions. The current V411/V412 task files
+and proposal 0033 section 14 supersede the original pentest scope edits below;
+this update does not change the core V64 research plan.
+
 Date: 2026-10-24. Design: [proposal 0045](../proposals/0045-audit-hypothesis-search.md).
-Status update by explicit user direction on 2026-10-24: exactly V64-001–018
-and V62-005/006/007/013 are **pending**. Their dependencies are unchanged;
-completed records, implementation commits and all other task statuses remain
-unchanged. V61 and V62-008 remain deferred. This status update implements no
-capability. The individual task files own status and acceptance.
+The user queued V64-001–018 and V62-005/006/007/013 on 2026-10-24.
+As of 2026-10-30, V62-005/006/007/013 are completed and V64-001–018 remain
+pending. The current task files own status, dependencies and acceptance;
+V64-018 follows the revised ordinary HTTP integration scope. V61 and V62-008
+remain deferred. This documentation update implements no capability.
 
 ## 1. Delivery outcome and boundaries
 
@@ -58,16 +65,17 @@ requirement to preserve an unused interface.
 | G. Optional pentest research integration | V64-018 | A separately selected research-enabled pentest profile connects the released search and pentest paths and passes its own integration gate. Both base paths remain independently usable. |
 
 These stages describe useful outcomes, not additional hidden dependencies.
-The 22 pending tasks may be selected once their declared prerequisites are
-complete, following the normal task ownership and in-progress rules. No further
-reactivation decision is required for this scope. Pending does not mean that
+Remaining pending tasks may be selected once their declared prerequisites are
+complete, following the normal task ownership and in-progress rules. The shared
+iterative-composition stage is already completed. No further reactivation
+decision is required for the pending research scope. Pending does not mean that
 implementation has started or that an acceptance criterion has passed.
 
 Keep the existing `audit-check-prioritization` milestone identity and V64-011
 exit, replacing its old top-N outcome with the deterministic optional research
-core outcome. Move V62-005/006/007 to
-`audit-iterative-composition-2026-10`, whose exit is V62-013. Optional ranking,
-attack-tree analysis and pentest research integration have separate outcomes
+core outcome. The completed V62-005/006/007 belong to
+`audit-iterative-composition-2026-10`, whose completed exit is V62-013.
+Optional ranking, attack-tree analysis and pentest research integration have separate outcomes
 and exits V64-016, V64-017 and V64-018; they are not conditions of the core exit.
 
 ## 3. Task map and dependency graph
@@ -77,9 +85,9 @@ update references, while preserving the IDs and completed history.
 
 | Task | Revised or new scope | Direct prerequisites |
 | --- | --- | --- |
-| V62-005 | Immutable complete, bounded settled-round snapshots and authorized child inputs | V62-004, V410-010 |
-| V62-006 | Exact retained dependencies with original-to-child mappings and existing holds/lifecycle | V62-004, V410-010 |
-| V62-007 | Generic trusted continuation admission and profile-owned method routing | V62-005, V62-006 |
+| [V62-005](../../tasks/done/v62-005-audit-round-result-snapshots.yml) | **Completed:** Immutable complete, bounded settled-round snapshots and authorized child inputs | V62-004, V410-010 |
+| [V62-006](../../tasks/done/v62-006-audit-retained-dependencies.yml) | **Completed:** Exact retained dependencies with original-to-child mappings and existing holds/lifecycle | V62-004, V410-010 |
+| [V62-007](../../tasks/done/v62-007-audit-check-routing.yml) | **Completed:** Generic trusted continuation admission and profile-owned method routing | V62-005, V62-006 |
 | [V62-013](../../tasks/done/v62-013-audit-iterative-composition-release.yml) | **Completed:** generic iterative-composition process gate, including source deletion and unchanged direct paths | V62-005, V62-006, V62-007 |
 | V64-001 | Strict opt-in/domain contracts, trusted human origin/requested attention, capability gates and direct-path guarantees | V64-000, V62-001, V25-011 |
 | V64-012, new | Audit-owned registry, immutable revisions, sparse lineage, producer ingestion and authorized audited human create/revise | V64-001, V410-010 |
@@ -98,7 +106,7 @@ update references, while preserving the IDs and completed history.
 | V64-005 | Optional bounded model judgments that cannot lower authorized human attention | V64-003, V64-004, V64-006 |
 | V64-016, new | Optional model-ranking quality evaluation and its independent delivery evidence | V64-005, V64-011 |
 | V64-017, new | Optional attack-tree projection/evaluation with a concrete reader | V64-014, V64-008, V64-009 |
-| V64-018, new | Optional research-enabled pentest adapter, profile and independent integration gate | V64-011, V411-012, V411-015, V411-016, V411-020 |
+| V64-018, new | Optional research-enabled ordinary HTTP checks, evidence/report composition and independent gate | V64-011, V411-015, V411-016, V411-020 |
 
 ```mermaid
 flowchart TD
@@ -210,8 +218,9 @@ profile-owned bindings. Its tests cover ordinary verify, replay and applicabilit
 routes without depending on the Hypothesis registry or enabling autonomous
 pentest. V64-006 supplies the future trusted hypothesis/plan adapter; V411
 consumes the existing finding receipt/ordinal adapter.
-V64-018 specializes the already working V64-006 source for pentest plan/proof
-and report contracts; it does not introduce the first research admission path.
+After V64-006 is implemented, V64-018 composes its trusted research source
+with ordinary HTTP checks, selected evidence and reports. It does not introduce
+the first research admission path or depend on an archived proof subsystem.
 
 An ExperimentPlan can target several exact hypothesis revisions. Results
 contain separate bounded contributions for those associations. Assessment
@@ -239,21 +248,23 @@ silently change accepted context or the Audit baseline.
 | [V62-013](../../tasks/done/v62-013-audit-iterative-composition-release.yml) | Completed generic gate; source-pinned process evidence proves composition independently of research and pentest. |
 | Completed V62 tasks | Keep their history and once-per-Audit preparation guarantees; do not reopen completed implementations merely because a later extension uses them. |
 | Seven related unfinished task files | Apply only the exact boundary clarifications in the table below; retain their statuses and dependencies. |
-| V410-010 | Consume its shared ArtifactStore retention contract after completion; do not take over its active work. |
+| V410-010 | Consume its completed shared ArtifactStore retention contract; do not introduce a parallel retention mechanism. |
 | Other V410 and V413 tasks | Keep independently deliverable; research does not require live sitemap collection or Runtime cache work. |
-| Other V411/V412 tasks | Preserve scope, status and dependencies; update current prerequisite-status notices where needed. No V64 dependency is added. |
+| Other V411/V412 tasks | Current task files own the 2026-10-30 revised scopes and dependencies; archived recipe/effect/proof tasks do not reactivate. No V64 dependency is added to the base HTTP path. |
 | V61 and V62-008 | Leave deferred unrelated capabilities outside this plan. |
-| Task index, audit epic, backlog and plan links | Record the explicit 22-task pending scope, preserve dependencies and other statuses, and regenerate the backlog; do not claim implementation or verification. |
+| Task index, audit epic, backlog and plan links | Preserve current completed/pending/archived statuses and reviewed dependency edges. The original 22-task activation is historical; task files own current readiness. |
 
-The original planning revision's related-task scope edits were exactly the
+The following historical scope edits are retained for traceability and are
+superseded for pentest work by the 2026-10-30 task revision. The original
+planning revision's related-task scope edits were exactly the
 following seven files. The status follow-up may also correct prerequisite-status
 notices without changing those tasks' scope, status or dependencies:
 
 | File | Boundary clarification |
 | --- | --- |
-| `tasks/v411-008-stateful-actions-cleanup.yml` | Reserve test objects, mutations and cleanup for admitted target actions. Storing a hypothesis consumes no target-resource allowance. |
-| `tasks/v411-009-http-recipes-predicates.yml` | Separate a changed immutable recipe/plan from technical retry; the executor needs exact inputs, not the research registry. |
-| `tasks/v411-012-pentest-admission-rounds.yml` | Keep receipt/ordinal admission independently usable. V64-018 specializes the ordinary V64-006 research adapter for the same pentest proof checks. |
+| `tasks/done/v411-008-stateful-actions-cleanup.yml` | Reserve test objects, mutations and cleanup for admitted target actions. Storing a hypothesis consumes no target-resource allowance. |
+| `tasks/done/v411-009-http-recipes-predicates.yml` | Separate a changed immutable recipe/plan from technical retry; the executor needs exact inputs, not the research registry. |
+| `tasks/done/v411-012-pentest-admission-rounds.yml` | Keep receipt/ordinal admission independently usable. V64-018 specializes the ordinary V64-006 research adapter for the same pentest proof checks. |
 | `tasks/v411-015-http-pentest-workflow-presets.yml` | Keep the two base HTTP presets free of research bindings; separately named research-enabled presets belong to V64-018. |
 | `tasks/v411-016-pentest-proof-report.yml` | Keep bounded base proof reporting independent; the optional research projection belongs to V64-018 and cannot expand reports over the whole pool. |
 | `tasks/v411-020-pentest-http-release-gate.yml` | Prove the non-research receipt-based release without V64; the combined research/pentest gate belongs to V64-018. |
@@ -261,8 +272,9 @@ notices without changing those tasks' scope, status or dependencies:
 
 An old deferral's model-ranking evidence rationale is historical context, not
 a new requirement to prove model benefit before deterministic research can
-be reviewed. The explicit 2026-10-24 instruction has moved the reviewed
-22-task scope to pending, superseding its earlier reactivation conditions.
+be reviewed. The explicit 2026-10-24 instruction queued the reviewed scope,
+superseding its earlier reactivation conditions; completed V62 records retain
+their current status.
 Optional ranking has its own comparison gate in V64-016. Ranking, attack-tree
 and pentest-bridge tasks are pending optional paths, not core prerequisites.
 
@@ -326,12 +338,13 @@ unknowns, bounded DAG traversal and separate provenance/dependency semantics.
 Tree suggestions reenter normal candidate admission and budgets. The tree
 cannot create Run dependencies, enlarge scope or confirm a finding.
 
-V64-018 owns its real integration gate: an opted-in research hypothesis reaches
-the existing pentest verification and independent replay contract with exact
-plan/recipe/predicate lineage, contributes to the retained report, and survives
-recovery. The ordinary non-search pentest profile and non-pentest research
-profile still work independently. Do not claim this combination is verified
-merely because V64-011 and V411-020 pass separately.
+V64-018 owns its real integration gate: an opted-in research hypothesis admits
+an ordinary HTTP check through the existing trusted research source, retains
+exact source/context and selected evidence, contributes to the ordinary report,
+and survives recovery. Registered verify/replay methods keep their ordinary
+meaning and confer no special proof authority. The non-search HTTP profile and
+non-HTTP research profile still work independently. Do not claim this combination
+is verified merely because V64-011 and V411-020 pass separately.
 
 Each gate maps cases to executable owners and rejects missing prerequisites,
 mandatory skips and zero-test selections. Record real commands and results

@@ -1,0 +1,44 @@
+schema_version: '1.0'
+id: V425-007
+title: Derive the UI's past-preparation check from the phase definition and its test errors from the registry
+milestone: hub-audit-defects-2026-10
+epic: ui
+kind: chore
+introduced_by: V414-020
+priority: P3
+status: pending
+depends_on: []
+languages:
+- typescript
+goal: The UI decides whether an Audit is past preparation in one place, and test error responses carry
+  the registry's retryability.
+context:
+  origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
+  finding: 'audit.phase === "inventory" || audit.phase === "rounds" is written twice: ui/src/api/audit-composition.ts:15
+    and ui/src/routes/projects/audits/preparation.tsx:29, beside the single pre-Round phase definition
+    V414-020 introduced. The test helper failure() in ui/src/test/responses.ts:54 defaults retryable to
+    false, while internal_error is retryable in the error registry, so tests can model responses the Server
+    never sends.'
+  siblings: Other UI code that compares Audit phases by literal, and other test helpers that build error
+    bodies.
+scope:
+  in:
+  - One exported predicate next to the V414-020 phase definition, used by both callers.
+  - failure() takes retryability from the generated registry or requires it explicitly; fix tests that
+    relied on the wrong default.
+  out:
+  - Changing Audit phase semantics.
+acceptance_criteria:
+- id: A1
+  text: Both callers use the shared predicate and no other literal phase comparison of this kind remains.
+- id: A2
+  text: A test error body for a registry code has the registry's retryable value.
+tests:
+- command: cd ui && corepack pnpm test --run
+  covers:
+  - A1
+  - A2
+- command: make ui-verify
+  covers:
+  - A1
+  - A2
