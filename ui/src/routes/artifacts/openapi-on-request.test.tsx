@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 import { renderWithAPI } from "../../test/render";
 import { artifactMetadata } from "../../test/builders";
 import { ArtifactPreviewPanel } from "./preview";
-import {
-  AUTOMATIC_OPENAPI_LIMIT_LABEL,
-  MAXIMUM_AUTOMATIC_OPENAPI_BYTES,
-} from "./preview-plan";
+import { AUTOMATIC_OPENAPI_LIMIT_LABEL } from "./preview-plan";
+
+// LIM-UI-17 in docs/spec/platform/limits.md.
+const MAXIMUM_AUTOMATIC_OPENAPI_BYTES = 128 * 1024;
 
 function renderLarge(source: string) {
   return renderWithAPI(

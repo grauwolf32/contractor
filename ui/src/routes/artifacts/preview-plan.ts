@@ -17,7 +17,7 @@ export type ArtifactPreviewPlan =
 // LIM-UI-17: a larger OpenAPI document opens on Source and is parsed and
 // rendered only when asked for, because Scalar renders every operation of an
 // untagged document at once and holds the page for seconds at 1 MiB.
-export const MAXIMUM_AUTOMATIC_OPENAPI_BYTES = 128 * 1024;
+const MAXIMUM_AUTOMATIC_OPENAPI_BYTES = 128 * 1024;
 export const AUTOMATIC_OPENAPI_LIMIT_LABEL = `${MAXIMUM_AUTOMATIC_OPENAPI_BYTES / 1024} KiB`;
 
 const OPENAPI_MEDIA_TYPES = new Set([
