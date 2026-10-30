@@ -465,9 +465,13 @@ block would exceed 64 KiB (LIM-FND-8)
 
 **FND-R55.** The proposal document and embedded report projection retain
 the 8 MiB limit (LIM-FND-10). The complete private submission, including
-selected capture, is at most 64 MiB (LIM-FND-32). All evidence of a finding
-together remains under the existing 64 MiB quota. Oversized content fails
-explicitly; selected evidence is never silently truncated.
+selected capture, is at most 64 MiB (LIM-FND-32). All evidence of one
+proposal, the stored sizes of its exact evidence refs plus the selected HTTP
+exchange Artifact, totals at most 64 MiB (LIM-FND-50). Intake rejects a new
+proposal over this quota permanently as `invalid_finding_request` (400) and
+stores no receipt or Artifact; a replay returns its receipt before the quota
+is checked (FND-R60). Oversized content fails explicitly; selected evidence is
+never silently truncated.
 
 ### Intake
 
@@ -1754,7 +1758,7 @@ finding readers and profiles without typed mappings retain their existing path.
 ## Limits, failures and errors
 
 - [Limits](../platform/limits.md): proposal `limitations` LIM-FND-1;
-  encoded proposal LIM-FND-10 and complete submission LIM-FND-32; locations LIM-FND-2 to
+  encoded proposal LIM-FND-10 and complete submission LIM-FND-32; proposal evidence LIM-FND-50; locations LIM-FND-2 to
   LIM-FND-6; selected HTTP evidence LIM-FND-7, LIM-FND-8 and LIM-FND-9,
   where LIM-FND-7 mirrors LIM-HTP-5 and LIM-FND-9 mirrors LIM-HTP-7 and
   LIM-HTP-9; collection IDs LIM-FND-11, Audit holds LIM-FND-12 and review
