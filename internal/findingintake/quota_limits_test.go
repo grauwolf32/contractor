@@ -35,7 +35,7 @@ func TestProposalQuotasAreTheirLimitsRegistryRows(t *testing.T) {
 // row, which must have the given form.
 func registryValue(t *testing.T, registry, row, form string) int64 {
 	t.Helper()
-	rows := regexp.MustCompile("(?m)^\\| `" + regexp.QuoteMeta(row) + "` \\| ([^|]+) \\|").FindAllStringSubmatch(registry, -1)
+	rows := regexp.MustCompile("(?m)^\\| `"+regexp.QuoteMeta(row)+"` \\| ([^|]+) \\|").FindAllStringSubmatch(registry, -1)
 	if len(rows) != 1 {
 		t.Fatalf("limits.md has %d rows %s, want one", len(rows), row)
 	}
