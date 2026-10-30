@@ -44,6 +44,8 @@ type AuditManagement interface {
 	ListPage(context.Context, auditstore.ListParams, func(auditstore.Audit) bool) (
 		[]auditstore.Audit, map[string]map[string]auditservice.PreparationRoleProjection, error)
 	ListItems(context.Context, auditstore.ListItemsParams) ([]auditstore.Item, error)
+	// ListItemAttempts answers every requested item: an item without
+	// attempts maps to an empty list, as the PostgreSQL store fills it.
 	ListItemAttempts(context.Context, string, string, []string) (map[string][]auditstore.ItemAttempt, error)
 	GetRound(context.Context, string, string, string) (auditstore.Round, error)
 	ListCoverage(context.Context, string, string, string, int, int, *uint64) (auditservice.CoveragePage, error)
@@ -530,7 +532,11 @@ func (h *auditHandlers) listAuditItems(w http.ResponseWriter, r *http.Request) {
 	response := make([]auditItemResponse, len(items))
 	for index := range items {
 		response[index] = auditItemReadModel(items[index])
-		response[index].Attempts = attempts[items[index].ItemID]
+		// The read model's empty list stays when an item has no entry, so the
+		// required attempts array is never rendered as null.
+		if itemAttempts := attempts[items[index].ItemID]; itemAttempts != nil {
+			response[index].Attempts = itemAttempts
+		}
 	}
 	writeJSON(w, http.StatusOK, auditItemPageResponse{Items: response, Page: page})
 }
