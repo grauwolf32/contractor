@@ -1,8 +1,9 @@
 """Bounded content-addressed private Nuclei packages and selected-rule provenance.
 
-Only regular files are admitted. Source-relative opens refuse links and private
-bytes are the sole scanner input after manifest verification. The operator can
-compute an installation pin with this module's CLI; no scanner is launched.
+Root Git metadata is excluded; all other entries must be directories or regular
+files. Source-relative opens refuse links and private bytes are the sole scanner
+input after manifest verification. The operator can compute an installation pin
+with this module's CLI; no scanner is launched.
 """
 
 from __future__ import annotations
@@ -49,7 +50,7 @@ def _check_deadline(deadline: float) -> None:
 
 
 def snapshot_package(source: Path, destination: Path, deadline: float) -> PackageSnapshot:
-    """Copy and hash every package file, off the event loop, under fixed bounds."""
+    """Copy and hash package files except root Git metadata, under fixed bounds."""
     files: list[dict] = []
     count, total, manifest_bytes = 0, 0, 32
     flags = os.O_RDONLY | os.O_NOFOLLOW
@@ -63,6 +64,11 @@ def snapshot_package(source: Path, destination: Path, deadline: float) -> Packag
         with os.scandir(fd) as entries:
             for entry in entries:
                 _check_deadline(deadline)
+                # Git checkouts and worktrees have installation metadata that
+                # is not part of the rules archive. Do not open it or copy it
+                # into the scanner's private package, even when it is a link.
+                if not prefix and entry.name == ".git":
+                    continue
                 count += 1
                 if count > MAX_FILES * 2:
                     raise PackageError("nuclei_package_invalid")
