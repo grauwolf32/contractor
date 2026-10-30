@@ -58,6 +58,22 @@ func TestMigrationBudgetsFollowConfiguredTimeouts(t *testing.T) {
 		t.Fatalf("migration tracer deadline %s does not follow statement timeout", remaining)
 	}
 	(&budgetTracer{}).TraceQueryEnd(query, nil, pgx.TraceQueryEndData{})
+
+	// The call that carries a whole migration file ends at the run deadline,
+	// not at the per-call deadline (PER-R31, LIM-PER-11).
+	run, _ := ctx.Deadline()
+	fileCtx, err := withMigrationFileBudget(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := (&budgetTracer{budgets: DefaultBudgets()}).TraceQueryStart(fileCtx, nil, pgx.TraceQueryStartData{})
+	if deadline, _ := file.Deadline(); !deadline.Equal(run) {
+		t.Fatalf("migration file deadline %s, want the run deadline %s", deadline, run)
+	}
+	(&budgetTracer{}).TraceQueryEnd(file, nil, pgx.TraceQueryEndData{})
+	if _, err := withMigrationFileBudget(t.Context()); err == nil {
+		t.Fatal("a migration file call without the migration budget was accepted")
+	}
 }
 
 func TestDatabaseTracerDeadlinesDoNotEscapeIndividualOperations(t *testing.T) {
