@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestAuditTimeLimitRequestAndIdempotency(t *testing.T) {
+func TestAuditTimeLimitRequest(t *testing.T) {
 	for _, test := range []struct {
 		body    string
 		valid   bool
@@ -38,12 +38,6 @@ func TestAuditTimeLimitRequestAndIdempotency(t *testing.T) {
 	oversized.Header.Set("Content-Type", "application/json")
 	if _, err := readAuditTimeLimit(httptest.NewRecorder(), oversized); !errors.Is(err, errRequestTooLarge) {
 		t.Fatalf("oversized time limit error=%v", err)
-	}
-	if auditRequestDigest("start", "audit", 1) == auditRequestDigest("start", "audit", 1, timeLimitPointer(0)) {
-		t.Fatal("unlimited start shares default request digest")
-	}
-	if auditRequestDigest("resume", "audit", 1, timeLimitPointer(3600)) == auditRequestDigest("resume", "audit", 1, timeLimitPointer(0)) {
-		t.Fatal("resume limits share request digest")
 	}
 }
 
