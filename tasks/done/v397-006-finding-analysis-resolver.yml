@@ -1,13 +1,14 @@
 schema_version: '1.0'
-id: V397-009
-title: Publish and download generic SARIF through API CLI and UI
+id: V397-006
+title: Resolve optional finding analysis against exact retained evidence
 milestone: finding-sarif-export-2026-10
 epic: findings
 kind: feature
 priority: P2
-status: pending
+status: completed
 depends_on:
-- V397-008
+- V397-001
+- V397-002
 languages:
 - go
 - python
@@ -18,7 +19,7 @@ goal: Deliver this proposal 0028 SARIF stage through production callers with det
 context:
   request: User requested SARIF work on 2026-10-22 alongside deterministic correlation.
   proposal:
-  - docs/proposals/0028-finding-analysis-and-sarif.md#service-and-publication-contract
+  - docs/proposals/0028-finding-analysis-and-sarif.md#compatible-typed-analysis-evidence
   - docs/proposals/0028-finding-analysis-and-sarif.md#unchanged-worker-tool-contract
   specification:
   - docs/spec/findings/findings.md
@@ -28,26 +29,32 @@ context:
   - docs/spec/platform/limits.md
   - docs/spec/api/public-api.md
   revalidated: >-
-    2026-10-24 on b523ae77: accurate; api/openapi/contractor-public-v1.yaml
-    has no /v1/finding-exports operation and neither the CLI nor the UI has
-    an export flow. Proposal 0028's #service-and-publication-contract is
-    unchanged and the dependency V397-008 is still pending. This task
-    remains the exit task of milestone finding-sarif-export-2026-10.
+    2026-10-24 on b523ae77: accurate; nothing of this stage has landed. No
+    commit names V397-006..009, there is no typed analysis codec, export
+    snapshot, SARIF renderer or POST /v1/finding-exports in internal/, ui/src
+    or api/openapi (the only SARIF code is the pinned-sarif-native/v1
+    fingerprint input adapter of V397-001, which reads SARIF and does not
+    export it). Proposal 0028 still marks typed analysis, the resolver,
+    snapshots, SARIF rendering and the export endpoint as target design, and
+    every cited anchor (#compatible-typed-analysis-evidence,
+    #unchanged-worker-tool-contract) and spec document resolves. Both
+    dependencies, V397-001 (77a59b66) and V397-002 (d7095774), are
+    completed, so this task is eligible. The listed packages and make
+    targets exist. No V407, V409, V411 or V414 task overlaps it (V411-011
+    and V411-016 exclude SARIF explicitly).
 scope:
   in:
-  - POST /v1/finding-exports and shared CLI/UI explicit selection/download with generated clients and UI patch bump.
-  - Atomic snapshot/SARIF/diagnostics/publication receipt using existing Artifact bindings, replay before live reads and strict changed/corrupt
-    publication failures.
+  - Closed typed analysis codec, deterministic exact-source/region/path/HTTP resolution and trusted versus producer-asserted evidence.
+  - Real capture/reader integration with pinned Go/Python fixtures; code/data-flow distinctions, gaps, coordinates and archive/aggregate budgets.
   out:
   - Model tool schema changes, automatic review mutations, dropping duplicate selected identities, global issue/receipt stores and model-authored
     export assembly.
   - GitHub upload/profile, source maps, suppression/fix sync, security-score classification and complete-scan/remediation inference.
 requirements:
 - id: R1
-  text: POST /v1/finding-exports and shared CLI/UI explicit selection/download with generated clients and UI patch bump.
+  text: Closed typed analysis codec, deterministic exact-source/region/path/HTTP resolution and trusted versus producer-asserted evidence.
 - id: R2
-  text: Atomic snapshot/SARIF/diagnostics/publication receipt using existing Artifact bindings, replay before live reads and strict changed/corrupt
-    publication failures.
+  text: Real capture/reader integration with pinned Go/Python fixtures; code/data-flow distinctions, gaps, coordinates and archive/aggregate budgets.
 - id: R3
   text: Preserve every selected typed result and independent Audit triage/rating/origin, keep all Worker tool declarations/results unchanged and
     use exact frozen evidence without guessed joins.
@@ -55,7 +62,7 @@ requirements:
   text: Update owning contracts/shared fixtures and add a production caller for every export in the same change; pure rendering never performs
     model/network/storage work.
 failure_outcomes:
-- operation: Publish and download generic SARIF through API CLI and UI
+- operation: Resolve optional finding analysis against exact retained evidence
   permanent: Invalid/foreign input, stale selection, changed key and invalid evidence/profile/size use existing classified non-disclosure/conflict/validation
     errors with bounded diagnostics and no partial publication.
   retryable: Existing finite storage retry bounds and 503 storage_transaction_conflict with Retry-After; deterministic invalid content is permanent.
@@ -86,13 +93,15 @@ acceptance_criteria:
   when: All required gates run with a disposable PostgreSQL URL.
   then: Deterministic output, production callers and public operation coverage are proved, without skipped database tests.
 tests:
+- command: cd runtime && uv run pytest -W error tests/test_finding_analysis.py tests/test_text_artifacts_toolset.py tests/test_http_capture.py tests/test_security_findings_toolset.py tests/test_findings_reader_toolset.py tests/test_finding_facades.py tests/test_finding_tool_contracts.py
+  covers: [A1, A2, A3]
 - command: go test -count=1 ./internal/auditdomain ./internal/findingintake ./internal/auditservice ./internal/httpapi/public ./internal/publicclient/...
     ./internal/cli
   covers:
   - A1
   - A2
   - A3
-- command: make test-runtime test-wire-cross-language test-findings-e2e verify-public-api
+- command: make test-wire-cross-language test-findings-e2e verify-public-api
   covers:
   - A1
   - A2
@@ -104,3 +113,16 @@ tests:
 - command: make lint
   covers:
   - A3
+
+verification_scope:
+  authority: "User decision on 2026-10-29: continue SARIF with complete checks of touched packages; record the full Runtime gate as a limitation."
+  full_runtime: "The macOS full run was interrupted after 11 failures, 3257 passes and 5 skips; failures were outside SARIF, including known V401-007 platform cases and pentest identity socket tests. No complete Runtime pass is claimed."
+  linux_attempt: "A local Podman VM was available, but package repositories returned HTTP 403 while preparing an isolated Linux runner; no Linux pass is claimed."
+
+implementation_evidence: tasks/evidence/v397-006-verification.json
+implementation_notes:
+  - "The exact-analysis resolver is consumed by existing collection publication without changing the proposal or collection format."
+  - "A trusted original-ref mapping preserves source identity and capture provenance through Audit-retained copies after source Run deletion."
+  - "HTTP capture decoding now uses its declared HTTP/private-submission bounds instead of the smaller generic Audit document/string limits; maximum-body regressions failed before the fix."
+
+implementation_commit: bf453550e44ffbbbc5a76c2811fa399324ea2c10

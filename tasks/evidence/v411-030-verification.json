@@ -1,0 +1,71 @@
+{
+  "task": "V411-030",
+  "date": "2026-10-30",
+  "context": "SARIF integration with current main",
+  "sourceFeatureHead": "48ef94f76cc0c54260fa9dca3246b1ffa9bfdb16",
+  "mainParent": "a753161956297da27a0274b968673d590428646e",
+  "mainIntegrationCommit": "2f922552f",
+  "baseline": {
+    "outcome": "Three private action tests failed on clean main before SARIF integration",
+    "command": "go test -count=1 ./internal/httpapi/privateartifacts -run ^(TestPentestActionBindsAuthenticatedGrantAndRejectsBodyAuthority|TestPentestActionRechecksCurrentGrantUnderWriteGate|TestPentestActionClassifiedErrorsAreSafeAndStable)$",
+    "log": "/private/tmp/sarif-main-baseline-private-actions.log"
+  },
+  "checks": [
+    {
+      "command": "go test -tags=integration -count=1 -timeout=10m ./internal/httpapi/privateartifacts",
+      "outcome": "passed",
+      "seconds": 49.656,
+      "postgres": "dedicated disposable Go database",
+      "log": "/private/tmp/sarif-main-private-final.log"
+    },
+    {
+      "command": "make test-wire-cross-language verify-public-api test-findings-e2e",
+      "outcome": "passed",
+      "sharedFixtures": 435,
+      "goSharedTests": 364,
+      "pythonSharedTests": 272,
+      "findingsProcessCases": 14,
+      "log": "/private/tmp/sarif-main-contracts.log"
+    },
+    {
+      "command": "make lint",
+      "outcome": "passed",
+      "log": "/private/tmp/sarif-main-final-lint.log"
+    },
+    {
+      "command": "make ui-verify",
+      "outcome": "passed",
+      "uiTestFiles": 208,
+      "uiTestsPassed": 2560,
+      "existingExpectedFailures": 1,
+      "log": "/private/tmp/sarif-main-ui.log"
+    },
+    {
+      "command": "make test-ui-stack-operations",
+      "outcome": "passed",
+      "browserCases": 93,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0,
+      "log": "/private/tmp/sarif-main-browser.log"
+    },
+    {
+      "command": "cd runtime && uv run pytest -W error tests/test_finding_analysis.py tests/test_text_artifacts_toolset.py tests/test_http_capture.py tests/test_security_findings_toolset.py tests/test_findings_reader_toolset.py tests/test_finding_facades.py tests/test_finding_tool_contracts.py",
+      "outcome": "passed",
+      "tests": 220,
+      "log": "/private/tmp/sarif-main-runtime.log"
+    }
+  ],
+  "wideGoRun": {
+    "command": "go test -tags=integration -p=2 -count=1 -timeout=20m ./internal/artifacts ./internal/auditdomain ./internal/findinganalysis ./internal/findingexport/... ./internal/findingintake ./internal/auditservice ./internal/auditstore/... ./internal/httpapi/... ./internal/publicclient/... ./internal/cli ./internal/app",
+    "outcome": "Only privateartifacts failed on its pre-existing stale fixture; every other package passed. The full privateartifacts package then passed after repair.",
+    "log": "/private/tmp/sarif-main-go.log"
+  },
+  "regressions": [
+    "The valid request now reaches authenticated grant binding, current write-gate fencing and classified service errors.",
+    "The removed seed phase and each missing required request fact remain invalid and do not reach the service.",
+    "Sibling search across internal, runtime/tests, tests and api/testdata found no other stale seed-phase fixture; only the deliberate rejection case remains."
+  ],
+  "scope": "Test fixture and tracker only; production and protocol behavior are unchanged.",
+  "runtimeLimitation": "The prior user-authorized full Runtime limitation remains; only complete touched Runtime packages are claimed."
+}

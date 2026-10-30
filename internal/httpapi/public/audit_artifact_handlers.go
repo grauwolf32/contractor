@@ -49,5 +49,5 @@ func (h *auditHandlers) getAuditArtifact(w http.ResponseWriter, r *http.Request)
 		read.Payload = artifacts.Payload{MediaType: member.Metadata().MediaType, Data: member.Data()}
 	}
 	transfer.BoundWrite(int64(len(read.Payload.Data)))
-	writeArtifactBytes(w, read)
+	writeArtifactBytes(w, read, "")
 }

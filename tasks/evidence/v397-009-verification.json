@@ -1,0 +1,86 @@
+{
+  "task": "V397-009",
+  "date": "2026-10-30",
+  "branch": "codex/sarif-export",
+  "uiVersion": "0.10.15",
+  "rendererVersion": "1.1.1",
+  "checks": [
+    {
+      "command": "make ui-verify",
+      "outcome": "passed",
+      "uiTestFiles": 207,
+      "uiTestsPassed": 2549,
+      "existingExpectedFailures": 1,
+      "log": "/private/tmp/sarif-v397-009-ui-final-verified.log"
+    },
+    {
+      "command": "make test-ui-stack",
+      "outcome": "passed",
+      "goBrowserCases": 10,
+      "skipped": 0,
+      "seconds": 1147.722,
+      "postgres": "dedicated disposable browser database",
+      "log": "/private/tmp/sarif-v397-009-browser.log"
+    },
+    {
+      "command": "make test-ui-stack-operations",
+      "outcome": "passed",
+      "browserCases": 93,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0,
+      "seconds": 156.545,
+      "log": "/private/tmp/sarif-v397-019-browser-final.log",
+      "includes": "Final repeat after V397-019 on renderer 1.1.1; both includeDuplicates values and no unsupported driver classification declaration."
+    },
+    {
+      "command": "make test-wire-cross-language verify-public-api",
+      "outcome": "passed",
+      "sharedFixtures": 454,
+      "goSharedTests": 364,
+      "pythonSharedTests": 248,
+      "log": "/private/tmp/sarif-v397-009-contracts.log"
+    },
+    {
+      "command": "make lint",
+      "outcome": "passed",
+      "log": "/private/tmp/sarif-final-closed-lint.log",
+      "includes": "Final closed task files, final generated documentation graph and the complete combined SARIF implementation."
+    }
+  ],
+  "regressions": [
+    "Selections span every explicit page while each finding retains its chosen revision; maximum 256 with no silently selected remainder",
+    "includeDuplicates defaults to false; changing it creates a new publication identity and only Server result counts are displayed",
+    "An ambiguous/retryable publication uses exactly the original body and client key, including reselecting an already selected page",
+    "409 does not restamp or replay selected revisions; explicit clear/refresh is required",
+    "Failed saved-content download retries GET without another publication; wrong length, digest, revision or oversized stream never saves a file",
+    "Another Audit resets selection and option; pending transport is cancelled on unmount and late saves are suppressed",
+    "Real Server/Runtime/PostgreSQL export yields one or two SARIF results from two qualified duplicate findings; both snapshots and group IDs remain local to that Audit"
+  ],
+  "visualVerification": {
+    "widths": [
+      390,
+      1440
+    ],
+    "themes": [
+      "light",
+      "dark",
+      "black"
+    ],
+    "overflow": "none in real browser assertions",
+    "inspection": "390 px screenshots inspected in all three themes",
+    "examples": [
+      "/private/tmp/finding-export-light-390.png",
+      "/private/tmp/finding-export-dark-390.png",
+      "/private/tmp/finding-export-black-390.png"
+    ]
+  },
+  "earlierBoundaryEvidence": [
+    "tasks/evidence/v397-006-verification.json",
+    "tasks/evidence/v397-007-verification.json",
+    "tasks/evidence/v397-008-verification.json",
+    "tasks/evidence/v397-019-verification.json"
+  ],
+  "runtimeLimitation": "User authorized complete checks of touched packages. No full Runtime pass is claimed: the prior macOS gate had unrelated failures, including V401-007; Linux package repositories returned HTTP 403. Runtime package evidence is retained in V397-006/007.",
+  "delivery": "All SARIF stages are implemented on codex/sarif-export; not merged into main."
+}

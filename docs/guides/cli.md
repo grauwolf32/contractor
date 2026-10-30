@@ -43,7 +43,7 @@ contractor --output name workflow list
 ```
 
 `--timeout` (or `CONTRACTOR_TIMEOUT`, default `30s`) bounds each request. For
-`source push`, `artifact put`/`get` and `run output` it instead bounds each
+`source push`, `artifact put`/`get`, `audit findings export`/`download` and `run output` it instead bounds each
 period without progress, from connecting through the last body byte, so a large
 Artifact may take longer on a slow link while a stalled transfer still fails.
 
@@ -170,3 +170,38 @@ The default root is `.local/pki`. Runtime files are written as
 material is preserved unless `--force` is supplied. These commands are for a
 deployment whose CA key is available locally; connecting to a remote Server
 does not grant access to its CA.
+
+## Export Audit findings
+
+Write an explicit selection of current finding revisions to `selection.json`:
+
+```json
+[{"findingId":"finding-1","revision":3}]
+```
+
+Create a frozen Audit-local SARIF export and download it:
+
+```shell
+contractor audit findings export audit-1 --selection selection.json \
+  --client-key report-1 --to report.sarif
+```
+
+By default the file contains one selected representative per known duplicate
+group. Add `--include-duplicates` to include every selected finding. The
+snapshot always preserves all selected identities and independent reviews.
+The same client key replays the original bytes after later triage or source
+Run deletion; changing the selection or duplicate option requires a new key.
+Publication output includes the export ID, counts and exact descriptors.
+`--to -` writes only file bytes to stdout; existing files require `--force`.
+
+Download an existing export or inspect its frozen inputs and diagnostics:
+
+```shell
+contractor audit findings download audit-1 export-ID --to report.sarif
+contractor audit findings download audit-1 export-ID --part snapshot --to snapshot.json
+contractor audit findings download audit-1 export-ID --part diagnostics --to diagnostics.json
+```
+
+Use the complete `export-<64 lowercase hex digits>` ID returned by publication
+in place of `export-ID`. These downloads check Audit ownership and never
+refresh live findings or regenerate content. Exports follow Audit deletion.

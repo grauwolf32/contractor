@@ -52,6 +52,7 @@ type Payload struct {
 }
 
 type ReadResult struct {
+	GitSource         *GitSource `json:"-"`
 	Ref               ArtifactRef
 	Payload           Payload
 	BindingCreatedAt  time.Time

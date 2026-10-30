@@ -125,6 +125,8 @@ var layers = []layerSpec{
 		role: "pure domain cores without database access",
 		packages: []string{
 			"internal/auditdomain",
+			"internal/findinganalysis",
+			"internal/findingexport/...",
 			"internal/auditpriority",
 			"internal/evaldomain",
 			"internal/scanplan",

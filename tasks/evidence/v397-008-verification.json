@@ -1,0 +1,41 @@
+{
+  "task": "V397-008",
+  "date": "2026-10-30",
+  "branch": "codex/sarif-export",
+  "checks": [
+    {
+      "command": "go test -count=1 ./internal/findinganalysis ./internal/findingexport/...",
+      "outcome": "passed",
+      "log": "/private/tmp/sarif-v397-008-unit.log"
+    },
+    {
+      "command": "go test -tags=integration -p=2 -count=1 -timeout=20m ./internal/findingintake ./internal/auditservice ./internal/httpapi/public ./internal/publicclient/... ./internal/cli",
+      "outcome": "passed",
+      "postgres": "dedicated disposable Go database",
+      "log": "/private/tmp/sarif-v397-008-integration.log"
+    },
+    {
+      "command": "make test-wire-cross-language verify-public-api",
+      "outcome": "passed",
+      "sharedFixtures": 454,
+      "goSharedTests": 364,
+      "pythonSharedTests": 248,
+      "log": "/private/tmp/sarif-v397-008-contracts.log"
+    },
+    {
+      "command": "make lint",
+      "outcome": "passed",
+      "log": "/private/tmp/sarif-v397-008-lint.log"
+    }
+  ],
+  "regressions": [
+    "Official OASIS Errata 01 schema embedded unchanged with SHA-256 pin and offline-only compiler loader",
+    "Five deterministic goldens: Unicode/CRLF code and symbols, complete/partial flow, independent roots with empty file, structured HTTP, raw Caido plus exact OpenAPI pointer",
+    "Schema-valid negative mutations reject dangling rule/artifact/taxonomy indices, wrong digest/region/symbol, foreign root, borrowed severity, upgraded relation proof and a bridge across an explicit native gap",
+    "Unlocated steps split flow; unverified proposal paths never mint physical source locations; complete data-flow with missing coordinates fails",
+    "Qualified issue fingerprints and exact classification versions preserve native tuples; conflicting rule definitions and unsupported tool-reported edges fail",
+    "16 MiB output construction bound checked with 256 repeated large presentations; no rerender under a historical exporter version"
+  ],
+  "runtimeLimitation": "User-authorized scope: full touched-package checks. No full Runtime pass or Linux pass is claimed; see V397-006/007 evidence.",
+  "delivery": "Implementation remains on codex/sarif-export; not merged into main."
+}

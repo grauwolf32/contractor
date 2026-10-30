@@ -330,6 +330,104 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/audits/{auditId}/findings/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Freeze and export an explicit selection from one Audit
+         * @description Publishes a complete immutable snapshot, SARIF and diagnostics in this
+         *     Audit's ProjectScope Artifact namespace. Exact selected revisions and
+         *     contributing presentation receipts are validated together. The optional
+         *     includeDuplicates defaults to false: one selected representative per
+         *     qualified automatic-key/manual-duplicate group. True retains every
+         *     selected result. The snapshot always retains all independent reviews.
+         *     The same clientKey and normalized request replay the original bytes;
+         *     changed input, including includeDuplicates, is idempotency_conflict.
+         *     Ownership is checked without disclosing other Audits. Storage conflicts
+         *     return retryable 503 storage_transaction_conflict with Retry-After.
+         */
+        post: operations["publishAuditFindingExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/findings/exports/{exportId}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download the immutable Audit finding export SARIF
+         * @description Checks ownership and all immutable publication bindings before serving
+         *     the original bytes as an attachment. Does not refresh current findings
+         *     or rerender. Retryable storage conflicts return 503
+         *     storage_transaction_conflict with Retry-After.
+         */
+        get: operations["downloadAuditFindingExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/findings/exports/{exportId}/snapshot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download the immutable Audit finding export frozen snapshot
+         * @description Checks ownership and all immutable publication bindings before serving
+         *     the original bytes as an attachment. Does not refresh current findings
+         *     or rerender. Retryable storage conflicts return 503
+         *     storage_transaction_conflict with Retry-After.
+         */
+        get: operations["downloadAuditFindingExportSnapshot"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/audits/{auditId}/findings/exports/{exportId}/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download the immutable Audit finding export diagnostics
+         * @description Checks ownership and all immutable publication bindings before serving
+         *     the original bytes as an attachment. Does not refresh current findings
+         *     or rerender. Retryable storage conflicts return 503
+         *     storage_transaction_conflict with Retry-After.
+         */
+        get: operations["downloadAuditFindingExportDiagnostics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/finding-collections": {
         parameters: {
             query?: never;
@@ -4645,6 +4743,42 @@ export interface components {
             objective: string;
             method: string;
         };
+        /** Format: binary */
+        FindingExportContent: string;
+        /** Format: binary */
+        FindingExportDiagnosticsContent: string;
+        FindingExportId: string;
+        FindingExportSelection: {
+            findingId: components["schemas"]["FindingCollectionIdentity"];
+            revision: number;
+            presentationReceiptId?: components["schemas"]["FindingCollectionIdentity"];
+        };
+        PublishFindingExportRequest: {
+            clientKey: components["schemas"]["ArtifactName"];
+            /** @enum {string} */
+            format: "sarif";
+            /** @enum {string} */
+            profile: "generic";
+            /**
+             * @description False emits one selected representative per duplicate group; true emits all selected findings. Always frozen in the snapshot and replay identity.
+             * @default false
+             */
+            includeDuplicates: boolean;
+            /** @description Explicit exact finding revisions from the route's Audit; IDs must be unique. Empty selects none. Contributions expand within the existing collection limits. */
+            findings: components["schemas"]["FindingExportSelection"][];
+        };
+        PublishedFindingExport: {
+            exportId: components["schemas"]["FindingExportId"];
+            snapshot: components["schemas"]["FindingExactArtifact"];
+            artifact: components["schemas"]["FindingExactArtifact"];
+            diagnostics: components["schemas"]["FindingExactArtifact"];
+            /** Format: date-time */
+            snapshotAt: string;
+            selectedCount: number;
+            resultCount: number;
+            warningCount: number;
+            replayed: boolean;
+        };
         FindingCollectionIdentity: string;
         FindingCollectionFindingSelection: {
             findingId: components["schemas"]["FindingCollectionIdentity"];
@@ -7039,6 +7173,34 @@ export interface components {
                 "application/json": components["schemas"]["ArtifactWriteResponse"];
             };
         };
+        /** @description Original immutable Audit export bytes */
+        FindingExportBytes: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                "Cache-Control": components["headers"]["NoStore"];
+                ETag: components["headers"]["ETag"];
+                "Content-Length": number;
+                "Content-Disposition": components["headers"]["ContentDisposition"];
+                [name: string]: unknown;
+            };
+            content: {
+                "*/*": components["schemas"]["FindingExportContent"];
+            };
+        };
+        /** @description Original immutable Audit export bytes */
+        FindingExportDiagnosticsBytes: {
+            headers: {
+                "X-Request-ID": components["headers"]["RequestId"];
+                "Cache-Control": components["headers"]["NoStore"];
+                ETag: components["headers"]["ETag"];
+                "Content-Length": number;
+                "Content-Disposition": components["headers"]["ContentDisposition"];
+                [name: string]: unknown;
+            };
+            content: {
+                "*/*": components["schemas"]["FindingExportDiagnosticsContent"];
+            };
+        };
         /** @description Original artifact bytes */
         ArtifactBytes: {
             headers: {
@@ -8912,6 +9074,126 @@ export interface operations {
                     "application/json": components["schemas"]["Error"];
                 };
             };
+        };
+    };
+    publishAuditFindingExport: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
+                Origin?: components["parameters"]["OptionalOrigin"];
+                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
+                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
+            };
+            path: {
+                auditId: components["parameters"]["AuditId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublishFindingExportRequest"];
+            };
+        };
+        responses: {
+            /** @description Original immutable export replayed */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    /** @description Audit-local SARIF download URL ending in /content */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishedFindingExport"];
+                };
+            };
+            /** @description Snapshot, SARIF, diagnostics and replay receipt published atomically */
+            201: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    /** @description Audit-local SARIF download URL ending in /content */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishedFindingExport"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            413: components["responses"]["PayloadTooLarge"];
+            422: components["responses"]["UnprocessableEntity"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
+    downloadAuditFindingExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                exportId: components["schemas"]["FindingExportId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["FindingExportBytes"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
+    downloadAuditFindingExportSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                exportId: components["schemas"]["FindingExportId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["FindingExportBytes"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
+        };
+    };
+    downloadAuditFindingExportDiagnostics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                auditId: components["parameters"]["AuditId"];
+                exportId: components["schemas"]["FindingExportId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["FindingExportDiagnosticsBytes"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactUnavailable"];
         };
     };
     publishFindingCollection: {

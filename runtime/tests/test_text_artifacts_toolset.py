@@ -886,3 +886,34 @@ class MemoryArtifactClient:
         assert ref.revision is not None
         self._known[(ref.namespace, ref.name, ref.revision)] = ref
         self._observed.append(ref)
+
+
+def test_text_writer_canonicalizes_optional_analysis_and_rejects_bad_shape(tmp_path: Path) -> None:
+    import json
+
+    from contractor_runtime.toolsets.common.finding_analysis import MEDIA_TYPE, canonical_analysis
+
+    async def scenario() -> None:
+        client = MemoryArtifactClient()
+        tools = await make_tools(tmp_path, client, WorkerState())
+        value = {
+            "schema": "contractor.finding.analysis.v1",
+            "client_key": "candidate",
+            "sources": [],
+            "locations": [],
+            "flows": [],
+            "http_exchanges": [],
+        }
+        authored = json.dumps(value, indent=2)
+        result = await tools["write_text_artifact"](
+            name="typed-analysis", text=authored, media_type=MEDIA_TYPE
+        )
+        saved = await client.read_artifact(ArtifactRef.model_validate(result["artifact"]))
+        assert saved.data == canonical_analysis(authored)
+        assert result["size"] == len(saved.data)
+        with pytest.raises(ToolInputError, match="finding analysis is invalid"):
+            await tools["write_text_artifact"](
+                name="bad-analysis", text='{"sources":null}', media_type=MEDIA_TYPE
+            )
+
+    asyncio.run(scenario())

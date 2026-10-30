@@ -43,7 +43,8 @@ It leaves to other documents:
 - AgentTemplate Toolset selection:
   [agent templates](../configuration/agent-templates.md); Workflow input
   slots: [workflows](../configuration/workflows.md).
-- SARIF export and finding analysis:
+- Generic Audit-local SARIF export: FND-R197 through FND-R208 below. Future
+  consumer-specific profiles:
   [proposal 0028](../../proposals/0028-finding-analysis-and-sarif.md);
   redacted evidence for autonomous pentest Audits:
   [proposal 0033](../../proposals/0033-autonomous-pentest-audits.md).
@@ -495,7 +496,9 @@ raw request is invalid. Source and message kinds must agree. HTTP IDs are
 canonical decimal integers 1–9007199254740991; Caido IDs are nonempty strings
 of at most 256 UTF-8 bytes without ASCII control characters. The owning schema
 is [http-exchange.schema.json](../../../api/v1alpha1/http-exchange.schema.json);
-Go and Runtime validate the shared capture cases.
+Go and Runtime validate the shared capture cases. Capture decoding applies
+the HTTP body/header and complete private-submission bounds; the ordinary
+Audit document/string limits must not shrink a valid base64 body.
 
 **FND-R56.** Runtime submits a proposal through the allocation-bound private
 route `POST /private/v1/allocations/{allocation_id}/finding-proposals`.
@@ -1464,6 +1467,227 @@ decision ID, and identical evidence bindings from different Runs. Codec tests
 require exact conformance and reject inconsistent metadata, byte content and
 evidence membership.
 
+### Optional typed analysis evidence
+
+**FND-R191.** A proposal may select zero or one ordinary evidence document
+with media type `application/vnd.contractor.finding-analysis+json` and schema
+`contractor.finding.analysis.v1`. The document is closed canonical RFC 8785
+JSON; `client_key` equals the containing proposal's key. Its required arrays
+are `sources`, `locations`, `flows` and `http_exchanges`. Optional fields are
+`rule`, `primary_location_id` and `primary_http_exchange_id`; explicit nulls,
+unknown or case-variant members, repeated keys and invalid Unicode fail.
+The text Artifact writer validates the authoring shape and canonicalizes this
+media type off the event loop, joining work on cancellation. Proposal,
+collection and model-visible finding tool schemas remain unchanged.
+
+**FND-R192.** Analysis sources are `{id, kind: archive|file, artifact_ref}`.
+Locations are `{id, source_id, path, file_digest}` with optional `region` and
+`symbol`. Regions have required `start_line` and optional `end_line`,
+`start_column`, `end_column`; symbols have required `name` and optional
+`qualified_name`, `language`, `kind`, `signature`. Every dependency is an exact
+ref explicitly selected by the same receipt; analysis cannot reference itself
+or another analysis, choose another scope or cause a store/network lookup.
+Source identity includes exact scope/version, not just matching content.
+After source deletion, the trusted receipt-to-Audit-hold mapping binds original
+refs to the requesting Audit's verified retained copies; byte equality alone
+does not create an alias. Original source identity and capture origin remain
+provenance and do not grant access to the deleted Run.
+Collection publication checks recorded digest/size against bytes, resolves
+only the selected UTF-8 file or ZIP member and checks its file SHA-256.
+Paths are relative case-sensitive POSIX paths without backslashes, colons,
+control characters, empty/dot/dot-dot components or symlinks. All locations
+of a plain file agree on its logical path. Lines and Unicode code-point
+columns are one-based; end columns are exclusive, require start columns and
+must fit the exact text. CRLF is one terminator, tabs one code point. Empty
+files have no invented first line. Invalid supplied coordinates fail; missing
+coordinates stay missing, without source discovery or remapping edited files.
+
+**FND-R193.** Flows have `id`, `kind: call-path|data-flow|execution-trace`,
+`description`, `completeness: complete|partial`, `steps`, `edges`, `gaps` and
+exact `evidence_refs`. Steps have `id`, `roles`, `message`, `evidence_refs`,
+optional `location_id`, `value`, `value_state`. Roles are `source`,
+`propagation`, `call`, `return`, `validation`, `sanitizer`, `sink`,
+`observation`; value states are `unknown`, `tainted`, `derived`, `validated`,
+`clean`. Edges have `from`, `to`, `relation`, `basis`, `evidence_refs`,
+optional `argument_binding: {caller_value, callee_parameter}`; relations are
+`call`, `return`, `argument`, `assignment`, `transform`, `control`,
+`observation`. Gaps have `after_step_id`, `before_step_id`, `reason`.
+Every consecutive step pair has exactly one edge or gap. Unlocated steps
+have gaps to their neighbors. Complete data-flow starts at a located source,
+ends at a located sink, has coordinates for every step and evidence for every
+edge; argument transfer needs an explicit binding. A gap makes a flow partial.
+`producer-asserted` evidence never establishes semantic truth; a
+`tool-reported` edge needs a recognized durable relation decoder. No such
+code-relation decoder is admitted by this contract: copied graph output or
+annotations must remain producer assertions. Validation never invents an edge,
+sanitizer effect, overloaded callee or primary location.
+
+**FND-R194.** HTTP analysis exchanges have `id`, exact `evidence_ref`,
+`decoder`, optional `operation: {document_ref, pointer, method, path_template}`
+and `implementation_location_id`. Decoder `contractor-http-exchange/v1`
+strictly reads the current HTTP/Caido captured-exchange envelope and preserves
+its original finding association, including reuse by a later proposal.
+A capture in the reserved `finding-proposals/http.exchange.<proposal_id>`
+Run binding has Runtime capture origin; an uploaded copy has producer origin.
+Decoder `http-response-body/v1` projects only the retained media type; a body
+cannot recover a request or status. Unknown decoders fail. The projection
+contains only known method, URI without query/fragment/userinfo, response
+status and content type, with omitted field names and producer/capture origin.
+Bodies, headers and credentials are not embedded. A Caido raw response must
+parse under its decoder and agree with its recorded status. An OpenAPI
+operation must resolve its exact `/paths/<escaped-path>/<method>` JSON Pointer
+in a selected JSON/YAML OpenAPI document; operation IDs and handler names are
+not join keys. An implementation link must name an existing analysis location.
+
+**FND-R195.** The optional rule is `{id, version, name, description}` with
+optional absolute HTTPS `help_uri` without userinfo; no documentation URL is
+fetched. Rule IDs use the Audit identifier grammar extended with `/` and `-`,
+at most 160 ASCII bytes. All local IDs are unique in their containing array;
+primary IDs must resolve. Analysis is at most 1 MiB, 32 sources, 256 locations,
+32 flows with 128 steps each, 32 exchanges, 16 KiB per text field and depth 32
+(LIM-FND-47). Collection selection/document bounds remain FND-R97/FND-R98.
+One resolver bounds distinct selected input bytes to 16 MiB and source ZIP
+expanded bytes to 64 MiB, entries per archive to 10,000 and each member to
+4 MiB (LIM-FND-48). It checks directories before allocating ZIP records, reads
+only selected members, verifies their actual lengths/CRC and reuses exact
+source caches across receipts; no per-finding store read or parent scan occurs.
+
+**FND-R196.** Invalid analysis, missing dependencies, conflicting paths,
+digests, coordinates or edges reject the whole collection with a bounded
+`audit_document_invalid` 422 before publication (FAIL-FND-7). Existing source
+owner checks, finite PostgreSQL retries and publication-key replay remain
+unchanged. Cancellation remains cancellation and joins all work; ambiguous
+publication reuses its existing paired receipt. Resolver caches are transient
+and released with the call; analysis remains ordinary evidence under its
+existing Run/Audit/Project retention and purge rules (LIFE-FND-6). Validation
+does not change triage, proposal severity, duplicate identity or collection
+format and does not assert that authored descriptions are secret-free.
+
+
+## Audit finding exports
+
+**FND-R197.** An owner creates one synchronous export of explicit finding IDs
+and exact revisions from one Audit. The public route supplies Audit authority;
+foreign/missing findings and non-member presentation receipts return the existing
+non-disclosing not-found class, stale revisions conflict. Empty selects none;
+there is no implicit whole-Audit or cross-Audit selection. The closed request
+selects `format: sarif`, `profile: generic`, `clientKey` and `findings`, with
+optional `includeDuplicates` defaulting to false. Limits are LIM-FND-49.
+
+**FND-R198.** The frozen snapshot retains every selected finding, its complete
+contribution membership, explicit presentation receipt (default first receipt),
+its own current decision/rating/assessment, qualified primary correlation key
+and policy, resolved native analysis, exact original and retained evidence
+identities and trusted Git origin. Supporting contributions do not replace
+presentation fields or inherit another finding's rating. HTTP projections omit
+headers, bodies, query, userinfo and fragments; raw evidence remains subject to
+existing Artifact authority. The snapshot records schema, time, exporter and
+policy versions plus normalized request digest. Rendering consults this snapshot
+alone and calls no model, network or store.
+
+**FND-R199.** `includeDuplicates: false` emits one selected representative per
+connected group of qualified primary-key equality and explicit same-Audit manual
+duplicate links. Prefer a selected non-duplicate, then the lexically first
+finding ID. Shared targets outside the selection may connect selected siblings,
+but neither targets nor peers are selected implicitly. Similar text, titles,
+weak candidates and overlapping contributions never establish equality. The
+representative retains its own triage and presentation; all selected member IDs
+remain in output properties, and all independent decisions remain in the
+snapshot. `true` emits every selected finding. The option does not change native
+Audit state, and `resultCount` may be below `selectedCount`.
+
+**FND-R200.** Snapshot, SARIF, diagnostics and replay receipt publish atomically
+as frozen bindings in the existing ProjectScope namespace of the owning Audit;
+no new table or independent lifecycle is introduced (LIFE-FND-7). The
+Audit-local `clientKey` and normalized request determine export identity. Omitted
+and explicit false duplicate inclusion normalize identically; changing the
+option or selection with the same key returns permanent `idempotency_conflict`.
+Replay verifies immutable descriptors/digests and returns original bytes before
+reading live findings, source evidence or current reviews (FAIL-FND-8).
+
+**FND-R201.** The public collection is
+`POST /v1/audits/{auditId}/findings/exports`. It returns 201 for publication,
+200 for replay and `Location` pointing to
+`GET /v1/audits/{auditId}/findings/exports/{exportId}/content`.
+The `/snapshot` and `/diagnostics` sibling resources download the original JSON.
+All downloads check current Audit ownership/deletion state, serve attachments
+with Artifact transfer/storage/write budgets and never regenerate content.
+The OpenAPI document owns exact fields, headers and classified errors, including
+retryable 503 `storage_transaction_conflict` with `Retry-After`.
+
+### Generic SARIF rendering
+
+**FND-R202.** The `generic/1` policy renders one SARIF 2.1.0 run for the
+owning Audit from its frozen snapshot, without network, model, filesystem or
+store discovery. Exporter version `1.1.1` identifies the structured renderer.
+The actual output bytes must pass the embedded official OASIS Errata 01 JSON
+Schema (SHA-256 `c3b4bb2d6093897483348925aaa73af03b3e3f4bd4ca38cef26dcb4212a2682e`)
+and independent semantic checks before publication. Schema loading cannot fetch
+external resources. Snapshot and SARIF remain bounded to 16 MiB each;
+diagnostics remain bounded to 4 MiB and 4096 items. Construction accounts for
+repeated locations, flows and presentations before accumulating oversized output.
+
+**FND-R203.** Only the selected presentation receipt supplies a result's
+physical locations, rule, flows and classifications. Supporting receipt
+identities, exact proposal/evidence descriptors and origins remain in result
+properties; every selected contribution and independent decision remains in the
+snapshot. Properties preserve the presentation's native analysis and the
+selected group's independent findings. Results, registries and diagnostics
+have deterministic ordering; canonical JSON output ends in one newline.
+
+**FND-R204.** Explicit source roots derive from the verified original exact
+source identity, kind and digest. A relative path is escaped segment by segment
+under its own `contractor-source://<root>/` base; the same path in distinct roots
+never identifies one file. Artifacts carry the exact member/file SHA-256.
+Regions retain validated Unicode code-point columns and exclusive ends,
+with `columnKind: unicodeCodePoints`; missing regions remain file-level.
+Only an explicit native primary location becomes `locations`; other native
+locations become `relatedLocations`. Symbols retain names, kinds, language and
+signature. Neither a flow endpoint nor a proposal's unverified path implies a
+primary location. Git provenance requires retained trusted Git metadata for the
+exact selected repository archive; metadata on an independently named file
+cannot establish a repository-relative mapping.
+
+**FND-R205.** A native flow emits separate located segments, each with at least
+two points, split at every explicit gap, missing location or missing region.
+No projected adjacency may cross a native gap or skip a native step. Original
+step order, edge relation, argument binding, roles, value state, claimed
+completeness and gaps remain distinguishable from projected execution order.
+Call paths, data flows and execution traces retain their native kinds. Partial
+projections are labelled and diagnosed. Complete data-flow claims with missing
+coordinates fail rendering. Until a trusted code-relation decoder exists,
+relations remain producer-asserted and `tool-reported` claims fail; sanitizer,
+validation and clean-state claims do not imply safety or whole-program coverage.
+
+**FND-R206.** Versioned native rule definitions become driver rules; absent
+rules use `contractor/unclassified` with a warning, and conflicting definitions
+under one rule ID fail rendering. Classification adapters project only exact
+`CWE@4.20`, `asvs@4.0.3` and `owasp-asvs@5.0.0` tuples already admitted at intake;
+other tuples remain native properties with `classification_unmapped`. Run
+taxonomy definitions and result taxa do not establish a rule-wide mapping.
+The driver omits `supportedTaxonomies` and rule taxonomy relationships until
+an explicit versioned native rule mapping exists; result tuples cannot supply
+that mapping (SARIF Errata 01 section 3.19.26). Export does not infer aliases
+or fetch a taxonomy. Qualified registered automatic keys alone become fingerprints; absent keys yield a warning, without a weak
+text or location fallback.
+
+**FND-R207.** The selected finding's own frozen review determines SARIF rating:
+confirmed findings use `kind: fail`, with high/critical → error, medium → warning,
+and low/informational → note; unrated confirmed findings use warning and an
+explicit diagnostic. Other review states use `kind: review`, `level: none`.
+Proposal severity remains a separately labelled suggestion. Grouping never
+borrows another member's rating or implies baseline state, suppression, fix,
+remediation, complete-scan coverage or a numeric security score.
+
+**FND-R208.** Only the explicitly selected safe HTTP projection supplies
+`webRequest` and `webResponse`: method, sanitized target URI, known status and
+base response Content-Type. Request/response bodies, other headers, URI query,
+fragment and userinfo are omitted with a diagnostic; raw Caido and structured
+HTTP captures follow the same policy. Exact OpenAPI operation pointers remain
+native provenance, without inferred code locations. A finding without native
+analysis still exports its identity, text and independent review, with
+`analysis_missing`; it never acquires a synthetic file, source line or flow.
+
 ## Interfaces
 
 - `finding`: the model-visible tool of each creation facade, with the
@@ -1659,5 +1883,5 @@ The end-to-end path of a proposal from an ordinary Run to an Audit is shown in
   FND-R28, FND-R66); qualified automatic labels retain every observation.
 - Collection-specific recursive input handling (FND-R119).
 - Live CWE taxonomy lookup (FND-R31).
-- SARIF export, which remains a separate draft
-  ([proposal 0028](../../proposals/0028-finding-analysis-and-sarif.md)).
+- GitHub-specific upload/profile, source maps and remediation inference. Generic
+  Audit-local SARIF export is specified by FND-R197 through FND-R208.

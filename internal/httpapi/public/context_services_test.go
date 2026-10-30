@@ -14,6 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalservice"
 	"github.com/grauwolf32/contractor/internal/evalstore"
+	"github.com/grauwolf32/contractor/internal/findingexport"
 	"github.com/grauwolf32/contractor/internal/findingintake"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	"github.com/grauwolf32/contractor/internal/gitimport"
@@ -89,6 +90,7 @@ type testServices struct {
 	Audits             AuditManagement
 	FindingProposals   FindingProposalManagement
 	FindingCollections FindingCollectionManagement
+	FindingExports     FindingExportManagement
 	Evals              EvalManagement
 	EvalNotifier       Waker
 
@@ -101,6 +103,9 @@ type testServices struct {
 }
 
 func (s testServices) dependencies() Dependencies {
+	if s.FindingExports == nil {
+		s.FindingExports = missingFindingExports{}
+	}
 	if s.RunDiagnostics == nil {
 		s.RunDiagnostics = emptyAttemptDiagnostics{}
 	}
@@ -147,7 +152,7 @@ func (s testServices) dependencies() Dependencies {
 		ScanSweeps: ScanSweepDependencies{Sweeps: s.ScanSweeps},
 		Audits:     AuditDependencies{Audits: s.Audits, Projects: s.Projects, NewID: s.NewID},
 		Findings: FindingDependencies{
-			FindingProposals: s.FindingProposals, FindingCollections: s.FindingCollections,
+			FindingProposals: s.FindingProposals, FindingCollections: s.FindingCollections, FindingExports: s.FindingExports,
 			Audits: s.Audits, Runs: s.Runs,
 		},
 		Evals: EvalDependencies{
@@ -349,4 +354,13 @@ func (f emptyAttemptDiagnostics) ReadRuntimeDiagnostics(ctx context.Context, p t
 		return telemetry.RuntimeDiagnosticPage{}, telemetry.ErrNotFound
 	}
 	return telemetry.RuntimeDiagnosticPage{Status: "unavailable", Reason: "report_missing", Items: []telemetry.RuntimeDiagnostic{}}, nil
+}
+
+type missingFindingExports struct{}
+
+func (missingFindingExports) PublishFindingExport(context.Context, string, string, findingexport.Request) (findingintake.PublishedExport, error) {
+	return findingintake.PublishedExport{}, findingintake.ErrNotFound
+}
+func (missingFindingExports) ReadFindingExport(context.Context, string, string, string, string) (findingintake.ExportDownload, error) {
+	return findingintake.ExportDownload{}, findingintake.ErrNotFound
 }

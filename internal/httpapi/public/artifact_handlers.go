@@ -517,7 +517,7 @@ func (h *artifactHandlers) writeArtifactRead(
 		return
 	}
 	transfer.BoundWrite(int64(len(result.Payload.Data)))
-	writeArtifactBytes(w, result)
+	writeArtifactBytes(w, result, "")
 }
 
 func validateUserArtifactReadRoute(r *http.Request) error {

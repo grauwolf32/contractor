@@ -271,6 +271,12 @@ export type PublicSchemaName =
   | "FindingSubject"
   | "FindingStandardReference"
   | "FindingProposedCheck"
+  | "FindingExportContent"
+  | "FindingExportDiagnosticsContent"
+  | "FindingExportId"
+  | "FindingExportSelection"
+  | "PublishFindingExportRequest"
+  | "PublishedFindingExport"
   | "FindingCollectionIdentity"
   | "FindingCollectionFindingSelection"
   | "FindingCollectionSourceSelection"
@@ -908,6 +914,46 @@ export const RESPONSE_SCHEMAS = {
     "412": "Error",
     "422": "Error",
     "428": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "POST /v1/audits/{auditId}/findings/exports": {
+    "200": "PublishedFindingExport",
+    "201": "PublishedFindingExport",
+    "400": "Error",
+    "401": "Error",
+    "403": "Error",
+    "404": "Error",
+    "409": "Error",
+    "413": "Error",
+    "422": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/audits/{auditId}/findings/exports/{exportId}/content": {
+    "200": null,
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/audits/{auditId}/findings/exports/{exportId}/snapshot": {
+    "200": null,
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "GET /v1/audits/{auditId}/findings/exports/{exportId}/diagnostics": {
+    "200": null,
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
     "500": "Error",
     "503": "Error",
   },
@@ -2156,6 +2202,10 @@ export const REQUEST_HEADER_SCHEMAS = {
   "POST /v1/eval-experiments/{id}/selections": {
     "Idempotency-Key": "IdempotencyKeyHeader",
     "If-Match": "RequiredIfMatchHeader",
+  },
+  "POST /v1/audits/{auditId}/findings/exports": {
+    Origin: "OptionalOriginHeader",
+    "X-CSRF-Token": "OptionalCSRFTokenHeader",
   },
   "POST /v1/finding-collections": {
     Origin: "OptionalOriginHeader",

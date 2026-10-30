@@ -942,7 +942,7 @@ func auditTestHandler(audits AuditManagement) *auditHandlers {
 // findingTestHandler serves the finding proposals of the Audits of audits.
 func findingTestHandler(audits AuditReader, proposals FindingProposalManagement) *findingHandlers {
 	return &findingHandlers{FindingDependencies: FindingDependencies{
-		FindingProposals: proposals, FindingCollections: missingFindingCollections{},
+		FindingProposals: proposals, FindingCollections: missingFindingCollections{}, FindingExports: missingFindingExports{},
 		Audits: audits, Runs: newFakeRunStore(),
 	}}
 }

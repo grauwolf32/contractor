@@ -26,6 +26,9 @@ import {
 import { AuditQueueError, AuditQueuePage } from "./queue";
 import { useAuditQueue } from "./queue-state";
 import { AuditAnchor } from "./shared";
+import { FindingExportPanel } from "./finding-export";
+import { useFindingExport } from "./finding-export-state";
+import { MAX_EXPORT_SELECTION } from "../../../api/finding-exports";
 
 import "../../issues/issues.css";
 
@@ -202,12 +205,17 @@ function ExactFinding({
  * `?finding=` shows one in full here.
  */
 export function AuditFindings({ audit }: { audit: Audit }) {
+  return <AuditFindingList key={audit.auditId} audit={audit} />;
+}
+
+function AuditFindingList({ audit }: { audit: Audit }) {
   const api = usePublicAPI();
   const queryClient = useQueryClient();
   const headingId = useId();
   const decisionId = useId();
   const severityId = useId();
   const queue = useAuditQueue();
+  const exporter = useFindingExport(audit.auditId);
   const rawState = queue.params.get("state") ?? "";
   const rawVerdict = queue.params.get("verdict") ?? "";
   const rawSeverity = queue.params.get("severity") ?? "";
@@ -296,6 +304,16 @@ export function AuditFindings({ audit }: { audit: Audit }) {
           with each possible issue and is never filtered on.
         </p>
       </div>
+      <FindingExportPanel
+        state={exporter}
+        visible={findings.data?.items ?? []}
+        stale={
+          findings.error !== null ||
+          (findings.data?.auditRevision !== undefined &&
+            findings.data.auditRevision !== audit.revision)
+        }
+        onRefresh={refresh}
+      />
       {findings.isPending ? (
         <p className="ui-caption" role="status">
           Loading possible issues…
@@ -327,6 +345,21 @@ export function AuditFindings({ audit }: { audit: Audit }) {
                     key={finding.findingId}
                     id={`finding-${audit.auditId}-${finding.findingId}`}
                     finding={finding}
+                    trailing={
+                      exporter.open ? (
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${finding.firstProposal.document.title} for export`}
+                          checked={exporter.selected.has(finding.findingId)}
+                          disabled={
+                            exporter.busy ||
+                            (!exporter.selected.has(finding.findingId) &&
+                              exporter.selected.size >= MAX_EXPORT_SELECTION)
+                          }
+                          onChange={() => exporter.toggle(finding)}
+                        />
+                      ) : undefined
+                    }
                     to={issueHref(finding, {
                       state: state ?? "all",
                       project: audit.projectId,

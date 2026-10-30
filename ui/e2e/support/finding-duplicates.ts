@@ -1,5 +1,6 @@
 import { expect, type Page, type APIRequestContext } from "@playwright/test";
 import type { components } from "../../src/api/generated/public";
+import { exerciseFindingExports } from "./finding-exports";
 
 type Schemas = components["schemas"];
 
@@ -166,4 +167,5 @@ export async function exerciseFindingDuplicates(
   );
   expect(retained.firstProposal.evidence.length).toBeGreaterThan(0);
   expect(retained.analystVerdict).toBeUndefined();
+  await exerciseFindingExports(page, audits[1]!, right);
 }

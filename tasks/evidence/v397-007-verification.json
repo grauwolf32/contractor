@@ -1,0 +1,89 @@
+{
+  "task": "V397-007",
+  "date": "2026-10-30",
+  "branch": "codex/sarif-export",
+  "baseRevision": "fb2dcdb39d9e05ed28348f53c809baef7ac05281",
+  "checks": [
+    {
+      "command": "go test -tags=integration -p=2 -count=1 -timeout=20m ./internal/artifacts ./internal/auditdomain ./internal/findinganalysis ./internal/findingexport/... ./internal/findingintake ./internal/auditservice ./internal/auditstore/... ./internal/httpapi/... ./internal/publicclient/... ./internal/cli ./internal/app",
+      "outcome": "passed",
+      "postgres": "dedicated disposable Go database, separate from browser Server leases",
+      "log": "/private/tmp/sarif-v397-007-go-isolated.log"
+    },
+    {
+      "command": "go test -tags=integration -count=1 -timeout=15m ./internal/auditservice",
+      "outcome": "passed",
+      "seconds": 142.568,
+      "includes": "same receipt retained by two Audits with independent decisions; export reads only its own hold"
+    },
+    {
+      "command": "go test -count=1 ./internal/publicclient/... ./internal/cli",
+      "outcome": "passed",
+      "includes": "final generated binary response schemas and CLI --include-duplicates"
+    },
+    {
+      "command": "cd runtime && uv run pytest -W error tests/test_finding_analysis.py tests/test_text_artifacts_toolset.py tests/test_http_capture.py tests/test_security_findings_toolset.py tests/test_findings_reader_toolset.py tests/test_finding_facades.py tests/test_finding_tool_contracts.py",
+      "outcome": "passed",
+      "tests": 220,
+      "skipped": 0
+    },
+    {
+      "command": "make test-wire-cross-language test-findings-e2e verify-public-api",
+      "outcome": "passed",
+      "findingsRequiredProcessCases": 14
+    },
+    {
+      "command": "make test-wire-cross-language verify-public-api",
+      "outcome": "passed",
+      "sharedFixtures": 454,
+      "goSharedTests": 364,
+      "pythonSharedTests": 248,
+      "includes": "final Go/UI request fixture and exact 16/4 MiB download schema bounds"
+    },
+    {
+      "command": "make ui-verify test-ui-stack",
+      "outcome": "passed",
+      "browserStackSeconds": 1160.047,
+      "postgres": "dedicated disposable UI database"
+    },
+    {
+      "command": "make ui-verify",
+      "outcome": "passed",
+      "uiTestFiles": 205,
+      "uiTestsPassed": 2537,
+      "uiExpectedFailures": 1,
+      "includes": "final generated contract bundle and all 12 shared export cases; build rerun after browser completion"
+    },
+    {
+      "command": "make lint",
+      "outcome": "passed"
+    }
+  ],
+  "regressions": [
+    "includeDuplicates omitted/false share a normalized request identity; true changes the immutable publication request",
+    "qualified key equality and same-Audit manual duplicate links group selected results without text matching or copying ratings",
+    "concurrent identical publication replays one atomic set of frozen artifacts",
+    "changed option under the same key is permanent idempotency_conflict",
+    "stale, missing, foreign and non-member selections fail without partial output",
+    "injected final receipt write failure and cancelled context expose no partial publication",
+    "256 selected findings retain every identity; 257 selectors fail",
+    "Audit deletion denies downloads and bounded purge removes all four export bindings",
+    "exact native code and safe HTTP projection survive source Run deletion through this Audits own holds",
+    "original/retained proposal and evidence descriptors, immutable reviews and primary key basis remain frozen",
+    "repeated large presentation content stops at the SARIF byte cap",
+    "frozen exporter version is provenance on replay; creating output requires the actual renderer version",
+    "resource-first route selection preserves method/HEAD/404/405 behavior, CORS probes and method-qualified diagnostics"
+  ],
+  "verificationCorrections": [
+    "The first wire run caught duplicated identifier patterns; export uses the shared contracts validators.",
+    "The browser run caught CORS reliance on ServeMux Pattern strings; matching now uses the registered resource/method map.",
+    "A concurrent Go/browser run contended on the database-global Server lease; final complete runs use separate disposable databases.",
+    "One UI test hit its 5-second budget under contention; complete final UI runs passed with bounded Go parallelism."
+  ],
+  "limitations": {
+    "fullRuntime": "macOS full run interrupted after 11 failures, 3257 passes and 5 skips outside SARIF; no full Runtime pass claimed",
+    "authority": "User authorized complete checks of touched packages and retaining the full Runtime gate as a limitation on 2026-10-29",
+    "linuxPreparation": "Podman package repositories returned HTTP 403; no Linux result claimed"
+  },
+  "delivery": "Frozen Audit-local snapshot, atomic publication/replay, download API, generated clients and CLI. Base SARIF projection only: structured locations/flows/taxonomies and pinned schema validation belong to V397-008; the UI selection and duplicate toggle belong to V397-009. Branch is not merged."
+}

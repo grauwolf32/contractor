@@ -1,6 +1,6 @@
 # Structured finding analysis, correlation and SARIF export
 
-Proposal 0028 · Status: **Partially folded: correlation and finding UI; export remains draft.**
+Proposal 0028 · Status: **Partially folded: correlation, analysis and generic Audit export, API, CLI and UI.**
 
 Versioned producer fingerprints, exact-source structural anchors, automatic
 retained duplicate marks, bounded duplicate-candidate search and cross-Audit
@@ -12,9 +12,12 @@ disclosure is owned by UI-R198 through UI-R201
 and UIJ-R117. There is no separate pair-comparison UI; the pair API remains
 available to authorized API clients.
 
-Typed finding analysis, its resolver, export snapshots, SARIF rendering, the
-`github-code-scanning` profile and `POST /v1/finding-exports` remain target
-design. The finding proposal schema, complete model-visible
+The optional typed finding analysis codec and exact-evidence resolver are folded
+into FND-R191 through FND-R196 of the findings specification. Generic Audit
+export snapshots and structured rendering are folded into FND-R197 through
+FND-R208. The check-local UI flow is owned by UI-R210 through UI-R212 and UIJ-R118.
+The `github-code-scanning` profile remains deferred; Audit export follows the
+narrowed contract below. The finding proposal schema, complete model-visible
 `security-findings@1` tool declarations and finding collection format stay
 unchanged; hidden publisher metadata and owner API projections implement the
 correlation slice. Existing code-analysis, annotation and HTTP tools retain
@@ -22,6 +25,35 @@ their published contracts. Capability/version changes are explicit amendments
 to owning specs. Upload, source maps, fixes, suppression sync, native
 security-score classification and complete-scan replacement remain deferred
 beyond [Delivery and conformance](#delivery-and-conformance).
+
+## Audit-scoped export delivery
+
+User direction on 2026-10-29 narrows the initial export delivery: one Audit
+per snapshot and SARIF file, with export/download inside that Audit. The
+endpoint is `POST /v1/audits/{auditId}/findings/exports`; Audit identity and
+owner authority come from the route. Its closed body selects exact Audit
+finding revisions and optional contributing presentation receipts, rather
+than a cross-Audit `sources` list. Independent results and decisions of other
+Audits remain in their own exports. Publication keys and immutable output
+bindings are Audit-local and follow the existing Audit Artifact namespace
+lifecycle. A minimal generic API caller accompanies snapshot delivery; the
+structured SARIF mapping, CLI and check-local UI are implemented.
+User direction on 2026-10-30 adds the optional boolean `includeDuplicates`
+(default `false`). The snapshot retains every selected identity and its own
+review. With `false`, SARIF emits one selected representative per group under
+qualified automatic-key equality and explicit same-Audit manual duplicate
+links; `true` emits every selected finding. Similar text is never equality.
+A selected manual target is preferred over its duplicates; otherwise prefer a
+selected non-duplicate and then the lexically first finding ID. A target or
+peer outside the selection is never implicitly exported. All group member IDs
+remain in result properties, with independent ratings kept in the snapshot.
+The option is normalized before request hashing, so changing it with the same
+publication key conflicts. Download uses
+`GET /v1/audits/{auditId}/findings/exports/{exportId}/content`; snapshot and
+diagnostics are sibling subresources.
+
+The broader direct-receipt/multi-source design below is outside this first
+delivery; it does not authorize mixing Audit results in one file.
 
 ## Ownership and decisions
 
@@ -458,7 +490,7 @@ Explicitly selecting both a receipt and its containing finding yields two
 differently typed results; UI displays the overlap. Duplicate explicit
 selectors are invalid under collection request rules; shared receipts in
 contribution expansion are retained once and linked to each selected finding.
-Similar content does not deduplicate distinct selected identities.
+Similar content does not deduplicate distinct selected identities. Audit exports apply the explicit `includeDuplicates` policy above to SARIF only.
 
 A duplicate finding retains its ID and target link. Selection does not select
 its target implicitly, copy the target's rating or turn it into another
@@ -919,7 +951,7 @@ slice introduces neither required manual duplicate confirmation nor a new
 review endpoint/target-revision mutation.
 
 FindingCollection v1 remains unchanged and preserves its selected receipts
-and review observations. Exports preserve all explicitly selected identities.
+and review observations. Export snapshots preserve all explicitly selected identities; Audit SARIF applies the frozen `includeDuplicates` policy above.
 Freeze
 applicable automatic-key/membership basis, comparison scope/policy/revision
 and system marks in new export snapshots. Later group changes never rewrite
@@ -927,8 +959,7 @@ accepted reports or prior snapshots. Generic SARIF fingerprints reuse the
 resolved registered key; a structural-site hint must not masquerade as a
 qualified issue fingerprint. Keep automatic correlation in namespaced
 properties separately from manual duplicate targets and ratings. Automatic
-duplication does not suppress a selected result, change its SARIF kind/level,
-copy severity or imply `baselineState`, suppression or remediation.
+duplication groups selected SARIF results only when `includeDuplicates` is false. It never changes the chosen representative's SARIF kind/level, copies severity or implies `baselineState`, suppression or remediation.
 
 ### Failure, lifecycle and reversal conditions
 
@@ -1073,53 +1104,45 @@ They are projections, not another mutable finding store. Reuse ArtifactStore
 and existing finding/Audit read boundaries; Scheduler and Planner gain no
 branches.
 
-The target endpoint is `POST /v1/finding-exports`, with existing owner auth and
-browser Origin/CSRF controls ([Public API](../spec/api/public-api.md)). The
-target public shape is:
+The initial endpoint is
+`POST /v1/audits/{auditId}/findings/exports`, with existing owner auth and
+browser Origin/CSRF controls ([Public API](../spec/api/public-api.md)).
+Its closed request is:
 
 ```json
 {
   "clientKey": "audit-report-sarif-1",
   "format": "sarif",
   "profile": "generic",
-  "sources": [
-    {
-      "kind": "audit",
-      "id": "audit-1",
-      "receiptIds": [],
-      "findings": [
-        {
-          "findingId": "finding-2",
-          "revision": 3,
-          "presentationReceiptId": "receipt-4"
-        }
-      ]
-    }
+  "includeDuplicates": false,
+  "findings": [
+    {"findingId": "finding-2", "revision": 3, "presentationReceiptId": "receipt-4"}
   ]
 }
 ```
 
-`sources` follows the collection selection semantics of
-[collection publication](../spec/findings/findings.md#collection-publication)
-and [reader preparation](../spec/findings/findings.md#reader-preparation) in
-Findings; `presentationReceiptId` is optional for Audit findings only.
-UI/CLI can enumerate confirmed findings before submitting exact IDs/revisions.
-GitHub additionally requires `target: {repositoryUri, commit, category}`;
-generic requests reject `target`. OpenAPI and generated clients will be
-updated during implementation.
+`presentationReceiptId` and `includeDuplicates` are optional. The latter
+defaults to false and controls SARIF grouping; every selected finding stays
+in the snapshot with its own decision. An empty array selects none. The
+route supplies the one Audit; requests do not accept a cross-Audit `sources`
+list or a GitHub `target`.
 
-Return `snapshot`, `artifact`, `diagnostics` as exact descriptors with
-`{ref, digest, mediaType, sizeBytes}`, plus `snapshotAt`, `selectedCount`,
-`resultCount`, `warningCount`, `replayed`. SARIF is an ordinary
-`application/json` artifact downloaded with `.sarif`. CLI exposes
-`--format sarif --output <path>`; UI uses the same download and diagnostic
-projection.
+Return `exportId`, `snapshot`, `artifact`, `diagnostics` as exact descriptors
+with `{ref, digest, mediaType, sizeBytes}`, plus `snapshotAt`, `selectedCount`,
+`resultCount`, `warningCount`, `replayed`. The download paths are
+`GET /v1/audits/{auditId}/findings/exports/{exportId}/content`, `/snapshot`
+and `/diagnostics`. SARIF is an ordinary `application/json` artifact with a
+`.sarif` attachment filename. CLI uses `audit findings export AUDIT
+--client-key KEY --selection FILE --to FILE [--include-duplicates]`; the UI
+uses the same public request and downloads.
 
-Atomically publish snapshot, SARIF, diagnostics and paired idempotency receipt
-in the owner's existing artifact bindings:
-`finding-export-snapshots/<clientKey>`, `finding-exports/<clientKey>`,
-`finding-export-diagnostics/<clientKey>`, `finding-export-receipts/<clientKey>`.
-No allocation or asynchronous job is needed for the bounded first release.
+Snapshot, SARIF, diagnostics and replay receipt publish atomically as frozen
+bindings in the owning Audit's existing ProjectScope namespace. Their names
+are `finding-export-snapshot.<exportId>`, `finding-export.<exportId>`,
+`finding-export-diagnostics.<exportId>` and `finding-export-receipt.<exportId>`.
+The export ID is derived deterministically from the Audit and client key,
+separately from the request digest. No new table, allocation or asynchronous
+job is introduced for this bounded release.
 
 Replay compares normalized request digests and returns original exact artifacts
 before reading current findings or selecting a new renderer version. Changed
@@ -1133,7 +1156,7 @@ deletion or missing evidence cannot produce a successful partial export.
 
 ```mermaid
 flowchart TD
-    Q[POST /v1/finding-exports with clientKey] -- malformed request --> M[400: malformed request]
+    Q[POST Audit findings/exports with clientKey] -- malformed request --> M[400: malformed request]
     Q --> K{Prior publication for clientKey?}
     K -- yes --> D{Normalized request digest equal?}
     D -- no --> C[409: changed request conflicts]

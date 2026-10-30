@@ -131,6 +131,10 @@ func (c contextHandlers) routes() []route {
 		{"GET", "/v1/audits/{auditId}/artifacts", "getAuditArtifact", c.audits.getAuditArtifact},
 		{"GET", "/v1/audits/{auditId}/report", "getAuditReport", c.audits.getAuditReport},
 		{"GET", "/v1/audits/{auditId}/findings", "listAuditFindings", c.audits.listAuditFindings},
+		{"POST", "/v1/audits/{auditId}/findings/exports", "publishAuditFindingExport", c.findings.publishAuditFindingExport},
+		{"GET", "/v1/audits/{auditId}/findings/exports/{exportId}/content", "downloadAuditFindingExport", c.findings.downloadAuditFindingExport},
+		{"GET", "/v1/audits/{auditId}/findings/exports/{exportId}/snapshot", "downloadAuditFindingExportSnapshot", c.findings.downloadAuditFindingExportSnapshot},
+		{"GET", "/v1/audits/{auditId}/findings/exports/{exportId}/diagnostics", "downloadAuditFindingExportDiagnostics", c.findings.downloadAuditFindingExportDiagnostics},
 		{"GET", "/v1/audits/{auditId}/findings/{findingId}", "getAuditFinding", c.audits.getAuditFinding},
 		{"GET", "/v1/audits/{auditId}/findings/{findingId}/provenance", "listAuditFindingProvenance", c.audits.listAuditFindingProvenance},
 		{"POST", "/v1/audits/{auditId}/findings/{findingId}/reviews", "createAuditFindingReview", c.audits.createAuditFindingReview},
@@ -210,12 +214,12 @@ func (c contextHandlers) routes() []route {
 // operation handler runs (API-R73, API-R111), and any other path is 404.
 // Authentication and authorization wrap the mux, so they still answer first,
 // as they do for GET.
-func register(mux *http.ServeMux, routes []route) {
+func register(mux *http.ServeMux, routes []route) func(*http.Request) bool {
 	served := make([]httpx.Route, 0, len(routes))
 	for _, route := range routes {
 		served = append(served, httpx.Route{Method: route.method, Path: route.path, Handler: route.handler})
 	}
-	httpx.ServeRoutes(mux, served, methodNotAllowed, notFound)
+	return httpx.ServeRoutes(mux, served, methodNotAllowed, notFound)
 }
 
 // evalRoute keeps every Eval response out of caches.

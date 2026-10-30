@@ -50,3 +50,9 @@ SELECT audit.audit_id, audit.project_id
   JOIN projects AS project ON project.project_id = audit.project_id
  WHERE audit.audit_id = ANY($1::text[]) AND audit.owner_id = $2
    AND project.owner_id = $2`
+
+// readExportAuditHoldsSQL reads only the export Audit's own retained copies of
+// explicit receipts $1; observations and holds of other Audits are not inputs.
+const readExportAuditHoldsSQL = `SELECT receipt_id, audit_id, project_id, proposal_ref, evidence, created_at
+ FROM finding_proposal_audit_holds WHERE receipt_id=ANY($1::text[]) AND audit_id=$2
+ ORDER BY receipt_id, audit_id`
