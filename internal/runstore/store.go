@@ -17,6 +17,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -390,7 +391,7 @@ func (s *PostgresStore) ListRuns(ctx context.Context, params ListRunsParams) ([]
 			return nil, fmt.Errorf("scan WorkflowRun summary page: %w", scanErr)
 		}
 		run.State = WorkflowRunState(state)
-		if decodeErr := json.Unmarshal(encodedLabels, &run.MetadataLabels); decodeErr != nil {
+		if decodeErr := strictjson.Decode(encodedLabels, &run.MetadataLabels); decodeErr != nil {
 			return nil, fmt.Errorf("decode WorkflowRun summary metadata labels: %w", decodeErr)
 		}
 		if validateErr := run.MetadataLabels.Validate(); validateErr != nil {
