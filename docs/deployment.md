@@ -340,14 +340,15 @@ migrator of the same schema (the first existing schema in `search_path`) polls
 for that schema's migration leader's advisory lock until it is released, the
 caller cancels, or the whole migrator deadline expires; other schemas in the
 same database migrate independently. Once it holds the
-lock, each statement is limited to 120 seconds, all statements of one
-migration file together to that limit plus 5 seconds, and each lock wait, on a
+lock, each statement is limited to 120 seconds and each lock wait, on a
 relation or a row, to 10 seconds by default; for a large upgrade raise them with
 `--statement-timeout` and `--lock-timeout` (or
 `CONTRACTOR_MIGRATE_STATEMENT_TIMEOUT` and
 `CONTRACTOR_MIGRATE_LOCK_TIMEOUT`, which the flags override). The lock timeout
-must be shorter than the statement timeout, and the whole run is allowed at
-least 15 minutes or the statement timeout plus about 5 minutes. These settings
+must be shorter than the statement timeout, and the whole run, every pending
+migration file together, is allowed at least 15 minutes or the statement
+timeout plus about 5 minutes. A run whose connection is lost while it applies
+a file fails only at that run deadline. These settings
 apply only to `migrate`, not to ServerConfig database budgets. A failed or
 timed-out run applies nothing, so it can simply be run again; the
 [migration rules](spec/platform/persistence.md#schema-migrations) and their
