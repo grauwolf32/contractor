@@ -6,7 +6,7 @@ epic: scan-tools
 kind: defect
 introduced_by: V406-001
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: A Git checkout and an archive containing the same installed Nuclei rules share one pin and scan only package content.
@@ -49,3 +49,4 @@ verification_results:
   - "Runtime owner suites: 152 tests passed, including real installed Nuclei HTTP checks and pinned Worker provenance."
   - "The updated pin CLI computed sha256:51a3bd4eef14e95bdeb0bad14ca4bd9bd455479a7044b244b76dee8f6dba5014 from the existing local Git clone without modifying it."
   - "make lint passed, including Go checks, UI gates, deployment suites, specification/task checks, Ruff and all import contracts."
+implementation_commit: e1e1c98fa75ab1c10a30eee65e3bb90c0ce71869
