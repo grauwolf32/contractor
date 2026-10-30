@@ -1,0 +1,71 @@
+schema_version: "1.0"
+id: V425-003
+title: "Make every SQL function that table definitions evaluate restorable by pg_restore"
+milestone: hub-audit-defects-2026-10
+epic: persistence
+kind: defect
+introduced_by: V62-006
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, sql]
+goal: >-
+  A custom-format pg_dump of a fully migrated Contractor database restores
+  with pg_restore --exit-on-error into an empty database, so the documented
+  backup and restore procedure works for the current schema.
+context:
+  severity: high
+  finding: >-
+    Found by the 2026-10-30 wave-wide integration run (main acb704b2c; it
+    fails the same way on b222f41fc before the wave):
+    tests/integration/restore/restore_test.go TestBackupRestorePreservesExactArtifactsAndCAS
+    fails for both blob backends at pg_restore (restore_test.go:87) with
+    "function contractor_jsonb_elements(jsonb) does not exist ... CONTEXT: SQL
+    function contractor_audit_dependency_holds during inlining. Command was:
+    CREATE TABLE public.audit_items". pg_restore runs with an empty
+    search_path; the generated column audit_items.retained_dependency_hold_count
+    (internal/persistence/migrations/000047_audit_retained_dependencies.sql:204)
+    calls contractor_audit_dependency_holds (same file :195), an IMMUTABLE
+    LANGUAGE sql function whose string body names contractor_artifact_key_set,
+    contractor_artifact_ref_key and contractor_jsonb_elements without a
+    schema. CREATE TABLE inlines the function and cannot resolve them. The
+    column came with 48cdbc077 (V62-006). Every backup taken since then is
+    unrestorable with the documented tools.
+    Second, test-only: runPostgresTool (restore_test.go:204) redacts the tool
+    output with strings.ReplaceAll(output, password, "<redacted>"); with an
+    empty password (local socket role) it inserts the marker between every
+    character, so the failure above was unreadable.
+  siblings: >-
+    Any function that pg_restore evaluates before the search_path is normal:
+    functions called from generated columns, CHECK constraints (evaluated
+    while COPY loads rows), index expressions and predicates, and column
+    defaults, directly or through other functions. The migrations hold
+    LANGUAGE sql functions in 000001, 000016, 000020, 000024, 000029, 000031,
+    000035, 000038, 000043, 000046, 000047 and 000048, plus plpgsql
+    functions; each one reachable from those table definitions is in scope.
+    Trigger functions run only after the restore and are out of scope unless
+    a table definition also calls them. Other places that redact a password
+    with strings.ReplaceAll are in scope for the empty-value case.
+scope:
+  in:
+    - "A new migration that redefines every in-scope function so pg_restore resolves its references: prefer SQL-standard BEGIN ATOMIC bodies, which bind referenced objects when the function is created and stay inlinable; otherwise schema-independent qualification that still works in per-test schemas. Record the choice and its reason in docs/spec/platform/persistence.md."
+    - "A real-PostgreSQL guard that fails when a function reachable from a generated column, CHECK constraint, index expression or predicate, or column default has a string body with unresolved-at-restore references (for example: LANGUAGE sql without prosqlbody and without a pinned search_path), so a later migration cannot reintroduce the class."
+    - "The restore test passes for both blob backends and loads at least one row into every table whose CHECK constraints or generated columns call such a function, so evaluation during COPY is exercised."
+    - "runPostgresTool and every sibling redaction skip an empty secret."
+  out:
+    - "Changing the backup procedure or tooling; dump format and flags stay as documented."
+    - "Rewriting functions that only triggers call."
+acceptance_criteria:
+  - id: A1
+    text: "pg_dump --format=custom of a database migrated to the latest version, holding rows in the affected tables, restores with pg_restore --exit-on-error, and ApplyMigrations on the restored database applies nothing."
+  - id: A2
+    text: "The guard lists every function reachable from table definitions and accepts only restorable ones; it fails on the unfixed schema."
+  - id: A3
+    text: "The restore test fails on the unfixed code and passes after the fix; a failing tool's output is readable when the password is empty."
+tests:
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 -tags integration ./tests/integration/restore"
+    covers: [A1, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/persistence/..."
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2, A3]

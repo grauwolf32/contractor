@@ -5,7 +5,7 @@ milestone: terminal-summarizer-reasoning-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -18,7 +18,7 @@ goal: Authors can enable provider-supplied reasoning for the existing terminal s
 context:
   authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
     includeReasoning independently deliverable. This record plans work; it does not start implementation
-    or change existing delivery priorities.'
+    or change existing delivery priorities. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-sum together with V417-001, V417-003 and V420-002.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/configuration/agent-templates.md#TPL-R47

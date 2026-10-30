@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-105 open tasks: 37 in progress, 57 pending, 11 deferred. 1219 finished: 1204 completed, 15 archived.
+106 open tasks: 41 in progress, 54 pending, 11 deferred. 1219 finished: 1204 completed, 15 archived.
 
 ## In progress
 
@@ -48,6 +48,10 @@ the epics are in [epics.yml](epics.yml).
 | [V414-021](v414-021-migration-file-deadline.yml) | persistence | defect | P3 | Decide the client deadline of a migration file: per statement or a migration budget of its own |
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | evals | chore | P3 | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
 | [V414-024](v414-024-plan-tests-exact-reads.yml) | persistence | chore | P3 | Measure the V407-025 drain and held-credential row budgets with explaintest Analysis.Reads |
+| [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | planner-worker | feature | P1 | Make terminal summarizer reasoning input explicitly configurable |
+| [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
+| [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
+| [V425-003](v425-003-restorable-sql-function-references.yml) | persistence | defect | P1 | Make every SQL function that table definitions evaluate restorable by pg_restore |
 
 ## Pending
 
@@ -55,12 +59,9 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V417-001](v417-001-terminal-summarizer-include-reasoning.yml) | feature | P1 | — | Make terminal summarizer reasoning input explicitly configurable |
-| [V417-003](v417-003-isolated-worker-context-compaction.yml) | feature | P1 | — | Continue an isolated Worker through workflow-selected context compaction |
 | [V417-004](v417-004-shared-session-context-compaction.yml) | feature | P1 | V417-003 | Preserve compacted context across shared-session invocations |
 | [V417-006](v417-006-compactor-model-policy-selection.yml) | feature | P1 | V417-003 | Resolve reference-only compactor model policy overrides |
 | [V417-007](v417-007-context-compaction-state-and-ui.yml) | feature | P1 | V417-003 | Report compaction progress and costs without exposing context content |
-| [V420-002](v420-002-planner-compaction-vertical-slice.yml) | feature | P1 | — | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-003](v420-003-planner-compaction-fault-scale-conformance.yml) | chore | P1 | V420-002 | Verify Planner compaction persistence cancellation and scale boundaries |
 | [V420-004](v420-004-planner-compaction-diagnostics.yml) | feature | P1 | V420-002 | Expose bounded truthful Planner compaction diagnostics |
 
@@ -208,11 +209,11 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 4 | 16 | 9 | 8 | 13 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 34 | 11 | 54 |
-| Audits (`audits`) | 23 | 67 | 82 | 34 | 118 |
+| Audits (`audits`) | 23 | 67 | 82 | 34 | 119 |
 | Evaluations (`evals`) | 7 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 66 | 14 | 59 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 43 | 7 | 18 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
-| PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 44 | 13 |
+| PostgreSQL persistence and schema (`persistence`) | 7 | 0 | 25 | 44 | 13 |
 | Quality, CI and process (`quality`) | 16 | 1 | 27 | 102 | 23 |

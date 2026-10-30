@@ -5,7 +5,7 @@ milestone: worker-context-compaction-2026-10
 epic: planner-worker
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V417-002
 languages:
@@ -19,7 +19,7 @@ goal: A normal isolated Worker selected by compact@1 in a Workflow continues the
 context:
   authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
     includeReasoning independently deliverable. This record plans work; it does not start implementation
-    or change existing delivery priorities.'
+    or change existing delivery priorities. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-worker together with V417-001, V417-003 and V420-002.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/configuration/workflows.md#WFL-R86
