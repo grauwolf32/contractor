@@ -80,11 +80,11 @@ const COMPATIBILITY_REASONS: Readonly<Record<CompatibilityReason, string>> = {
   report_acceptance_unsupported:
     "This server cannot ask you to accept the report.",
   manual_item_unsupported: "This server cannot run manual items.",
-  pentest_capability_unsupported:
+  engagement_capability_unsupported:
     "This server does not yet support the required live-testing tools.",
-  pentest_source_closure_unsupported:
+  engagement_source_closure_unsupported:
     "This check could expose source code while source access is disabled.",
-  pentest_active_checks_unsupported:
+  engagement_active_checks_unsupported:
     "This check requires automatic live tests, which the current settings do not allow.",
 };
 

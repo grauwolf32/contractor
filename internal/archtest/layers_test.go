@@ -13,6 +13,11 @@ package archtest
 //     so fixed violations leave the list.
 //
 // Go itself rejects import cycles, so imports within one layer are allowed.
+//
+// SQL needs no import, so TestUpwardReadsNameTheirAcceptance in
+// internal/persistence reads layers as data to hold table reads to the same
+// stack (PER-R23): keep it a literal with a string name and string package
+// entries per layer.
 
 // layers lists the layers from the bottom up. An entry is a package path
 // relative to the module root; "dir/..." covers dir and every package below
@@ -65,7 +70,7 @@ var layers = []layerSpec{
 			"internal/auth",
 			"internal/contracts",
 			"internal/contracts/control",
-			"internal/contracts/pentestcontract",
+			"internal/contracts/engagementcontract",
 			"internal/contracts/llmgateway",
 			"internal/contracts/reporting",
 			"internal/contracts/runlabels",

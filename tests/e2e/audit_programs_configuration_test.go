@@ -17,7 +17,7 @@ func TestAuditProgramsE2EConfigurationLoads(t *testing.T) {
 	root := stageE2EConfiguration(t, filepath.Join(repoRoot(t), "configs"), filepath.Join(t.TempDir(), "configs"), "http://127.0.0.1:1/v1")
 	installOrdinaryFindingFixture(t, root, "audit_asvs_source_verifier", "audit_asvs_source_verification", "fixture-ordinary-asvs")
 	installTypedCheckFixture(t, root)
-	installPentestFixture(t, root)
+	installEngagementFixture(t, root)
 	snapshot, err := configload.Load(root)
 	if err != nil {
 		t.Fatal(err)
@@ -44,9 +44,9 @@ func TestAuditProgramsE2EConfigurationLoads(t *testing.T) {
 		"asvs":         "audit_asvs_source_verifier@1",
 		"ordinary-run": "fixture-ordinary-asvs@1",
 		"findings":     "audit_openapi_operation_tracer@1",
-		"pentest":      "pentest_fixture_worker@1",
+		"engagement":   "engagement_fixture_worker@1",
 	}
-	for _, stage := range append(auditProgramGatewayStages(), findingsProducerStage("trace"), pentestFixtureStage()) {
+	for _, stage := range append(auditProgramGatewayStages(), findingsProducerStage("trace"), engagementFixtureStage()) {
 		t.Run(stage.name, func(t *testing.T) {
 			prefix, _, _ := strings.Cut(stage.name, "/")
 			template, err := snapshot.AgentTemplate(templates[prefix])

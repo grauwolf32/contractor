@@ -1039,28 +1039,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/audits/{auditId}/preflight": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                auditId: components["parameters"]["AuditId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Validate one exact Audit draft without contacting the target
-         * @description A bounded read of the authenticated owner's selected draft revision. Resolves exact input and credential metadata without target requests, DNS, login, secret material, authorization or durable holds. Start repeats validation; a successful preflight is not permission to execute.
-         */
-        post: operations["preflightAudit"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/v1/audits/{auditId}/start": {
         parameters: {
             query?: never;
@@ -4093,7 +4071,7 @@ export interface components {
             reportAcceptance: "automatic" | "human-required";
         };
         /** @enum {string} */
-        AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "active_check_approval_unsupported" | "finding_confirmation_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported" | "pentest_capability_unsupported" | "pentest_source_closure_unsupported" | "pentest_active_checks_unsupported";
+        AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "active_check_approval_unsupported" | "finding_confirmation_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported" | "engagement_capability_unsupported" | "engagement_source_closure_unsupported" | "engagement_active_checks_unsupported";
         AuditProfile: {
             ref: components["schemas"]["AuditProfileRef"];
             mode: components["schemas"]["AuditProfileMode"];
@@ -4565,15 +4543,6 @@ export interface components {
         AuditTimeLimitRequest: {
             /** @description Time allowed from start or resume, in seconds. Zero disables the Audit deadline. Omit at start to use the profile; omit at resume to retain paused time remaining, or renew the profile allowance after expiry. Pauses do not consume this allowance. */
             deadlineSeconds?: number;
-        };
-        AuditPreflightResponse: {
-            auditId: components["schemas"]["ResourceId"];
-            revision: number;
-            baselineInputDigest: components["schemas"]["Digest"];
-            serverCompatible: boolean;
-            compatibleCapabilities: string[];
-            missingCapabilities: string[];
-            reasons: components["schemas"]["AuditCompatibilityReason"][];
         };
         AuditStartResponse: {
             audit: components["schemas"]["Audit"];
@@ -5396,7 +5365,7 @@ export interface components {
         };
         RuntimeAdapterDiagnostic: {
             /** @enum {string} */
-            ref: "otlp-http@1" | "http-proxy@1" | "caido-graphql@1" | "interactsh-http@1" | "pentest-target-http@1";
+            ref: "otlp-http@1" | "http-proxy@1" | "caido-graphql@1" | "interactsh-http@1" | "http-target@1";
             operations: components["schemas"]["DiagnosticUnsignedDecimal"];
             failedOperations: components["schemas"]["DiagnosticUnsignedDecimal"];
             flushAttempted?: boolean;
@@ -10486,47 +10455,6 @@ export interface operations {
             404: components["responses"]["NotFound"];
             409: components["responses"]["Conflict"];
             412: components["responses"]["PreconditionFailed"];
-            500: components["responses"]["InternalError"];
-            503: components["responses"]["StorageTransactionConflict"];
-        };
-    };
-    preflightAudit: {
-        parameters: {
-            query?: never;
-            header: {
-                "If-Match": components["parameters"]["RequiredIfMatch"];
-                /** @description Required with exact allowlist match when sessionCookie authenticates an unsafe request. */
-                Origin?: components["parameters"]["OptionalOrigin"];
-                /** @description Required for sessionCookie authentication; omitted for bearerAuth. */
-                "X-CSRF-Token"?: components["parameters"]["OptionalCSRFToken"];
-            };
-            path: {
-                auditId: components["parameters"]["AuditId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Exact draft input digest and non-executing compatibility result */
-            200: {
-                headers: {
-                    "X-Request-ID": components["headers"]["RequestId"];
-                    ETag: components["headers"]["ETag"];
-                    "Cache-Control": components["headers"]["NoStore"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AuditPreflightResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["Unauthorized"];
-            403: components["responses"]["Forbidden"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            412: components["responses"]["PreconditionFailed"];
-            413: components["responses"]["PayloadTooLarge"];
-            422: components["responses"]["AuditStartUnprocessable"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
         };

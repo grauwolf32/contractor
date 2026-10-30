@@ -155,7 +155,7 @@ func NewHTTPOriginBearerCredential(token string) (RuntimeCredentialMaterial, err
 	}{Token: token})
 }
 
-// NewTargetBasicCredential is a pentest target identity's Basic pair. It
+// NewTargetBasicCredential is a engagement target identity's Basic pair. It
 // keeps the HTTP origin Basic bounds (RCF-R114).
 func NewTargetBasicCredential(username, password string) (RuntimeCredentialMaterial, error) {
 	if !validBoundedSecret(username, 256) || !validBoundedSecret(password, MaximumRuntimeSecretBytes) || strings.Contains(username, ":") {
@@ -167,7 +167,7 @@ func NewTargetBasicCredential(username, password string) (RuntimeCredentialMater
 	}{Password: password, Username: username})
 }
 
-// NewTargetBearerCredential is a pentest target identity's bearer token. It
+// NewTargetBearerCredential is a engagement target identity's bearer token. It
 // keeps the bearer token bound and field-value grammar (RCF-R114).
 func NewTargetBearerCredential(token string) (RuntimeCredentialMaterial, error) {
 	if !validFieldValue(token, MaximumRuntimeSecretBytes) {
@@ -358,12 +358,20 @@ func (e *RuntimeCredentialInUseError) ErrorKind() apierror.Kind {
 	return apierror.RuntimeCredentialInUse
 }
 
-// RuntimeCredentialUsageChecker reports the RuntimeConfig bindings, Projects,
-// Runs and allocations that reference a Runtime credential: every field of
-// RuntimeCredentialUsage except AuditIDs, which RuntimeCredentialAuditHoldLookup
-// reports.
+// RuntimeCredentialUsageChecker reports the RuntimeConfig bindings, Runs and
+// allocations that reference a Runtime credential: every field of
+// RuntimeCredentialUsage except ProjectIDs, which
+// RuntimeCredentialProjectLookup reports, and AuditIDs, which
+// RuntimeCredentialAuditHoldLookup reports.
 type RuntimeCredentialUsageChecker interface {
 	InspectRuntimeCredentialUsage(context.Context, string, int) (RuntimeCredentialUsage, error)
+}
+
+// RuntimeCredentialProjectLookup reports, up to a limit and by Project ID, the
+// Projects whose HTTP target uses a Runtime credential; projectstore, which
+// owns the Projects, implements it.
+type RuntimeCredentialProjectLookup interface {
+	ListProjectIDsByHTTPTargetCredential(context.Context, string, int) ([]string, error)
 }
 
 // RuntimeCredentialAuditHoldLookup reports, up to a limit, the Audits whose

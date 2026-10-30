@@ -24,12 +24,13 @@ type RuntimeCredentialServiceOptions struct {
 	Pool *pgxpool.Pool
 	// Lease is the active Server's advisory lease, which every create and
 	// delete proves in its own transaction (PER-R34).
-	Lease   persistencepostgres.ServerLease
-	Cipher  *TokenCipher
-	Usage   RuntimeCredentialUsageChecker
-	Audits  RuntimeCredentialAuditHoldLookup
-	Barrier *LifecycleBarrier
-	Now     func() time.Time
+	Lease    persistencepostgres.ServerLease
+	Cipher   *TokenCipher
+	Usage    RuntimeCredentialUsageChecker
+	Projects RuntimeCredentialProjectLookup
+	Audits   RuntimeCredentialAuditHoldLookup
+	Barrier  *LifecycleBarrier
+	Now      func() time.Time
 }
 
 type RuntimeCredentialService struct {
@@ -38,6 +39,7 @@ type RuntimeCredentialService struct {
 	repository *RuntimeCredentialRepository
 	cipher     *TokenCipher
 	usage      RuntimeCredentialUsageChecker
+	projects   RuntimeCredentialProjectLookup
 	audits     RuntimeCredentialAuditHoldLookup
 	barrier    *LifecycleBarrier
 	now        func() time.Time
@@ -51,8 +53,8 @@ func (s *RuntimeCredentialService) Format(state fmt.State, _ rune) {
 }
 
 func NewRuntimeCredentialService(options RuntimeCredentialServiceOptions) (*RuntimeCredentialService, error) {
-	if options.Pool == nil || !options.Lease.Valid() || options.Usage == nil || options.Audits == nil ||
-		options.Barrier == nil {
+	if options.Pool == nil || !options.Lease.Valid() || options.Usage == nil || options.Projects == nil ||
+		options.Audits == nil || options.Barrier == nil {
 		return nil, errors.New("Runtime credential lifecycle dependencies are incomplete")
 	}
 	if options.Now == nil {
@@ -60,7 +62,7 @@ func NewRuntimeCredentialService(options RuntimeCredentialServiceOptions) (*Runt
 	}
 	return &RuntimeCredentialService{
 		pool: options.Pool, lease: options.Lease, repository: NewRuntimeCredentialRepository(options.Pool),
-		cipher: options.Cipher, usage: options.Usage, audits: options.Audits,
+		cipher: options.Cipher, usage: options.Usage, projects: options.Projects, audits: options.Audits,
 		barrier: options.Barrier, now: options.Now,
 	}, nil
 }
@@ -298,6 +300,11 @@ func (s *RuntimeCredentialService) Delete(
 			return getErr
 		}
 		usage, usageErr := s.usage.InspectRuntimeCredentialUsage(ctx, credentialID, maximumRuntimeCredentialReferences)
+		if usageErr == nil {
+			usage.ProjectIDs, usageErr = s.projects.ListProjectIDsByHTTPTargetCredential(
+				ctx, credentialID, maximumRuntimeCredentialReferences,
+			)
+		}
 		if usageErr == nil {
 			usage.AuditIDs, usageErr = s.audits.ListHeldAuditIDsByRuntimeCredential(
 				ctx, credentialID, maximumRuntimeCredentialReferences,

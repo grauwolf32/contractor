@@ -1,7 +1,7 @@
 {
   "description": "Every private wire fixture: the message type both languages decode it as, the JSON Schema that must accept or reject it, and for invalid fixtures whether the strict decoder rejects it and the private codec error class.",
   "valid": {
-    "allocation-spec-pentest-metadata.json": {
+    "allocation-spec-engagement-metadata.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json"
     },
@@ -165,117 +165,45 @@
       "type": "WorkspaceCapabilities",
       "schema": "agent-registration.schema.json#/$defs/WorkspaceCapabilities"
     },
-    "pentest-action-prepare.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-grant.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-sending.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-started.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-settle.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-reply-prepared.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-reply-waiting.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-reply-authorized.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-reply-sending.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-reply-started.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-reply-completed.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-reply-failed.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-reply-unknown_outcome.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-reply-cancelled_before_send.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-reply-denied.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-transport-stop.json": {
-      "type": "PentestTransportRequest",
-      "schema": "pentest-transport-request.schema.json"
-    },
-    "pentest-transport-stopped.json": {
-      "type": "PentestTransportResponse",
-      "schema": "pentest-transport-response.schema.json"
-    },
-    "pentest-allocation-preflight.json": {
+    "engagement-allocation-preflight.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json"
     },
-    "agent-registration-pentest.json": {
+    "agent-registration-engagement.json": {
       "type": "AgentRegistration",
       "schema": "agent-registration.schema.json"
     },
-    "pentest-allocation-basic.json": {
+    "engagement-allocation-basic.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json"
     },
-    "pentest-action-request-identity.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-allocation-cookies.json": {
+    "engagement-allocation-cookies.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json"
     }
   },
   "invalid": {
-    "allocation-spec-pentest-alias.json": {
+    "allocation-spec-engagement-alias.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json",
       "strict": true
     },
-    "allocation-spec-pentest-unknown-field.json": {
+    "allocation-spec-engagement-unknown-field.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json",
       "strict": true
     },
-    "allocation-spec-pentest-execution-capability.json": {
+    "allocation-spec-engagement-execution-capability.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json",
       "strict": true
     },
-    "allocation-spec-pentest-assigned-route.json": {
+    "allocation-spec-engagement-assigned-route.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json",
       "strict": true
     },
-    "allocation-spec-pentest-null.json": {
+    "allocation-spec-engagement-null.json": {
       "type": "AllocationSpec",
       "schema": "allocation.schema.json",
       "strict": true
@@ -641,463 +569,27 @@
       "type": "WorkspaceCapabilities",
       "reason": "invariant"
     },
-    "pentest-action-prepare-runtimeAgentId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-prepare-ActionId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-prepare-grant_id.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-prepare-null-prepare.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-prepare-null-grantId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-prepare-null-outcome.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-grant-runtimeAgentId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-grant-ActionId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-grant-grant_id.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-grant-null-prepare.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-grant-null-grantId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-grant-null-outcome.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-sending-runtimeAgentId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-sending-ActionId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-sending-grant_id.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-sending-null-prepare.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-sending-null-grantId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-sending-null-outcome.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-started-runtimeAgentId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-started-ActionId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-started-grant_id.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-started-null-prepare.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-started-null-grantId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-started-null-outcome.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-settle-runtimeAgentId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-settle-ActionId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-settle-grant_id.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-settle-null-prepare.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-settle-null-grantId.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-settle-null-outcome.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-action-prepare-unrelated-empty.json": {
-      "type": "PentestActionCommand",
-      "schema": "pentest-action-command.schema.json",
-      "strict": true
-    },
-    "pentest-reply-prepared-bad-allowanceMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-prepared-bad-retryAfterMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-prepared-bad-grant_id.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-waiting-bad-allowanceMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-waiting-bad-retryAfterMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-waiting-bad-grant_id.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-authorized-bad-allowanceMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-authorized-bad-retryAfterMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-authorized-bad-grant_id.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-sending-bad-allowanceMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-sending-bad-retryAfterMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-sending-bad-grant_id.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-started-bad-allowanceMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-started-bad-retryAfterMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-started-bad-grant_id.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-completed-bad-allowanceMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-completed-bad-retryAfterMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-completed-bad-grant_id.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-failed-bad-allowanceMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-failed-bad-retryAfterMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-failed-bad-grant_id.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-unknown_outcome-bad-allowanceMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-unknown_outcome-bad-retryAfterMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-unknown_outcome-bad-grant_id.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-cancelled_before_send-bad-allowanceMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-cancelled_before_send-bad-retryAfterMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-cancelled_before_send-bad-grant_id.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-denied-bad-allowanceMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-denied-bad-retryAfterMs.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-reply-denied-bad-grant_id.json": {
-      "type": "PentestActionReply",
-      "schema": "pentest-action-reply.schema.json",
-      "strict": true
-    },
-    "pentest-prepare-invalid-redirectHop.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-prepare-invalid-retryOrdinal.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-prepare-invalid-previousAttemptId.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-prepare-type-seedIndex.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-prepare-type-redirectHop.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-prepare-type-retryOrdinal.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-outcome-invalid-statusCode.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-outcome-invalid-responseBytes.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-outcome-invalid-reason.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-outcome-invalid-redirectTargetDigest.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-identity-invalid-grantId.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-identity-invalid-actionId.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-identity-invalid-attemptId.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-identity-invalid-apiVersion.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-authorized-zero.json": {
-      "type": "PentestActionReply",
-      "strict": true,
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-authorized-too-long.json": {
-      "type": "PentestActionReply",
-      "strict": true,
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-waiting-too-long.json": {
-      "type": "PentestActionReply",
-      "strict": true,
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-failed-response-body.json": {
-      "type": "PentestActionReply",
-      "strict": true,
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-failed-status.json": {
-      "type": "PentestActionReply",
-      "strict": true,
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-unknown-overflow.json": {
-      "type": "PentestActionReply",
-      "strict": true,
-      "schema": "pentest-action-reply.schema.json"
-    },
-    "pentest-stopped-false-type.json": {
-      "type": "PentestTransportResponse",
-      "strict": true,
-      "schema": "pentest-transport-response.schema.json"
-    },
-    "pentest-assignment-invalid-adapter.json": {
+    "engagement-assignment-invalid-adapter.json": {
       "type": "AllocationSpec",
       "strict": true,
       "schema": "allocation.schema.json"
     },
-    "pentest-assignment-invalid-protectedDestinations.json": {
+    "engagement-assignment-invalid-protectedDestinations.json": {
       "type": "AllocationSpec",
       "strict": true,
       "schema": "allocation.schema.json"
     },
-    "pentest-assignment-invalid-identity.json": {
+    "engagement-assignment-invalid-identity.json": {
       "type": "AllocationSpec",
       "strict": true,
       "schema": "allocation.schema.json"
     },
-    "pentest-assignment-unknown-optional.json": {
+    "engagement-assignment-unknown-optional.json": {
       "type": "AllocationSpec",
       "strict": true,
       "schema": "allocation.schema.json"
     },
-    "pentest-action-invalid-unknown-phase.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-invalid-generation-overflow.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-invalid-identity-grammar.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-action-invalid-identity-type.json": {
-      "type": "PentestActionCommand",
-      "strict": true,
-      "schema": "pentest-action-command.schema.json"
-    },
-    "pentest-transport-unconfirmed.json": {
-      "type": "PentestTransportResponse",
-      "strict": true,
-      "reason": "invariant",
-      "schema": "pentest-transport-response.schema.json"
-    },
-    "pentest-assignment-duplicate-credential.json": {
+    "engagement-assignment-duplicate-credential.json": {
       "type": "AllocationSpec",
       "strict": true,
       "reason": "invariant"

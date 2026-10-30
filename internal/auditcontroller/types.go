@@ -45,8 +45,6 @@ var (
 // seam of the Audit store. Collection and report finalization use the
 // separate collector.
 type Store interface {
-	ListPentestPendingAllocations(context.Context, auditstore.ControllerClaim) ([]string, error)
-	ReconcilePentestActions(context.Context, auditstore.ControllerClaim, []auditstore.StoppedAllocation) (bool, error)
 	Claim(context.Context, auditstore.ClaimParams) ([]auditstore.ControllerClaim, error)
 	ReleaseClaim(context.Context, auditstore.ControllerClaim) error
 	RenewClaim(context.Context, auditstore.ControllerClaim, time.Duration) error
@@ -79,7 +77,6 @@ type Reader interface {
 // RunStore is what the Controller reads and requests of its child Runs beyond
 // the lifecycle states its reconcile snapshot carries.
 type RunStore interface {
-	ReadPentestTransportStops(context.Context, []string) ([]runstore.PentestTransportStop, error)
 	GetRunEventCursor(context.Context, string) (runstore.WorkflowRunEventCursor, error)
 	RequestRunCancellation(context.Context, string, runstore.WorkflowRunCancellation) (runstore.WorkflowRun, error)
 }

@@ -1,0 +1,84 @@
+schema_version: "1.0"
+id: V422-003
+title: "Run Nuclei with the engagement's allocation-local HTTP authority"
+milestone: controlled-pentest-scanners-2026-10
+epic: scan-tools
+kind: feature
+priority: P2
+status: pending
+depends_on: [V422-002]
+languages: [go, python, yaml]
+goal: >-
+  Nuclei can run inside an engagement Audit with Runtime-local scope,
+  credential isolation and optional HTTP limits from that exact allocation,
+  without per-request Server authorization or a scanner bypass.
+context:
+  authority: "Explicit user request on 2026-10-30 to refactor and configure Nuclei after the pentest cleanup"
+  specification:
+    - docs/spec/tools/scanners.md
+    - docs/spec/tools/http-caido.md
+    - docs/spec/audits/audits.md
+  code:
+    - runtime/src/contractor_runtime/toolsets/scan
+    - runtime/src/contractor_runtime/adapters/http_transport.py
+    - internal/config/resolved/descriptors.go
+scope:
+  in:
+    - "Inspect the actual Nuclei invocation and template protocols before choosing the local integration"
+    - "Reuse the allocation-owned HTTP authority, optional limits and lifecycle for supported Nuclei HTTP execution"
+    - "Support explicit assigned credential selection without leaking private values into argv, output, telemetry or artifacts"
+    - "Reject unsupported templates, transports and execution options before target traffic"
+    - "Verify real Nuclei traffic, forbidden destinations, retry, limits and cancellation"
+  out:
+    - "Browser, DNS, TCP, headless, code and OAST execution without a demonstrated enforceable engagement boundary"
+    - "Server per-request journal, distributed request quotas or new persistent stores"
+requirements:
+  - id: R1
+    text: "The same allocation HTTP policy owns Nuclei target requests and ordinary HTTP tool requests"
+  - id: R2
+    text: "Only configured limits apply; each allocation has independent counters and missing limits remain absent"
+  - id: R3
+    text: "Unsupported scanner paths remain rejected rather than bypassing engagement scope"
+failure_outcomes:
+  - operation: "Run Nuclei under engagement authority"
+    permanent: "Invalid scope, unknown credential, unsupported template/protocol and exhausted configured limits reject without a fallback send"
+    retryable: "Only existing bounded pre-send GET/HEAD/OPTIONS transport retry; no scanner-level replay of writes"
+    ambiguous: "End the call without automatic replay or a durable possibly-sent marker"
+    cancelled: "Join the Nuclei process and allocation HTTP tasks before closing local resources and clearing secrets"
+    timeout: "Existing scanner and allocation deadlines bound the process and transport independently"
+cardinality:
+  - collection: "Selected Nuclei templates and physical requests"
+    expected: "One pinned HTTP template selection per invocation"
+    maximum: "Existing rulepack, output and selected-template bounds; configured allocation request/concurrency limits"
+    bound: "Reuse streaming scanner output bounds and the existing allocation-owned transport"
+lifecycle:
+  - entity: "Allocation-owned Nuclei execution"
+    delete: "Ordinary allocation teardown cancels and joins it"
+    cascade: "Close any local bridge and all subprocess/HTTP work with the owning allocation"
+    retention: "Only ordinary normalized scanner reports and explicitly selected evidence survive"
+acceptance_criteria:
+  - id: A1
+    given: "An engagement with explicit optional HTTP limits and a supported Nuclei HTTP selection"
+    when: "The Audit executes scan_nuclei"
+    then: "Real Nuclei requests obey the same scope, credentials and allocation-local limits as HTTP tools"
+  - id: A2
+    given: "A forbidden origin/path/method/address or unsupported scanner protocol"
+    when: "Nuclei would issue traffic"
+    then: "The adapter refuses it and the forbidden target observes no request bytes"
+  - id: A3
+    given: "An in-flight Nuclei scan"
+    when: "Cancellation, timeout, lease loss or release occurs"
+    then: "The process and transport join and secrets are cleared without automatic replay of writes"
+  - id: A4
+    given: "Existing standalone Nuclei workflows"
+    when: "The integration is enabled for engagement Audits"
+    then: "Standalone behavior and normalized reports retain their contracts"
+tests:
+  - command: "Real installed Nuclei integration against disposable local HTTP targets, including denied routes and cancellation"
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A1, A2, A3, A4]
+  - command: "Go tests for every changed Server package and relevant process gate with disposable PostgreSQL"
+    covers: [A1, A2, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]

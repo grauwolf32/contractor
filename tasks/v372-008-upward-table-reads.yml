@@ -91,3 +91,34 @@ tests:
     covers: [A3]
   - command: make lint
     covers: [A1, A2, A3]
+decisions:
+  - >-
+    2026-10-30: credentials' read of projectstore's projects is inverted, the way its Audit
+    holds already were: RuntimeCredentialProjectLookup (internal/credentials/runtime_types.go)
+    is implemented by projectstore.PostgresStore.ListProjectIDsByHTTPTargetCredential and
+    wired in internal/app/composition_credentials.go; the Runtime credential service refuses
+    to start without it. The read needed no shared statement (usage was already several
+    reads under the credential lifecycle barrier), so nothing is lost. Regression test
+    TestRuntimeCredentialPostgresDeleteRefusesAProjectHTTPTarget; the [reads] grant is gone.
+  - >-
+    2026-10-30: the other upward reads are accepted, each recorded as a row of "Accepted upward
+    reads" in docs/spec/platform/persistence.md with the guarantee, alternatives and reopen
+    condition, and each registry entry names its record (PER-UR-n): PER-UR-1 artifacts
+    reading workflow_runs (Run-in-Project proof in the Artifact statement; project_id is
+    immutable), PER-UR-2 telemetry reading workflow_runs, stage_executions and
+    stage_allocations (history and diagnostics pages and retention decided in one
+    statement), PER-UR-3 gatewayrecovery reading the same three (SCH-R165 single read and
+    the participant fence in the recovery snapshot or Run row lock), PER-UR-4 runstore
+    reading projects (queue page; resumption FOR SHARE fence in the resuming transaction),
+    PER-UR-5 telemetry reading eval_submissions and audit_executions through
+    contractor_eval_run_members, which V372-009 made visible. Inverting PER-UR-2..4 means a
+    port called per page or inside the owner's lock, and runstore is being changed by
+    another lane in this wave; the records' reopen conditions name when that changes.
+  - >-
+    2026-10-30: the check (internal/persistence/upward_reads_test.go) reads the layers literal
+    of internal/archtest/layers_test.go with go/parser, so both checks share one list; that
+    file's header now says to keep the literal parseable. It covers [reads] and [routines]
+    read entries; an entry passes when its reason names an open task (taskState as for
+    [known]) or a PER-UR record that lists that reader and relation, and a record fails when
+    a reader and relation it lists is not named by an upward entry. Run on b523ae77's
+    registry it reports the nine upward [reads] entries of the finding.

@@ -244,7 +244,7 @@ async def discover_capabilities(
         if result is True:
             runtime_adapters.append(ref)
 
-    target_factory = factories.pentest_target_factory
+    target_factory = factories.http_transport_factory
     if target_factory is not None:
         result = await _probe_one(
             "runtime_adapter",

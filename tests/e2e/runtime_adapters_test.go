@@ -44,17 +44,17 @@ func TestRuntimeAdapterSelectionAllowsAdditionalCapabilities(t *testing.T) {
 		}{
 			{
 				name: "additional built-in adapter", want: true,
-				supported: []string{"http-proxy@1", "pentest-target-http@1"},
+				supported: []string{"http-proxy@1", "http-target@1"},
 				required:  []string{"http-proxy@1"},
 			},
 			{
 				name: "required adapters in different order", want: true,
-				supported: []string{"pentest-target-http@1", "otlp-http@1", "http-proxy@1"},
+				supported: []string{"http-target@1", "otlp-http@1", "http-proxy@1"},
 				required:  []string{"http-proxy@1", "otlp-http@1"},
 			},
 			{
 				name:      "one requirement missing",
-				supported: []string{"http-proxy@1", "pentest-target-http@1"},
+				supported: []string{"http-proxy@1", "http-target@1"},
 				required:  []string{"http-proxy@1", "caido-graphql@1"},
 			},
 			{
@@ -72,13 +72,13 @@ func TestRuntimeAdapterSelectionAllowsAdditionalCapabilities(t *testing.T) {
 	proxy := observedRuntimePrincipal{
 		RuntimeAgentID: "proxy",
 		Live: &observedRuntimeAgent{
-			SupportedRuntimeAdapters: []string{"pentest-target-http@1", "http-proxy@1"},
+			SupportedRuntimeAdapters: []string{"http-target@1", "http-proxy@1"},
 		},
 	}
 	caido := observedRuntimePrincipal{
 		RuntimeAgentID: "caido",
 		Live: &observedRuntimeAgent{
-			SupportedRuntimeAdapters: []string{"caido-graphql@1", "pentest-target-http@1"},
+			SupportedRuntimeAdapters: []string{"caido-graphql@1", "http-target@1"},
 		},
 	}
 	principals := []observedRuntimePrincipal{{RuntimeAgentID: "offline"}, caido, proxy}
@@ -93,7 +93,7 @@ func TestRuntimeAdapterSelectionAllowsAdditionalCapabilities(t *testing.T) {
 		}
 	})
 	t.Run("ambiguous principal", func(t *testing.T) {
-		if _, ok := findPrincipalWithAdapters(principals, "pentest-target-http@1"); ok {
+		if _, ok := findPrincipalWithAdapters(principals, "http-target@1"); ok {
 			t.Fatal("selected a principal when two live principals match")
 		}
 	})

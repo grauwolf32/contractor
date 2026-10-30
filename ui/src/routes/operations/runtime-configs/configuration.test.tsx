@@ -423,7 +423,7 @@ describe("Runtime configuration hub navigation", () => {
     );
   });
 
-  it("creates a ready pentest cookie credential without exposing values", async () => {
+  it("creates a ready HTTP cookie credential without exposing values", async () => {
     const secret = "target-cookie-secret";
     const { user, server } = setupWithCreate();
     await user.click(
@@ -438,7 +438,7 @@ describe("Runtime configuration hub navigation", () => {
     );
     await user.selectOptions(
       within(dialog).getByLabelText("Credential kind"),
-      "Pentest target cookies",
+      "HTTP target cookies",
     );
     const values = within(dialog).getAllByLabelText(/Cookie value/);
     expect(

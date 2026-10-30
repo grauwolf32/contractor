@@ -231,9 +231,6 @@ func (s *Scheduler) prepareStageWorkers(ctx context.Context, run runstore.Workfl
 	// Runtime Agents may receive below, even when preparation then fails
 	// part-way (SCH-R178).
 	s.preparedSecrets.store(execution.StageExecutionID, reservations, workerSettings)
-	for index := range reservations {
-		reservations[index].PentestDeadline = stageDeadline
-	}
 	// The WorkerController bounds the batch by its own prepare deadline
 	// (runtimeLifecycle.prepareTimeout); ctx contributes only cancellation.
 	handles, err := s.workers.PrepareAll(ctx, reservations, workerSettings)

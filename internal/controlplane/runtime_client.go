@@ -18,7 +18,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/control"
-	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/mtls"
@@ -51,13 +51,9 @@ func (e *RuntimeAPIError) Error() string {
 // (CTL-R164): Release closes the released principal's connections and Close
 // ends them all when the Server stops.
 type RuntimeControlClient struct {
-	pentestMaterials        func(context.Context, *pentestcontract.AllocationProjection) (map[string]runtimesettings.PentestIdentityMaterial, error)
-	pentestDeadlineRecorder func(context.Context, Reservation, time.Time) error
-	pentestPending          func(context.Context, Reservation) (bool, error)
-	pentestRequired         func(context.Context, Reservation) (bool, error)
-	pentestStopped          func(context.Context, Reservation) error
-	engagementResolver      func(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (*pentestcontract.AllocationProjection, error)
-	grantReader             interface {
+	engagementMaterials func(context.Context, *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error)
+	engagementResolver  func(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (*engagementcontract.AllocationProjection, error)
+	grantReader         interface {
 		GetGrant(string) (AllocationGrant, error)
 	}
 	client       *http.Client
@@ -86,23 +82,23 @@ func NewMTLSRuntimeControlClient(files mtls.Files, timeout time.Duration) (*Runt
 // WithEngagementResolver binds the Audit-owned projection port at composition.
 // The resolver performs I/O without holding the Registry mutex; the grant is
 // checked again afterwards, immediately before the private prepare request.
-func (c *RuntimeControlClient) WithEngagementResolver(resolve func(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (*pentestcontract.AllocationProjection, error), grants interface {
+func (c *RuntimeControlClient) WithEngagementResolver(resolve func(context.Context, Reservation, runtimesettings.WorkerExecutionSettings) (*engagementcontract.AllocationProjection, error), grants interface {
 	GetGrant(string) (AllocationGrant, error)
 }) *RuntimeControlClient {
 	c.engagementResolver, c.grantReader = resolve, grants
 	return c
 }
 
-// WithPentestMaterials binds the private decrypt port after trusted assignment
+// WithEngagementMaterials binds the private decrypt port after trusted assignment
 // resolution. No credential material is published in allocation provenance.
-func (c *RuntimeControlClient) WithPentestMaterials(resolve func(context.Context, *pentestcontract.AllocationProjection) (map[string]runtimesettings.PentestIdentityMaterial, error)) *RuntimeControlClient {
-	c.pentestMaterials = resolve
+func (c *RuntimeControlClient) WithEngagementMaterials(resolve func(context.Context, *engagementcontract.AllocationProjection) (map[string]runtimesettings.HTTPIdentityMaterial, error)) *RuntimeControlClient {
+	c.engagementMaterials = resolve
 	return c
 }
 
-// clearPentestMaterials drops private target values immediately after the
+// clearEngagementMaterials drops private target values immediately after the
 // prepare response is checked, or on any earlier error. It is safe to repeat.
-func clearPentestMaterials(material map[string]runtimesettings.PentestIdentityMaterial) {
+func clearEngagementMaterials(material map[string]runtimesettings.HTTPIdentityMaterial) {
 	for id, value := range material {
 		clear(value.Fields)
 		delete(material, id)
@@ -153,13 +149,13 @@ func (c *RuntimeControlClient) Prepare(
 			return contracts.WorkerHandle{}, err
 		}
 
-		spec.PentestEngagement = projection
-		if projection != nil && projection.HTTP != nil && c.pentestMaterials != nil {
+		spec.Engagement = projection
+		if projection != nil && projection.HTTP != nil && c.engagementMaterials != nil {
 			materialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			material, materialErr := c.pentestMaterials(materialCtx, projection)
+			material, materialErr := c.engagementMaterials(materialCtx, projection)
 			cancel()
-			spec.RuntimeSettings.PentestIdentities = material
-			defer clearPentestMaterials(material)
+			spec.RuntimeSettings.HTTPIdentities = material
+			defer clearEngagementMaterials(material)
 			if materialErr != nil {
 				return contracts.WorkerHandle{}, materialErr
 			}
@@ -170,7 +166,7 @@ func (c *RuntimeControlClient) Prepare(
 			uncontrolled = resolved.TemplateRequiresUncontrolledNetwork(spec.AgentTemplate)
 		}
 		if projection != nil && uncontrolled {
-			return contracts.WorkerHandle{}, fmt.Errorf("%w: pentest metadata does not authorize target transport", ErrInvalidRequest)
+			return contracts.WorkerHandle{}, fmt.Errorf("%w: engagement metadata does not authorize target transport", ErrInvalidRequest)
 		}
 		if c.grantReader == nil {
 			return contracts.WorkerHandle{}, fmt.Errorf("%w: allocation grant reader is unavailable", ErrInvalidRequest)
@@ -191,30 +187,6 @@ func (c *RuntimeControlClient) Prepare(
 	if err := request.Validate(); err != nil {
 		return contracts.WorkerHandle{}, fmt.Errorf("build prepare request: %w", err)
 	}
-	if spec.PentestEngagement != nil && spec.PentestEngagement.HTTP != nil {
-		deadline, err := pentestPreparationDeadline(ctx, reservation)
-		if err != nil {
-			return contracts.WorkerHandle{}, err
-		}
-		stageDeadline, err := pentestTargetDeadline(reservation)
-		if err != nil {
-			return contracts.WorkerHandle{}, err
-		}
-		if c.pentestDeadlineRecorder == nil {
-			return contracts.WorkerHandle{}, fmt.Errorf("%w: pentest deadline recorder is unavailable", ErrInvalidRequest)
-		}
-		bounded, cancel := context.WithDeadline(ctx, deadline)
-		defer cancel()
-		if err := bounded.Err(); err != nil {
-			return contracts.WorkerHandle{}, err
-		}
-		// Stage authority is durable data; bounded remains the original, shorter
-		// prepare operation context and is never extended to that authority.
-		if err := c.pentestDeadlineRecorder(bounded, reservation, stageDeadline); err != nil {
-			return contracts.WorkerHandle{}, err
-		}
-		ctx = bounded
-	}
 	var response control.PrepareAllocationResponse
 	if err := c.postJSON(
 		ctx, reservation.ControlURL, reservation.Grant.AllocationID,
@@ -225,7 +197,7 @@ func (c *RuntimeControlClient) Prepare(
 	if err := validateWorkerHandle(response.WorkerHandle, reservation, spec.RuntimeSettings); err != nil {
 		return contracts.WorkerHandle{}, err
 	}
-	clearPentestMaterials(spec.RuntimeSettings.PentestIdentities)
+	clearEngagementMaterials(spec.RuntimeSettings.HTTPIdentities)
 	response.WorkerHandle.RuntimeAgentID = reservation.Grant.RuntimeAgentID
 	return response.WorkerHandle, nil
 }
@@ -299,9 +271,6 @@ func (c *RuntimeControlClient) Release(ctx context.Context, reservation Reservat
 		// call of this allocation follows, and a retry or the next allocation
 		// opens and verifies a new connection (CTL-R164).
 		defer c.transports.Evict(reservation.Grant.RuntimeAgentID)
-	}
-	if err := c.stopPentestTransport(ctx, reservation); err != nil {
-		return err
 	}
 	request := control.ReleaseAllocationRequest{
 		APIVersion: contracts.APIVersion, AllocationID: reservation.Grant.AllocationID,
