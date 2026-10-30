@@ -80,7 +80,7 @@ func TestSchedulerDispatchesFixedScanWorkersWithDurableClaimAndNoModelAccess(t *
 				t.Fatalf("scan RunOnce = worked:%t err:%v state:%s reason:%+v", worked, err, h.store.run.State, h.store.run.StateReason)
 			}
 			invocation := h.planners.invocation
-			if registry.ref != planner.ScanPlanRef || h.planners.runCalls != 1 || invocation.SchedulerClaimID == "" || invocation.SchedulerClaimID != claimedStore.lastClaim {
+			if registry.ref != resolved.ScanPlanPlanner || h.planners.runCalls != 1 || invocation.SchedulerClaimID == "" || invocation.SchedulerClaimID != claimedStore.lastClaim {
 				t.Fatalf("Planner identity/claim = ref:%s calls:%d invocation:%q claimed:%q", registry.ref, h.planners.runCalls, invocation.SchedulerClaimID, claimedStore.lastClaim)
 			}
 			if invocation.ModelAccess != nil || invocation.Stage.ExecutionConfig.Planner != nil || credentialCalls != 0 {
@@ -176,10 +176,10 @@ type scanPlannerRegistry struct {
 
 func (r *scanPlannerRegistry) Create(ref string, invocation planner.Invocation) (planner.Planner, error) {
 	r.ref = ref
-	if ref != planner.ScanPlanRef || r.store.run.SchedulerClaim == nil || invocation.SchedulerClaimID != r.store.run.SchedulerClaim.ClaimID {
+	if ref != resolved.ScanPlanPlanner || r.store.run.SchedulerClaim == nil || invocation.SchedulerClaimID != r.store.run.SchedulerClaim.ClaimID {
 		r.t.Fatalf("scan Planner did not receive the current durable Run claim: ref=%s invocation=%q run=%+v", ref, invocation.SchedulerClaimID, r.store.run.SchedulerClaim)
 	}
 	// Reuse the harness lifecycle implementation after checking the selected
 	// factory identity; its semantic result is fixed by the test above.
-	return r.inner.Create(planner.PassthroughRef, invocation)
+	return r.inner.Create(resolved.PassthroughPlanner, invocation)
 }

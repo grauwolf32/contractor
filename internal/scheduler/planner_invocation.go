@@ -26,7 +26,7 @@ func (s *Scheduler) invokeStagePlanner(ctx context.Context, run runstore.Workflo
 			run.RunID, execution.StageExecutionID, *route, modelAccess.LLMGateway.EffectiveFailureSignatures(),
 		)
 	}
-	plannerRef := workflow.stage.Planner.PlannerID + "@" + workflow.stage.Planner.Version
+	plannerRef := workflow.stage.Planner.Selector()
 	plannerTelemetry := s.newPlannerTelemetry(
 		ctx, run, execution, reservations, plannerRef, modelAccess,
 	)

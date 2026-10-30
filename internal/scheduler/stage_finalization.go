@@ -130,7 +130,7 @@ func (s *Scheduler) validateCandidate(
 	if err := result.Validate(); err != nil {
 		return err
 	}
-	if result.Summarized && (stage.Planner != (resolved.PlannerRef{PlannerID: "passthrough", Version: "1"}) || len(stage.Agents) != 1) {
+	if result.Summarized && (stage.Planner.Selector() != resolved.PassthroughPlanner || len(stage.Agents) != 1) {
 		return fmt.Errorf("only a passthrough Worker completion can request summary continuation")
 	}
 	if result.SummaryArtifact != nil {
@@ -161,15 +161,15 @@ func (s *Scheduler) validateCandidate(
 		if artifactpolicy.IsReservedMemoryBinding(ref.Namespace, ref.Name) {
 			return fmt.Errorf("Stage result artifact %q identifies a reserved Memory binding", name)
 		}
-		resolved, err := s.artifacts.Resolve(ctx, runID, ref)
+		resolvedArtifact, err := s.artifacts.Resolve(ctx, runID, ref)
 		if err != nil {
 			return verificationFailure(fmt.Errorf("verify Stage result artifact %q: %w", name, err))
 		}
-		if !ref.SameExact(resolved.Ref) ||
-			!contracts.AcceptsMediaType(stage.Result.Artifacts[name].MediaTypes, resolved.MediaType) {
+		if !ref.SameExact(resolvedArtifact.Ref) ||
+			!contracts.AcceptsMediaType(stage.Result.Artifacts[name].MediaTypes, resolvedArtifact.MediaType) {
 			return fmt.Errorf("Stage result artifact %q differs from its declared exact version or media type", name)
 		}
-		mediaTypes[name] = resolved.MediaType
+		mediaTypes[name] = resolvedArtifact.MediaType
 	}
 	if result.Outcome == stageresult.StageSucceeded {
 		outputNames := make([]string, 0, len(stage.WorkflowOutputs))

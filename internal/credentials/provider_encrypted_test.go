@@ -39,11 +39,11 @@ func TestEncryptedProviderReturnsSafeMetadataAndDecryptsExactBinding(t *testing.
 		record.EffectivePolicy.Models[0] == "mutated" {
 		t.Fatal("safe credential metadata aliases the durable effective policy")
 	}
-	resolved, err := provider.ResolveLLMCredential(
+	plaintext, err := provider.ResolveLLMCredential(
 		t.Context(), llmgateway.LLMCredentialRef{CredentialID: record.CredentialID}, record.LLMGateway,
 	)
-	if err != nil || resolved.Reveal() != secret {
-		t.Fatalf("resolved credential = (%s, %v)", resolved, err)
+	if err != nil || plaintext.Reveal() != secret {
+		t.Fatalf("resolved credential = (%s, %v)", plaintext, err)
 	}
 	wrongGateway := record.LLMGateway
 	wrongGateway.Digest = "sha256:" + strings.Repeat("9", 64)

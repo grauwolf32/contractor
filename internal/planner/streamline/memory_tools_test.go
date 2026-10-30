@@ -107,7 +107,7 @@ func TestPlannerAndWorkerShareOneLogicalMemoryNamespace(t *testing.T) {
 		t.Fatal(err)
 	}
 	worker := &memoryWorkerInvoker{memory: workerMemory, expected: bodyCanary}
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		functionStep(plannermemory.ToolWriteMemory, map[string]any{
 			"name": "shared_note", "content": bodyCanary,
 			"description": descriptionCanary, "tags": []any{tagCanary, tagCanary},
@@ -133,7 +133,7 @@ func TestPlannerAndWorkerShareOneLogicalMemoryNamespace(t *testing.T) {
 	sessions := newFakeSessions()
 	factory, err := NewConfiguredFactoryWithMemory(
 		sessions, sessions, worker, &fakeInspector{}, unavailableWorkerStateReader{},
-		store, testModelFactory(model), Limits{},
+		store, testModelFactory(scripted), Limits{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -232,7 +232,7 @@ func TestPlannerMemoryOwnsBoundedArgumentAndRoutingErrors(t *testing.T) {
 			}
 			beforeWrites := store.semanticWrites
 			store.conflictNext = test.conflict
-			model := &scriptedModel{steps: []modelStep{
+			scripted := &scriptedModel{steps: []modelStep{
 				functionStep(test.operation, test.arguments),
 				func(request *model.LLMRequest) (*model.LLMResponse, error) {
 					response := requireFunctionResponse(t, request, test.operation)
@@ -249,7 +249,7 @@ func TestPlannerMemoryOwnsBoundedArgumentAndRoutingErrors(t *testing.T) {
 					})(request)
 				},
 			}}
-			instance := newMemoryPlanner(t, test.profile, store, invocation, model)
+			instance := newMemoryPlanner(t, test.profile, store, invocation, scripted)
 			result, err := instance.Run(t.Context())
 			if err != nil || result.Outcome != stageresult.StageFailed {
 				t.Fatalf("Planner Run = (%+v, %v)", result, err)
@@ -292,7 +292,7 @@ func TestPlannerMemoryCallConsumesTheOrdinaryModelTurnBudget(t *testing.T) {
 	invocation := memoryInvocation("streamline", map[string][]string{
 		"builder": {plannermemory.ToolWriteMemory},
 	})
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		functionStep(plannermemory.ToolWriteMemory, map[string]any{
 			"name": "budget_note", "content": bodyCanary,
 		}),
@@ -301,7 +301,7 @@ func TestPlannerMemoryCallConsumesTheOrdinaryModelTurnBudget(t *testing.T) {
 	factory, err := newFactory(
 		streamlineProfile, sessions, sessions, &fakeWorkerInvoker{}, &fakeInspector{},
 		unavailableWorkerStateReader{}, store,
-		testModelFactory(model),
+		testModelFactory(scripted),
 		Limits{MaxWallTime: time.Minute},
 	)
 	if err != nil {
@@ -316,12 +316,12 @@ func TestPlannerMemoryCallConsumesTheOrdinaryModelTurnBudget(t *testing.T) {
 	}
 	_, err = instance.Run(t.Context())
 	assertPlannerCode(t, err, "planner_model_call_limit")
-	if model.callCount() != 1 || store.semanticWrites != 1 || sessions.completion == nil ||
+	if scripted.callCount() != 1 || store.semanticWrites != 1 || sessions.completion == nil ||
 		sessions.completion.Failure == nil ||
 		sessions.completion.Failure.Code != "planner_model_call_limit" {
 		t.Fatalf(
 			"model calls=%d writes=%d completion=%+v",
-			model.callCount(), store.semanticWrites, sessions.completion,
+			scripted.callCount(), store.semanticWrites, sessions.completion,
 		)
 	}
 	report, ok := instance.(planner.ReportProvider).ExecutionReport()

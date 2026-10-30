@@ -8,9 +8,11 @@ import {
 } from "react";
 
 import {
+  AUTOMATIC_OPENAPI_LIMIT_LABEL,
   createArtifactPreviewPlan,
   type ArtifactPreviewPlan,
 } from "./preview-plan";
+import { Button } from "../../ui";
 import { ScanReportSummary } from "../../widgets/scan-reports/view";
 import type { HTTPPreviewContext } from "./previews/http-exchange";
 import { PanelTabs } from "./tabs";
@@ -26,6 +28,7 @@ const RENDERER_LABELS = {
   diff: "Diff",
   markdown: "Markdown",
   openapi: "OpenAPI",
+  "openapi-on-request": "OpenAPI",
   likec4: "LikeC4",
   http: "HTTP exchange",
   "invalid-http": "HTTP exchange",
@@ -58,9 +61,83 @@ function Renderer({
       return <MarkdownArtifactPreview source={source} />;
     case "openapi":
       return <OpenApiArtifactPreview document={plan.document} />;
+    case "openapi-on-request":
+      return <OpenApiOnRequest source={source} />;
     case "likec4":
       return <LikeC4ArtifactPreview source={source} />;
   }
+}
+
+type OpenApiRequest =
+  | { source: string; state: "reading" | "invalid" | "failed" }
+  | { source: string; state: "ready"; document: Record<string, unknown> };
+
+/**
+ * An OpenAPI document larger than LIM-UI-17 is parsed and rendered only when
+ * asked for (UI-R213): rendering every operation can hold the page.
+ */
+function OpenApiOnRequest({ source }: { source: string }) {
+  const [request, setRequest] = useState<OpenApiRequest>();
+  const current = request?.source === source ? request : undefined;
+
+  useEffect(() => {
+    if (current?.state !== "reading") {
+      return;
+    }
+    let active = true;
+    import("./previews/openapi-document").then(
+      ({ parseOpenApiDocument }) => {
+        const document = parseOpenApiDocument(source);
+        if (active) {
+          setRequest(
+            document === undefined
+              ? { source, state: "invalid" }
+              : { source, state: "ready", document },
+          );
+        }
+      },
+      () => {
+        if (active) {
+          setRequest({ source, state: "failed" });
+        }
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, [current?.state, source]);
+
+  if (current?.state === "ready") {
+    return <OpenApiArtifactPreview document={current.document} />;
+  }
+  if (current?.state === "invalid") {
+    return (
+      <p className="artifact-renderer-error" role="alert">
+        This document is not a valid OpenAPI document. Source shows it as text.
+      </p>
+    );
+  }
+  return (
+    <div className="artifact-renderer-request">
+      <p className="muted-copy">
+        This OpenAPI document is larger than {AUTOMATIC_OPENAPI_LIMIT_LABEL}, so
+        it is not rendered automatically. Rendering it can make the page stop
+        responding for a few seconds; Source shows it as text.
+      </p>
+      {current?.state === "failed" ? (
+        <p className="artifact-renderer-error" role="alert">
+          The renderer could not be loaded. Try again.
+        </p>
+      ) : null}
+      <Button
+        pending={current?.state === "reading"}
+        pendingLabel="Rendering…"
+        onClick={() => setRequest({ source, state: "reading" })}
+      >
+        Render document
+      </Button>
+    </div>
+  );
 }
 
 class RendererErrorBoundary extends Component<
@@ -140,6 +217,7 @@ export function LoadedArtifactPreview({
       <PanelTabs
         label="Preview mode"
         note={RENDERER_LABELS[plan.kind]}
+        initial={plan.kind === "openapi-on-request" ? "source" : undefined}
         tabs={[
           {
             id: "rendered",

@@ -148,16 +148,16 @@ func TestRuntimeCredentialConstructorsRejectUnsafeInputs(t *testing.T) {
 func TestRuntimeCredentialCipherUsesSeparateAADAndSecretMAC(t *testing.T) {
 	t.Parallel()
 	key := bytes.Repeat([]byte{0x63}, 32)
-	cipher, err := newTokenCipher(key, bytes.NewReader(bytes.Repeat([]byte{0x17}, 48)))
+	tokenCipher, err := newTokenCipher(key, bytes.NewReader(bytes.Repeat([]byte{0x17}, 48)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	material, _ := NewHTTPProxyBearerCredential("exact-bearer-secret")
-	envelope, err := cipher.SealRuntimeCredential("caido-auth", material)
+	envelope, err := tokenCipher.SealRuntimeCredential("caido-auth", material)
 	if err != nil {
 		t.Fatal(err)
 	}
-	opened, err := cipher.OpenRuntimeCredential("caido-auth", RuntimeCredentialProxyBearer, envelope)
+	opened, err := tokenCipher.OpenRuntimeCredential("caido-auth", RuntimeCredentialProxyBearer, envelope)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,31 +170,31 @@ func TestRuntimeCredentialCipherUsesSeparateAADAndSecretMAC(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := cipher.OpenRuntimeCredential("other-auth", RuntimeCredentialProxyBearer, envelope); !errors.Is(err, ErrCrypto) {
+	if _, err := tokenCipher.OpenRuntimeCredential("other-auth", RuntimeCredentialProxyBearer, envelope); !errors.Is(err, ErrCrypto) {
 		t.Fatalf("wrong identity error = %v", err)
 	}
-	if _, err := cipher.OpenRuntimeCredential("caido-auth", RuntimeCredentialProxyBasic, envelope); !errors.Is(err, ErrCrypto) {
+	if _, err := tokenCipher.OpenRuntimeCredential("caido-auth", RuntimeCredentialProxyBasic, envelope); !errors.Is(err, ErrCrypto) {
 		t.Fatalf("wrong kind error = %v", err)
 	}
 	corrupt := cloneEnvelope(envelope)
 	corrupt.Ciphertext[len(corrupt.Ciphertext)-1] ^= 0xff
-	if _, err := cipher.OpenRuntimeCredential("caido-auth", RuntimeCredentialProxyBearer, corrupt); !errors.Is(err, ErrCrypto) {
+	if _, err := tokenCipher.OpenRuntimeCredential("caido-auth", RuntimeCredentialProxyBearer, corrupt); !errors.Is(err, ErrCrypto) {
 		t.Fatalf("corrupt ciphertext error = %v", err)
 	}
 
-	firstMAC, err := cipher.RuntimeCredentialRequestMAC("caido-auth", material)
+	firstMAC, err := tokenCipher.RuntimeCredentialRequestMAC("caido-auth", material)
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondMAC, _ := cipher.RuntimeCredentialRequestMAC("caido-auth", material)
+	secondMAC, _ := tokenCipher.RuntimeCredentialRequestMAC("caido-auth", material)
 	changed, _ := NewHTTPProxyBearerCredential("changed-bearer-secret")
-	changedMAC, _ := cipher.RuntimeCredentialRequestMAC("caido-auth", changed)
+	changedMAC, _ := tokenCipher.RuntimeCredentialRequestMAC("caido-auth", changed)
 	otherCipher, _ := NewTokenCipher(bytes.Repeat([]byte{0x64}, 32))
 	otherMAC, _ := otherCipher.RuntimeCredentialRequestMAC("caido-auth", material)
 	if !bytes.Equal(firstMAC, secondMAC) || bytes.Equal(firstMAC, changedMAC) || bytes.Equal(firstMAC, otherMAC) || len(firstMAC) != 32 {
 		t.Fatal("Runtime credential request MAC is not stable and domain-keyed")
 	}
-	for _, formatted := range []string{fmt.Sprint(cipher), fmt.Sprintf("%#v", cipher)} {
+	for _, formatted := range []string{fmt.Sprint(tokenCipher), fmt.Sprintf("%#v", tokenCipher)} {
 		if !strings.Contains(formatted, "REDACTED") || strings.Contains(formatted, fmt.Sprintf("%x", key)) {
 			t.Fatalf("unsafe credential cipher formatting: %q", formatted)
 		}
@@ -203,16 +203,16 @@ func TestRuntimeCredentialCipherUsesSeparateAADAndSecretMAC(t *testing.T) {
 
 func TestCaidoBearerCredentialRoundTripsOnlyUnderExactKindAndIdentity(t *testing.T) {
 	t.Parallel()
-	cipher, err := NewTokenCipher(bytes.Repeat([]byte{0x39}, 32))
+	tokenCipher, err := NewTokenCipher(bytes.Repeat([]byte{0x39}, 32))
 	if err != nil {
 		t.Fatal(err)
 	}
 	material, _ := NewCaidoBearerCredential("caido-exact-secret")
-	envelope, err := cipher.SealRuntimeCredential("caido-auth", material)
+	envelope, err := tokenCipher.SealRuntimeCredential("caido-auth", material)
 	if err != nil {
 		t.Fatal(err)
 	}
-	opened, err := cipher.OpenRuntimeCredential("caido-auth", RuntimeCredentialCaidoBearer, envelope)
+	opened, err := tokenCipher.OpenRuntimeCredential("caido-auth", RuntimeCredentialCaidoBearer, envelope)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,7 +225,7 @@ func TestCaidoBearerCredentialRoundTripsOnlyUnderExactKindAndIdentity(t *testing
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := cipher.OpenRuntimeCredential("caido-auth", RuntimeCredentialProxyBearer, envelope); !errors.Is(err, ErrCrypto) {
+	if _, err := tokenCipher.OpenRuntimeCredential("caido-auth", RuntimeCredentialProxyBearer, envelope); !errors.Is(err, ErrCrypto) {
 		t.Fatalf("cross-kind Caido open error = %v", err)
 	}
 }
@@ -255,16 +255,16 @@ func TestRuntimeMACDerivationDoesNotChangeLegacyLiteLLMCiphertext(t *testing.T) 
 
 func TestInteractshTokenCredentialRoundTripsOnlyUnderExactKindAndIdentity(t *testing.T) {
 	t.Parallel()
-	cipher, err := NewTokenCipher(bytes.Repeat([]byte{0x39}, 32))
+	tokenCipher, err := NewTokenCipher(bytes.Repeat([]byte{0x39}, 32))
 	if err != nil {
 		t.Fatal(err)
 	}
 	material, _ := NewInteractshTokenCredential("interactsh-exact-secret")
-	envelope, err := cipher.SealRuntimeCredential("interactsh-auth", material)
+	envelope, err := tokenCipher.SealRuntimeCredential("interactsh-auth", material)
 	if err != nil {
 		t.Fatal(err)
 	}
-	opened, err := cipher.OpenRuntimeCredential("interactsh-auth", RuntimeCredentialInteractshToken, envelope)
+	opened, err := tokenCipher.OpenRuntimeCredential("interactsh-auth", RuntimeCredentialInteractshToken, envelope)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +277,7 @@ func TestInteractshTokenCredentialRoundTripsOnlyUnderExactKindAndIdentity(t *tes
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := cipher.OpenRuntimeCredential("interactsh-auth", RuntimeCredentialProxyBearer, envelope); !errors.Is(err, ErrCrypto) {
+	if _, err := tokenCipher.OpenRuntimeCredential("interactsh-auth", RuntimeCredentialProxyBearer, envelope); !errors.Is(err, ErrCrypto) {
 		t.Fatalf("cross-kind Interactsh open error = %v", err)
 	}
 }
@@ -290,7 +290,7 @@ func TestInteractshTokenCredentialRoundTripsOnlyUnderExactKindAndIdentity(t *tes
 func TestSharedCredentialFieldValueCases(t *testing.T) {
 	t.Parallel()
 	cases := contractstest.ReadCredentialFieldValueCases(t)
-	cipher, err := NewTokenCipher(bytes.Repeat([]byte{0x5a}, 32))
+	tokenCipher, err := NewTokenCipher(bytes.Repeat([]byte{0x5a}, 32))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -328,11 +328,11 @@ func TestSharedCredentialFieldValueCases(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				envelope, err := cipher.SealRuntimeCredential("stored", RuntimeCredentialMaterial{kind: kind, canonical: canonical})
+				envelope, err := tokenCipher.SealRuntimeCredential("stored", RuntimeCredentialMaterial{kind: kind, canonical: canonical})
 				if err != nil {
 					t.Fatal(err)
 				}
-				opened, err := cipher.OpenRuntimeCredential("stored", kind, envelope)
+				opened, err := tokenCipher.OpenRuntimeCredential("stored", kind, envelope)
 				if (err == nil) != test.Valid || err != nil && !errors.Is(err, ErrCrypto) {
 					t.Errorf("%s %s: stored material open error = %v, want valid %t", field.Name, test.Name, err, test.Valid)
 				}

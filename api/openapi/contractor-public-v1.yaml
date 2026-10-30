@@ -16088,7 +16088,15 @@ components:
       additionalProperties: false
       required: [code, since, automaticUntil, requiresRetry]
       properties:
-        code: {type: string, enum: [model_unavailable, gateway_unavailable, gateway_timeout, gateway_rate_limited]}
+        code:
+          type: string
+          enum: [model_unavailable, gateway_unavailable, gateway_timeout, gateway_rate_limited]
+          description: >-
+            Cause of the model gateway failure that holds the Run, from the
+            recovery cause vocabulary that the Server and the Runtime share. It
+            is not an error code: gateway_unavailable here is an unavailable
+            model gateway route, not the error of a failed Gateway credential
+            manager.
         since: {type: string, format: date-time}
         nextRetryAt: {type: string, format: date-time}
         automaticUntil: {type: string, format: date-time}

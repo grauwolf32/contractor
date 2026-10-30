@@ -172,9 +172,9 @@ func TestStreamlineFinishRejectionKeepsVerificationClass(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			failedFinish := func(artifacts map[string]any) modelStep {
+			failedFinish := func(resultArtifacts map[string]any) modelStep {
 				return functionStep(finishToolName, map[string]any{
-					"outcome": string(stageresult.StageFailed), "summary": "partial report", "artifacts": artifacts,
+					"outcome": string(stageresult.StageFailed), "summary": "partial report", "artifacts": resultArtifacts,
 					"error": map[string]any{"code": "incomplete", "message": "the review is incomplete", "retryable": false},
 				})
 			}

@@ -670,8 +670,8 @@ func stageExecutionConfigReadModel(
 		return stageExecutionConfigResponse{}, fmt.Errorf("unknown Stage executionConfig variant %q", variant)
 	}
 	if stage.ExecutionConfig.Planner != nil {
-		planner := consumerExecutionConfigRefs(*stage.ExecutionConfig.Planner)
-		result.Planner = &planner
+		plannerRefs := consumerExecutionConfigRefs(*stage.ExecutionConfig.Planner)
+		result.Planner = &plannerRefs
 	}
 	for logicalName, selection := range stage.ExecutionConfig.Agents {
 		result.Agents[logicalName] = consumerExecutionConfigRefs(selection)

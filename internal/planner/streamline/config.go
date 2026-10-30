@@ -13,10 +13,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
-	"github.com/grauwolf32/contractor/internal/planner"
 )
-
-const Ref = planner.StreamlineRef
 
 const (
 	defaultMaxModelCalls   = 32

@@ -528,7 +528,7 @@ describe("Project routes", () => {
           creates.push(request.clone());
           return json(
             {
-              code: "unavailable",
+              code: "storage_transaction_conflict",
               message: "Project store unavailable",
               retryable: true,
             },
@@ -763,7 +763,7 @@ describe("Project routes", () => {
         if (url.pathname.endsWith("/artifacts")) {
           return json(
             {
-              code: "artifact_store_unavailable",
+              code: "internal_error",
               message: "Artifact storage is temporarily unavailable",
               retryable: true,
               requestId: "request-project-artifacts",

@@ -9,8 +9,9 @@
 // analyzes every statement a store sends through it before it runs the
 // statement for real. Database gives a measured fixture a database of its
 // own. RequireColumnScopedGuards holds the column-scoped row guards of a table
-// to the columns they list in UPDATE OF (PER-R22), and SplitStatements reads
-// SQL text, such as a migration file, with the same lexer.
+// to the columns they list in UPDATE OF (PER-R22); with the same lexer,
+// SplitStatements reads SQL text, such as a migration file, and ReadBody the
+// tables a routine body writes, locks and reads and the functions it calls.
 //
 // The rows a statement read from a table (Reads) are the rows the table's
 // sequential scans returned plus the entries the table's indexes returned,

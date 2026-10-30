@@ -212,22 +212,22 @@ func (c *CLI) client(options globalOptions) (*publicclient.Client, string, error
 		if err != nil {
 			return nil, "", err
 		}
-		name, context, resolveErr := config.Resolve(options.contextName)
+		name, serverContext, resolveErr := config.Resolve(options.contextName)
 		if resolveErr != nil {
 			return nil, "", resolveErr
 		}
 		selected = name
 		if options.server == "" {
-			options.server = context.Server
+			options.server = serverContext.Server
 		}
 		if options.caFile == "" && !options.caFileSet {
-			options.caFile = context.CAFile
+			options.caFile = serverContext.CAFile
 		}
 		if options.tokenFile == "" && !options.tokenSet {
-			options.tokenFile = context.TokenFile
+			options.tokenFile = serverContext.TokenFile
 		}
 		if !options.httpSet {
-			options.allowHTTP = context.AllowHTTP
+			options.allowHTTP = serverContext.AllowHTTP
 		}
 	}
 	// An explicit --token-file or the context's token file takes precedence

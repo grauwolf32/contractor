@@ -183,17 +183,17 @@ func newStageEndHarness(t *testing.T) (*schedulerHarness, *stageEndCredentials, 
 		Credential: stageEndOTLPCredential, FlushTimeoutSeconds: 1,
 	}
 	harness.allocator.resolvedRuntimeConfig = &resolved
-	credentials := &stageEndCredentials{llm: map[string]int{}, runtime: map[string]int{}}
+	stageCredentials := &stageEndCredentials{llm: map[string]int{}, runtime: map[string]int{}}
 	reports := &stageEndReports{inner: &normalizingReportStore{harness.store}}
 	options := harness.scheduler.options
-	options.Credentials, options.RuntimeCredentials, options.Reports = credentials, credentials, reports
+	options.Credentials, options.RuntimeCredentials, options.Reports = stageCredentials, stageCredentials, reports
 	scheduler, err := New(harness.store, harness.persistence, harness.artifacts, harness.allocator,
 		stageEndWorkers{memoryWorkers: harness.workers, secrets: stageEndSecrets}, harness.planners, options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	harness.scheduler = scheduler
-	return harness, credentials, reports
+	return harness, stageCredentials, reports
 }
 
 func requireNoPreparedSecrets(t *testing.T, s *Scheduler) {
@@ -209,7 +209,7 @@ func requireNoPreparedSecrets(t *testing.T, s *Scheduler) {
 // report persistence redacts with those values. The Planner completion and
 // the final persistence each rebuild StageMetrics once.
 func TestUninterruptedStageRedactsReportsWithPreparationSecrets(t *testing.T) {
-	harness, credentials, reports := newStageEndHarness(t)
+	harness, stageCredentials, reports := newStageEndHarness(t)
 	var duringPlanner int
 	onRun := harness.planners.onRun
 	harness.planners.onRun = func() {
@@ -226,9 +226,9 @@ func TestUninterruptedStageRedactsReportsWithPreparationSecrets(t *testing.T) {
 	if duringPlanner != 1 {
 		t.Fatalf("Stages with preparation secrets during the Planner = %d, want 1", duringPlanner)
 	}
-	if credentials.llm[stageEndWorkerCredential] != 1 || credentials.runtime[stageEndOTLPCredential] != 1 {
+	if stageCredentials.llm[stageEndWorkerCredential] != 1 || stageCredentials.runtime[stageEndOTLPCredential] != 1 {
 		t.Fatalf("credential resolutions = LLM %v, Runtime %v; want one each, at preparation",
-			credentials.llm, credentials.runtime)
+			stageCredentials.llm, stageCredentials.runtime)
 	}
 	want := []string{"planner_report", "rebuild", "planner_report", "allocation_report", "rebuild"}
 	if !slices.Equal(reports.ops, want) {
@@ -246,19 +246,19 @@ func TestUninterruptedStageRedactsReportsWithPreparationSecrets(t *testing.T) {
 // redaction of the Worker's report: it redacts the values the Worker received
 // without resolving them again.
 func TestPreparationSecretsRedactReportsAfterCredentialLoss(t *testing.T) {
-	harness, credentials, _ := newStageEndHarness(t)
+	harness, stageCredentials, _ := newStageEndHarness(t)
 	onRun := harness.planners.onRun
 	harness.planners.onRun = func() {
 		onRun()
-		credentials.failLLM = true
+		stageCredentials.failLLM = true
 	}
 
 	worked, err := harness.scheduler.RunOnce(t.Context())
 	if err != nil || !worked || harness.store.run.State != runstore.RunSucceeded {
 		t.Fatalf("RunOnce = (%v, %v), run=%s", worked, err, harness.store.run.State)
 	}
-	if credentials.llm[stageEndWorkerCredential] != 1 {
-		t.Fatalf("Worker LLM credential resolutions = %d, want 1", credentials.llm[stageEndWorkerCredential])
+	if stageCredentials.llm[stageEndWorkerCredential] != 1 {
+		t.Fatalf("Worker LLM credential resolutions = %d, want 1", stageCredentials.llm[stageEndWorkerCredential])
 	}
 	requireStageEndRedaction(t, harness.store.reports[0].Report, stageEndSecrets)
 	requireNoPreparedSecrets(t, harness.scheduler)
@@ -268,8 +268,8 @@ func TestPreparationSecretsRedactReportsAfterCredentialLoss(t *testing.T) {
 // Stage aborts, its report persistence attempts the resolution itself as
 // before, and the report is still persisted.
 func TestPreparationCredentialFailureKeepsNoSecrets(t *testing.T) {
-	harness, credentials, reports := newStageEndHarness(t)
-	credentials.failLLM = true
+	harness, stageCredentials, reports := newStageEndHarness(t)
+	stageCredentials.failLLM = true
 
 	if _, err := harness.scheduler.RunOnce(t.Context()); err != nil {
 		t.Fatal(err)
@@ -278,9 +278,9 @@ func TestPreparationCredentialFailureKeepsNoSecrets(t *testing.T) {
 	if stage.Termination == nil || stage.Termination.Code != "worker_execution_config_unavailable" {
 		t.Fatalf("Stage = %+v, want the preparation credential failure", stage)
 	}
-	if credentials.llm[stageEndWorkerCredential] != 2 {
+	if stageCredentials.llm[stageEndWorkerCredential] != 2 {
 		t.Fatalf("Worker LLM credential resolutions = %d, want preparation and report persistence",
-			credentials.llm[stageEndWorkerCredential])
+			stageCredentials.llm[stageEndWorkerCredential])
 	}
 	if !slices.Equal(reports.ops, []string{"allocation_report", "rebuild"}) || len(harness.store.reports) != 1 {
 		t.Fatalf("report operations = %v, reports = %d", reports.ops, len(harness.store.reports))
@@ -292,7 +292,7 @@ func TestPreparationCredentialFailureKeepsNoSecrets(t *testing.T) {
 // rebuild of the phase, and the Stage's preparation secrets still end with
 // its lifecycle.
 func TestReportWriteFailureKeepsStageEndGuarantees(t *testing.T) {
-	harness, credentials, reports := newStageEndHarness(t)
+	harness, stageCredentials, reports := newStageEndHarness(t)
 	harness.store.reportError = errors.New("telemetry database unavailable")
 
 	worked, err := harness.scheduler.RunOnce(t.Context())
@@ -300,8 +300,8 @@ func TestReportWriteFailureKeepsStageEndGuarantees(t *testing.T) {
 		harness.store.stages[0].State != runstore.StageSucceeded {
 		t.Fatalf("RunOnce = (%v, %v), run=%s", worked, err, harness.store.run.State)
 	}
-	if credentials.llm[stageEndWorkerCredential] != 1 {
-		t.Fatalf("Worker LLM credential resolutions = %d, want 1", credentials.llm[stageEndWorkerCredential])
+	if stageCredentials.llm[stageEndWorkerCredential] != 1 {
+		t.Fatalf("Worker LLM credential resolutions = %d, want 1", stageCredentials.llm[stageEndWorkerCredential])
 	}
 	want := []string{"planner_report", "rebuild", "planner_report", "allocation_report", "rebuild"}
 	if !slices.Equal(reports.ops, want) || len(harness.store.reports) != 0 {
@@ -317,7 +317,7 @@ func TestReportWriteFailureKeepsStageEndGuarantees(t *testing.T) {
 func TestRestartIntoTerminalPhaseResolvesReportSecretsAgain(t *testing.T) {
 	for _, state := range []runstore.StageExecutionState{runstore.StageFinalizing, runstore.StageAborting} {
 		t.Run(string(state), func(t *testing.T) {
-			harness, credentials, reports := newStageEndHarness(t)
+			harness, stageCredentials, reports := newStageEndHarness(t)
 			execution := harness.persistedExecution(t, state)
 			if state == runstore.StageFinalizing {
 				result := harness.planners.result.Clone()
@@ -349,9 +349,9 @@ func TestRestartIntoTerminalPhaseResolvesReportSecretsAgain(t *testing.T) {
 			if harness.store.run.State != runstore.RunSucceeded && harness.store.run.State != runstore.RunCancelled {
 				t.Fatalf("restarted Run = %s", harness.store.run.State)
 			}
-			if credentials.llm[stageEndWorkerCredential] != 1 || credentials.runtime[stageEndOTLPCredential] != 1 {
+			if stageCredentials.llm[stageEndWorkerCredential] != 1 || stageCredentials.runtime[stageEndOTLPCredential] != 1 {
 				t.Fatalf("credential resolutions = LLM %v, Runtime %v; want one each, at report persistence",
-					credentials.llm, credentials.runtime)
+					stageCredentials.llm, stageCredentials.runtime)
 			}
 			if !slices.Equal(reports.ops, []string{"planner_report", "allocation_report", "rebuild"}) {
 				t.Fatalf("report operations = %v, want one rebuild after the placeholder and the report", reports.ops)

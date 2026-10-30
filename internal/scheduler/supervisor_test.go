@@ -786,6 +786,21 @@ func receiveError(t *testing.T, channel <-chan error, timeout time.Duration, ope
 	}
 }
 
+// awaitValue receives one value from channel before ctx, the test's own
+// deadline, ends. It sets no budget of its own, so a loaded host slows the
+// test instead of failing it (AGENTS.md 3.5).
+func awaitValue[T any](t *testing.T, ctx context.Context, channel <-chan T, operation string) T {
+	t.Helper()
+	select {
+	case value := <-channel:
+		return value
+	case <-ctx.Done():
+		t.Fatalf("%s did not happen before the test deadline: %v", operation, context.Cause(ctx))
+		var zero T
+		return zero
+	}
+}
+
 func (laneNoopPersistence) AdmitStage(context.Context, string, string) (runstore.StageExecution, error) {
 	return runstore.StageExecution{}, errors.New("unexpected admission")
 }

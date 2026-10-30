@@ -99,8 +99,8 @@ func summaryEscalationConfiguration(
 		!execution.CandidateResult.Summarized || execution.CandidateResult.SummaryArtifact == nil {
 		return stageExecutionConfiguration{}, fmt.Errorf("%w: summary escalation has no saved source result", errInvalidRunState)
 	}
-	context := execution.StageContext.Clone()
-	context.Continuation = &stageresult.SummaryContinuation{
+	stageContext := execution.StageContext.Clone()
+	stageContext.Continuation = &stageresult.SummaryContinuation{
 		SourceStageExecutionID: execution.StageExecutionID,
 		Summary:                execution.CandidateResult.Summary,
 		SummaryArtifact:        execution.CandidateResult.SummaryArtifact.Clone(),
@@ -109,6 +109,6 @@ func summaryEscalationConfiguration(
 	return stageExecutionConfiguration{
 		variant: runstore.StageExecutionConfigSummaryEscalation,
 		ordinal: intPointer(1), effective: &action.ExecutionConfig.Effective,
-		planner: action.Planner, context: &context,
+		planner: action.Planner, context: &stageContext,
 	}, nil
 }

@@ -41,7 +41,7 @@ describe("Archive API", () => {
               retryable: false,
             }),
             {
-              status: 413,
+              status: 422,
               headers: {
                 "Content-Type": "application/json",
                 "X-Contractor-API-Version": "contractor.public.v1",
@@ -53,14 +53,14 @@ describe("Archive API", () => {
     await expect(
       getArtifactArchive(api, { kind: "user" }, ref, signal()),
     ).rejects.toMatchObject({
-      status: 413,
+      status: 422,
       code: "archive_preview_limit",
       message: expect.stringContaining("browsing limits"),
     });
     await expect(
       getArtifactArchiveFile(api, { kind: "user" }, ref, "SKILL.md", signal()),
     ).rejects.toMatchObject({
-      status: 413,
+      status: 422,
       code: "archive_preview_limit",
       message: expect.stringContaining("1 MiB text preview limit"),
     });

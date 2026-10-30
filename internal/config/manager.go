@@ -237,12 +237,12 @@ func resolveMissingRoot(path string) (string, error) {
 	for {
 		info, err := os.Lstat(current)
 		if err == nil {
-			resolved, err := filepath.EvalSymlinks(current)
+			resolvedPath, err := filepath.EvalSymlinks(current)
 			if err != nil {
 				return "", err
 			}
 			if !info.IsDir() {
-				info, err = os.Stat(resolved)
+				info, err = os.Stat(resolvedPath)
 				if err != nil {
 					return "", err
 				}
@@ -251,9 +251,9 @@ func resolveMissingRoot(path string) (string, error) {
 				}
 			}
 			for index := len(missing) - 1; index >= 0; index-- {
-				resolved = filepath.Join(resolved, missing[index])
+				resolvedPath = filepath.Join(resolvedPath, missing[index])
 			}
-			return resolved, nil
+			return resolvedPath, nil
 		}
 		if !errors.Is(err, os.ErrNotExist) {
 			return "", err
@@ -576,27 +576,19 @@ func (s *Snapshot) withPublication(candidate publicationCandidate) *Snapshot {
 	policies := s.policies
 	gateways := s.gateways
 	if candidate.policy != nil {
-		policies = cloneMap(s.policies)
+		policies = clone.Map(s.policies)
 		policies[candidate.selector.String()] = candidate.policy.Clone()
 	}
 	if candidate.gateway != nil {
-		gateways = cloneMap(s.gateways)
+		gateways = clone.Map(s.gateways)
 		gateways[candidate.selector.String()] = candidate.gateway.Clone()
 	}
-	sources := cloneMap(s.sources)
+	sources := clone.Map(s.sources)
 	sources[configurationSourceKey(candidate.resource.Ref.Kind, candidate.selector.String())] = ConfigurationSourceManaged
 	return newSnapshot(
 		s.workflows, s.templates, policies, gateways, s.executionConfigs, s.auditProfiles,
 		s.instructions, sources,
 	)
-}
-
-func cloneMap[K comparable, V any](source map[K]V) map[K]V {
-	result := make(map[K]V, len(source)+1)
-	for key, value := range source {
-		result[key] = value
-	}
-	return result
 }
 
 func snapshotsEqual(left, right *Snapshot) bool {
@@ -695,11 +687,11 @@ func requireStrictRootWithMissingSubtrees(path string, create, allowMissingSubtr
 	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
 		return "", fmt.Errorf("root must be a real directory, not a symlink")
 	}
-	resolved, err := filepath.EvalSymlinks(absolute)
+	resolvedPath, err := filepath.EvalSymlinks(absolute)
 	if err != nil {
 		return "", err
 	}
-	absolute = resolved
+	absolute = resolvedPath
 	for _, subtree := range configurationSubtrees {
 		child := filepath.Join(absolute, subtree)
 		childInfo, childErr := os.Lstat(child)

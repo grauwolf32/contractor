@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/reporting"
@@ -33,7 +34,7 @@ func NewPassthroughFactory(
 	return &PassthroughFactory{sessions: sessions, invoker: invoker, inspector: inspector}, nil
 }
 
-func (*PassthroughFactory) Ref() string { return PassthroughRef }
+func (*PassthroughFactory) Ref() string { return resolved.PassthroughPlanner }
 
 func (f *PassthroughFactory) Create(invocation Invocation) (Planner, error) {
 	binding, handle, err := validateInvocation(invocation)
@@ -345,7 +346,7 @@ func validateInvocation(invocation Invocation) (string, contracts.WorkerHandle, 
 		strings.TrimSpace(invocation.Stage.Instructions.Text) == "" {
 		return "", contracts.WorkerHandle{}, fmt.Errorf("Stage objective and instructions are required")
 	}
-	if invocation.Stage.Planner.PlannerID+"@"+invocation.Stage.Planner.Version != PassthroughRef {
+	if invocation.Stage.Planner.Selector() != resolved.PassthroughPlanner {
 		return "", contracts.WorkerHandle{}, fmt.Errorf("passthrough@1 cannot execute a Stage for another PlannerFactory")
 	}
 	if len(invocation.Stage.Agents) != 1 || len(invocation.Workers) != 1 {
@@ -356,13 +357,13 @@ func validateInvocation(invocation Invocation) (string, contracts.WorkerHandle, 
 	for name, current := range invocation.Workers {
 		binding, handle = name, current
 	}
-	resolved, ok := invocation.Stage.Agents[binding]
+	agentBinding, ok := invocation.Stage.Agents[binding]
 	if !ok {
 		return "", contracts.WorkerHandle{}, fmt.Errorf("prepared Worker has no matching Stage Agent binding")
 	}
 	if strings.TrimSpace(handle.AllocationID) == "" || len(handle.AgentCard) == 0 ||
-		handle.LeaseExpiresAt.IsZero() || handle.AgentTemplateRef != resolved.Template.Ref ||
-		handle.WorkerRuntimeRef != resolved.Template.Runtime {
+		handle.LeaseExpiresAt.IsZero() || handle.AgentTemplateRef != agentBinding.Template.Ref ||
+		handle.WorkerRuntimeRef != agentBinding.Template.Runtime {
 		return "", contracts.WorkerHandle{}, fmt.Errorf("prepared Worker does not match the Agent binding")
 	}
 	if len(invocation.Context.Artifacts) != len(invocation.Stage.Context.Artifacts) {

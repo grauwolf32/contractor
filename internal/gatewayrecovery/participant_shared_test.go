@@ -8,6 +8,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/strictjson"
+	"go.yaml.in/yaml/v4"
 )
 
 // participantUpdate is an update of
@@ -79,6 +80,24 @@ func TestSharedGatewayRecoveryParticipantCases(t *testing.T) {
 	}
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "gateway-failure-classification-cases.json"), &classification); err != nil {
 		t.Fatal(err)
+	}
+	// The public RunRecovery.code reports the same causes (ERR-R14 sets the
+	// vocabulary apart from the error code of the same name).
+	var openapi struct {
+		Components struct {
+			Schemas map[string]struct {
+				Properties map[string]struct {
+					Enum []string `yaml:"enum"`
+				} `yaml:"properties"`
+			} `yaml:"schemas"`
+		} `yaml:"components"`
+	}
+	if err := yaml.Unmarshal(contractstest.ReadFile(t, "api", "openapi", "contractor-public-v1.yaml"), &openapi); err != nil {
+		t.Fatal(err)
+	}
+	public := slices.Sorted(slices.Values(openapi.Components.Schemas["RunRecovery"].Properties["code"].Enum))
+	if shared := slices.Sorted(slices.Values(fixture.FailureCodes)); !slices.Equal(public, shared) {
+		t.Errorf("RunRecovery.code enum = %v, shared recovery failure codes = %v", public, shared)
 	}
 	codes := append([]string{"gateway_request_rejected", "gateway_access_denied"}, fixture.FailureCodes...)
 	for _, test := range classification.Cases {

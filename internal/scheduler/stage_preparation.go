@@ -64,7 +64,7 @@ func (s *Scheduler) buildStageCreation(
 		}
 		declaration := workflow.stage.Context.Artifacts[name]
 		current := auditPinnedContextRef(run, contracts.ArtifactRef{Namespace: declaration.Namespace, Name: declaration.Name})
-		resolved, resolveErr := s.artifacts.Resolve(ctx, run.RunID, current)
+		resolvedArtifact, resolveErr := s.artifacts.Resolve(ctx, run.RunID, current)
 		if errors.Is(resolveErr, artifacts.ErrArtifactNotFound) {
 			contextSnapshot.Artifacts[name] = runstore.PinnedContextArtifact{Required: declaration.Required}
 			continue
@@ -72,10 +72,10 @@ func (s *Scheduler) buildStageCreation(
 		if resolveErr != nil {
 			return NextStageCreation{}, fmt.Errorf("resolve StageContext artifact %q: %w", name, resolveErr)
 		}
-		if resolved.Ref.Namespace != declaration.Namespace || resolved.Ref.Name != declaration.Name || (current.Revision != nil && !reflect.DeepEqual(current, resolved.Ref)) {
+		if resolvedArtifact.Ref.Namespace != declaration.Namespace || resolvedArtifact.Ref.Name != declaration.Name || (current.Revision != nil && !reflect.DeepEqual(current, resolvedArtifact.Ref)) {
 			return NextStageCreation{}, fmt.Errorf("ArtifactStore resolved StageContext artifact %q to another binding", name)
 		}
-		exact := resolved.Ref.Clone()
+		exact := resolvedArtifact.Ref.Clone()
 		contextSnapshot.Artifacts[name] = runstore.PinnedContextArtifact{
 			Required: declaration.Required,
 			Artifact: &exact,

@@ -130,7 +130,7 @@ function setup(
         if (options.failAgentList && exactName === null) {
           return failure(
             503,
-            "catalog_unavailable",
+            "storage_transaction_conflict",
             "Catalog index unavailable",
             true,
           );

@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import { createArtifactPreviewPlan } from "./preview-plan";
+import {
+  createArtifactPreviewPlan,
+  MAXIMUM_AUTOMATIC_OPENAPI_BYTES,
+} from "./preview-plan";
+
+// Pads a document with a YAML comment to exactly `bytes` UTF-8 bytes.
+function padded(document: string, bytes: number): string {
+  const head = `${document}\n# `;
+  return head + "x".repeat(bytes - new TextEncoder().encode(head).length);
+}
 
 describe("Artifact preview planning", () => {
   it("selects dedicated Markdown and LikeC4 renderers", async () => {
@@ -49,6 +58,63 @@ describe("Artifact preview planning", () => {
     await expect(
       createArtifactPreviewPlan("application/yaml", "openapi: ["),
     ).resolves.toEqual({ kind: "source" });
+  });
+
+  it("leaves an OpenAPI document above LIM-UI-17 unparsed until asked for", async () => {
+    const yaml =
+      "openapi: 3.1.0\ninfo:\n  title: API\n  version: '1'\npaths: {}";
+    const atLimit = padded(yaml, MAXIMUM_AUTOMATIC_OPENAPI_BYTES);
+    await expect(
+      createArtifactPreviewPlan("application/yaml", atLimit),
+    ).resolves.toMatchObject({ kind: "openapi" });
+    for (const [mediaType, source] of [
+      ["application/yaml", padded(yaml, MAXIMUM_AUTOMATIC_OPENAPI_BYTES + 1)],
+      [
+        "text/yaml",
+        padded("swagger: '2.0'", MAXIMUM_AUTOMATIC_OPENAPI_BYTES + 1),
+      ],
+      [
+        "application/json",
+        JSON.stringify({
+          info: {
+            title: "API",
+            description: "x".repeat(MAXIMUM_AUTOMATIC_OPENAPI_BYTES),
+          },
+          openapi: "3.0.3",
+        }),
+      ],
+    ] as const) {
+      await expect(
+        createArtifactPreviewPlan(mediaType, source),
+      ).resolves.toEqual({
+        kind: "openapi-on-request",
+      });
+    }
+    // Large structured data that declares no OpenAPI version stays source,
+    // including an "openapi" member below the top level.
+    for (const [mediaType, source] of [
+      [
+        "application/yaml",
+        padded("info:\n  openapi: 3.1.0", MAXIMUM_AUTOMATIC_OPENAPI_BYTES + 1),
+      ],
+      [
+        "application/yaml",
+        padded("openapi: 4.0.0", MAXIMUM_AUTOMATIC_OPENAPI_BYTES + 1),
+      ],
+      [
+        "application/json",
+        JSON.stringify({
+          result: { openapi: "3.1.0" },
+          padding: "x".repeat(MAXIMUM_AUTOMATIC_OPENAPI_BYTES),
+        }),
+      ],
+    ] as const) {
+      await expect(
+        createArtifactPreviewPlan(mediaType, source),
+      ).resolves.toEqual({
+        kind: "source",
+      });
+    }
   });
 
   it("removes active resources and external references from OpenAPI", async () => {

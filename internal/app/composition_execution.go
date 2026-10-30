@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/controlplane"
 	"github.com/grauwolf32/contractor/internal/gatewayrecovery"
 	plannermemory "github.com/grauwolf32/contractor/internal/memory"
@@ -80,10 +82,6 @@ func configureExecutors(
 	if err != nil {
 		return executorServices{}, fmt.Errorf("configure A2A client: %w", err)
 	}
-	passthrough, err := planner.NewPassthroughFactory(plannerSessions, a2aInvoker, artifactInspector)
-	if err != nil {
-		return executorServices{}, err
-	}
 	plannerModelFactory := func(access planner.ModelAccess) (model.LLM, error) {
 		return streamline.NewOpenAICompatibleModel(streamline.GatewaySettings{
 			Recovery: access.Recovery, FailureSignatures: access.LLMGateway.EffectiveFailureSignatures(),
@@ -93,29 +91,16 @@ func configureExecutors(
 	}
 	streamlineLimits := streamline.DefaultLimits()
 	streamlineLimits.MaxWallTime = cfg.PlannerTimeout
-	streamlineFactory, err := streamline.NewConfiguredFactoryWithMemory(
-		plannerSessions, plannerSessions, a2aInvoker, artifactInspector,
-		runtimeClient, plannerMemoryStore, plannerModelFactory, streamlineLimits,
-	)
-	if err != nil {
-		return executorServices{}, fmt.Errorf("configure Streamline Planner: %w", err)
-	}
-	routerFactory, err := plannerrouter.NewConfiguredFactoryWithMemory(
-		plannerSessions, plannerSessions, a2aInvoker, artifactInspector,
-		runtimeClient, plannerMemoryStore, plannerModelFactory, streamlineLimits,
-	)
-	if err != nil {
-		return executorServices{}, fmt.Errorf("configure Router Planner: %w", err)
-	}
 	scanArtifacts, err := plannerscan.NewServiceArtifacts(artifactService)
 	if err != nil {
 		return executorServices{}, err
 	}
-	scanFactory, err := plannerscan.NewFactory(plannerSessions, a2aInvoker, scanArtifacts, artifactInspector)
-	if err != nil {
-		return executorServices{}, err
-	}
-	plannerRegistry, err := planner.NewRegistry(passthrough, streamlineFactory, routerFactory, scanFactory)
+	plannerRegistry, err := composePlanners(plannerAdapters{
+		sessions: plannerSessions, planSessions: plannerSessions, adkSessions: plannerSessions,
+		scanSessions: plannerSessions, invoker: a2aInvoker, inspector: artifactInspector,
+		stateReader: runtimeClient, memory: plannerMemoryStore, model: plannerModelFactory,
+		limits: streamlineLimits, scanArtifacts: scanArtifacts,
+	})
 	if err != nil {
 		return executorServices{}, err
 	}
@@ -124,6 +109,74 @@ func configureExecutors(
 		return executorServices{}, err
 	}
 	return executorServices{registry: plannerRegistry, operations: operationRegistry, sessions: plannerSessions}, nil
+}
+
+// plannerAdapters are the dependencies of the composed PlannerFactories.
+type plannerAdapters struct {
+	sessions      planner.SessionService
+	planSessions  planner.PlanSessionService
+	adkSessions   streamline.ADKSessionFactory
+	scanSessions  planner.ScanSessionService
+	invoker       planner.WorkerInvoker
+	inspector     planner.ArtifactInspector
+	stateReader   planner.WorkerStateReader
+	memory        plannermemory.Store
+	model         streamline.InvocationModelFactory
+	limits        streamline.Limits
+	scanArtifacts plannerscan.ArtifactStore
+}
+
+// composePlanners builds one PlannerFactory for each registered PlannerFactory
+// descriptor (CAT-R79) and fails when the two sets differ: a descriptor
+// without a factory would load in the catalog and fail only when a Stage
+// creates its Planner.
+func composePlanners(adapters plannerAdapters) (*planner.Registry, error) {
+	passthrough, err := planner.NewPassthroughFactory(adapters.sessions, adapters.invoker, adapters.inspector)
+	if err != nil {
+		return nil, err
+	}
+	streamlineFactory, err := streamline.NewConfiguredFactoryWithMemory(
+		adapters.planSessions, adapters.adkSessions, adapters.invoker, adapters.inspector,
+		adapters.stateReader, adapters.memory, adapters.model, adapters.limits,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("configure Streamline Planner: %w", err)
+	}
+	routerFactory, err := plannerrouter.NewConfiguredFactoryWithMemory(
+		adapters.planSessions, adapters.adkSessions, adapters.invoker, adapters.inspector,
+		adapters.stateReader, adapters.memory, adapters.model, adapters.limits,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("configure Router Planner: %w", err)
+	}
+	scanFactory, err := plannerscan.NewFactory(adapters.scanSessions, adapters.invoker, adapters.scanArtifacts, adapters.inspector)
+	if err != nil {
+		return nil, err
+	}
+	registry, err := planner.NewRegistry(passthrough, streamlineFactory, routerFactory, scanFactory)
+	if err != nil {
+		return nil, err
+	}
+	if err := matchPlannerDescriptors(registry.Refs(), resolved.PlannerSelectors()); err != nil {
+		return nil, err
+	}
+	return registry, nil
+}
+
+// matchPlannerDescriptors reports the first registered descriptor without a
+// composed PlannerFactory, or composed factory without a descriptor.
+func matchPlannerDescriptors(composed, described []string) error {
+	for _, ref := range described {
+		if !slices.Contains(composed, ref) {
+			return fmt.Errorf("PlannerFactory descriptor %q has no composed factory", ref)
+		}
+	}
+	for _, ref := range composed {
+		if !slices.Contains(described, ref) {
+			return fmt.Errorf("composed PlannerFactory %q has no descriptor", ref)
+		}
+	}
+	return nil
 }
 
 func configureWorkflows(

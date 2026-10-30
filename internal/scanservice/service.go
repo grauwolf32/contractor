@@ -251,7 +251,7 @@ func validateWorkflow(w resolved.ResolvedWorkflow, r Request) error {
 		return scanstore.ErrInvalid
 	}
 	stage := w.Stages[w.EntryStage]
-	if stage.Planner.PlannerID != "passthrough" || stage.Planner.Version != "1" || len(stage.Agents) != 1 || stage.ScanPlan != nil {
+	if stage.Planner.Selector() != resolved.PassthroughPlanner || len(stage.Agents) != 1 || stage.ScanPlan != nil {
 		return scanstore.ErrInvalid
 	}
 	for _, agent := range stage.Agents {

@@ -56,7 +56,7 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 	telemetryAdapter, telemetryPayload := passthroughTestTelemetry(t, invocation)
 	invocation.Instrumentation = telemetryAdapter.Instrumentation()
 
-	first, err := registry.Create(PassthroughRef, invocation)
+	first, err := registry.Create(resolved.PassthroughPlanner, invocation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestPassthroughPlannerInvokesOnceAndRecoversRecordedResult(t *testing.T) {
 		t.Fatalf("Passthrough OTLP payload is incomplete or unsafe: %q", payload)
 	}
 
-	recovered, err := registry.Create(PassthroughRef, invocation)
+	recovered, err := registry.Create(resolved.PassthroughPlanner, invocation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,7 +279,7 @@ func passthroughTestTelemetry(
 		FlushTimeout: time.Second, RunMetadataLabels: runlabels.RunMetadataLabels{},
 		Resource: telemetry.PlannerResource{
 			RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
-			PlannerRef: PassthroughRef,
+			PlannerRef: resolved.PassthroughPlanner,
 		},
 	})
 	if err != nil {

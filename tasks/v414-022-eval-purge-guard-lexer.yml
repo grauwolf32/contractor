@@ -79,3 +79,22 @@ tests:
     covers: [A1]
   - command: make lint
     covers: [A1, A2]
+decisions:
+  - >-
+    2026-10-30: explaintest.ReadBody (internal/persistence/explaintest/bodies.go) is the one
+    token-level export: the write targets of INSERT INTO, UPDATE [ONLY], DELETE FROM [ONLY]
+    and MERGE INTO as explaintest.Name (schema and object, quoted parts kept, unquoted folded),
+    every name followed by "(" as a call, and EXECUTE as dynamic. The guard resolves a name
+    against current_schema(): an unqualified name or one qualified by the current schema is a
+    table or function of the schema, any other qualification stays "schema.name", which no
+    purge table or schema function matches but is still reported as a write. The regex that
+    read the projection-queue UPDATE target out of invalidatePurgedViewSQL also moved to
+    ReadBody, so the guard has no regular expression left. The rule check reads pg_rewrite
+    (rulename <> '_RETURN', ev_type <> '1') and reports a rule on any table the purge deletes
+    from, updates or has a trigger write, whatever its event or DO ALSO/INSTEAD form.
+  - >-
+    A3 on the unfixed guard (new fixtures added before the rewrite): quoted table, qualified
+    table (quoted current schema) and the comment marker in a constant gave no violation; the
+    dollar-quoted constant gave "writes [eval_members]" (the constant read as SQL) plus a
+    second violation from following it; the DO ALSO rule gave no violation. After the
+    rewrite all 18 fixtures name their violation and the shipped schema has none.

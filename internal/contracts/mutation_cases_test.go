@@ -135,17 +135,17 @@ func TestSharedMutationCasesAreRejected(t *testing.T) {
 		reject := fixtureCodecs[typeName].privateReject
 		raw := contractstest.ReadFixture(t, "valid", name)
 		cases := computed[name]
-		check := func(kind, pointer string, document []byte) {
+		check := func(caseKind, pointer string, document []byte) {
 			t.Helper()
 			total++
-			if check, isolated := isolatedRuntimeTelemetry(typeName, pointer+"/"); isolated && kind != "duplicateKey" {
+			if check, isolated := isolatedRuntimeTelemetry(typeName, pointer+"/"); isolated && caseKind != "duplicateKey" {
 				if problem := check(document); problem != "" {
-					t.Errorf("%s %s %s: %s", name, kind, pointer, problem)
+					t.Errorf("%s %s %s: %s", name, caseKind, pointer, problem)
 				}
 				return
 			}
 			if reject(document) == nil {
-				t.Errorf("%s %s %s was accepted", name, kind, pointer)
+				t.Errorf("%s %s %s was accepted", name, caseKind, pointer)
 			}
 		}
 		for _, pointer := range cases.Enum {
