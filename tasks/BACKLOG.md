@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-115 open tasks: 5 in progress, 99 pending, 11 deferred. 1202 finished: 1192 completed, 10 archived.
+114 open tasks: 4 in progress, 99 pending, 11 deferred. 1203 finished: 1193 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V411-028](v411-028-integrate-http-credentials-main.yml) | http-tools | chore | P2 | Integrate explicit Audit HTTP credentials with current main |
 
 ## Pending
 
@@ -218,7 +217,7 @@ tasks in `introduced_by`.
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
 | Run workspaces and project filesystem (`workspaces`) | 0 | 16 | 14 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 0 | 14 | 14 | 2 | 19 |
-| HTTP and Caido tools (`http-tools`) | 8 | 22 | 25 | 8 | 22 |
+| HTTP and Caido tools (`http-tools`) | 7 | 22 | 25 | 8 | 22 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 16 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 8 | 17 | 7 | 8 | 12 |
 | Workflow catalog and document workflows (`workflows`) | 7 | 18 | 15 | 12 | 19 |
