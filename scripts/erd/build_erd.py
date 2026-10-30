@@ -4,13 +4,15 @@
 Creates a scratch database on the PostgreSQL server named by ERD_DATABASE_URL
 (or CONTRACTOR_TEST_DATABASE_URL), migrates it with `contractor-server
 migrate`, reads the catalog, lays the diagram out with ELK and fills
-template.html. The scratch database is dropped afterwards. Needs psql, Go and
-Node.js; run `npm ci --prefix scripts/erd` first (`make docs-erd` does both).
+template.html. The scratch database is dropped afterwards. The packages that
+use each table come from the table ownership scan of internal/persistence
+(TestERDUsageMatchesTheSQLScan, which make lint also runs to compare them with
+the page). Needs psql, Go and Node.js; run `npm ci --prefix scripts/erd` first
+(`make docs-erd` does both).
 """
 
 import json
 import os
-import re
 import secrets
 import subprocess
 import sys
@@ -24,6 +26,9 @@ OUTPUT = ROOT / "docs" / "spec" / "database-erd.html"
 MIGRATIONS = ROOT / "internal" / "persistence" / "migrations"
 # The migration runner's own bookkeeping table is not part of the model.
 EXCLUDED_TABLES = ("contractor_schema_migrations",)
+# The Go test that writes the usage lists to the file USAGE_OUTPUT names.
+USAGE_TEST = "TestERDUsageMatchesTheSQLScan"
+USAGE_OUTPUT = "CONTRACTOR_ERD_USAGE_OUT"
 
 TABLES_SQL = """
 SELECT json_agg(t ORDER BY t.name) FROM (
@@ -101,24 +106,17 @@ def read_schema(url: str) -> dict:
     }
 
 
-def table_usage(tables: list[str]) -> dict[str, list[str]]:
-    """Packages whose production Go code names each table in SQL."""
-    sources: dict[str, list[str]] = {}
-    for path in sorted([*ROOT.glob("internal/**/*.go"), *ROOT.glob("cmd/**/*.go")]):
-        if path.name.endswith("_test.go") or "migrations" in path.parts:
-            continue
-        relative = path.relative_to(ROOT).parts
-        package = relative[1] if relative[0] == "internal" else "cmd"
-        sources.setdefault(package, []).append(path.read_text())
-    usage = {}
-    for table in tables:
-        pattern = re.compile(rf"(?i)\b(from|join|into|update|table)\s+{table}\b")
-        usage[table] = [
-            package
-            for package, texts in sorted(sources.items())
-            if any(pattern.search(text) for text in texts)
-        ]
-    return usage
+def table_usage(path: Path) -> None:
+    """Writes to path, as JSON, the directories of the packages whose SQL the
+    table ownership scan sees reading or writing each table."""
+    subprocess.run(
+        ["go", "test", "-count=1", "-run", f"^{USAGE_TEST}$", "./internal/persistence"],
+        cwd=ROOT,
+        check=True,
+        env={**os.environ, USAGE_OUTPUT: str(path)},
+    )
+    if not path.is_file():
+        sys.exit(f"{USAGE_TEST} wrote no usage lists to {path}")
 
 
 def latest_migration() -> str:
@@ -148,7 +146,7 @@ def main() -> None:
         usage_path = work_dir / "usage.json"
         data_path = work_dir / "data.json"
         schema_path.write_text(json.dumps(schema))
-        usage_path.write_text(json.dumps(table_usage([t["name"] for t in schema["tables"]])))
+        table_usage(usage_path)
         subprocess.run(
             [
                 "node",

@@ -8,11 +8,14 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fakes.podman_lifecycle import owner
+from platform_markers import linux_podman
 from test_podman_allocation import finalization, release, service_for
 
 from contractor_runtime.projectfs.errors import WorkspaceStorageError
 from contractor_runtime.sandbox.contracts import ExecutionRequest, SandboxErrorCode
 from contractor_runtime.sandbox.podman.command import CommandCapture
+
+pytestmark = linux_podman
 
 
 def deadline(seconds=5):

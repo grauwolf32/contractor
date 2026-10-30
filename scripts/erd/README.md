@@ -18,7 +18,7 @@ drops the database. It needs `psql`, Go and Node.js.
 | `meta.json` | Subsystems, and per table: subsystem, short description, why it exists and the processes that use it; verdict flags; tables removed by the schema reductions and where their data went |
 | `template.html` | The page: styles, renderer and the `__DATA__` slot |
 | `layout.cjs` | ELK layout of both views (keys and all columns) |
-| `build_erd.py` | Orchestration, catalog queries and per-package table usage |
+| `build_erd.py` | Orchestration and catalog queries; takes per-package table usage from the table ownership scan |
 
 After a migration adds, drops or renames a table, update `meta.json`; the
 build fails and names every table it cannot describe, and every flag or
@@ -29,8 +29,18 @@ too: `TestTableOwnershipMatchesTheSchemaDocuments` fails while `meta.json`
 and the registry name different tables or groups (PER-R23 in
 [persistence.md](../../docs/spec/platform/persistence.md)).
 
-Regenerate the page with every migration. `make lint` runs
-[`scripts/check_database_erd.py`](../check_database_erd.py), which needs no
-database: it fails when the page's `schemaVersion` is not the newest migration
-or when its tables differ from those the migrations leave after their
-`CREATE TABLE`, `DROP TABLE` and `ALTER TABLE ... RENAME TO` statements.
+The "where in code" list of each table names the packages, by directory as
+the registry names them, whose SQL the ownership scan of
+`TestSQLAccessFollowsTableOwnership` sees reading or writing the table:
+`build_erd.py` runs `TestERDUsageMatchesTheSQLScan` in
+`internal/persistence` with `CONTRACTOR_ERD_USAGE_OUT` set to get them. A
+package that reaches a table only through a migration function or trigger is
+not listed.
+
+Regenerate the page with every migration and whenever a package starts or
+stops using a table. `make lint` runs two checks that need no database:
+[`scripts/check_database_erd.py`](../check_database_erd.py) fails when the
+page's `schemaVersion` is not the newest migration or when its tables differ
+from those the migrations leave after their `CREATE TABLE`, `DROP TABLE` and
+`ALTER TABLE ... RENAME TO` statements, and `TestERDUsageMatchesTheSQLScan`
+fails when a usage list differs from the scan.

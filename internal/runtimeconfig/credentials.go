@@ -66,19 +66,6 @@ func (l TransactionLLMCredentialLookup) LookupLLMCredential(
 	return l.lookup.LookupLLMCredential(ctx, credentialID)
 }
 
-// TransactionLLMCredentialLookupFactoryFunc keeps tests and non-PostgreSQL
-// composition explicit without weakening the production transaction boundary.
-type TransactionLLMCredentialLookupFactoryFunc func(pgx.Tx) (resolved.CredentialLookup, error)
-
-func (f TransactionLLMCredentialLookupFactoryFunc) ForTransaction(
-	tx pgx.Tx,
-) (resolved.CredentialLookup, error) {
-	if f == nil {
-		return nil, errors.New("transaction LLM credential lookup factory is nil")
-	}
-	return f(tx)
-}
-
 type CredentialReferenceBarrier interface {
 	WithCredentialReferences(context.Context, func() error) error
 }

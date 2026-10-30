@@ -13,9 +13,12 @@ import (
 
 // Only Metadata may be called: a payload Read would both panic and require a
 // transfer slot in the saturated context used by this test.
+// inspectorRunID is the only Run whose artifacts the repository holds.
+const inspectorRunID = "run-1"
+
 type inspectorMetadataRepository struct {
 	artifacts.Repository
-	entries map[string]artifacts.Metadata
+	entries map[string]artifacts.Metadata // by namespace/name/revision of Run inspectorRunID
 	queries int
 }
 
@@ -27,10 +30,10 @@ func (r *inspectorMetadataRepository) Metadata(
 	_ context.Context, scope artifacts.Scope, ref contracts.ArtifactRef,
 ) (artifacts.Metadata, error) {
 	r.queries++
-	if scope.Kind() != artifacts.ScopeRun || ref.ValidateExact() != nil {
+	if want, err := artifacts.RunScope(inspectorRunID); err != nil || scope != want || ref.ValidateExact() != nil {
 		return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
 	}
-	metadata, ok := r.entries[scope.ID()+"/"+ref.Namespace+"/"+ref.Name+"/"+*ref.Revision]
+	metadata, ok := r.entries[ref.Namespace+"/"+ref.Name+"/"+*ref.Revision]
 	if !ok {
 		return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
 	}
@@ -58,61 +61,47 @@ func TestArtifactInspectorsUseExactMetadataWithTransferSlotsSaturated(t *testing
 	revision := "rev-1"
 	ref := contracts.ArtifactRef{Namespace: "builder", Name: "report", Revision: &revision}
 	repository := &inspectorMetadataRepository{entries: map[string]artifacts.Metadata{
-		"run-1/builder/report/rev-1": {Ref: ref, MediaType: "application/json"},
+		"builder/report/rev-1": {Ref: ref, MediaType: "application/json"},
 	}}
 	service := artifacts.NewService(repository)
-	serviceInspector, err := NewArtifactServiceInspector(service)
+	inspector, err := NewArtifactServiceInspector(service)
 	if err != nil {
 		t.Fatal(err)
 	}
-	runStore, err := service.Run("run-1")
-	if err != nil {
-		t.Fatal(err)
+	metadata, err := inspector.Inspect(ctx, "run-1", ref)
+	if err != nil || metadata.MediaType != "application/json" {
+		t.Fatalf("exact metadata inspection = (%+v, %v)", metadata, err)
 	}
-	runInspector, err := NewRunArtifactInspector("run-1", runStore)
-	if err != nil {
-		t.Fatal(err)
+	candidate := stageresult.StageContentResult{
+		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "done",
+		Artifacts: map[string]contracts.ArtifactRef{"report": ref},
 	}
-	for _, inspector := range []ArtifactInspector{serviceInspector, runInspector} {
-		metadata, err := inspector.Inspect(ctx, "run-1", ref)
-		if err != nil || metadata.MediaType != "application/json" {
-			t.Fatalf("exact metadata inspection = (%+v, %v)", metadata, err)
-		}
-		candidate := stageresult.StageContentResult{
-			APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded, Summary: "done",
-			Artifacts: map[string]contracts.ArtifactRef{"report": ref},
-		}
-		contract := map[string]resolved.ArtifactSlot{
-			"report": {Required: true, MediaTypes: []string{"application/json"}},
-		}
-		if failure := ValidateCandidate(ctx, "run-1", contract, candidate, inspector); failure != nil {
-			t.Fatalf("candidate failed under saturated transfer gate: %v", failure)
-		}
+	contract := map[string]resolved.ArtifactSlot{
+		"report": {Required: true, MediaTypes: []string{"application/json"}},
 	}
-	if repository.queries != 4 {
-		t.Fatalf("metadata query count = %d, want 4", repository.queries)
+	if failure := ValidateCandidate(ctx, "run-1", contract, candidate, inspector); failure != nil {
+		t.Fatalf("candidate failed under saturated transfer gate: %v", failure)
 	}
-	for _, inspector := range []ArtifactInspector{serviceInspector, runInspector} {
-		if _, err := inspector.Inspect(ctx, "run-2", ref); !artifacts.IsExactReferenceRejection(err) {
-			t.Fatalf("foreign RunScope inspection = %v, want a rejected reference", err)
-		}
-		missing := ref
-		missing.Name = "missing"
-		if _, err := inspector.Inspect(ctx, "run-1", missing); !errors.Is(err, artifacts.ErrArtifactNotFound) {
-			t.Fatalf("missing artifact = %v", err)
-		}
-		if _, err := inspector.Inspect(ctx, "run-1", contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name}); !artifacts.IsExactReferenceRejection(err) {
-			t.Fatalf("binding head inspection = %v, want a rejected reference", err)
-		}
+	if repository.queries != 2 {
+		t.Fatalf("metadata query count = %d, want 2", repository.queries)
+	}
+	if _, err := inspector.Inspect(ctx, "run-2", ref); !artifacts.IsExactReferenceRejection(err) {
+		t.Fatalf("foreign RunScope inspection = %v, want a rejected reference", err)
+	}
+	missing := ref
+	missing.Name = "missing"
+	if _, err := inspector.Inspect(ctx, "run-1", missing); !errors.Is(err, artifacts.ErrArtifactNotFound) {
+		t.Fatalf("missing artifact = %v", err)
+	}
+	if _, err := inspector.Inspect(ctx, "run-1", contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name}); !artifacts.IsExactReferenceRejection(err) {
+		t.Fatalf("binding head inspection = %v, want a rejected reference", err)
 	}
 	wrong := "rev-2"
-	repository.entries["run-1/builder/report/rev-1"] = artifacts.Metadata{
+	repository.entries["builder/report/rev-1"] = artifacts.Metadata{
 		Ref:       contracts.ArtifactRef{Namespace: ref.Namespace, Name: ref.Name, Revision: &wrong},
 		MediaType: "application/json",
 	}
-	for _, inspector := range []ArtifactInspector{serviceInspector, runInspector} {
-		if _, err := inspector.Inspect(ctx, "run-1", ref); !errors.Is(err, artifacts.ErrArtifactIntegrity) {
-			t.Fatalf("metadata for another revision = %v, want ErrArtifactIntegrity", err)
-		}
+	if _, err := inspector.Inspect(ctx, "run-1", ref); !errors.Is(err, artifacts.ErrArtifactIntegrity) {
+		t.Fatalf("metadata for another revision = %v, want ErrArtifactIntegrity", err)
 	}
 }

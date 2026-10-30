@@ -1468,6 +1468,8 @@ Registry entries owned by this document:
   resume body (AUD-R205).
 - [LIM-AUD-29](../platform/limits.md): at most 64 KiB of UTF-8 per Audit scope
   field (AUD-R95).
+- [LIM-AUD-41](../platform/limits.md): at most 64 KiB of accepted-plan metadata
+  per typed task (AUD-R235).
 - [FAIL-AUD-1](../platform/failure-model.md): reading persisted
   profile and baseline snapshots at start, recovery and resume
   (AUD-R22, AUD-R61).
@@ -1777,7 +1779,7 @@ dependency body. The accepted plan pins owner, Project, Audit, item, baseline an
 the original and retained proposal, receipt, producer Run and ordinal; canonical
 plan bytes/digest; the selected mapping, role, binding, Workflow and Skills;
 and scope, active-check policy, limits and required approval. Accepted-plan
-metadata is at most 64KiB. Every task with an accepted plan requires an explicit
+metadata is at most 64 KiB (LIM-AUD-41). Every task with an accepted plan requires an explicit
 registered `profile_mode`; missing, null, empty or unknown modes fail both the
 Server factory/reader and Runtime reader. Its explicitly nullable `dependencies_digest` pins the
 complete existing task dependency manifest without duplicating it. Exact task

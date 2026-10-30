@@ -22,7 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/scan"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -36,7 +36,7 @@ func TestAuditRulepackMetadataAdmissionPostgres(t *testing.T) {
 	pool := isolatedAuditServicePool(t, ctx, dsn)
 	catalog := &switchableProfileCatalog{snapshot: aliasedRulepackCatalog(t), available: true}
 	service, err := New(Options{Pool: pool, Profiles: catalog,
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
 			return &switchableCredentialLookup{available: true}, nil
 		}), CredentialGuard: &countingCredentialGuard{}})
 	if err != nil {

@@ -152,8 +152,6 @@ type PreparedPublication struct {
 	gatewaySelectors map[string]string
 }
 
-func (p PreparedPublication) Name() string          { return p.name }
-func (p PreparedPublication) Version() string       { return p.version }
 func (p PreparedPublication) RequestDigest() string { return p.requestDigest }
 
 // PreparePublication validates and normalizes an author request without

@@ -54,10 +54,6 @@ func DecodeCheckResultSet(data []byte) (CheckResultSet, error) {
 	return decodeDocument(data, validateCheckResultSet)
 }
 
-func EncodeDirectVerificationSet(value DirectVerificationSet) ([]byte, error) {
-	return encodeDocument(value, validateDirectVerificationSet)
-}
-
 func DecodeDirectVerificationSet(data []byte) (DirectVerificationSet, error) {
 	return decodeDocument(data, validateDirectVerificationSet)
 }

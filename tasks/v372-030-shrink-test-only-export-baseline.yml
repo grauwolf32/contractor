@@ -70,6 +70,25 @@ context:
     Function adapters of runtimeconfig interfaces that only tests use:
     TransactionLLMCredentialLookupFactoryFunc (credentials.go:71) and
     PlannerTelemetryAdapterCatalogFunc (publisher.go:33).
+  progress: >-
+    2026-10-30 (lane fix-persist): eleven of the fourteen entries left on
+    main are resolved and gone from the baseline (see decisions). Three
+    remain, each listed under V372-030 in tools/testonlyexports/baseline.txt:
+    (a) auditdomain FindingCollectionTargets, whose choice (4) depends on the
+    shared findings fixtures that V372-029 (lane fix-rtui) was moving into
+    api/testdata/findings and tests/e2e/testdata/findings during this wave;
+    (b) config Snapshot.AgentTemplate, 50 references in 21 test files, 13 of
+    them outside internal/config (controlplane, httpapi, tests/e2e,
+    tests/integration/lease): a helper that resolves a template through the
+    production Workflow bindings cannot live in internal/configtest, because
+    internal/config's own tests import configtest, so it needs a new test
+    helper package and its layer classification; (c) configload.Load, 100
+    calls in 80 test files across most packages, and removing it leaves
+    config.Load without a production caller, which 92 in-package calls of
+    internal/config's tests use. (b) and (c) are mechanical but touch test
+    files of nearly every package while five lanes were landing; do them
+    together in a quiet period, routing the loads through
+    configload.LoadUnionReadOnly with a missing managed root.
   decision: >-
     Open choices, to settle in this task: whether the error kinds become the
     typed values evaldomain and the Audit package errors raise (preferred,
@@ -102,3 +121,37 @@ tests:
     covers: [A1]
   - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags integration ./internal/..."
     covers: [A2]
+decisions:
+  - >-
+    2026-10-30: error kinds, router/streamline NewConfiguredFactory and
+    planner.CloneWorkerCompletion had already left the baseline before this
+    wave (other tasks resolved them); nothing to do here.
+  - >-
+    2026-10-30: in-memory doubles key their bindings by artifacts.Scope value (it is
+    comparable) instead of a string built from Scope.ID, and check a scope by comparing it with
+    the Scope a test builds; Scope.ID is gone. The public handler fake records the scopes of each
+    lineage edge beside it and leaves the edge's scope IDs empty, which the public handlers never
+    read (json:"-"); TestPublicArtifactLineageHidesAuditImportStagingEdge seeded an edge with an
+    empty scope ID that the fake never returned, so it now seeds the user's scope and checks the
+    exclusion for real. V368-010's doubles stay.
+  - >-
+    2026-10-30: RuntimeCredentialMaterial.Kind is gone: credentials' own tests read the field,
+    the Eval test names the kind constant it created, and the public fake reads the kind through
+    WithPlaintext as the service does. PreparedPublication.Name and Version are gone: the public
+    fake replays by request digest, as the Publisher does, instead of name and version.
+  - >-
+    2026-10-30: ReviewStore.AppendReviewEvents is gone; pgstore's tests call the unexported batch
+    append, and the Audit event paging test seeds through the production AppendReviewEvent, one
+    event per call. auditdomain.EncodeDirectVerificationSet is gone; the intake tests write the
+    document with json.Marshal, as the Runtime writes JSON, and intake's production decode
+    validates it; codec_test validates through the unexported encoder. SeedPlan.Packages of
+    agentskills and auditstandards moved into each package's tests; configload's tests compare
+    the bundles with an independent DiscoverBundled of the same root, and the Agent Skill process
+    test packages each skill directory with agentskills.PackageDirectory.
+  - >-
+    2026-10-30: planner.RunArtifactInspector and its constructor are gone; every test inspects
+    through the production ArtifactServiceInspector over an artifacts.Service, the scheduler tests
+    over the PostgreSQL service they already hold and the Planner tests over a Repository double
+    bound to one RunScope. The function adapters of PlannerTelemetryAdapterCatalog and
+    TransactionLLMCredentialLookupFactory moved to runtimeconfigtest (internal/runtimeconfig's own
+    tests keep unexported copies, since they cannot import runtimeconfigtest).

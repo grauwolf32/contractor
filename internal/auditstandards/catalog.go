@@ -28,17 +28,6 @@ type SeedPlan struct {
 	totalBytes int64
 }
 
-func (p *SeedPlan) Packages() []SeedMetadata {
-	if p == nil {
-		return nil
-	}
-	result := make([]SeedMetadata, len(p.packages))
-	for index, pkg := range p.packages {
-		result[index] = pkg.metadata
-	}
-	return result
-}
-
 // ResolveBundled returns an offline-validated package from the discovered
 // operator bundle. It never reads the database or publishes an artifact.
 func (p *SeedPlan) ResolveBundled(ref Reference) (Package, error) {

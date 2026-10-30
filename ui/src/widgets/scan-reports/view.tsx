@@ -6,7 +6,7 @@ import { Facts } from "../../ui";
 type WorkerErrorOutcome = "unavailable" | "incomplete" | "failed";
 
 // The job outcome the Planner records for each Worker errorCode. Tests pin it
-// to api/scan/v1/testdata/worker-error-codes.json.
+// to api/testdata/scan/worker-error-codes.json.
 const WORKER_ERROR_OUTCOMES: ReadonlyMap<string, WorkerErrorOutcome> = new Map([
   ["scanner_unavailable", "unavailable"],
   ["nuclei_templates_unavailable", "unavailable"],

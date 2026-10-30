@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 import pytest
+from platform_markers import linux_podman
 
 from contractor_runtime.sandbox.contracts import (
     ExecutionResult,
@@ -36,6 +37,7 @@ def test_lease_is_capped_by_both_confirmed_lease_and_liveness_ceiling():
     assert liveness_deadline(1000, 100) == 110
 
 
+@linux_podman
 def test_closed_guardian_transport_is_typed_cleanup_failure():
     async def scenario():
         control, peer = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
@@ -72,6 +74,7 @@ class FakeFence:
         return self.is_empty
 
 
+@linux_podman
 @pytest.mark.parametrize(
     "packet",
     [
@@ -104,6 +107,7 @@ def test_protocol_eof_forgery_and_invalid_renewal_kill(packet):
         assert not thread.is_alive() and fence.killed.is_set()
 
 
+@linux_podman
 def test_expired_start_and_missing_renewal_kill_without_runtime():
     for lifetime in (-1, 0.05):
         parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
@@ -117,6 +121,7 @@ def test_expired_start_and_missing_renewal_kill_without_runtime():
             assert not thread.is_alive() and fence.killed.is_set()
 
 
+@linux_podman
 def test_trusted_check_and_renewal_then_failed_descendant_proof():
     parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
     fence = FakeFence()
@@ -146,6 +151,7 @@ def test_never_open_broad_or_unrelated_cgroup(path):
         )
 
 
+@linux_podman
 def test_pidfd_is_real_close_on_exec_and_detects_live_process():
     fd = open_pidfd(os.getpid())
     try:
@@ -215,6 +221,7 @@ def test_completion_needs_guardian_and_engine_proof_and_never_revives(running):
     asyncio.run(scenario())
 
 
+@linux_podman
 def test_cancelled_delayed_guardian_spawn_retains_descriptors_and_reaps(monkeypatch, tmp_path):
     async def scenario():
         entered, resume = asyncio.Event(), asyncio.Event()
@@ -264,6 +271,7 @@ def test_cancelled_delayed_guardian_spawn_retains_descriptors_and_reaps(monkeypa
     asyncio.run(scenario())
 
 
+@linux_podman
 @pytest.mark.parametrize("failure", ["kill", "empty"])
 def test_uncertain_kernel_cleanup_never_emits_stopped_receipt(failure):
     parent, child = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)
@@ -298,6 +306,7 @@ def test_freeze_timeout_does_not_release_execution(monkeypatch):
     assert writes == [("cgroup.freeze", b"1")]
 
 
+@linux_podman
 def test_partial_descriptor_duplication_failure_closes_owned_resources(monkeypatch, tmp_path):
     async def scenario():
         pair = socket.socketpair(socket.AF_UNIX, socket.SOCK_SEQPACKET)

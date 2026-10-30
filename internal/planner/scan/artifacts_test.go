@@ -21,7 +21,7 @@ type adapterRepository struct {
 
 func (r *adapterRepository) scope(scope artifacts.Scope) {
 	r.t.Helper()
-	if scope.Kind() != artifacts.ScopeRun || scope.ID() != "run-adapter" {
+	if want, err := artifacts.RunScope("run-adapter"); err != nil || scope != want {
 		r.t.Fatalf("incorrect artifact scope: %v", scope)
 	}
 }

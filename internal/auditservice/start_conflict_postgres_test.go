@@ -11,7 +11,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -36,7 +36,7 @@ func TestAuditStartReplaysTheWinnerAfterADeadlockAbort(t *testing.T) {
 	newService := func(lookup func(pgx.Tx) (resolved.CredentialLookup, error)) *Service {
 		service, err := New(Options{
 			Pool: pool, Profiles: &switchableProfileCatalog{snapshot: profileSnapshot, available: true},
-			TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(lookup),
+			TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(lookup),
 			CredentialGuard:           &countingCredentialGuard{}, Now: time.Now,
 		})
 		if err != nil {

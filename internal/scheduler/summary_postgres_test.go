@@ -219,7 +219,7 @@ func TestPostgresSummaryContinuationReconcilesAndRetainsArtifactsAndMemory(t *te
 				if err != nil {
 					t.Fatal(err)
 				}
-				inspector, _ := planner.NewRunArtifactInspector("run-1", store)
+				inspector, _ := planner.NewArtifactServiceInspector(service)
 				memory, err := plannermemory.NewPostgresStore(h.pool)
 				if err != nil {
 					t.Fatal(err)

@@ -72,7 +72,7 @@ func newBindingLockFixture(t *testing.T, ctx context.Context, count int) binding
 	now := time.Date(2026, 10, 23, 0, 0, 0, 0, time.UTC)
 	publisher, err := NewPublisher(PublisherOptions{
 		Pool: pool, RuntimeCredentials: allowRuntimeCredentialCatalog{}, Now: func() time.Time { return now },
-		PlannerTelemetryAdapters: PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		PlannerTelemetryAdapters: plannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 	})
 	if err != nil {
 		t.Fatal(err)

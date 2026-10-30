@@ -39,11 +39,11 @@ SECRET = "source-tool-recognizable-secret"
 
 
 def producer_fixture() -> dict:
-    fixture = Path(__file__).resolve().parents[2] / "testdata/source_member_paths.json"
+    fixture = Path(__file__).resolve().parents[2] / "api/testdata/source-member-paths.json"
     return json.loads(fixture.read_text(encoding="utf-8"))
 
 
-def test_source_member_paths_match_producer_fixture() -> None:
+def test_shared_source_member_paths_match_producer_fixture() -> None:
     cases = producer_fixture()
     for path in cases["valid"]:
         assert source_tools_module._validated_member_path(path) == path
@@ -52,7 +52,7 @@ def test_source_member_paths_match_producer_fixture() -> None:
             source_tools_module._validated_member_path(path)
 
 
-def test_source_readability_lists_match_producer_fixture() -> None:
+def test_shared_source_readability_lists_match_producer_fixture() -> None:
     cases = producer_fixture()
     assert sorted(source_tools_module.IGNORED_DIRECTORY_NAMES) == sorted(
         cases["ignoredDirectoryNames"]
@@ -60,7 +60,7 @@ def test_source_readability_lists_match_producer_fixture() -> None:
     assert sorted(source_tools_module.BINARY_EXTENSIONS) == sorted(cases["binaryExtensions"])
 
 
-def test_source_bundle_openability_matches_producer_fixture(tmp_path: Path) -> None:
+def test_shared_source_bundle_openability_matches_producer_fixture(tmp_path: Path) -> None:
     errors = {
         "unreadable": "no readable UTF-8 files",
         "nested": "nests an entry below a regular file",

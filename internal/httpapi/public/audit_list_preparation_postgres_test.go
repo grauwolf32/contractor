@@ -37,7 +37,6 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -445,7 +444,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 
 	credentials := newFakeManagedCredentials()
 	service, err := auditservice.New(auditservice.Options{Pool: traced, Profiles: f.catalog, CredentialGuard: credentials,
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 			func(pgx.Tx) (resolved.CredentialLookup, error) { return credentials, nil }),
 	})
 	if err != nil {
@@ -497,7 +496,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 		items := make([]auditResponse, 0, len(listed))
 		for _, audit := range listed {
 			item, err := auditReadModel(audit)
-			if err == nil && (audit.Phase == auditdomain.AuditPhasePreparing || audit.Phase == auditdomain.AuditPhaseInventory) {
+			if err == nil && audit.Phase.PrecedesRounds() {
 				item, err = h.readAuditDetail(request, audit)
 			}
 			if err != nil {
@@ -593,7 +592,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 			if err := json.Unmarshal(item, &listed); err != nil {
 				t.Fatal(err)
 			}
-			hydrated := listed.Phase == auditdomain.AuditPhasePreparing || listed.Phase == auditdomain.AuditPhaseInventory
+			hydrated := listed.Phase.PrecedesRounds()
 			if (listed.Preparation != nil) != hydrated || listed.GeneratedInventory != nil {
 				t.Fatalf("%s list item preparation=%t generatedInventory=%s", listed.AuditID, listed.Preparation != nil, listed.GeneratedInventory)
 			}
@@ -656,7 +655,7 @@ func TestSharedPostgresAuditListsHydratePreparationInFixedStatements(t *testing.
 			t.Fatalf("selection ran %d times before COMMIT and %d in all for %d Audits, %d preparations, %d statements",
 				callsAtCommit, calls, len(audits), len(preparation), statements)
 		}
-		// The selection may pick only Audits whose phase shows preparation.
+		// The selection may pick only Audits whose phase precedes Rounds.
 		drafts := auditstore.ListParams{OwnerID: owner, VisibleProjects: true, States: []auditstore.AuditState{auditstore.AuditDraft}, Limit: 2}
 		if _, _, err := service.ListPage(ctx, drafts, func(auditstore.Audit) bool { return true }); err == nil {
 			t.Fatal("a selection beyond the preparing and inventory phases was accepted")

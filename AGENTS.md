@@ -321,6 +321,57 @@ merely because it is already implemented and covered by tests.
 
 ## 4. Tasks
 
+### 4.1 Shaping work
+
+This applies when you turn a request, proposal or finding into specifications
+and tasks, and when work in progress outgrows its task. A task that already
+states its scope and acceptance is the contract for executing it
+(`task_files_are_self_contained` in `tasks/index.yml`): do not restate or
+re-plan it; come back here only when it proves wrong or too small.
+
+- **Start from the outcome.** State the user-visible outcome, the smallest
+  end-to-end scenario through real components that shows it, and the
+  assumptions that would change either, in product terms before
+  implementation details. In a feature task these are `goal` and
+  `demonstration`.
+- **Keep track of who asked for what.** A requirement comes from a user
+  decision, the specification or an agent proposal. Record user decisions with
+  their date in `context.authority` (as V397-009 does) and label agent
+  proposals as proposals. Do not turn an inferred need, a stronger guarantee or
+  a possible future use into a requirement; 3.7 counts what removing those
+  later costs.
+- **Settle consequential choices before specifying them.** A choice is
+  consequential when it changes user-visible behaviour, a guarantee, component
+  ownership or the expected amount of work. Give the recommended option, a
+  simpler viable alternative and the trade-off, and record the outcome as 3.10
+  describes. Ask only when instructions and evidence leave the choice open;
+  make routine choices within the agreed direction yourself.
+- **When nobody can answer now** (a parallel lane, a background agent, a
+  queued task), neither guess nor stall: write the open choice, its options and
+  your recommendation into the task as `context.decision_needed` (V371-004,
+  V55-009), leave or return the task to `pending`, and continue with work that
+  does not depend on it.
+- **Demonstrate early.** For a feature that spans several tasks, make the first
+  deliverable a narrow end-to-end path through real components and let its
+  result shape the later tasks. A working demonstration is not release
+  readiness; the milestone's release gate is (V410-007, V411-020).
+- **Report scope growth instead of absorbing it.** When the work needs a
+  prerequisite the task did not foresee, or materially widens, stop and say
+  what you found, why the current approach is not enough and which smaller
+  options remain. A new prerequisite gets its own task; do not grow supporting
+  subsystems under the original one.
+- **Re-plan when direction changes.** The last paragraph of 3.11 applies to
+  plans as well as code: review the open dependent tasks, specifications and
+  checks, and revise or remove what the new decision makes obsolete, within
+  the authorized scope. An older acceptance criterion does not override a newer
+  user decision; record that decision in each affected task's
+  `context.authority`.
+- **Report against the outcome.** Say what now works for the user, what is
+  still unproven and whether scope or complexity changed. Finished
+  infrastructure tasks alone do not make a feature ready.
+
+### 4.2 Task files
+
 `tasks/` is the project tracker (`gh` is not available). The rules are in
 `execution_policy` at the top of `tasks/index.yml`; read them before you
 create or change a task.
@@ -449,6 +500,15 @@ Notes:
 - A table needs a named reader; a transaction-scoped lookup uses the
   transaction, never a second pool connection (nested acquisition deadlocked
   under `MaxConns=1`, V60-003, V60-015).
+- Every table and view has one owner package, the only one whose SQL writes
+  it (PER-R23); the registry is
+  `internal/persistence/table_ownership.txt`. A new or renamed table needs, in
+  the same change: its `[relations]` line (owner and ERD group), its row in
+  the "Table owners" table of `docs/spec/platform/persistence.md`, its entry in
+  `scripts/erd/meta.json`, and a page rebuilt with `make docs-erd`. Another
+  package's read needs a `[reads]` line with its reason; a write goes through
+  the owner's Go API. `make docs-erd` also runs whenever a package starts or
+  stops using a table, since the page lists the packages that use each one.
 
 ### Python Runtime
 
@@ -516,6 +576,8 @@ Notes:
 - [ ] Nothing new is without a production caller (3.7).
 - [ ] Source details stay in adapters, shared mechanisms are reused, and
       superseded paths are removed (3.11).
+- [ ] Progress is reported against the user-visible outcome, and any scope
+      growth or open choice is recorded in the task (4.1).
 - [ ] `make lint` and the tests for every touched package pass; you report
       exactly what you ran.
 - [ ] The task file is updated (status, commit hash, moved to `tasks/done/`

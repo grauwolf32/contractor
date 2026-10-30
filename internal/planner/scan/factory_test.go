@@ -24,10 +24,35 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// scanMetadataReader answers the artifact metadata reads of one Run.
 type scanMetadataReader func(context.Context, contracts.ArtifactRef) (artifacts.Metadata, error)
 
-func (f scanMetadataReader) Metadata(ctx context.Context, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
-	return f(ctx, ref)
+// scanMetadataRepository is the artifacts Repository of an artifacts.Service whose
+// RunScope reads of Run scope it answers with read; any other Repository
+// method panics on the nil embedded interface.
+type scanMetadataRepository struct {
+	artifacts.Repository
+	scope artifacts.Scope
+	read  scanMetadataReader
+}
+
+func (r scanMetadataRepository) Metadata(
+	ctx context.Context, scope artifacts.Scope, ref contracts.ArtifactRef,
+) (artifacts.Metadata, error) {
+	if scope != r.scope {
+		return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
+	}
+	return r.read(ctx, ref)
+}
+
+// newScanInspector is the production artifact inspector over an artifacts.Service
+// whose repository answers the metadata of Run runID with read.
+func newScanInspector(runID string, read scanMetadataReader) (*planner.ArtifactServiceInspector, error) {
+	scope, err := artifacts.RunScope(runID)
+	if err != nil {
+		return nil, err
+	}
+	return planner.NewArtifactServiceInspector(artifacts.NewService(scanMetadataRepository{scope: scope, read: read}))
 }
 
 func TestFactoryValidatesExactMetadataWithTransferSlotsSaturated(t *testing.T) {
@@ -44,7 +69,7 @@ func TestFactoryValidatesExactMetadataWithTransferSlotsSaturated(t *testing.T) {
 		t.Fatalf("transfer gate was not saturated: %v", err)
 	}
 	queries := 0
-	inspector, err := planner.NewRunArtifactInspector("run-scan", scanMetadataReader(func(_ context.Context, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
+	inspector, err := newScanInspector("run-scan", scanMetadataReader(func(_ context.Context, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
 		queries++
 		payload, exists := h.artifacts.values[factoryRefKey(ref)]
 		if !exists || ref.ValidateExact() != nil {

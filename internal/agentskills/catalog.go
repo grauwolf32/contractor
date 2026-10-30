@@ -44,17 +44,6 @@ type SeedPlan struct {
 	totalBytes int64
 }
 
-func (p *SeedPlan) Packages() []SeedMetadata {
-	if p == nil {
-		return nil
-	}
-	result := make([]SeedMetadata, len(p.packages))
-	for index, pkg := range p.packages {
-		result[index] = pkg.metadata
-	}
-	return result
-}
-
 type SeedOutcome struct {
 	Name          string     `json:"name"`
 	Status        SeedStatus `json:"status"`

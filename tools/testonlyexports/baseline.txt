@@ -4,32 +4,12 @@
 # entry has a production reference again or no longer exists, and when its
 # task is finished or missing, so the list only shrinks.
 
-# Accessors that only in-memory test doubles read (V368-010 keeps the doubles).
-internal/artifacts.Scope.ID V372-030
-internal/credentials.RuntimeCredentialMaterial.Kind V372-030
-internal/runtimeconfig.PreparedPublication.Name V372-030
-internal/runtimeconfig.PreparedPublication.Version V372-030
-
-# Audit store reads and writes that only tests use to inspect or seed state.
-internal/auditstore/internal/pgstore.ReviewStore.AppendReviewEvents V372-030
-
-# Documents and rules the Runtime produces in production; Go tests build them.
-internal/auditdomain.EncodeDirectVerificationSet V372-030
+# A rule the Runtime applies in production; a Go process test reads it.
 internal/auditdomain.FindingCollectionTargets V372-030
 
 # Configuration loading that tests use instead of the production entry points.
-internal/agentskills.SeedPlan.Packages V372-030
-internal/auditstandards.SeedPlan.Packages V372-030
 internal/config.Snapshot.AgentTemplate V372-030
 internal/configload.Load V372-030
-
-# Run-bound inspector used by injected metadata stores in tests.
-internal/planner.NewRunArtifactInspector V372-030
-
-# Function adapters of interfaces that only tests use; production passes the
-# concrete implementations.
-internal/runtimeconfig.PlannerTelemetryAdapterCatalogFunc V372-030
-internal/runtimeconfig.TransactionLLMCredentialLookupFactoryFunc V372-030
 
 # The Audit priority library has no production importer yet; its callers
 # arrive with the priority verdict and selection tasks.

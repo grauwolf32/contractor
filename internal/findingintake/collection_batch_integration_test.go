@@ -4,6 +4,7 @@ package findingintake
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -110,7 +111,7 @@ func newLargeDirectCollectionFixture(t *testing.T) deletionImportFixture {
 			Assessment: "supported", Summary: "Verified exact candidate.", EvidenceIDs: []string{},
 		}
 	}
-	encoded, err := auditdomain.EncodeDirectVerificationSet(auditdomain.DirectVerificationSet{
+	encoded, err := json.Marshal(auditdomain.DirectVerificationSet{
 		Schema: auditdomain.DirectVerificationsSchema, Verifications: verifications,
 	})
 	if err != nil {
@@ -627,7 +628,7 @@ func TestPostgresCollectionRejectionKeepsEarlierDirectAssessments(t *testing.T) 
 	}
 	loseFixtureEvidence(t, f, missing)
 	sort.Slice(verifications, func(i, j int) bool { return verifications[i].ClientKey < verifications[j].ClientKey })
-	encoded, err := auditdomain.EncodeDirectVerificationSet(auditdomain.DirectVerificationSet{
+	encoded, err := json.Marshal(auditdomain.DirectVerificationSet{
 		Schema: auditdomain.DirectVerificationsSchema, Verifications: verifications,
 	})
 	if err != nil {

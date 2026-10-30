@@ -619,7 +619,7 @@ svg.focus .edge.dim { opacity: 0.08; }
       <section><h3>Колонки</h3><table class="cols">${t.cols.map((c) => `<tr class="${c.pk || c.fk ? 'key' : ''}"><td class="k">${[c.pk ? 'PK' : '', c.fk ? 'FK' : ''].filter(Boolean).join(' ')}</td><td class="n">${c.n}</td><td class="t">${c.t}${c.nn ? '' : '?'}</td></tr>`).join('')}</table></section>
       <section><h3>Ссылается на</h3>${o.length ? `<ul class="rels">${o.map((x) => relItem(x, 'out')).join('')}</ul>` : '<p class="empty">Внешних ключей нет.</p>'}</section>
       <section><h3>На неё ссылаются</h3>${i.length ? `<ul class="rels">${i.map((x) => relItem(x, 'in')).join('')}</ul>` : '<p class="empty">Никто не ссылается.</p>'}</section>
-      <section><h3>Где в коде</h3>${t.usage.length ? `<p class="plain">${t.usage.map((u) => 'internal/' + u).join('<br>')}</p>` : '<p class="empty">Ни один пакет не обращается к таблице в SQL.</p>'}</section>
+      <section><h3>Где в коде</h3>${t.usage.length ? `<p class="plain">${t.usage.join('<br>')}</p>` : '<p class="empty">Ни один пакет не обращается к таблице в SQL.</p>'}</section>
       ${t.triggers.length ? `<section><h3>Триггеры</h3><p class="plain">${t.triggers.join('<br>')}</p></section>` : ''}
     `;
     sheet.hidden = false;

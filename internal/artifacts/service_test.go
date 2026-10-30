@@ -155,8 +155,8 @@ func TestProjectScopeIsDistinctAndDoesNotUseRunReservedNamespaces(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if project.scope.Kind() != ScopeProject || project.scope.ID() != "project-1" {
-		t.Fatalf("Project scope = (%q, %q)", project.scope.Kind(), project.scope.ID())
+	if project.scope.Kind() != ScopeProject || project.scope.id != "project-1" {
+		t.Fatalf("Project scope = (%q, %q)", project.scope.Kind(), project.scope.id)
 	}
 	if _, err := project.Write(
 		context.Background(), ArtifactRef{Namespace: "outputs", Name: "openapi"},

@@ -375,7 +375,7 @@ func (u integrationUnitOfWork) Do(ctx context.Context, fn func(RunWriter, *artif
 	return persistencepostgres.InTx(ctx, u.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		lookup, err := runtimeconfig.BindTransactionLLMCredentialLookup(
 			tx,
-			runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+			runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 				func(pgx.Tx) (resolved.CredentialLookup, error) { return u.credentials, nil },
 			),
 		)

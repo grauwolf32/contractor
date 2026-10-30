@@ -53,6 +53,26 @@ context:
     is an internal invariant rather than a limit (for example a fixed-width hash
     or nonce length). Classification of a CHECK violation at write time is
     V414-008, not this task.
+  decisions_2026_10_30: >-
+    The inventory is internal/persistence/stored_size_checks.txt (PER-R44):
+    one disposition per octet_length CHECK of the migrated schema (139 with
+    the migration ledger's checksum), compared by
+    TestPostgresStoredSizeChecksHaveADisposition with pg_constraint and with
+    the Enforced by cells of limits.md. Equal bounds name their constraint in
+    the existing row (LIM-API-19/26, ART-1, ASC-23/27, AUD-39/40, CAT-1/2,
+    EVF-3, EVM-19, FND-10/35/39/45, GIT-3/22/23, OPS-10, PRJ-3/5, RCF-3/7/18,
+    REV-11, SCN-88, API-25, PLN-9); wider storage backstops cite the bound the
+    Server checks first (owner and actor IDs above LIM-API-20, media types
+    above LIM-ART-2, Audit profile version above LIM-CAT-2, LiteLLM key ID
+    above LIM-RCF-6); fixed widths, column consistency rules and
+    Server-generated randomid identities are invariants. Bounds a domain
+    requirement already states got a row it owns: LIM-FND-51 (FND-R154),
+    LIM-FND-52 (FND-R188), LIM-AUD-41 (AUD-R235), LIM-PRJ-6 (PRJ-R69). The
+    rest, stated by no domain requirement, are grouped into LIM-PER-14 to
+    LIM-PER-21 owned by PER-R45, which AUX-R100 now cites. Alternative
+    rejected: one row per constraint (about 90 rows that only restate the
+    schema). Reopen a grouped row when a domain requirement starts to state
+    one of its bounds; that requirement then owns a row of its own.
   provenance: >-
     The CHECK came with 2fbac4dd (V3-009, 2026-08-30), before the LIM registry
     existed; the registry was written on 2026-10-11 by 2b675dda without a task.

@@ -5,7 +5,6 @@ import base64
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 
 import httpx
 import pytest
@@ -26,9 +25,7 @@ from contractor_runtime.toolsets.audit_results.collector import AuditCollectionE
 from contractor_runtime.toolsets.common.cwe import CWEReferenceError
 from contractor_runtime.toolsets.common.finding_locations import (
     StandardReference,
-    normalize_locations,
 )
-from contractor_runtime.toolsets.common.http_evidence import HTTPAttempt
 from contractor_runtime.toolsets.http.tools import HTTPToolError
 from contractor_runtime.toolsets.security_findings.collection import _proposal
 from contractor_runtime.toolsets.security_findings.facades import (
@@ -41,41 +38,6 @@ from contractor_runtime.toolsets.security_findings.facades import (
 )
 from contractor_runtime.toolsets.security_findings.publisher import FindingPublisher
 from contractor_runtime.worker.instrumentation import _safe_tool_response
-
-LOCATION_CASES = json.loads(
-    (Path(__file__).parents[2] / "internal/auditdomain/testdata/finding-locations.json").read_text()
-)
-HTTP_ATTEMPT_CASES = json.loads(
-    (
-        Path(__file__).parents[2] / "internal/auditdomain/testdata/finding-http-attempts.json"
-    ).read_text()
-)
-
-
-@pytest.mark.parametrize("case", HTTP_ATTEMPT_CASES, ids=lambda case: case["name"])
-def test_runtime_and_server_share_http_attempt_rules(case: dict[str, Any]) -> None:
-    attempt = {
-        "method": "GET",
-        "url": case["url"] + case.get("repeat", "") * case.get("count", 0),
-        "headers": [],
-        "body_base64": "",
-        "status": case["status"],
-        "response_headers": [],
-    }
-    if case["valid"]:
-        HTTPAttempt.model_validate(attempt)
-    else:
-        with pytest.raises(ValueError):
-            HTTPAttempt.model_validate(attempt)
-
-
-@pytest.mark.parametrize("case", LOCATION_CASES, ids=lambda case: case["name"])
-def test_locations_match_go_contract(case):
-    if case["valid"]:
-        assert normalize_locations([case["location"]]) == [case["location"]]
-    else:
-        with pytest.raises(ValueError):
-            normalize_locations([case["location"]])
 
 
 @pytest.mark.parametrize(

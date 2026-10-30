@@ -20,6 +20,7 @@ import (
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -38,7 +39,7 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 			guard := recoveryCredentialGuard{}
 			publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 				Pool: pool, RuntimeCredentials: guard,
-				PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(string) bool { return true }),
+				PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(string) bool { return true }),
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -52,7 +53,7 @@ func TestPostgresPublicRunCreationRecoversFreshPinsAndRolledBackResults(t *testi
 				t.Fatal(err)
 			}
 			attempts := 0
-			transactionLookup := runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+			transactionLookup := runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 				func(tx pgx.Tx) (resolved.CredentialLookup, error) {
 					attempts++
 					if name == "exhausted-deadlock" {

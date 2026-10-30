@@ -3,21 +3,29 @@ package auditdomain
 import (
 	"bytes"
 	"encoding/json"
-	"os"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
+
+// The process tests (tests/e2e) feed the Server and the Runtime this
+// collection; their copy must stay the shared fixture byte for byte.
+func TestSharedFindingCollectionProcessCopyMatches(t *testing.T) {
+	shared := contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v1.fixture.json")
+	process := contractstest.ReadFile(t, "tests", "e2e", "testdata", "findings", "finding-collection-v1.fixture.json")
+	if !bytes.Equal(process, shared) {
+		t.Fatal("tests/e2e/testdata/findings/finding-collection-v1.fixture.json differs from the shared fixture")
+	}
+}
 
 // Frozen values were produced independently with Python hashlib/json/zipfile.
 // The ASCII metadata keys and integral numbers need no extra JCS normalization.
 func collectionFixture(t *testing.T) (FindingCollection, map[string][]byte, string, string) {
 	t.Helper()
-	raw, err := os.ReadFile("testdata/finding-collection-v1.fixture.json")
-	if err != nil {
-		t.Fatal(err)
-	}
+	raw := contractstest.ReadFile(t, "api", "testdata", "findings", "finding-collection-v1.fixture.json")
 	var fixture struct {
 		Collection    FindingCollection `json:"collection"`
 		Contents      map[string]string `json:"contents"`
@@ -34,7 +42,7 @@ func collectionFixture(t *testing.T) (FindingCollection, map[string][]byte, stri
 	return fixture.Collection, contents, fixture.PackageID, fixture.PackageDigest
 }
 
-func TestFindingCollectionConformanceAndConsumerTargets(t *testing.T) {
+func TestSharedFindingCollectionConformanceAndConsumerTargets(t *testing.T) {
 	value, contents, packageID, packageDigest := collectionFixture(t)
 	payload, err := BuildFindingCollectionPackage(value, contents)
 	if err != nil {
@@ -92,7 +100,7 @@ func TestFindingCollectionConformanceAndConsumerTargets(t *testing.T) {
 	}
 }
 
-func TestFindingCollectionEmptySelectionAndOptionalReviews(t *testing.T) {
+func TestSharedFindingCollectionEmptySelectionAndOptionalReviews(t *testing.T) {
 	value, _, _, _ := collectionFixture(t)
 	value.Entries = []FindingCollectionEntry{}
 	value.Documents = []FindingCollectionDocument{}
@@ -115,7 +123,7 @@ func TestFindingCollectionEmptySelectionAndOptionalReviews(t *testing.T) {
 	}
 }
 
-func TestFindingCollectionSharesEvidenceWithoutMergingReceipts(t *testing.T) {
+func TestSharedFindingCollectionSharesEvidenceWithoutMergingReceipts(t *testing.T) {
 	value, contents, _, _ := collectionFixture(t)
 	sharedID := value.Entries[0].Evidence[0].DocumentID
 	replacedID := value.Entries[1].Evidence[0].DocumentID
@@ -137,7 +145,7 @@ func TestFindingCollectionSharesEvidenceWithoutMergingReceipts(t *testing.T) {
 	}
 }
 
-func TestFindingCollectionAuditHoldPreservesMembershipWithoutReview(t *testing.T) {
+func TestSharedFindingCollectionAuditHoldPreservesMembershipWithoutReview(t *testing.T) {
 	value, contents, _, _ := collectionFixture(t)
 	value.Sources = []FindingCollectionSource{{Kind: "audit", ID: "audit-a"}}
 	for i := range value.Entries {
@@ -161,7 +169,7 @@ func TestFindingCollectionAuditHoldPreservesMembershipWithoutReview(t *testing.T
 	}
 }
 
-func TestFindingCollectionRejectsInvalidMetadata(t *testing.T) {
+func TestSharedFindingCollectionRejectsInvalidMetadata(t *testing.T) {
 	cases := []struct {
 		name   string
 		mutate func(*FindingCollection)
@@ -224,7 +232,7 @@ func TestFindingCollectionRejectsInvalidMetadata(t *testing.T) {
 	}
 }
 
-func TestFindingCollectionRejectsAmbiguousJSON(t *testing.T) {
+func TestSharedFindingCollectionRejectsAmbiguousJSON(t *testing.T) {
 	value, _, _, _ := collectionFixture(t)
 	valid, err := EncodeFindingCollection(value)
 	if err != nil {
@@ -250,7 +258,7 @@ func TestFindingCollectionRejectsAmbiguousJSON(t *testing.T) {
 	}
 }
 
-func TestFindingCollectionRejectsMissingAndForgedContents(t *testing.T) {
+func TestSharedFindingCollectionRejectsMissingAndForgedContents(t *testing.T) {
 	for _, mode := range []string{"missing", "extra", "changed", "wrong evidence ID", "invalid proposal"} {
 		t.Run(mode, func(t *testing.T) {
 			value, contents, _, _ := collectionFixture(t)
@@ -290,7 +298,7 @@ func TestFindingCollectionRejectsMissingAndForgedContents(t *testing.T) {
 	}
 }
 
-func TestFindingCollectionDecoderChecksArchiveAgainstMetadata(t *testing.T) {
+func TestSharedFindingCollectionDecoderChecksArchiveAgainstMetadata(t *testing.T) {
 	for _, mode := range []string{"package ID", "kind", "collection path", "missing document", "extra document", "wrong bytes", "document path", "document MIME"} {
 		t.Run(mode, func(t *testing.T) {
 			value, contents, packageID, _ := collectionFixture(t)

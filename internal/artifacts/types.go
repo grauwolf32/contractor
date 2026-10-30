@@ -41,8 +41,6 @@ func newScope(kind ScopeKind, id string) (Scope, error) {
 
 func (s Scope) Kind() ScopeKind { return s.kind }
 
-func (s Scope) ID() string { return s.id }
-
 type ArtifactRef = contracts.ArtifactRef
 
 type Payload struct {

@@ -24,7 +24,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/rundeletion"
 	"github.com/grauwolf32/contractor/internal/runstore"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -334,7 +334,7 @@ func reportDeletionReviewService(t *testing.T, f *completionFixture) *auditservi
 	mustCompletion(t, err)
 	service, err := auditservice.New(auditservice.Options{
 		Pool: f.pool, Profiles: manager, CredentialGuard: completionCredentials{},
-		TransactionLLMCredentials: runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
+		TransactionLLMCredentials: runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(pgx.Tx) (resolved.CredentialLookup, error) {
 			return completionCredentials{}, nil
 		}), Now: time.Now,
 	})

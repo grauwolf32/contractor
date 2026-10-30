@@ -1,8 +1,8 @@
 // Guards the one-definition rule for contract grammars and state lists
 // (AGENTS.md 3.1): identifier, Idempotency-Key, digest and Runtime identity
 // grammars come from the generated contract (src/api/contract.ts), and Audit
-// and Run state lists from src/api/states.ts. A copy elsewhere drifts from
-// the Server.
+// and Run state lists and the Audit phases before Rounds from
+// src/api/states.ts. A copy elsewhere drifts from the Server.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import ts from "typescript";
@@ -167,6 +167,73 @@ function stateListCopies(path: string, text: string): string[] {
   return found;
 }
 
+const AUDIT_PHASES = new Set<string>(schemaEnum("AuditPhase"));
+/** The phases auditPrecedesRounds selects, in lexical order. */
+const PHASES_BEFORE_ROUNDS = "inventory,preparing";
+
+/**
+ * Conditions and lists that name exactly the Audit phases before Rounds: a
+ * chain of && and || whose comparisons with Audit phases compare with
+ * exactly those two, or a list of exactly those two.
+ */
+function phaseSetCopies(path: string, text: string): string[] {
+  const file = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
+  const found: string[] = [];
+  const line = (node: ts.Node) =>
+    file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1;
+  const isChain = (node: ts.Node): node is ts.BinaryExpression =>
+    ts.isBinaryExpression(node) &&
+    (node.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
+      node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken);
+  const leaves = (node: ts.Expression): ts.Expression[] => {
+    if (ts.isParenthesizedExpression(node)) return leaves(node.expression);
+    if (isChain(node)) return [...leaves(node.left), ...leaves(node.right)];
+    return [node];
+  };
+  const comparedPhases = (leaf: ts.Expression): string[] => {
+    if (
+      !ts.isBinaryExpression(leaf) ||
+      ![
+        ts.SyntaxKind.EqualsEqualsEqualsToken,
+        ts.SyntaxKind.ExclamationEqualsEqualsToken,
+        ts.SyntaxKind.EqualsEqualsToken,
+        ts.SyntaxKind.ExclamationEqualsToken,
+      ].includes(leaf.operatorToken.kind)
+    ) {
+      return [];
+    }
+    return [leaf.left, leaf.right].flatMap((side) =>
+      ts.isStringLiteral(side) && AUDIT_PHASES.has(side.text)
+        ? [side.text]
+        : [],
+    );
+  };
+  const exactly = (phases: readonly string[]) =>
+    [...new Set(phases)].sort().join(",") === PHASES_BEFORE_ROUNDS;
+  const visit = (node: ts.Node) => {
+    if (isChain(node)) {
+      const parts = leaves(node);
+      if (exactly(parts.flatMap(comparedPhases))) {
+        found.push(`phases before Rounds at line ${line(node)}`);
+      }
+      parts.forEach(visit);
+      return;
+    }
+    if (
+      ts.isArrayLiteralExpression(node) &&
+      node.elements.every(ts.isStringLiteral) &&
+      exactly(
+        node.elements.map((element) => (element as ts.StringLiteral).text),
+      )
+    ) {
+      found.push(`phases before Rounds at line ${line(node)}`);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(file);
+  return found;
+}
+
 /**
  * The patterns a module compiles: regular-expression literals and the
  * string arguments of RegExp. Messages that quote a grammar are not rules.
@@ -225,6 +292,21 @@ describe("contract rules have one definition", () => {
       "state list [completed, failed]",
       "state list [running, cancelled]",
     ]);
+    expect(
+      phaseSetCopies(
+        "probe.ts",
+        'const a = audit.phase === "preparing" || audit.phase === "inventory";\n' +
+          'if ((phase !== "inventory" && phase !== "preparing") && ok) go();\n' +
+          'const before: AuditPhase[] = ["preparing", "inventory"];\n' +
+          'const prepared = phase === "inventory" || phase === "rounds";\n' +
+          'const runs = state === "preparing" || state === "running";\n' +
+          'const started = phase === "preparing" || ready(phase);\n',
+      ),
+    ).toEqual([
+      "phases before Rounds at line 1",
+      "phases before Rounds at line 2",
+      "phases before Rounds at line 3",
+    ]);
   });
 
   it("finds no copy outside the shared definitions", () => {
@@ -239,6 +321,9 @@ describe("contract rules have one definition", () => {
         }
       }
       for (const copy of stateListCopies(path, text)) {
+        copies.push(`${name}: ${copy}`);
+      }
+      for (const copy of phaseSetCopies(path, text)) {
         copies.push(`${name}: ${copy}`);
       }
     }

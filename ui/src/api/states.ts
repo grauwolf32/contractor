@@ -2,12 +2,14 @@ import { schemaEnum } from "./contract";
 import type { components } from "./generated/public";
 
 /**
- * The one UI definition of Audit and Run state lists. Every list is typed by
- * the generated enum, and states.test.ts ties each one to the OpenAPI
- * document; pages import these names instead of writing states out.
+ * The one UI definition of Audit and Run state lists and of the Audit phase
+ * sets. Every list is typed by the generated enum, and states.test.ts ties
+ * each one to the OpenAPI document; pages import these names instead of
+ * writing states or phases out.
  */
 
 type AuditState = components["schemas"]["AuditState"];
+type AuditPhase = components["schemas"]["AuditPhase"];
 type WorkflowRunState = components["schemas"]["WorkflowRunState"];
 type NonTerminalRunState = components["schemas"]["NonTerminalWorkflowRunState"];
 type TerminalRunState = Exclude<WorkflowRunState, NonTerminalRunState>;
@@ -118,6 +120,16 @@ export const CHANGING_AUDIT_STATES = [
   "cancelling",
   "deleting",
 ] as const satisfies readonly AuditState[];
+
+/**
+ * Whether an Audit in `phase` has started and has no Round yet: it is
+ * preparing or building its inventory, so it has no current Round and no
+ * check has run (AUD-R194). The Server's AuditPhase.PrecedesRounds selects
+ * the same phases.
+ */
+export function auditPrecedesRounds(phase: AuditPhase): boolean {
+  return phase === "preparing" || phase === "inventory";
+}
 
 /** Whether `state` is one of `states`, for a narrowly typed list. */
 export function isStateIn<S extends string>(

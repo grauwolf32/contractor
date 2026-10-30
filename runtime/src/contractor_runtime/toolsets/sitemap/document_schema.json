@@ -94,8 +94,9 @@
           "type": "array"
         },
         "pointer": {
-          "maxLength": 8192,
-          "type": "string"
+          "maxLength": 2048,
+          "type": "string",
+          "x-max-utf8-bytes": 2048
         },
         "provenance": {
           "$ref": "#/components/schemas/SitemapProvenance"
@@ -452,8 +453,9 @@
           "type": "string"
         },
         "pointer": {
-          "maxLength": 8192,
-          "type": "string"
+          "maxLength": 2048,
+          "type": "string",
+          "x-max-utf8-bytes": 2048
         },
         "sourceId": {
           "$ref": "#/components/schemas/ResourceId"

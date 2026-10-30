@@ -3,14 +3,14 @@
  * planners.test.ts holds it to api/testdata/planner-fact-cases.json, which
  * the Server's descriptor registry test reads too.
  */
-export interface PlannerFacts {
+interface PlannerFacts {
   /** The Stage binds exactly one Agent; every other Planner takes one or more. */
   singleAgent: boolean;
   /** Each Stage result comes from a namespace of one of the Stage's Agents. */
   agentResults: boolean;
 }
 
-export const PLANNER_FACTS: Readonly<Record<string, PlannerFacts>> = {
+const PLANNER_FACTS: Readonly<Record<string, PlannerFacts>> = {
   "passthrough@1": { singleAgent: true, agentResults: true },
   "router@1": { singleAgent: false, agentResults: true },
   "scan-plan@1": { singleAgent: false, agentResults: false },

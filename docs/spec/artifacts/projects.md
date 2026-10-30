@@ -528,8 +528,8 @@ and the credential ID and kind, never plaintext.
 **PRJ-R68.** The Web UI edits the URL and credential pair in a
 dedicated dialog and may show the value while the user is entering it.
 
-**PRJ-R69.** The URL must be a bounded absolute HTTP(S) URL without
-userinfo, query or fragment.
+**PRJ-R69.** The URL must be an absolute HTTP(S) URL of 1 to 2,048 bytes of
+UTF-8 (LIM-PRJ-6) without userinfo, query or fragment.
 
 **PRJ-R70.** The authorization scope of the target is its
 normalized exact origin: scheme, lowercase host and effective port. The URL
@@ -694,6 +694,8 @@ Registry entries owned by this document:
   before a replay stops attempting publication (PRJ-R58).
 - [LIM-PRJ-5](../platform/limits.md): a Project description has at most 4,096
   bytes of UTF-8 (PRJ-R96).
+- [LIM-PRJ-6](../platform/limits.md): a Project HTTP target URL has 1 to 2,048
+  bytes of UTF-8 (PRJ-R69).
 - [FAIL-PRJ-1](../platform/failure-model.md): Project metadata and target
   update (PRJ-R4, PRJ-R5, PRJ-R65, PRJ-R75).
 - [FAIL-PRJ-2](../platform/failure-model.md): Project Run creation and input

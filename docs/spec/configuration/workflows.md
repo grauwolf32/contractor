@@ -168,8 +168,9 @@ spec:
 ```
 
 The shared plan controller and retained Planner session enforce the effective
-count. The independent model-call, token, deadline, 2 MiB session JSON and
-WebSocket frame-size limits continue to apply; increasing this count does not
+count. The independent model-call, token and deadline limits, the 2 MiB
+Planner session state ([LIM-PLN-9](../platform/limits.md)) and the WebSocket
+frame-size limits continue to apply; increasing this count does not
 raise another budget. Oversized event frames retain the existing resync and
 HTTP snapshot recovery behavior.
 

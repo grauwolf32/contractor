@@ -15,8 +15,11 @@ func (s *ReviewStore) AppendReviewEvent(ctx context.Context, params auditstore.R
 	return s.appendReviewEvents(ctx, []auditstore.ReviewEventParams{params})
 }
 
-// appendReviewEvents records review events for ReviewStore.AppendReviewEvents
-// and for the item review renewals of the Controller and of resume.
+// appendReviewEvents reserves a contiguous sequence range and records all
+// events atomically, for AppendReviewEvent, review writes and the item review
+// renewals of the Controller and of resume. Every event advances the Audit
+// revision once, preserving the single-event contract; a rejected event rolls
+// back the entire statement.
 func (s *store) appendReviewEvents(ctx context.Context, events []auditstore.ReviewEventParams) error {
 	if len(events) == 0 {
 		return nil

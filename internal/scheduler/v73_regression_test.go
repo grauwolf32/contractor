@@ -28,7 +28,7 @@ func (r *metadataOnlyRepository) Read(context.Context, artifacts.Scope, contract
 }
 
 func (r *metadataOnlyRepository) Metadata(_ context.Context, scope artifacts.Scope, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
-	if scope.Kind() != artifacts.ScopeRun || scope.ID() != "run-1" || ref.Namespace != r.ref.Namespace || ref.Name != r.ref.Name {
+	if want, err := artifacts.RunScope("run-1"); err != nil || scope != want || ref.Namespace != r.ref.Namespace || ref.Name != r.ref.Name {
 		return artifacts.Metadata{}, artifacts.ErrArtifactNotFound
 	}
 	return artifacts.Metadata{Ref: r.ref, MediaType: "text/plain"}, nil

@@ -57,7 +57,7 @@ func TestStreamlineClassifiesWorkerArtifactVerificationAndContinues(t *testing.T
 			code: "worker_artifact_unavailable", retryable: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			inspector, err := planner.NewRunArtifactInspector("run-1", streamlineMetadataReader(
+			inspector, err := newStreamlineInspector("run-1", streamlineMetadataReader(
 				func(_ context.Context, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
 					switch refKey(ref) {
 					case refKey(source):
@@ -155,7 +155,7 @@ func TestStreamlineFinishRejectionKeepsVerificationClass(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			lookups, unexpected := 0, ""
-			inspector, err := planner.NewRunArtifactInspector("run-1", streamlineMetadataReader(
+			inspector, err := newStreamlineInspector("run-1", streamlineMetadataReader(
 				func(_ context.Context, ref contracts.ArtifactRef) (artifacts.Metadata, error) {
 					if refKey(ref) != refKey(report) || lookups >= len(test.answers) {
 						unexpected = refKey(ref)

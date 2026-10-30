@@ -5,10 +5,11 @@
 //
 // A test that reads a shared fixture is named TestShared*: Path fails any
 // other test, so make test-wire-cross-language, which runs every TestShared*
-// test, runs every Go reader of every shared fixture. When
-// CONTRACTOR_SHARED_FIXTURE_LOG names a file, Path appends each shared
-// fixture a test reads to it, which the gate uses to prove that each fixture
-// is read on every side its readers manifest declares.
+// test, runs every Go reader of every shared fixture. A Fuzz* target may also
+// read one to seed its corpus; seeds state no verdict, so its reads are not
+// recorded. When CONTRACTOR_SHARED_FIXTURE_LOG names a file, Path appends
+// each shared fixture a test reads to it, which the gate uses to prove that
+// each fixture is read on every side its readers manifest declares.
 package contractstest
 
 import (
@@ -24,6 +25,10 @@ import (
 
 // sharedTestPrefix starts the name of every test that reads a shared fixture.
 const sharedTestPrefix = "TestShared"
+
+// fuzzTargetPrefix starts the name of a fuzz target, which may seed its corpus
+// from a shared fixture without being one of its readers.
+const fuzzTargetPrefix = "Fuzz"
 
 // sharedFixtureLogEnv names the file that records shared fixture reads.
 const sharedFixtureLogEnv = "CONTRACTOR_SHARED_FIXTURE_LOG"
@@ -105,10 +110,14 @@ func repositoryRoot(t testing.TB) string {
 
 // sharedFixture holds the test that addresses a shared fixture to the naming
 // convention and records a file it reads. Directories, such as the base of a
-// glob, are not fixtures and are not recorded.
+// glob, are not fixtures and are not recorded, and neither are a fuzz
+// target's seeds.
 func sharedFixture(t testing.TB, root, relative, path string) {
 	t.Helper()
 	test, _, _ := strings.Cut(t.Name(), "/")
+	if strings.HasPrefix(test, fuzzTargetPrefix) && !strings.Contains(t.Name(), "/") {
+		return
+	}
 	if !strings.HasPrefix(test, sharedTestPrefix) {
 		t.Fatalf("%s reads the shared fixture %s; a test that reads api/testdata is named %s* so make test-wire-cross-language runs it",
 			test, relative, sharedTestPrefix)

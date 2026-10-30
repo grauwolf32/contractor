@@ -15,7 +15,10 @@ make test-wire-cross-language runs this gate. It fails when
   did not run and pass (a skipped test, such as a PostgreSQL test without
   CONTRACTOR_TEST_DATABASE_URL, is not a pass);
 - a fixture matches no readers entry, a declared side does not read it, an
-  undeclared side reads it, or it has one reader and no recorded reason.
+  undeclared side reads it, or it has one reader and no recorded reason;
+- tests of two sides name the same file in another testdata directory, a
+  shared fixture outside api/testdata, unless OUTSIDE_SHARED names it with its
+  reason (a source check, which finds a file named by literal path segments).
 
 Usage: python3 scripts/shared_fixture_gate.py [--sources-only]
        python3 scripts/shared_fixture_gate.py --go-report FILE --runtime-log FILE
@@ -51,6 +54,20 @@ GO_COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
 GO_PATH_LITERAL = re.compile(r'"[^"\n]*api/testdata[^"\n]*"')
 GO_PATH_ELEMENTS = re.compile(r'"api"\s*,\s*"testdata"')
 UI_IMPORT = re.compile(r"""(?:from|import)\s*\(?\s*["']([^"']*api/testdata/[^"']+)["']""")
+# A string literal, and the separators that join literal path segments into one
+# path: "," between filepath.Join arguments, "/" between pathlib segments.
+PATH_LITERAL = re.compile(r""""([^"\\\n]*)"|'([^'\\\n]*)'|`([^`\\\n$]*)`""")
+PATH_JOIN = re.compile(r"\s*[,/]\s*")
+
+# Files in a testdata directory outside api/testdata that tests of more than
+# one side may name, each with the reason it stays there. Any other such file
+# is a shared fixture that belongs under api/testdata with a readers entry.
+OUTSIDE_SHARED = {
+    "internal/config/testdata/server-operations/workflows/join.yaml": (
+        "a Workflow of the Go Server-operation catalog fixture, which the Studio test "
+        "parses as its base draft; it moves only with that catalog"
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -125,6 +142,100 @@ def check_coverage(
     for key in sorted(set(manifest) - used):
         problems.append(f"api/testdata/readers.json: entry {key} covers no fixture")
     return problems
+
+
+def literal_paths(line: str) -> list[str]:
+    """Each string literal of a line, with literals joined by "," or "/" as one path."""
+
+    paths: list[str] = []
+    run: list[str] = []
+    end = 0
+    for match in PATH_LITERAL.finditer(line):
+        value = next(group for group in match.groups() if group is not None)
+        if run and PATH_JOIN.fullmatch(line[end : match.start()]):
+            run.append(value)
+        else:
+            if run:
+                paths.append("/".join(run))
+            run = [value]
+        end = match.end()
+    if run:
+        paths.append("/".join(run))
+    return paths
+
+
+def side_sources(root: Path) -> dict[str, list[tuple[Path, tuple[Path, ...]]]]:
+    """Each side's test sources and the directories their relative paths start from."""
+
+    go = [
+        (path, (path.parent, root))
+        for directory in GO_ROOTS
+        for path in sorted((root / directory).rglob("*_test.go"))
+        if "/testdata/" not in path.relative_to(root).as_posix()
+    ]
+    python = [
+        (path, (root, path.parent, root / "runtime"))
+        for path in sorted((root / "runtime" / "tests").rglob("*.py"))
+        if "testdata" not in path.relative_to(root).parts
+    ]
+    ui = [
+        (path, (path.parent, root / "ui"))
+        for pattern in ("*.ts", "*.tsx")
+        for path in sorted((root / "ui" / "src").rglob(pattern))
+        if "testdata" not in path.relative_to(root).parts
+    ]
+    return {"go": go, "python": python, "ui": ui}
+
+
+def named_testdata_files(root: Path = ROOT) -> dict[str, dict[str, set[str]]]:
+    """Files in testdata directories outside api/testdata -> side -> naming sources."""
+
+    named: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    for side, sources in side_sources(root).items():
+        for path, bases in sources:
+            source = path.relative_to(root).as_posix()
+            for line in path.read_text(encoding="utf-8").splitlines():
+                for candidate in literal_paths(line):
+                    if "testdata" not in candidate.split("/"):
+                        continue
+                    for base in bases:
+                        target = Path(os.path.normpath(base / candidate))
+                        if not target.is_relative_to(root) or not target.is_file():
+                            continue
+                        relative = target.relative_to(root).as_posix()
+                        if not relative.startswith("api/testdata/"):
+                            named[relative][side].add(source)
+    return named
+
+
+def outside_problems(
+    named: Mapping[str, Mapping[str, set[str]]], allowed: Mapping[str, str] = OUTSIDE_SHARED
+) -> list[str]:
+    """Shared fixtures outside api/testdata, and OUTSIDE_SHARED entries that cover none."""
+
+    problems: list[str] = []
+    used: set[str] = set()
+    for fixture, sides in sorted(named.items()):
+        if len(sides) < 2:
+            continue
+        keys = [key for key in allowed if fixture == key or (key.endswith("/") and fixture.startswith(key))]
+        if keys:
+            used.update(keys)
+            continue
+        readers = "; ".join(f"{side}: {', '.join(sorted(sources))}" for side, sources in sorted(sides.items()))
+        problems.append(
+            f"{fixture}: tests of {len(sides)} sides read it ({readers}); move it under "
+            "api/testdata with a readers entry"
+        )
+    for key in sorted(set(allowed) - used):
+        problems.append(f"OUTSIDE_SHARED entry {key} covers no file that two sides read")
+    return problems
+
+
+def source_problems(root: Path = ROOT) -> list[str]:
+    """The checks that read only sources: Go paths and shared fixtures outside api/testdata."""
+
+    return [*go_source_problems(root), *outside_problems(named_testdata_files(root))]
 
 
 def go_source_problems(root: Path = ROOT) -> list[str]:
@@ -297,7 +408,7 @@ def run(command: list[str], *, cwd: Path, env: Mapping[str, str]) -> subprocess.
 
 def verify_reports(go_lines: Iterable[str], records: list[str], problems: list[str] | None = None) -> int:
     """Verify canonical unit reports with the same executed-reader checks as the focused gate."""
-    problems = [*(problems or []), *go_source_problems()]
+    problems = [*(problems or []), *source_problems()]
     manifest = load_manifest()
     go_tests = discover_go_tests()
     python_tests = discover_python_tests()
@@ -328,7 +439,7 @@ def main(argv: list[str]) -> int:
     if args.sources_only:
         if args.go_report or args.runtime_log:
             parser.error("source checks do not consume test reports")
-        problems = go_source_problems()
+        problems = source_problems()
         report(problems, "shared fixture sources")
         return 1 if problems else 0
     if args.go_report is not None or args.runtime_log is not None:

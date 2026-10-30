@@ -76,7 +76,7 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 			IdempotencyKey: test.key, ActorID: "operator",
 		}
 		created, err := service.Create(ctx, request)
-		if err != nil || created.Replayed || created.Credential.CredentialID != test.id || created.Credential.Kind != test.material.Kind() {
+		if err != nil || created.Replayed || created.Credential.CredentialID != test.id || created.Credential.Kind != test.material.kind {
 			t.Fatalf("create %s = (%+v, %v)", test.id, created, err)
 		}
 		encoded, err := json.Marshal(created.Credential)
@@ -92,9 +92,9 @@ func TestRuntimeCredentialPostgresLifecycleReplayAndSecretBoundary(t *testing.T)
 			t.Fatalf("replay %s = (%+v, %v)", test.id, replayed, err)
 		}
 		want := append([]byte(nil), test.material.canonical...)
-		if err := service.Use(ctx, test.id, []string{string(test.material.Kind())}, func(material *RuntimeCredentialMaterial) error {
+		if err := service.Use(ctx, test.id, []string{string(test.material.kind)}, func(material *RuntimeCredentialMaterial) error {
 			return material.WithPlaintext(func(kind RuntimeCredentialKind, plaintext []byte) error {
-				if kind != test.material.Kind() || !bytes.Equal(plaintext, want) {
+				if kind != test.material.kind || !bytes.Equal(plaintext, want) {
 					return errors.New("resolved Runtime credential differs")
 				}
 				return nil
@@ -268,7 +268,7 @@ func TestRuntimeCredentialDeleteSerializesWithRuntimeConfigBindings(t *testing.T
 	}
 	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool, RuntimeCredentials: service, Now: func() time.Time { return now },
-		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -652,7 +652,7 @@ func TestInteractshCredentialDeletionIsFencedByPublishedBindings(t *testing.T) {
 	}
 	publisher, err := runtimeconfig.NewPublisher(runtimeconfig.PublisherOptions{
 		Pool: pool, RuntimeCredentials: service, Now: func() time.Time { return now },
-		PlannerTelemetryAdapters: runtimeconfig.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
+		PlannerTelemetryAdapters: runtimeconfigtest.PlannerTelemetryAdapterCatalogFunc(func(ref string) bool { return ref == "otlp-http@1" }),
 	})
 	if err != nil {
 		t.Fatal(err)

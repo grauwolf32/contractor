@@ -48,15 +48,13 @@ func TestAuditEventPagesReadOnlyTheirEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	const events = 250
-	appended := make([]auditstore.ReviewEventParams, 0, events-1)
 	for index := 2; index <= events; index++ {
-		appended = append(appended, auditstore.ReviewEventParams{
+		if err := store.AppendReviewEvent(ctx, auditstore.ReviewEventParams{
 			AuditID: "audit-events", Kind: "review.decided", EntityID: fmt.Sprintf("decision-%d", index),
 			Summary: map[string]any{"action": "approve"},
-		})
-	}
-	if err := store.AppendReviewEvents(ctx, appended); err != nil {
-		t.Fatal(err)
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	tracer := &eventQueryTracer{}

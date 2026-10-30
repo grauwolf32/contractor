@@ -153,7 +153,7 @@ func testPostgresSchedulerPublication(t *testing.T, scenario schedulerPublicatio
 	if err != nil {
 		t.Fatal(err)
 	}
-	inspector, err := planner.NewRunArtifactInspector("run-1", runStore)
+	inspector, err := planner.NewArtifactServiceInspector(artifactService)
 	if err != nil {
 		t.Fatal(err)
 	}

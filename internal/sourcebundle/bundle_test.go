@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 func TestBuildIsDeterministicAndUsesDirectoryContentsAsRoot(t *testing.T) {
@@ -63,18 +65,14 @@ type runtimeFixture struct {
 
 func readRuntimeFixture(t *testing.T) runtimeFixture {
 	t.Helper()
-	encoded, err := os.ReadFile(filepath.Join("..", "..", "testdata", "source_member_paths.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	var fixture runtimeFixture
-	if err := json.Unmarshal(encoded, &fixture); err != nil {
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "source-member-paths.json"), &fixture); err != nil {
 		t.Fatal(err)
 	}
 	return fixture
 }
 
-func TestSourcePathsAgreeWithRuntimeFixture(t *testing.T) {
+func TestSharedSourcePathsAgreeWithRuntimeFixture(t *testing.T) {
 	paths := readRuntimeFixture(t)
 	for _, path := range paths.Valid {
 		if _, err := portablePath(path); err != nil {
@@ -88,7 +86,7 @@ func TestSourcePathsAgreeWithRuntimeFixture(t *testing.T) {
 	}
 }
 
-func TestRuntimeReadabilityListsAgreeWithFixture(t *testing.T) {
+func TestSharedRuntimeReadabilityListsAgreeWithFixture(t *testing.T) {
 	fixture := readRuntimeFixture(t)
 	for name, test := range map[string]struct {
 		got  map[string]bool
@@ -110,7 +108,7 @@ func TestRuntimeReadabilityListsAgreeWithFixture(t *testing.T) {
 	}
 }
 
-func TestBuildAcceptsOnlyRuntimeOpenableFixtureBundles(t *testing.T) {
+func TestSharedBuildAcceptsOnlyRuntimeOpenableFixtureBundles(t *testing.T) {
 	for _, bundle := range readRuntimeFixture(t).Bundles {
 		t.Run(bundle.Name, func(t *testing.T) {
 			root := t.TempDir()

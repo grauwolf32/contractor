@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from fakes.podman_lifecycle import Owner, owner
+from platform_markers import linux_podman
 from test_cli import make_settings
 from test_podman_allocation import service_for
 from test_podman_engine import deadline
@@ -23,6 +24,7 @@ from contractor_runtime.sandbox.podman.ownership import ContentPin, ServiceOwner
 from contractor_runtime.sandbox.podman.workroots import MARKER, check_root_policy
 
 
+@linux_podman
 def test_recovery_removes_only_verified_predecessors_before_provider_cleanup(tmp_path):
     async def scenario():
         async with owner(tmp_path) as fixture:
@@ -58,6 +60,7 @@ def test_recovery_removes_only_verified_predecessors_before_provider_cleanup(tmp
     asyncio.run(scenario())
 
 
+@linux_podman
 def test_live_owner_and_uncertain_create_block_successor_until_removal(tmp_path):
     async def scenario():
         async with owner(tmp_path) as fixture:
@@ -89,6 +92,7 @@ def test_live_owner_and_uncertain_create_block_successor_until_removal(tmp_path)
     asyncio.run(scenario())
 
 
+@linux_podman
 def test_guardian_lease_never_extends_itself_after_runtime_pulses_stop(tmp_path):
     async def scenario():
         async with owner(tmp_path) as fixture:
@@ -184,6 +188,7 @@ def test_recovery_failure_prevents_all_capability_probes(tmp_path):
     asyncio.run(scenario())
 
 
+@linux_podman
 def test_enabled_profile_is_not_advertised_before_executor_gate(tmp_path):
     async def scenario():
         async with owner(tmp_path) as fixture:
@@ -264,6 +269,7 @@ def test_cli_recovery_precedes_scratch_deletion_even_on_startup_failure(tmp_path
     asyncio.run(scenario())
 
 
+@linux_podman
 def test_cli_shutdown_drains_active_allocation_before_owner_close(tmp_path, monkeypatch):
     import ssl
 

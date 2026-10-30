@@ -1,5 +1,8 @@
-#!/usr/bin/python3
-"""Test-only CLI child: no engine access or container creation."""
+"""Test-only CLI child: no engine access or container creation.
+
+fake_executable in test_podman_engine.py installs it behind a shebang naming the
+test interpreter.
+"""
 
 import json
 import os

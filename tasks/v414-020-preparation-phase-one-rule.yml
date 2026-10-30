@@ -58,6 +58,20 @@ context:
     its second, named definition in 3cd9826c, which V407-004 lists as its
     work (ShowsPreparation), without folding the copies; that is the
     duplication this task removes, so introduced_by names V407-004.
+  decision: >-
+    2026-10-30 (fix-rules lane): rechecked after V422 (dee360f6b) removed
+    Audit preflight: the phases are still not-started, preparing,
+    inventory and rounds, and the copies had moved to controller.go:457
+    and start.go:927. ShowsPreparation is renamed PrecedesRounds, a
+    phase-neutral name for the rule (started, no Round yet, AUD-R194);
+    every caller follows. The UI helper is auditPrecedesRounds in
+    ui/src/api/states.ts, the existing one home of Audit and Run state
+    lists, and rule-copies.test.ts guards UI copies as it guards state
+    lists. The PostgreSQL test evaluates the live audits_phase_shape
+    expression for every AuditPhase constant auditdomain declares, and
+    runs the deployed preparation baseline trigger function on a scratch
+    table with only the columns it reads, so no other audits trigger
+    answers first.
 scope:
   in:
     - "controller.go:400 and start.go:842 use the Go predicate (renamed if the implementer chooses, with every caller updated)."

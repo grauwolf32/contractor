@@ -8,10 +8,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/llmgateway"
+	"github.com/jackc/pgx/v5"
 )
 
 func TestNormalizeEquivalentDefaultsAndTargetOrder(t *testing.T) {
@@ -160,13 +162,13 @@ func TestPlannerTelemetryAdapterPublicationUsesServerCatalog(t *testing.T) {
 			FlushTimeoutSeconds: 3,
 		},
 	}}}
-	accepting := PlannerTelemetryAdapterCatalogFunc(func(ref string) bool {
+	accepting := plannerTelemetryAdapterCatalogFunc(func(ref string) bool {
 		return ref == "otlp-http@1"
 	})
 	if err := validatePlannerTelemetryAdapter(spec, accepting); err != nil {
 		t.Fatalf("registered Planner adapter rejected: %v", err)
 	}
-	rejecting := PlannerTelemetryAdapterCatalogFunc(func(string) bool { return false })
+	rejecting := plannerTelemetryAdapterCatalogFunc(func(string) bool { return false })
 	if err := validatePlannerTelemetryAdapter(spec, rejecting); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("unregistered Planner adapter error = %v", err)
 	}
@@ -389,4 +391,20 @@ func TestInteractshConfigNormalizesAsOneAtomicWorkerField(t *testing.T) {
 	if err != nil || !cleared.Spec.Worker.Interactsh.Present || !cleared.Spec.Worker.Interactsh.Clear {
 		t.Fatalf("Interactsh clear = (%+v, %v)", cleared.Spec.Worker.Interactsh, err)
 	}
+}
+
+// plannerTelemetryAdapterCatalogFunc states a PlannerTelemetryAdapterCatalog
+// as a function for this package's tests, as runtimeconfigtest does for others.
+type plannerTelemetryAdapterCatalogFunc func(string) bool
+
+func (f plannerTelemetryAdapterCatalogFunc) SupportsPlannerTelemetryAdapter(ref string) bool {
+	return f != nil && f(ref)
+}
+
+// transactionLLMCredentialLookupFactoryFunc states a
+// TransactionLLMCredentialLookupFactory as a function for this package's tests.
+type transactionLLMCredentialLookupFactoryFunc func(pgx.Tx) (resolved.CredentialLookup, error)
+
+func (f transactionLLMCredentialLookupFactoryFunc) ForTransaction(tx pgx.Tx) (resolved.CredentialLookup, error) {
+	return f(tx)
 }

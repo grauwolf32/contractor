@@ -36,6 +36,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/runservice"
 	"github.com/grauwolf32/contractor/internal/runstore"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/grauwolf32/contractor/internal/settingsstore"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -1881,7 +1882,7 @@ func (controllerCredentialLookup) LookupLLMCredential(context.Context, string) (
 }
 
 func controllerTransactionCredentialLookup() runtimeconfig.TransactionLLMCredentialLookupFactory {
-	return runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(
+	return runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(
 		func(pgx.Tx) (resolved.CredentialLookup, error) { return controllerCredentialLookup{}, nil },
 	)
 }

@@ -64,6 +64,9 @@ func TestPathHoldsSharedFixturesToSharedTests(t *testing.T) {
 		{test: "TestOther", elem: []string{"api", "testdata", "v1alpha1", "..", "index.json"}, fails: true},
 		{test: "TestSharedOther", elem: readers},
 		{test: "TestSharedOther/case", elem: readers},
+		// A fuzz target seeds its corpus; its fuzz inputs are not readers.
+		{test: "FuzzOther", elem: readers},
+		{test: "FuzzOther/seed#0", elem: readers, fails: true},
 		{test: "TestOther", elem: []string{"api", "v1alpha1", "common.schema.json"}},
 		{test: "TestOther", elem: []string{"api", "testdata-other", "file.json"}},
 	} {
@@ -85,6 +88,10 @@ func TestPathRecordsTheFixtureFilesASharedTestReads(t *testing.T) {
 	}
 	// A directory, such as the base of a glob, is not a fixture.
 	if failure := addressAs("TestSharedOther", "api", "testdata", "v1alpha1"); failure != "" {
+		t.Fatal(failure)
+	}
+	// Fuzz seeds state no verdict and are not recorded.
+	if failure := addressAs("FuzzOther", "api", "testdata", "readers.json"); failure != "" {
 		t.Fatal(failure)
 	}
 	recorded, err := os.ReadFile(log)

@@ -65,14 +65,10 @@ func TestAgentSkillsMVPProcesses(t *testing.T) {
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
 	packageA, packageB := stageAgentSkillPackageVariants(t, configRoot, fixture)
-	_, bundles, err := configload.LoadUnionReadOnly(configRoot, filepath.Join(temporaryRoot, "managed-configs"))
-	if err != nil {
+	if _, _, err := configload.LoadUnionReadOnly(configRoot, filepath.Join(temporaryRoot, "managed-configs")); err != nil {
 		t.Fatal(err)
 	}
-	bundledNames := make([]string, 0, len(bundles.Skills.Packages()))
-	for _, pkg := range bundles.Skills.Packages() {
-		bundledNames = append(bundledNames, pkg.Name)
-	}
+	bundledNames := bundledSkillNames(t, configRoot)
 
 	isolateURL := isolatedDatabase(t, ctx, databaseURL)
 	serverBinary := sharedServerBinary(t)
@@ -1196,4 +1192,27 @@ func assertRuntimeArchiveCacheCounters(t *testing.T, logs string, keys ...string
 		return
 	}
 	t.Fatal("Runtime did not report joined cache shutdown counters", logs)
+}
+
+// bundledSkillNames returns the name of each skill directory of the operator
+// root, packaged as bundled discovery packages it.
+func bundledSkillNames(t *testing.T, configRoot string) []string {
+	t.Helper()
+	skillsRoot := filepath.Join(configRoot, agentskills.SkillNamespace)
+	entries, err := os.ReadDir(skillsRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		_, pkg, err := agentskills.PackageDirectory(filepath.Join(skillsRoot, entry.Name()))
+		if err != nil {
+			t.Fatalf("bundled skill %s: %v", entry.Name(), err)
+		}
+		names = append(names, pkg.Manifest.Name)
+	}
+	return names
 }

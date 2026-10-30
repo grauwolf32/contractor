@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import workerErrorCodes from "../../../../api/scan/v1/testdata/worker-error-codes.json";
+import workerErrorCodes from "../../../../api/testdata/scan/worker-error-codes.json";
 import { LoadedArtifactPreview } from "./loaded-preview";
 
 const OUTCOME_LABELS: Record<string, string> = {

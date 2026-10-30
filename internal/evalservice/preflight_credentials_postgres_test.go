@@ -16,6 +16,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/evalstore"
 	pg "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/runtimeconfig"
+	"github.com/grauwolf32/contractor/internal/runtimeconfig/runtimeconfigtest"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -37,10 +38,10 @@ func TestSharedPostgresEvalRuntimeCredentialDatabaseFailureRetries(t *testing.T)
 	}
 	createdAt := time.Now()
 	_, err = credentials.NewRuntimeCredentialRepository(h.pool).InsertRecord(ctx, credentials.RuntimeCredentialRecord{
-		Metadata: credentials.RuntimeCredentialMetadata{CredentialID: "review-otel", Kind: material.Kind(), CreatedBy: "review", CreatedAt: createdAt}, Envelope: envelope,
+		Metadata: credentials.RuntimeCredentialMetadata{CredentialID: "review-otel", Kind: credentials.RuntimeCredentialOTLPHeaders, CreatedBy: "review", CreatedAt: createdAt}, Envelope: envelope,
 	}, credentials.RuntimeCredentialCreation{
 		IdempotencyKeyDigest: "sha256:" + strings.Repeat("a", 64), RequestMAC: make([]byte, 32),
-		CredentialID: "review-otel", Kind: material.Kind(), ActorID: "review", CreatedAt: createdAt,
+		CredentialID: "review-otel", Kind: credentials.RuntimeCredentialOTLPHeaders, ActorID: "review", CreatedAt: createdAt,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -148,7 +149,7 @@ func TestSharedPostgresEvalPinnedLLMCredentialFailureClassification(t *testing.T
 
 			factory := h.resolver.Credentials
 			failure := test.cause
-			h.resolver.Credentials = runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(tx pgx.Tx) (resolved.CredentialLookup, error) {
+			h.resolver.Credentials = runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(tx pgx.Tx) (resolved.CredentialLookup, error) {
 				original, err := factory.ForTransaction(tx)
 				if err != nil {
 					return nil, err
@@ -214,7 +215,7 @@ func TestSharedPostgresEvalWorkflowCredentialLookupFailureClassification(t *test
 				ctx := t.Context()
 				factory := h.resolver.Credentials
 				failure := test.cause
-				h.resolver.Credentials = runtimeconfig.TransactionLLMCredentialLookupFactoryFunc(func(tx pgx.Tx) (resolved.CredentialLookup, error) {
+				h.resolver.Credentials = runtimeconfigtest.TransactionLLMCredentialLookupFactoryFunc(func(tx pgx.Tx) (resolved.CredentialLookup, error) {
 					original, err := factory.ForTransaction(tx)
 					if err != nil {
 						return nil, err
