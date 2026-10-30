@@ -5,7 +5,8 @@ milestone: controlled-pentest-scanners-2026-10
 epic: scan-tools
 kind: feature
 priority: P2
-status: in_progress
+status: completed
+implementation_commit: b1026da9aaef6fe12c97c60bfd0c0b20a6693b99
 depends_on: [V422-002]
 languages: [go, python, yaml]
 goal: >-

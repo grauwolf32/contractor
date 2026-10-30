@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-111 open tasks: 38 in progress, 62 pending, 11 deferred. 1213 finished: 1203 completed, 10 archived.
+110 open tasks: 37 in progress, 62 pending, 11 deferred. 1214 finished: 1204 completed, 10 archived.
 
 ## In progress
 
@@ -48,7 +48,6 @@ the epics are in [epics.yml](epics.yml).
 | [V414-021](v414-021-migration-file-deadline.yml) | persistence | defect | P3 | Decide the client deadline of a migration file: per statement or a migration budget of its own |
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | evals | chore | P3 | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
 | [V414-024](v414-024-plan-tests-exact-reads.yml) | persistence | chore | P3 | Measure the V407-025 drain and held-credential row budgets with explaintest Analysis.Reads |
-| [V422-003](v422-003-nuclei-engagement-transport.yml) | scan-tools | feature | P2 | Run Nuclei with the engagement's allocation-local HTTP authority |
 
 ## Pending
 
@@ -210,7 +209,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 7 | 22 | 25 | 9 | 23 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 3 | 17 | 9 | 9 | 18 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 9 | 9 | 18 |
 | Findings tools and collections (`findings`) | 4 | 17 | 8 | 8 | 13 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 34 | 11 | 54 |
