@@ -1,0 +1,122 @@
+schema_version: "1.0"
+id: V372-024
+title: "Make the Audit item attempt fake answer like the store and keep the item list schema-valid without it"
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+introduced_by: V369-004
+priority: P3
+status: completed
+depends_on: []
+languages: [go]
+goal: "The handler-test double of ListItemAttempts returns an empty list for every requested item without attempts, as the PostgreSQL store does, and listAuditItems renders an empty attempts array for an item the map lacks, so no test and no store renders attempts: null."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2c: V370-009, V369-004, V370-010), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/api/public-api.md#API-R1"
+  revalidated: >-
+    2026-10-24 on b523ae77: the finding still holds unchanged in substance;
+    line numbers moved and are updated below. V409-004 changed the Audit
+    item reads but not ListItemAttempts' fill or the handler merge. No
+    V407/V409/V414 task covers it.
+  finding: >-
+    listAuditItems (internal/httpapi/public/audit_handlers.go:435-521)
+    replaces each item's attempts with the map entry of ListItemAttempts
+    (line 518), so an item missing from the map is rendered as
+    "attempts": null, although auditItemReadModel had set an empty list
+    (audit_models.go:135) and the AuditItem schema forbids null (attempts is
+    a required array, api/openapi/contractor-public-v1.yaml:13002 and
+    13019). The PostgreSQL store never omits an item: QueryStore.ListItemAttempts
+    (internal/auditstore/internal/pgstore/read.go:274-372) fills an empty list
+    for every requested item without attempts (lines 367-371), and
+    auditservice.Service.ListItemAttempts (internal/auditservice/service.go:185-189)
+    passes the result through, so production does not render null. The
+    handler-test double does omit them and says the opposite of the store:
+    "Like the store, the result holds only the items that have attempts"
+    (fakeAuditManagement.ListItemAttempts,
+    internal/httpapi/public/audit_handlers_test.go:763-777, comment at :769,
+    added by V369-004 in acfa7b5), so handler tests can render a response the
+    contract rejects and exercise a path the store cannot produce
+    (AGENTS.md 3.5). The handler relies on the store's fill without the
+    interface saying so (audit_handlers.go:47).
+  siblings: >-
+    The operation conformance fixture (operation_conformance_test.go:147-175)
+    builds fakeAuditManagement with attempts for its only item, so it never
+    reaches the missing-entry path; other fakeAuditManagement page reads
+    (ListItems at audit_handlers_test.go:756, ListCoverage) must follow the
+    store's answers too; check the coverage and execution reads the same way.
+    internal/auditcontroller/controller_postgres_test.go:1478 reads the real
+    store and is correct. The UI reads item.attempts without a null check
+    (ui/src/routes/projects/audits/executions.tsx:99, 116 and 242,
+    activity-model.ts:133), which is correct for a schema-valid response.
+  implementation: >-
+    2026-10-30. The interface comment states the store's guarantee; the double answers every
+    requested item (empty list without attempts); listAuditItems keeps the read model's empty list
+    when an item has no entry. Tests: TestAuditItemPageRendersEmptyAttemptsForAnItemWithout validates
+    the page against the contract with a store-like read and with a read that omits the item (A1;
+    with the old merge the second fails contract validation, checked for A3);
+    TestAuditItemAttemptDoubleAnswersLikeTheStore and pgstore
+    TestListItemAttemptsAnswersEveryRequestedItem pin the same answer for the double and the store
+    (A2). Siblings ruled out: listAuditItems is the only public handler that merges a slice-valued
+    map; the ListItems and ListCoverage doubles return their rows unmerged, so no null can arise.
+scope:
+  in:
+    - "The double fills an empty list for every requested item without attempts, and its comment states the store's rule; the ListItemAttempts interface comment (audit_handlers.go:47) states the guarantee."
+    - "listAuditItems keeps the read model's empty list when the map lacks an item."
+    - "A handler test with an item that has no attempts whose response is validated against the OpenAPI document."
+  out:
+    - "The store query and the attempt projection bound."
+acceptance_criteria:
+  - id: A1
+    given: "A page whose items include one without attempts"
+    when: "GET on the Audit items page is served by the handler with the double"
+    then: "That item renders attempts as an empty array and the response validates against the AuditItem schema."
+  - id: A2
+    text: "The double and the PostgreSQL store give the same map for the same item selection (an empty list per item without attempts)."
+  - id: A3
+    text: "The new handler test fails on the unfixed code (b523ae77): with the old handler merge and a double that omits the item, the response has attempts null and fails schema validation."
+tests:
+  - command: "go test -count=1 ./internal/httpapi/public"
+    covers: [A1, A3]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/auditstore/... ./internal/httpapi/public"
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: 7e04f2810aba4364dc3249c5fbf76a8f55f062e9
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): 7e04f2810aba:
+      go test -run
+      TestAuditItemPageRendersEmptyAttemptsForAnItemWithout|TestAuditItemAttemptDoubleAnswersLikeTheStore|TestPublicOperationsConformToOpenAPI|TestPublicListFakesRejectReadsBeyondThePageFetchBound
+      ./internal/httpapi/public ok; pgstore
+      TestListItemAttemptsAnswersEveryRequestedItem (PostgreSQL) ok; A3
+      checked: new handler test fails with the old merge
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.

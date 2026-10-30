@@ -1,0 +1,110 @@
+schema_version: "1.0"
+id: V403-003
+title: "Keep a 1 MiB OpenAPI preview from blocking the page"
+milestone: ui-journey-usability
+epic: ui
+kind: defect
+introduced_by: V403-001
+priority: P3
+status: completed
+depends_on: []
+languages: [typescript]
+goal: >-
+  Opening the preview of an OpenAPI document of up to 1 MiB shows the first
+  operations promptly and never holds the page for more than a fraction of a
+  second, as the Markdown preview does since V403-002.
+context:
+  specification:
+    - docs/spec/ui/ui.md#UI-R194
+    - docs/spec/platform/limits.md
+  severity: low
+  finding: >-
+    OpenApiArtifactPreview (ui/src/routes/artifacts/previews/openapi.tsx:11)
+    hands the whole parsed document to Scalar's ApiReferenceReact, which
+    renders every operation at once. Measured in Chromium with a temporary
+    spec during V403-002: a 1 MiB OpenAPI 3.1 YAML with about 7,000 GET
+    operations and no tags shows the Rendered view after 2.4 s, holds the main
+    thread for 1.4 s in one task, builds about 98,000 elements and settles
+    after 5.2 s; main before V403-002 measured the same. V403-001 raised
+    LIM-UI-12 from 256 KiB to 1 MiB, which allows documents of this size.
+  siblings: >-
+    Markdown is sectioned by V403-002 (UI-R202). The diff renderer is linear
+    (884 ms at 1 MiB, 838 ms at 256 KiB) and plain text takes 162 ms. LikeC4
+    parses in a worker. Archive files previewed through the same renderers
+    share this path.
+  revalidated: >-
+    2026-10-24 on b523ae77: accurate. OpenApiArtifactPreview
+    (ui/src/routes/artifacts/previews/openapi.tsx:11) still passes the whole
+    document to ApiReferenceReact; neither openapi.tsx, openapi-document.ts
+    nor the pinned @scalar/api-reference-react 0.9.66 changed since the task
+    was filed (c0efdb88); UI-R194, UI-R202 and LIM-UI-12 still read as
+    cited, and no V414 task covers the preview.
+scope:
+  in:
+    - "Measure where the time goes (YAML or JSON parse in openapi-document.ts, Scalar's store, or rendering) at 256 KiB and 1 MiB, with and without tags."
+    - "Bound the work: a Scalar setting that renders operations lazily or collapsed if one exists, otherwise a size above which the preview opens the Source tab first and renders on request, stated as a limit in docs/spec/platform/limits.md."
+    - "A browser regression with a 1 MiB OpenAPI document."
+  out:
+    - "Replacing Scalar."
+    - "Other renderers."
+acceptance_criteria:
+  - id: A1
+    text: "A 1 MiB OpenAPI document shows its first operation and leaves the page responsive: no main-thread task over about 200 ms in Chromium, measured as in V403-002."
+  - id: A2
+    text: "Whatever bound is chosen is stated once in the specification and the UI copy names it from its constant."
+  - id: A3
+    text: "The browser regression fails on the unbounded renderer."
+tests:
+  - command: make ui-verify
+    covers: [A2]
+  - command: make ui-browser-mocked
+    covers: [A1, A3]
+  - command: make lint
+    covers: [A1, A2, A3]
+implementation_commit: e0f391b776fbcb61bf4c55c11fea92ad6defafa4
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): db098f0f6b31:
+      vitest src/routes/artifacts + runs/http-materials +
+      runs/primary-output-preview: 19 files 186 passed; pnpm typecheck, eslint
+      and prettier on touched files: pass; check_spec.py: pass; playwright
+      e2e/artifact-preview.spec.ts against a fresh production build: 13 passed
+      (new 1 MiB OpenAPI regression + 390px light/dark/black, screenshots
+      checked); same regression against the unbounded plan: fails (Source tab
+      not selected) = A3; Chromium measurement (temporary spec, longtask
+      observer): main 1 MiB untagged first operation 3.8 s, longest task 1538
+      ms, YAML parse 299 ms, 96,644 elements; tagged 528 ms; Scalar settings
+      showSidebar=false/classic 0.7 s, hideSearch/defaultOpenFirstTag no gain;
+      128 KiB untagged 215 ms, tagged 141 ms; after the change 1 MiB opens
+      Source in 0.25 s with no task over 50 ms = A1 | e0f391b776fb: follow-up:
+      UI export gate; vitest preview-plan and openapi-on-request pass
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.
