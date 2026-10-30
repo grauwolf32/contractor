@@ -513,7 +513,7 @@ its owning requirement.
 | `LIM-HTP-19` | 16 MiB | one Caido GraphQL response, received and decoded | caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-20` | 1 MiB | raw request supplied to Caido replay or a workflow | caido@1 tools and the caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-21` | 8192 characters | inline raw preview in a Caido tool result | caido@1 tools and the caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
-| `LIM-HTP-22` | 100 entries | one Caido history, sitemap, results or findings page | caido@1 tools and the caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
+| `LIM-HTP-22` | 100 entries | one Caido history, sitemap, scope, workflow, results or findings page | caido@1 tools and the caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-23` | 256 terms | Caido scope allowlist plus denylist (`caido_scope(action="create")`) | caido@1 (`caido_scope`) | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-24` | 8192 UTF-8 bytes | HTTPQL or filter text | caido@1 tools and the caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-25` | 32 targets | Automate targets | caido@1 (`caido_automate_run`) | [HTP-R87](../tools/http-caido.md) |
@@ -526,7 +526,7 @@ its owning requirement.
 | `LIM-HTP-32` | 0 retries | Caido request retries configured for an Automate run | caido@1 (`caido_automate_run`) | [HTP-R106](../tools/http-caido.md) |
 | `LIM-HTP-33` | 64 MiB of serialized capture JSON | Shared HTTP/Caido buffer of one allocation; independent of the 128-entry count | Runtime capture buffer; release replaced bytes and evict oldest captures until both bounds hold | [HTP-R71](../tools/http-caido.md) |
 | `LIM-HTP-34` | 100,000 JSON values and depth 32 | One decoded Caido GraphQL response | caido-graphql@1 structural validation | [HTP-R87](../tools/http-caido.md) |
-| `LIM-HTP-35` | 1 MiB of compact UTF-8 JSON | One model-visible Caido tool result | caido@1 result validation and sitemap page assembly | [HTP-R87](../tools/http-caido.md) |
+| `LIM-HTP-35` | 1 MiB of compact UTF-8 JSON | One model-visible Caido tool result | caido@1 result validation and sitemap and catalog page assembly | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-36` | One snapshot: 16 MiB encoded entries plus at most 100,001 eight-byte offsets | Retained sitemap selection of one allocation; row count also bounded by LIM-HTP-34 | caido@1 snapshot builder, replacement and teardown | [HTP-R126](../tools/http-caido.md) |
 | `LIM-HTP-37` | 128 cookies and 65536 encoded UTF-8 JSON bytes including metadata | One ordinary persisted target cookie jar, or the aggregate of exact-origin private jars for one controlled identity | Runtime bounded read, strict encode/decode and controlled private session admission | [HTP-R128](../tools/http-caido.md), [HTP-R140](../tools/http-caido.md) |
 | `LIM-HTP-38` | Retired | Former automatic-authentication limit; no current contract or executor | Closed manual-session contract | [HTP-R142](../tools/http-caido.md) |
