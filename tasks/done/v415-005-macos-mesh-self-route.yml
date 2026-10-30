@@ -6,7 +6,7 @@ epic: operations
 kind: defect
 introduced_by: V415-004
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [python]
 goal: Local mesh startup reconciles the controller's own host route through lo0 while every remote peer still uses the verified mesh interface.
@@ -48,3 +48,4 @@ verification_results:
   - "Complete hybrid deployment suite: 44 tests passed, including 21 mesh-route cases, Ruff checks/format and shell syntax."
   - "make lint passed, including Go checks, UI gates, Ansible resolution, deployment suites and Runtime import contracts."
   - "Live macOS route application has not been performed: the environment requires an administrator password for sudo."
+implementation_commit: e40420cfe5c75bfe6d2f8b2e3a73b39189ee8295

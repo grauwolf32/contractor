@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-111 open tasks: 5 in progress, 95 pending, 11 deferred. 1210 finished: 1200 completed, 10 archived.
+110 open tasks: 4 in progress, 95 pending, 11 deferred. 1211 finished: 1201 completed, 10 archived.
 
 ## In progress
 
@@ -15,7 +15,6 @@ the epics are in [epics.yml](epics.yml).
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V407-039](v407-039-close-server-runtime-review.yml) | quality | chore | P3 | Close the validated Server and Runtime review with explicit dispositions and verification |
-| [V415-005](v415-005-macos-mesh-self-route.yml) | operations | defect | P1 | Route the macOS mesh controller self address through loopback |
 
 ## Pending
 
@@ -223,7 +222,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 7 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 66 | 14 | 59 |
-| Operations, authentication, CLI and deployment (`operations`) | 1 | 18 | 44 | 7 | 19 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 44 | 7 | 19 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 44 | 13 |
 | Quality, CI and process (`quality`) | 17 | 1 | 27 | 102 | 23 |
