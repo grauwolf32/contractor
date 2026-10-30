@@ -17,7 +17,7 @@ import (
 // request also passes the production author parser, including explicit clears.
 func TestTypedRuntimeConfigRequestsPreservePatchStates(t *testing.T) {
 	telemetry := publicapi.RuntimeTelemetryConfig{Adapter: "otlp-http@1", Endpoint: "https://otel.example/v1/traces"}
-	proxy := publicapi.RuntimeHTTPProxyConfig{Adapter: "http-proxy@1", ProxyUrl: "http://proxy.example:8080", Targets: []interface{}{"tool-http"}}
+	proxy := publicapi.RuntimeHTTPProxyConfig{Adapter: "http-proxy@1", ProxyUrl: "http://proxy.example:8080", Targets: []publicapi.RuntimeHTTPProxyConfigTargets{publicapi.ToolHttp}}
 	caido := publicapi.RuntimeCaidoConfig{Adapter: "caido-graphql@1", Endpoint: "https://caido.example/graphql"}
 	for _, field := range []struct {
 		name  string
