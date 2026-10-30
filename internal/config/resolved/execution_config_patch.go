@@ -3,7 +3,10 @@ package resolved
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 // ExecutionConfigPatch is the strict reference-only shape accepted by a Run.
@@ -146,14 +149,21 @@ func (p *ExecutionSelectionPatch) unmarshalJSON(data []byte, field string) error
 	return nil
 }
 
+// decodePatchObject decodes one patch object strictly, so the patch types
+// reject a repeated member name at any depth and data after the value
+// themselves, whatever decoder their caller used (AGENTS.md section 6).
 func decodePatchObject(data []byte, field string) (map[string]json.RawMessage, error) {
 	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
 		return nil, fmt.Errorf("%s must not be null", field)
 	}
 	var result map[string]json.RawMessage
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&result); err != nil || result == nil {
+	if err := strictjson.Decode(data, &result); err != nil {
+		if errors.Is(err, strictjson.ErrDuplicateKey) {
+			return nil, fmt.Errorf("%s: %w", field, err)
+		}
+		return nil, fmt.Errorf("%s must be an object", field)
+	}
+	if result == nil {
 		return nil, fmt.Errorf("%s must be an object", field)
 	}
 	return result, nil
@@ -167,7 +177,7 @@ func decodeOptionalString(data []byte, allowNull bool, field string) (OptionalSt
 		return OptionalString{Present: true, Null: true}, nil
 	}
 	var value string
-	if err := json.Unmarshal(data, &value); err != nil {
+	if err := strictjson.Decode(data, &value); err != nil {
 		return OptionalString{}, fmt.Errorf("%s must be a string", field)
 	}
 	return OptionalString{Present: true, Value: value}, nil

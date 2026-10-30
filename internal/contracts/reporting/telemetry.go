@@ -75,10 +75,15 @@ const (
 // (OBS-R42), and an integer beyond 2^53 keeps its value.
 type ToolArguments map[string]any
 
-// UnmarshalJSON decodes the summary with its number literals kept. The
-// private codec's scan has already rejected duplicate member names, null and
-// trailing data; validation checks the numbers (LIM-OBS-16) and the size.
+// UnmarshalJSON decodes the summary with its number literals kept. It
+// rejects a repeated member name at any depth and data after the value
+// itself, whatever decoder its caller used (AGENTS.md section 6); the private
+// codec rejects null, and validation checks the numbers (LIM-OBS-16) and the
+// size.
 func (a *ToolArguments) UnmarshalJSON(data []byte) error {
+	if err := strictjson.RejectDuplicateKeys(data); err != nil {
+		return err
+	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	var value map[string]any

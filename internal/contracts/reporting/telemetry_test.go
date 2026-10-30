@@ -10,6 +10,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 func TestSharedAllocationRuntimeAdapterMetricsAreTypedAndBounded(t *testing.T) {
@@ -222,5 +223,30 @@ func TestToolArgumentsKeepTheRuntimeNumberLiterals(t *testing.T) {
 	var null ToolCallRecord
 	if err := contracts.DecodePrivate([]byte(`{"callId":"tool-3","tool":"list","arguments":null,"argumentsTruncated":false,"outcome":"succeeded"}`), &null); err == nil {
 		t.Fatal("null arguments were accepted")
+	}
+}
+
+// TestToolArgumentsRejectRepeatedMembersItself pins that the summary rejects
+// a repeated member name at any depth and data after the value even when its
+// caller decodes with plain encoding/json.
+func TestToolArgumentsRejectRepeatedMembersItself(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{
+		`{"path":"a","path":"b"}`,
+		`{"options":{"depth":1,"depth":2}}`,
+		`{"items":[{"name":"a","name":"b"}]}`,
+	} {
+		var arguments ToolArguments
+		if err := json.Unmarshal([]byte(raw), &arguments); !errors.Is(err, strictjson.ErrDuplicateKey) {
+			t.Errorf("json.Unmarshal(%s) error = %v, want ErrDuplicateKey", raw, err)
+		}
+	}
+	var arguments ToolArguments
+	if err := arguments.UnmarshalJSON([]byte(`{"path":"a"} {"path":"b"}`)); !errors.Is(err, strictjson.ErrTrailingData) {
+		t.Errorf("a second value: error = %v, want ErrTrailingData", err)
+	}
+	if err := json.Unmarshal([]byte(`{"path":"a","size":1e+16}`), &arguments); err != nil || arguments["size"] != json.Number("1e+16") {
+		t.Fatalf("a valid summary decoded as %#v (%v)", arguments, err)
 	}
 }
