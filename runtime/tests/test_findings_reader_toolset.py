@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import ast
 import asyncio
 import base64
 import hashlib
 import io
 import json
+import re
 import stat
+import sys
 import zipfile
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -992,3 +995,220 @@ def test_exact_256_kib_bound_includes_the_actual_final_cursor(remaining):
         assert second["next_cursor"] == cursor
 
     asyncio.run(scenario())
+
+
+# ERR-R23: the findings tool vocabulary is closed and registered once in errors.md.
+FINDINGS_PACKAGE = Path(__file__).parents[1] / "src/contractor_runtime/toolsets/security_findings"
+ERRORS_REGISTRY = Path(__file__).parents[2] / "docs/spec/platform/errors.md"
+FINDINGS_CODE = re.compile(r"findings_[a-z_]+")
+
+
+def _emitted_findings_codes() -> dict[str, bool]:
+    """Map each code the findings toolset modules raise to whether a cause sets its retryability.
+
+    A code reaches the model or the allocation error only through FindingsError
+    or require; both must name it with a literal so the registry can hold it.
+    """
+    codes: dict[str, bool] = {}
+
+    def literal(node: ast.expr, where: str) -> str:
+        if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+            raise AssertionError(f"{where}: findings error code must be a string literal")
+        return node.value
+
+    for path in sorted(FINDINGS_PACKAGE.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        named: set[str] = set()
+        # require raises FindingsError with its own parameter; its default is the code.
+        forwarding: set[int] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name == "require":
+                forwarding.update(id(child) for child in ast.walk(node))
+        for node in ast.walk(tree):
+            where = f"{path.name}:{getattr(node, 'lineno', 0)}"
+            if isinstance(node, ast.FunctionDef) and node.name == "require":
+                code = literal(node.args.defaults[-1], where)
+                codes.setdefault(code, False)
+                named.add(code)
+            elif id(node) in forwarding:
+                continue
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                if node.func.id == "FindingsError":
+                    code = literal(node.args[0], where)
+                    conditional = any(keyword.arg == "retryable" for keyword in node.keywords)
+                    codes[code] = codes.get(code, False) or conditional
+                    named.add(code)
+                elif node.func.id == "require" and len(node.args) == 2:
+                    code = literal(node.args[1], where)
+                    codes.setdefault(code, False)
+                    named.add(code)
+        # A findings code spelled anywhere else in the toolset is one the scan missed.
+        stray = {
+            node.value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and FINDINGS_CODE.fullmatch(node.value)
+        } - named
+        assert not stray, f"{path.name}: findings codes outside FindingsError or require: {stray}"
+    return codes
+
+
+def _registered_findings_codes() -> tuple[dict[str, str], set[str]]:
+    """Return the registry rows' retryability and the ERR-R23 vocabulary of errors.md."""
+    text = ERRORS_REGISTRY.read_text(encoding="utf-8")
+    rows: dict[str, str] = {}
+    for match in re.finditer(r"(?m)^\| `(findings_[a-z_]+)` \|[^|]*\|([^|]*)\|", text):
+        if match.group(1) in rows:
+            raise AssertionError(f"errors.md registers {match.group(1)} twice")
+        rows[match.group(1)] = match.group(2).strip()
+    section = text.split("**ERR-R23.**", 1)[1].split("\n### ", 1)[0]
+    vocabulary = set(re.findall(r"(?m)^- `(findings_[a-z_]+)`[;.]$", section))
+    return rows, vocabulary
+
+
+def test_findings_tool_codes_are_the_registered_vocabulary():
+    emitted = _emitted_findings_codes()
+    rows, vocabulary = _registered_findings_codes()
+    assert emitted, "the registry gate found no findings codes"
+    assert set(emitted) == set(rows) == vocabulary, (
+        "every findings_* code the toolset raises needs one errors.md row and an ERR-R23 entry, "
+        f"and nothing else: unregistered {set(emitted) - set(rows)}, "
+        f"unraised {set(rows) - set(emitted)}, not in ERR-R23 {set(rows) ^ vocabulary}"
+    )
+    for code, conditional in emitted.items():
+        # Only a code whose FindingsError takes retryable from its cause may be retryable.
+        assert rows[code].startswith("yes, only for") == conditional, code
+        assert conditional or rows[code].startswith("no"), code
+
+
+def test_findings_registry_gate_rejects_an_unregistered_code(monkeypatch, tmp_path):
+    package = tmp_path / "security_findings"
+    package.mkdir()
+    for path in FINDINGS_PACKAGE.glob("*.py"):
+        (package / path.name).write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+    probe = package / "reader.py"
+    added = '\n\ndef probe():\n    require(False, "findings_probe")\n'
+    probe.write_text(probe.read_text(encoding="utf-8") + added, encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "FINDINGS_PACKAGE", package)
+    assert "findings_probe" in _emitted_findings_codes()
+    with pytest.raises(AssertionError, match=re.escape("unregistered {'findings_probe'}")):
+        test_findings_tool_codes_are_the_registered_vocabulary()
+
+
+def test_findings_registry_gate_rejects_a_code_no_tool_raises(monkeypatch, tmp_path):
+    text = ERRORS_REGISTRY.read_text(encoding="utf-8")
+    row = "| `findings_reader_unavailable` |"
+    orphan = "| `findings_orphan` | — | no | A probe row. | [FND-R142](../findings/findings.md) |\n"
+    text = text.replace(row, orphan + row, 1)
+    text = text.replace(
+        "- `findings_reader_unavailable`.",
+        "- `findings_orphan`;\n- `findings_reader_unavailable`.",
+        1,
+    )
+    registry = tmp_path / "errors.md"
+    registry.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(sys.modules[__name__], "ERRORS_REGISTRY", registry)
+    assert "findings_orphan" in _registered_findings_codes()[1]
+    with pytest.raises(AssertionError, match=re.escape("unraised {'findings_orphan'}")):
+        test_findings_tool_codes_are_the_registered_vocabulary()
+
+
+async def _reached(scenario) -> str:
+    with pytest.raises(FindingsError) as raised:
+        await scenario()
+    return raised.value.code
+
+
+def _prepared(transport):
+    async def scenario():
+        await _tools(transport)
+
+    return scenario
+
+
+def _damaged(damage):
+    collection, contents = _fixture()
+    if damage == "digest":
+        contents[collection["documents"][0]["id"]] = b"changed"
+    else:
+
+        def change(body):
+            proposal = json.loads(body)
+            proposal["evidence_ids"] = ["different"]
+            return _json(proposal)
+
+        _replace_proposal(collection, contents, 0, change)
+    return _prepared(Transport(_package(collection, contents)))
+
+
+def _missing_input():
+    transport = Transport(b"")
+    transport.bindings.clear()
+    return _prepared(transport)
+
+
+def _failed_document_write():
+    transport = Transport(_package(*_fixture()))
+    transport.fail_at = 1
+    return _prepared(transport)
+
+
+def _changed_document():
+    transport = Transport(_package(*_fixture()))
+
+    async def scenario():
+        await _tools(transport)
+        target = next(key for key in transport.bindings if key[0] != "inputs")
+        transport.bindings[target] = ("changed", "application/json", b"different bytes")
+        await _tools(transport)
+
+    return scenario
+
+
+def _read(arguments, *, closed=False, page_bytes=None):
+    async def scenario():
+        tools, _, _ = await _tools(Transport(_package(*_fixture())))
+        reader = tools["list_findings"]
+        if closed:
+            await reader.close()
+        if page_bytes is not None:
+            from contractor_runtime.toolsets.security_findings import reader as reader_module
+
+            original = reader_module.MAX_PAGE_BYTES
+            reader_module.MAX_PAGE_BYTES = page_bytes
+            try:
+                await reader(**arguments)
+            finally:
+                reader_module.MAX_PAGE_BYTES = original
+        else:
+            await reader(**arguments)
+
+    return scenario
+
+
+# One real path per registered code: preparation through the toolset factory, reads
+# through the prepared list_findings tool.
+REACHING = {
+    "findings_collection_unavailable": _missing_input,
+    "findings_collection_invalid": lambda: _prepared(Transport(b"not a zip archive")),
+    "findings_digest_mismatch": lambda: _damaged("digest"),
+    "findings_reference_invalid": lambda: _damaged("evidence"),
+    "findings_limit_exceeded": lambda: _prepared(Transport(b"x" * (MAX_ARCHIVE_BYTES + 1))),
+    "findings_document_unavailable": _failed_document_write,
+    "findings_document_conflict": _changed_document,
+    "findings_arguments_invalid": lambda: _read({"subject_key": "subject-a"}),
+    "findings_cursor_invalid": lambda: _read({"cursor": "unknown"}),
+    "findings_reader_unavailable": lambda: _read({}, closed=True),
+}
+
+
+@pytest.mark.parametrize("code", sorted(_registered_findings_codes()[0]))
+def test_every_registered_findings_code_is_reachable(code):
+    if code not in REACHING:
+        pytest.fail(f"no toolset path reaches the registered code {code}")
+    assert asyncio.run(_reached(REACHING[code]())) == code
+
+
+def test_page_limit_reaches_findings_limit_exceeded_in_a_read():
+    assert asyncio.run(_reached(_read({}, page_bytes=1))) == "findings_limit_exceeded"

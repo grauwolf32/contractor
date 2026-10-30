@@ -428,7 +428,7 @@ func auditPackage(code, failure string) Kind {
 	return define(code, http.StatusUnprocessableEntity, false,
 		"Audit input could not be processed",
 		"Bounded Audit package codec error: "+failure+". The Audit input, finding proposal or finding collection is "+
-			"rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error.",
+			"rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23).",
 		"[Audits](../audits/audits.md), [findings](../findings/findings.md)")
 }
 

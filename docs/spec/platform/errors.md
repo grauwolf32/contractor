@@ -20,6 +20,7 @@ This document owns the code vocabularies of:
 - workspace and filesystem tools;
 - code-analysis and taint annotation tools;
 - HTTP and Caido tools;
+- the findings tools;
 - the public API's error codes, generated from the Server's error registry.
 
 It leaves to other documents:
@@ -266,6 +267,33 @@ retryability and incomplete-result semantics belong to
 [Interactsh tools](../tools/interactsh.md). Python bugs remain exceptions rather
 than fabricated no-interaction results.
 
+### Findings tool errors
+
+**ERR-R23.** The error vocabulary of the findings tools of
+`security-findings@1` is closed. Reader preparation reports one of these
+codes as the allocation error:
+
+- `findings_collection_unavailable`;
+- `findings_collection_invalid`;
+- `findings_digest_mismatch`;
+- `findings_reference_invalid`;
+- `findings_limit_exceeded`;
+- `findings_document_unavailable`;
+- `findings_document_conflict`.
+
+`list_findings` returns one of these codes to the model in its tool error
+envelope:
+
+- `findings_arguments_invalid`;
+- `findings_cursor_invalid`;
+- `findings_limit_exceeded`;
+- `findings_reader_unavailable`.
+
+Each code's retryability is its [registry](#other-error-and-stop-codes) row.
+The conditions that raise the codes are owned by
+[Findings](../findings/findings.md) (FND-R123, FND-R135, FND-R140, FND-R142,
+FND-R143).
+
 ### Public API error codes
 
 **ERR-R14.** The public API answers every failure, in its HTTP error envelope
@@ -339,18 +367,18 @@ The codes of the public API's HTTP error envelope and WebSocket error frames
 | `artifact_history_protected` | 409 | no | An Artifact write would leave its binding with more retained revisions or bytes than the history limit (LIM-ART-9) allows even after every unprotected historical revision is removed: the current, the new revision and the revisions that exact references still protect exceed it. Nothing changes; only the release of a protecting reference or a higher configured limit lets the same write succeed. | [ART-R126](../artifacts/artifact-store.md) |
 | `artifact_too_large` | 413 | no | An Artifact exceeds its 64 MiB limit (LIM-ART-4); rejected in the same way as an oversized request body. | [API-R5](../api/public-api.md) |
 | `artifact_transfer_capacity` | 503 | yes | All full-payload transfer slots of the Server process are taken; the request fails promptly instead of queueing its body. | [BLB-R25](../artifacts/blob-storage.md) |
-| `audit_digest_mismatch` | 422 | no | Bounded Audit package codec error: an Audit document or package member does not match its digest. The Audit input, finding proposal or finding collection is rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error. | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
-| `audit_document_invalid` | 422 | no | Bounded Audit package codec error: an Audit document is invalid. The Audit input, finding proposal or finding collection is rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error. | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
-| `audit_inventory_invalid` | 422 | no | Bounded Audit package codec error: an Audit inventory is invalid. The Audit input, finding proposal or finding collection is rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error. | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
-| `audit_limit_exceeded` | 422 | no | Bounded Audit package codec error: an Audit document or package exceeds a bound. The Audit input, finding proposal or finding collection is rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error. | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
-| `audit_package_invalid` | 422 | no | Bounded Audit package codec error: an Audit package is invalid. The Audit input, finding proposal or finding collection is rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error. | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
-| `audit_package_member_forbidden` | 422 | no | Bounded Audit package codec error: an Audit package contains a forbidden member. The Audit input, finding proposal or finding collection is rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error. | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
-| `audit_package_path_invalid` | 422 | no | Bounded Audit package codec error: an Audit package member path is invalid. The Audit input, finding proposal or finding collection is rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error. | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
+| `audit_digest_mismatch` | 422 | no | Bounded Audit package codec error: an Audit document or package member does not match its digest. The Audit input, finding proposal or finding collection is rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23). | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
+| `audit_document_invalid` | 422 | no | Bounded Audit package codec error: an Audit document is invalid. The Audit input, finding proposal or finding collection is rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23). | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
+| `audit_inventory_invalid` | 422 | no | Bounded Audit package codec error: an Audit inventory is invalid. The Audit input, finding proposal or finding collection is rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23). | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
+| `audit_limit_exceeded` | 422 | no | Bounded Audit package codec error: an Audit document or package exceeds a bound. The Audit input, finding proposal or finding collection is rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23). | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
+| `audit_package_invalid` | 422 | no | Bounded Audit package codec error: an Audit package is invalid. The Audit input, finding proposal or finding collection is rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23). | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
+| `audit_package_member_forbidden` | 422 | no | Bounded Audit package codec error: an Audit package contains a forbidden member. The Audit input, finding proposal or finding collection is rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23). | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
+| `audit_package_path_invalid` | 422 | no | Bounded Audit package codec error: an Audit package member path is invalid. The Audit input, finding proposal or finding collection is rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23). | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
 | `audit_profile_unsupported` | 422 | no | The pinned AuditProfile requires Server capabilities that are missing; bounded reason codes in the details name them and do not describe transient Worker availability. | [AUD-R88](../audits/audits.md) |
-| `audit_reference_invalid` | 422 | no | Bounded Audit package codec error: an Audit reference is invalid. The Audit input, finding proposal or finding collection is rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error. | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
-| `audit_remote_reference` | 422 | no | Bounded Audit package codec error: an Audit document references remote content. The Audit input, finding proposal or finding collection is rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error. | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
-| `audit_result_set_invalid` | 422 | no | Bounded Audit package codec error: an Audit result set is invalid. The Audit input, finding proposal or finding collection is rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error. | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
-| `audit_schema_unsupported` | 422 | no | Bounded Audit package codec error: an Audit document has an unsupported schema version. The Audit input, finding proposal or finding collection is rejected without its source bytes; in list_findings the Runtime tool transport maps it to its own error. | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
+| `audit_reference_invalid` | 422 | no | Bounded Audit package codec error: an Audit reference is invalid. The Audit input, finding proposal or finding collection is rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23). | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
+| `audit_remote_reference` | 422 | no | Bounded Audit package codec error: an Audit document references remote content. The Audit input, finding proposal or finding collection is rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23). | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
+| `audit_result_set_invalid` | 422 | no | Bounded Audit package codec error: an Audit result set is invalid. The Audit input, finding proposal or finding collection is rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23). | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
+| `audit_schema_unsupported` | 422 | no | Bounded Audit package codec error: an Audit document has an unsupported schema version. The Audit input, finding proposal or finding collection is rejected without its source bytes; the Runtime findings reader reports its own findings_* codes instead (ERR-R23). | [Audits](../audits/audits.md), [findings](../findings/findings.md) |
 | `configuration_conflict` | 409 | no | A managed publication reused a published (kind, name, version) identity with different normalized content; an identical identity and body instead returns the published version. | [CAT-R59](../configuration/catalog.md) |
 | `configuration_drift` | 409 | no | A managed publication found that the reloaded configuration roots differ from the Server's loaded snapshot by a change the Server did not make; nothing is published, and publication resumes once the roots match the loaded snapshot again or after a restart. | [CAT-R75](../configuration/catalog.md) |
 | `conflict` | 409 | yes | The resource state changed or an identity is taken: a stale Artifact CAS precondition, a Run, Project or Audit state that no longer admits the request, or a duplicate identity. Re-read the current state and retry with its revision. | [API-R26](../api/public-api.md), [ART-R59](../artifacts/artifact-store.md) |
@@ -500,9 +528,16 @@ Assembled from every document.
 | `execution-cancelled` | — | no | Collection receipt disposition for a cancelled Run; cancelled items settle with their truthful final disposition. | [AUX-R31](../audits/execution.md) |
 | `execution-failed` | — | conditional: members that are retryable and still within their attempt policy return to ready; others settle | Collection receipt disposition for a technically failed Run; every member records an explicit attempt disposition. | [AUX-R31](../audits/execution.md) |
 | `finding_confirmation_unsupported` | — | no | Reason code of audit_profile_unsupported: findingConfirmation is disabled but a resolved Workflow has a proposals output or an AgentTemplate selects a finding-proposal tool. | [AUD-R90](../audits/audits.md) |
+| `findings_arguments_invalid` | — | no | list_findings received an invalid filter or limit: a subject kind or key that is not an identifier, a subject key without a subject kind, or a limit outside 1–100 (LIM-FND-26); returned to the model | [FND-R142](../findings/findings.md) |
+| `findings_collection_invalid` | — | no (for the recorded Run snapshot) | Reader preparation found a malformed collection: a wrong media type, a malformed or unsafe archive, non-canonical or schema-invalid JSON or an invalid proposal; reported as the allocation error | [FND-R143](../findings/findings.md) |
 | `findings_collection_unavailable` | — | yes, only for a lost Artifact API transport or an Artifact API error marked retryable; otherwise no | Reader preparation failed because the declared findings collection input was unavailable; reported as the allocation error | [FND-R123](../findings/findings.md) |
-| `findings_document_conflict` | — | no (for the recorded Run snapshot) | Reader preparation found different content at a document's create-only destination and failed without overwriting it; reported as the allocation error | [findings](../findings/findings.md) |
-| `findings_document_unavailable` | — | yes, only for a lost Artifact API transport or an Artifact API error marked retryable; otherwise no | Reader preparation failed because a collection document was unavailable; reported as the allocation error | [FND-R123](../findings/findings.md) |
+| `findings_cursor_invalid` | — | no | list_findings received a cursor with a wrong version or encoding, an unknown receipt, or other filters or another snapshot than the cursor names; returned to the model | [FND-R140](../findings/findings.md) |
+| `findings_digest_mismatch` | — | no (for the recorded Run snapshot) | Reader preparation found a collection member or document whose bytes, size or metadata disagree with the manifest; reported as the allocation error | [FND-R143](../findings/findings.md) |
+| `findings_document_conflict` | — | no (for the recorded Run snapshot) | Reader preparation found different content at a document's create-only destination and failed without overwriting it; reported as the allocation error | [FND-R123](../findings/findings.md) |
+| `findings_document_unavailable` | — | yes, only for a lost Artifact API transport or an Artifact API error marked retryable; otherwise no | Reader preparation failed because a collection document destination was unavailable or a lost create could not be resolved; reported as the allocation error | [FND-R123](../findings/findings.md) |
+| `findings_limit_exceeded` | — | no | Reader preparation found a collection over a bound (LIM-FND-14 to LIM-FND-23 or a package transport bound), reported as the allocation error; or one complete list_findings item does not fit the 256 KiB page (LIM-FND-29), returned to the model | [FND-R135](../findings/findings.md), [FND-R143](../findings/findings.md) |
+| `findings_reader_unavailable` | — | no | list_findings was called after its allocation released the prepared reader; returned to the model | [FND-R142](../findings/findings.md) |
+| `findings_reference_invalid` | — | no (for the recorded Run snapshot) | Reader preparation found a document ID, entry link, proposal evidence ID or review that does not resolve within the collection; reported as the allocation error | [FND-R143](../findings/findings.md) |
 | `finish_rejected` | — | yes only when the candidate artifacts could not be verified; otherwise no | A Streamline or Router `finish` call was rejected: its candidate violates the Stage result contract, including a result artifact reference the RunScope rejects, the plan does not permit the outcome, or the Planner already has a terminal decision; the model may correct it within its budget. | [PLN-R72](../execution/planners.md), [PLN-R118](../execution/planners.md) |
 | `http_body_not_found` | — | no | `http_read_body` found the stored body missing, invalid or oversized (HTP-R69) | [ERR-R13](errors.md), [HTP-R69](../tools/http-caido.md) |
 | `http_cookie_state_invalid` | — | no | Cookie payload is malformed, incompatible with the target, or over its bounds | [ERR-R13](errors.md), [HTP-R127](../tools/http-caido.md) |
