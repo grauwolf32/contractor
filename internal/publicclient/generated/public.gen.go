@@ -21,19 +21,19 @@ import (
 
 // Defines values for ActiveChecksPolicy.
 const (
-	ApprovalRequired ActiveChecksPolicy = "approval-required"
-	Automatic        ActiveChecksPolicy = "automatic"
-	Prohibited       ActiveChecksPolicy = "prohibited"
+	ActiveChecksPolicyApprovalRequired ActiveChecksPolicy = "approval-required"
+	ActiveChecksPolicyAutomatic        ActiveChecksPolicy = "automatic"
+	ActiveChecksPolicyProhibited       ActiveChecksPolicy = "prohibited"
 )
 
 // Valid indicates whether the value is a known member of the ActiveChecksPolicy enum.
 func (e ActiveChecksPolicy) Valid() bool {
 	switch e {
-	case ApprovalRequired:
+	case ActiveChecksPolicyApprovalRequired:
 		return true
-	case Automatic:
+	case ActiveChecksPolicyAutomatic:
 		return true
-	case Prohibited:
+	case ActiveChecksPolicyProhibited:
 		return true
 	default:
 		return false
@@ -49,6 +49,168 @@ const (
 func (e AgentSkillRefNamespace) Valid() bool {
 	switch e {
 	case Skills:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AllocationObservationAuthoritativePhase.
+const (
+	AllocationObservationAuthoritativePhaseAborting   AllocationObservationAuthoritativePhase = "aborting"
+	AllocationObservationAuthoritativePhaseActive     AllocationObservationAuthoritativePhase = "active"
+	AllocationObservationAuthoritativePhaseFinalizing AllocationObservationAuthoritativePhase = "finalizing"
+	AllocationObservationAuthoritativePhasePreparing  AllocationObservationAuthoritativePhase = "preparing"
+	AllocationObservationAuthoritativePhaseReleasing  AllocationObservationAuthoritativePhase = "releasing"
+)
+
+// Valid indicates whether the value is a known member of the AllocationObservationAuthoritativePhase enum.
+func (e AllocationObservationAuthoritativePhase) Valid() bool {
+	switch e {
+	case AllocationObservationAuthoritativePhaseAborting:
+		return true
+	case AllocationObservationAuthoritativePhaseActive:
+		return true
+	case AllocationObservationAuthoritativePhaseFinalizing:
+		return true
+	case AllocationObservationAuthoritativePhasePreparing:
+		return true
+	case AllocationObservationAuthoritativePhaseReleasing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AllocationObservationExhaustedDimension.
+const (
+	ModelCalls  AllocationObservationExhaustedDimension = "model_calls"
+	ToolCalls   AllocationObservationExhaustedDimension = "tool_calls"
+	TotalTokens AllocationObservationExhaustedDimension = "total_tokens"
+	WallTime    AllocationObservationExhaustedDimension = "wall_time"
+	WorkerCalls AllocationObservationExhaustedDimension = "worker_calls"
+)
+
+// Valid indicates whether the value is a known member of the AllocationObservationExhaustedDimension enum.
+func (e AllocationObservationExhaustedDimension) Valid() bool {
+	switch e {
+	case ModelCalls:
+		return true
+	case ToolCalls:
+		return true
+	case TotalTokens:
+		return true
+	case WallTime:
+		return true
+	case WorkerCalls:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AllocationObservationObservedPhase.
+const (
+	AllocationObservationObservedPhaseAbsent   AllocationObservationObservedPhase = "absent"
+	AllocationObservationObservedPhaseDraining AllocationObservationObservedPhase = "draining"
+	AllocationObservationObservedPhaseFenced   AllocationObservationObservedPhase = "fenced"
+	AllocationObservationObservedPhasePrepared AllocationObservationObservedPhase = "prepared"
+)
+
+// Valid indicates whether the value is a known member of the AllocationObservationObservedPhase enum.
+func (e AllocationObservationObservedPhase) Valid() bool {
+	switch e {
+	case AllocationObservationObservedPhaseAbsent:
+		return true
+	case AllocationObservationObservedPhaseDraining:
+		return true
+	case AllocationObservationObservedPhaseFenced:
+		return true
+	case AllocationObservationObservedPhasePrepared:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AllocationResourceSummaryCollectionPolicy.
+const (
+	AllocationResourceSummaryCollectionPolicyDisabled    AllocationResourceSummaryCollectionPolicy = "disabled"
+	AllocationResourceSummaryCollectionPolicyRequested   AllocationResourceSummaryCollectionPolicy = "requested"
+	AllocationResourceSummaryCollectionPolicyUnsupported AllocationResourceSummaryCollectionPolicy = "unsupported"
+)
+
+// Valid indicates whether the value is a known member of the AllocationResourceSummaryCollectionPolicy enum.
+func (e AllocationResourceSummaryCollectionPolicy) Valid() bool {
+	switch e {
+	case AllocationResourceSummaryCollectionPolicyDisabled:
+		return true
+	case AllocationResourceSummaryCollectionPolicyRequested:
+		return true
+	case AllocationResourceSummaryCollectionPolicyUnsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AllocationResourceSummaryReason.
+const (
+	AllocationResourceSummaryReasonCounterReset        AllocationResourceSummaryReason = "counter_reset"
+	AllocationResourceSummaryReasonInvalidReport       AllocationResourceSummaryReason = "invalid_report"
+	AllocationResourceSummaryReasonReadFailed          AllocationResourceSummaryReason = "read_failed"
+	AllocationResourceSummaryReasonReportExpired       AllocationResourceSummaryReason = "report_expired"
+	AllocationResourceSummaryReasonReportMissing       AllocationResourceSummaryReason = "report_missing"
+	AllocationResourceSummaryReasonSamplingGap         AllocationResourceSummaryReason = "sampling_gap"
+	AllocationResourceSummaryReasonUnsupportedPlatform AllocationResourceSummaryReason = "unsupported_platform"
+)
+
+// Valid indicates whether the value is a known member of the AllocationResourceSummaryReason enum.
+func (e AllocationResourceSummaryReason) Valid() bool {
+	switch e {
+	case AllocationResourceSummaryReasonCounterReset:
+		return true
+	case AllocationResourceSummaryReasonInvalidReport:
+		return true
+	case AllocationResourceSummaryReasonReadFailed:
+		return true
+	case AllocationResourceSummaryReasonReportExpired:
+		return true
+	case AllocationResourceSummaryReasonReportMissing:
+		return true
+	case AllocationResourceSummaryReasonSamplingGap:
+		return true
+	case AllocationResourceSummaryReasonUnsupportedPlatform:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AllocationResourceSummaryStatus.
+const (
+	AllocationResourceSummaryStatusAvailable   AllocationResourceSummaryStatus = "available"
+	AllocationResourceSummaryStatusDisabled    AllocationResourceSummaryStatus = "disabled"
+	AllocationResourceSummaryStatusPartial     AllocationResourceSummaryStatus = "partial"
+	AllocationResourceSummaryStatusPending     AllocationResourceSummaryStatus = "pending"
+	AllocationResourceSummaryStatusUnavailable AllocationResourceSummaryStatus = "unavailable"
+	AllocationResourceSummaryStatusUnsupported AllocationResourceSummaryStatus = "unsupported"
+)
+
+// Valid indicates whether the value is a known member of the AllocationResourceSummaryStatus enum.
+func (e AllocationResourceSummaryStatus) Valid() bool {
+	switch e {
+	case AllocationResourceSummaryStatusAvailable:
+		return true
+	case AllocationResourceSummaryStatusDisabled:
+		return true
+	case AllocationResourceSummaryStatusPartial:
+		return true
+	case AllocationResourceSummaryStatusPending:
+		return true
+	case AllocationResourceSummaryStatusUnavailable:
+		return true
+	case AllocationResourceSummaryStatusUnsupported:
 		return true
 	default:
 		return false
@@ -163,15 +325,411 @@ func (e ArtifactArchiveEntryKind) Valid() bool {
 	}
 }
 
+// Defines values for ArtifactLineageEdgeKind.
+const (
+	ContextProjection    ArtifactLineageEdgeKind = "context_projection"
+	InputFork            ArtifactLineageEdgeKind = "input_fork"
+	OutputBind           ArtifactLineageEdgeKind = "output_bind"
+	ProjectOutputPublish ArtifactLineageEdgeKind = "project_output_publish"
+)
+
+// Valid indicates whether the value is a known member of the ArtifactLineageEdgeKind enum.
+func (e ArtifactLineageEdgeKind) Valid() bool {
+	switch e {
+	case ContextProjection:
+		return true
+	case InputFork:
+		return true
+	case OutputBind:
+		return true
+	case ProjectOutputPublish:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArtifactLineageEdgeSourceScope.
+const (
+	ArtifactLineageEdgeSourceScopeProject ArtifactLineageEdgeSourceScope = "project"
+	ArtifactLineageEdgeSourceScopeRun     ArtifactLineageEdgeSourceScope = "run"
+	ArtifactLineageEdgeSourceScopeUser    ArtifactLineageEdgeSourceScope = "user"
+)
+
+// Valid indicates whether the value is a known member of the ArtifactLineageEdgeSourceScope enum.
+func (e ArtifactLineageEdgeSourceScope) Valid() bool {
+	switch e {
+	case ArtifactLineageEdgeSourceScopeProject:
+		return true
+	case ArtifactLineageEdgeSourceScopeRun:
+		return true
+	case ArtifactLineageEdgeSourceScopeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArtifactLineageEdgeTargetScope.
+const (
+	ArtifactLineageEdgeTargetScopeProject ArtifactLineageEdgeTargetScope = "project"
+	ArtifactLineageEdgeTargetScopeRun     ArtifactLineageEdgeTargetScope = "run"
+	ArtifactLineageEdgeTargetScopeUser    ArtifactLineageEdgeTargetScope = "user"
+)
+
+// Valid indicates whether the value is a known member of the ArtifactLineageEdgeTargetScope enum.
+func (e ArtifactLineageEdgeTargetScope) Valid() bool {
+	switch e {
+	case ArtifactLineageEdgeTargetScopeProject:
+		return true
+	case ArtifactLineageEdgeTargetScopeRun:
+		return true
+	case ArtifactLineageEdgeTargetScopeUser:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ArtifactSlotSourceScope.
 const (
-	User ArtifactSlotSourceScope = "user"
+	ArtifactSlotSourceScopeUser ArtifactSlotSourceScope = "user"
 )
 
 // Valid indicates whether the value is a known member of the ArtifactSlotSourceScope enum.
 func (e ArtifactSlotSourceScope) Valid() bool {
 	switch e {
-	case User:
+	case ArtifactSlotSourceScopeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AttemptDiagnosticParticipant.
+const (
+	AttemptDiagnosticParticipantPlanner AttemptDiagnosticParticipant = "planner"
+	AttemptDiagnosticParticipantWorker  AttemptDiagnosticParticipant = "worker"
+)
+
+// Valid indicates whether the value is a known member of the AttemptDiagnosticParticipant enum.
+func (e AttemptDiagnosticParticipant) Valid() bool {
+	switch e {
+	case AttemptDiagnosticParticipantPlanner:
+		return true
+	case AttemptDiagnosticParticipantWorker:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for Audit1Phase.
+const (
+	Audit1PhaseInventory Audit1Phase = "inventory"
+	Audit1PhasePreparing Audit1Phase = "preparing"
+)
+
+// Valid indicates whether the value is a known member of the Audit1Phase enum.
+func (e Audit1Phase) Valid() bool {
+	switch e {
+	case Audit1PhaseInventory:
+		return true
+	case Audit1PhasePreparing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditAnalystVerdict.
+const (
+	AuditAnalystVerdictDuplicate     AuditAnalystVerdict = "duplicate"
+	AuditAnalystVerdictFalsePositive AuditAnalystVerdict = "false_positive"
+	AuditAnalystVerdictNeedsEvidence AuditAnalystVerdict = "needs_evidence"
+	AuditAnalystVerdictReopen        AuditAnalystVerdict = "reopen"
+	AuditAnalystVerdictTruePositive  AuditAnalystVerdict = "true_positive"
+)
+
+// Valid indicates whether the value is a known member of the AuditAnalystVerdict enum.
+func (e AuditAnalystVerdict) Valid() bool {
+	switch e {
+	case AuditAnalystVerdictDuplicate:
+		return true
+	case AuditAnalystVerdictFalsePositive:
+		return true
+	case AuditAnalystVerdictNeedsEvidence:
+		return true
+	case AuditAnalystVerdictReopen:
+		return true
+	case AuditAnalystVerdictTruePositive:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditCheckMethodMappingMethod.
+const (
+	Alternative   AuditCheckMethodMappingMethod = "alternative"
+	Applicability AuditCheckMethodMappingMethod = "applicability"
+	HttpProbe     AuditCheckMethodMappingMethod = "http-probe"
+	Replay        AuditCheckMethodMappingMethod = "replay"
+	StaticTrace   AuditCheckMethodMappingMethod = "static-trace"
+	Verify        AuditCheckMethodMappingMethod = "verify"
+)
+
+// Valid indicates whether the value is a known member of the AuditCheckMethodMappingMethod enum.
+func (e AuditCheckMethodMappingMethod) Valid() bool {
+	switch e {
+	case Alternative:
+		return true
+	case Applicability:
+		return true
+	case HttpProbe:
+		return true
+	case Replay:
+		return true
+	case StaticTrace:
+		return true
+	case Verify:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditCollectionDisposition.
+const (
+	AuditCollectionDispositionAcceptedResult            AuditCollectionDisposition = "accepted-result"
+	AuditCollectionDispositionCollectionContractInvalid AuditCollectionDisposition = "collection-contract-invalid"
+	AuditCollectionDispositionExecutionCancelled        AuditCollectionDisposition = "execution-cancelled"
+	AuditCollectionDispositionExecutionFailed           AuditCollectionDisposition = "execution-failed"
+	AuditCollectionDispositionInvalidResult             AuditCollectionDisposition = "invalid-result"
+	AuditCollectionDispositionMissingOutput             AuditCollectionDisposition = "missing-output"
+)
+
+// Valid indicates whether the value is a known member of the AuditCollectionDisposition enum.
+func (e AuditCollectionDisposition) Valid() bool {
+	switch e {
+	case AuditCollectionDispositionAcceptedResult:
+		return true
+	case AuditCollectionDispositionCollectionContractInvalid:
+		return true
+	case AuditCollectionDispositionExecutionCancelled:
+		return true
+	case AuditCollectionDispositionExecutionFailed:
+		return true
+	case AuditCollectionDispositionInvalidResult:
+		return true
+	case AuditCollectionDispositionMissingOutput:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditCompatibilityReason.
+const (
+	ActiveCheckApprovalUnsupported   AuditCompatibilityReason = "active_check_approval_unsupported"
+	AssessmentUnsupported            AuditCompatibilityReason = "assessment_unsupported"
+	AutomaticActiveChecksUnsupported AuditCompatibilityReason = "automatic_active_checks_unsupported"
+	BatchingUnsupported              AuditCompatibilityReason = "batching_unsupported"
+	DiscoveryUnsupported             AuditCompatibilityReason = "discovery_unsupported"
+	FindingConfirmationUnsupported   AuditCompatibilityReason = "finding_confirmation_unsupported"
+	ManualApplicabilityUnsupported   AuditCompatibilityReason = "manual_applicability_unsupported"
+	ManualItemUnsupported            AuditCompatibilityReason = "manual_item_unsupported"
+	MultipleRoundsUnsupported        AuditCompatibilityReason = "multiple_rounds_unsupported"
+	PentestActiveChecksUnsupported   AuditCompatibilityReason = "pentest_active_checks_unsupported"
+	PentestCapabilityUnsupported     AuditCompatibilityReason = "pentest_capability_unsupported"
+	PentestSourceClosureUnsupported  AuditCompatibilityReason = "pentest_source_closure_unsupported"
+	PreparationUnsupported           AuditCompatibilityReason = "preparation_unsupported"
+	ProjectActiveChecksProhibited    AuditCompatibilityReason = "project_active_checks_prohibited"
+	ReportAcceptanceUnsupported      AuditCompatibilityReason = "report_acceptance_unsupported"
+)
+
+// Valid indicates whether the value is a known member of the AuditCompatibilityReason enum.
+func (e AuditCompatibilityReason) Valid() bool {
+	switch e {
+	case ActiveCheckApprovalUnsupported:
+		return true
+	case AssessmentUnsupported:
+		return true
+	case AutomaticActiveChecksUnsupported:
+		return true
+	case BatchingUnsupported:
+		return true
+	case DiscoveryUnsupported:
+		return true
+	case FindingConfirmationUnsupported:
+		return true
+	case ManualApplicabilityUnsupported:
+		return true
+	case ManualItemUnsupported:
+		return true
+	case MultipleRoundsUnsupported:
+		return true
+	case PentestActiveChecksUnsupported:
+		return true
+	case PentestCapabilityUnsupported:
+		return true
+	case PentestSourceClosureUnsupported:
+		return true
+	case PreparationUnsupported:
+		return true
+	case ProjectActiveChecksProhibited:
+		return true
+	case ReportAcceptanceUnsupported:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditCoverageStatus.
+const (
+	AuditCoverageStatusBlocked        AuditCoverageStatus = "blocked"
+	AuditCoverageStatusExcluded       AuditCoverageStatus = "excluded"
+	AuditCoverageStatusInconclusive   AuditCoverageStatus = "inconclusive"
+	AuditCoverageStatusNotApplicable  AuditCoverageStatus = "not-applicable"
+	AuditCoverageStatusNotTested      AuditCoverageStatus = "not-tested"
+	AuditCoverageStatusSatisfied      AuditCoverageStatus = "satisfied"
+	AuditCoverageStatusTracedComplete AuditCoverageStatus = "traced-complete"
+	AuditCoverageStatusTracedPartial  AuditCoverageStatus = "traced-partial"
+	AuditCoverageStatusUnmapped       AuditCoverageStatus = "unmapped"
+	AuditCoverageStatusViolated       AuditCoverageStatus = "violated"
+)
+
+// Valid indicates whether the value is a known member of the AuditCoverageStatus enum.
+func (e AuditCoverageStatus) Valid() bool {
+	switch e {
+	case AuditCoverageStatusBlocked:
+		return true
+	case AuditCoverageStatusExcluded:
+		return true
+	case AuditCoverageStatusInconclusive:
+		return true
+	case AuditCoverageStatusNotApplicable:
+		return true
+	case AuditCoverageStatusNotTested:
+		return true
+	case AuditCoverageStatusSatisfied:
+		return true
+	case AuditCoverageStatusTracedComplete:
+		return true
+	case AuditCoverageStatusTracedPartial:
+		return true
+	case AuditCoverageStatusUnmapped:
+		return true
+	case AuditCoverageStatusViolated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditDispatchState.
+const (
+	AuditDispatchStateClosed AuditDispatchState = "closed"
+	AuditDispatchStateOpen   AuditDispatchState = "open"
+)
+
+// Valid indicates whether the value is a known member of the AuditDispatchState enum.
+func (e AuditDispatchState) Valid() bool {
+	switch e {
+	case AuditDispatchStateClosed:
+		return true
+	case AuditDispatchStateOpen:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditEventSummaryKind.
+const (
+	AuditEventSummaryKindActiveCheckApproval      AuditEventSummaryKind = "active-check-approval"
+	AuditEventSummaryKindFindingTriage            AuditEventSummaryKind = "finding-triage"
+	AuditEventSummaryKindReportAcceptance         AuditEventSummaryKind = "report-acceptance"
+	AuditEventSummaryKindRequirementApplicability AuditEventSummaryKind = "requirement-applicability"
+)
+
+// Valid indicates whether the value is a known member of the AuditEventSummaryKind enum.
+func (e AuditEventSummaryKind) Valid() bool {
+	switch e {
+	case AuditEventSummaryKindActiveCheckApproval:
+		return true
+	case AuditEventSummaryKindFindingTriage:
+		return true
+	case AuditEventSummaryKindReportAcceptance:
+		return true
+	case AuditEventSummaryKindRequirementApplicability:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditEventSummaryVerdict.
+const (
+	AuditEventSummaryVerdictDuplicate     AuditEventSummaryVerdict = "duplicate"
+	AuditEventSummaryVerdictFalsePositive AuditEventSummaryVerdict = "false_positive"
+	AuditEventSummaryVerdictNeedsEvidence AuditEventSummaryVerdict = "needs_evidence"
+	AuditEventSummaryVerdictReopen        AuditEventSummaryVerdict = "reopen"
+	AuditEventSummaryVerdictTruePositive  AuditEventSummaryVerdict = "true_positive"
+)
+
+// Valid indicates whether the value is a known member of the AuditEventSummaryVerdict enum.
+func (e AuditEventSummaryVerdict) Valid() bool {
+	switch e {
+	case AuditEventSummaryVerdictDuplicate:
+		return true
+	case AuditEventSummaryVerdictFalsePositive:
+		return true
+	case AuditEventSummaryVerdictNeedsEvidence:
+		return true
+	case AuditEventSummaryVerdictReopen:
+		return true
+	case AuditEventSummaryVerdictTruePositive:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditExecutionItemState.
+const (
+	AuditExecutionItemStateCollecting AuditExecutionItemState = "collecting"
+	AuditExecutionItemStateSettled    AuditExecutionItemState = "settled"
+	AuditExecutionItemStateSubmitted  AuditExecutionItemState = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the AuditExecutionItemState enum.
+func (e AuditExecutionItemState) Valid() bool {
+	switch e {
+	case AuditExecutionItemStateCollecting:
+		return true
+	case AuditExecutionItemStateSettled:
+		return true
+	case AuditExecutionItemStateSubmitted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditExecutionPolicyIncompleteRound.
+const (
+	AuditExecutionPolicyIncompleteRoundAssessWithGaps AuditExecutionPolicyIncompleteRound = "assess-with-gaps"
+	AuditExecutionPolicyIncompleteRoundFail           AuditExecutionPolicyIncompleteRound = "fail"
+)
+
+// Valid indicates whether the value is a known member of the AuditExecutionPolicyIncompleteRound enum.
+func (e AuditExecutionPolicyIncompleteRound) Valid() bool {
+	switch e {
+	case AuditExecutionPolicyIncompleteRoundAssessWithGaps:
+		return true
+	case AuditExecutionPolicyIncompleteRoundFail:
 		return true
 	default:
 		return false
@@ -193,6 +751,396 @@ func (e AuditExecutionPolicyRoundMode) Valid() bool {
 	}
 }
 
+// Defines values for AuditExecutionRole.
+const (
+	AuditExecutionRoleAssessment AuditExecutionRole = "assessment"
+	AuditExecutionRoleCheck      AuditExecutionRole = "check"
+	AuditExecutionRoleDiscovery  AuditExecutionRole = "discovery"
+	AuditExecutionRolePrepare    AuditExecutionRole = "prepare"
+)
+
+// Valid indicates whether the value is a known member of the AuditExecutionRole enum.
+func (e AuditExecutionRole) Valid() bool {
+	switch e {
+	case AuditExecutionRoleAssessment:
+		return true
+	case AuditExecutionRoleCheck:
+		return true
+	case AuditExecutionRoleDiscovery:
+		return true
+	case AuditExecutionRolePrepare:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditFinalDisposition.
+const (
+	AuditFinalDispositionAcceptedResult     AuditFinalDisposition = "accepted-result"
+	AuditFinalDispositionExcluded           AuditFinalDisposition = "excluded"
+	AuditFinalDispositionExecutionCancelled AuditFinalDisposition = "execution-cancelled"
+	AuditFinalDispositionExecutionFailed    AuditFinalDisposition = "execution-failed"
+	AuditFinalDispositionInvalidResult      AuditFinalDisposition = "invalid-result"
+	AuditFinalDispositionMissingOutput      AuditFinalDisposition = "missing-output"
+	AuditFinalDispositionNotApplicable      AuditFinalDisposition = "not-applicable"
+)
+
+// Valid indicates whether the value is a known member of the AuditFinalDisposition enum.
+func (e AuditFinalDisposition) Valid() bool {
+	switch e {
+	case AuditFinalDispositionAcceptedResult:
+		return true
+	case AuditFinalDispositionExcluded:
+		return true
+	case AuditFinalDispositionExecutionCancelled:
+		return true
+	case AuditFinalDispositionExecutionFailed:
+		return true
+	case AuditFinalDispositionInvalidResult:
+		return true
+	case AuditFinalDispositionMissingOutput:
+		return true
+	case AuditFinalDispositionNotApplicable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditFindingRejectionReason.
+const (
+	AuditFindingRejectionReasonFalsePositive AuditFindingRejectionReason = "false-positive"
+	AuditFindingRejectionReasonOutOfScope    AuditFindingRejectionReason = "out-of-scope"
+	AuditFindingRejectionReasonPolicy        AuditFindingRejectionReason = "policy"
+)
+
+// Valid indicates whether the value is a known member of the AuditFindingRejectionReason enum.
+func (e AuditFindingRejectionReason) Valid() bool {
+	switch e {
+	case AuditFindingRejectionReasonFalsePositive:
+		return true
+	case AuditFindingRejectionReasonOutOfScope:
+		return true
+	case AuditFindingRejectionReasonPolicy:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditFindingAssessmentSemanticAssessment.
+const (
+	AuditFindingAssessmentSemanticAssessmentBlocked      AuditFindingAssessmentSemanticAssessment = "blocked"
+	AuditFindingAssessmentSemanticAssessmentInconclusive AuditFindingAssessmentSemanticAssessment = "inconclusive"
+	AuditFindingAssessmentSemanticAssessmentNotTested    AuditFindingAssessmentSemanticAssessment = "not-tested"
+	AuditFindingAssessmentSemanticAssessmentRefuted      AuditFindingAssessmentSemanticAssessment = "refuted"
+	AuditFindingAssessmentSemanticAssessmentSatisfied    AuditFindingAssessmentSemanticAssessment = "satisfied"
+	AuditFindingAssessmentSemanticAssessmentSupported    AuditFindingAssessmentSemanticAssessment = "supported"
+	AuditFindingAssessmentSemanticAssessmentViolated     AuditFindingAssessmentSemanticAssessment = "violated"
+)
+
+// Valid indicates whether the value is a known member of the AuditFindingAssessmentSemanticAssessment enum.
+func (e AuditFindingAssessmentSemanticAssessment) Valid() bool {
+	switch e {
+	case AuditFindingAssessmentSemanticAssessmentBlocked:
+		return true
+	case AuditFindingAssessmentSemanticAssessmentInconclusive:
+		return true
+	case AuditFindingAssessmentSemanticAssessmentNotTested:
+		return true
+	case AuditFindingAssessmentSemanticAssessmentRefuted:
+		return true
+	case AuditFindingAssessmentSemanticAssessmentSatisfied:
+		return true
+	case AuditFindingAssessmentSemanticAssessmentSupported:
+		return true
+	case AuditFindingAssessmentSemanticAssessmentViolated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditFindingProvenanceKind.
+const (
+	CheckAttempt       AuditFindingProvenanceKind = "check-attempt"
+	DirectVerification AuditFindingProvenanceKind = "direct-verification"
+	SourceProposal     AuditFindingProvenanceKind = "source-proposal"
+)
+
+// Valid indicates whether the value is a known member of the AuditFindingProvenanceKind enum.
+func (e AuditFindingProvenanceKind) Valid() bool {
+	switch e {
+	case CheckAttempt:
+		return true
+	case DirectVerification:
+		return true
+	case SourceProposal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditFindingProvenanceRelation.
+const (
+	Contributing AuditFindingProvenanceRelation = "contributing"
+	First        AuditFindingProvenanceRelation = "first"
+	Verification AuditFindingProvenanceRelation = "verification"
+)
+
+// Valid indicates whether the value is a known member of the AuditFindingProvenanceRelation enum.
+func (e AuditFindingProvenanceRelation) Valid() bool {
+	switch e {
+	case Contributing:
+		return true
+	case First:
+		return true
+	case Verification:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditFindingSeverity.
+const (
+	AuditFindingSeverityCritical      AuditFindingSeverity = "critical"
+	AuditFindingSeverityHigh          AuditFindingSeverity = "high"
+	AuditFindingSeverityInformational AuditFindingSeverity = "informational"
+	AuditFindingSeverityLow           AuditFindingSeverity = "low"
+	AuditFindingSeverityMedium        AuditFindingSeverity = "medium"
+)
+
+// Valid indicates whether the value is a known member of the AuditFindingSeverity enum.
+func (e AuditFindingSeverity) Valid() bool {
+	switch e {
+	case AuditFindingSeverityCritical:
+		return true
+	case AuditFindingSeverityHigh:
+		return true
+	case AuditFindingSeverityInformational:
+		return true
+	case AuditFindingSeverityLow:
+		return true
+	case AuditFindingSeverityMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditFindingState.
+const (
+	AuditFindingStateConfirmed     AuditFindingState = "confirmed"
+	AuditFindingStateDuplicate     AuditFindingState = "duplicate"
+	AuditFindingStateNeedsEvidence AuditFindingState = "needs-evidence"
+	AuditFindingStateProposed      AuditFindingState = "proposed"
+	AuditFindingStateRejected      AuditFindingState = "rejected"
+)
+
+// Valid indicates whether the value is a known member of the AuditFindingState enum.
+func (e AuditFindingState) Valid() bool {
+	switch e {
+	case AuditFindingStateConfirmed:
+		return true
+	case AuditFindingStateDuplicate:
+		return true
+	case AuditFindingStateNeedsEvidence:
+		return true
+	case AuditFindingStateProposed:
+		return true
+	case AuditFindingStateRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditHoldState.
+const (
+	AuditHoldStateHeld     AuditHoldState = "held"
+	AuditHoldStatePending  AuditHoldState = "pending"
+	AuditHoldStateReleased AuditHoldState = "released"
+)
+
+// Valid indicates whether the value is a known member of the AuditHoldState enum.
+func (e AuditHoldState) Valid() bool {
+	switch e {
+	case AuditHoldStateHeld:
+		return true
+	case AuditHoldStatePending:
+		return true
+	case AuditHoldStateReleased:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditInteractionPolicyFindingConfirmation.
+const (
+	AuditInteractionPolicyFindingConfirmationDisabled      AuditInteractionPolicyFindingConfirmation = "disabled"
+	AuditInteractionPolicyFindingConfirmationHumanRequired AuditInteractionPolicyFindingConfirmation = "human-required"
+)
+
+// Valid indicates whether the value is a known member of the AuditInteractionPolicyFindingConfirmation enum.
+func (e AuditInteractionPolicyFindingConfirmation) Valid() bool {
+	switch e {
+	case AuditInteractionPolicyFindingConfirmationDisabled:
+		return true
+	case AuditInteractionPolicyFindingConfirmationHumanRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditInteractionPolicyNotApplicable.
+const (
+	AuditInteractionPolicyNotApplicableHumanRequired AuditInteractionPolicyNotApplicable = "human-required"
+	AuditInteractionPolicyNotApplicableProfileRule   AuditInteractionPolicyNotApplicable = "profile-rule"
+)
+
+// Valid indicates whether the value is a known member of the AuditInteractionPolicyNotApplicable enum.
+func (e AuditInteractionPolicyNotApplicable) Valid() bool {
+	switch e {
+	case AuditInteractionPolicyNotApplicableHumanRequired:
+		return true
+	case AuditInteractionPolicyNotApplicableProfileRule:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditInteractionPolicyReportAcceptance.
+const (
+	AuditInteractionPolicyReportAcceptanceAutomatic     AuditInteractionPolicyReportAcceptance = "automatic"
+	AuditInteractionPolicyReportAcceptanceHumanRequired AuditInteractionPolicyReportAcceptance = "human-required"
+)
+
+// Valid indicates whether the value is a known member of the AuditInteractionPolicyReportAcceptance enum.
+func (e AuditInteractionPolicyReportAcceptance) Valid() bool {
+	switch e {
+	case AuditInteractionPolicyReportAcceptanceAutomatic:
+		return true
+	case AuditInteractionPolicyReportAcceptanceHumanRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditInventoryImplementation.
+const (
+	AuditInventoryImplementationChecklist1         AuditInventoryImplementation = "checklist@1"
+	AuditInventoryImplementationFindingCandidates1 AuditInventoryImplementation = "finding-candidates@1"
+	AuditInventoryImplementationOpenapiOperations1 AuditInventoryImplementation = "openapi-operations@1"
+	AuditInventoryImplementationOpenapiScans1      AuditInventoryImplementation = "openapi-scans@1"
+	AuditInventoryImplementationStandardMappings1  AuditInventoryImplementation = "standard-mappings@1"
+	AuditInventoryImplementationWebScans1          AuditInventoryImplementation = "web-scans@1"
+)
+
+// Valid indicates whether the value is a known member of the AuditInventoryImplementation enum.
+func (e AuditInventoryImplementation) Valid() bool {
+	switch e {
+	case AuditInventoryImplementationChecklist1:
+		return true
+	case AuditInventoryImplementationFindingCandidates1:
+		return true
+	case AuditInventoryImplementationOpenapiOperations1:
+		return true
+	case AuditInventoryImplementationOpenapiScans1:
+		return true
+	case AuditInventoryImplementationStandardMappings1:
+		return true
+	case AuditInventoryImplementationWebScans1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditInventory1Implementation.
+const (
+	AuditInventory1ImplementationOpenapiScans1 AuditInventory1Implementation = "openapi-scans@1"
+	AuditInventory1ImplementationWebScans1     AuditInventory1Implementation = "web-scans@1"
+)
+
+// Valid indicates whether the value is a known member of the AuditInventory1Implementation enum.
+func (e AuditInventory1Implementation) Valid() bool {
+	switch e {
+	case AuditInventory1ImplementationOpenapiScans1:
+		return true
+	case AuditInventory1ImplementationWebScans1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditInventory2Implementation.
+const (
+	AuditInventory2ImplementationChecklist1         AuditInventory2Implementation = "checklist@1"
+	AuditInventory2ImplementationFindingCandidates1 AuditInventory2Implementation = "finding-candidates@1"
+	AuditInventory2ImplementationOpenapiOperations1 AuditInventory2Implementation = "openapi-operations@1"
+)
+
+// Valid indicates whether the value is a known member of the AuditInventory2Implementation enum.
+func (e AuditInventory2Implementation) Valid() bool {
+	switch e {
+	case AuditInventory2ImplementationChecklist1:
+		return true
+	case AuditInventory2ImplementationFindingCandidates1:
+		return true
+	case AuditInventory2ImplementationOpenapiOperations1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditInventoryArtifactSource.
+const (
+	AuditInventoryArtifactSourceAuditInput    AuditInventoryArtifactSource = "audit-input"
+	AuditInventoryArtifactSourcePrepareOutput AuditInventoryArtifactSource = "prepare-output"
+)
+
+// Valid indicates whether the value is a known member of the AuditInventoryArtifactSource enum.
+func (e AuditInventoryArtifactSource) Valid() bool {
+	switch e {
+	case AuditInventoryArtifactSourceAuditInput:
+		return true
+	case AuditInventoryArtifactSourcePrepareOutput:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditItemApprovalKind.
+const (
+	AuditItemApprovalKindActiveCheckApproval      AuditItemApprovalKind = "active-check-approval"
+	AuditItemApprovalKindNone                     AuditItemApprovalKind = "none"
+	AuditItemApprovalKindRequirementApplicability AuditItemApprovalKind = "requirement-applicability"
+)
+
+// Valid indicates whether the value is a known member of the AuditItemApprovalKind enum.
+func (e AuditItemApprovalKind) Valid() bool {
+	switch e {
+	case AuditItemApprovalKindActiveCheckApproval:
+		return true
+	case AuditItemApprovalKindNone:
+		return true
+	case AuditItemApprovalKindRequirementApplicability:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuditItemOriginSchema.
 const (
 	ContractorAuditItemOriginV1 AuditItemOriginSchema = "contractor.audit.item-origin.v1"
@@ -202,6 +1150,129 @@ const (
 func (e AuditItemOriginSchema) Valid() bool {
 	switch e {
 	case ContractorAuditItemOriginV1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditItemState.
+const (
+	AuditItemStateAwaitingReview AuditItemState = "awaiting_review"
+	AuditItemStateCollecting     AuditItemState = "collecting"
+	AuditItemStatePending        AuditItemState = "pending"
+	AuditItemStateReady          AuditItemState = "ready"
+	AuditItemStateSettled        AuditItemState = "settled"
+	AuditItemStateSubmitted      AuditItemState = "submitted"
+)
+
+// Valid indicates whether the value is a known member of the AuditItemState enum.
+func (e AuditItemState) Valid() bool {
+	switch e {
+	case AuditItemStateAwaitingReview:
+		return true
+	case AuditItemStateCollecting:
+		return true
+	case AuditItemStatePending:
+		return true
+	case AuditItemStateReady:
+		return true
+	case AuditItemStateSettled:
+		return true
+	case AuditItemStateSubmitted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditPhase.
+const (
+	AuditPhaseInventory  AuditPhase = "inventory"
+	AuditPhaseNotStarted AuditPhase = "not-started"
+	AuditPhasePreparing  AuditPhase = "preparing"
+	AuditPhaseRounds     AuditPhase = "rounds"
+)
+
+// Valid indicates whether the value is a known member of the AuditPhase enum.
+func (e AuditPhase) Valid() bool {
+	switch e {
+	case AuditPhaseInventory:
+		return true
+	case AuditPhaseNotStarted:
+		return true
+	case AuditPhasePreparing:
+		return true
+	case AuditPhaseRounds:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditPreparationRoleStatus.
+const (
+	AuditPreparationRoleStatusAccepted AuditPreparationRoleStatus = "accepted"
+	AuditPreparationRoleStatusFailed   AuditPreparationRoleStatus = "failed"
+	AuditPreparationRoleStatusPending  AuditPreparationRoleStatus = "pending"
+	AuditPreparationRoleStatusRunning  AuditPreparationRoleStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the AuditPreparationRoleStatus enum.
+func (e AuditPreparationRoleStatus) Valid() bool {
+	switch e {
+	case AuditPreparationRoleStatusAccepted:
+		return true
+	case AuditPreparationRoleStatusFailed:
+		return true
+	case AuditPreparationRoleStatusPending:
+		return true
+	case AuditPreparationRoleStatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditPreparationRole1Status.
+const (
+	AuditPreparationRole1StatusFailed  AuditPreparationRole1Status = "failed"
+	AuditPreparationRole1StatusRunning AuditPreparationRole1Status = "running"
+)
+
+// Valid indicates whether the value is a known member of the AuditPreparationRole1Status enum.
+func (e AuditPreparationRole1Status) Valid() bool {
+	switch e {
+	case AuditPreparationRole1StatusFailed:
+		return true
+	case AuditPreparationRole1StatusRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditProfileMode.
+const (
+	CustomChecklist          AuditProfileMode = "custom-checklist"
+	FindingVerification      AuditProfileMode = "finding-verification"
+	OperationTracing         AuditProfileMode = "operation-tracing"
+	RequirementsVerification AuditProfileMode = "requirements-verification"
+	RiskAssessment           AuditProfileMode = "risk-assessment"
+)
+
+// Valid indicates whether the value is a known member of the AuditProfileMode enum.
+func (e AuditProfileMode) Valid() bool {
+	switch e {
+	case CustomChecklist:
+		return true
+	case FindingVerification:
+		return true
+	case OperationTracing:
+		return true
+	case RequirementsVerification:
+		return true
+	case RiskAssessment:
 		return true
 	default:
 		return false
@@ -223,6 +1294,75 @@ func (e AuditProfileUnsupportedDetailsKind) Valid() bool {
 	}
 }
 
+// Defines values for AuditProfileWorkflowKind.
+const (
+	AuditProfileWorkflowKindAssessment AuditProfileWorkflowKind = "assessment"
+	AuditProfileWorkflowKindCheck      AuditProfileWorkflowKind = "check"
+	AuditProfileWorkflowKindDiscovery  AuditProfileWorkflowKind = "discovery"
+	AuditProfileWorkflowKindPrepare    AuditProfileWorkflowKind = "prepare"
+)
+
+// Valid indicates whether the value is a known member of the AuditProfileWorkflowKind enum.
+func (e AuditProfileWorkflowKind) Valid() bool {
+	switch e {
+	case AuditProfileWorkflowKindAssessment:
+		return true
+	case AuditProfileWorkflowKindCheck:
+		return true
+	case AuditProfileWorkflowKindDiscovery:
+		return true
+	case AuditProfileWorkflowKindPrepare:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditProfileWorkflow1Kind.
+const (
+	AuditProfileWorkflow1KindAssessment AuditProfileWorkflow1Kind = "assessment"
+	AuditProfileWorkflow1KindCheck      AuditProfileWorkflow1Kind = "check"
+	AuditProfileWorkflow1KindDiscovery  AuditProfileWorkflow1Kind = "discovery"
+)
+
+// Valid indicates whether the value is a known member of the AuditProfileWorkflow1Kind enum.
+func (e AuditProfileWorkflow1Kind) Valid() bool {
+	switch e {
+	case AuditProfileWorkflow1KindAssessment:
+		return true
+	case AuditProfileWorkflow1KindCheck:
+		return true
+	case AuditProfileWorkflow1KindDiscovery:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditReportStatus.
+const (
+	AuditReportStatusPending     AuditReportStatus = "pending"
+	AuditReportStatusProposed    AuditReportStatus = "proposed"
+	AuditReportStatusReady       AuditReportStatus = "ready"
+	AuditReportStatusUnavailable AuditReportStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the AuditReportStatus enum.
+func (e AuditReportStatus) Valid() bool {
+	switch e {
+	case AuditReportStatusPending:
+		return true
+	case AuditReportStatusProposed:
+		return true
+	case AuditReportStatusReady:
+		return true
+	case AuditReportStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuditReportSummaryArtifactMediaType.
 const (
 	Textmarkdown AuditReportSummaryArtifactMediaType = "text/markdown"
@@ -232,6 +1372,156 @@ const (
 func (e AuditReportSummaryArtifactMediaType) Valid() bool {
 	switch e {
 	case Textmarkdown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditReviewAction.
+const (
+	AuditReviewActionApprove       AuditReviewAction = "approve"
+	AuditReviewActionNotApplicable AuditReviewAction = "not_applicable"
+	AuditReviewActionReject        AuditReviewAction = "reject"
+)
+
+// Valid indicates whether the value is a known member of the AuditReviewAction enum.
+func (e AuditReviewAction) Valid() bool {
+	switch e {
+	case AuditReviewActionApprove:
+		return true
+	case AuditReviewActionNotApplicable:
+		return true
+	case AuditReviewActionReject:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditReviewRequestKind.
+const (
+	AuditReviewRequestKindActiveCheckApproval      AuditReviewRequestKind = "active-check-approval"
+	AuditReviewRequestKindFindingTriage            AuditReviewRequestKind = "finding-triage"
+	AuditReviewRequestKindReportAcceptance         AuditReviewRequestKind = "report-acceptance"
+	AuditReviewRequestKindRequirementApplicability AuditReviewRequestKind = "requirement-applicability"
+)
+
+// Valid indicates whether the value is a known member of the AuditReviewRequestKind enum.
+func (e AuditReviewRequestKind) Valid() bool {
+	switch e {
+	case AuditReviewRequestKindActiveCheckApproval:
+		return true
+	case AuditReviewRequestKindFindingTriage:
+		return true
+	case AuditReviewRequestKindReportAcceptance:
+		return true
+	case AuditReviewRequestKindRequirementApplicability:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditReviewRequestedAction.
+const (
+	AuditReviewRequestedActionApprove       AuditReviewRequestedAction = "approve"
+	AuditReviewRequestedActionDuplicate     AuditReviewRequestedAction = "duplicate"
+	AuditReviewRequestedActionFalsePositive AuditReviewRequestedAction = "false_positive"
+	AuditReviewRequestedActionNeedsEvidence AuditReviewRequestedAction = "needs_evidence"
+	AuditReviewRequestedActionNotApplicable AuditReviewRequestedAction = "not_applicable"
+	AuditReviewRequestedActionReject        AuditReviewRequestedAction = "reject"
+	AuditReviewRequestedActionReopen        AuditReviewRequestedAction = "reopen"
+	AuditReviewRequestedActionTruePositive  AuditReviewRequestedAction = "true_positive"
+)
+
+// Valid indicates whether the value is a known member of the AuditReviewRequestedAction enum.
+func (e AuditReviewRequestedAction) Valid() bool {
+	switch e {
+	case AuditReviewRequestedActionApprove:
+		return true
+	case AuditReviewRequestedActionDuplicate:
+		return true
+	case AuditReviewRequestedActionFalsePositive:
+		return true
+	case AuditReviewRequestedActionNeedsEvidence:
+		return true
+	case AuditReviewRequestedActionNotApplicable:
+		return true
+	case AuditReviewRequestedActionReject:
+		return true
+	case AuditReviewRequestedActionReopen:
+		return true
+	case AuditReviewRequestedActionTruePositive:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditReviewState.
+const (
+	AuditReviewStateDecided AuditReviewState = "decided"
+	AuditReviewStateExpired AuditReviewState = "expired"
+	AuditReviewStatePending AuditReviewState = "pending"
+)
+
+// Valid indicates whether the value is a known member of the AuditReviewState enum.
+func (e AuditReviewState) Valid() bool {
+	switch e {
+	case AuditReviewStateDecided:
+		return true
+	case AuditReviewStateExpired:
+		return true
+	case AuditReviewStatePending:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditReviewSubjectKind.
+const (
+	AuditReviewSubjectKindAuditItemAction AuditReviewSubjectKind = "audit-item-action"
+	AuditReviewSubjectKindAuditReport     AuditReviewSubjectKind = "audit-report"
+	AuditReviewSubjectKindFinding         AuditReviewSubjectKind = "finding"
+)
+
+// Valid indicates whether the value is a known member of the AuditReviewSubjectKind enum.
+func (e AuditReviewSubjectKind) Valid() bool {
+	switch e {
+	case AuditReviewSubjectKindAuditItemAction:
+		return true
+	case AuditReviewSubjectKindAuditReport:
+		return true
+	case AuditReviewSubjectKindFinding:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditRoundState.
+const (
+	AuditRoundStateAccepted  AuditRoundState = "accepted"
+	AuditRoundStateAssessing AuditRoundState = "assessing"
+	AuditRoundStateClosed    AuditRoundState = "closed"
+	AuditRoundStateExecuting AuditRoundState = "executing"
+	AuditRoundStateProposed  AuditRoundState = "proposed"
+)
+
+// Valid indicates whether the value is a known member of the AuditRoundState enum.
+func (e AuditRoundState) Valid() bool {
+	switch e {
+	case AuditRoundStateAccepted:
+		return true
+	case AuditRoundStateAssessing:
+		return true
+	case AuditRoundStateClosed:
+		return true
+	case AuditRoundStateExecuting:
+		return true
+	case AuditRoundStateProposed:
 		return true
 	default:
 		return false
@@ -253,6 +1543,174 @@ func (e AuditRunProvenanceSchema) Valid() bool {
 	}
 }
 
+// Defines values for AuditScanProvenanceScanner.
+const (
+	Nuclei AuditScanProvenanceScanner = "nuclei"
+	Sqlmap AuditScanProvenanceScanner = "sqlmap"
+)
+
+// Valid indicates whether the value is a known member of the AuditScanProvenanceScanner enum.
+func (e AuditScanProvenanceScanner) Valid() bool {
+	switch e {
+	case Nuclei:
+		return true
+	case Sqlmap:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStandardApplicabilityMode.
+const (
+	AuditStandardApplicabilityModeAlways      AuditStandardApplicabilityMode = "always"
+	AuditStandardApplicabilityModeHumanReview AuditStandardApplicabilityMode = "human-review"
+	AuditStandardApplicabilityModeProfileRule AuditStandardApplicabilityMode = "profile-rule"
+)
+
+// Valid indicates whether the value is a known member of the AuditStandardApplicabilityMode enum.
+func (e AuditStandardApplicabilityMode) Valid() bool {
+	switch e {
+	case AuditStandardApplicabilityModeAlways:
+		return true
+	case AuditStandardApplicabilityModeHumanReview:
+		return true
+	case AuditStandardApplicabilityModeProfileRule:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStandardEntryAllowedMethods.
+const (
+	AuditStandardEntryAllowedMethodsActiveTest          AuditStandardEntryAllowedMethods = "active-test"
+	AuditStandardEntryAllowedMethodsConfigurationReview AuditStandardEntryAllowedMethods = "configuration-review"
+	AuditStandardEntryAllowedMethodsDocumentationReview AuditStandardEntryAllowedMethods = "documentation-review"
+	AuditStandardEntryAllowedMethodsManualReview        AuditStandardEntryAllowedMethods = "manual-review"
+	AuditStandardEntryAllowedMethodsSourceAnalysis      AuditStandardEntryAllowedMethods = "source-analysis"
+)
+
+// Valid indicates whether the value is a known member of the AuditStandardEntryAllowedMethods enum.
+func (e AuditStandardEntryAllowedMethods) Valid() bool {
+	switch e {
+	case AuditStandardEntryAllowedMethodsActiveTest:
+		return true
+	case AuditStandardEntryAllowedMethodsConfigurationReview:
+		return true
+	case AuditStandardEntryAllowedMethodsDocumentationReview:
+		return true
+	case AuditStandardEntryAllowedMethodsManualReview:
+		return true
+	case AuditStandardEntryAllowedMethodsSourceAnalysis:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStandardEntryKind.
+const (
+	Requirement AuditStandardEntryKind = "requirement"
+	Risk        AuditStandardEntryKind = "risk"
+)
+
+// Valid indicates whether the value is a known member of the AuditStandardEntryKind enum.
+func (e AuditStandardEntryKind) Valid() bool {
+	switch e {
+	case Requirement:
+		return true
+	case Risk:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStandardEvidenceContractAssessments.
+const (
+	AuditStandardEvidenceContractAssessmentsBlocked       AuditStandardEvidenceContractAssessments = "blocked"
+	AuditStandardEvidenceContractAssessmentsInconclusive  AuditStandardEvidenceContractAssessments = "inconclusive"
+	AuditStandardEvidenceContractAssessmentsNotApplicable AuditStandardEvidenceContractAssessments = "not-applicable"
+	AuditStandardEvidenceContractAssessmentsNotTested     AuditStandardEvidenceContractAssessments = "not-tested"
+	AuditStandardEvidenceContractAssessmentsRefuted       AuditStandardEvidenceContractAssessments = "refuted"
+	AuditStandardEvidenceContractAssessmentsSatisfied     AuditStandardEvidenceContractAssessments = "satisfied"
+	AuditStandardEvidenceContractAssessmentsSupported     AuditStandardEvidenceContractAssessments = "supported"
+	AuditStandardEvidenceContractAssessmentsViolated      AuditStandardEvidenceContractAssessments = "violated"
+)
+
+// Valid indicates whether the value is a known member of the AuditStandardEvidenceContractAssessments enum.
+func (e AuditStandardEvidenceContractAssessments) Valid() bool {
+	switch e {
+	case AuditStandardEvidenceContractAssessmentsBlocked:
+		return true
+	case AuditStandardEvidenceContractAssessmentsInconclusive:
+		return true
+	case AuditStandardEvidenceContractAssessmentsNotApplicable:
+		return true
+	case AuditStandardEvidenceContractAssessmentsNotTested:
+		return true
+	case AuditStandardEvidenceContractAssessmentsRefuted:
+		return true
+	case AuditStandardEvidenceContractAssessmentsSatisfied:
+		return true
+	case AuditStandardEvidenceContractAssessmentsSupported:
+		return true
+	case AuditStandardEvidenceContractAssessmentsViolated:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStandardEvidenceContractEvidenceKinds.
+const (
+	AuditStandardEvidenceContractEvidenceKindsArtifact          AuditStandardEvidenceContractEvidenceKinds = "artifact"
+	AuditStandardEvidenceContractEvidenceKindsManualAttestation AuditStandardEvidenceContractEvidenceKinds = "manual-attestation"
+	AuditStandardEvidenceContractEvidenceKindsObservation       AuditStandardEvidenceContractEvidenceKinds = "observation"
+	AuditStandardEvidenceContractEvidenceKindsRuntimeMetric     AuditStandardEvidenceContractEvidenceKinds = "runtime-metric"
+	AuditStandardEvidenceContractEvidenceKindsToolResult        AuditStandardEvidenceContractEvidenceKinds = "tool-result"
+)
+
+// Valid indicates whether the value is a known member of the AuditStandardEvidenceContractEvidenceKinds enum.
+func (e AuditStandardEvidenceContractEvidenceKinds) Valid() bool {
+	switch e {
+	case AuditStandardEvidenceContractEvidenceKindsArtifact:
+		return true
+	case AuditStandardEvidenceContractEvidenceKindsManualAttestation:
+		return true
+	case AuditStandardEvidenceContractEvidenceKindsObservation:
+		return true
+	case AuditStandardEvidenceContractEvidenceKindsRuntimeMetric:
+		return true
+	case AuditStandardEvidenceContractEvidenceKindsToolResult:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStandardEvidenceContractHumanReview.
+const (
+	Never          AuditStandardEvidenceContractHumanReview = "never"
+	OnInconclusive AuditStandardEvidenceContractHumanReview = "on-inconclusive"
+	Required       AuditStandardEvidenceContractHumanReview = "required"
+)
+
+// Valid indicates whether the value is a known member of the AuditStandardEvidenceContractHumanReview enum.
+func (e AuditStandardEvidenceContractHumanReview) Valid() bool {
+	switch e {
+	case Never:
+		return true
+	case OnInconclusive:
+		return true
+	case Required:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AuditStandardExactPackageMediaType.
 const (
 	ApplicationvndContractorAuditStandardZip AuditStandardExactPackageMediaType = "application/vnd.contractor.audit-standard+zip"
@@ -262,6 +1720,294 @@ const (
 func (e AuditStandardExactPackageMediaType) Valid() bool {
 	switch e {
 	case ApplicationvndContractorAuditStandardZip:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStandardLicenseDisclosure.
+const (
+	Full        AuditStandardLicenseDisclosure = "full"
+	Identifiers AuditStandardLicenseDisclosure = "identifiers"
+	Metadata    AuditStandardLicenseDisclosure = "metadata"
+)
+
+// Valid indicates whether the value is a known member of the AuditStandardLicenseDisclosure enum.
+func (e AuditStandardLicenseDisclosure) Valid() bool {
+	switch e {
+	case Full:
+		return true
+	case Identifiers:
+		return true
+	case Metadata:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStandardLicenseId.
+const (
+	Apache20              AuditStandardLicenseId = "Apache-2.0"
+	CCBY40                AuditStandardLicenseId = "CC-BY-4.0"
+	CCBYSA40              AuditStandardLicenseId = "CC-BY-SA-4.0"
+	LicenseRefProprietary AuditStandardLicenseId = "LicenseRef-Proprietary"
+	MIT                   AuditStandardLicenseId = "MIT"
+)
+
+// Valid indicates whether the value is a known member of the AuditStandardLicenseId enum.
+func (e AuditStandardLicenseId) Valid() bool {
+	switch e {
+	case Apache20:
+		return true
+	case CCBY40:
+		return true
+	case CCBYSA40:
+		return true
+	case LicenseRefProprietary:
+		return true
+	case MIT:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStandardMappingMethod.
+const (
+	AuditStandardMappingMethodActiveTest          AuditStandardMappingMethod = "active-test"
+	AuditStandardMappingMethodConfigurationReview AuditStandardMappingMethod = "configuration-review"
+	AuditStandardMappingMethodDocumentationReview AuditStandardMappingMethod = "documentation-review"
+	AuditStandardMappingMethodManualReview        AuditStandardMappingMethod = "manual-review"
+	AuditStandardMappingMethodSourceAnalysis      AuditStandardMappingMethod = "source-analysis"
+)
+
+// Valid indicates whether the value is a known member of the AuditStandardMappingMethod enum.
+func (e AuditStandardMappingMethod) Valid() bool {
+	switch e {
+	case AuditStandardMappingMethodActiveTest:
+		return true
+	case AuditStandardMappingMethodConfigurationReview:
+		return true
+	case AuditStandardMappingMethodDocumentationReview:
+		return true
+	case AuditStandardMappingMethodManualReview:
+		return true
+	case AuditStandardMappingMethodSourceAnalysis:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditStartResponse1AuditPhase.
+const (
+	AuditStartResponse1AuditPhaseInventory AuditStartResponse1AuditPhase = "inventory"
+	AuditStartResponse1AuditPhasePreparing AuditStartResponse1AuditPhase = "preparing"
+)
+
+// Valid indicates whether the value is a known member of the AuditStartResponse1AuditPhase enum.
+func (e AuditStartResponse1AuditPhase) Valid() bool {
+	switch e {
+	case AuditStartResponse1AuditPhaseInventory:
+		return true
+	case AuditStartResponse1AuditPhasePreparing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditState.
+const (
+	AuditStateActive        AuditState = "active"
+	AuditStateCancelled     AuditState = "cancelled"
+	AuditStateCancelling    AuditState = "cancelling"
+	AuditStateCompleted     AuditState = "completed"
+	AuditStateDeleting      AuditState = "deleting"
+	AuditStateDraft         AuditState = "draft"
+	AuditStateFailed        AuditState = "failed"
+	AuditStateFinalizing    AuditState = "finalizing"
+	AuditStatePaused        AuditState = "paused"
+	AuditStateWaitingReview AuditState = "waiting_review"
+)
+
+// Valid indicates whether the value is a known member of the AuditState enum.
+func (e AuditState) Valid() bool {
+	switch e {
+	case AuditStateActive:
+		return true
+	case AuditStateCancelled:
+		return true
+	case AuditStateCancelling:
+		return true
+	case AuditStateCompleted:
+		return true
+	case AuditStateDeleting:
+		return true
+	case AuditStateDraft:
+		return true
+	case AuditStateFailed:
+		return true
+	case AuditStateFinalizing:
+		return true
+	case AuditStatePaused:
+		return true
+	case AuditStateWaitingReview:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditTerminalOutcome.
+const (
+	AuditTerminalOutcomeCancelled        AuditTerminalOutcome = "cancelled"
+	AuditTerminalOutcomeFailed           AuditTerminalOutcome = "failed"
+	AuditTerminalOutcomeSubmissionFailed AuditTerminalOutcome = "submission-failed"
+	AuditTerminalOutcomeSucceeded        AuditTerminalOutcome = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the AuditTerminalOutcome enum.
+func (e AuditTerminalOutcome) Valid() bool {
+	switch e {
+	case AuditTerminalOutcomeCancelled:
+		return true
+	case AuditTerminalOutcomeFailed:
+		return true
+	case AuditTerminalOutcomeSubmissionFailed:
+		return true
+	case AuditTerminalOutcomeSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditWorkflowInputMappingSource.
+const (
+	AuditWorkflowInputMappingSourceAuditInput         AuditWorkflowInputMappingSource = "audit-input"
+	AuditWorkflowInputMappingSourceExecutionManifest  AuditWorkflowInputMappingSource = "execution-manifest"
+	AuditWorkflowInputMappingSourceItemPackage        AuditWorkflowInputMappingSource = "item-package"
+	AuditWorkflowInputMappingSourcePrepareOutput      AuditWorkflowInputMappingSource = "prepare-output"
+	AuditWorkflowInputMappingSourceRetainedDependency AuditWorkflowInputMappingSource = "retained-dependency"
+	AuditWorkflowInputMappingSourceRetainedOutput     AuditWorkflowInputMappingSource = "retained-output"
+	AuditWorkflowInputMappingSourceRoundResults       AuditWorkflowInputMappingSource = "round-results"
+)
+
+// Valid indicates whether the value is a known member of the AuditWorkflowInputMappingSource enum.
+func (e AuditWorkflowInputMappingSource) Valid() bool {
+	switch e {
+	case AuditWorkflowInputMappingSourceAuditInput:
+		return true
+	case AuditWorkflowInputMappingSourceExecutionManifest:
+		return true
+	case AuditWorkflowInputMappingSourceItemPackage:
+		return true
+	case AuditWorkflowInputMappingSourcePrepareOutput:
+		return true
+	case AuditWorkflowInputMappingSourceRetainedDependency:
+		return true
+	case AuditWorkflowInputMappingSourceRetainedOutput:
+		return true
+	case AuditWorkflowInputMappingSourceRoundResults:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditWorkflowInputMapping0Source.
+const (
+	AuditWorkflowInputMapping0SourceAuditInput         AuditWorkflowInputMapping0Source = "audit-input"
+	AuditWorkflowInputMapping0SourceRetainedDependency AuditWorkflowInputMapping0Source = "retained-dependency"
+)
+
+// Valid indicates whether the value is a known member of the AuditWorkflowInputMapping0Source enum.
+func (e AuditWorkflowInputMapping0Source) Valid() bool {
+	switch e {
+	case AuditWorkflowInputMapping0SourceAuditInput:
+		return true
+	case AuditWorkflowInputMapping0SourceRetainedDependency:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditWorkflowInputMapping1Source.
+const (
+	AuditWorkflowInputMapping1SourceExecutionManifest AuditWorkflowInputMapping1Source = "execution-manifest"
+	AuditWorkflowInputMapping1SourceItemPackage       AuditWorkflowInputMapping1Source = "item-package"
+	AuditWorkflowInputMapping1SourceRoundResults      AuditWorkflowInputMapping1Source = "round-results"
+)
+
+// Valid indicates whether the value is a known member of the AuditWorkflowInputMapping1Source enum.
+func (e AuditWorkflowInputMapping1Source) Valid() bool {
+	switch e {
+	case AuditWorkflowInputMapping1SourceExecutionManifest:
+		return true
+	case AuditWorkflowInputMapping1SourceItemPackage:
+		return true
+	case AuditWorkflowInputMapping1SourceRoundResults:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditWorkflowInputMapping2Source.
+const (
+	AuditWorkflowInputMapping2SourcePrepareOutput  AuditWorkflowInputMapping2Source = "prepare-output"
+	AuditWorkflowInputMapping2SourceRetainedOutput AuditWorkflowInputMapping2Source = "retained-output"
+)
+
+// Valid indicates whether the value is a known member of the AuditWorkflowInputMapping2Source enum.
+func (e AuditWorkflowInputMapping2Source) Valid() bool {
+	switch e {
+	case AuditWorkflowInputMapping2SourcePrepareOutput:
+		return true
+	case AuditWorkflowInputMapping2SourceRetainedOutput:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuditWorkflowParameterMappingSource.
+const (
+	AuditWorkflowParameterMappingSourceItemField  AuditWorkflowParameterMappingSource = "item-field"
+	AuditWorkflowParameterMappingSourceLiteral    AuditWorkflowParameterMappingSource = "literal"
+	AuditWorkflowParameterMappingSourceScopeField AuditWorkflowParameterMappingSource = "scope-field"
+)
+
+// Valid indicates whether the value is a known member of the AuditWorkflowParameterMappingSource enum.
+func (e AuditWorkflowParameterMappingSource) Valid() bool {
+	switch e {
+	case AuditWorkflowParameterMappingSourceItemField:
+		return true
+	case AuditWorkflowParameterMappingSourceLiteral:
+		return true
+	case AuditWorkflowParameterMappingSourceScopeField:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AuthPrincipalCapabilities.
+const (
+	AuthPrincipalCapabilitiesOperations AuthPrincipalCapabilities = "operations"
+	AuthPrincipalCapabilitiesUser       AuthPrincipalCapabilities = "user"
+)
+
+// Valid indicates whether the value is a known member of the AuthPrincipalCapabilities enum.
+func (e AuthPrincipalCapabilities) Valid() bool {
+	switch e {
+	case AuthPrincipalCapabilitiesOperations:
+		return true
+	case AuthPrincipalCapabilitiesUser:
 		return true
 	default:
 		return false
@@ -307,15 +2053,33 @@ func (e ConfigurationKind) Valid() bool {
 	}
 }
 
+// Defines values for ConfigurationResourceSource.
+const (
+	Managed  ConfigurationResourceSource = "managed"
+	Operator ConfigurationResourceSource = "operator"
+)
+
+// Valid indicates whether the value is a known member of the ConfigurationResourceSource enum.
+func (e ConfigurationResourceSource) Valid() bool {
+	switch e {
+	case Managed:
+		return true
+	case Operator:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateRuntimeCredentialRequest0Kind.
 const (
-	OtlpHeaders1 CreateRuntimeCredentialRequest0Kind = "otlp-headers@1"
+	CreateRuntimeCredentialRequest0KindOtlpHeaders1 CreateRuntimeCredentialRequest0Kind = "otlp-headers@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest0Kind enum.
 func (e CreateRuntimeCredentialRequest0Kind) Valid() bool {
 	switch e {
-	case OtlpHeaders1:
+	case CreateRuntimeCredentialRequest0KindOtlpHeaders1:
 		return true
 	default:
 		return false
@@ -324,13 +2088,13 @@ func (e CreateRuntimeCredentialRequest0Kind) Valid() bool {
 
 // Defines values for CreateRuntimeCredentialRequest1Kind.
 const (
-	HttpProxyBasic1 CreateRuntimeCredentialRequest1Kind = "http-proxy-basic@1"
+	CreateRuntimeCredentialRequest1KindHttpProxyBasic1 CreateRuntimeCredentialRequest1Kind = "http-proxy-basic@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest1Kind enum.
 func (e CreateRuntimeCredentialRequest1Kind) Valid() bool {
 	switch e {
-	case HttpProxyBasic1:
+	case CreateRuntimeCredentialRequest1KindHttpProxyBasic1:
 		return true
 	default:
 		return false
@@ -339,13 +2103,13 @@ func (e CreateRuntimeCredentialRequest1Kind) Valid() bool {
 
 // Defines values for CreateRuntimeCredentialRequest2Kind.
 const (
-	HttpProxyBearer1 CreateRuntimeCredentialRequest2Kind = "http-proxy-bearer@1"
+	CreateRuntimeCredentialRequest2KindHttpProxyBearer1 CreateRuntimeCredentialRequest2Kind = "http-proxy-bearer@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest2Kind enum.
 func (e CreateRuntimeCredentialRequest2Kind) Valid() bool {
 	switch e {
-	case HttpProxyBearer1:
+	case CreateRuntimeCredentialRequest2KindHttpProxyBearer1:
 		return true
 	default:
 		return false
@@ -354,13 +2118,13 @@ func (e CreateRuntimeCredentialRequest2Kind) Valid() bool {
 
 // Defines values for CreateRuntimeCredentialRequest3Kind.
 const (
-	CaidoBearer1 CreateRuntimeCredentialRequest3Kind = "caido-bearer@1"
+	CreateRuntimeCredentialRequest3KindCaidoBearer1 CreateRuntimeCredentialRequest3Kind = "caido-bearer@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest3Kind enum.
 func (e CreateRuntimeCredentialRequest3Kind) Valid() bool {
 	switch e {
-	case CaidoBearer1:
+	case CreateRuntimeCredentialRequest3KindCaidoBearer1:
 		return true
 	default:
 		return false
@@ -369,13 +2133,13 @@ func (e CreateRuntimeCredentialRequest3Kind) Valid() bool {
 
 // Defines values for CreateRuntimeCredentialRequest4Kind.
 const (
-	InteractshToken1 CreateRuntimeCredentialRequest4Kind = "interactsh-token@1"
+	CreateRuntimeCredentialRequest4KindInteractshToken1 CreateRuntimeCredentialRequest4Kind = "interactsh-token@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest4Kind enum.
 func (e CreateRuntimeCredentialRequest4Kind) Valid() bool {
 	switch e {
-	case InteractshToken1:
+	case CreateRuntimeCredentialRequest4KindInteractshToken1:
 		return true
 	default:
 		return false
@@ -384,13 +2148,13 @@ func (e CreateRuntimeCredentialRequest4Kind) Valid() bool {
 
 // Defines values for CreateRuntimeCredentialRequest5Kind.
 const (
-	HttpOriginBasic1 CreateRuntimeCredentialRequest5Kind = "http-origin-basic@1"
+	CreateRuntimeCredentialRequest5KindHttpOriginBasic1 CreateRuntimeCredentialRequest5Kind = "http-origin-basic@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest5Kind enum.
 func (e CreateRuntimeCredentialRequest5Kind) Valid() bool {
 	switch e {
-	case HttpOriginBasic1:
+	case CreateRuntimeCredentialRequest5KindHttpOriginBasic1:
 		return true
 	default:
 		return false
@@ -399,13 +2163,13 @@ func (e CreateRuntimeCredentialRequest5Kind) Valid() bool {
 
 // Defines values for CreateRuntimeCredentialRequest6Kind.
 const (
-	HttpOriginBearer1 CreateRuntimeCredentialRequest6Kind = "http-origin-bearer@1"
+	CreateRuntimeCredentialRequest6KindHttpOriginBearer1 CreateRuntimeCredentialRequest6Kind = "http-origin-bearer@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest6Kind enum.
 func (e CreateRuntimeCredentialRequest6Kind) Valid() bool {
 	switch e {
-	case HttpOriginBearer1:
+	case CreateRuntimeCredentialRequest6KindHttpOriginBearer1:
 		return true
 	default:
 		return false
@@ -414,13 +2178,13 @@ func (e CreateRuntimeCredentialRequest6Kind) Valid() bool {
 
 // Defines values for CreateRuntimeCredentialRequest7Kind.
 const (
-	TargetBasic1 CreateRuntimeCredentialRequest7Kind = "target-basic@1"
+	CreateRuntimeCredentialRequest7KindTargetBasic1 CreateRuntimeCredentialRequest7Kind = "target-basic@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest7Kind enum.
 func (e CreateRuntimeCredentialRequest7Kind) Valid() bool {
 	switch e {
-	case TargetBasic1:
+	case CreateRuntimeCredentialRequest7KindTargetBasic1:
 		return true
 	default:
 		return false
@@ -429,13 +2193,13 @@ func (e CreateRuntimeCredentialRequest7Kind) Valid() bool {
 
 // Defines values for CreateRuntimeCredentialRequest8Kind.
 const (
-	TargetBearer1 CreateRuntimeCredentialRequest8Kind = "target-bearer@1"
+	CreateRuntimeCredentialRequest8KindTargetBearer1 CreateRuntimeCredentialRequest8Kind = "target-bearer@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest8Kind enum.
 func (e CreateRuntimeCredentialRequest8Kind) Valid() bool {
 	switch e {
-	case TargetBearer1:
+	case CreateRuntimeCredentialRequest8KindTargetBearer1:
 		return true
 	default:
 		return false
@@ -444,13 +2208,13 @@ func (e CreateRuntimeCredentialRequest8Kind) Valid() bool {
 
 // Defines values for CreateRuntimeCredentialRequest9Kind.
 const (
-	TargetCookies1 CreateRuntimeCredentialRequest9Kind = "target-cookies@1"
+	CreateRuntimeCredentialRequest9KindTargetCookies1 CreateRuntimeCredentialRequest9Kind = "target-cookies@1"
 )
 
 // Valid indicates whether the value is a known member of the CreateRuntimeCredentialRequest9Kind enum.
 func (e CreateRuntimeCredentialRequest9Kind) Valid() bool {
 	switch e {
-	case TargetCookies1:
+	case CreateRuntimeCredentialRequest9KindTargetCookies1:
 		return true
 	default:
 		return false
@@ -489,13 +2253,13 @@ func (e CredentialManagerDescriptorImplementation) Valid() bool {
 
 // Defines values for DecideAuditFindingDuplicateRequestVerdict.
 const (
-	Duplicate DecideAuditFindingDuplicateRequestVerdict = "duplicate"
+	DecideAuditFindingDuplicateRequestVerdictDuplicate DecideAuditFindingDuplicateRequestVerdict = "duplicate"
 )
 
 // Valid indicates whether the value is a known member of the DecideAuditFindingDuplicateRequestVerdict enum.
 func (e DecideAuditFindingDuplicateRequestVerdict) Valid() bool {
 	switch e {
-	case Duplicate:
+	case DecideAuditFindingDuplicateRequestVerdictDuplicate:
 		return true
 	default:
 		return false
@@ -916,6 +2680,39 @@ const (
 func (e EvalErrorDetailsKind) Valid() bool {
 	switch e {
 	case Eval:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for EvalErrorDetailsRecovery.
+const (
+	EvalErrorDetailsRecoveryDuplicate        EvalErrorDetailsRecovery = "duplicate"
+	EvalErrorDetailsRecoveryEditDraft        EvalErrorDetailsRecovery = "edit_draft"
+	EvalErrorDetailsRecoveryInspectExecution EvalErrorDetailsRecovery = "inspect_execution"
+	EvalErrorDetailsRecoveryNone             EvalErrorDetailsRecovery = "none"
+	EvalErrorDetailsRecoveryReload           EvalErrorDetailsRecovery = "reload"
+	EvalErrorDetailsRecoveryRetrySameRequest EvalErrorDetailsRecovery = "retry_same_request"
+	EvalErrorDetailsRecoveryWait             EvalErrorDetailsRecovery = "wait"
+)
+
+// Valid indicates whether the value is a known member of the EvalErrorDetailsRecovery enum.
+func (e EvalErrorDetailsRecovery) Valid() bool {
+	switch e {
+	case EvalErrorDetailsRecoveryDuplicate:
+		return true
+	case EvalErrorDetailsRecoveryEditDraft:
+		return true
+	case EvalErrorDetailsRecoveryInspectExecution:
+		return true
+	case EvalErrorDetailsRecoveryNone:
+		return true
+	case EvalErrorDetailsRecoveryReload:
+		return true
+	case EvalErrorDetailsRecoveryRetrySameRequest:
+		return true
+	case EvalErrorDetailsRecoveryWait:
 		return true
 	default:
 		return false
@@ -1642,6 +3439,114 @@ func (e EvalVariantKind) Valid() bool {
 	}
 }
 
+// Defines values for FindingAnchorProjection0Reason.
+const (
+	FindingAnchorProjection0ReasonAnchorAmbiguous           FindingAnchorProjection0Reason = "anchor_ambiguous"
+	FindingAnchorProjection0ReasonAnchorLanguageUnsupported FindingAnchorProjection0Reason = "anchor_language_unsupported"
+	FindingAnchorProjection0ReasonAnchorParserUnavailable   FindingAnchorProjection0Reason = "anchor_parser_unavailable"
+	FindingAnchorProjection0ReasonAssetUnavailable          FindingAnchorProjection0Reason = "asset_unavailable"
+	FindingAnchorProjection0ReasonDiscarded                 FindingAnchorProjection0Reason = "discarded"
+	FindingAnchorProjection0ReasonInputLimit                FindingAnchorProjection0Reason = "input_limit"
+	FindingAnchorProjection0ReasonNotProvided               FindingAnchorProjection0Reason = "not_provided"
+	FindingAnchorProjection0ReasonNotRecorded               FindingAnchorProjection0Reason = "not_recorded"
+	FindingAnchorProjection0ReasonParseError                FindingAnchorProjection0Reason = "parse_error"
+	FindingAnchorProjection0ReasonSelectorUnavailable       FindingAnchorProjection0Reason = "selector_unavailable"
+	FindingAnchorProjection0ReasonSourceInvalid             FindingAnchorProjection0Reason = "source_invalid"
+	FindingAnchorProjection0ReasonSourceMissing             FindingAnchorProjection0Reason = "source_missing"
+)
+
+// Valid indicates whether the value is a known member of the FindingAnchorProjection0Reason enum.
+func (e FindingAnchorProjection0Reason) Valid() bool {
+	switch e {
+	case FindingAnchorProjection0ReasonAnchorAmbiguous:
+		return true
+	case FindingAnchorProjection0ReasonAnchorLanguageUnsupported:
+		return true
+	case FindingAnchorProjection0ReasonAnchorParserUnavailable:
+		return true
+	case FindingAnchorProjection0ReasonAssetUnavailable:
+		return true
+	case FindingAnchorProjection0ReasonDiscarded:
+		return true
+	case FindingAnchorProjection0ReasonInputLimit:
+		return true
+	case FindingAnchorProjection0ReasonNotProvided:
+		return true
+	case FindingAnchorProjection0ReasonNotRecorded:
+		return true
+	case FindingAnchorProjection0ReasonParseError:
+		return true
+	case FindingAnchorProjection0ReasonSelectorUnavailable:
+		return true
+	case FindingAnchorProjection0ReasonSourceInvalid:
+		return true
+	case FindingAnchorProjection0ReasonSourceMissing:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCandidateReasonKind.
+const (
+	PrimaryEquality          FindingCandidateReasonKind = "primary-equality"
+	ProjectSubjectFamily     FindingCandidateReasonKind = "project-subject-family"
+	SelectedProducerEquality FindingCandidateReasonKind = "selected-producer-equality"
+	StructuralSite           FindingCandidateReasonKind = "structural-site"
+)
+
+// Valid indicates whether the value is a known member of the FindingCandidateReasonKind enum.
+func (e FindingCandidateReasonKind) Valid() bool {
+	switch e {
+	case PrimaryEquality:
+		return true
+	case ProjectSubjectFamily:
+		return true
+	case SelectedProducerEquality:
+		return true
+	case StructuralSite:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCandidateSourceHintsAvailability.
+const (
+	FindingCandidateSourceHintsAvailabilityAvailable   FindingCandidateSourceHintsAvailability = "available"
+	FindingCandidateSourceHintsAvailabilityUnavailable FindingCandidateSourceHintsAvailability = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the FindingCandidateSourceHintsAvailability enum.
+func (e FindingCandidateSourceHintsAvailability) Valid() bool {
+	switch e {
+	case FindingCandidateSourceHintsAvailabilityAvailable:
+		return true
+	case FindingCandidateSourceHintsAvailabilityUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCandidateSourceHintsReason.
+const (
+	FindingCandidateSourceHintsReasonDiscarded   FindingCandidateSourceHintsReason = "discarded"
+	FindingCandidateSourceHintsReasonNotRecorded FindingCandidateSourceHintsReason = "not_recorded"
+)
+
+// Valid indicates whether the value is a known member of the FindingCandidateSourceHintsReason enum.
+func (e FindingCandidateSourceHintsReason) Valid() bool {
+	switch e {
+	case FindingCandidateSourceHintsReasonDiscarded:
+		return true
+	case FindingCandidateSourceHintsReasonNotRecorded:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingCollectionSourceSelectionKind.
 const (
 	FindingCollectionSourceSelectionKindAudit FindingCollectionSourceSelectionKind = "audit"
@@ -1660,18 +3565,186 @@ func (e FindingCollectionSourceSelectionKind) Valid() bool {
 	}
 }
 
+// Defines values for FindingComparisonPreviewCorrelationRole.
+const (
+	AutomaticDuplicate FindingComparisonPreviewCorrelationRole = "automatic-duplicate"
+	Representative     FindingComparisonPreviewCorrelationRole = "representative"
+)
+
+// Valid indicates whether the value is a known member of the FindingComparisonPreviewCorrelationRole enum.
+func (e FindingComparisonPreviewCorrelationRole) Valid() bool {
+	switch e {
+	case AutomaticDuplicate:
+		return true
+	case Representative:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingComparisonPreviewSeveritySuggestion.
+const (
+	FindingComparisonPreviewSeveritySuggestionCritical      FindingComparisonPreviewSeveritySuggestion = "critical"
+	FindingComparisonPreviewSeveritySuggestionEmpty         FindingComparisonPreviewSeveritySuggestion = ""
+	FindingComparisonPreviewSeveritySuggestionHigh          FindingComparisonPreviewSeveritySuggestion = "high"
+	FindingComparisonPreviewSeveritySuggestionInformational FindingComparisonPreviewSeveritySuggestion = "informational"
+	FindingComparisonPreviewSeveritySuggestionLow           FindingComparisonPreviewSeveritySuggestion = "low"
+	FindingComparisonPreviewSeveritySuggestionMedium        FindingComparisonPreviewSeveritySuggestion = "medium"
+)
+
+// Valid indicates whether the value is a known member of the FindingComparisonPreviewSeveritySuggestion enum.
+func (e FindingComparisonPreviewSeveritySuggestion) Valid() bool {
+	switch e {
+	case FindingComparisonPreviewSeveritySuggestionCritical:
+		return true
+	case FindingComparisonPreviewSeveritySuggestionEmpty:
+		return true
+	case FindingComparisonPreviewSeveritySuggestionHigh:
+		return true
+	case FindingComparisonPreviewSeveritySuggestionInformational:
+		return true
+	case FindingComparisonPreviewSeveritySuggestionLow:
+		return true
+	case FindingComparisonPreviewSeveritySuggestionMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingComparisonRowKind.
+const (
+	Both      FindingComparisonRowKind = "both"
+	LeftOnly  FindingComparisonRowKind = "left-only"
+	RightOnly FindingComparisonRowKind = "right-only"
+	Unmatched FindingComparisonRowKind = "unmatched"
+)
+
+// Valid indicates whether the value is a known member of the FindingComparisonRowKind enum.
+func (e FindingComparisonRowKind) Valid() bool {
+	switch e {
+	case Both:
+		return true
+	case LeftOnly:
+		return true
+	case RightOnly:
+		return true
+	case Unmatched:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingComparisonRowUnavailableReason.
+const (
+	FindingComparisonRowUnavailableReasonNoQualifiedKey      FindingComparisonRowUnavailableReason = "no_qualified_key"
+	FindingComparisonRowUnavailableReasonNotRecorded         FindingComparisonRowUnavailableReason = "not_recorded"
+	FindingComparisonRowUnavailableReasonPrimaryKeyAmbiguous FindingComparisonRowUnavailableReason = "primary_key_ambiguous"
+)
+
+// Valid indicates whether the value is a known member of the FindingComparisonRowUnavailableReason enum.
+func (e FindingComparisonRowUnavailableReason) Valid() bool {
+	switch e {
+	case FindingComparisonRowUnavailableReasonNoQualifiedKey:
+		return true
+	case FindingComparisonRowUnavailableReasonNotRecorded:
+		return true
+	case FindingComparisonRowUnavailableReasonPrimaryKeyAmbiguous:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelation0Reason.
+const (
+	FindingCorrelation0ReasonNoQualifiedKey      FindingCorrelation0Reason = "no_qualified_key"
+	FindingCorrelation0ReasonNotRecorded         FindingCorrelation0Reason = "not_recorded"
+	FindingCorrelation0ReasonPrimaryKeyAmbiguous FindingCorrelation0Reason = "primary_key_ambiguous"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelation0Reason enum.
+func (e FindingCorrelation0Reason) Valid() bool {
+	switch e {
+	case FindingCorrelation0ReasonNoQualifiedKey:
+		return true
+	case FindingCorrelation0ReasonNotRecorded:
+		return true
+	case FindingCorrelation0ReasonPrimaryKeyAmbiguous:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingCorrelationBasisAlgorithm.
+const (
+	ContractorproducerIssuev1       FindingCorrelationBasisAlgorithm = "contractor/producer-issue/v1"
+	ContractorsnapshotIssueAnchorv1 FindingCorrelationBasisAlgorithm = "contractor/snapshot-issue-anchor/v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingCorrelationBasisAlgorithm enum.
+func (e FindingCorrelationBasisAlgorithm) Valid() bool {
+	switch e {
+	case ContractorproducerIssuev1:
+		return true
+	case ContractorsnapshotIssueAnchorv1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingFingerprintProjection0Reason.
+const (
+	FindingFingerprintProjection0ReasonAssetUnavailable        FindingFingerprintProjection0Reason = "asset_unavailable"
+	FindingFingerprintProjection0ReasonDiscarded               FindingFingerprintProjection0Reason = "discarded"
+	FindingFingerprintProjection0ReasonInputLimit              FindingFingerprintProjection0Reason = "input_limit"
+	FindingFingerprintProjection0ReasonNotProvided             FindingFingerprintProjection0Reason = "not_provided"
+	FindingFingerprintProjection0ReasonNotRecorded             FindingFingerprintProjection0Reason = "not_recorded"
+	FindingFingerprintProjection0ReasonProducerKeyUnavailable  FindingFingerprintProjection0Reason = "producer_key_unavailable"
+	FindingFingerprintProjection0ReasonProducerRecordAmbiguous FindingFingerprintProjection0Reason = "producer_record_ambiguous"
+	FindingFingerprintProjection0ReasonProducerReportInvalid   FindingFingerprintProjection0Reason = "producer_report_invalid"
+)
+
+// Valid indicates whether the value is a known member of the FindingFingerprintProjection0Reason enum.
+func (e FindingFingerprintProjection0Reason) Valid() bool {
+	switch e {
+	case FindingFingerprintProjection0ReasonAssetUnavailable:
+		return true
+	case FindingFingerprintProjection0ReasonDiscarded:
+		return true
+	case FindingFingerprintProjection0ReasonInputLimit:
+		return true
+	case FindingFingerprintProjection0ReasonNotProvided:
+		return true
+	case FindingFingerprintProjection0ReasonNotRecorded:
+		return true
+	case FindingFingerprintProjection0ReasonProducerKeyUnavailable:
+		return true
+	case FindingFingerprintProjection0ReasonProducerRecordAmbiguous:
+		return true
+	case FindingFingerprintProjection0ReasonProducerReportInvalid:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FindingHTTPAttemptError.
 const (
-	Cancelled      FindingHTTPAttemptError = "cancelled"
-	TransportError FindingHTTPAttemptError = "transport_error"
+	FindingHTTPAttemptErrorCancelled      FindingHTTPAttemptError = "cancelled"
+	FindingHTTPAttemptErrorTransportError FindingHTTPAttemptError = "transport_error"
 )
 
 // Valid indicates whether the value is a known member of the FindingHTTPAttemptError enum.
 func (e FindingHTTPAttemptError) Valid() bool {
 	switch e {
-	case Cancelled:
+	case FindingHTTPAttemptErrorCancelled:
 		return true
-	case TransportError:
+	case FindingHTTPAttemptErrorTransportError:
 		return true
 	default:
 		return false
@@ -1687,6 +3760,99 @@ const (
 func (e FindingProposalDocumentSchema) Valid() bool {
 	switch e {
 	case ContractorAuditFindingProposalV1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingProposalDocumentSeveritySuggestion.
+const (
+	FindingProposalDocumentSeveritySuggestionCritical      FindingProposalDocumentSeveritySuggestion = "critical"
+	FindingProposalDocumentSeveritySuggestionEmpty         FindingProposalDocumentSeveritySuggestion = ""
+	FindingProposalDocumentSeveritySuggestionHigh          FindingProposalDocumentSeveritySuggestion = "high"
+	FindingProposalDocumentSeveritySuggestionInformational FindingProposalDocumentSeveritySuggestion = "informational"
+	FindingProposalDocumentSeveritySuggestionLow           FindingProposalDocumentSeveritySuggestion = "low"
+	FindingProposalDocumentSeveritySuggestionMedium        FindingProposalDocumentSeveritySuggestion = "medium"
+)
+
+// Valid indicates whether the value is a known member of the FindingProposalDocumentSeveritySuggestion enum.
+func (e FindingProposalDocumentSeveritySuggestion) Valid() bool {
+	switch e {
+	case FindingProposalDocumentSeveritySuggestionCritical:
+		return true
+	case FindingProposalDocumentSeveritySuggestionEmpty:
+		return true
+	case FindingProposalDocumentSeveritySuggestionHigh:
+		return true
+	case FindingProposalDocumentSeveritySuggestionInformational:
+		return true
+	case FindingProposalDocumentSeveritySuggestionLow:
+		return true
+	case FindingProposalDocumentSeveritySuggestionMedium:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingProposalReceiptRetention.
+const (
+	FindingProposalReceiptRetentionAuditHeld  FindingProposalReceiptRetention = "audit-held"
+	FindingProposalReceiptRetentionDiscarded  FindingProposalReceiptRetention = "discarded"
+	FindingProposalReceiptRetentionSourceHeld FindingProposalReceiptRetention = "source-held"
+)
+
+// Valid indicates whether the value is a known member of the FindingProposalReceiptRetention enum.
+func (e FindingProposalReceiptRetention) Valid() bool {
+	switch e {
+	case FindingProposalReceiptRetentionAuditHeld:
+		return true
+	case FindingProposalReceiptRetentionDiscarded:
+		return true
+	case FindingProposalReceiptRetentionSourceHeld:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingStructuralAnchorLanguage.
+const (
+	Javascript FindingStructuralAnchorLanguage = "javascript"
+	Python     FindingStructuralAnchorLanguage = "python"
+	Typescript FindingStructuralAnchorLanguage = "typescript"
+)
+
+// Valid indicates whether the value is a known member of the FindingStructuralAnchorLanguage enum.
+func (e FindingStructuralAnchorLanguage) Valid() bool {
+	switch e {
+	case Javascript:
+		return true
+	case Python:
+		return true
+	case Typescript:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FindingStructuralAnchorProfile.
+const (
+	JavascriptstatementV1 FindingStructuralAnchorProfile = "javascript/statement-v1"
+	PythonstatementV1     FindingStructuralAnchorProfile = "python/statement-v1"
+	TypescriptstatementV1 FindingStructuralAnchorProfile = "typescript/statement-v1"
+)
+
+// Valid indicates whether the value is a known member of the FindingStructuralAnchorProfile enum.
+func (e FindingStructuralAnchorProfile) Valid() bool {
+	switch e {
+	case JavascriptstatementV1:
+		return true
+	case PythonstatementV1:
+		return true
+	case TypescriptstatementV1:
 		return true
 	default:
 		return false
@@ -1780,6 +3946,24 @@ func (e GitImportResultMediaType) Valid() bool {
 	}
 }
 
+// Defines values for HTTPOriginCredentialRefKind.
+const (
+	HTTPOriginCredentialRefKindHttpOriginBasic1  HTTPOriginCredentialRefKind = "http-origin-basic@1"
+	HTTPOriginCredentialRefKindHttpOriginBearer1 HTTPOriginCredentialRefKind = "http-origin-bearer@1"
+)
+
+// Valid indicates whether the value is a known member of the HTTPOriginCredentialRefKind enum.
+func (e HTTPOriginCredentialRefKind) Valid() bool {
+	switch e {
+	case HTTPOriginCredentialRefKindHttpOriginBasic1:
+		return true
+	case HTTPOriginCredentialRefKindHttpOriginBearer1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for LLMGatewayBodyProtocol.
 const (
 	OpenaiCompatible1 LLMGatewayBodyProtocol = "openai-compatible@1"
@@ -1804,6 +3988,75 @@ const (
 func (e MediaType0) Valid() bool {
 	switch e {
 	case MediaType0Asterisk:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for NonTerminalWorkflowRunState.
+const (
+	NonTerminalWorkflowRunStateCancelling   NonTerminalWorkflowRunState = "cancelling"
+	NonTerminalWorkflowRunStateInitializing NonTerminalWorkflowRunState = "initializing"
+	NonTerminalWorkflowRunStatePending      NonTerminalWorkflowRunState = "pending"
+	NonTerminalWorkflowRunStateRunning      NonTerminalWorkflowRunState = "running"
+	NonTerminalWorkflowRunStateWaiting      NonTerminalWorkflowRunState = "waiting"
+)
+
+// Valid indicates whether the value is a known member of the NonTerminalWorkflowRunState enum.
+func (e NonTerminalWorkflowRunState) Valid() bool {
+	switch e {
+	case NonTerminalWorkflowRunStateCancelling:
+		return true
+	case NonTerminalWorkflowRunStateInitializing:
+		return true
+	case NonTerminalWorkflowRunStatePending:
+		return true
+	case NonTerminalWorkflowRunStateRunning:
+		return true
+	case NonTerminalWorkflowRunStateWaiting:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for OutputPublicationStatus.
+const (
+	OutputPublicationStatusAlreadyPresent OutputPublicationStatus = "already_present"
+	OutputPublicationStatusFailed         OutputPublicationStatus = "failed"
+	OutputPublicationStatusPublished      OutputPublicationStatus = "published"
+)
+
+// Valid indicates whether the value is a known member of the OutputPublicationStatus enum.
+func (e OutputPublicationStatus) Valid() bool {
+	switch e {
+	case OutputPublicationStatusAlreadyPresent:
+		return true
+	case OutputPublicationStatusFailed:
+		return true
+	case OutputPublicationStatusPublished:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PerformanceAggregateHistoryPointStatus.
+const (
+	PerformanceAggregateHistoryPointStatusOk          PerformanceAggregateHistoryPointStatus = "ok"
+	PerformanceAggregateHistoryPointStatusPartial     PerformanceAggregateHistoryPointStatus = "partial"
+	PerformanceAggregateHistoryPointStatusUnavailable PerformanceAggregateHistoryPointStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the PerformanceAggregateHistoryPointStatus enum.
+func (e PerformanceAggregateHistoryPointStatus) Valid() bool {
+	switch e {
+	case PerformanceAggregateHistoryPointStatusOk:
+		return true
+	case PerformanceAggregateHistoryPointStatusPartial:
+		return true
+	case PerformanceAggregateHistoryPointStatusUnavailable:
 		return true
 	default:
 		return false
@@ -1882,6 +4135,117 @@ func (e PerformanceFreshnessIntervalSeconds) Valid() bool {
 	}
 }
 
+// Defines values for PerformanceFreshnessStatus.
+const (
+	PerformanceFreshnessStatusOk          PerformanceFreshnessStatus = "ok"
+	PerformanceFreshnessStatusPartial     PerformanceFreshnessStatus = "partial"
+	PerformanceFreshnessStatusUnavailable PerformanceFreshnessStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the PerformanceFreshnessStatus enum.
+func (e PerformanceFreshnessStatus) Valid() bool {
+	switch e {
+	case PerformanceFreshnessStatusOk:
+		return true
+	case PerformanceFreshnessStatusPartial:
+		return true
+	case PerformanceFreshnessStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PerformanceHTTPSurfaceSurface.
+const (
+	Private PerformanceHTTPSurfaceSurface = "private"
+	Public  PerformanceHTTPSurfaceSurface = "public"
+)
+
+// Valid indicates whether the value is a known member of the PerformanceHTTPSurfaceSurface enum.
+func (e PerformanceHTTPSurfaceSurface) Valid() bool {
+	switch e {
+	case Private:
+		return true
+	case Public:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PerformanceHistoryStep.
+const (
+	PerformanceHistoryStepN15s PerformanceHistoryStep = "15s"
+	PerformanceHistoryStepN1h  PerformanceHistoryStep = "1h"
+	PerformanceHistoryStepN1m  PerformanceHistoryStep = "1m"
+	PerformanceHistoryStepN5m  PerformanceHistoryStep = "5m"
+)
+
+// Valid indicates whether the value is a known member of the PerformanceHistoryStep enum.
+func (e PerformanceHistoryStep) Valid() bool {
+	switch e {
+	case PerformanceHistoryStepN15s:
+		return true
+	case PerformanceHistoryStepN1h:
+		return true
+	case PerformanceHistoryStepN1m:
+		return true
+	case PerformanceHistoryStepN5m:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PerformanceReason.
+const (
+	PerformanceReasonBudgetExceeded      PerformanceReason = "budget_exceeded"
+	PerformanceReasonCounterReset        PerformanceReason = "counter_reset"
+	PerformanceReasonDatabaseUnavailable PerformanceReason = "database_unavailable"
+	PerformanceReasonGpuNotAvailable     PerformanceReason = "gpu_not_available"
+	PerformanceReasonMissingBaseline     PerformanceReason = "missing_baseline"
+	PerformanceReasonPermissionDenied    PerformanceReason = "permission_denied"
+	PerformanceReasonReadFailed          PerformanceReason = "read_failed"
+	PerformanceReasonRecordLimit         PerformanceReason = "record_limit"
+	PerformanceReasonSamplingGap         PerformanceReason = "sampling_gap"
+	PerformanceReasonStatisticsDisabled  PerformanceReason = "statistics_disabled"
+	PerformanceReasonUnsupportedMetric   PerformanceReason = "unsupported_metric"
+	PerformanceReasonUnsupportedPlatform PerformanceReason = "unsupported_platform"
+)
+
+// Valid indicates whether the value is a known member of the PerformanceReason enum.
+func (e PerformanceReason) Valid() bool {
+	switch e {
+	case PerformanceReasonBudgetExceeded:
+		return true
+	case PerformanceReasonCounterReset:
+		return true
+	case PerformanceReasonDatabaseUnavailable:
+		return true
+	case PerformanceReasonGpuNotAvailable:
+		return true
+	case PerformanceReasonMissingBaseline:
+		return true
+	case PerformanceReasonPermissionDenied:
+		return true
+	case PerformanceReasonReadFailed:
+		return true
+	case PerformanceReasonRecordLimit:
+		return true
+	case PerformanceReasonSamplingGap:
+		return true
+	case PerformanceReasonStatisticsDisabled:
+		return true
+	case PerformanceReasonUnsupportedMetric:
+		return true
+	case PerformanceReasonUnsupportedPlatform:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PerformanceSampleVersion.
 const (
 	PerformanceSampleVersionN1 PerformanceSampleVersion = 1
@@ -1942,24 +4306,48 @@ func (e PerformanceSnapshotSampleIntervalSeconds) Valid() bool {
 	}
 }
 
+// Defines values for PlannerSubtaskStatus.
+const (
+	PlannerSubtaskStatusFailed    PlannerSubtaskStatus = "failed"
+	PlannerSubtaskStatusPending   PlannerSubtaskStatus = "pending"
+	PlannerSubtaskStatusRunning   PlannerSubtaskStatus = "running"
+	PlannerSubtaskStatusSucceeded PlannerSubtaskStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the PlannerSubtaskStatus enum.
+func (e PlannerSubtaskStatus) Valid() bool {
+	switch e {
+	case PlannerSubtaskStatusFailed:
+		return true
+	case PlannerSubtaskStatusPending:
+		return true
+	case PlannerSubtaskStatusRunning:
+		return true
+	case PlannerSubtaskStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ProjectDeletionPhase.
 const (
-	Cancelling       ProjectDeletionPhase = "cancelling"
-	Draining         ProjectDeletionPhase = "draining"
-	PurgingArtifacts ProjectDeletionPhase = "purging_artifacts"
-	PurgingRuns      ProjectDeletionPhase = "purging_runs"
+	ProjectDeletionPhaseCancelling       ProjectDeletionPhase = "cancelling"
+	ProjectDeletionPhaseDraining         ProjectDeletionPhase = "draining"
+	ProjectDeletionPhasePurgingArtifacts ProjectDeletionPhase = "purging_artifacts"
+	ProjectDeletionPhasePurgingRuns      ProjectDeletionPhase = "purging_runs"
 )
 
 // Valid indicates whether the value is a known member of the ProjectDeletionPhase enum.
 func (e ProjectDeletionPhase) Valid() bool {
 	switch e {
-	case Cancelling:
+	case ProjectDeletionPhaseCancelling:
 		return true
-	case Draining:
+	case ProjectDeletionPhaseDraining:
 		return true
-	case PurgingArtifacts:
+	case ProjectDeletionPhasePurgingArtifacts:
 		return true
-	case PurgingRuns:
+	case ProjectDeletionPhasePurgingRuns:
 		return true
 	default:
 		return false
@@ -1986,16 +4374,16 @@ func (e ProjectKind) Valid() bool {
 
 // Defines values for ProjectLifecycle.
 const (
-	Active   ProjectLifecycle = "active"
-	Deleting ProjectLifecycle = "deleting"
+	ProjectLifecycleActive   ProjectLifecycle = "active"
+	ProjectLifecycleDeleting ProjectLifecycle = "deleting"
 )
 
 // Valid indicates whether the value is a known member of the ProjectLifecycle enum.
 func (e ProjectLifecycle) Valid() bool {
 	switch e {
-	case Active:
+	case ProjectLifecycleActive:
 		return true
-	case Deleting:
+	case ProjectLifecycleDeleting:
 		return true
 	default:
 		return false
@@ -2047,6 +4435,27 @@ func (e RunNotDeletableDetailsKind) Valid() bool {
 	}
 }
 
+// Defines values for RunNotDeletableDetailsReason.
+const (
+	AllocationReleasePending RunNotDeletableDetailsReason = "allocation_release_pending"
+	AuditCollectionPending   RunNotDeletableDetailsReason = "audit_collection_pending"
+	RunNotTerminal           RunNotDeletableDetailsReason = "run_not_terminal"
+)
+
+// Valid indicates whether the value is a known member of the RunNotDeletableDetailsReason enum.
+func (e RunNotDeletableDetailsReason) Valid() bool {
+	switch e {
+	case AllocationReleasePending:
+		return true
+	case AuditCollectionPending:
+		return true
+	case RunNotTerminal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RunQueueMembership.
 const (
 	RunQueueMembershipEvaluation RunQueueMembership = "evaluation"
@@ -2062,6 +4471,117 @@ func (e RunQueueMembership) Valid() bool {
 	case RunQueueMembershipProject:
 		return true
 	case RunQueueMembershipStandalone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunRecoveryCode.
+const (
+	RunRecoveryCodeGatewayRateLimited RunRecoveryCode = "gateway_rate_limited"
+	RunRecoveryCodeGatewayTimeout     RunRecoveryCode = "gateway_timeout"
+	RunRecoveryCodeGatewayUnavailable RunRecoveryCode = "gateway_unavailable"
+	RunRecoveryCodeModelUnavailable   RunRecoveryCode = "model_unavailable"
+)
+
+// Valid indicates whether the value is a known member of the RunRecoveryCode enum.
+func (e RunRecoveryCode) Valid() bool {
+	switch e {
+	case RunRecoveryCodeGatewayRateLimited:
+		return true
+	case RunRecoveryCodeGatewayTimeout:
+		return true
+	case RunRecoveryCodeGatewayUnavailable:
+		return true
+	case RunRecoveryCodeModelUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunRepeatDraftNoticeSeverity.
+const (
+	Blocking RunRepeatDraftNoticeSeverity = "blocking"
+	Warning  RunRepeatDraftNoticeSeverity = "warning"
+)
+
+// Valid indicates whether the value is a known member of the RunRepeatDraftNoticeSeverity enum.
+func (e RunRepeatDraftNoticeSeverity) Valid() bool {
+	switch e {
+	case Blocking:
+		return true
+	case Warning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunRepeatDraftResponseAuthority.
+const (
+	AuditManaged RunRepeatDraftResponseAuthority = "audit-managed"
+	Ordinary     RunRepeatDraftResponseAuthority = "ordinary"
+)
+
+// Valid indicates whether the value is a known member of the RunRepeatDraftResponseAuthority enum.
+func (e RunRepeatDraftResponseAuthority) Valid() bool {
+	switch e {
+	case AuditManaged:
+		return true
+	case Ordinary:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunRepeatExecutionConfigStatus.
+const (
+	RunRepeatExecutionConfigStatusAvailable RunRepeatExecutionConfigStatus = "available"
+)
+
+// Valid indicates whether the value is a known member of the RunRepeatExecutionConfigStatus enum.
+func (e RunRepeatExecutionConfigStatus) Valid() bool {
+	switch e {
+	case RunRepeatExecutionConfigStatusAvailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunRepeatInputSourceScope.
+const (
+	RunRepeatInputSourceScopeProject RunRepeatInputSourceScope = "project"
+	RunRepeatInputSourceScopeUser    RunRepeatInputSourceScope = "user"
+)
+
+// Valid indicates whether the value is a known member of the RunRepeatInputSourceScope enum.
+func (e RunRepeatInputSourceScope) Valid() bool {
+	switch e {
+	case RunRepeatInputSourceScopeProject:
+		return true
+	case RunRepeatInputSourceScopeUser:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RunRepeatInputStatus.
+const (
+	RunRepeatInputStatusAvailable   RunRepeatInputStatus = "available"
+	RunRepeatInputStatusUnavailable RunRepeatInputStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the RunRepeatInputStatus enum.
+func (e RunRepeatInputStatus) Valid() bool {
+	switch e {
+	case RunRepeatInputStatusAvailable:
+		return true
+	case RunRepeatInputStatusUnavailable:
 		return true
 	default:
 		return false
@@ -2119,6 +4639,84 @@ func (e RuntimeAdapterDiagnosticRef) Valid() bool {
 	case RuntimeAdapterDiagnosticRefOtlpHttp1:
 		return true
 	case RuntimeAdapterDiagnosticRefPentestTargetHttp1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RuntimeAgentObservationObservedState.
+const (
+	RuntimeAgentObservationObservedStateAllocated RuntimeAgentObservationObservedState = "allocated"
+	RuntimeAgentObservationObservedStateDraining  RuntimeAgentObservationObservedState = "draining"
+	RuntimeAgentObservationObservedStateFenced    RuntimeAgentObservationObservedState = "fenced"
+	RuntimeAgentObservationObservedStateIdle      RuntimeAgentObservationObservedState = "idle"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeAgentObservationObservedState enum.
+func (e RuntimeAgentObservationObservedState) Valid() bool {
+	switch e {
+	case RuntimeAgentObservationObservedStateAllocated:
+		return true
+	case RuntimeAgentObservationObservedStateDraining:
+		return true
+	case RuntimeAgentObservationObservedStateFenced:
+		return true
+	case RuntimeAgentObservationObservedStateIdle:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RuntimeAgentObservationSlotState.
+const (
+	RuntimeAgentObservationSlotStateBusy     RuntimeAgentObservationSlotState = "busy"
+	RuntimeAgentObservationSlotStateDraining RuntimeAgentObservationSlotState = "draining"
+	RuntimeAgentObservationSlotStateFenced   RuntimeAgentObservationSlotState = "fenced"
+	RuntimeAgentObservationSlotStateIdle     RuntimeAgentObservationSlotState = "idle"
+	RuntimeAgentObservationSlotStateReserved RuntimeAgentObservationSlotState = "reserved"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeAgentObservationSlotState enum.
+func (e RuntimeAgentObservationSlotState) Valid() bool {
+	switch e {
+	case RuntimeAgentObservationSlotStateBusy:
+		return true
+	case RuntimeAgentObservationSlotStateDraining:
+		return true
+	case RuntimeAgentObservationSlotStateFenced:
+		return true
+	case RuntimeAgentObservationSlotStateIdle:
+		return true
+	case RuntimeAgentObservationSlotStateReserved:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RuntimeAgentPrincipalAvailability.
+const (
+	RuntimeAgentPrincipalAvailabilityAdapterCapabilityMismatch RuntimeAgentPrincipalAvailability = "adapter_capability_mismatch"
+	RuntimeAgentPrincipalAvailabilityAvailable                 RuntimeAgentPrincipalAvailability = "available"
+	RuntimeAgentPrincipalAvailabilityBusy                      RuntimeAgentPrincipalAvailability = "busy"
+	RuntimeAgentPrincipalAvailabilityOffline                   RuntimeAgentPrincipalAvailability = "offline"
+	RuntimeAgentPrincipalAvailabilitySlotUnavailable           RuntimeAgentPrincipalAvailability = "slot_unavailable"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeAgentPrincipalAvailability enum.
+func (e RuntimeAgentPrincipalAvailability) Valid() bool {
+	switch e {
+	case RuntimeAgentPrincipalAvailabilityAdapterCapabilityMismatch:
+		return true
+	case RuntimeAgentPrincipalAvailabilityAvailable:
+		return true
+	case RuntimeAgentPrincipalAvailabilityBusy:
+		return true
+	case RuntimeAgentPrincipalAvailabilityOffline:
+		return true
+	case RuntimeAgentPrincipalAvailabilitySlotUnavailable:
 		return true
 	default:
 		return false
@@ -2215,6 +4813,48 @@ func (e RuntimeCredentialInUseDetailsKind) Valid() bool {
 	}
 }
 
+// Defines values for RuntimeCredentialKind.
+const (
+	RuntimeCredentialKindCaidoBearer1      RuntimeCredentialKind = "caido-bearer@1"
+	RuntimeCredentialKindHttpOriginBasic1  RuntimeCredentialKind = "http-origin-basic@1"
+	RuntimeCredentialKindHttpOriginBearer1 RuntimeCredentialKind = "http-origin-bearer@1"
+	RuntimeCredentialKindHttpProxyBasic1   RuntimeCredentialKind = "http-proxy-basic@1"
+	RuntimeCredentialKindHttpProxyBearer1  RuntimeCredentialKind = "http-proxy-bearer@1"
+	RuntimeCredentialKindInteractshToken1  RuntimeCredentialKind = "interactsh-token@1"
+	RuntimeCredentialKindOtlpHeaders1      RuntimeCredentialKind = "otlp-headers@1"
+	RuntimeCredentialKindTargetBasic1      RuntimeCredentialKind = "target-basic@1"
+	RuntimeCredentialKindTargetBearer1     RuntimeCredentialKind = "target-bearer@1"
+	RuntimeCredentialKindTargetCookies1    RuntimeCredentialKind = "target-cookies@1"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeCredentialKind enum.
+func (e RuntimeCredentialKind) Valid() bool {
+	switch e {
+	case RuntimeCredentialKindCaidoBearer1:
+		return true
+	case RuntimeCredentialKindHttpOriginBasic1:
+		return true
+	case RuntimeCredentialKindHttpOriginBearer1:
+		return true
+	case RuntimeCredentialKindHttpProxyBasic1:
+		return true
+	case RuntimeCredentialKindHttpProxyBearer1:
+		return true
+	case RuntimeCredentialKindInteractshToken1:
+		return true
+	case RuntimeCredentialKindOtlpHeaders1:
+		return true
+	case RuntimeCredentialKindTargetBasic1:
+		return true
+	case RuntimeCredentialKindTargetBearer1:
+		return true
+	case RuntimeCredentialKindTargetCookies1:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RuntimeDiagnosticReason.
 const (
 	RuntimeDiagnosticReasonInvalidReport RuntimeDiagnosticReason = "invalid_report"
@@ -2290,6 +4930,36 @@ func (e RuntimeDiagnosticPageStatus) Valid() bool {
 	}
 }
 
+// Defines values for RuntimeFieldOriginLayer.
+const (
+	AgentLabels               RuntimeFieldOriginLayer = "agent_labels"
+	Default                   RuntimeFieldOriginLayer = "default"
+	EscalationExecutionConfig RuntimeFieldOriginLayer = "escalation_execution_config"
+	RunExecutionConfig        RuntimeFieldOriginLayer = "run_execution_config"
+	RunLabels                 RuntimeFieldOriginLayer = "run_labels"
+	WorkflowExecutionConfig   RuntimeFieldOriginLayer = "workflow_execution_config"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeFieldOriginLayer enum.
+func (e RuntimeFieldOriginLayer) Valid() bool {
+	switch e {
+	case AgentLabels:
+		return true
+	case Default:
+		return true
+	case EscalationExecutionConfig:
+		return true
+	case RunExecutionConfig:
+		return true
+	case RunLabels:
+		return true
+	case WorkflowExecutionConfig:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RuntimeHTTPProxyConfigAdapter.
 const (
 	RuntimeHTTPProxyConfigAdapterHttpProxy1 RuntimeHTTPProxyConfigAdapter = "http-proxy@1"
@@ -2299,6 +4969,27 @@ const (
 func (e RuntimeHTTPProxyConfigAdapter) Valid() bool {
 	switch e {
 	case RuntimeHTTPProxyConfigAdapterHttpProxy1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RuntimeHTTPProxyConfigTargets.
+const (
+	LlmGateway     RuntimeHTTPProxyConfigTargets = "llm-gateway"
+	ToolHttp       RuntimeHTTPProxyConfigTargets = "tool-http"
+	ToolSubprocess RuntimeHTTPProxyConfigTargets = "tool-subprocess"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeHTTPProxyConfigTargets enum.
+func (e RuntimeHTTPProxyConfigTargets) Valid() bool {
+	switch e {
+	case LlmGateway:
+		return true
+	case ToolHttp:
+		return true
+	case ToolSubprocess:
 		return true
 	default:
 		return false
@@ -2335,6 +5026,54 @@ func (e RuntimeLabelInUseDetailsKind) Valid() bool {
 	}
 }
 
+// Defines values for RuntimeResourceSummaryReason.
+const (
+	RuntimeResourceSummaryReasonCounterReset        RuntimeResourceSummaryReason = "counter_reset"
+	RuntimeResourceSummaryReasonInvalidReport       RuntimeResourceSummaryReason = "invalid_report"
+	RuntimeResourceSummaryReasonReadFailed          RuntimeResourceSummaryReason = "read_failed"
+	RuntimeResourceSummaryReasonSamplingGap         RuntimeResourceSummaryReason = "sampling_gap"
+	RuntimeResourceSummaryReasonUnsupportedPlatform RuntimeResourceSummaryReason = "unsupported_platform"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeResourceSummaryReason enum.
+func (e RuntimeResourceSummaryReason) Valid() bool {
+	switch e {
+	case RuntimeResourceSummaryReasonCounterReset:
+		return true
+	case RuntimeResourceSummaryReasonInvalidReport:
+		return true
+	case RuntimeResourceSummaryReasonReadFailed:
+		return true
+	case RuntimeResourceSummaryReasonSamplingGap:
+		return true
+	case RuntimeResourceSummaryReasonUnsupportedPlatform:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RuntimeResourceSummaryStatus.
+const (
+	RuntimeResourceSummaryStatusComplete    RuntimeResourceSummaryStatus = "complete"
+	RuntimeResourceSummaryStatusPartial     RuntimeResourceSummaryStatus = "partial"
+	RuntimeResourceSummaryStatusUnavailable RuntimeResourceSummaryStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeResourceSummaryStatus enum.
+func (e RuntimeResourceSummaryStatus) Valid() bool {
+	switch e {
+	case RuntimeResourceSummaryStatusComplete:
+		return true
+	case RuntimeResourceSummaryStatusPartial:
+		return true
+	case RuntimeResourceSummaryStatusUnavailable:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RuntimeResourceSummaryVersion.
 const (
 	RuntimeResourceSummaryVersionN1 RuntimeResourceSummaryVersion = 1
@@ -2344,6 +5083,24 @@ const (
 func (e RuntimeResourceSummaryVersion) Valid() bool {
 	switch e {
 	case RuntimeResourceSummaryVersionN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for RuntimeResourceSummary1Status.
+const (
+	RuntimeResourceSummary1StatusPartial     RuntimeResourceSummary1Status = "partial"
+	RuntimeResourceSummary1StatusUnavailable RuntimeResourceSummary1Status = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the RuntimeResourceSummary1Status enum.
+func (e RuntimeResourceSummary1Status) Valid() bool {
+	switch e {
+	case RuntimeResourceSummary1StatusPartial:
+		return true
+	case RuntimeResourceSummary1StatusUnavailable:
 		return true
 	default:
 		return false
@@ -2566,6 +5323,288 @@ func (e StageContentResultApiVersion) Valid() bool {
 	}
 }
 
+// Defines values for StageContentResult0Outcome.
+const (
+	StageContentResult0OutcomeSucceeded StageContentResult0Outcome = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the StageContentResult0Outcome enum.
+func (e StageContentResult0Outcome) Valid() bool {
+	switch e {
+	case StageContentResult0OutcomeSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageContentResult0Summarized.
+const (
+	StageContentResult0SummarizedFalse StageContentResult0Summarized = false
+)
+
+// Valid indicates whether the value is a known member of the StageContentResult0Summarized enum.
+func (e StageContentResult0Summarized) Valid() bool {
+	switch e {
+	case StageContentResult0SummarizedFalse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageContentResult1Outcome.
+const (
+	StageContentResult1OutcomeFailed StageContentResult1Outcome = "failed"
+)
+
+// Valid indicates whether the value is a known member of the StageContentResult1Outcome enum.
+func (e StageContentResult1Outcome) Valid() bool {
+	switch e {
+	case StageContentResult1OutcomeFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageContentResult1Summarized.
+const (
+	StageContentResult1SummarizedFalse StageContentResult1Summarized = false
+)
+
+// Valid indicates whether the value is a known member of the StageContentResult1Summarized enum.
+func (e StageContentResult1Summarized) Valid() bool {
+	switch e {
+	case StageContentResult1SummarizedFalse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageContentResult2ErrorCode.
+const (
+	WorkerSummarized StageContentResult2ErrorCode = "worker_summarized"
+)
+
+// Valid indicates whether the value is a known member of the StageContentResult2ErrorCode enum.
+func (e StageContentResult2ErrorCode) Valid() bool {
+	switch e {
+	case WorkerSummarized:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageContentResult2ErrorRetryable.
+const (
+	StageContentResult2ErrorRetryableFalse StageContentResult2ErrorRetryable = false
+)
+
+// Valid indicates whether the value is a known member of the StageContentResult2ErrorRetryable enum.
+func (e StageContentResult2ErrorRetryable) Valid() bool {
+	switch e {
+	case StageContentResult2ErrorRetryableFalse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageContentResult2Outcome.
+const (
+	StageContentResult2OutcomeFailed StageContentResult2Outcome = "failed"
+)
+
+// Valid indicates whether the value is a known member of the StageContentResult2Outcome enum.
+func (e StageContentResult2Outcome) Valid() bool {
+	switch e {
+	case StageContentResult2OutcomeFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageContentResult2Summarized.
+const (
+	StageContentResult2SummarizedTrue StageContentResult2Summarized = true
+)
+
+// Valid indicates whether the value is a known member of the StageContentResult2Summarized enum.
+func (e StageContentResult2Summarized) Valid() bool {
+	switch e {
+	case StageContentResult2SummarizedTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageExecutionConfigVariant.
+const (
+	Base                  StageExecutionConfigVariant = "base"
+	FailedEscalation      StageExecutionConfigVariant = "failed_escalation"
+	InterruptedEscalation StageExecutionConfigVariant = "interrupted_escalation"
+	SummaryEscalation     StageExecutionConfigVariant = "summary_escalation"
+)
+
+// Valid indicates whether the value is a known member of the StageExecutionConfigVariant enum.
+func (e StageExecutionConfigVariant) Valid() bool {
+	switch e {
+	case Base:
+		return true
+	case FailedEscalation:
+		return true
+	case InterruptedEscalation:
+		return true
+	case SummaryEscalation:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageExecutionState.
+const (
+	StageExecutionStateAborting    StageExecutionState = "aborting"
+	StageExecutionStateCancelled   StageExecutionState = "cancelled"
+	StageExecutionStateFailed      StageExecutionState = "failed"
+	StageExecutionStateFinalizing  StageExecutionState = "finalizing"
+	StageExecutionStateInterrupted StageExecutionState = "interrupted"
+	StageExecutionStatePreparing   StageExecutionState = "preparing"
+	StageExecutionStateRunning     StageExecutionState = "running"
+	StageExecutionStateSucceeded   StageExecutionState = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the StageExecutionState enum.
+func (e StageExecutionState) Valid() bool {
+	switch e {
+	case StageExecutionStateAborting:
+		return true
+	case StageExecutionStateCancelled:
+		return true
+	case StageExecutionStateFailed:
+		return true
+	case StageExecutionStateFinalizing:
+		return true
+	case StageExecutionStateInterrupted:
+		return true
+	case StageExecutionStatePreparing:
+		return true
+	case StageExecutionStateRunning:
+		return true
+	case StageExecutionStateSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageOutcome.
+const (
+	StageOutcomeFailed    StageOutcome = "failed"
+	StageOutcomeSucceeded StageOutcome = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the StageOutcome enum.
+func (e StageOutcome) Valid() bool {
+	switch e {
+	case StageOutcomeFailed:
+		return true
+	case StageOutcomeSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageRuntimeAllocationStatus.
+const (
+	StageRuntimeAllocationStatusPinned         StageRuntimeAllocationStatus = "pinned"
+	StageRuntimeAllocationStatusReleasePending StageRuntimeAllocationStatus = "release_pending"
+	StageRuntimeAllocationStatusReleased       StageRuntimeAllocationStatus = "released"
+)
+
+// Valid indicates whether the value is a known member of the StageRuntimeAllocationStatus enum.
+func (e StageRuntimeAllocationStatus) Valid() bool {
+	switch e {
+	case StageRuntimeAllocationStatusPinned:
+		return true
+	case StageRuntimeAllocationStatusReleasePending:
+		return true
+	case StageRuntimeAllocationStatusReleased:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageTerminationOutcome.
+const (
+	StageTerminationOutcomeCancelled   StageTerminationOutcome = "cancelled"
+	StageTerminationOutcomeInterrupted StageTerminationOutcome = "interrupted"
+)
+
+// Valid indicates whether the value is a known member of the StageTerminationOutcome enum.
+func (e StageTerminationOutcome) Valid() bool {
+	switch e {
+	case StageTerminationOutcomeCancelled:
+		return true
+	case StageTerminationOutcomeInterrupted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageTerminationPhase.
+const (
+	StageTerminationPhasePreparing StageTerminationPhase = "preparing"
+	StageTerminationPhaseRunning   StageTerminationPhase = "running"
+)
+
+// Valid indicates whether the value is a known member of the StageTerminationPhase enum.
+func (e StageTerminationPhase) Valid() bool {
+	switch e {
+	case StageTerminationPhasePreparing:
+		return true
+	case StageTerminationPhaseRunning:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StageTransitionAction.
+const (
+	StageTransitionActionEscalate StageTransitionAction = "escalate"
+	StageTransitionActionFail     StageTransitionAction = "fail"
+	StageTransitionActionNext     StageTransitionAction = "next"
+	StageTransitionActionRetry    StageTransitionAction = "retry"
+	StageTransitionActionSucceed  StageTransitionAction = "succeed"
+)
+
+// Valid indicates whether the value is a known member of the StageTransitionAction enum.
+func (e StageTransitionAction) Valid() bool {
+	switch e {
+	case StageTransitionActionEscalate:
+		return true
+	case StageTransitionActionFail:
+		return true
+	case StageTransitionActionNext:
+		return true
+	case StageTransitionActionRetry:
+		return true
+	case StageTransitionActionSucceed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ToolCallDiagnosticOutcome.
 const (
 	ToolCallDiagnosticOutcomeFailed    ToolCallDiagnosticOutcome = "failed"
@@ -2703,13 +5742,13 @@ func (e WorkflowEscalateTransitionKind) Valid() bool {
 
 // Defines values for WorkflowFailTransitionKind.
 const (
-	Fail WorkflowFailTransitionKind = "fail"
+	WorkflowFailTransitionKindFail WorkflowFailTransitionKind = "fail"
 )
 
 // Valid indicates whether the value is a known member of the WorkflowFailTransitionKind enum.
 func (e WorkflowFailTransitionKind) Valid() bool {
 	switch e {
-	case Fail:
+	case WorkflowFailTransitionKindFail:
 		return true
 	default:
 		return false
@@ -2718,13 +5757,13 @@ func (e WorkflowFailTransitionKind) Valid() bool {
 
 // Defines values for WorkflowNextTransitionKind.
 const (
-	Next WorkflowNextTransitionKind = "next"
+	WorkflowNextTransitionKindNext WorkflowNextTransitionKind = "next"
 )
 
 // Valid indicates whether the value is a known member of the WorkflowNextTransitionKind enum.
 func (e WorkflowNextTransitionKind) Valid() bool {
 	switch e {
-	case Next:
+	case WorkflowNextTransitionKindNext:
 		return true
 	default:
 		return false
@@ -2733,13 +5772,67 @@ func (e WorkflowNextTransitionKind) Valid() bool {
 
 // Defines values for WorkflowRetryTransitionKind.
 const (
-	Retry WorkflowRetryTransitionKind = "retry"
+	WorkflowRetryTransitionKindRetry WorkflowRetryTransitionKind = "retry"
 )
 
 // Valid indicates whether the value is a known member of the WorkflowRetryTransitionKind enum.
 func (e WorkflowRetryTransitionKind) Valid() bool {
 	switch e {
-	case Retry:
+	case WorkflowRetryTransitionKindRetry:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkflowRunLifecycle.
+const (
+	WorkflowRunLifecycleActive   WorkflowRunLifecycle = "active"
+	WorkflowRunLifecycleTerminal WorkflowRunLifecycle = "terminal"
+)
+
+// Valid indicates whether the value is a known member of the WorkflowRunLifecycle enum.
+func (e WorkflowRunLifecycle) Valid() bool {
+	switch e {
+	case WorkflowRunLifecycleActive:
+		return true
+	case WorkflowRunLifecycleTerminal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkflowRunState.
+const (
+	WorkflowRunStateCancelled    WorkflowRunState = "cancelled"
+	WorkflowRunStateCancelling   WorkflowRunState = "cancelling"
+	WorkflowRunStateFailed       WorkflowRunState = "failed"
+	WorkflowRunStateInitializing WorkflowRunState = "initializing"
+	WorkflowRunStatePending      WorkflowRunState = "pending"
+	WorkflowRunStateRunning      WorkflowRunState = "running"
+	WorkflowRunStateSucceeded    WorkflowRunState = "succeeded"
+	WorkflowRunStateWaiting      WorkflowRunState = "waiting"
+)
+
+// Valid indicates whether the value is a known member of the WorkflowRunState enum.
+func (e WorkflowRunState) Valid() bool {
+	switch e {
+	case WorkflowRunStateCancelled:
+		return true
+	case WorkflowRunStateCancelling:
+		return true
+	case WorkflowRunStateFailed:
+		return true
+	case WorkflowRunStateInitializing:
+		return true
+	case WorkflowRunStatePending:
+		return true
+	case WorkflowRunStateRunning:
+		return true
+	case WorkflowRunStateSucceeded:
+		return true
+	case WorkflowRunStateWaiting:
 		return true
 	default:
 		return false
@@ -2766,13 +5859,13 @@ func (e WorkflowStageContractSession) Valid() bool {
 
 // Defines values for WorkflowSucceedTransitionKind.
 const (
-	Succeed WorkflowSucceedTransitionKind = "succeed"
+	WorkflowSucceedTransitionKindSucceed WorkflowSucceedTransitionKind = "succeed"
 )
 
 // Valid indicates whether the value is a known member of the WorkflowSucceedTransitionKind enum.
 func (e WorkflowSucceedTransitionKind) Valid() bool {
 	switch e {
-	case Succeed:
+	case WorkflowSucceedTransitionKindSucceed:
 		return true
 	default:
 		return false
@@ -2803,6 +5896,42 @@ const (
 func (e WorkflowSummaryTransitionMaxAttempts) Valid() bool {
 	switch e {
 	case WorkflowSummaryTransitionMaxAttemptsN1:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkspaceCapabilitiesModes.
+const (
+	Direct  WorkspaceCapabilitiesModes = "direct"
+	Overlay WorkspaceCapabilitiesModes = "overlay"
+)
+
+// Valid indicates whether the value is a known member of the WorkspaceCapabilitiesModes enum.
+func (e WorkspaceCapabilitiesModes) Valid() bool {
+	switch e {
+	case Direct:
+		return true
+	case Overlay:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for WorkspaceCapabilitiesStorage.
+const (
+	Local  WorkspaceCapabilitiesStorage = "local"
+	Memory WorkspaceCapabilitiesStorage = "memory"
+)
+
+// Valid indicates whether the value is a known member of the WorkspaceCapabilitiesStorage enum.
+func (e WorkspaceCapabilitiesStorage) Valid() bool {
+	switch e {
+	case Local:
+		return true
+	case Memory:
 		return true
 	default:
 		return false
@@ -2848,6 +5977,45 @@ const (
 func (e ImportGitArtifactParamsIfNoneMatch) Valid() bool {
 	switch e {
 	case ImportGitArtifactParamsIfNoneMatchAsterisk:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListAuditFindingsParamsVerdict.
+const (
+	ListAuditFindingsParamsVerdictFalsePositive ListAuditFindingsParamsVerdict = "false_positive"
+	ListAuditFindingsParamsVerdictTruePositive  ListAuditFindingsParamsVerdict = "true_positive"
+	ListAuditFindingsParamsVerdictUnreviewed    ListAuditFindingsParamsVerdict = "unreviewed"
+)
+
+// Valid indicates whether the value is a known member of the ListAuditFindingsParamsVerdict enum.
+func (e ListAuditFindingsParamsVerdict) Valid() bool {
+	switch e {
+	case ListAuditFindingsParamsVerdictFalsePositive:
+		return true
+	case ListAuditFindingsParamsVerdictTruePositive:
+		return true
+	case ListAuditFindingsParamsVerdictUnreviewed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListFindingDuplicateCandidatesParamsScope.
+const (
+	ListFindingDuplicateCandidatesParamsScopeAudit   ListFindingDuplicateCandidatesParamsScope = "audit"
+	ListFindingDuplicateCandidatesParamsScopeProject ListFindingDuplicateCandidatesParamsScope = "project"
+)
+
+// Valid indicates whether the value is a known member of the ListFindingDuplicateCandidatesParamsScope enum.
+func (e ListFindingDuplicateCandidatesParamsScope) Valid() bool {
+	switch e {
+	case ListFindingDuplicateCandidatesParamsScopeAudit:
+		return true
+	case ListFindingDuplicateCandidatesParamsScopeProject:
 		return true
 	default:
 		return false
@@ -3070,6 +6238,30 @@ func (e ListOwnerFindingsParamsVerdict) Valid() bool {
 	}
 }
 
+// Defines values for GetPerformanceHistoryParamsStep.
+const (
+	GetPerformanceHistoryParamsStepN15s GetPerformanceHistoryParamsStep = "15s"
+	GetPerformanceHistoryParamsStepN1h  GetPerformanceHistoryParamsStep = "1h"
+	GetPerformanceHistoryParamsStepN1m  GetPerformanceHistoryParamsStep = "1m"
+	GetPerformanceHistoryParamsStepN5m  GetPerformanceHistoryParamsStep = "5m"
+)
+
+// Valid indicates whether the value is a known member of the GetPerformanceHistoryParamsStep enum.
+func (e GetPerformanceHistoryParamsStep) Valid() bool {
+	switch e {
+	case GetPerformanceHistoryParamsStepN15s:
+		return true
+	case GetPerformanceHistoryParamsStepN1h:
+		return true
+	case GetPerformanceHistoryParamsStepN1m:
+		return true
+	case GetPerformanceHistoryParamsStepN5m:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PutRuntimeLabelParamsIfNoneMatch.
 const (
 	PutRuntimeLabelParamsIfNoneMatchAsterisk PutRuntimeLabelParamsIfNoneMatch = "*"
@@ -3211,21 +6403,30 @@ type AgentTemplateWorkflowBindingPage struct {
 
 // AllocationObservation defines model for AllocationObservation.
 type AllocationObservation struct {
-	AgentTemplate      AgentTemplateRef        `json:"agentTemplate"`
-	AllocationId       ResourceId              `json:"allocationId"`
-	AuthoritativePhase interface{}             `json:"authoritativePhase"`
-	ExecutionConfig    ConsumerExecutionConfig `json:"executionConfig"`
-	ExhaustedDimension interface{}             `json:"exhaustedDimension,omitempty"`
-	LogicalWorker      ConfigId                `json:"logicalWorker"`
-	Metrics            MetricsSummary          `json:"metrics"`
+	AgentTemplate      AgentTemplateRef                         `json:"agentTemplate"`
+	AllocationId       ResourceId                               `json:"allocationId"`
+	AuthoritativePhase AllocationObservationAuthoritativePhase  `json:"authoritativePhase"`
+	ExecutionConfig    ConsumerExecutionConfig                  `json:"executionConfig"`
+	ExhaustedDimension *AllocationObservationExhaustedDimension `json:"exhaustedDimension,omitempty"`
+	LogicalWorker      ConfigId                                 `json:"logicalWorker"`
+	Metrics            MetricsSummary                           `json:"metrics"`
 
 	// ObservedPhase Allocated proves preparation, not that an A2A call is currently executing.
-	ObservedPhase          interface{} `json:"observedPhase"`
-	Reason                 *SafeReason `json:"reason,omitempty"`
-	RunId                  ResourceId  `json:"runId"`
-	RuntimeAgentInstanceId ResourceId  `json:"runtimeAgentInstanceId"`
-	StageExecutionId       ResourceId  `json:"stageExecutionId"`
+	ObservedPhase          AllocationObservationObservedPhase `json:"observedPhase"`
+	Reason                 *SafeReason                        `json:"reason,omitempty"`
+	RunId                  ResourceId                         `json:"runId"`
+	RuntimeAgentInstanceId ResourceId                         `json:"runtimeAgentInstanceId"`
+	StageExecutionId       ResourceId                         `json:"stageExecutionId"`
 }
+
+// AllocationObservationAuthoritativePhase defines model for AllocationObservation.AuthoritativePhase.
+type AllocationObservationAuthoritativePhase string
+
+// AllocationObservationExhaustedDimension defines model for AllocationObservation.ExhaustedDimension.
+type AllocationObservationExhaustedDimension string
+
+// AllocationObservationObservedPhase Allocated proves preparation, not that an A2A call is currently executing.
+type AllocationObservationObservedPhase string
 
 // AllocationPage defines model for AllocationPage.
 type AllocationPage struct {
@@ -3242,22 +6443,31 @@ type AllocationResourcePage struct {
 
 // AllocationResourceSummary defines model for AllocationResourceSummary.
 type AllocationResourceSummary struct {
-	AllocationId     ResourceId          `json:"allocationId"`
-	CollectionPolicy interface{}         `json:"collectionPolicy"`
-	FinishedAt       time.Time           `json:"finishedAt"`
-	LogicalAgent     ConfigId            `json:"logicalAgent"`
-	Outcome          StageExecutionState `json:"outcome"`
+	AllocationId     ResourceId                                `json:"allocationId"`
+	CollectionPolicy AllocationResourceSummaryCollectionPolicy `json:"collectionPolicy"`
+	FinishedAt       time.Time                                 `json:"finishedAt"`
+	LogicalAgent     ConfigId                                  `json:"logicalAgent"`
+	Outcome          StageExecutionState                       `json:"outcome"`
 
 	// Reason Why resources are partial or unavailable. `report_missing`: the released allocation has no report with usable resources; `report_expired`: its report was received and has since expired under the 30-day telemetry retention.
-	Reason interface{} `json:"reason,omitempty"`
+	Reason *AllocationResourceSummaryReason `json:"reason,omitempty"`
 
 	// Resources Allocation-local CPU deltas and observed RSS of the entire Runtime process, not child/container resources or a guaranteed RSS peak. Unknowns are omitted. Go/Python additionally validate boundary/count/peak and duration/gap consistency.
-	Resources        *RuntimeResourceSummary `json:"resources,omitempty"`
-	RunId            ResourceId              `json:"runId"`
-	Stage            ConfigId                `json:"stage"`
-	StageExecutionId ResourceId              `json:"stageExecutionId"`
-	Status           interface{}             `json:"status"`
+	Resources        *RuntimeResourceSummary         `json:"resources,omitempty"`
+	RunId            ResourceId                      `json:"runId"`
+	Stage            ConfigId                        `json:"stage"`
+	StageExecutionId ResourceId                      `json:"stageExecutionId"`
+	Status           AllocationResourceSummaryStatus `json:"status"`
 }
+
+// AllocationResourceSummaryCollectionPolicy defines model for AllocationResourceSummary.CollectionPolicy.
+type AllocationResourceSummaryCollectionPolicy string
+
+// AllocationResourceSummaryReason Why resources are partial or unavailable. `report_missing`: the released allocation has no report with usable resources; `report_expired`: its report was received and has since expired under the 30-day telemetry retention.
+type AllocationResourceSummaryReason string
+
+// AllocationResourceSummaryStatus defines model for AllocationResourceSummary.Status.
+type AllocationResourceSummaryStatus string
 
 // ArgumentBinding defines model for ArgumentBinding.
 type ArgumentBinding struct {
@@ -3361,15 +6571,24 @@ type ArtifactBinding struct {
 
 // ArtifactLineageEdge defines model for ArtifactLineageEdge.
 type ArtifactLineageEdge struct {
-	CreatedAt        time.Time        `json:"createdAt"`
-	Kind             interface{}      `json:"kind"`
-	RunId            *ResourceId      `json:"runId,omitempty"`
-	Source           ExactArtifactRef `json:"source"`
-	SourceScope      interface{}      `json:"sourceScope"`
-	StageExecutionId *ResourceId      `json:"stageExecutionId,omitempty"`
-	Target           ExactArtifactRef `json:"target"`
-	TargetScope      interface{}      `json:"targetScope"`
+	CreatedAt        time.Time                      `json:"createdAt"`
+	Kind             ArtifactLineageEdgeKind        `json:"kind"`
+	RunId            *ResourceId                    `json:"runId,omitempty"`
+	Source           ExactArtifactRef               `json:"source"`
+	SourceScope      ArtifactLineageEdgeSourceScope `json:"sourceScope"`
+	StageExecutionId *ResourceId                    `json:"stageExecutionId,omitempty"`
+	Target           ExactArtifactRef               `json:"target"`
+	TargetScope      ArtifactLineageEdgeTargetScope `json:"targetScope"`
 }
+
+// ArtifactLineageEdgeKind defines model for ArtifactLineageEdge.Kind.
+type ArtifactLineageEdgeKind string
+
+// ArtifactLineageEdgeSourceScope defines model for ArtifactLineageEdge.SourceScope.
+type ArtifactLineageEdgeSourceScope string
+
+// ArtifactLineageEdgeTargetScope defines model for ArtifactLineageEdge.TargetScope.
+type ArtifactLineageEdgeTargetScope string
 
 // ArtifactLineagePage defines model for ArtifactLineagePage.
 type ArtifactLineagePage struct {
@@ -3455,9 +6674,12 @@ type AttemptDiagnostic struct {
 	Completion   *WorkerCompletionDiagnostics `json:"completion,omitempty"`
 	LogicalAgent *ConfigId                    `json:"logicalAgent,omitempty"`
 	Message      string                       `json:"message"`
-	Participant  interface{}                  `json:"participant"`
+	Participant  AttemptDiagnosticParticipant `json:"participant"`
 	Retryable    *bool                        `json:"retryable,omitempty"`
 }
+
+// AttemptDiagnosticParticipant defines model for AttemptDiagnostic.Participant.
+type AttemptDiagnosticParticipant string
 
 // AttemptDiagnostics defines model for AttemptDiagnostics.
 type AttemptDiagnostics struct {
@@ -3516,8 +6738,11 @@ type Audit0 struct {
 
 // Audit1 defines model for Audit.1.
 type Audit1 struct {
-	Phase interface{} `json:"phase,omitempty"`
+	Phase *Audit1Phase `json:"phase,omitempty"`
 }
+
+// Audit1Phase defines model for Audit.1.Phase.
+type Audit1Phase string
 
 // Audit2 defines model for Audit.2.
 type Audit2 struct {
@@ -3535,7 +6760,7 @@ type AuditActionDecisionResult struct {
 type AuditActor = string
 
 // AuditAnalystVerdict defines model for AuditAnalystVerdict.
-type AuditAnalystVerdict = interface{}
+type AuditAnalystVerdict string
 
 // AuditBaseline defines model for AuditBaseline.
 type AuditBaseline struct {
@@ -3579,17 +6804,20 @@ type AuditCheckCapabilityRequirement struct {
 
 // AuditCheckMethodMapping defines model for AuditCheckMethodMapping.
 type AuditCheckMethodMapping struct {
-	Method               interface{}                       `json:"method"`
+	Method               AuditCheckMethodMappingMethod     `json:"method"`
 	PlanSchema           interface{}                       `json:"planSchema"`
 	RequiredCapabilities []AuditCheckCapabilityRequirement `json:"requiredCapabilities"`
 	WorkflowRole         string                            `json:"workflowRole"`
 }
 
+// AuditCheckMethodMappingMethod defines model for AuditCheckMethodMapping.Method.
+type AuditCheckMethodMappingMethod string
+
 // AuditCollectionDisposition defines model for AuditCollectionDisposition.
-type AuditCollectionDisposition = interface{}
+type AuditCollectionDisposition string
 
 // AuditCompatibilityReason defines model for AuditCompatibilityReason.
-type AuditCompatibilityReason = interface{}
+type AuditCompatibilityReason string
 
 // AuditCoverage defines model for AuditCoverage.
 type AuditCoverage struct {
@@ -3643,10 +6871,10 @@ type AuditCoverageRow struct {
 }
 
 // AuditCoverageStatus defines model for AuditCoverageStatus.
-type AuditCoverageStatus = interface{}
+type AuditCoverageStatus string
 
 // AuditDispatchState defines model for AuditDispatchState.
-type AuditDispatchState = interface{}
+type AuditDispatchState string
 
 // AuditEvent defines model for AuditEvent.
 type AuditEvent struct {
@@ -3675,7 +6903,7 @@ type AuditEventSummary struct {
 	FindingId    *ResourceId                 `json:"findingId,omitempty"`
 	From         *string                     `json:"from,omitempty"`
 	Items        *int                        `json:"items,omitempty"`
-	Kind         interface{}                 `json:"kind,omitempty"`
+	Kind         *AuditEventSummaryKind      `json:"kind,omitempty"`
 	Members      *int                        `json:"members,omitempty"`
 	Outcome      *AuditTerminalOutcome       `json:"outcome,omitempty"`
 	Reviews      *int                        `json:"reviews,omitempty"`
@@ -3686,9 +6914,15 @@ type AuditEventSummary struct {
 	SubjectId    *ResourceId                 `json:"subjectId,omitempty"`
 	SubjectKind  *AuditReviewSubjectKind     `json:"subjectKind,omitempty"`
 	To           *string                     `json:"to,omitempty"`
-	Verdict      interface{}                 `json:"verdict,omitempty"`
+	Verdict      *AuditEventSummaryVerdict   `json:"verdict,omitempty"`
 	WorkflowRole *ResourceId                 `json:"workflowRole,omitempty"`
 }
+
+// AuditEventSummaryKind defines model for AuditEventSummary.Kind.
+type AuditEventSummaryKind string
+
+// AuditEventSummaryVerdict defines model for AuditEventSummary.Verdict.
+type AuditEventSummaryVerdict string
 
 // AuditExactArtifact defines model for AuditExactArtifact.
 type AuditExactArtifact struct {
@@ -3699,30 +6933,33 @@ type AuditExactArtifact struct {
 }
 
 // AuditExecutionItemState defines model for AuditExecutionItemState.
-type AuditExecutionItemState = interface{}
+type AuditExecutionItemState string
 
 // AuditExecutionPolicy defines model for AuditExecutionPolicy.
 type AuditExecutionPolicy struct {
-	BatchSize          int                           `json:"batchSize"`
-	DeadlineSeconds    int                           `json:"deadlineSeconds"`
-	IncompleteRound    interface{}                   `json:"incompleteRound"`
-	MaxEvidenceBytes   int                           `json:"maxEvidenceBytes"`
-	MaxItemRunAttempts int                           `json:"maxItemRunAttempts"`
-	MaxItemsPerRound   int                           `json:"maxItemsPerRound"`
-	MaxItemsTotal      int                           `json:"maxItemsTotal"`
-	MaxRounds          int                           `json:"maxRounds"`
-	MaxSubmittedRuns   int                           `json:"maxSubmittedRuns"`
-	RoundMode          AuditExecutionPolicyRoundMode `json:"roundMode"`
+	BatchSize          int                                 `json:"batchSize"`
+	DeadlineSeconds    int                                 `json:"deadlineSeconds"`
+	IncompleteRound    AuditExecutionPolicyIncompleteRound `json:"incompleteRound"`
+	MaxEvidenceBytes   int                                 `json:"maxEvidenceBytes"`
+	MaxItemRunAttempts int                                 `json:"maxItemRunAttempts"`
+	MaxItemsPerRound   int                                 `json:"maxItemsPerRound"`
+	MaxItemsTotal      int                                 `json:"maxItemsTotal"`
+	MaxRounds          int                                 `json:"maxRounds"`
+	MaxSubmittedRuns   int                                 `json:"maxSubmittedRuns"`
+	RoundMode          AuditExecutionPolicyRoundMode       `json:"roundMode"`
 }
+
+// AuditExecutionPolicyIncompleteRound defines model for AuditExecutionPolicy.IncompleteRound.
+type AuditExecutionPolicyIncompleteRound string
 
 // AuditExecutionPolicyRoundMode defines model for AuditExecutionPolicy.RoundMode.
 type AuditExecutionPolicyRoundMode string
 
 // AuditExecutionRole defines model for AuditExecutionRole.
-type AuditExecutionRole = interface{}
+type AuditExecutionRole string
 
 // AuditFinalDisposition defines model for AuditFinalDisposition.
-type AuditFinalDisposition = interface{}
+type AuditFinalDisposition string
 
 // AuditFinding defines model for AuditFinding.
 type AuditFinding struct {
@@ -3744,25 +6981,31 @@ type AuditFinding struct {
 	// Fingerprint Immutable deterministic key evidence; independent of analyst triage. Snapshot keys apply only to the exact Git commit and source digest.
 	Fingerprint     *FindingFingerprintProjection `json:"fingerprint,omitempty"`
 	FirstProposal   FindingProposalReceipt        `json:"firstProposal"`
-	RejectionReason interface{}                   `json:"rejectionReason,omitempty"`
+	RejectionReason *AuditFindingRejectionReason  `json:"rejectionReason,omitempty"`
 	Revision        int                           `json:"revision"`
 	State           AuditFindingState             `json:"state"`
 	UpdatedAt       time.Time                     `json:"updatedAt"`
 }
 
+// AuditFindingRejectionReason defines model for AuditFinding.RejectionReason.
+type AuditFindingRejectionReason string
+
 // AuditFindingAssessment defines model for AuditFindingAssessment.
 type AuditFindingAssessment struct {
-	AcceptedAt          time.Time           `json:"acceptedAt"`
-	AssessmentId        ResourceId          `json:"assessmentId"`
-	CollectionReceiptId *ResourceId         `json:"collectionReceiptId,omitempty"`
-	Contract            *AuditExactArtifact `json:"contract,omitempty"`
-	DirectVerification  bool                `json:"directVerification"`
-	ExecutionItemId     *ResourceId         `json:"executionItemId,omitempty"`
-	ItemId              *ResourceId         `json:"itemId,omitempty"`
-	ReceiptId           ResourceId          `json:"receiptId"`
-	Result              AuditExactArtifact  `json:"result"`
-	SemanticAssessment  interface{}         `json:"semanticAssessment"`
+	AcceptedAt          time.Time                                `json:"acceptedAt"`
+	AssessmentId        ResourceId                               `json:"assessmentId"`
+	CollectionReceiptId *ResourceId                              `json:"collectionReceiptId,omitempty"`
+	Contract            *AuditExactArtifact                      `json:"contract,omitempty"`
+	DirectVerification  bool                                     `json:"directVerification"`
+	ExecutionItemId     *ResourceId                              `json:"executionItemId,omitempty"`
+	ItemId              *ResourceId                              `json:"itemId,omitempty"`
+	ReceiptId           ResourceId                               `json:"receiptId"`
+	Result              AuditExactArtifact                       `json:"result"`
+	SemanticAssessment  AuditFindingAssessmentSemanticAssessment `json:"semanticAssessment"`
 }
+
+// AuditFindingAssessmentSemanticAssessment defines model for AuditFindingAssessment.SemanticAssessment.
+type AuditFindingAssessmentSemanticAssessment string
 
 // AuditFindingAttempt defines model for AuditFindingAttempt.
 type AuditFindingAttempt struct {
@@ -3806,17 +7049,23 @@ type AuditFindingPage struct {
 
 // AuditFindingProvenance defines model for AuditFindingProvenance.
 type AuditFindingProvenance struct {
-	Assessment                *AuditFindingAssessment `json:"assessment,omitempty"`
-	Attempt                   *AuditFindingAttempt    `json:"attempt,omitempty"`
-	CreatedAt                 time.Time               `json:"createdAt"`
-	Kind                      interface{}             `json:"kind"`
-	Origin                    FindingOrigin           `json:"origin"`
-	Proposal                  AuditExactArtifact      `json:"proposal"`
-	ReceiptId                 ResourceId              `json:"receiptId"`
-	RecordId                  ResourceId              `json:"recordId"`
-	Relation                  interface{}             `json:"relation,omitempty"`
-	SupportsCurrentAssessment bool                    `json:"supportsCurrentAssessment"`
+	Assessment                *AuditFindingAssessment         `json:"assessment,omitempty"`
+	Attempt                   *AuditFindingAttempt            `json:"attempt,omitempty"`
+	CreatedAt                 time.Time                       `json:"createdAt"`
+	Kind                      AuditFindingProvenanceKind      `json:"kind"`
+	Origin                    FindingOrigin                   `json:"origin"`
+	Proposal                  AuditExactArtifact              `json:"proposal"`
+	ReceiptId                 ResourceId                      `json:"receiptId"`
+	RecordId                  ResourceId                      `json:"recordId"`
+	Relation                  *AuditFindingProvenanceRelation `json:"relation,omitempty"`
+	SupportsCurrentAssessment bool                            `json:"supportsCurrentAssessment"`
 }
+
+// AuditFindingProvenanceKind defines model for AuditFindingProvenance.Kind.
+type AuditFindingProvenanceKind string
+
+// AuditFindingProvenanceRelation defines model for AuditFindingProvenance.Relation.
+type AuditFindingProvenanceRelation string
 
 // AuditFindingProvenancePage defines model for AuditFindingProvenancePage.
 type AuditFindingProvenancePage struct {
@@ -3827,10 +7076,10 @@ type AuditFindingProvenancePage struct {
 }
 
 // AuditFindingSeverity defines model for AuditFindingSeverity.
-type AuditFindingSeverity = interface{}
+type AuditFindingSeverity string
 
 // AuditFindingState defines model for AuditFindingState.
-type AuditFindingState = interface{}
+type AuditFindingState string
 
 // AuditGeneratedInventory defines model for AuditGeneratedInventory.
 type AuditGeneratedInventory struct {
@@ -3847,26 +7096,38 @@ type AuditGeneratedInventory struct {
 }
 
 // AuditHoldState defines model for AuditHoldState.
-type AuditHoldState = interface{}
+type AuditHoldState string
 
 // AuditInteractionPolicy defines model for AuditInteractionPolicy.
 type AuditInteractionPolicy struct {
 	// ActiveChecks Project approval policy for active-enabled Audit profiles, pinned at Audit start. A profile prohibition always remains prohibited.
-	ActiveChecks        ActiveChecksPolicy `json:"activeChecks"`
-	FindingConfirmation interface{}        `json:"findingConfirmation"`
-	NotApplicable       interface{}        `json:"notApplicable"`
-	ReportAcceptance    interface{}        `json:"reportAcceptance"`
+	ActiveChecks        ActiveChecksPolicy                        `json:"activeChecks"`
+	FindingConfirmation AuditInteractionPolicyFindingConfirmation `json:"findingConfirmation"`
+	NotApplicable       AuditInteractionPolicyNotApplicable       `json:"notApplicable"`
+	ReportAcceptance    AuditInteractionPolicyReportAcceptance    `json:"reportAcceptance"`
 }
+
+// AuditInteractionPolicyFindingConfirmation defines model for AuditInteractionPolicy.FindingConfirmation.
+type AuditInteractionPolicyFindingConfirmation string
+
+// AuditInteractionPolicyNotApplicable defines model for AuditInteractionPolicy.NotApplicable.
+type AuditInteractionPolicyNotApplicable string
+
+// AuditInteractionPolicyReportAcceptance defines model for AuditInteractionPolicy.ReportAcceptance.
+type AuditInteractionPolicyReportAcceptance string
 
 // AuditInventory defines model for AuditInventory.
 type AuditInventory struct {
-	Implementation    interface{}             `json:"implementation"`
-	ItemWorkflowRole  ArtifactName            `json:"itemWorkflowRole"`
-	Settings          *AuditInventoryArtifact `json:"settings,omitempty"`
-	Source            *AuditInventoryArtifact `json:"source,omitempty"`
-	StandardSelection *AuditStandardSelection `json:"standardSelection,omitempty"`
+	Implementation    AuditInventoryImplementation `json:"implementation"`
+	ItemWorkflowRole  ArtifactName                 `json:"itemWorkflowRole"`
+	Settings          *AuditInventoryArtifact      `json:"settings,omitempty"`
+	Source            *AuditInventoryArtifact      `json:"source,omitempty"`
+	StandardSelection *AuditStandardSelection      `json:"standardSelection,omitempty"`
 	union             json.RawMessage
 }
+
+// AuditInventoryImplementation defines model for AuditInventory.Implementation.
+type AuditInventoryImplementation string
 
 // AuditInventory0 defines model for AuditInventory.0.
 type AuditInventory0 struct {
@@ -3875,21 +7136,30 @@ type AuditInventory0 struct {
 
 // AuditInventory1 defines model for AuditInventory.1.
 type AuditInventory1 struct {
-	Implementation interface{} `json:"implementation,omitempty"`
+	Implementation *AuditInventory1Implementation `json:"implementation,omitempty"`
 }
+
+// AuditInventory1Implementation defines model for AuditInventory.1.Implementation.
+type AuditInventory1Implementation string
 
 // AuditInventory2 defines model for AuditInventory.2.
 type AuditInventory2 struct {
-	Implementation interface{} `json:"implementation,omitempty"`
+	Implementation *AuditInventory2Implementation `json:"implementation,omitempty"`
 }
+
+// AuditInventory2Implementation defines model for AuditInventory.2.Implementation.
+type AuditInventory2Implementation string
 
 // AuditInventoryArtifact defines model for AuditInventoryArtifact.
 type AuditInventoryArtifact struct {
-	Name   ArtifactName  `json:"name"`
-	Role   *ArtifactName `json:"role,omitempty"`
-	Source interface{}   `json:"source"`
+	Name   ArtifactName                 `json:"name"`
+	Role   *ArtifactName                `json:"role,omitempty"`
+	Source AuditInventoryArtifactSource `json:"source"`
 	union  json.RawMessage
 }
+
+// AuditInventoryArtifactSource defines model for AuditInventoryArtifact.Source.
+type AuditInventoryArtifactSource string
 
 // AuditInventoryArtifact0 defines model for AuditInventoryArtifact.0.
 type AuditInventoryArtifact0 struct {
@@ -3924,7 +7194,7 @@ type AuditItem struct {
 }
 
 // AuditItemApprovalKind defines model for AuditItemApprovalKind.
-type AuditItemApprovalKind = interface{}
+type AuditItemApprovalKind string
 
 // AuditItemAttempt defines model for AuditItemAttempt.
 type AuditItemAttempt struct {
@@ -3966,7 +7236,7 @@ type AuditItemPage struct {
 }
 
 // AuditItemState defines model for AuditItemState.
-type AuditItemState = interface{}
+type AuditItemState string
 
 // AuditLabels Ordinary labels pinned at Audit start and inherited by every child Run. cloud or local with an empty value selects the whole namespace; cloud=aws selects cloud/aws. Four entries are reserved for child-specific audit.* provenance.
 type AuditLabels map[string]string
@@ -3989,7 +7259,7 @@ type AuditPage struct {
 }
 
 // AuditPhase defines model for AuditPhase.
-type AuditPhase = interface{}
+type AuditPhase string
 
 // AuditPinnedRuntimeLabel defines model for AuditPinnedRuntimeLabel.
 type AuditPinnedRuntimeLabel struct {
@@ -4045,9 +7315,12 @@ type AuditPreparationRole struct {
 	MaxAttempts int                               `json:"maxAttempts"`
 	Outputs     map[string]AuditPreparationOutput `json:"outputs"`
 	RunId       *ResourceId                       `json:"runId,omitempty"`
-	Status      interface{}                       `json:"status"`
+	Status      AuditPreparationRoleStatus        `json:"status"`
 	union       json.RawMessage
 }
+
+// AuditPreparationRoleStatus defines model for AuditPreparationRole.Status.
+type AuditPreparationRoleStatus string
 
 // AuditPreparationRole0 defines model for AuditPreparationRole.0.
 type AuditPreparationRole0 struct {
@@ -4058,10 +7331,13 @@ type AuditPreparationRole0 struct {
 
 // AuditPreparationRole1 defines model for AuditPreparationRole.1.
 type AuditPreparationRole1 struct {
-	Attempts interface{} `json:"attempts,omitempty"`
-	Outputs  interface{} `json:"outputs,omitempty"`
-	Status   interface{} `json:"status,omitempty"`
+	Attempts interface{}                  `json:"attempts,omitempty"`
+	Outputs  interface{}                  `json:"outputs,omitempty"`
+	Status   *AuditPreparationRole1Status `json:"status,omitempty"`
 }
+
+// AuditPreparationRole1Status defines model for AuditPreparationRole.1.Status.
+type AuditPreparationRole1Status string
 
 // AuditPreparationRole2 defines model for AuditPreparationRole.2.
 type AuditPreparationRole2 struct {
@@ -4100,7 +7376,7 @@ type AuditProfileInput struct {
 }
 
 // AuditProfileMode defines model for AuditProfileMode.
-type AuditProfileMode = interface{}
+type AuditProfileMode string
 
 // AuditProfilePage defines model for AuditProfilePage.
 type AuditProfilePage struct {
@@ -4133,13 +7409,16 @@ type AuditProfileUnsupportedDetailsKind string
 // AuditProfileWorkflow defines model for AuditProfileWorkflow.
 type AuditProfileWorkflow struct {
 	Inputs         map[string]AuditWorkflowInputMapping     `json:"inputs"`
-	Kind           interface{}                              `json:"kind"`
+	Kind           AuditProfileWorkflowKind                 `json:"kind"`
 	MaxRunAttempts *int                                     `json:"maxRunAttempts,omitempty"`
 	Outputs        map[string]ArtifactName                  `json:"outputs"`
 	Parameters     map[string]AuditWorkflowParameterMapping `json:"parameters"`
 	Workflow       WorkflowRef                              `json:"workflow"`
 	union          json.RawMessage
 }
+
+// AuditProfileWorkflowKind defines model for AuditProfileWorkflow.Kind.
+type AuditProfileWorkflowKind string
 
 // AuditProfileWorkflow0 defines model for AuditProfileWorkflow.0.
 type AuditProfileWorkflow0 struct {
@@ -4148,8 +7427,11 @@ type AuditProfileWorkflow0 struct {
 
 // AuditProfileWorkflow1 defines model for AuditProfileWorkflow.1.
 type AuditProfileWorkflow1 struct {
-	Kind interface{} `json:"kind,omitempty"`
+	Kind *AuditProfileWorkflow1Kind `json:"kind,omitempty"`
 }
+
+// AuditProfileWorkflow1Kind defines model for AuditProfileWorkflow.1.Kind.
+type AuditProfileWorkflow1Kind string
 
 // AuditReport defines model for AuditReport.
 type AuditReport struct {
@@ -4165,7 +7447,7 @@ type AuditReport struct {
 }
 
 // AuditReportStatus defines model for AuditReportStatus.
-type AuditReportStatus = interface{}
+type AuditReportStatus string
 
 // AuditReportSummaryArtifact Exact retained Markdown summary; historical text/plain summaries are unsupported.
 type AuditReportSummaryArtifact struct {
@@ -4179,7 +7461,7 @@ type AuditReportSummaryArtifact struct {
 type AuditReportSummaryArtifactMediaType string
 
 // AuditReviewAction defines model for AuditReviewAction.
-type AuditReviewAction = interface{}
+type AuditReviewAction string
 
 // AuditReviewDecision defines model for AuditReviewDecision.
 type AuditReviewDecision struct {
@@ -4221,7 +7503,7 @@ type AuditReviewRequest struct {
 	Decision         *AuditReviewDecision         `json:"decision,omitempty"`
 	ExpiresAt        *time.Time                   `json:"expiresAt,omitempty"`
 	FindingId        *ResourceId                  `json:"findingId,omitempty"`
-	Kind             interface{}                  `json:"kind"`
+	Kind             AuditReviewRequestKind       `json:"kind"`
 	RequestId        ResourceId                   `json:"requestId"`
 	RequestedActions []AuditReviewRequestedAction `json:"requestedActions"`
 	Revision         int                          `json:"revision"`
@@ -4233,14 +7515,17 @@ type AuditReviewRequest struct {
 	UpdatedAt        time.Time                    `json:"updatedAt"`
 }
 
+// AuditReviewRequestKind defines model for AuditReviewRequest.Kind.
+type AuditReviewRequestKind string
+
 // AuditReviewRequestedAction defines model for AuditReviewRequestedAction.
-type AuditReviewRequestedAction = interface{}
+type AuditReviewRequestedAction string
 
 // AuditReviewState defines model for AuditReviewState.
-type AuditReviewState = interface{}
+type AuditReviewState string
 
 // AuditReviewSubjectKind defines model for AuditReviewSubjectKind.
-type AuditReviewSubjectKind = interface{}
+type AuditReviewSubjectKind string
 
 // AuditRound defines model for AuditRound.
 type AuditRound struct {
@@ -4255,7 +7540,7 @@ type AuditRound struct {
 }
 
 // AuditRoundState defines model for AuditRoundState.
-type AuditRoundState = interface{}
+type AuditRoundState string
 
 // AuditRunProvenance defines model for AuditRunProvenance.
 type AuditRunProvenance struct {
@@ -4275,17 +7560,20 @@ type AuditRuntimeSnapshot struct {
 
 // AuditScanProvenance defines model for AuditScanProvenance.
 type AuditScanProvenance struct {
-	Gaps              []string           `json:"gaps"`
-	Operation         string             `json:"operation"`
-	PreparationDigest Digest             `json:"preparationDigest"`
-	RequestDigest     *Digest            `json:"requestDigest,omitempty"`
-	Runnable          bool               `json:"runnable"`
-	Scanner           interface{}        `json:"scanner"`
-	Settings          AuditExactArtifact `json:"settings"`
-	Source            AuditExactArtifact `json:"source"`
-	TargetUrl         *string            `json:"targetUrl,omitempty"`
-	TestParameters    []string           `json:"testParameters"`
+	Gaps              []string                   `json:"gaps"`
+	Operation         string                     `json:"operation"`
+	PreparationDigest Digest                     `json:"preparationDigest"`
+	RequestDigest     *Digest                    `json:"requestDigest,omitempty"`
+	Runnable          bool                       `json:"runnable"`
+	Scanner           AuditScanProvenanceScanner `json:"scanner"`
+	Settings          AuditExactArtifact         `json:"settings"`
+	Source            AuditExactArtifact         `json:"source"`
+	TargetUrl         *string                    `json:"targetUrl,omitempty"`
+	TestParameters    []string                   `json:"testParameters"`
 }
+
+// AuditScanProvenanceScanner defines model for AuditScanProvenance.Scanner.
+type AuditScanProvenanceScanner string
 
 // AuditScope defines model for AuditScope.
 type AuditScope struct {
@@ -4304,33 +7592,51 @@ type AuditSkill struct {
 
 // AuditStandardApplicability defines model for AuditStandardApplicability.
 type AuditStandardApplicability struct {
-	Mode interface{} `json:"mode"`
-	Rule *string     `json:"rule,omitempty"`
+	Mode AuditStandardApplicabilityMode `json:"mode"`
+	Rule *string                        `json:"rule,omitempty"`
 }
+
+// AuditStandardApplicabilityMode defines model for AuditStandardApplicability.Mode.
+type AuditStandardApplicabilityMode string
 
 // AuditStandardEntry defines model for AuditStandardEntry.
 type AuditStandardEntry struct {
-	AllowedMethods   *[]interface{}                    `json:"allowedMethods,omitempty"`
-	Applicability    *AuditStandardApplicability       `json:"applicability,omitempty"`
-	EvidenceContract *AuditStandardEvidenceContractRef `json:"evidenceContract,omitempty"`
-	Id               string                            `json:"id"`
-	Kind             interface{}                       `json:"kind"`
-	Level            *string                           `json:"level,omitempty"`
-	Statement        *string                           `json:"statement,omitempty"`
-	Title            *string                           `json:"title,omitempty"`
+	AllowedMethods   *[]AuditStandardEntryAllowedMethods `json:"allowedMethods,omitempty"`
+	Applicability    *AuditStandardApplicability         `json:"applicability,omitempty"`
+	EvidenceContract *AuditStandardEvidenceContractRef   `json:"evidenceContract,omitempty"`
+	Id               string                              `json:"id"`
+	Kind             AuditStandardEntryKind              `json:"kind"`
+	Level            *string                             `json:"level,omitempty"`
+	Statement        *string                             `json:"statement,omitempty"`
+	Title            *string                             `json:"title,omitempty"`
 }
+
+// AuditStandardEntryAllowedMethods defines model for AuditStandardEntry.AllowedMethods.
+type AuditStandardEntryAllowedMethods string
+
+// AuditStandardEntryKind defines model for AuditStandardEntry.Kind.
+type AuditStandardEntryKind string
 
 // AuditStandardEvidenceContract defines model for AuditStandardEvidenceContract.
 type AuditStandardEvidenceContract struct {
-	Assessments       []interface{} `json:"assessments"`
-	EvidenceKinds     []interface{} `json:"evidenceKinds"`
-	HumanReview       interface{}   `json:"humanReview"`
-	Id                string        `json:"id"`
-	MaximumEvidence   int           `json:"maximumEvidence"`
-	MinimumEvidence   int           `json:"minimumEvidence"`
-	RationaleRequired bool          `json:"rationaleRequired"`
-	Version           string        `json:"version"`
+	Assessments       []AuditStandardEvidenceContractAssessments   `json:"assessments"`
+	EvidenceKinds     []AuditStandardEvidenceContractEvidenceKinds `json:"evidenceKinds"`
+	HumanReview       AuditStandardEvidenceContractHumanReview     `json:"humanReview"`
+	Id                string                                       `json:"id"`
+	MaximumEvidence   int                                          `json:"maximumEvidence"`
+	MinimumEvidence   int                                          `json:"minimumEvidence"`
+	RationaleRequired bool                                         `json:"rationaleRequired"`
+	Version           string                                       `json:"version"`
 }
+
+// AuditStandardEvidenceContractAssessments defines model for AuditStandardEvidenceContract.Assessments.
+type AuditStandardEvidenceContractAssessments string
+
+// AuditStandardEvidenceContractEvidenceKinds defines model for AuditStandardEvidenceContract.EvidenceKinds.
+type AuditStandardEvidenceContractEvidenceKinds string
+
+// AuditStandardEvidenceContractHumanReview defines model for AuditStandardEvidenceContract.HumanReview.
+type AuditStandardEvidenceContractHumanReview string
 
 // AuditStandardEvidenceContractRef defines model for AuditStandardEvidenceContractRef.
 type AuditStandardEvidenceContractRef struct {
@@ -4366,22 +7672,31 @@ type AuditStandardItemOrigin struct {
 
 // AuditStandardLicense defines model for AuditStandardLicense.
 type AuditStandardLicense struct {
-	Attribution string      `json:"attribution"`
-	Disclosure  interface{} `json:"disclosure"`
-	Id          interface{} `json:"id"`
-	Url         string      `json:"url"`
+	Attribution string                         `json:"attribution"`
+	Disclosure  AuditStandardLicenseDisclosure `json:"disclosure"`
+	Id          AuditStandardLicenseId         `json:"id"`
+	Url         string                         `json:"url"`
 }
+
+// AuditStandardLicenseDisclosure defines model for AuditStandardLicense.Disclosure.
+type AuditStandardLicenseDisclosure string
+
+// AuditStandardLicenseId defines model for AuditStandardLicense.Id.
+type AuditStandardLicenseId string
 
 // AuditStandardMapping defines model for AuditStandardMapping.
 type AuditStandardMapping struct {
 	EntryIds         []string                         `json:"entryIds"`
 	EvidenceContract AuditStandardEvidenceContractRef `json:"evidenceContract"`
 	Key              string                           `json:"key"`
-	Method           interface{}                      `json:"method"`
+	Method           AuditStandardMappingMethod       `json:"method"`
 	Objective        string                           `json:"objective"`
 	Title            string                           `json:"title"`
 	WorkflowRole     string                           `json:"workflowRole"`
 }
+
+// AuditStandardMappingMethod defines model for AuditStandardMapping.Method.
+type AuditStandardMappingMethod string
 
 // AuditStandardPackage defines model for AuditStandardPackage.
 type AuditStandardPackage struct {
@@ -4450,13 +7765,16 @@ type AuditStartResponse0 struct {
 // AuditStartResponse1 defines model for AuditStartResponse.1.
 type AuditStartResponse1 struct {
 	Audit *struct {
-		Phase interface{} `json:"phase,omitempty"`
+		Phase *AuditStartResponse1AuditPhase `json:"phase,omitempty"`
 	} `json:"audit,omitempty"`
 	Items interface{} `json:"items,omitempty"`
 }
 
+// AuditStartResponse1AuditPhase defines model for AuditStartResponse.1.Audit.Phase.
+type AuditStartResponse1AuditPhase string
+
 // AuditState defines model for AuditState.
-type AuditState = interface{}
+type AuditState string
 
 // AuditStopReason defines model for AuditStopReason.
 type AuditStopReason struct {
@@ -4465,7 +7783,7 @@ type AuditStopReason struct {
 }
 
 // AuditTerminalOutcome defines model for AuditTerminalOutcome.
-type AuditTerminalOutcome = interface{}
+type AuditTerminalOutcome string
 
 // AuditTimeLimitRequest defines model for AuditTimeLimitRequest.
 type AuditTimeLimitRequest struct {
@@ -4475,33 +7793,48 @@ type AuditTimeLimitRequest struct {
 
 // AuditWorkflowInputMapping defines model for AuditWorkflowInputMapping.
 type AuditWorkflowInputMapping struct {
-	Name   *ArtifactName `json:"name,omitempty"`
-	Role   *ArtifactName `json:"role,omitempty"`
-	Source interface{}   `json:"source"`
+	Name   *ArtifactName                   `json:"name,omitempty"`
+	Role   *ArtifactName                   `json:"role,omitempty"`
+	Source AuditWorkflowInputMappingSource `json:"source"`
 	union  json.RawMessage
 }
 
+// AuditWorkflowInputMappingSource defines model for AuditWorkflowInputMapping.Source.
+type AuditWorkflowInputMappingSource string
+
 // AuditWorkflowInputMapping0 defines model for AuditWorkflowInputMapping.0.
 type AuditWorkflowInputMapping0 struct {
-	Source interface{} `json:"source,omitempty"`
+	Source *AuditWorkflowInputMapping0Source `json:"source,omitempty"`
 }
+
+// AuditWorkflowInputMapping0Source defines model for AuditWorkflowInputMapping.0.Source.
+type AuditWorkflowInputMapping0Source string
 
 // AuditWorkflowInputMapping1 defines model for AuditWorkflowInputMapping.1.
 type AuditWorkflowInputMapping1 struct {
-	Source interface{} `json:"source,omitempty"`
+	Source *AuditWorkflowInputMapping1Source `json:"source,omitempty"`
 }
+
+// AuditWorkflowInputMapping1Source defines model for AuditWorkflowInputMapping.1.Source.
+type AuditWorkflowInputMapping1Source string
 
 // AuditWorkflowInputMapping2 defines model for AuditWorkflowInputMapping.2.
 type AuditWorkflowInputMapping2 struct {
-	Source interface{} `json:"source,omitempty"`
+	Source *AuditWorkflowInputMapping2Source `json:"source,omitempty"`
 }
+
+// AuditWorkflowInputMapping2Source defines model for AuditWorkflowInputMapping.2.Source.
+type AuditWorkflowInputMapping2Source string
 
 // AuditWorkflowParameterMapping defines model for AuditWorkflowParameterMapping.
 type AuditWorkflowParameterMapping struct {
-	Name   *ArtifactName `json:"name,omitempty"`
-	Source interface{}   `json:"source"`
-	Value  *string       `json:"value,omitempty"`
+	Name   *ArtifactName                       `json:"name,omitempty"`
+	Source AuditWorkflowParameterMappingSource `json:"source"`
+	Value  *string                             `json:"value,omitempty"`
 }
+
+// AuditWorkflowParameterMappingSource defines model for AuditWorkflowParameterMapping.Source.
+type AuditWorkflowParameterMappingSource string
 
 // AuditWorkflowProvenance defines model for AuditWorkflowProvenance.
 type AuditWorkflowProvenance struct {
@@ -4532,10 +7865,13 @@ type AuditWorkspace struct {
 
 // AuthPrincipal defines model for AuthPrincipal.
 type AuthPrincipal struct {
-	Capabilities []interface{} `json:"capabilities"`
-	UserId       ConfigId      `json:"userId"`
-	Username     string        `json:"username"`
+	Capabilities []AuthPrincipalCapabilities `json:"capabilities"`
+	UserId       ConfigId                    `json:"userId"`
+	Username     string                      `json:"username"`
 }
+
+// AuthPrincipalCapabilities defines model for AuthPrincipal.Capabilities.
+type AuthPrincipalCapabilities string
 
 // AuthSession defines model for AuthSession.
 type AuthSession struct {
@@ -4610,15 +7946,18 @@ type ConfigurationRef struct {
 
 // ConfigurationResource defines model for ConfigurationResource.
 type ConfigurationResource struct {
-	Body   ConfigurationResource_Body `json:"body"`
-	Ref    ConfigurationRef           `json:"ref"`
-	Source interface{}                `json:"source"`
+	Body   ConfigurationResource_Body  `json:"body"`
+	Ref    ConfigurationRef            `json:"ref"`
+	Source ConfigurationResourceSource `json:"source"`
 }
 
 // ConfigurationResource_Body defines model for ConfigurationResource.Body.
 type ConfigurationResource_Body struct {
 	union json.RawMessage
 }
+
+// ConfigurationResourceSource defines model for ConfigurationResource.Source.
+type ConfigurationResourceSource string
 
 // ConsumerExecutionConfig defines model for ConsumerExecutionConfig.
 type ConsumerExecutionConfig struct {
@@ -5378,12 +8717,15 @@ type EvalDraftUpdate struct {
 
 // EvalErrorDetails defines model for EvalErrorDetails.
 type EvalErrorDetails struct {
-	Kind     EvalErrorDetailsKind `json:"kind"`
-	Recovery interface{}          `json:"recovery"`
+	Kind     EvalErrorDetailsKind     `json:"kind"`
+	Recovery EvalErrorDetailsRecovery `json:"recovery"`
 }
 
 // EvalErrorDetailsKind defines model for EvalErrorDetails.Kind.
 type EvalErrorDetailsKind string
+
+// EvalErrorDetailsRecovery defines model for EvalErrorDetails.Recovery.
+type EvalErrorDetailsRecovery string
 
 // EvalEvidence defines model for EvalEvidence.
 type EvalEvidence struct {
@@ -6064,10 +9406,13 @@ type FindingAnchorProjection struct {
 
 // FindingAnchorProjection0 defines model for FindingAnchorProjection.0.
 type FindingAnchorProjection0 struct {
-	Availability interface{} `json:"availability"`
-	Reason       interface{} `json:"reason"`
-	Schema       interface{} `json:"schema"`
+	Availability interface{}                    `json:"availability"`
+	Reason       FindingAnchorProjection0Reason `json:"reason"`
+	Schema       interface{}                    `json:"schema"`
 }
+
+// FindingAnchorProjection0Reason defines model for FindingAnchorProjection.0.Reason.
+type FindingAnchorProjection0Reason string
 
 // FindingAnchorProjection1 defines model for FindingAnchorProjection.1.
 type FindingAnchorProjection1 struct {
@@ -6107,25 +9452,34 @@ type FindingCandidate struct {
 
 // FindingCandidateReason defines model for FindingCandidateReason.
 type FindingCandidateReason struct {
-	Key             string      `json:"key"`
-	Kind            interface{} `json:"kind"`
-	Limitations     []string    `json:"limitations"`
-	SourceReceiptId ResourceId  `json:"sourceReceiptId"`
-	SourceSelector  *int        `json:"sourceSelector,omitempty"`
-	TargetReceiptId ResourceId  `json:"targetReceiptId"`
-	TargetSelector  *int        `json:"targetSelector,omitempty"`
+	Key             string                     `json:"key"`
+	Kind            FindingCandidateReasonKind `json:"kind"`
+	Limitations     []string                   `json:"limitations"`
+	SourceReceiptId ResourceId                 `json:"sourceReceiptId"`
+	SourceSelector  *int                       `json:"sourceSelector,omitempty"`
+	TargetReceiptId ResourceId                 `json:"targetReceiptId"`
+	TargetSelector  *int                       `json:"targetSelector,omitempty"`
 }
+
+// FindingCandidateReasonKind defines model for FindingCandidateReason.Kind.
+type FindingCandidateReasonKind string
 
 // FindingCandidateSource defines model for FindingCandidateSource.
 type FindingCandidateSource struct {
-	AuditId           ResourceId  `json:"auditId"`
-	FamiliesAvailable bool        `json:"familiesAvailable"`
-	FindingId         ResourceId  `json:"findingId"`
-	FirstReceiptId    ResourceId  `json:"firstReceiptId"`
-	HintsAvailability interface{} `json:"hintsAvailability"`
-	HintsReason       interface{} `json:"hintsReason,omitempty"`
-	ReceiptId         ResourceId  `json:"receiptId"`
+	AuditId           ResourceId                              `json:"auditId"`
+	FamiliesAvailable bool                                    `json:"familiesAvailable"`
+	FindingId         ResourceId                              `json:"findingId"`
+	FirstReceiptId    ResourceId                              `json:"firstReceiptId"`
+	HintsAvailability FindingCandidateSourceHintsAvailability `json:"hintsAvailability"`
+	HintsReason       *FindingCandidateSourceHintsReason      `json:"hintsReason,omitempty"`
+	ReceiptId         ResourceId                              `json:"receiptId"`
 }
+
+// FindingCandidateSourceHintsAvailability defines model for FindingCandidateSource.HintsAvailability.
+type FindingCandidateSourceHintsAvailability string
+
+// FindingCandidateSourceHintsReason defines model for FindingCandidateSource.HintsReason.
+type FindingCandidateSourceHintsReason string
 
 // FindingCandidatesPage defines model for FindingCandidatesPage.
 type FindingCandidatesPage struct {
@@ -6197,22 +9551,28 @@ type FindingComparisonPage struct {
 
 // FindingComparisonPreview defines model for FindingComparisonPreview.
 type FindingComparisonPreview struct {
-	AnalystSeverity    *AuditFindingSeverity   `json:"analystSeverity,omitempty"`
-	AnalystVerdict     *AuditAnalystVerdict    `json:"analystVerdict,omitempty"`
-	AssessmentId       *ResourceId             `json:"assessmentId,omitempty"`
-	AuditId            ResourceId              `json:"auditId"`
-	CorrelationRole    interface{}             `json:"correlationRole,omitempty"`
-	DecisionId         *ResourceId             `json:"decisionId,omitempty"`
-	FindingId          ResourceId              `json:"findingId"`
-	Origin             FindingComparisonOrigin `json:"origin"`
-	Preview            interface{}             `json:"preview"`
-	Revision           int                     `json:"revision"`
-	SemanticAssessment *string                 `json:"semanticAssessment,omitempty"`
-	SeveritySuggestion interface{}             `json:"severitySuggestion"`
-	State              AuditFindingState       `json:"state"`
-	Title              string                  `json:"title"`
-	TitleTruncated     bool                    `json:"titleTruncated"`
+	AnalystSeverity    *AuditFindingSeverity                      `json:"analystSeverity,omitempty"`
+	AnalystVerdict     *AuditAnalystVerdict                       `json:"analystVerdict,omitempty"`
+	AssessmentId       *ResourceId                                `json:"assessmentId,omitempty"`
+	AuditId            ResourceId                                 `json:"auditId"`
+	CorrelationRole    *FindingComparisonPreviewCorrelationRole   `json:"correlationRole,omitempty"`
+	DecisionId         *ResourceId                                `json:"decisionId,omitempty"`
+	FindingId          ResourceId                                 `json:"findingId"`
+	Origin             FindingComparisonOrigin                    `json:"origin"`
+	Preview            interface{}                                `json:"preview"`
+	Revision           int                                        `json:"revision"`
+	SemanticAssessment *string                                    `json:"semanticAssessment,omitempty"`
+	SeveritySuggestion FindingComparisonPreviewSeveritySuggestion `json:"severitySuggestion"`
+	State              AuditFindingState                          `json:"state"`
+	Title              string                                     `json:"title"`
+	TitleTruncated     bool                                       `json:"titleTruncated"`
 }
+
+// FindingComparisonPreviewCorrelationRole defines model for FindingComparisonPreview.CorrelationRole.
+type FindingComparisonPreviewCorrelationRole string
+
+// FindingComparisonPreviewSeveritySuggestion defines model for FindingComparisonPreview.SeveritySuggestion.
+type FindingComparisonPreviewSeveritySuggestion string
 
 // FindingComparisonProfile defines model for FindingComparisonProfile.
 type FindingComparisonProfile struct {
@@ -6223,16 +9583,22 @@ type FindingComparisonProfile struct {
 
 // FindingComparisonRow defines model for FindingComparisonRow.
 type FindingComparisonRow struct {
-	Basis                *FindingCorrelationBasis    `json:"basis,omitempty"`
-	GroupKey             *string                     `json:"groupKey,omitempty"`
-	Kind                 interface{}                 `json:"kind"`
-	Left                 *FindingComparisonPreview   `json:"left,omitempty"`
-	PreviewsShareReceipt bool                        `json:"previewsShareReceipt"`
-	Representative       FindingCorrelationReference `json:"representative"`
-	Right                *FindingComparisonPreview   `json:"right,omitempty"`
-	RowKey               string                      `json:"rowKey"`
-	UnavailableReason    interface{}                 `json:"unavailableReason,omitempty"`
+	Basis                *FindingCorrelationBasis               `json:"basis,omitempty"`
+	GroupKey             *string                                `json:"groupKey,omitempty"`
+	Kind                 FindingComparisonRowKind               `json:"kind"`
+	Left                 *FindingComparisonPreview              `json:"left,omitempty"`
+	PreviewsShareReceipt bool                                   `json:"previewsShareReceipt"`
+	Representative       FindingCorrelationReference            `json:"representative"`
+	Right                *FindingComparisonPreview              `json:"right,omitempty"`
+	RowKey               string                                 `json:"rowKey"`
+	UnavailableReason    *FindingComparisonRowUnavailableReason `json:"unavailableReason,omitempty"`
 }
+
+// FindingComparisonRowKind defines model for FindingComparisonRow.Kind.
+type FindingComparisonRowKind string
+
+// FindingComparisonRowUnavailableReason defines model for FindingComparisonRow.UnavailableReason.
+type FindingComparisonRowUnavailableReason string
 
 // FindingCorrelation System-owned Project equality presentation at projectRevision, separate from every Audit-local verdict, severity and manual duplicate decision. The representative is the smallest retained finding ID in byte order and conveys no truth or discovery priority.
 type FindingCorrelation struct {
@@ -6241,15 +9607,18 @@ type FindingCorrelation struct {
 
 // FindingCorrelation0 defines model for FindingCorrelation.0.
 type FindingCorrelation0 struct {
-	AutomaticDuplicate   interface{}             `json:"automaticDuplicate"`
-	Availability         interface{}             `json:"availability"`
-	HasOtherObservations interface{}             `json:"hasOtherObservations"`
-	PolicyVersion        interface{}             `json:"policyVersion"`
-	ProjectRevision      int                     `json:"projectRevision"`
-	Reason               interface{}             `json:"reason"`
-	Schema               interface{}             `json:"schema"`
-	Scope                FindingCorrelationScope `json:"scope"`
+	AutomaticDuplicate   interface{}               `json:"automaticDuplicate"`
+	Availability         interface{}               `json:"availability"`
+	HasOtherObservations interface{}               `json:"hasOtherObservations"`
+	PolicyVersion        interface{}               `json:"policyVersion"`
+	ProjectRevision      int                       `json:"projectRevision"`
+	Reason               FindingCorrelation0Reason `json:"reason"`
+	Schema               interface{}               `json:"schema"`
+	Scope                FindingCorrelationScope   `json:"scope"`
 }
+
+// FindingCorrelation0Reason defines model for FindingCorrelation.0.Reason.
+type FindingCorrelation0Reason string
 
 // FindingCorrelation1 defines model for FindingCorrelation.1.
 type FindingCorrelation1 struct {
@@ -6268,9 +9637,12 @@ type FindingCorrelation1 struct {
 
 // FindingCorrelationBasis defines model for FindingCorrelationBasis.
 type FindingCorrelationBasis struct {
-	Algorithm interface{} `json:"algorithm"`
-	Value     string      `json:"value"`
+	Algorithm FindingCorrelationBasisAlgorithm `json:"algorithm"`
+	Value     string                           `json:"value"`
 }
+
+// FindingCorrelationBasisAlgorithm defines model for FindingCorrelationBasis.Algorithm.
+type FindingCorrelationBasisAlgorithm string
 
 // FindingCorrelationFence defines model for FindingCorrelationFence.
 type FindingCorrelationFence struct {
@@ -6364,10 +9736,13 @@ type FindingFingerprintProjection struct {
 
 // FindingFingerprintProjection0 defines model for FindingFingerprintProjection.0.
 type FindingFingerprintProjection0 struct {
-	Availability interface{} `json:"availability"`
-	Reason       interface{} `json:"reason"`
-	Schema       interface{} `json:"schema"`
+	Availability interface{}                         `json:"availability"`
+	Reason       FindingFingerprintProjection0Reason `json:"reason"`
+	Schema       interface{}                         `json:"schema"`
 }
+
+// FindingFingerprintProjection0Reason defines model for FindingFingerprintProjection.0.Reason.
+type FindingFingerprintProjection0Reason string
 
 // FindingFingerprintProjection1 defines model for FindingFingerprintProjection.1.
 type FindingFingerprintProjection1 struct {
@@ -6470,12 +9845,12 @@ type FindingProposalDocument struct {
 	Limitations []string `json:"limitations"`
 
 	// Locations Optional; source and web coordinates are producer claims.
-	Locations          *[]FindingLocation            `json:"locations,omitempty"`
-	Preconditions      []string                      `json:"preconditions"`
-	ProposedChecks     []FindingProposedCheck        `json:"proposed_checks"`
-	Schema             FindingProposalDocumentSchema `json:"schema"`
-	SeveritySuggestion interface{}                   `json:"severity_suggestion"`
-	StandardRefs       []FindingStandardReference    `json:"standard_refs"`
+	Locations          *[]FindingLocation                        `json:"locations,omitempty"`
+	Preconditions      []string                                  `json:"preconditions"`
+	ProposedChecks     []FindingProposedCheck                    `json:"proposed_checks"`
+	Schema             FindingProposalDocumentSchema             `json:"schema"`
+	SeveritySuggestion FindingProposalDocumentSeveritySuggestion `json:"severity_suggestion"`
+	StandardRefs       []FindingStandardReference                `json:"standard_refs"`
 
 	// Subject Null means the affected subject is not identified.
 	Subject nullable.Nullable[FindingSubject] `json:"subject"`
@@ -6485,6 +9860,9 @@ type FindingProposalDocument struct {
 // FindingProposalDocumentSchema defines model for FindingProposalDocument.Schema.
 type FindingProposalDocumentSchema string
 
+// FindingProposalDocumentSeveritySuggestion defines model for FindingProposalDocument.SeveritySuggestion.
+type FindingProposalDocumentSeveritySuggestion string
+
 // FindingProposalPage defines model for FindingProposalPage.
 type FindingProposalPage struct {
 	Items []FindingProposalReceipt `json:"items"`
@@ -6493,18 +9871,21 @@ type FindingProposalPage struct {
 
 // FindingProposalReceipt defines model for FindingProposalReceipt.
 type FindingProposalReceipt struct {
-	AuditHolds    []FindingAuditHold      `json:"auditHolds"`
-	ClientKey     string                  `json:"clientKey"`
-	CreatedAt     time.Time               `json:"createdAt"`
-	Document      FindingProposalDocument `json:"document"`
-	Evidence      []FindingExactArtifact  `json:"evidence"`
-	Origin        FindingOrigin           `json:"origin"`
-	Proposal      FindingExactArtifact    `json:"proposal"`
-	ProposalId    ResourceId              `json:"proposalId"`
-	ReceiptId     ResourceId              `json:"receiptId"`
-	RequestDigest Digest                  `json:"requestDigest"`
-	Retention     interface{}             `json:"retention"`
+	AuditHolds    []FindingAuditHold              `json:"auditHolds"`
+	ClientKey     string                          `json:"clientKey"`
+	CreatedAt     time.Time                       `json:"createdAt"`
+	Document      FindingProposalDocument         `json:"document"`
+	Evidence      []FindingExactArtifact          `json:"evidence"`
+	Origin        FindingOrigin                   `json:"origin"`
+	Proposal      FindingExactArtifact            `json:"proposal"`
+	ProposalId    ResourceId                      `json:"proposalId"`
+	ReceiptId     ResourceId                      `json:"receiptId"`
+	RequestDigest Digest                          `json:"requestDigest"`
+	Retention     FindingProposalReceiptRetention `json:"retention"`
 }
+
+// FindingProposalReceiptRetention defines model for FindingProposalReceipt.Retention.
+type FindingProposalReceiptRetention string
 
 // FindingProposedCheck defines model for FindingProposedCheck.
 type FindingProposedCheck struct {
@@ -6530,18 +9911,24 @@ type FindingStandardReference struct {
 
 // FindingStructuralAnchor defines model for FindingStructuralAnchor.
 type FindingStructuralAnchor struct {
-	Context         *FindingAnchorContext `json:"context,omitempty"`
-	EndLine         int                   `json:"endLine"`
-	File            string                `json:"file"`
-	FileDigest      Digest                `json:"fileDigest"`
-	Grammar         interface{}           `json:"grammar"`
-	Language        interface{}           `json:"language"`
-	NodeDigest      Digest                `json:"nodeDigest"`
-	Path            []int                 `json:"path"`
-	Profile         interface{}           `json:"profile"`
-	SignatureDigest Digest                `json:"signatureDigest"`
-	StartLine       int                   `json:"startLine"`
+	Context         *FindingAnchorContext           `json:"context,omitempty"`
+	EndLine         int                             `json:"endLine"`
+	File            string                          `json:"file"`
+	FileDigest      Digest                          `json:"fileDigest"`
+	Grammar         interface{}                     `json:"grammar"`
+	Language        FindingStructuralAnchorLanguage `json:"language"`
+	NodeDigest      Digest                          `json:"nodeDigest"`
+	Path            []int                           `json:"path"`
+	Profile         FindingStructuralAnchorProfile  `json:"profile"`
+	SignatureDigest Digest                          `json:"signatureDigest"`
+	StartLine       int                             `json:"startLine"`
 }
+
+// FindingStructuralAnchorLanguage defines model for FindingStructuralAnchor.Language.
+type FindingStructuralAnchorLanguage string
+
+// FindingStructuralAnchorProfile defines model for FindingStructuralAnchor.Profile.
+type FindingStructuralAnchorProfile string
 
 // FindingSubject defines model for FindingSubject.
 type FindingSubject struct {
@@ -6666,9 +10053,12 @@ type HTTPOriginBearerMaterial struct {
 
 // HTTPOriginCredentialRef defines model for HTTPOriginCredentialRef.
 type HTTPOriginCredentialRef struct {
-	CredentialId RuntimeCredentialId `json:"credentialId"`
-	Kind         interface{}         `json:"kind"`
+	CredentialId RuntimeCredentialId         `json:"credentialId"`
+	Kind         HTTPOriginCredentialRefKind `json:"kind"`
 }
+
+// HTTPOriginCredentialRefKind defines model for HTTPOriginCredentialRef.Kind.
+type HTTPOriginCredentialRefKind string
 
 // HTTPProxyBasicMaterial defines model for HTTPProxyBasicMaterial.
 type HTTPProxyBasicMaterial struct {
@@ -6807,7 +10197,7 @@ type ModelSelectionValue struct {
 }
 
 // NonTerminalWorkflowRunState defines model for NonTerminalWorkflowRunState.
-type NonTerminalWorkflowRunState = interface{}
+type NonTerminalWorkflowRunState string
 
 // OTLPHeadersMaterial defines model for OTLPHeadersMaterial.
 type OTLPHeadersMaterial struct {
@@ -6823,14 +10213,17 @@ type OperationsSnapshot struct {
 
 // OutputPublication defines model for OutputPublication.
 type OutputPublication struct {
-	CreatedAt    time.Time         `json:"createdAt"`
-	ErrorCode    *string           `json:"errorCode,omitempty"`
-	ErrorMessage *string           `json:"errorMessage,omitempty"`
-	Output       ConfigId          `json:"output"`
-	Source       ExactArtifactRef  `json:"source"`
-	Status       interface{}       `json:"status"`
-	Target       *ExactArtifactRef `json:"target,omitempty"`
+	CreatedAt    time.Time               `json:"createdAt"`
+	ErrorCode    *string                 `json:"errorCode,omitempty"`
+	ErrorMessage *string                 `json:"errorMessage,omitempty"`
+	Output       ConfigId                `json:"output"`
+	Source       ExactArtifactRef        `json:"source"`
+	Status       OutputPublicationStatus `json:"status"`
+	Target       *ExactArtifactRef       `json:"target,omitempty"`
 }
+
+// OutputPublicationStatus defines model for OutputPublication.Status.
+type OutputPublicationStatus string
 
 // OwnerFindingPage defines model for OwnerFindingPage.
 type OwnerFindingPage struct {
@@ -6890,10 +10283,13 @@ type PerformanceAggregateHistoryPoint struct {
 	// PoolLast Working pgx pool counters. Successful acquisition duration/count is a mean, not p95 or cancelled-acquire latency.
 	PoolLast    *PerformancePool                            `json:"poolLast,omitempty"`
 	Process     PerformanceProcessGauges                    `json:"process"`
-	Status      interface{}                                 `json:"status"`
+	Status      PerformanceAggregateHistoryPointStatus      `json:"status"`
 	StepSeconds PerformanceAggregateHistoryPointStepSeconds `json:"stepSeconds"`
 	Version     PerformanceAggregateHistoryPointVersion     `json:"version"`
 }
+
+// PerformanceAggregateHistoryPointStatus defines model for PerformanceAggregateHistoryPoint.Status.
+type PerformanceAggregateHistoryPointStatus string
 
 // PerformanceAggregateHistoryPointStepSeconds defines model for PerformanceAggregateHistoryPoint.StepSeconds.
 type PerformanceAggregateHistoryPointStepSeconds int
@@ -7036,11 +10432,14 @@ type PerformanceFreshness struct {
 	LastAttemptAt   time.Time                           `json:"lastAttemptAt"`
 	ObservedAt      *time.Time                          `json:"observedAt,omitempty"`
 	Reason          *PerformanceReason                  `json:"reason,omitempty"`
-	Status          interface{}                         `json:"status"`
+	Status          PerformanceFreshnessStatus          `json:"status"`
 }
 
 // PerformanceFreshnessIntervalSeconds defines model for PerformanceFreshness.IntervalSeconds.
 type PerformanceFreshnessIntervalSeconds int
+
+// PerformanceFreshnessStatus defines model for PerformanceFreshness.Status.
+type PerformanceFreshnessStatus string
 
 // PerformanceGCPauseHistogram Cumulative process-lifetime GC pause histogram with non-cumulative bucket populations. Bounds are finite upper edges; counts has one additional overflow bucket for positive infinity. Unknown/reset deltas are not zero.
 type PerformanceGCPauseHistogram struct {
@@ -7123,10 +10522,13 @@ type PerformanceHTTPSurface struct {
 	Counts [][]PerformanceInteger `json:"counts"`
 
 	// Duration Cumulative counts at fixed bounds .005,.01,.025,.05,.1,.25,.5,1,2.5,5,10,30,60,+Inf seconds. The last bucket equals count. Merge counts and sums, not quantiles. Empty windows have unknown quantiles; overflow is greater than 60s.
-	Duration PerformanceHistogram `json:"duration"`
-	InFlight PerformanceInteger   `json:"inFlight"`
-	Surface  interface{}          `json:"surface"`
+	Duration PerformanceHistogram          `json:"duration"`
+	InFlight PerformanceInteger            `json:"inFlight"`
+	Surface  PerformanceHTTPSurfaceSurface `json:"surface"`
 }
+
+// PerformanceHTTPSurfaceSurface defines model for PerformanceHTTPSurface.Surface.
+type PerformanceHTTPSurfaceSurface string
 
 // PerformanceHistogram Cumulative counts at fixed bounds .005,.01,.025,.05,.1,.25,.5,1,2.5,5,10,30,60,+Inf seconds. The last bucket equals count. Merge counts and sums, not quantiles. Empty windows have unknown quantiles; overflow is greater than 60s.
 type PerformanceHistogram struct {
@@ -7141,7 +10543,7 @@ type PerformanceHistogram struct {
 type PerformanceHistory struct {
 	From   time.Time                        `json:"from"`
 	Points []PerformanceHistory_Points_Item `json:"points"`
-	Step   interface{}                      `json:"step"`
+	Step   PerformanceHistoryStep           `json:"step"`
 	To     time.Time                        `json:"to"`
 }
 
@@ -7149,6 +10551,9 @@ type PerformanceHistory struct {
 type PerformanceHistory_Points_Item struct {
 	union json.RawMessage
 }
+
+// PerformanceHistoryStep defines model for PerformanceHistory.Step.
+type PerformanceHistoryStep string
 
 // PerformanceInteger defines model for PerformanceInteger.
 type PerformanceInteger = int
@@ -7217,7 +10622,7 @@ type PerformanceProcessGauges struct {
 }
 
 // PerformanceReason defines model for PerformanceReason.
-type PerformanceReason = interface{}
+type PerformanceReason string
 
 // PerformanceSample One bounded frame, at most 32 KiB. Groups retain their actual coverage and timestamps; cached DB data is not a fresh process sample.
 type PerformanceSample struct {
@@ -7306,11 +10711,14 @@ type PlannerRef struct {
 
 // PlannerSubtask defines model for PlannerSubtask.
 type PlannerSubtask struct {
-	Id           string      `json:"id"`
-	Instructions string      `json:"instructions"`
-	Objective    string      `json:"objective"`
-	Status       interface{} `json:"status"`
+	Id           string               `json:"id"`
+	Instructions string               `json:"instructions"`
+	Objective    string               `json:"objective"`
+	Status       PlannerSubtaskStatus `json:"status"`
 }
+
+// PlannerSubtaskStatus defines model for PlannerSubtask.Status.
+type PlannerSubtaskStatus string
 
 // PlannerSubtaskLimit Maximum subtasks per modeled Planner invocation in this Workflow, including summary continuation; omission selects 32. Independent call, token and byte budgets still apply.
 type PlannerSubtaskLimit = int
@@ -7445,12 +10853,15 @@ type RunMetadataLabels map[string]string
 
 // RunNotDeletableDetails defines model for RunNotDeletableDetails.
 type RunNotDeletableDetails struct {
-	Kind   RunNotDeletableDetailsKind `json:"kind"`
-	Reason interface{}                `json:"reason"`
+	Kind   RunNotDeletableDetailsKind   `json:"kind"`
+	Reason RunNotDeletableDetailsReason `json:"reason"`
 }
 
 // RunNotDeletableDetailsKind defines model for RunNotDeletableDetails.Kind.
 type RunNotDeletableDetailsKind string
+
+// RunNotDeletableDetailsReason defines model for RunNotDeletableDetails.Reason.
+type RunNotDeletableDetailsReason string
 
 // RunPage defines model for RunPage.
 type RunPage struct {
@@ -7493,11 +10904,14 @@ type RunRecovery struct {
 	AutomaticUntil time.Time `json:"automaticUntil"`
 
 	// Code Cause of the model gateway failure that holds the Run, from the recovery cause vocabulary that the Server and the Runtime share. It is not an error code: gateway_unavailable here is an unavailable model gateway route, not the error of a failed Gateway credential manager.
-	Code          interface{} `json:"code"`
-	NextRetryAt   *time.Time  `json:"nextRetryAt,omitempty"`
-	RequiresRetry bool        `json:"requiresRetry"`
-	Since         time.Time   `json:"since"`
+	Code          RunRecoveryCode `json:"code"`
+	NextRetryAt   *time.Time      `json:"nextRetryAt,omitempty"`
+	RequiresRetry bool            `json:"requiresRetry"`
+	Since         time.Time       `json:"since"`
 }
+
+// RunRecoveryCode Cause of the model gateway failure that holds the Run, from the recovery cause vocabulary that the Server and the Runtime share. It is not an error code: gateway_unavailable here is an unavailable model gateway route, not the error of a failed Gateway credential manager.
+type RunRecoveryCode string
 
 // RunRepeatDraft defines model for RunRepeatDraft.
 type RunRepeatDraft struct {
@@ -7515,38 +10929,53 @@ type RunRepeatDraft struct {
 
 // RunRepeatDraftNotice defines model for RunRepeatDraftNotice.
 type RunRepeatDraftNotice struct {
-	Code     string      `json:"code"`
-	Field    *string     `json:"field,omitempty"`
-	Message  string      `json:"message"`
-	Severity interface{} `json:"severity"`
+	Code     string                       `json:"code"`
+	Field    *string                      `json:"field,omitempty"`
+	Message  string                       `json:"message"`
+	Severity RunRepeatDraftNoticeSeverity `json:"severity"`
 }
+
+// RunRepeatDraftNoticeSeverity defines model for RunRepeatDraftNotice.Severity.
+type RunRepeatDraftNoticeSeverity string
 
 // RunRepeatDraftResponse A retained ordinary request produces a draft. Missing or invalid request authority produces a blocking notice with no draft; Audit-managed Runs also have no ordinary draft.
 type RunRepeatDraftResponse struct {
-	AuditId     *ResourceId            `json:"auditId,omitempty"`
-	Authority   interface{}            `json:"authority"`
-	Draft       *RunRepeatDraft        `json:"draft,omitempty"`
-	Notices     []RunRepeatDraftNotice `json:"notices"`
-	ProjectId   *ResourceId            `json:"projectId,omitempty"`
-	SourceRunId ResourceId             `json:"sourceRunId"`
-	Workflow    WorkflowRef            `json:"workflow"`
+	AuditId     *ResourceId                     `json:"auditId,omitempty"`
+	Authority   RunRepeatDraftResponseAuthority `json:"authority"`
+	Draft       *RunRepeatDraft                 `json:"draft,omitempty"`
+	Notices     []RunRepeatDraftNotice          `json:"notices"`
+	ProjectId   *ResourceId                     `json:"projectId,omitempty"`
+	SourceRunId ResourceId                      `json:"sourceRunId"`
+	Workflow    WorkflowRef                     `json:"workflow"`
 }
+
+// RunRepeatDraftResponseAuthority defines model for RunRepeatDraftResponse.Authority.
+type RunRepeatDraftResponseAuthority string
 
 // RunRepeatExecutionConfig defines model for RunRepeatExecutionConfig.
 type RunRepeatExecutionConfig struct {
-	Status interface{}          `json:"status"`
-	Value  ExecutionConfigPatch `json:"value"`
+	Status RunRepeatExecutionConfigStatus `json:"status"`
+	Value  ExecutionConfigPatch           `json:"value"`
 }
+
+// RunRepeatExecutionConfigStatus defines model for RunRepeatExecutionConfig.Status.
+type RunRepeatExecutionConfigStatus string
 
 // RunRepeatInput defines model for RunRepeatInput.
 type RunRepeatInput struct {
-	Artifact    *ExactArtifactRef `json:"artifact,omitempty"`
-	Code        *string           `json:"code,omitempty"`
-	Message     *string           `json:"message,omitempty"`
-	Metadata    *ArtifactMetadata `json:"metadata,omitempty"`
-	SourceScope interface{}       `json:"sourceScope,omitempty"`
-	Status      interface{}       `json:"status"`
+	Artifact    *ExactArtifactRef          `json:"artifact,omitempty"`
+	Code        *string                    `json:"code,omitempty"`
+	Message     *string                    `json:"message,omitempty"`
+	Metadata    *ArtifactMetadata          `json:"metadata,omitempty"`
+	SourceScope *RunRepeatInputSourceScope `json:"sourceScope,omitempty"`
+	Status      RunRepeatInputStatus       `json:"status"`
 }
+
+// RunRepeatInputSourceScope defines model for RunRepeatInput.SourceScope.
+type RunRepeatInputSourceScope string
+
+// RunRepeatInputStatus defines model for RunRepeatInput.Status.
+type RunRepeatInputStatus string
 
 // RunRuntimeConfiguration defines model for RunRuntimeConfiguration.
 type RunRuntimeConfiguration struct {
@@ -7640,24 +11069,30 @@ type RuntimeAgentLabelsMutation struct {
 
 // RuntimeAgentObservation defines model for RuntimeAgentObservation.
 type RuntimeAgentObservation struct {
-	AuthoritativeAllocationId *ResourceId `json:"authoritativeAllocationId,omitempty"`
-	ConfirmedLeaseUntil       *time.Time  `json:"confirmedLeaseUntil,omitempty"`
-	CurrentAllocationId       *ResourceId `json:"currentAllocationId,omitempty"`
-	InstanceId                ResourceId  `json:"instanceId"`
-	LastAcceptedHeartbeat     *time.Time  `json:"lastAcceptedHeartbeat,omitempty"`
-	ObservedState             interface{} `json:"observedState"`
+	AuthoritativeAllocationId *ResourceId                          `json:"authoritativeAllocationId,omitempty"`
+	ConfirmedLeaseUntil       *time.Time                           `json:"confirmedLeaseUntil,omitempty"`
+	CurrentAllocationId       *ResourceId                          `json:"currentAllocationId,omitempty"`
+	InstanceId                ResourceId                           `json:"instanceId"`
+	LastAcceptedHeartbeat     *time.Time                           `json:"lastAcceptedHeartbeat,omitempty"`
+	ObservedState             RuntimeAgentObservationObservedState `json:"observedState"`
 
 	// PlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
-	PlacementLabels          *PlacementLabels           `json:"placementLabels,omitempty"`
-	ReconciliationReason     *SafeReason                `json:"reconciliationReason,omitempty"`
-	SlotState                interface{}                `json:"slotState"`
-	SoftwareVersion          string                     `json:"softwareVersion"`
-	SupportedRuntimeAdapters []RuntimeCapabilityRef     `json:"supportedRuntimeAdapters"`
-	SupportedRuntimes        []RuntimeCapabilityRef     `json:"supportedRuntimes"`
-	SupportedSandboxProfiles []RuntimeCapabilityRef     `json:"supportedSandboxProfiles"`
-	SupportedToolsets        []RuntimeToolsetCapability `json:"supportedToolsets"`
-	WorkspaceCapabilities    *WorkspaceCapabilities     `json:"workspaceCapabilities,omitempty"`
+	PlacementLabels          *PlacementLabels                 `json:"placementLabels,omitempty"`
+	ReconciliationReason     *SafeReason                      `json:"reconciliationReason,omitempty"`
+	SlotState                RuntimeAgentObservationSlotState `json:"slotState"`
+	SoftwareVersion          string                           `json:"softwareVersion"`
+	SupportedRuntimeAdapters []RuntimeCapabilityRef           `json:"supportedRuntimeAdapters"`
+	SupportedRuntimes        []RuntimeCapabilityRef           `json:"supportedRuntimes"`
+	SupportedSandboxProfiles []RuntimeCapabilityRef           `json:"supportedSandboxProfiles"`
+	SupportedToolsets        []RuntimeToolsetCapability       `json:"supportedToolsets"`
+	WorkspaceCapabilities    *WorkspaceCapabilities           `json:"workspaceCapabilities,omitempty"`
 }
+
+// RuntimeAgentObservationObservedState defines model for RuntimeAgentObservation.ObservedState.
+type RuntimeAgentObservationObservedState string
+
+// RuntimeAgentObservationSlotState defines model for RuntimeAgentObservation.SlotState.
+type RuntimeAgentObservationSlotState string
 
 // RuntimeAgentPage defines model for RuntimeAgentPage.
 type RuntimeAgentPage struct {
@@ -7682,7 +11117,7 @@ type RuntimeAgentPrincipal struct {
 }
 
 // RuntimeAgentPrincipalAvailability defines model for RuntimeAgentPrincipalAvailability.
-type RuntimeAgentPrincipalAvailability = interface{}
+type RuntimeAgentPrincipalAvailability string
 
 // RuntimeAgentPrincipalPage defines model for RuntimeAgentPrincipalPage.
 type RuntimeAgentPrincipalPage struct {
@@ -7795,7 +11230,7 @@ type RuntimeCredentialInUseDetails struct {
 type RuntimeCredentialInUseDetailsKind string
 
 // RuntimeCredentialKind defines model for RuntimeCredentialKind.
-type RuntimeCredentialKind = interface{}
+type RuntimeCredentialKind string
 
 // RuntimeCredentialMetadata defines model for RuntimeCredentialMetadata.
 type RuntimeCredentialMetadata struct {
@@ -7847,21 +11282,27 @@ type RuntimeDiagnosticPageStatus string
 
 // RuntimeFieldOrigin defines model for RuntimeFieldOrigin.
 type RuntimeFieldOrigin struct {
-	Configs *[]RuntimeConfigRef `json:"configs,omitempty"`
-	Layer   interface{}         `json:"layer"`
+	Configs *[]RuntimeConfigRef     `json:"configs,omitempty"`
+	Layer   RuntimeFieldOriginLayer `json:"layer"`
 }
+
+// RuntimeFieldOriginLayer defines model for RuntimeFieldOrigin.Layer.
+type RuntimeFieldOriginLayer string
 
 // RuntimeHTTPProxyConfig defines model for RuntimeHTTPProxyConfig.
 type RuntimeHTTPProxyConfig struct {
-	Adapter     RuntimeHTTPProxyConfigAdapter `json:"adapter"`
-	CaBundlePem *string                       `json:"caBundlePem,omitempty"`
-	Credential  *RuntimeCredentialId          `json:"credential,omitempty"`
-	ProxyUrl    string                        `json:"proxyUrl"`
-	Targets     []interface{}                 `json:"targets"`
+	Adapter     RuntimeHTTPProxyConfigAdapter   `json:"adapter"`
+	CaBundlePem *string                         `json:"caBundlePem,omitempty"`
+	Credential  *RuntimeCredentialId            `json:"credential,omitempty"`
+	ProxyUrl    string                          `json:"proxyUrl"`
+	Targets     []RuntimeHTTPProxyConfigTargets `json:"targets"`
 }
 
 // RuntimeHTTPProxyConfigAdapter defines model for RuntimeHTTPProxyConfig.Adapter.
 type RuntimeHTTPProxyConfigAdapter string
+
+// RuntimeHTTPProxyConfigTargets defines model for RuntimeHTTPProxyConfig.Targets.
+type RuntimeHTTPProxyConfigTargets string
 
 // RuntimeInfrastructureId defines model for RuntimeInfrastructureId.
 type RuntimeInfrastructureId = string
@@ -7939,16 +11380,22 @@ type RuntimeResourceSummary struct {
 
 	// MaxSampleGapSeconds Finite nonnegative measurement. Unknown values are omitted, never replaced with zero.
 	MaxSampleGapSeconds  *PerformanceNumber            `json:"maxSampleGapSeconds,omitempty"`
-	Reason               interface{}                   `json:"reason,omitempty"`
+	Reason               *RuntimeResourceSummaryReason `json:"reason,omitempty"`
 	RssEndBytes          *PerformanceInteger           `json:"rssEndBytes,omitempty"`
 	RssPeakObservedBytes *PerformanceInteger           `json:"rssPeakObservedBytes,omitempty"`
 	RssSampleCount       *PerformanceInteger           `json:"rssSampleCount,omitempty"`
 	RssStartBytes        *PerformanceInteger           `json:"rssStartBytes,omitempty"`
 	Scope                interface{}                   `json:"scope"`
-	Status               interface{}                   `json:"status"`
+	Status               RuntimeResourceSummaryStatus  `json:"status"`
 	Version              RuntimeResourceSummaryVersion `json:"version"`
 	union                json.RawMessage
 }
+
+// RuntimeResourceSummaryReason defines model for RuntimeResourceSummary.Reason.
+type RuntimeResourceSummaryReason string
+
+// RuntimeResourceSummaryStatus defines model for RuntimeResourceSummary.Status.
+type RuntimeResourceSummaryStatus string
 
 // RuntimeResourceSummaryVersion defines model for RuntimeResourceSummary.Version.
 type RuntimeResourceSummaryVersion int
@@ -7962,8 +11409,11 @@ type RuntimeResourceSummary0 struct {
 
 // RuntimeResourceSummary1 defines model for RuntimeResourceSummary.1.
 type RuntimeResourceSummary1 struct {
-	Status interface{} `json:"status,omitempty"`
+	Status *RuntimeResourceSummary1Status `json:"status,omitempty"`
 }
+
+// RuntimeResourceSummary1Status defines model for RuntimeResourceSummary.1.Status.
+type RuntimeResourceSummary1Status string
 
 // RuntimeTelemetryConfig defines model for RuntimeTelemetryConfig.
 type RuntimeTelemetryConfig struct {
@@ -8268,28 +11718,52 @@ type StageContentResultApiVersion string
 
 // StageContentResult0 defines model for StageContentResult.0.
 type StageContentResult0 struct {
-	Outcome    interface{} `json:"outcome,omitempty"`
-	Summarized interface{} `json:"summarized,omitempty"`
+	Outcome    *StageContentResult0Outcome    `json:"outcome,omitempty"`
+	Summarized *StageContentResult0Summarized `json:"summarized,omitempty"`
 }
+
+// StageContentResult0Outcome defines model for StageContentResult.0.Outcome.
+type StageContentResult0Outcome string
+
+// StageContentResult0Summarized defines model for StageContentResult.0.Summarized.
+type StageContentResult0Summarized bool
 
 // StageContentResult1 defines model for StageContentResult.1.
 type StageContentResult1 struct {
 	Error struct {
 		Code interface{} `json:"code,omitempty"`
 	} `json:"error"`
-	Outcome    interface{} `json:"outcome,omitempty"`
-	Summarized interface{} `json:"summarized,omitempty"`
+	Outcome    *StageContentResult1Outcome    `json:"outcome,omitempty"`
+	Summarized *StageContentResult1Summarized `json:"summarized,omitempty"`
 }
+
+// StageContentResult1Outcome defines model for StageContentResult.1.Outcome.
+type StageContentResult1Outcome string
+
+// StageContentResult1Summarized defines model for StageContentResult.1.Summarized.
+type StageContentResult1Summarized bool
 
 // StageContentResult2 defines model for StageContentResult.2.
 type StageContentResult2 struct {
 	Error struct {
-		Code      interface{} `json:"code,omitempty"`
-		Retryable interface{} `json:"retryable,omitempty"`
+		Code      *StageContentResult2ErrorCode      `json:"code,omitempty"`
+		Retryable *StageContentResult2ErrorRetryable `json:"retryable,omitempty"`
 	} `json:"error"`
-	Outcome    interface{} `json:"outcome,omitempty"`
-	Summarized interface{} `json:"summarized"`
+	Outcome    *StageContentResult2Outcome   `json:"outcome,omitempty"`
+	Summarized StageContentResult2Summarized `json:"summarized"`
 }
+
+// StageContentResult2ErrorCode defines model for StageContentResult.2.Error.Code.
+type StageContentResult2ErrorCode string
+
+// StageContentResult2ErrorRetryable defines model for StageContentResult.2.Error.Retryable.
+type StageContentResult2ErrorRetryable bool
+
+// StageContentResult2Outcome defines model for StageContentResult.2.Outcome.
+type StageContentResult2Outcome string
+
+// StageContentResult2Summarized defines model for StageContentResult.2.Summarized.
+type StageContentResult2Summarized bool
 
 // StageExecutionConfig defines model for StageExecutionConfig.
 type StageExecutionConfig struct {
@@ -8297,8 +11771,11 @@ type StageExecutionConfig struct {
 	EscalationOrdinal *int                               `json:"escalationOrdinal,omitempty"`
 	Planner           *ConsumerExecutionConfig           `json:"planner,omitempty"`
 	Ref               *ExecutionConfigRef                `json:"ref,omitempty"`
-	Variant           interface{}                        `json:"variant"`
+	Variant           StageExecutionConfigVariant        `json:"variant"`
 }
+
+// StageExecutionConfigVariant defines model for StageExecutionConfig.Variant.
+type StageExecutionConfigVariant string
 
 // StageExecutionConfigPatch defines model for StageExecutionConfigPatch.
 type StageExecutionConfigPatch struct {
@@ -8307,10 +11784,10 @@ type StageExecutionConfigPatch struct {
 }
 
 // StageExecutionState defines model for StageExecutionState.
-type StageExecutionState = interface{}
+type StageExecutionState string
 
 // StageOutcome defines model for StageOutcome.
-type StageOutcome = interface{}
+type StageOutcome string
 
 // StageResultArtifactSlot defines model for StageResultArtifactSlot.
 type StageResultArtifactSlot struct {
@@ -8327,10 +11804,13 @@ type StageRuntimeAllocation struct {
 	Origins      StageRuntimeOrigins   `json:"origins"`
 
 	// PlacementLabels Sorted unique cloud/local paths forming one ancestor chain. Empty means no location declaration or requirement.
-	PlacementLabels *PlacementLabels       `json:"placementLabels,omitempty"`
-	RuntimeAdapters []RuntimeCapabilityRef `json:"runtimeAdapters"`
-	Status          interface{}            `json:"status"`
+	PlacementLabels *PlacementLabels             `json:"placementLabels,omitempty"`
+	RuntimeAdapters []RuntimeCapabilityRef       `json:"runtimeAdapters"`
+	Status          StageRuntimeAllocationStatus `json:"status"`
 }
+
+// StageRuntimeAllocationStatus defines model for StageRuntimeAllocation.Status.
+type StageRuntimeAllocationStatus string
 
 // StageRuntimeConfiguration defines model for StageRuntimeConfiguration.
 type StageRuntimeConfiguration struct {
@@ -8350,24 +11830,33 @@ type StageRuntimeOrigins struct {
 
 // StageTermination defines model for StageTermination.
 type StageTermination struct {
-	Code       ConfigId    `json:"code"`
-	Message    string      `json:"message"`
-	OccurredAt time.Time   `json:"occurredAt"`
-	Outcome    interface{} `json:"outcome"`
-	Phase      interface{} `json:"phase"`
-	Retryable  bool        `json:"retryable"`
+	Code       ConfigId                `json:"code"`
+	Message    string                  `json:"message"`
+	OccurredAt time.Time               `json:"occurredAt"`
+	Outcome    StageTerminationOutcome `json:"outcome"`
+	Phase      StageTerminationPhase   `json:"phase"`
+	Retryable  bool                    `json:"retryable"`
 }
+
+// StageTerminationOutcome defines model for StageTermination.Outcome.
+type StageTerminationOutcome string
+
+// StageTerminationPhase defines model for StageTermination.Phase.
+type StageTerminationPhase string
 
 // StageTransition defines model for StageTransition.
 type StageTransition struct {
-	Action              interface{} `json:"action"`
-	DecidedAt           time.Time   `json:"decidedAt"`
-	EscalationExhausted bool        `json:"escalationExhausted"`
-	EscalationOrdinal   *int        `json:"escalationOrdinal,omitempty"`
-	SourceExecutionId   ResourceId  `json:"sourceExecutionId"`
-	TargetExecutionId   *ResourceId `json:"targetExecutionId,omitempty"`
-	TargetStage         *ConfigId   `json:"targetStage,omitempty"`
+	Action              StageTransitionAction `json:"action"`
+	DecidedAt           time.Time             `json:"decidedAt"`
+	EscalationExhausted bool                  `json:"escalationExhausted"`
+	EscalationOrdinal   *int                  `json:"escalationOrdinal,omitempty"`
+	SourceExecutionId   ResourceId            `json:"sourceExecutionId"`
+	TargetExecutionId   *ResourceId           `json:"targetExecutionId,omitempty"`
+	TargetStage         *ConfigId             `json:"targetStage,omitempty"`
 }
+
+// StageTransitionAction defines model for StageTransition.Action.
+type StageTransitionAction string
 
 // TargetBasicMaterial defines model for TargetBasicMaterial.
 type TargetBasicMaterial struct {
@@ -8646,10 +12135,10 @@ type WorkflowRetryTransition struct {
 type WorkflowRetryTransitionKind string
 
 // WorkflowRunLifecycle defines model for WorkflowRunLifecycle.
-type WorkflowRunLifecycle = interface{}
+type WorkflowRunLifecycle string
 
 // WorkflowRunState defines model for WorkflowRunState.
-type WorkflowRunState = interface{}
+type WorkflowRunState string
 
 // WorkflowStageContract defines model for WorkflowStageContract.
 type WorkflowStageContract struct {
@@ -8738,10 +12227,16 @@ type WorkflowTransitions struct {
 
 // WorkspaceCapabilities defines model for WorkspaceCapabilities.
 type WorkspaceCapabilities struct {
-	Limits  WorkspaceLimits `json:"limits"`
-	Modes   []interface{}   `json:"modes"`
-	Storage interface{}     `json:"storage"`
+	Limits  WorkspaceLimits              `json:"limits"`
+	Modes   []WorkspaceCapabilitiesModes `json:"modes"`
+	Storage WorkspaceCapabilitiesStorage `json:"storage"`
 }
+
+// WorkspaceCapabilitiesModes defines model for WorkspaceCapabilities.Modes.
+type WorkspaceCapabilitiesModes string
+
+// WorkspaceCapabilitiesStorage defines model for WorkspaceCapabilities.Storage.
+type WorkspaceCapabilitiesStorage string
 
 // WorkspaceLimits defines model for WorkspaceLimits.
 type WorkspaceLimits struct {
@@ -9111,11 +12606,14 @@ type ListAuditFindingsParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 
 	// AuditRevision Pin this page to the summary revision. Continuations bind owner, filters and revision; stale revisions return 409.
-	AuditRevision *int                  `form:"auditRevision,omitempty" json:"auditRevision,omitempty"`
-	State         *AuditFindingState    `form:"state,omitempty" json:"state,omitempty"`
-	Verdict       interface{}           `form:"verdict,omitempty" json:"verdict,omitempty"`
-	Severity      *AuditFindingSeverity `form:"severity,omitempty" json:"severity,omitempty"`
+	AuditRevision *int                            `form:"auditRevision,omitempty" json:"auditRevision,omitempty"`
+	State         *AuditFindingState              `form:"state,omitempty" json:"state,omitempty"`
+	Verdict       *ListAuditFindingsParamsVerdict `form:"verdict,omitempty" json:"verdict,omitempty"`
+	Severity      *AuditFindingSeverity           `form:"severity,omitempty" json:"severity,omitempty"`
 }
+
+// ListAuditFindingsParamsVerdict defines parameters for ListAuditFindings.
+type ListAuditFindingsParamsVerdict string
 
 // PublishAuditFindingExportParams defines parameters for PublishAuditFindingExport.
 type PublishAuditFindingExportParams struct {
@@ -9128,12 +12626,15 @@ type PublishAuditFindingExportParams struct {
 
 // ListFindingDuplicateCandidatesParams defines parameters for ListFindingDuplicateCandidates.
 type ListFindingDuplicateCandidatesParams struct {
-	Limit           *int        `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor          *string     `form:"cursor,omitempty" json:"cursor,omitempty"`
-	Scope           interface{} `form:"scope,omitempty" json:"scope,omitempty"`
-	TargetAuditId   *ResourceId `form:"targetAuditId,omitempty" json:"targetAuditId,omitempty"`
-	SourceReceiptId *ResourceId `form:"sourceReceiptId,omitempty" json:"sourceReceiptId,omitempty"`
+	Limit           *int                                       `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor          *string                                    `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Scope           *ListFindingDuplicateCandidatesParamsScope `form:"scope,omitempty" json:"scope,omitempty"`
+	TargetAuditId   *ResourceId                                `form:"targetAuditId,omitempty" json:"targetAuditId,omitempty"`
+	SourceReceiptId *ResourceId                                `form:"sourceReceiptId,omitempty" json:"sourceReceiptId,omitempty"`
 }
+
+// ListFindingDuplicateCandidatesParamsScope defines parameters for ListFindingDuplicateCandidates.
+type ListFindingDuplicateCandidatesParamsScope string
 
 // ListAuditFindingProvenanceParams defines parameters for ListAuditFindingProvenance.
 type ListAuditFindingProvenanceParams struct {
@@ -9503,10 +13004,13 @@ type DeleteCredentialParams struct {
 
 // GetPerformanceHistoryParams defines parameters for GetPerformanceHistory.
 type GetPerformanceHistoryParams struct {
-	From time.Time   `form:"from" json:"from"`
-	To   time.Time   `form:"to" json:"to"`
-	Step interface{} `form:"step" json:"step"`
+	From time.Time                       `form:"from" json:"from"`
+	To   time.Time                       `form:"to" json:"to"`
+	Step GetPerformanceHistoryParamsStep `form:"step" json:"step"`
 }
+
+// GetPerformanceHistoryParamsStep defines parameters for GetPerformanceHistory.
+type GetPerformanceHistoryParamsStep string
 
 // ListRuntimeAgentPrincipalsParams defines parameters for ListRuntimeAgentPrincipals.
 type ListRuntimeAgentPrincipalsParams struct {
@@ -14479,9 +17983,11 @@ func (t RuntimeResourceSummary) MarshalJSON() ([]byte, error) {
 		}
 	}
 
-	object["reason"], err = json.Marshal(t.Reason)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'reason': %w", err)
+	if t.Reason != nil {
+		object["reason"], err = json.Marshal(t.Reason)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'reason': %w", err)
+		}
 	}
 
 	if t.RssEndBytes != nil {
@@ -21858,7 +25364,7 @@ func NewListAuditFindingsRequest(server string, auditId AuditId, params *ListAud
 
 		if params.State != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -21868,17 +25374,21 @@ func NewListAuditFindingsRequest(server string, auditId AuditId, params *ListAud
 
 		}
 
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "verdict", params.Verdict, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
+		if params.Verdict != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "verdict", *params.Verdict, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
 			}
+
 		}
 
 		if params.Severity != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "severity", *params.Severity, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "severity", *params.Severity, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -22205,12 +25715,16 @@ func NewListFindingDuplicateCandidatesRequest(server string, auditId AuditId, fi
 
 		}
 
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "scope", params.Scope, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
-			return nil, err
-		} else {
-			for _, qp := range strings.Split(queryFrag, "&") {
-				rawQueryFragments = append(rawQueryFragments, qp)
+		if params.Scope != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "scope", *params.Scope, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
 			}
+
 		}
 
 		if params.TargetAuditId != nil {
@@ -22526,7 +26040,7 @@ func NewListAuditItemsRequest(server string, auditId AuditId, params *ListAuditI
 
 		if params.State != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -22919,7 +26433,7 @@ func NewListAuditReviewsRequest(server string, auditId AuditId, params *ListAudi
 
 		if params.State != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -25282,7 +28796,7 @@ func NewListOwnerFindingsRequest(server string, params *ListOwnerFindingsParams)
 
 		if params.State != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -25306,7 +28820,7 @@ func NewListOwnerFindingsRequest(server string, params *ListOwnerFindingsParams)
 
 		if params.Severity != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "severity", *params.Severity, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "severity", *params.Severity, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -25789,7 +29303,7 @@ func NewGetPerformanceHistoryRequest(server string, params *GetPerformanceHistor
 			}
 		}
 
-		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "step", params.Step, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "step", params.Step, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 			return nil, err
 		} else {
 			for _, qp := range strings.Split(queryFrag, "&") {
@@ -28264,7 +31778,7 @@ func NewListProjectAuditsRequest(server string, projectId ProjectId, params *Lis
 
 		if params.State != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -28928,7 +32442,7 @@ func NewListProjectRunsRequest(server string, projectId ProjectId, params *ListP
 
 		if params.State != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -28940,7 +32454,7 @@ func NewListProjectRunsRequest(server string, projectId ProjectId, params *ListP
 
 		if params.Lifecycle != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "lifecycle", *params.Lifecycle, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "lifecycle", *params.Lifecycle, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -29194,7 +32708,7 @@ func NewListRunQueueRequest(server string, params *ListRunQueueParams) (*http.Re
 
 		if params.State != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -29476,7 +32990,7 @@ func NewListRunsRequest(server string, params *ListRunsParams) (*http.Request, e
 
 		if params.State != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -29488,7 +33002,7 @@ func NewListRunsRequest(server string, params *ListRunsParams) (*http.Request, e
 
 		if params.Lifecycle != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "lifecycle", *params.Lifecycle, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "lifecycle", *params.Lifecycle, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {

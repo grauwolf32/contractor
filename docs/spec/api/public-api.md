@@ -170,7 +170,10 @@ as a client outside this repository depends on `/v1`.
 committed contract by a pinned oapi-codegen version that builds without
 network access, and is never hand-edited. Its freshness check regenerates it
 into a temporary file and fails `make lint` when the result differs from the
-committed client; the UI client follows the same rule (UI-R19). The Go public
+committed client; the UI client follows the same rule (UI-R19). Every `enum`
+of the contract declares a `type` that all its values satisfy: OpenAPI 3.1
+allows an untyped enum, but the generator then emits `interface{}` and the
+compiler checks no value, so the public contract test rejects one. The Go public
 client replays only requests with a replayable method or idempotency key and a
 rewindable body, at most three attempts per call. It honours a valid Retry-After
 up to 30 seconds; a longer delay returns the response for explicit later resume,

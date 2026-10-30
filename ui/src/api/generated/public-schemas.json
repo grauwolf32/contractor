@@ -890,6 +890,7 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingState"
         },
         "severitySuggestion": {
+          "type": "string",
           "enum": ["", "critical", "high", "medium", "low", "informational"]
         },
         "analystVerdict": {
@@ -907,6 +908,7 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingComparisonOrigin"
         },
         "correlationRole": {
+          "type": "string",
           "enum": ["representative", "automatic-duplicate"]
         },
         "assessmentId": {
@@ -952,6 +954,7 @@
       ],
       "properties": {
         "kind": {
+          "type": "string",
           "enum": [
             "primary-equality",
             "selected-producer-equality",
@@ -1025,8 +1028,14 @@
         "firstReceiptId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
-        "hintsAvailability": { "enum": ["available", "unavailable"] },
-        "hintsReason": { "enum": ["not_recorded", "discarded"] },
+        "hintsAvailability": {
+          "type": "string",
+          "enum": ["available", "unavailable"]
+        },
+        "hintsReason": {
+          "type": "string",
+          "enum": ["not_recorded", "discarded"]
+        },
         "familiesAvailable": { "type": "boolean" }
       }
     },
@@ -1075,13 +1084,17 @@
       "additionalProperties": false,
       "required": ["kind", "rowKey", "representative", "previewsShareReceipt"],
       "properties": {
-        "kind": { "enum": ["both", "left-only", "right-only", "unmatched"] },
+        "kind": {
+          "type": "string",
+          "enum": ["both", "left-only", "right-only", "unmatched"]
+        },
         "rowKey": { "type": "string", "minLength": 1, "maxLength": 266 },
         "groupKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "basis": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingCorrelationBasis"
         },
         "unavailableReason": {
+          "type": "string",
           "enum": ["not_recorded", "no_qualified_key", "primary_key_ambiguous"]
         },
         "representative": {
@@ -4038,6 +4051,7 @@
       "properties": {
         "kind": { "type": "string", "const": "eval" },
         "recovery": {
+          "type": "string",
           "enum": [
             "edit_draft",
             "reload",
@@ -4412,7 +4426,10 @@
         "credentialId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/RuntimeCredentialId"
         },
-        "kind": { "enum": ["http-origin-basic@1", "http-origin-bearer@1"] }
+        "kind": {
+          "type": "string",
+          "enum": ["http-origin-basic@1", "http-origin-bearer@1"]
+        }
       }
     },
     "ProjectHTTPTarget": {
@@ -4543,6 +4560,7 @@
       }
     },
     "AuditProfileMode": {
+      "type": "string",
       "enum": [
         "risk-assessment",
         "requirements-verification",
@@ -4591,6 +4609,7 @@
       "required": ["id", "url", "attribution", "disclosure"],
       "properties": {
         "id": {
+          "type": "string",
           "enum": [
             "CC-BY-4.0",
             "CC-BY-SA-4.0",
@@ -4606,7 +4625,10 @@
           "maxLength": 2048
         },
         "attribution": { "type": "string", "minLength": 1, "maxLength": 4096 },
-        "disclosure": { "enum": ["metadata", "identifiers", "full"] }
+        "disclosure": {
+          "type": "string",
+          "enum": ["metadata", "identifiers", "full"]
+        }
       }
     },
     "AuditStandardEvidenceContractRef": {
@@ -4628,7 +4650,10 @@
       "additionalProperties": false,
       "required": ["mode"],
       "properties": {
-        "mode": { "enum": ["always", "profile-rule", "human-review"] },
+        "mode": {
+          "type": "string",
+          "enum": ["always", "profile-rule", "human-review"]
+        },
         "rule": { "type": "string", "maxLength": 4096 }
       }
     },
@@ -4638,7 +4663,7 @@
       "required": ["id", "kind"],
       "properties": {
         "id": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "kind": { "enum": ["risk", "requirement"] },
+        "kind": { "type": "string", "enum": ["risk", "requirement"] },
         "title": { "type": "string", "maxLength": 1024 },
         "statement": { "type": "string", "maxLength": 16384 },
         "level": { "type": "string", "maxLength": 128 },
@@ -4650,6 +4675,7 @@
           "maxItems": 16,
           "uniqueItems": true,
           "items": {
+            "type": "string",
             "enum": [
               "source-analysis",
               "configuration-review",
@@ -4691,6 +4717,7 @@
           "maxItems": 16,
           "uniqueItems": true,
           "items": {
+            "type": "string",
             "enum": [
               "satisfied",
               "violated",
@@ -4708,6 +4735,7 @@
           "maxItems": 16,
           "uniqueItems": true,
           "items": {
+            "type": "string",
             "enum": [
               "artifact",
               "observation",
@@ -4719,7 +4747,10 @@
         },
         "minimumEvidence": { "type": "integer", "minimum": 0, "maximum": 64 },
         "maximumEvidence": { "type": "integer", "minimum": 0, "maximum": 64 },
-        "humanReview": { "enum": ["never", "on-inconclusive", "required"] },
+        "humanReview": {
+          "type": "string",
+          "enum": ["never", "on-inconclusive", "required"]
+        },
         "rationaleRequired": { "type": "boolean" }
       }
     },
@@ -4746,6 +4777,7 @@
         },
         "workflowRole": { "type": "string", "minLength": 1, "maxLength": 64 },
         "method": {
+          "type": "string",
           "enum": [
             "source-analysis",
             "configuration-review",
@@ -4960,6 +4992,7 @@
       "required": ["implementation", "itemWorkflowRole"],
       "properties": {
         "implementation": {
+          "type": "string",
           "enum": [
             "checklist@1",
             "openapi-operations@1",
@@ -4993,7 +5026,10 @@
         },
         {
           "properties": {
-            "implementation": { "enum": ["openapi-scans@1", "web-scans@1"] }
+            "implementation": {
+              "type": "string",
+              "enum": ["openapi-scans@1", "web-scans@1"]
+            }
           },
           "required": ["source", "settings"],
           "not": { "required": ["standardSelection"] }
@@ -5001,6 +5037,7 @@
         {
           "properties": {
             "implementation": {
+              "type": "string",
               "enum": [
                 "checklist@1",
                 "openapi-operations@1",
@@ -5023,7 +5060,10 @@
       "additionalProperties": false,
       "required": ["source", "name"],
       "properties": {
-        "source": { "enum": ["audit-input", "prepare-output"] },
+        "source": {
+          "type": "string",
+          "enum": ["audit-input", "prepare-output"]
+        },
         "name": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
         },
@@ -5070,6 +5110,7 @@
       "required": ["source"],
       "properties": {
         "source": {
+          "type": "string",
           "enum": [
             "audit-input",
             "item-package",
@@ -5090,7 +5131,10 @@
       "oneOf": [
         {
           "properties": {
-            "source": { "enum": ["audit-input", "retained-dependency"] }
+            "source": {
+              "type": "string",
+              "enum": ["audit-input", "retained-dependency"]
+            }
           },
           "required": ["name"],
           "not": { "required": ["role"] }
@@ -5098,6 +5142,7 @@
         {
           "properties": {
             "source": {
+              "type": "string",
               "enum": ["item-package", "execution-manifest", "round-results"]
             }
           },
@@ -5107,7 +5152,10 @@
         },
         {
           "properties": {
-            "source": { "enum": ["retained-output", "prepare-output"] }
+            "source": {
+              "type": "string",
+              "enum": ["retained-output", "prepare-output"]
+            }
           },
           "required": ["name", "role"]
         }
@@ -5118,7 +5166,10 @@
       "additionalProperties": false,
       "required": ["source"],
       "properties": {
-        "source": { "enum": ["literal", "item-field", "scope-field"] },
+        "source": {
+          "type": "string",
+          "enum": ["literal", "item-field", "scope-field"]
+        },
         "name": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
         },
@@ -5170,6 +5221,7 @@
       "properties": {
         "planSchema": { "const": "contractor.audit.finding-check-plan.v1" },
         "method": {
+          "type": "string",
           "enum": [
             "verify",
             "replay",
@@ -5195,7 +5247,10 @@
       "additionalProperties": false,
       "required": ["kind", "workflow", "inputs", "parameters", "outputs"],
       "properties": {
-        "kind": { "enum": ["prepare", "check", "discovery", "assessment"] },
+        "kind": {
+          "type": "string",
+          "enum": ["prepare", "check", "discovery", "assessment"]
+        },
         "maxRunAttempts": { "type": "integer", "minimum": 1, "maximum": 10 },
         "workflow": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowRef"
@@ -5230,7 +5285,10 @@
         },
         {
           "properties": {
-            "kind": { "enum": ["check", "discovery", "assessment"] }
+            "kind": {
+              "type": "string",
+              "enum": ["check", "discovery", "assessment"]
+            }
           },
           "not": { "required": ["maxRunAttempts"] }
         }
@@ -5281,7 +5339,10 @@
           "minimum": 1,
           "maximum": 1073741824
         },
-        "incompleteRound": { "enum": ["assess-with-gaps", "fail"] }
+        "incompleteRound": {
+          "type": "string",
+          "enum": ["assess-with-gaps", "fail"]
+        }
       }
     },
     "AuditInteractionPolicy": {
@@ -5297,12 +5358,22 @@
         "activeChecks": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ActiveChecksPolicy"
         },
-        "findingConfirmation": { "enum": ["disabled", "human-required"] },
-        "notApplicable": { "enum": ["human-required", "profile-rule"] },
-        "reportAcceptance": { "enum": ["automatic", "human-required"] }
+        "findingConfirmation": {
+          "type": "string",
+          "enum": ["disabled", "human-required"]
+        },
+        "notApplicable": {
+          "type": "string",
+          "enum": ["human-required", "profile-rule"]
+        },
+        "reportAcceptance": {
+          "type": "string",
+          "enum": ["automatic", "human-required"]
+        }
       }
     },
     "AuditCompatibilityReason": {
+      "type": "string",
       "enum": [
         "preparation_unsupported",
         "discovery_unsupported",
@@ -5687,6 +5758,7 @@
       }
     },
     "AuditPhase": {
+      "type": "string",
       "enum": ["not-started", "preparing", "inventory", "rounds"]
     },
     "AuditPreparationOutput": {
@@ -5718,7 +5790,10 @@
       "additionalProperties": false,
       "required": ["status", "attempts", "maxAttempts", "outputs"],
       "properties": {
-        "status": { "enum": ["pending", "running", "accepted", "failed"] },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "running", "accepted", "failed"]
+        },
         "attempts": { "type": "integer", "minimum": 0, "maximum": 10 },
         "maxAttempts": { "type": "integer", "minimum": 1, "maximum": 10 },
         "executionId": {
@@ -5751,7 +5826,7 @@
         },
         {
           "properties": {
-            "status": { "enum": ["running", "failed"] },
+            "status": { "type": "string", "enum": ["running", "failed"] },
             "attempts": { "minimum": 1 },
             "outputs": { "maxProperties": 0 }
           },
@@ -5783,6 +5858,7 @@
       }
     },
     "AuditState": {
+      "type": "string",
       "enum": [
         "draft",
         "active",
@@ -5796,8 +5872,11 @@
         "deleting"
       ]
     },
-    "AuditDispatchState": { "enum": ["open", "closed"] },
-    "AuditHoldState": { "enum": ["pending", "held", "released"] },
+    "AuditDispatchState": { "type": "string", "enum": ["open", "closed"] },
+    "AuditHoldState": {
+      "type": "string",
+      "enum": ["pending", "held", "released"]
+    },
     "AuditLimits": {
       "type": "object",
       "additionalProperties": false,
@@ -5958,7 +6037,9 @@
           }
         },
         {
-          "properties": { "phase": { "enum": ["preparing", "inventory"] } },
+          "properties": {
+            "phase": { "type": "string", "enum": ["preparing", "inventory"] }
+          },
           "required": ["preparation", "baseline"],
           "not": { "required": ["currentRoundId"] }
         },
@@ -5988,6 +6069,7 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewSubjectKind"
         },
         "kind": {
+          "type": "string",
           "enum": [
             "finding-triage",
             "active-check-approval",
@@ -5999,6 +6081,7 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditReviewAction"
         },
         "verdict": {
+          "type": "string",
           "enum": [
             "true_positive",
             "false_positive",
@@ -6094,6 +6177,7 @@
       }
     },
     "AuditRoundState": {
+      "type": "string",
       "enum": ["proposed", "accepted", "executing", "assessing", "closed"]
     },
     "AuditRound": {
@@ -6131,6 +6215,7 @@
       }
     },
     "AuditItemState": {
+      "type": "string",
       "enum": [
         "pending",
         "awaiting_review",
@@ -6141,6 +6226,7 @@
       ]
     },
     "AuditFinalDisposition": {
+      "type": "string",
       "enum": [
         "accepted-result",
         "missing-output",
@@ -6152,15 +6238,19 @@
       ]
     },
     "AuditExecutionRole": {
+      "type": "string",
       "enum": ["prepare", "discovery", "check", "assessment"]
     },
     "AuditExecutionItemState": {
+      "type": "string",
       "enum": ["submitted", "collecting", "settled"]
     },
     "AuditTerminalOutcome": {
+      "type": "string",
       "enum": ["succeeded", "failed", "cancelled", "submission-failed"]
     },
     "AuditCollectionDisposition": {
+      "type": "string",
       "enum": [
         "accepted-result",
         "missing-output",
@@ -6482,6 +6572,7 @@
       }
     },
     "AuditCoverageStatus": {
+      "type": "string",
       "enum": [
         "not-tested",
         "inconclusive",
@@ -6535,7 +6626,7 @@
         "gaps"
       ],
       "properties": {
-        "scanner": { "enum": ["sqlmap", "nuclei"] },
+        "scanner": { "type": "string", "enum": ["sqlmap", "nuclei"] },
         "operation": { "type": "string", "minLength": 1, "maxLength": 8192 },
         "source": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
@@ -6664,6 +6755,7 @@
       }
     },
     "AuditItemApprovalKind": {
+      "type": "string",
       "enum": ["none", "active-check-approval", "requirement-applicability"]
     },
     "AuditReportSummaryArtifact": {
@@ -6682,6 +6774,7 @@
       }
     },
     "AuditReportStatus": {
+      "type": "string",
       "enum": ["pending", "proposed", "ready", "unavailable"]
     },
     "AuditReport": {
@@ -6689,7 +6782,7 @@
       "additionalProperties": false,
       "required": ["status"],
       "not": {
-        "properties": { "status": { "enum": ["proposed"] } },
+        "properties": { "status": { "type": "string", "enum": ["proposed"] } },
         "not": { "required": ["review"] }
       },
       "properties": {
@@ -6797,7 +6890,12 @@
           "not": { "required": ["round"] },
           "properties": {
             "audit": {
-              "properties": { "phase": { "enum": ["preparing", "inventory"] } }
+              "properties": {
+                "phase": {
+                  "type": "string",
+                  "enum": ["preparing", "inventory"]
+                }
+              }
             },
             "items": { "maxItems": 0 }
           }
@@ -6833,6 +6931,7 @@
             },
             "availability": { "const": "unavailable" },
             "reason": {
+              "type": "string",
               "enum": [
                 "not_recorded",
                 "not_provided",
@@ -6945,8 +7044,12 @@
           "minimum": 1,
           "maximum": 9007199254740991
         },
-        "language": { "enum": ["python", "javascript", "typescript"] },
+        "language": {
+          "type": "string",
+          "enum": ["python", "javascript", "typescript"]
+        },
         "profile": {
+          "type": "string",
           "enum": [
             "python/statement-v1",
             "javascript/statement-v1",
@@ -7037,6 +7140,7 @@
             "schema": { "const": "contractor.finding.anchors-projection.v1" },
             "availability": { "const": "unavailable" },
             "reason": {
+              "type": "string",
               "enum": [
                 "not_recorded",
                 "not_provided",
@@ -7123,6 +7227,7 @@
       "required": ["algorithm", "value"],
       "properties": {
         "algorithm": {
+          "type": "string",
           "enum": [
             "contractor/producer-issue/v1",
             "contractor/snapshot-issue-anchor/v1"
@@ -7159,6 +7264,7 @@
             },
             "availability": { "const": "unavailable" },
             "reason": {
+              "type": "string",
               "enum": [
                 "not_recorded",
                 "no_qualified_key",
@@ -7585,6 +7691,7 @@
           }
         },
         "severity_suggestion": {
+          "type": "string",
           "enum": ["", "informational", "low", "medium", "high", "critical"]
         },
         "limitations": {
@@ -7751,7 +7858,10 @@
         "origin": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/FindingOrigin"
         },
-        "retention": { "enum": ["source-held", "audit-held", "discarded"] },
+        "retention": {
+          "type": "string",
+          "enum": ["source-held", "audit-held", "discarded"]
+        },
         "auditHolds": {
           "type": "array",
           "maxItems": 200,
@@ -7804,6 +7914,7 @@
       }
     },
     "AuditFindingState": {
+      "type": "string",
       "enum": [
         "proposed",
         "confirmed",
@@ -7813,9 +7924,11 @@
       ]
     },
     "AuditFindingSeverity": {
+      "type": "string",
       "enum": ["informational", "low", "medium", "high", "critical"]
     },
     "AuditAnalystVerdict": {
+      "type": "string",
       "enum": [
         "true_positive",
         "false_positive",
@@ -7824,8 +7937,12 @@
         "needs_evidence"
       ]
     },
-    "AuditReviewAction": { "enum": ["approve", "reject", "not_applicable"] },
+    "AuditReviewAction": {
+      "type": "string",
+      "enum": ["approve", "reject", "not_applicable"]
+    },
     "AuditReviewRequestedAction": {
+      "type": "string",
       "enum": [
         "true_positive",
         "false_positive",
@@ -7838,9 +7955,13 @@
       ]
     },
     "AuditReviewSubjectKind": {
+      "type": "string",
       "enum": ["finding", "audit-item-action", "audit-report"]
     },
-    "AuditReviewState": { "enum": ["pending", "decided", "expired"] },
+    "AuditReviewState": {
+      "type": "string",
+      "enum": ["pending", "decided", "expired"]
+    },
     "AuditFindingAssessment": {
       "type": "object",
       "additionalProperties": false,
@@ -7857,6 +7978,7 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
         "semanticAssessment": {
+          "type": "string",
           "enum": [
             "supported",
             "refuted",
@@ -7975,6 +8097,7 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
         "kind": {
+          "type": "string",
           "enum": [
             "finding-triage",
             "active-check-approval",
@@ -8029,6 +8152,7 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditFindingState"
         },
         "rejectionReason": {
+          "type": "string",
           "enum": ["false-positive", "policy", "out-of-scope"]
         },
         "duplicateTargetId": {
@@ -8195,12 +8319,16 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
         "kind": {
+          "type": "string",
           "enum": ["source-proposal", "check-attempt", "direct-verification"]
         },
         "receiptId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
-        "relation": { "enum": ["first", "contributing", "verification"] },
+        "relation": {
+          "type": "string",
+          "enum": ["first", "contributing", "verification"]
+        },
         "proposal": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/AuditExactArtifact"
         },
@@ -8517,6 +8645,7 @@
       "properties": {
         "kind": { "type": "string", "const": "run_not_deletable" },
         "reason": {
+          "type": "string",
           "enum": [
             "run_not_terminal",
             "allocation_release_pending",
@@ -8832,6 +8961,7 @@
       ],
       "properties": {
         "kind": {
+          "type": "string",
           "enum": [
             "input_fork",
             "output_bind",
@@ -8839,11 +8969,11 @@
             "context_projection"
           ]
         },
-        "sourceScope": { "enum": ["user", "project", "run"] },
+        "sourceScope": { "type": "string", "enum": ["user", "project", "run"] },
         "source": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
         },
-        "targetScope": { "enum": ["user", "project", "run"] },
+        "targetScope": { "type": "string", "enum": ["user", "project", "run"] },
         "target": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
         },
@@ -8874,6 +9004,7 @@
       }
     },
     "WorkflowRunState": {
+      "type": "string",
       "enum": [
         "initializing",
         "pending",
@@ -8885,11 +9016,16 @@
         "cancelled"
       ]
     },
-    "WorkflowRunLifecycle": { "enum": ["active", "terminal"] },
+    "WorkflowRunLifecycle": {
+      "type": "string",
+      "enum": ["active", "terminal"]
+    },
     "NonTerminalWorkflowRunState": {
+      "type": "string",
       "enum": ["initializing", "pending", "running", "waiting", "cancelling"]
     },
     "StageExecutionState": {
+      "type": "string",
       "enum": [
         "preparing",
         "running",
@@ -8901,7 +9037,7 @@
         "cancelled"
       ]
     },
-    "StageOutcome": { "enum": ["succeeded", "failed"] },
+    "StageOutcome": { "type": "string", "enum": ["succeeded", "failed"] },
     "TerminationError": {
       "type": "object",
       "additionalProperties": false,
@@ -8942,8 +9078,8 @@
       "oneOf": [
         {
           "properties": {
-            "outcome": { "enum": ["succeeded"] },
-            "summarized": { "enum": [false] }
+            "outcome": { "type": "string", "enum": ["succeeded"] },
+            "summarized": { "type": "boolean", "enum": [false] }
           },
           "not": {
             "anyOf": [
@@ -8955,11 +9091,13 @@
         {
           "required": ["error"],
           "properties": {
-            "outcome": { "enum": ["failed"] },
-            "summarized": { "enum": [false] },
+            "outcome": { "type": "string", "enum": ["failed"] },
+            "summarized": { "type": "boolean", "enum": [false] },
             "error": {
               "properties": {
-                "code": { "not": { "enum": ["worker_summarized"] } }
+                "code": {
+                  "not": { "type": "string", "enum": ["worker_summarized"] }
+                }
               }
             }
           },
@@ -8968,12 +9106,12 @@
         {
           "required": ["summarized", "error"],
           "properties": {
-            "outcome": { "enum": ["failed"] },
-            "summarized": { "enum": [true] },
+            "outcome": { "type": "string", "enum": ["failed"] },
+            "summarized": { "type": "boolean", "enum": [true] },
             "error": {
               "properties": {
-                "code": { "enum": ["worker_summarized"] },
-                "retryable": { "enum": [false] }
+                "code": { "type": "string", "enum": ["worker_summarized"] },
+                "retryable": { "type": "boolean", "enum": [false] }
               }
             }
           }
@@ -8992,13 +9130,13 @@
         "occurredAt"
       ],
       "properties": {
-        "outcome": { "enum": ["cancelled", "interrupted"] },
+        "outcome": { "type": "string", "enum": ["cancelled", "interrupted"] },
         "code": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
         },
         "message": { "type": "string", "minLength": 1, "maxLength": 4096 },
         "retryable": { "type": "boolean" },
-        "phase": { "enum": ["preparing", "running"] },
+        "phase": { "type": "string", "enum": ["preparing", "running"] },
         "occurredAt": { "type": "string", "format": "date-time" }
       }
     },
@@ -9073,7 +9211,7 @@
       "additionalProperties": false,
       "required": ["participant", "code", "message"],
       "properties": {
-        "participant": { "enum": ["planner", "worker"] },
+        "participant": { "type": "string", "enum": ["planner", "worker"] },
         "completion": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkerCompletionDiagnostics"
         },
@@ -9518,7 +9656,10 @@
           "minItems": 1,
           "maxItems": 128,
           "uniqueItems": true,
-          "items": { "enum": ["llm-gateway", "tool-http", "tool-subprocess"] }
+          "items": {
+            "type": "string",
+            "enum": ["llm-gateway", "tool-http", "tool-subprocess"]
+          }
         }
       }
     },
@@ -9855,6 +9996,7 @@
       }
     },
     "RuntimeCredentialKind": {
+      "type": "string",
       "enum": [
         "otlp-headers@1",
         "http-proxy-basic@1",
@@ -10263,6 +10405,7 @@
       "required": ["layer"],
       "properties": {
         "layer": {
+          "type": "string",
           "enum": [
             "default",
             "workflow_execution_config",
@@ -10343,7 +10486,10 @@
         "origins": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/StageRuntimeOrigins"
         },
-        "status": { "enum": ["pinned", "release_pending", "released"] }
+        "status": {
+          "type": "string",
+          "enum": ["pinned", "release_pending", "released"]
+        }
       }
     },
     "StageRuntimeConfiguration": {
@@ -10467,6 +10613,7 @@
       "required": ["variant", "agents"],
       "properties": {
         "variant": {
+          "type": "string",
           "enum": [
             "base",
             "failed_escalation",
@@ -10562,7 +10709,10 @@
         "sourceExecutionId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
-        "action": { "enum": ["next", "retry", "escalate", "succeed", "fail"] },
+        "action": {
+          "type": "string",
+          "enum": ["next", "retry", "escalate", "succeed", "fail"]
+        },
         "targetStage": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
         },
@@ -10597,7 +10747,10 @@
         "output": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConfigId"
         },
-        "status": { "enum": ["published", "already_present", "failed"] },
+        "status": {
+          "type": "string",
+          "enum": ["published", "already_present", "failed"]
+        },
         "source": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
         },
@@ -10615,6 +10768,7 @@
       "required": ["code", "since", "automaticUntil", "requiresRetry"],
       "properties": {
         "code": {
+          "type": "string",
           "enum": [
             "model_unavailable",
             "gateway_unavailable",
@@ -10750,7 +10904,7 @@
           "maxLength": 128,
           "pattern": "^[a-z][a-z0-9_]*$"
         },
-        "severity": { "enum": ["warning", "blocking"] },
+        "severity": { "type": "string", "enum": ["warning", "blocking"] },
         "field": { "type": "string", "minLength": 1, "maxLength": 256 },
         "message": { "type": "string", "minLength": 1, "maxLength": 2048 }
       }
@@ -10760,7 +10914,7 @@
       "additionalProperties": false,
       "required": ["status", "value"],
       "properties": {
-        "status": { "enum": ["available"] },
+        "status": { "type": "string", "enum": ["available"] },
         "value": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExecutionConfigPatch"
         }
@@ -10771,8 +10925,8 @@
       "additionalProperties": false,
       "required": ["status"],
       "properties": {
-        "status": { "enum": ["available", "unavailable"] },
-        "sourceScope": { "enum": ["user", "project"] },
+        "status": { "type": "string", "enum": ["available", "unavailable"] },
+        "sourceScope": { "type": "string", "enum": ["user", "project"] },
         "artifact": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
         },
@@ -10838,7 +10992,10 @@
         "sourceRunId": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
         },
-        "authority": { "enum": ["ordinary", "audit-managed"] },
+        "authority": {
+          "type": "string",
+          "enum": ["ordinary", "audit-managed"]
+        },
         "workflow": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkflowRef"
         },
@@ -11155,7 +11312,10 @@
           "minLength": 1,
           "maxLength": 32768
         },
-        "status": { "enum": ["pending", "running", "succeeded", "failed"] }
+        "status": {
+          "type": "string",
+          "enum": ["pending", "running", "succeeded", "failed"]
+        }
       }
     },
     "PlannerDispatch": {
@@ -12120,7 +12280,7 @@
             }
           ]
         },
-        "source": { "enum": ["operator", "managed"] }
+        "source": { "type": "string", "enum": ["operator", "managed"] }
       }
     },
     "ConfigurationPage": {
@@ -12368,7 +12528,7 @@
           "minItems": 1,
           "maxItems": 16,
           "uniqueItems": true,
-          "items": { "enum": ["user", "operations"] }
+          "items": { "type": "string", "enum": ["user", "operations"] }
         }
       }
     },
@@ -12488,13 +12648,13 @@
       "additionalProperties": false,
       "required": ["storage", "modes", "limits"],
       "properties": {
-        "storage": { "enum": ["local", "memory"] },
+        "storage": { "type": "string", "enum": ["local", "memory"] },
         "modes": {
           "type": "array",
           "minItems": 1,
           "maxItems": 2,
           "uniqueItems": true,
-          "items": { "enum": ["direct", "overlay"] }
+          "items": { "type": "string", "enum": ["direct", "overlay"] }
         },
         "limits": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkspaceLimits"
@@ -12576,9 +12736,11 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkspaceCapabilities"
         },
         "observedState": {
+          "type": "string",
           "enum": ["idle", "allocated", "draining", "fenced"]
         },
         "slotState": {
+          "type": "string",
           "enum": ["idle", "reserved", "busy", "draining", "fenced"]
         },
         "lastAcceptedHeartbeat": { "type": "string", "format": "date-time" },
@@ -12595,6 +12757,7 @@
       }
     },
     "RuntimeAgentPrincipalAvailability": {
+      "type": "string",
       "enum": [
         "available",
         "offline",
@@ -12708,6 +12871,7 @@
       "maximum": 9007199254740991
     },
     "PerformanceReason": {
+      "type": "string",
       "enum": [
         "unsupported_platform",
         "read_failed",
@@ -12752,7 +12916,10 @@
       "additionalProperties": false,
       "required": ["status", "lastAttemptAt", "intervalSeconds", "coverage"],
       "properties": {
-        "status": { "enum": ["ok", "partial", "unavailable"] },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "partial", "unavailable"]
+        },
         "reason": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PerformanceReason"
         },
@@ -12790,7 +12957,7 @@
       "additionalProperties": false,
       "required": ["surface", "inFlight", "counts", "duration"],
       "properties": {
-        "surface": { "enum": ["public", "private"] },
+        "surface": { "type": "string", "enum": ["public", "private"] },
         "inFlight": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PerformanceInteger"
         },
@@ -13372,7 +13539,10 @@
         "version": { "type": "integer", "const": 1 },
         "generation": { "type": "string", "minLength": 1, "maxLength": 128 },
         "minuteStart": { "type": "string", "format": "date-time" },
-        "status": { "enum": ["ok", "partial", "unavailable"] },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "partial", "unavailable"]
+        },
         "omittedWindows": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/PerformanceInteger"
         },
@@ -13430,7 +13600,7 @@
       "properties": {
         "from": { "type": "string", "format": "date-time" },
         "to": { "type": "string", "format": "date-time" },
-        "step": { "enum": ["15s", "1m", "5m", "1h"] },
+        "step": { "type": "string", "enum": ["15s", "1m", "5m", "1h"] },
         "points": {
           "type": "array",
           "maxItems": 1000,
@@ -13470,13 +13640,21 @@
           ],
           "not": { "required": ["reason"] }
         },
-        { "properties": { "status": { "enum": ["partial", "unavailable"] } } }
+        {
+          "properties": {
+            "status": { "type": "string", "enum": ["partial", "unavailable"] }
+          }
+        }
       ],
       "properties": {
         "version": { "type": "integer", "const": 1 },
         "scope": { "const": "runtime_process" },
-        "status": { "enum": ["complete", "partial", "unavailable"] },
+        "status": {
+          "type": "string",
+          "enum": ["complete", "partial", "unavailable"]
+        },
         "reason": {
+          "type": "string",
           "enum": [
             "unsupported_platform",
             "read_failed",
@@ -13546,9 +13724,11 @@
         },
         "finishedAt": { "type": "string", "format": "date-time" },
         "collectionPolicy": {
+          "type": "string",
           "enum": ["requested", "disabled", "unsupported"]
         },
         "status": {
+          "type": "string",
           "enum": [
             "disabled",
             "unsupported",
@@ -13559,6 +13739,7 @@
           ]
         },
         "reason": {
+          "type": "string",
           "enum": [
             "unsupported_platform",
             "read_failed",
@@ -13629,9 +13810,11 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ConsumerExecutionConfig"
         },
         "authoritativePhase": {
+          "type": "string",
           "enum": ["preparing", "active", "finalizing", "aborting", "releasing"]
         },
         "observedPhase": {
+          "type": "string",
           "enum": ["absent", "prepared", "draining", "fenced"]
         },
         "reason": {
@@ -13641,6 +13824,7 @@
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/MetricsSummary"
         },
         "exhaustedDimension": {
+          "type": "string",
           "enum": [
             "model_calls",
             "tool_calls",

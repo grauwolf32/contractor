@@ -11,7 +11,7 @@ import math
 import secrets
 import time
 from array import array
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
@@ -75,8 +75,6 @@ MAX_SCOPE_TERMS = 256
 MAX_PREVIEW_CHARACTERS = 8192
 MAX_BINARY_PREVIEW_BYTES = 6144
 MAX_TOOL_RESULT_BYTES = 1024 * 1024
-MAX_WORKFLOWS = 100
-MAX_AUTOMATE_ENTRIES = 100
 MAX_PAYLOADS_PER_RESULT = 32
 MAX_RAW_REQUEST_BYTES = 1024 * 1024
 MAX_AUTOMATE_TARGETS = 32
@@ -114,44 +112,84 @@ class _SitemapSnapshot:
     def page(self, offset: int, limit: int) -> dict[str, Any]:
         total = len(self.offsets) - 1
 
-        def envelope(count: int) -> tuple[dict[str, Any], int]:
-            end = offset + count
-            value = {
-                "entries": [],
+        def envelope(end: int) -> dict[str, Any]:
+            value: dict[str, Any] = {
                 "total_entries": total,
                 "offset": offset,
                 "truncated": end < total,
             }
             if end < total:
                 value["next_cursor"] = f"{self.cursor_id}.{end}"
-            size = (
-                len(_tool_result_json(value))
-                + self.offsets[end]
-                - self.offsets[offset]
-                + max(0, count - 1)
-            )
-            return value, size
+            return value
 
-        count = min(limit, total - offset)
-        if envelope(count)[1] > MAX_TOOL_RESULT_BYTES:
-            # Non-final prefixes all retain a cursor, so their exact encoded
-            # sizes increase monotonically. Each row was encoded only once.
-            low, high = 0, count - 1
-            while low < high:
-                middle = (low + high + 1) // 2
-                if envelope(middle)[1] <= MAX_TOOL_RESULT_BYTES:
-                    low = middle
-                else:
-                    high = middle - 1
-            count = low
-            if count == 0:
+        return _encoded_page(self.rows, self.offsets, offset, limit, "entries", envelope)
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class _EncodedRows:
+    """Validated provider members, each encoded once as compact tool-result JSON."""
+
+    rows: bytes
+    offsets: array
+
+    @classmethod
+    def build(cls, members: Iterable[dict[str, Any]]) -> _EncodedRows:
+        rows = bytearray()
+        offsets = array("Q", [0])
+        for member in members:
+            encoded = _tool_result_json(member)
+            if len(rows) + len(encoded) > MAX_CAIDO_RESPONSE_BYTES:
                 raise CaidoToolError("caido_response_too_large")
-        value, _size = envelope(count)
-        value["entries"] = [
-            json.loads(self.rows[self.offsets[index] : self.offsets[index + 1]])
+            rows.extend(encoded)
+            offsets.append(len(rows))
+        return cls(bytes(rows), offsets)
+
+
+def _encoded_page(
+    rows: bytes,
+    offsets: array,
+    offset: int,
+    limit: int,
+    field: str,
+    envelope: Callable[[int], dict[str, Any]],
+) -> dict[str, Any]:
+    """Return the longest run of at most limit rows from offset that fits LIM-HTP-35.
+
+    offset is at most the row count. envelope(end) returns the result members
+    other than field for a page that ends before row end; it adds a
+    continuation only while end is below the row count.
+    """
+
+    total = len(offsets) - 1
+
+    def size(count: int) -> int:
+        end = offset + count
+        value = {field: [], **envelope(end)}
+        return len(_tool_result_json(value)) + offsets[end] - offsets[offset] + max(0, count - 1)
+
+    count = min(limit, total - offset)
+    if count and size(count) > MAX_TOOL_RESULT_BYTES:
+        # Non-final prefixes all carry a continuation that grows with end, so
+        # their exact encoded sizes increase monotonically. Each row was
+        # encoded only once.
+        low, high = 0, count - 1
+        while low < high:
+            middle = (low + high + 1) // 2
+            if size(middle) <= MAX_TOOL_RESULT_BYTES:
+                low = middle
+            else:
+                high = middle - 1
+        count = low
+        if count == 0:
+            raise CaidoToolError("caido_response_too_large")
+    value = {
+        field: [
+            json.loads(rows[offsets[index] : offsets[index + 1]])
             for index in range(offset, offset + count)
-        ]
-        return _bounded_result(value)
+        ],
+        **envelope(offset + count),
+    }
+    return _bounded_result(value)
 
 
 CAIDO_TOOL_NAMES = frozenset(
@@ -421,13 +459,19 @@ class _CaidoSession:
         except TargetDenied:
             raise CaidoToolError("caido_target_denied") from None
 
-    async def scopes(self) -> dict[str, Any]:
+    async def scopes(self, limit: int, offset: int) -> dict[str, Any]:
+        selected_limit, selected_offset = _page(limit, offset)
         async with self._lock:
             data = await self._execute("scopes")
-            _exact_object(data, {"scopes"})
-            raw_scopes = _list(data["scopes"], maximum=MAX_PAGE_SIZE)
-            scopes = [_scope(raw) for raw in raw_scopes]
-            return _bounded_result({"scopes": scopes})
+            return await threads.to_thread_until_done(
+                _catalog_page,
+                data,
+                "scopes",
+                _scope,
+                selected_offset,
+                selected_limit,
+                name="caido-scope-catalog",
+            )
 
     async def create_scope(
         self, name: str, allowlist: Sequence[str], denylist: Sequence[str]
@@ -826,16 +870,28 @@ class _CaidoSession:
         if type(ascending) is not bool:
             raise CaidoToolError("caido_request_invalid")
         async with self._lock:
-            if not selected_entry:
-                data = await self._execute("automate_session", {"id": selected_session})
-                _exact_object(data, {"automateSession"})
-                if data["automateSession"] is None:
-                    return {"session_id": selected_session, "status": "not_found"}
-                session = _automate_session(data["automateSession"])
-                entries = session["entries"]
-                if not entries:
+            data = await self._execute("automate_session", {"id": selected_session})
+            _exact_object(data, {"automateSession"})
+            if data["automateSession"] is None:
+                return {"session_id": selected_session, "status": "not_found"}
+            # The whole entry list is validated and searched off the loop: an
+            # explicit or newest entry may follow any number of others.
+            found = await threads.to_thread_until_done(
+                _automate_session_entry,
+                data["automateSession"],
+                selected_session,
+                selected_entry,
+                name="caido-automate-session",
+            )
+            if found is None:
+                if not selected_entry:
                     return {"session_id": selected_session, "status": "no_entries"}
-                selected_entry = entries[-1]["id"]
+                return {
+                    "session_id": selected_session,
+                    "entry_id": selected_entry,
+                    "status": "not_found",
+                }
+            selected_entry = found
             data = await self._execute(
                 "automate_entry_requests",
                 {
@@ -858,6 +914,7 @@ class _CaidoSession:
             entry = await threads.to_thread_until_done(
                 _automate_entry,
                 data["automateEntry"],
+                selected_entry,
                 selected_limit,
                 name="caido-automate-results",
             )
@@ -922,20 +979,32 @@ class _CaidoSession:
             self._sitemap_snapshot = snapshot
             return result
 
-    async def workflow_list(self, kind: str) -> dict[str, Any]:
+    async def workflow_list(self, kind: str, limit: int, offset: int) -> dict[str, Any]:
         if not isinstance(kind, str):
             raise CaidoToolError("caido_request_invalid")
         selected_kind = kind.strip().lower()
         if selected_kind and selected_kind not in _WORKFLOW_KINDS:
             raise CaidoToolError("caido_request_invalid")
+        selected_limit, selected_offset = _page(limit, offset)
+
+        def member(value: object) -> dict[str, Any] | None:
+            # Every member is validated, including those the kind filter skips.
+            workflow = _workflow(value)
+            if selected_kind and workflow["kind"] != selected_kind:
+                return None
+            return workflow
+
         async with self._lock:
             data = await self._execute("workflows")
-            _exact_object(data, {"workflows"})
-            raw_workflows = _list(data["workflows"], maximum=MAX_WORKFLOWS)
-            workflows = [_workflow(item) for item in raw_workflows]
-            if selected_kind:
-                workflows = [item for item in workflows if item["kind"] == selected_kind]
-            return _bounded_result({"workflows": workflows})
+            return await threads.to_thread_until_done(
+                _catalog_page,
+                data,
+                "workflows",
+                member,
+                selected_offset,
+                selected_limit,
+                name="caido-workflow-catalog",
+            )
 
     async def workflow_run(
         self, workflow_id: str, input_text: str, request_id: str
@@ -1261,9 +1330,15 @@ class CaidoScopeTool(_CaidoTool):
         allowlist: Allowed host patterns for create, such as "*.example.com";
             omit for list.
         denylist: Excluded host patterns for create; omit for list.
+        limit: Maximum scopes on a list page, 1 through 100; defaults to 100.
+            Leave the default for create.
+        offset: Zero-based position of the first listed scope; defaults to 0.
+            Leave 0 for create.
 
     Returns:
-        Existing scopes, or the creation status and created scope.
+        A page of existing scopes with total_scopes, offset and truncated; when
+        truncated, list again with offset=next_offset. Or the creation status
+        and created scope.
     """
 
     async def __call__(
@@ -1272,6 +1347,8 @@ class CaidoScopeTool(_CaidoTool):
         name: str = "",
         allowlist: list[str] | None = None,
         denylist: list[str] | None = None,
+        limit: int = MAX_PAGE_SIZE,
+        offset: int = 0,
     ) -> dict[str, Any]:
         arguments = {
             "action": (
@@ -1280,14 +1357,20 @@ class CaidoScopeTool(_CaidoTool):
             "allowCount": len(allowlist) if isinstance(allowlist, list) else 0,
             "denyCount": len(denylist) if isinstance(denylist, list) else 0,
             "hasName": bool(name) if isinstance(name, str) else False,
+            "limit": limit if type(limit) is int else -1,
+            "offset": offset if type(offset) is int else -1,
         }
 
         async def operation() -> dict[str, Any]:
             if action == "list":
                 if name or allowlist is not None or denylist is not None:
                     raise CaidoToolError("caido_request_invalid")
-                return await self._session.scopes()
+                return await self._session.scopes(limit, offset)
             if action == "create":
+                if type(limit) is not int or limit != MAX_PAGE_SIZE:
+                    raise CaidoToolError("caido_request_invalid")
+                if type(offset) is not int or offset != 0:
+                    raise CaidoToolError("caido_request_invalid")
                 return await self._session.create_scope(
                     name,
                     [] if allowlist is None else allowlist,
@@ -1484,7 +1567,7 @@ class CaidoAutomateResultsTool(_CaidoTool):
 
     Args:
         session_id: Session ID returned by caido_automate_run.
-        entry_id: Specific entry ID; empty selects the latest entry.
+        entry_id: Entry ID of this session; empty selects its newest entry.
         limit: Maximum results per page, from 1 to 100; defaults to 50.
         offset: Zero-based pagination offset; defaults to 0.
         sort_by: RESP_STATUS_CODE, RESP_LENGTH, RESP_ROUNDTRIP_TIME, POSITION
@@ -1580,18 +1663,29 @@ class CaidoWorkflowListTool(_CaidoTool):
 
     Args:
         kind: "convert", "active" or "passive"; empty lists all kinds.
+        limit: Maximum workflows on this page, 1 through 100; defaults to 100.
+        offset: Zero-based position of the first listed workflow among those
+            of the selected kind; defaults to 0.
 
     Returns:
-        A bounded workflow inventory with IDs, names, kinds and enabled state.
+        A page of workflows with IDs, names, kinds and enabled state, plus
+        total_workflows, offset and truncated; when truncated, call again with
+        the same kind and offset=next_offset.
     """
 
-    async def __call__(self, kind: str = "") -> dict[str, Any]:
+    async def __call__(
+        self, kind: str = "", limit: int = MAX_PAGE_SIZE, offset: int = 0
+    ) -> dict[str, Any]:
         selected = kind if isinstance(kind, str) and kind.lower() in _WORKFLOW_KINDS else ""
-        arguments = {"kind": selected or ("all" if kind == "" else "invalid")}
+        arguments = {
+            "kind": selected or ("all" if kind == "" else "invalid"),
+            "limit": limit if type(limit) is int else -1,
+            "offset": offset if type(offset) is int else -1,
+        }
         return await self._call(
             arguments,
             lambda result: {"count": len(result["workflows"])},
-            lambda: self._session.workflow_list(kind),
+            lambda: self._session.workflow_list(kind, limit, offset),
         )
 
 
@@ -2099,18 +2193,26 @@ def _convert_output(value: object, redaction: _CaidoRedaction) -> tuple[bytes, s
         return output, None
 
 
-def _automate_session(value: object) -> dict[str, Any]:
+def _automate_session_entry(value: object, session_id: str, entry_id: str) -> str | None:
+    """Validate a complete Automate session and select one of its entries.
+
+    The provider lists every entry of the session without pagination, bounded
+    only by LIM-HTP-19 and LIM-HTP-34. entry_id selects that entry; an empty
+    one selects the last listed, newest entry. None means no such entry.
+    """
+
     session = _exact_object(value, {"id", "name", "entries", "settings"})
-    entries: list[dict[str, Any]] = []
-    for raw in _list(session["entries"], maximum=MAX_AUTOMATE_ENTRIES):
+    if _identifier(session["id"]) != session_id:
+        raise CaidoToolError("caido_response_invalid")
+    _text(session["name"])
+    selected: str | None = None
+    for raw in _list(session["entries"], maximum=MAX_CAIDO_RESPONSE_ITEMS):
         entry = _exact_object(raw, {"id", "name", "createdAt"})
-        entries.append(
-            {
-                "id": _identifier(entry["id"]),
-                "name": _text(entry["name"]),
-                "created_at": _timestamp(entry["createdAt"]),
-            }
-        )
+        identifier = _identifier(entry["id"])
+        _text(entry["name"])
+        _timestamp(entry["createdAt"])
+        if not entry_id or identifier == entry_id:
+            selected = identifier
     settings = _exact_object(session["settings"], {"strategy", "placeholders"})
     _text(settings["strategy"])
     for raw in _list(settings["placeholders"], maximum=32):
@@ -2119,12 +2221,13 @@ def _automate_session(value: object) -> dict[str, Any]:
         end = _integer(placeholder["end"], minimum=0)
         if end < start:
             raise CaidoToolError("caido_response_invalid")
-    return {"id": _identifier(session["id"]), "entries": entries}
+    return selected
 
 
-def _automate_entry(value: object, limit: int) -> dict[str, Any]:
+def _automate_entry(value: object, entry_id: str, limit: int) -> dict[str, Any]:
     entry = _exact_object(value, {"id", "name", "requestsByOffset"})
-    _identifier(entry["id"])
+    if _identifier(entry["id"]) != entry_id:
+        raise CaidoToolError("caido_response_invalid")
     _text(entry["name"])
     connection = _raw_connection(entry["requestsByOffset"], limit)
     results: list[dict[str, Any]] = []
@@ -2198,16 +2301,52 @@ def _sitemap_entry(value: object, *, include_parent: bool) -> dict[str, Any]:
 def _sitemap_snapshot(value: object, *, include_parent: bool) -> _SitemapSnapshot:
     # The adapter's existing structural-value bound dominates the number of
     # nodes. Validate the complete provider selection, even beyond page one.
-    nodes = _list(value, maximum=MAX_CAIDO_RESPONSE_ITEMS)
-    rows = bytearray()
-    offsets = array("Q", [0])
-    for node in nodes:
-        encoded = _tool_result_json(_sitemap_entry(node, include_parent=include_parent))
-        if len(rows) + len(encoded) > MAX_CAIDO_RESPONSE_BYTES:
-            raise CaidoToolError("caido_response_too_large")
-        rows.extend(encoded)
-        offsets.append(len(rows))
-    return _SitemapSnapshot(secrets.token_urlsafe(24), bytes(rows), offsets)
+    encoded = _EncodedRows.build(
+        _sitemap_entry(node, include_parent=include_parent)
+        for node in _list(value, maximum=MAX_CAIDO_RESPONSE_ITEMS)
+    )
+    return _SitemapSnapshot(secrets.token_urlsafe(24), encoded.rows, encoded.offsets)
+
+
+def _catalog_page(
+    data: object,
+    field: str,
+    member: Callable[[object], dict[str, Any] | None],
+    offset: int,
+    limit: int,
+) -> dict[str, Any]:
+    """Validate a complete flat Caido catalog and return one bounded page of it.
+
+    The provider returns scopes and workflows without pagination, so every
+    call reads and strictly validates the whole selection under LIM-HTP-19
+    and LIM-HTP-34 (HTP-R147); member returns None for a valid member that a
+    filter leaves out. Offsets index the selected members of this read.
+    """
+
+    _exact_object(data, {field})
+    encoded = _EncodedRows.build(
+        selected
+        for selected in map(member, _list(data[field], maximum=MAX_CAIDO_RESPONSE_ITEMS))
+        if selected is not None
+    )
+    total = len(encoded.offsets) - 1
+    if offset >= total:
+        # A catalog that shrank between pages, or an offset past its end.
+        return _bounded_result(
+            {field: [], f"total_{field}": total, "offset": offset, "truncated": False}
+        )
+
+    def envelope(end: int) -> dict[str, Any]:
+        value: dict[str, Any] = {
+            f"total_{field}": total,
+            "offset": offset,
+            "truncated": end < total,
+        }
+        if end < total:
+            value["next_offset"] = end
+        return value
+
+    return _encoded_page(encoded.rows, encoded.offsets, offset, limit, field, envelope)
 
 
 def _workflow(value: object) -> dict[str, Any]:

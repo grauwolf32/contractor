@@ -126,7 +126,7 @@ func readProjectSitemap(ctx context.Context, client *publicclient.Client, projec
 		if project.JSON200 == nil || project.JSON200.ProjectId != projectID || !project.JSON200.Lifecycle.Valid() {
 			return sitemapReadResult{}, errors.New("invalid Project response while resolving an absent sitemap")
 		}
-		if project.JSON200.Lifecycle == publicapi.Deleting {
+		if project.JSON200.Lifecycle == publicapi.ProjectLifecycleDeleting {
 			return sitemapReadResult{}, &publicclient.APIError{Status: http.StatusConflict, Code: "project_deleting", Message: "Project is deleting"}
 		}
 		return sitemapReadResult{Document: projectsitemap.Empty()}, nil

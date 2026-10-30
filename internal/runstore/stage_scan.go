@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/grauwolf32/contractor/internal/stageresult"
+	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
 const stageExecutionColumns = `
@@ -58,7 +59,7 @@ func scanStageExecution(row rowScanner) (StageExecution, error) {
 	if err := validateJSONObject("persisted stageSpecSnapshot", result.StageSpecSnapshot); err != nil {
 		return StageExecution{}, err
 	}
-	if err := json.Unmarshal(stageContext, &result.StageContext); err != nil {
+	if err := strictjson.Decode(stageContext, &result.StageContext); err != nil {
 		return StageExecution{}, fmt.Errorf("decode persisted StageContext: %w", err)
 	}
 	if err := result.StageContext.Validate(); err != nil {
@@ -66,7 +67,7 @@ func scanStageExecution(row rowScanner) (StageExecution, error) {
 	}
 	if candidate != nil {
 		var decoded stageresult.StageContentResult
-		if err := json.Unmarshal(candidate, &decoded); err != nil {
+		if err := strictjson.Decode(candidate, &decoded); err != nil {
 			return StageExecution{}, fmt.Errorf("decode candidate StageResult: %w", err)
 		}
 		if err := decoded.Validate(); err != nil {
@@ -76,7 +77,7 @@ func scanStageExecution(row rowScanner) (StageExecution, error) {
 	}
 	if accepted != nil {
 		var decoded stageresult.StageContentResult
-		if err := json.Unmarshal(accepted, &decoded); err != nil {
+		if err := strictjson.Decode(accepted, &decoded); err != nil {
 			return StageExecution{}, fmt.Errorf("decode accepted StageResult: %w", err)
 		}
 		if err := decoded.Validate(); err != nil {
@@ -86,7 +87,7 @@ func scanStageExecution(row rowScanner) (StageExecution, error) {
 	}
 	if termination != nil {
 		var decoded StageTermination
-		if err := json.Unmarshal(termination, &decoded); err != nil {
+		if err := strictjson.Decode(termination, &decoded); err != nil {
 			return StageExecution{}, fmt.Errorf("decode StageTermination: %w", err)
 		}
 		if err := decoded.Validate(); err != nil {

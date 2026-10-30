@@ -245,7 +245,7 @@ func (s *Scheduler) claimDivergedTerminalGrant(
 		if err != nil && !errors.Is(err, runstore.ErrNotFound) {
 			return err
 		}
-		if err == nil && !terminalStageExecution(owner.State) {
+		if err == nil && !owner.State.Terminal() {
 			return errDivergedGrantOwned
 		}
 	}
@@ -259,15 +259,6 @@ func (s *Scheduler) claimDivergedTerminalGrant(
 		"live_stage_execution_id", grant.StageExecutionID,
 	)
 	return nil
-}
-
-func terminalStageExecution(state runstore.StageExecutionState) bool {
-	switch state {
-	case runstore.StageSucceeded, runstore.StageFailed, runstore.StageInterrupted, runstore.StageCancelled:
-		return true
-	default:
-		return false
-	}
 }
 
 func verifyTerminalReleaseReservation(

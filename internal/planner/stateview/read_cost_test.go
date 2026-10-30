@@ -33,14 +33,19 @@ func (r *decodingReader) ReadWorkerState(
 	return reporting.WorkerStateReadResult{Snapshot: &snapshot, ETag: r.etag}, nil
 }
 
-// maximumStateBody encodes the fixture State with the workspace at its path
-// bounds, about 2 MB.
+// maximumStateBody encodes a valid State whose last completed invocation has
+// the workspace at its path bounds, about 1.9 MB. It is built here rather
+// than from the shared agent-state-snapshot.json fixture, which only a
+// TestShared* test may read, so the benchmark runs on its own.
 func maximumStateBody(t testing.TB) []byte {
 	t.Helper()
-	snapshot := stateFixture(t)
-	workspace := snapshot.State.LastCompletedInvocation.Workspace
-	workspace.ScopePaths = make([]string, 0, maximumStatePaths)
-	workspace.Interactions = make([]reporting.WorkerStateWorkspaceInteraction, 0, maximumStatePaths)
+	outcome := "succeeded"
+	workspace := &reporting.WorkerStateWorkspace{
+		ScopePaths:     make([]string, 0, maximumStatePaths),
+		ScopeComplete:  true,
+		Interactions:   make([]reporting.WorkerStateWorkspaceInteraction, 0, maximumStatePaths),
+		DetailComplete: true,
+	}
 	for index := range maximumStatePaths {
 		path := fmt.Sprintf("src/component%03d/module%04d/source.go", index/100, index)
 		workspace.ScopePaths = append(workspace.ScopePaths, path)
@@ -48,6 +53,30 @@ func maximumStateBody(t testing.TB) []byte {
 			Path: path, FirstOrdinal: uint64(index + 1), LastOrdinal: uint64(index + 2),
 			DiscoveryCalls: 1, ReadCalls: uint64(index % 2), MatchCalls: uint64(index % 3),
 		})
+	}
+	snapshot := reporting.AgentStateSnapshot{
+		APIVersion: contracts.APIVersion,
+		State: reporting.ContractorWorkerState{
+			SchemaVersion: 2,
+			StateRevision: 7,
+			Metrics: reporting.WorkerAllocationState{
+				Counters:     map[string]uint64{"llm_calls": 1, "tool_calls": 1, "tool_calls.read_file": 1},
+				ToolCalls:    []reporting.WorkerStateToolCall{},
+				Errors:       []reporting.ExecutionError{},
+				FinalOutcome: &outcome,
+			},
+			LastCompletedInvocation: &reporting.WorkerInvocationState{
+				InvocationID: "worker-completed",
+				SubtaskID:    "1.1",
+				Phase:        "succeeded",
+				Metrics: reporting.WorkerStateInvocationMetric{
+					ModelCalls: 1, InputTokens: 16, OutputTokens: 4, TotalTokens: 20, ToolCalls: 1,
+					Tools: map[string]reporting.WorkerStateInvocationToolMetric{"read_file": {Calls: 1}},
+				},
+				Summarizer: reporting.WorkerStateSummarizer{Phase: "disabled"},
+				Workspace:  workspace,
+			},
+		},
 	}
 	body, err := json.Marshal(snapshot)
 	if err != nil {
@@ -57,6 +86,28 @@ func maximumStateBody(t testing.TB) []byte {
 		t.Fatalf("maximum State is invalid: %v", err)
 	}
 	return body
+}
+
+// changedRevisionRead returns one Planner State tool call that finds a
+// changed revision at the contract maximum, and the size of the State it
+// reads: recording the completion drops the cached revision, so the call
+// reads, strictly decodes and validates the whole State, then projects it.
+func changedRevisionRead(t testing.TB) (func(), int) {
+	t.Helper()
+	reader := &decodingReader{body: maximumStateBody(t), etag: stateETag(7)}
+	service := testService(t, reader, Binding{
+		LogicalName: "builder", Handle: stateHandle("allocation-builder"), WorkspaceEligible: true,
+	})
+	completion := stateCompletion("worker-completed", "1.1", 7)
+	return func() {
+		if err := service.RecordCompletion("builder", "1.1", completion); err != nil {
+			t.Fatal(err)
+		}
+		coverage, err := service.GetWorkspaceCoverage(t.Context(), "builder")
+		if err != nil || coverage.ScopedFiles != maximumStatePaths {
+			t.Fatalf("coverage = (%+v, %v)", coverage, err)
+		}
+	}, len(reader.body)
 }
 
 // processCPU returns the CPU time this process has used, which a shared
@@ -74,26 +125,14 @@ func processCPU(b *testing.B) time.Duration {
 // strict decode and validation of the body, then the projection. Besides
 // wall time it reports process CPU per call, garbage collection included.
 func BenchmarkWorkerStateChangedRevision(b *testing.B) {
-	reader := &decodingReader{body: maximumStateBody(b), etag: stateETag(7)}
-	service := testService(b, reader, Binding{
-		LogicalName: "builder", Handle: stateHandle("allocation-builder"), WorkspaceEligible: true,
-	})
-	completion := stateCompletion("worker-completed", "1.1", 7)
-	b.SetBytes(int64(len(reader.body)))
+	read, size := changedRevisionRead(b)
+	b.SetBytes(int64(size))
 	b.ReportAllocs()
 	started := processCPU(b)
 	calls := 0
 	for b.Loop() {
 		calls++
-		// Recording the completion drops the cached revision, so every call
-		// reads and decodes the whole State.
-		if err := service.RecordCompletion("builder", "1.1", completion); err != nil {
-			b.Fatal(err)
-		}
-		coverage, err := service.GetWorkspaceCoverage(b.Context(), "builder")
-		if err != nil || coverage.ScopedFiles != maximumStatePaths {
-			b.Fatalf("coverage = (%+v, %v)", coverage, err)
-		}
+		read()
 	}
 	b.ReportMetric(float64(processCPU(b)-started)/float64(time.Millisecond)/float64(calls), "cpu-ms/op")
 }
