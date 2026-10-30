@@ -26,6 +26,15 @@ _FIELD_VALUE = re.compile(rb"(?:[^\x00\s]+(?:[ \t]+[^\x00\s]+)*)?")
 
 # Visible ASCII characters, with runs of space or tab only between them.
 _CREDENTIAL_FIELD_VALUE = re.compile(r"[!-~]+(?:[ \t]+[!-~]+)*")
+_COOKIE_NAME = re.compile(r"[!#$%&'*+.^_`|~0-9A-Za-z-]{1,256}")
+
+
+def valid_cookie_name(value: str) -> bool:
+    return _COOKIE_NAME.fullmatch(value) is not None
+
+
+def valid_cookie_value(value: str) -> bool:
+    return all(0x21 <= ord(c) <= 0x7E and c not in '",;\\' for c in value)
 
 
 def is_field_value(value: str) -> bool:

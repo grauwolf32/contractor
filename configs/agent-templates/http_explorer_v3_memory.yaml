@@ -28,6 +28,8 @@ spec:
     - ref: http-tools@1
       tools:
         - http_request
+        - http_credentials
+        - http_credential_read
         - http_read_body
         - http_history
         - http_session_set

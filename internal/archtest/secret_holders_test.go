@@ -103,10 +103,9 @@ var productionSecretHolderRules = secretHolderRules{
 			"built and encoded inside one call; it carries the plaintext by design",
 	},
 	plainFields: map[string]string{
-		"internal/contracts/pentestcontract.LoginRecipe.SecretFields": "login variable names validated by loginVariablePattern, not resolved secret values",
-		"internal/localpki.Paths.PrivateKey":                          "the path of the private key file, not the key",
-		"internal/mtls.Files.PrivateKey":                              "the path of the private key file, not the key",
-		"internal/mtlstest.Files.PrivateKey":                          "the path of the private key file, not the key",
+		"internal/localpki.Paths.PrivateKey": "the path of the private key file, not the key",
+		"internal/mtls.Files.PrivateKey":     "the path of the private key file, not the key",
+		"internal/mtlstest.Files.PrivateKey": "the path of the private key file, not the key",
 	},
 }
 
@@ -162,9 +161,6 @@ func TestSecretHolderGuardReportsEachRule(t *testing.T) {
 		external:   map[string]string{"crypto/tls.Config": "fixture"},
 		nonSecret:  map[string]string{fixture("handle"): "fixture", fixture("absentHandle"): "fixture"},
 		exceptions: map[string]string{fixture("excepted"): "fixture", fixture("absentException"): ""},
-		plainFields: map[string]string{
-			"internal/contracts/pentestcontract.LoginRecipe.SecretFields": productionSecretHolderRules.plainFields["internal/contracts/pentestcontract.LoginRecipe.SecretFields"],
-		},
 	})
 	want := []string{
 		"secret leaf " + fixture("absentLeaf") + " names no type",

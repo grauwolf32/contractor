@@ -5489,7 +5489,7 @@ export interface components {
             config: components["schemas"]["RuntimeConfigRef"];
         };
         /** @enum {unknown} */
-        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-login@1";
+        RuntimeCredentialKind: "otlp-headers@1" | "http-proxy-basic@1" | "http-proxy-bearer@1" | "caido-bearer@1" | "interactsh-token@1" | "http-origin-basic@1" | "http-origin-bearer@1" | "target-basic@1" | "target-bearer@1" | "target-cookies@1";
         RuntimeCredentialMetadata: {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             kind: components["schemas"]["RuntimeCredentialKind"];
@@ -5542,9 +5542,9 @@ export interface components {
             /** @description An HTTP/1.1 field value sent unchanged by every client (RCF-R114), visible ASCII characters with runs of space or tab only between them. */
             token: string;
         };
-        TargetLoginMaterial: {
-            /** @description Named login secret fields (RCF-R184); each value is at most 8,192 UTF-8 bytes without control characters, and the values total at most 16 KiB. */
-            fields: {
+        TargetCookiesMaterial: {
+            /** @description Ready user supplied cookies (RCF-R184); at most 128 cookies with token names, at most 8192 ASCII cookie octets per value and at most 16 KiB of names and values combined. Empty values are allowed. Runtime does not log in or refresh the session. */
+            cookies: {
                 [key: string]: string;
             };
         };
@@ -5596,8 +5596,8 @@ export interface components {
         } | {
             credentialId: components["schemas"]["RuntimeCredentialId"];
             /** @constant */
-            kind: "target-login@1";
-            material: components["schemas"]["TargetLoginMaterial"];
+            kind: "target-cookies@1";
+            material: components["schemas"]["TargetCookiesMaterial"];
         };
         PinnedRuntimeConfig: {
             label: components["schemas"]["ConfigId"];

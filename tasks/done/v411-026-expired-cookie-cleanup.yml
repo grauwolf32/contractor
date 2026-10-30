@@ -1,0 +1,63 @@
+schema_version: '1.0'
+id: V411-026
+title: Discard expired cookies before live session limits and projections
+milestone: autonomous-http-pentest-2026-10
+epic: http-tools
+kind: defect
+introduced_by: V411-005
+priority: P2
+status: completed
+implementation_commit: 55984ad7340d2a837af6942dbcbff10e437c9849
+depends_on: [V411-029]
+languages: [python]
+goal: Expired cookies leave the live jar and cannot cause false count exhaustion in controlled or ordinary HTTP sessions.
+context:
+  authority: User explicitly requested expired-cookie cleanup during the V411 session review on 2026-10-29.
+  severity: medium
+  provenance: Cookie counting without expiry cleanup originated in b725c01bcc3b84ed7e3d61a362ccc2cfea187c57 (V411-005) and remained in V411-029.
+  specification:
+  - docs/spec/tools/http-caido.md#HTP-R128
+  - docs/spec/tools/http-caido.md#HTP-R143
+  finding: >-
+    runtime/src/contractor_runtime/adapters/pentest_session.py:149 counts all CookieJar
+    entries although encoding and request matching skip expired ones. One live plus
+    127 expired cookies incorrectly reject one new cookie and block the identity.
+  siblings: >-
+    Ordinary HTTP cookie encoding already omits expired entries but leaves its source
+    jar unchanged; explicit session merge counts the unpruned jar and projections can
+    expose expired names. Cover both owners through the common cookie core.
+scope:
+  in:
+  - Remove expired source entries using one shared helper and the owning session clock.
+  - Prune before pentest request construction and aggregate validation, ordinary HTTP merge/request/projection, and cookie encoding.
+  - Add deterministic regressions through the real controlled httpcore path and ordinary direct/proxy tool sessions with checkpoint storage.
+  out:
+  - Identity scheduling, seed preflight policy, automatic authentication, and API or cookie-format changes.
+acceptance_criteria:
+- id: A1
+  text: One live plus 127 expired cookies accepts a new cookie, preserves the selected identity and emits the next ordinary controlled request.
+- id: A2
+  text: Ordinary HTTP session views, cookie merges and encoded source jars discard expired entries while preserving live/session cookies and checkpoint semantics.
+- id: A3
+  text: Regressions fail on the previous code and pass with injected clocks, without wall-clock waits; true count/byte overflows and cleanup remain enforced.
+tests:
+- command: make lint
+  covers: [A1, A2, A3]
+- command: make test-http-caido-runtime
+  covers: [A2, A3]
+- command: cd runtime && uv run pytest -W error tests/test_pentest*.py
+  covers: [A1, A3]
+implementation_notes:
+- Shared discard_expired_cookies removes entries from the source CookieJar using the caller's clock; encoding invokes it before validating or measuring active state.
+- Controlled requests prune their selected origin jar, and aggregate validation encodes/prunes every origin with one captured timestamp before counting.
+- Ordinary HTTP uses the same injected clock for its session and checkpoint; request snapshots, session merges and projections prune live state without adding storage writes to reads.
+- Six regressions failed on the original code, covering the real controlled httpcore traversal, ordinary direct/proxy views and merges, and source-jar encoding. They pass with controlled clocks; genuine overflow and lifecycle tests remain active.
+- Identity order and the mandatory seed preflight remain unchanged; their product purpose is a separate design question raised by the user.
+verification:
+  date: '2026-10-30'
+  results:
+  - Six new regression cases failed on the original implementation and passed after the fix; they use controlled clocks without timing assertions or waits.
+  - make test-http-caido-runtime passed all 213 tests, including direct/proxy checkpoint, cancellation and cookie-bound regressions.
+  - cd runtime && uv run pytest -W error tests/test_pentest*.py passed all 149 tests, including real-socket conformance and the controlled httpcore expiry regression.
+  - make lint passed all formatting, static analysis, task/spec/ERD, release-graph and import-layer checks.
+  delivery: Committed on codex/v411-shared-http-session; not merged into main. Identity scheduling and mandatory seed preflight were not changed.

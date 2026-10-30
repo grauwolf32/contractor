@@ -1840,17 +1840,19 @@ The shared Go/Python/schema fixtures define the same acceptance boundary.
 The document byte limit is LIM-AUD-31; tighter package and Audit input limits
 still apply.
 
-`target` contains exact `origins`, `seedUrls` and optional `deployment.marker`.
+`target` contains exact `origins` and optional `deployment.marker`.
 `scope` contains `routes`, `exclusions`, `actionClasses` and
 `callbackDestinations`. Each route has an `origin`, `pathPrefixes`, `methods`,
 `actionClasses` and canonical network `addressRanges`. An identity has a unique
 `id`, `kind`, `origins`, optional `role`/`tenant`, and an exact non-secret
-`credential` reference for authenticated kinds. HTTP-login requires an exact
-`loginRecipe`; Basic/Bearer may name a control-only recipe under
-[HTP-R141](../tools/http-caido.md). Exactly one identity is `anonymous`, with no credential
-or login recipe. Kinds are `anonymous`, `basic`, `bearer`, `http-login` and
-capability-selected `browser-login`. Credential kinds must match the identity
-and reuse RCF-R184; the immutable ID is the revision, never a secret digest.
+`credential` reference for non-anonymous kinds. Exactly one identity is
+`anonymous`, with no credential. Kinds are `anonymous`, `basic`, `bearer` and
+`cookies`; Basic/Bearer/cookies use the corresponding RCF-R184 credential kinds.
+Each non-anonymous credential ID occurs only once in an engagement, so explicit
+selection is unambiguous. The immutable credential ID is its revision, never a
+secret digest.
+
+
 Input entries are `{id, role, artifact, contentDigest}` with exact ArtifactRefs
 and roles `source`, `openapi`, `request-examples` or `documentation`. The
 containing Project supplies scope. Test-data descriptors contain `id`,
@@ -1860,7 +1862,7 @@ containing Project supplies scope. Test-data descriptors contain `id`,
 **AUD-R242.** The engagement requires explicit positive integer `budgets`.
 LIM-AUD-34 records the hard maxima for active time, target requests, request
 rate/concurrency, discovery, surface, hypotheses, rounds, submitted Runs,
-recipes, replay, login, byte retention, model calls/tokens and action intents.
+recipes, replay, byte retention, model calls/tokens and action intents.
 Existing profile/operator limits also apply, and the tighter bound wins.
 Pinning a budget alone does not authorize traffic. Start and Resume still cap
 ordinary per-continuation deadlines under AUD-R207. A policy that requires
@@ -1877,8 +1879,8 @@ expiry cannot clear their holds ([AUX-R105](execution.md)).
 **AUD-R243.** Engagement URLs accept absolute HTTP(S) with ASCII DNS A-labels
 or canonical IPv4/IPv6, an optional query and no userinfo or fragment. Origins
 are exact scheme/host/effective-port triples without wildcard hosts. Wire
-origins and seed URLs must already be canonical: lowercase DNS labels and
-omitted default ports; literal IP seeds must lie within an allowed route
+origins and requested URLs must already be canonical: lowercase DNS labels and
+omitted default ports; literal IP requests must lie within an allowed route
 address range. Reject
 ambiguous authorities, alternate numeric IP spellings, zones, control bytes,
 backslashes and malformed escapes. Canonical paths are shared by validation,
@@ -1929,17 +1931,9 @@ reasons additionally include `pentest_capability_unsupported`,
 **AUD-R247.** Start extends its immutable baseline with the versioned
 `contractor.audit.pentest-baseline.v1` engagement snapshot: the exact artifact,
 validated document, policy digest, trusted authorizing owner, authorization
-time and, when HTTP recipes are assigned, a nonempty `loginRecipes` map of
-validated non-secret recipe bodies. Without HTTP recipe references the map is
-omitted; an explicitly empty map is invalid. Browser-only metadata does not
-acquire an HTTP recipe body. This conditional shape is canonical for current
-admission and leaves recipe-free baseline bytes and their evidence digests
-unchanged. A stored HTTP recipe reference without its validated body is invalid;
-readers never resolve a newer artifact or synthesize the body.
-Admission reads each exact HTTP/control recipe with its media type, digest, byte
-bound and closed schema; it verifies identity/origin/scope binding before
-freezing the body. Allocation and action admission consume that snapshot
-without repeated Artifact I/O. Exact nested input/login-recipe refs and credential revisions are
+time. The snapshot contains no executable authentication recipes. Exact nested
+input refs and credential revisions are
+
 validated and held through existing Artifact links and credential dispatch
 holds in the start transaction. Profile, Workflow, Skill and RuntimeConfig
 pins retain their existing ownership. Project policy or draft changes racing
@@ -1956,16 +1950,16 @@ before dispatch. The immutable baseline lookup does not require an active
 Audit: pause blocks new child admission while existing Runs drain; Run
 cancellation, Project deletion and the allocation grant retain their existing
 dispatch fences. The projection contains immutable engagement/policy attribution and finite
-budgets. Metadata-only allocations omit `preflight`. Explicitly requiring
-`pentest-target-http@1` supplies typed GET/read seeds, assigned identities and
-inline non-secret login recipes, its routes/exclusions and the trusted
-infrastructure denyset. The Server
-selects an advertising Runtime before placement and completes its separate
-preflight call before the Planner starts. Neither mutable Project settings,
-physical labels nor Worker arguments can widen this assignment. Raw credentials, private variables, model-visible target tools and response
-bodies are absent from the projection. Exact held credential references are
+budgets. Metadata-only allocations omit `http`. Explicitly requiring
+`pentest-target-http@1` supplies typed routes/exclusions, assigned identities
+and the trusted infrastructure denyset. The Server selects an advertising
+Runtime before placement. Preparation performs no target discovery or startup
+request. The Worker chooses requests through HTTP tools with an optional explicit
+credential_id (HTP-R140). Neither mutable Project settings, physical labels nor
+Worker arguments widen this assignment. Raw credentials, private variables and
+response bodies are absent from the projection. Exact held credential references are
 materialized separately only on the private prepare wire (CTL-R168); identity
-execution and observed-authentication semantics belong to
+execution and configured-session semantics belong to
 [HTP-R140–146](../tools/http-caido.md).
 The existing private protocol and allocation lifecycle own validation,
 cancellation and release ([CTL-R169](../execution/control-plane.md)).

@@ -33,7 +33,7 @@ func TestSharedTargetCredentialReferenceCases(t *testing.T) {
 		if err == nil {
 			switch ref.Kind {
 			case runtimesettings.RuntimeCredentialTargetBasic, runtimesettings.RuntimeCredentialTargetBearer,
-				runtimesettings.RuntimeCredentialTargetLogin:
+				runtimesettings.RuntimeCredentialTargetCookies:
 				targetKinds++
 			}
 		}

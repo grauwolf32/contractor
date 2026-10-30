@@ -930,7 +930,7 @@ requires detaching it from every Project ([Projects](../artifacts/projects.md),
 PRJ-R79).
 
 The same store holds the pentest target identity kinds `target-basic@1`,
-`target-bearer@1` and `target-login@1` (RCF-R184).
+`target-bearer@1` and `target-cookies@1` (RCF-R184).
 
 **RCF-R112.** One encrypted runtime-credential plaintext is canonical JSON of
 at most 32 KiB (LIM-RCF-18). Creation material is one JSON object of at most
@@ -969,10 +969,11 @@ field-value rule by
 
 **RCF-R184.** The pentest target identity kinds are `target-basic@1`, a Basic
 username and password under the RCF-R114 bounds; `target-bearer@1`, a bearer
-token that is a credential field value (RCF-R114); and `target-login@1`, a
-`fields` object of 1–16 named login secrets (LIM-RCF-30) whose names match
-`^[a-z][a-z0-9_-]{0,63}$` and whose values are 1–8,192 UTF-8 bytes without
-control characters, at most 16 KiB in total (LIM-RCF-31), with canonical JSON
+token that is a credential field value (RCF-R114); and `target-cookies@1`, a
+`cookies` object of 1–128 name/value pairs (LIM-RCF-30). Names are ASCII HTTP
+tokens of 1–256 bytes. Values contain zero to 8192 ASCII RFC 6265 cookie-octets,
+excluding whitespace, controls, quote, comma, semicolon and backslash. Combined
+name/value bytes total at most 16 KiB (LIM-RCF-31), with canonical JSON
 within RCF-R112. A runtime credential is create-only and its ID is never
 reused after deletion, so its credential ID with its kind, the private
 `RuntimeCredentialRef` and the `credentialId` and `kind` of its public
@@ -991,13 +992,17 @@ returns, fails or is cancelled. The Server, the Runtime, the private schema
 and the public API are held to these rules by
 [`target-credential-cases.json`](../../../api/testdata/v1alpha1/target-credential-cases.json).
 Target identity material is delivered only after placement through the existing
-private allocation settings (CTL-R168). Basic/login fields retain their UTF-8
-secret grammar on this wire; only the Bearer token uses the HTTP field-value
-grammar. A login recipe names fields, never plaintext. The private consumer
-requires the exact declared field set for HTTP-login and preserves immutable
-credential references independently of RuntimeConfig labels. Public preflight
-never decrypts credentials. Session establishment and refresh are owned by
-[HTP-R140–146](../tools/http-caido.md), not by this credential store.
+private allocation settings (CTL-R168). Basic fields retain their UTF-8 secret
+grammar, Bearer uses the HTTP field-value grammar, and cookie fields retain the
+same cookie grammar on this wire. The private consumer checks the exact selected
+kind and preserves immutable credential references independently of RuntimeConfig
+labels. Public preflight never decrypts credentials. Within an assigned Audit, the explicit
+model tool may return credential values under HTP-R143; public credential reads
+remain metadata-only. Memory-only session handling
+belongs to [HTP-R140–146](../tools/http-caido.md). Existing automatic-login
+credentials and engagement pins cannot be converted into authenticated cookies;
+the schema upgrade refuses such records before changing data and requires
+explicit operator resolution. It never rewrites immutable pins silently.
 
 **RCF-R115.** Runtime-credential read projections expose only the credential
 ID, kind and creation metadata.
@@ -1565,8 +1570,8 @@ Limits ([registry](../platform/limits.md)):
   (RCF-R161).
 - LIM-RCF-29 — `tpmLimit`, `rpmLimit` and `maxParallelRequests` of at most
   2^31-1 (RCF-R63).
-- LIM-RCF-30 — `target-login@1` of 1–16 named fields (RCF-R184).
-- LIM-RCF-31 — `target-login@1` field values of at most 16 KiB in total
+- LIM-RCF-30 — `target-cookies@1` of 1–128 cookie pairs (RCF-R184).
+- LIM-RCF-31 — `target-cookies@1` names and values of at most 16 KiB in total
   (RCF-R184).
 - Telemetry span, attribute, string and content bounds belong to
   [Observability](../platform/observability.md); the `worker.caido` endpoint

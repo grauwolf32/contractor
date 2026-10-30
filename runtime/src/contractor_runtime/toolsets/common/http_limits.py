@@ -6,6 +6,13 @@ retention never silently changes the transport's payload or attempt contract.
 
 from collections.abc import Iterable
 
+from contractor_runtime.core.http_session import (
+    MAX_COOKIE_SESSION_BYTES as MAX_COOKIE_SESSION_BYTES,
+)
+from contractor_runtime.core.http_session import (
+    MAX_COOKIES as MAX_COOKIES,
+)
+
 MAX_REQUEST_BODY_BYTES = 1 * 1024 * 1024
 MAX_RESPONSE_BODY_BYTES = 16 * 1024 * 1024
 MAX_PREVIEW_CHARACTERS = 8192
@@ -23,8 +30,6 @@ MAX_REQUEST_HEADER_BYTES = 48 * 1024
 MAX_QUERY_BYTES = 64 * 1024
 MAX_URL_BYTES = 8192
 MAX_HISTORY = 128
-MAX_COOKIES = 128
-MAX_COOKIE_SESSION_BYTES = 65536
 MAX_REDIRECTS = 10
 MAX_ATTEMPTS = 3
 MAX_EXCHANGE_ATTEMPTS = MAX_REDIRECTS + MAX_ATTEMPTS
