@@ -1,14 +1,12 @@
 package public
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditservice"
 	"github.com/grauwolf32/contractor/internal/auditstore"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/pagelimit"
 )
 
@@ -160,13 +158,17 @@ func (h *auditHandlers) createAuditFindingReview(w http.ResponseWriter, r *http.
 		handleError(w, err)
 		return
 	}
-	auditID, findingID := r.PathValue("auditId"), r.PathValue("findingId")
-	digest := reviewRequestDigest("create", auditID, findingID, revision, request)
-	result, err := h.Audits.CreateFindingReview(r.Context(), auditservice.CreateFindingReviewParams{
-		OwnerID: principalUserID(r.Context()), AuditID: auditID, FindingID: findingID,
+	params := auditservice.CreateFindingReviewParams{
+		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"), FindingID: r.PathValue("findingId"),
 		ExpectedRevision: revision, RequestID: requestID, ExpiresAt: request.ExpiresAt,
-		IdempotencyKey: key, RequestDigest: digest,
-	})
+		IdempotencyKey: key,
+	}
+	params.RequestDigest, err = auditservice.CreateFindingReviewRequestDigest(params)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	result, err := h.Audits.CreateFindingReview(r.Context(), params)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -261,20 +263,23 @@ func (h *auditHandlers) decideAuditReview(w http.ResponseWriter, r *http.Request
 		return
 	}
 	auditID, requestID := r.PathValue("auditId"), r.PathValue("requestId")
-	digest := reviewRequestDigest("decide", auditID, requestID, revision, request)
 	if request.Action != nil {
 		if request.Verdict != nil || request.Severity != nil || request.DuplicateTargetID != nil {
 			handleError(w, errInvalidRequest)
 			return
 		}
-		result, err := h.Audits.DecideActionReview(
-			r.Context(), auditservice.DecideActionReviewParams{
-				OwnerID: principalUserID(r.Context()), AuditID: auditID,
-				RequestID: requestID, ExpectedRequestRevision: revision,
-				DecisionID: decisionID, Action: *request.Action, Rationale: request.Rationale,
-				IdempotencyKey: key, RequestDigest: digest,
-			},
-		)
+		params := auditservice.DecideActionReviewParams{
+			OwnerID: principalUserID(r.Context()), AuditID: auditID,
+			RequestID: requestID, ExpectedRequestRevision: revision,
+			DecisionID: decisionID, Action: *request.Action, Rationale: request.Rationale,
+			IdempotencyKey: key,
+		}
+		params.RequestDigest, err = auditservice.DecideActionReviewRequestDigest(params)
+		if err != nil {
+			handleError(w, err)
+			return
+		}
+		result, err := h.Audits.DecideActionReview(r.Context(), params)
 		if err != nil {
 			handleError(w, err)
 			return
@@ -290,12 +295,18 @@ func (h *auditHandlers) decideAuditReview(w http.ResponseWriter, r *http.Request
 		handleError(w, errInvalidRequest)
 		return
 	}
-	result, err := h.Audits.DecideFinding(r.Context(), auditservice.DecideFindingParams{
+	params := auditservice.DecideFindingParams{
 		OwnerID: principalUserID(r.Context()), AuditID: auditID, RequestID: requestID,
 		ExpectedRequestRevision: revision, DecisionID: decisionID,
 		Verdict: *request.Verdict, Severity: request.Severity, Rationale: request.Rationale,
-		DuplicateTargetID: request.DuplicateTargetID, IdempotencyKey: key, RequestDigest: digest,
-	})
+		DuplicateTargetID: request.DuplicateTargetID, IdempotencyKey: key,
+	}
+	params.RequestDigest, err = auditservice.DecideFindingRequestDigest(params)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
+	result, err := h.Audits.DecideFinding(r.Context(), params)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -389,15 +400,6 @@ func auditMutationHeaders(r *http.Request) (string, uint64, error) {
 	}
 	revision, err := requiredRevision(r, "Audit mutation")
 	return key, revision, err
-}
-
-func reviewRequestDigest(kind string, identity ...any) string {
-	encoded, _ := json.Marshal(struct {
-		Schema   string `json:"schema"`
-		Kind     string `json:"kind"`
-		Identity []any  `json:"identity"`
-	}{Schema: "contractor.audit.review-request.v1", Kind: kind, Identity: identity})
-	return contentdigest.Bytes(encoded)
 }
 
 // Continuations bind owner, filters and Audit revision. A caller may also pin
