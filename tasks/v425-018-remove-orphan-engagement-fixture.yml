@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V422-002
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - json

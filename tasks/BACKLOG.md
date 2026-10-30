@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-121 open tasks: 41 in progress, 69 pending, 11 deferred. 1219 finished: 1204 completed, 15 archived.
+121 open tasks: 42 in progress, 68 pending, 11 deferred. 1219 finished: 1204 completed, 15 archived.
 
 ## In progress
 
@@ -52,6 +52,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V425-003](v425-003-restorable-sql-function-references.yml) | persistence | defect | P1 | Make every SQL function that table definitions evaluate restorable by pg_restore |
+| [V425-018](v425-018-remove-orphan-engagement-fixture.yml) | http-tools | defect | P2 | Remove the engagement action fixture that no side reads |
 
 ## Pending
 
@@ -92,7 +93,6 @@ the epics are in [epics.yml](epics.yml).
 | [V412-001](v412-001-managed-pentest-browser.yml) | feature | P2 | — | Add allocation-owned browser investigation with explicit network authority |
 | [V412-004](v412-004-trusted-pentest-callback-proof.yml) | feature | P2 | V411-015, V411-016 | Use existing Interactsh tools as bounded HTTP investigation evidence |
 | [V425-004](v425-004-http-gateway-e2e-tool-list.yml) | defect | P2 | — | Derive the HTTP gateway process test's expected tools from the toolset descriptor |
-| [V425-018](v425-018-remove-orphan-engagement-fixture.yml) | defect | P2 | — | Remove the engagement action fixture that no side reads |
 
 ### Scanner tool Workers and scan planning (`scan-tools`)
 
