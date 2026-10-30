@@ -3,6 +3,7 @@ import { Link, type To } from "react-router";
 
 import { auditScanWidget } from "../../../widgets/audit-scans/registry";
 import type { Audit, AuditWorkspace } from "../../../api/audits";
+import { auditPrecedesRounds } from "../../../api/states";
 import { itemNoun, type ItemKind } from "../../../app/vocabulary";
 import {
   Button,
@@ -115,8 +116,7 @@ export function CheckProgress({
   workspace: UseQueryResult<AuditWorkspace>;
   links: CheckLinks;
 }) {
-  const inventoryPending =
-    audit.phase === "preparing" || audit.phase === "inventory";
+  const inventoryPending = auditPrecedesRounds(audit.phase);
   const snapshot = workspace.data;
   // The list is pinned to another revision than the snapshot: its own rows
   // feed the whole header.

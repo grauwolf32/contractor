@@ -24,7 +24,7 @@ func (s *QueryStore) ListPreparationExecutions(ctx context.Context, auditID stri
 }
 
 // ListPreparedPage reads one page of Audits, as List does, and the
-// preparation of the listed Audits whose phase shows it (ASC-R150). A
+// preparation of the listed Audits whose phase precedes Rounds (ASC-R150). A
 // pool-backed store reads both in one read-only REPEATABLE READ transaction,
 // so the page shows every Audit, and its preparation, as of one commit: a
 // concurrent mutation or purge is in neither read or, if it committed first,
@@ -53,7 +53,7 @@ func (s *QueryStore) ListPreparedPage(
 		}
 		selected := make([]string, 0, len(audits))
 		for _, audit := range audits {
-			if audit.Phase.ShowsPreparation() {
+			if audit.Phase.PrecedesRounds() {
 				selected = append(selected, audit.AuditID)
 			}
 		}

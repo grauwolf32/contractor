@@ -27,6 +27,7 @@ lint: generate-public-client-check docs-dependencies-check model-config-check ui
 	python3 scripts/check_spec.py
 	python3 scripts/shared_fixture_gate.py --sources-only
 	python3 scripts/check_database_erd.py
+	CONTRACTOR_ERD_USAGE_OUT= go test -count=1 -run '^TestERDUsageMatchesTheSQLScan$$' ./internal/persistence
 	cd runtime && uv run ruff check .
 	cd runtime && uv run ruff format --check .
 	cd runtime && uv run lint-imports --no-cache --no-logo
@@ -80,7 +81,8 @@ verify-architecture:
 
 # Regenerates docs/spec/database-erd.html from a scratch database migrated to
 # the current schema; see scripts/erd/README.md. make lint fails while the page
-# lags the migrations (scripts/check_database_erd.py).
+# lags the migrations (scripts/check_database_erd.py) or the packages that use
+# each table (TestERDUsageMatchesTheSQLScan).
 docs-erd:
 	npm ci --prefix scripts/erd --no-audit --no-fund
 	python3 scripts/erd/build_erd.py

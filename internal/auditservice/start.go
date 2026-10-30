@@ -924,7 +924,7 @@ func startedProjectionWithStore(
 	replayed bool,
 ) (StartedAudit, error) {
 	if audit.CurrentRoundID == nil {
-		if audit.Phase != auditdomain.AuditPhasePreparing && audit.Phase != auditdomain.AuditPhaseInventory {
+		if !audit.Phase.PrecedesRounds() {
 			return StartedAudit{}, errors.New("started Audit has an invalid phase without a Round")
 		}
 		return StartedAudit{Audit: audit, Items: []auditstore.Item{}, Replayed: replayed}, nil

@@ -506,3 +506,19 @@ func newCollectingAuditFixture(t *testing.T, name string, maxEvidenceBytes int64
 		claim: claim, execution: execution, memberID: memberID, itemID: item.ItemID,
 	}
 }
+
+// TestListItemAttemptsAnswersEveryRequestedItem pins the store's answer that
+// the public item list and its handler-test double rely on: every requested
+// item has an entry, an empty non-nil list for one without attempts.
+func TestListItemAttemptsAnswersEveryRequestedItem(t *testing.T) {
+	f := newCollectingAuditFixture(t, "attempt-entries", 1<<20, collectingAuditFixtureOptions{extraPending: true})
+	waiting := "pending-item-attempt-entries"
+	attempts, err := f.store.ListItemAttempts(f.ctx, f.audit.OwnerID, f.audit.AuditID, []string{f.itemID, waiting})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(attempts) != 2 || len(attempts[f.itemID]) != 1 || attempts[f.itemID][0].ExecutionItemID != f.memberID ||
+		attempts[waiting] == nil || len(attempts[waiting]) != 0 {
+		t.Fatalf("attempts = %#v", attempts)
+	}
+}

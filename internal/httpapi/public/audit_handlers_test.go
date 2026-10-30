@@ -800,12 +800,11 @@ func (f *fakeAuditManagement) ListItemAttempts(
 	if len(itemIDs) == 0 || len(itemIDs) > pagelimit.MaxRows {
 		return nil, fmt.Errorf("%w: fake attempt selection of %d items", auditstore.ErrInvalid, len(itemIDs))
 	}
-	// Like the store, the result holds only the items that have attempts.
-	attempts := map[string][]auditstore.ItemAttempt{}
+	// Like the store, the result answers every requested item, with an empty
+	// list for an item without attempts.
+	attempts := make(map[string][]auditstore.ItemAttempt, len(itemIDs))
 	for _, itemID := range itemIDs {
-		if itemAttempts, ok := f.attempts[itemID]; ok {
-			attempts[itemID] = itemAttempts
-		}
+		attempts[itemID] = append([]auditstore.ItemAttempt{}, f.attempts[itemID]...)
 	}
 	return attempts, f.err
 }
