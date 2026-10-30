@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -52,8 +51,9 @@ type purgeScaleReads struct {
 // thirds of an index at most, and a whole read nearly all of it.
 func TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes(t *testing.T) {
 	f := newCollectingAuditFixture(t, "purge-scale", 1<<20)
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Minute)
-	defer cancel()
+	// The test measures reads, not time: copying 150,000 rows takes as long as
+	// the machine needs, and go test -timeout is the safety net.
+	ctx := t.Context()
 	findingID := collectPurgeFinding(t, f, "receipt-purge-scale")
 	background, _, err := f.store.CreateDraft(ctx, auditstore.CreateDraftParams{
 		AuditID: "audit-purge-scale-background", OwnerID: f.audit.OwnerID, ProjectID: f.project.ProjectID,
@@ -126,9 +126,10 @@ func TestPostgresAuditPurgeAtScaleProbesForeignKeysThroughIndexes(t *testing.T) 
 		"rejection_reason": `NULL`, "duplicate_target_id": `NULL`,
 		"current_assessment_id": `NULL`, "current_decision_id": `NULL`,
 	})
-	// The copies take longer than the fixture's claim lease.
+	// The copies take longer than the fixture's claim lease; the purge holds
+	// a lease that no run of the test outlives, however loaded the machine.
 	if _, err := setup.Exec(ctx, `
-UPDATE audit_controller_claims SET expires_at = clock_timestamp() + interval '10 minutes'
+UPDATE audit_controller_claims SET expires_at = clock_timestamp() + interval '1 day'
  WHERE audit_id = $1 AND holder_id = $2 AND epoch = $3`, claim.AuditID, claim.HolderID, claim.Epoch); err != nil {
 		t.Fatal(err)
 	}

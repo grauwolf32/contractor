@@ -66,6 +66,22 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	}
 	return pool
 }
+
+// seedWithoutStatementTimeout runs seed in one transaction without the test
+// pool's statement timeout, so a large fixture takes as long as the machine
+// needs while the statements a test measures keep the timeout.
+func seedWithoutStatementTimeout(ctx context.Context, t *testing.T, pool *pgxpool.Pool, seed func(pgx.Tx) error) {
+	t.Helper()
+	if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SET LOCAL statement_timeout = 0`); err != nil {
+			return err
+		}
+		return seed(tx)
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func transaction(pool *pgxpool.Pool, fn func(*Store) error) error {
 	return pg.InTx(context.Background(), pool, pgx.TxOptions{}, func(tx pgx.Tx) error { return fn(NewTxStore(tx)) })
 }

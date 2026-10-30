@@ -11,6 +11,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/evaldomain"
 	"github.com/grauwolf32/contractor/internal/evalstore"
+	"github.com/jackc/pgx/v5"
 )
 
 // A deleted experiment larger than one purge pass is purged one bounded pass
@@ -53,11 +54,18 @@ func TestSharedPostgresEvalPurgeYieldsBetweenTicksAndRefusesPartialReads(t *test
 		t.Fatalf("experiment did not finish with a view: %+v, %+v, %v", e, view, err)
 	}
 	// Evidence references standing in for large results: more rows than one
-	// pass may delete.
-	if _, err := h.pool.Exec(ctx, `
+	// pass may delete. The seed runs without the test pool's statement
+	// timeout; the purge passes under test keep it.
+	if err := pgx.BeginFunc(ctx, h.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SET LOCAL statement_timeout = 0`); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `
 INSERT INTO eval_evidence_refs(experiment_id, member_id, record_sha256, scope_kind, scope_id, namespace, name, revision)
 SELECT $1, $2, 'sha256:' || repeat('e', 64), 'user', 'eval-owner', 'fixtures', 'evidence-' || n, '1'
-FROM generate_series(1, 2500) AS n`, e.ID, member); err != nil {
+FROM generate_series(1, 2500) AS n`, e.ID, member)
+		return err
+	}); err != nil {
 		t.Fatal(err)
 	}
 	deletion := frozen(t, "Delete", map[string]any{})

@@ -15,6 +15,11 @@ func TestPostgresBulkExperimentWritesBumpCollectionsOncePerStatement(t *testing.
 		t.Fatal(err)
 	}
 	defer tx.Rollback(ctx)
+	// The test counts collection writes, not time: its 20,000-row statements
+	// run without the test pool's statement timeout.
+	if _, err := tx.Exec(ctx, `SET LOCAL statement_timeout = 0`); err != nil {
+		t.Fatal(err)
+	}
 	writes := func() (inserted, updated int64) {
 		t.Helper()
 		if err := tx.QueryRow(ctx, `
