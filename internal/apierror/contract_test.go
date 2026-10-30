@@ -2,11 +2,15 @@ package apierror
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -21,7 +25,12 @@ const (
 	publicOpenAPI = "../../api/openapi/contractor-public-v1.yaml"
 	eventSchema   = "../../api/events/contractor-events-v1.schema.json"
 	browserSource = "../../ui/src"
+	eventsSource  = "../httpapi/public/events"
 )
+
+// privateAPISources are the private APIs that write their own error codes:
+// the allocation-scoped Artifact API and the Control Plane API.
+var privateAPISources = []string{"../httpapi/privateartifacts", "../controlplane"}
 
 // uiLocalCodes are the codes the browser client gives its own failures
 // (ui/src/api/error.ts and client.ts): they never come from the Server, so
@@ -168,6 +177,242 @@ func TestEventSchemaErrorFrameCodesAreTheFrameCodes(t *testing.T) {
 	if !slices.Equal(documented, registered) {
 		t.Errorf("ErrorFrame code enum = %v, registry frame codes = %v", documented, registered)
 	}
+}
+
+// TestEventsSendExactlyTheFrameCodes derives the codes the events package
+// sends in error frames from its sendError and endAll calls: every frame
+// code is sent, and every sent code is a frame code.
+func TestEventsSendExactlyTheFrameCodes(t *testing.T) {
+	kinds := registeredKindNames(t)
+	sent := map[string][]string{}
+	paths, err := filepath.Glob(filepath.Join(eventsSource, "*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		set := token.NewFileSet()
+		file, err := parser.ParseFile(set, path, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			argument := map[string]int{"sendError": 1, "endAll": 0}
+			index, ok := argument[selector.Sel.Name]
+			if !ok || index >= len(call.Args) {
+				return true
+			}
+			where := set.Position(call.Pos()).String()
+			kind, ok := call.Args[index].(*ast.SelectorExpr)
+			if !ok || !isIdent(kind.X, "apierror") || kinds[kind.Sel.Name] == "" {
+				t.Errorf("%s: an error frame must name a registered apierror Kind", where)
+				return true
+			}
+			sent[kinds[kind.Sel.Name]] = append(sent[kinds[kind.Sel.Name]], where)
+			return true
+		})
+	}
+	if len(sent) == 0 {
+		t.Fatal("the events scan found no error frame")
+	}
+	frames := registeredCodes(func(row *entry) bool { return row.frame })
+	if codes := slices.Sorted(maps.Keys(sent)); !slices.Equal(codes, frames) {
+		t.Errorf("the events package sends error frames %v, registry frame codes = %v", codes, frames)
+	}
+}
+
+// TestPrivateAPIsAnswerSharedCodesLikeTheRegistry reads every error the
+// private APIs write: a code that is also a public code keeps the registry's
+// HTTP status and retryable flag there too (ERR-R14). Private codes stay
+// outside the registry.
+func TestPrivateAPIsAnswerSharedCodesLikeTheRegistry(t *testing.T) {
+	statuses := httpStatusConstants(t)
+	shared := 0
+	for _, source := range privateAPISources {
+		paths, err := filepath.Glob(filepath.Join(source, "*.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		written := 0
+		for _, path := range paths {
+			if strings.HasSuffix(path, "_test.go") {
+				continue
+			}
+			set := token.NewFileSet()
+			file, err := parser.ParseFile(set, path, nil, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ast.Inspect(file, func(node ast.Node) bool {
+				call, ok := node.(*ast.CallExpr)
+				if !ok || len(call.Args) != 5 {
+					return true
+				}
+				switch name := calledName(call.Fun); name {
+				case "writeError", "writePrivateError":
+				default:
+					return true
+				}
+				written++
+				where := set.Position(call.Pos()).String()
+				if fromOneKind(call.Args) {
+					return true
+				}
+				literal, ok := call.Args[2].(*ast.BasicLit)
+				if !ok || literal.Kind != token.STRING {
+					t.Errorf("%s: a private error code must be a literal", where)
+					return true
+				}
+				code, _ := strconv.Unquote(literal.Value)
+				kind, public := Lookup(code)
+				if !public {
+					return true
+				}
+				shared++
+				status, retryable := -1, ""
+				if selector, ok := call.Args[1].(*ast.SelectorExpr); ok && isIdent(selector.X, "http") {
+					status = statuses[selector.Sel.Name]
+				}
+				if flag, ok := call.Args[4].(*ast.Ident); ok && (flag.Name == "true" || flag.Name == "false") {
+					retryable = flag.Name
+				}
+				if status != kind.Status() || retryable != strconv.FormatBool(kind.Retryable()) {
+					t.Errorf("%s: private %s answers status %d, retryable %q; the registry gives %d, retryable %t",
+						where, code, status, retryable, kind.Status(), kind.Retryable())
+				}
+				return true
+			})
+		}
+		if written == 0 {
+			t.Errorf("the scan of %s found no private error", source)
+		}
+	}
+	if shared == 0 {
+		t.Fatal("the private API scan found no shared public code")
+	}
+}
+
+// fromOneKind reports an error written as kind.Status(), kind.Code(), any
+// message and kind.Retryable() of one Kind value, which agrees with the
+// registry by construction.
+func fromOneKind(arguments []ast.Expr) bool {
+	receiver := func(expression ast.Expr, method string) string {
+		call, ok := expression.(*ast.CallExpr)
+		if !ok || len(call.Args) != 0 {
+			return ""
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || selector.Sel.Name != method {
+			return ""
+		}
+		ident, ok := selector.X.(*ast.Ident)
+		if !ok {
+			return ""
+		}
+		return ident.Name
+	}
+	kind := receiver(arguments[2], "Code")
+	return kind != "" && receiver(arguments[1], "Status") == kind && receiver(arguments[4], "Retryable") == kind
+}
+
+// httpStatusConstants reads the net/http status constants of the Go
+// toolchain that builds the Server.
+func httpStatusConstants(t *testing.T) map[string]int {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(runtime.GOROOT(), "src", "net", "http", "status.go"), nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statuses := map[string]int{}
+	ast.Inspect(file, func(node ast.Node) bool {
+		value, ok := node.(*ast.ValueSpec)
+		if !ok {
+			return true
+		}
+		for index, name := range value.Names {
+			if index < len(value.Values) {
+				if literal, ok := value.Values[index].(*ast.BasicLit); ok && literal.Kind == token.INT {
+					statuses[name.Name], _ = strconv.Atoi(literal.Value)
+				}
+			}
+		}
+		return true
+	})
+	if statuses["StatusConflict"] != 409 {
+		t.Fatal("net/http status constants were not found")
+	}
+	return statuses
+}
+
+func calledName(function ast.Expr) string {
+	switch value := function.(type) {
+	case *ast.Ident:
+		return value.Name
+	case *ast.SelectorExpr:
+		return value.Sel.Name
+	}
+	return ""
+}
+
+// registeredKindNames maps each exported Kind variable of the registry to its
+// code, read from the first argument of its registration call.
+func registeredKindNames(t *testing.T) map[string]string {
+	t.Helper()
+	paths, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]string{}
+	for _, path := range paths {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			value, ok := node.(*ast.ValueSpec)
+			if !ok {
+				return true
+			}
+			for index, name := range value.Names {
+				if index >= len(value.Values) || !name.IsExported() {
+					continue
+				}
+				call, ok := value.Values[index].(*ast.CallExpr)
+				if !ok || len(call.Args) == 0 {
+					continue
+				}
+				if literal, ok := call.Args[0].(*ast.BasicLit); ok && literal.Kind == token.STRING {
+					code, _ := strconv.Unquote(literal.Value)
+					if _, registered := Lookup(code); registered {
+						names[name.Name] = code
+					}
+				}
+			}
+			return true
+		})
+	}
+	if names["NotFound"] != "not_found" {
+		t.Fatal("the registry scan did not find the NotFound Kind")
+	}
+	return names
+}
+
+func isIdent(expression ast.Expr, name string) bool {
+	ident, ok := expression.(*ast.Ident)
+	return ok && ident.Name == name
 }
 
 // TestBrowserClientComparesOnlyRegisteredCodes reads the browser client's

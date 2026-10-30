@@ -1174,7 +1174,8 @@ one in the Runtime, pinned by
 [`gateway-recovery-participant-cases.json`](../../../api/testdata/v1alpha1/gateway-recovery-participant-cases.json):
 the updates `acquire`, `failed`, `succeeded`, `finished` and `released`, of
 which the last three are terminal; the codes a `failed` update may carry, which
-are exactly the retryable codes of the shared Gateway failure classification;
+are exactly the retryable codes of the shared Gateway failure classification
+and the only values of the public `code` of a Run's `recovery`;
 the bounds of an update; the update that reports each attempt outcome, where
 only `failed` carries a code and retry hint and only `failed` resends the
 request; and the update re-delivered after cancellation (SCH-R108).

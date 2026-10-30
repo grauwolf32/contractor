@@ -197,7 +197,6 @@ type ErrorFrame = {
   code:
     | "invalid_frame"
     | "subscription_limit"
-    | "unauthorized"
     | "not_found"
     | "overloaded";
   message: string;

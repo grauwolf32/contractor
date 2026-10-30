@@ -308,6 +308,14 @@ statuses and the codes named in response descriptions of the OpenAPI
 contract, the error-frame enum of the event schema, and the code comparisons
 of the browser client.
 
+The `code` of a Run's `recovery` is not an error code. It names a model
+gateway failure cause from the recovery cause vocabulary that the Server and
+the Runtime share (`model_unavailable`, `gateway_unavailable`,
+`gateway_timeout`, `gateway_rate_limited`), owned by
+[Scheduler](../execution/scheduler.md) (SCH-R168). Its `gateway_unavailable`
+is an unavailable model gateway route, not the public `gateway_unavailable`
+error of a failed Gateway credential manager.
+
 ## Limits, failures and errors
 
 ### Codes and error rules owned by other documents
@@ -452,7 +460,7 @@ The codes of the public API's HTTP error envelope and WebSocket error frames
 | `skill_limit_exceeded` | 422 | no | A selected current Skill package exceeds the stored package bound (LIM-SKL-17), or the stored bytes of the packages that one AgentTemplate or the whole Run selects exceed their limit (LIM-SKL-22, LIM-SKL-24), and Run creation or Audit start creates nothing. The same code reports any per-member, count or aggregate package bound at Run initialization or allocation preparation, terminal and non-retryable for the recorded Run snapshot. | [SKL-R117](../tools/skills.md), [ERR-R4](errors.md) |
 | `storage_transaction_conflict` | 503 | yes | A definite PostgreSQL transaction conflict (serialization failure or deadlock), including one that outlasts the bounded transaction retries of its operation; nothing committed, so the request may be repeated. | [PER-R16](persistence.md) |
 | `subscription_limit` | — (WebSocket error frame) | no | A socket already holds its maximum of subscriptions (LIM-API-11); only the new subscription is refused. | [API-R62](../api/public-api.md), [API-R63](../api/public-api.md) |
-| `unauthorized` | 401; also a WebSocket error frame | no | Authentication is absent or invalid: no valid bearer token or browser session, or a login with invalid credentials. | [SEC-R45](security.md), [API-R33](../api/public-api.md) |
+| `unauthorized` | 401 | no | Authentication is absent or invalid: no valid bearer token or browser session, or a login with invalid credentials. | [SEC-R45](security.md), [API-R33](../api/public-api.md) |
 | `unsupported_media_type` | 415 | no | An Operations settings update (Scheduler settings or model selection) is not sent as exactly application/json; nothing changes. Other JSON operations answer a wrong media type with invalid_request, or eval_invalid on Managed Eval routes. | [OPS-R60](../operations/operations.md), [OPS-R225](../operations/operations.md) |
 <!-- END GENERATED PUBLIC ERROR CODES -->
 

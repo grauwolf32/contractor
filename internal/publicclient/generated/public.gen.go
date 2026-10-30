@@ -7490,11 +7490,13 @@ type RunQueueProject struct {
 
 // RunRecovery defines model for RunRecovery.
 type RunRecovery struct {
-	AutomaticUntil time.Time   `json:"automaticUntil"`
-	Code           interface{} `json:"code"`
-	NextRetryAt    *time.Time  `json:"nextRetryAt,omitempty"`
-	RequiresRetry  bool        `json:"requiresRetry"`
-	Since          time.Time   `json:"since"`
+	AutomaticUntil time.Time `json:"automaticUntil"`
+
+	// Code Cause of the model gateway failure that holds the Run, from the recovery cause vocabulary that the Server and the Runtime share. It is not an error code: gateway_unavailable here is an unavailable model gateway route, not the error of a failed Gateway credential manager.
+	Code          interface{} `json:"code"`
+	NextRetryAt   *time.Time  `json:"nextRetryAt,omitempty"`
+	RequiresRetry bool        `json:"requiresRetry"`
+	Since         time.Time   `json:"since"`
 }
 
 // RunRepeatDraft defines model for RunRepeatDraft.
