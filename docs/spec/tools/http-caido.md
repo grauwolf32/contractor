@@ -216,9 +216,9 @@ flowchart TD
 
 ### Scope and authority
 
-**HTP-R1.** The controlled `http-target@1` adapter implements only the
-model-driven controlled HTTP with explicit credentials in HTP-R137–146
-and AUX-R104–106. It does not
+**HTP-R1.** The controlled `http-target@1` adapter implements the
+allocation-owned HTTP authority with explicit credentials in HTP-R137–146
+and AUX-R104–106, including scanner execution through HTP-R148–149. It does not
 upgrade the guarantees of `http-tools@1` or `caido@1` described here. Ordinary
 HTTP/Caido tool behavior remains independently governed by this document.
 
@@ -1388,3 +1388,28 @@ ranges, identities and optional HTTPLimits come from the exact engagement
 allocation. The process TargetPolicyConfig used by standalone tools neither
 supplies nor widens that assignment's scope or limits. Generic names are shared
 across security Workflows; a pentest is a Workflow choice, not a transport type.
+
+
+### Local HTTP bridge for scanners
+
+**HTP-R148.** A scanner that can use the allocation's HTTP transport connects
+to a private loopback HTTP proxy bridge. An unpredictable per-invocation
+capability is passed in a private file, not argv or environment. The listener
+opens no target tunnel: HTTPS CONNECT terminates TLS locally, then each HTTP
+request delegates to the same allocation HTTP owner as HTTP tools. That owner
+checks canonical URL/Host, origin/path/method/CIDRs, DNS/peer, protected services,
+TLS, assigned credential and optional HTTP limits. Inbound proxy/hop headers
+never reach the target. Scanner-added cookies are discarded in favour of the
+Runtime's exact-origin jars. Common HTTP framing and body bounds apply; there
+is no default engagement quota or per-request Server authorization.
+
+**HTP-R149.** The entire scanner invocation is registered with the allocation
+HTTP owner. Cancellation, lease loss, timeout, failed preparation and release
+join the child process, bridge listener/handlers and target streams before
+scratch removal and credential cleanup. An empty TCP reachability probe gains
+no authority and is not a target attempt. A failed admitted exchange cannot
+become a successful scan just because the child exits zero. The first concrete
+consumer is Nuclei (SCN-R259 through SCN-R263). Other HTTP scanner adapters may
+reuse this boundary after real conformance; TCP/DNS or unintegrated subprocess
+paths remain outside its authority. No scanner-specific fields are added to
+engagement and no new persistent lifecycle or request journal exists.

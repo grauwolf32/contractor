@@ -1962,3 +1962,10 @@ cancellation and release ([CTL-R169](../execution/control-plane.md)).
   [proposal 0033: autonomous engagement Audits](../../proposals/0033-autonomous-pentest-audits.md).
   Generic registered proposed-check routing is specified above; those future
   integrations retain its profile authority and lifecycle fences.
+
+
+Supported HTTP scanners use the same exact allocation projection and local HTTP
+limits as interactive HTTP tools (HTP-R148, SCN-R259). A scanner URL is a concrete
+work item within that authority, not another target policy or target artifact.
+Other scanner transports remain unsupported until their execution path enforces
+the applicable engagement scope and limits locally.

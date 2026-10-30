@@ -342,3 +342,14 @@ by the consolidated release process group C without host scanner requirements.
 `make test-nuclei-web-installed` is the explicit real Nuclei engine smoke for
 all individual knobs, exact package/template provenance, invalid admission and
 changed-package refusal.
+
+
+`make test-nuclei-engagement` requires disposable PostgreSQL, real Nuclei
+v3.11.1 on PATH and an active RFC1918 interface. It executes an actual Audit
+through Server, Scheduler and Runtime: HTTP tools and Nuclei share one held
+credential and one allocation request allowance. It then runs real-engine
+HTTP/TLS tests for denied routes/methods/addresses/origins, unsupported template
+features, body bounds, safe retry, no write replay, private credentials,
+cancellation, lease loss and timeout. The proxy parser/delegation tests use real
+loopback HTTP/TLS IPC. This explicit installed-engine gate complements the
+ordinary deterministic Nuclei gate; a missing scanner fails its prerequisites.

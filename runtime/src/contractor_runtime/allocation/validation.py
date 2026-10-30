@@ -167,14 +167,18 @@ def validate_spec(
                 for channel in factory.infrastructure_channels.get(tool, frozenset())
             }
             required_infrastructure_channels.update(channels)
-            if (
-                toolset_ref == "http-tools@1"
-                and spec.engagement is not None
-                and spec.engagement.http is not None
-            ):
-                uncontrolled_channels.update(channels - {"runtime-http-client"})
-            else:
-                uncontrolled_channels.update(channels)
+            for tool in selection.tools:
+                tool_channels = factory.infrastructure_channels.get(tool, frozenset())
+                if (
+                    spec.engagement is not None
+                    and spec.engagement.http is not None
+                    and "runtime-http-client" in tool_channels
+                ):
+                    uncontrolled_channels.update(
+                        tool_channels - {"runtime-http-client", "runtime-subprocess-launcher"}
+                    )
+                else:
+                    uncontrolled_channels.update(tool_channels)
         if getattr(factory, "requires_workspace", False) and spec.workspace is None:
             raise AllocationError(
                 "workspace_required",

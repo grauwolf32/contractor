@@ -66,8 +66,8 @@ class _UniqueLoader(yaml.CSafeLoader):
         return result
 
 
-def _template_id(data: bytes, deadline: float) -> str:
-    """Validate structure before native Nuclei syntax validation of every file."""
+def parse_template(data: bytes, deadline: float) -> dict:
+    """Read bounded plain YAML without evaluating Nuclei variables or helpers."""
     if not data or len(data) > MAX_FILE_BYTES:
         raise _invalid()
     try:
@@ -102,6 +102,14 @@ def _template_id(data: bytes, deadline: float) -> str:
     except (UnicodeError, yaml.YAMLError, ValueError, RecursionError):
         raise _invalid() from None
     _deadline(deadline)
+    if not isinstance(value, dict):
+        raise _invalid()
+    return value
+
+
+def _template_id(data: bytes, deadline: float) -> str:
+    """Validate structure before native Nuclei syntax validation of every file."""
+    value = parse_template(data, deadline)
     if (
         not isinstance(value, dict)
         or not isinstance(value.get("id"), str)

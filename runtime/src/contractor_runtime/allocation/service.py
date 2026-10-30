@@ -846,6 +846,7 @@ class AllocationService:
                     if ref == "http-tools@1"
                     else {}
                 ),
+                **({"controlled_http": http_transport} if ref == "scan@1" else {}),
                 **(
                     {"completion_contract": spec.completion_contract}
                     if ref == "audit-results@2"

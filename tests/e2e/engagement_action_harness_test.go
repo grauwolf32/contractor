@@ -42,7 +42,7 @@ func startEngagementProcessHarnessWithEnvironment(t *testing.T, targetCA, mode s
 	return startEngagementProcessHarnessOptions(t, targetCA, mode, environment, false)
 }
 
-func startEngagementProcessHarnessOptions(t *testing.T, targetCA, mode string, environment map[string]string, blockGateway bool) *engagementProcessHarness {
+func startEngagementProcessHarnessOptions(t *testing.T, targetCA, mode string, environment map[string]string, blockGateway bool, configure ...func(string)) *engagementProcessHarness {
 	t.Helper()
 	if testing.Short() {
 		t.Fatal("findings process checks cannot run in short mode")
@@ -87,6 +87,9 @@ func startEngagementProcessHarnessOptions(t *testing.T, targetCA, mode string, e
 		filepath.Join(temporaryRoot, "configs"), gateway.URL(),
 	)
 	installEngagementFixture(t, configRoot)
+	for _, edit := range configure {
+		edit(configRoot)
+	}
 	publicAddress, privateAddress, runtimeAddress := freeAddress(t), freeAddress(t), freeAddress(t)
 	publicBaseURL := "http://" + publicAddress
 	privateBaseURL := "https://" + privateAddress

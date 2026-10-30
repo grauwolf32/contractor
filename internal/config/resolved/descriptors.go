@@ -260,7 +260,7 @@ func builtInDescriptors() descriptorTable {
 					"scan_ffuf":   {channelRuntimeSubprocessLauncher},
 					"scan_katana": {channelRuntimeSubprocessLauncher},
 					"scan_naabu":  {channelRuntimeSubprocessLauncher},
-					"scan_nuclei": {channelRuntimeSubprocessLauncher},
+					"scan_nuclei": {channelRuntimeHTTPClient, channelRuntimeSubprocessLauncher},
 					"scan_sqlmap": {channelRuntimeSubprocessLauncher},
 				},
 				ActiveCheckTools: []string{"scan_ffuf", "scan_katana", "scan_naabu", "scan_nuclei", "scan_sqlmap"},
@@ -437,8 +437,8 @@ func TemplateRequiresNetwork(template contracts.ResolvedAgentTemplate) bool {
 	return templateRequiresNetwork(template, false)
 }
 
-// TemplateRequiresUncontrolledNetwork permits only the HTTP tool path whose
-// allocation explicitly supplies the Audit-owned controlled transport.
+// TemplateRequiresUncontrolledNetwork permits tools whose HTTP channel can use
+// the allocation-owned transport, including a subprocess routed through its bridge.
 func TemplateRequiresUncontrolledNetwork(template contracts.ResolvedAgentTemplate) bool {
 	return templateRequiresNetwork(template, true)
 }
@@ -453,8 +453,10 @@ func templateRequiresNetwork(template contracts.ResolvedAgentTemplate, controlle
 			return true
 		}
 		for _, tool := range selection.Tools {
-			for _, channel := range descriptor.InfrastructureChannels[tool] {
-				if controlledHTTP && selection.Ref.ToolsetID == "http-tools" && selection.Ref.Version == "1" && channel == channelRuntimeHTTPClient {
+			channels := descriptor.InfrastructureChannels[tool]
+			usesHTTPTransport := controlledHTTP && slices.Contains(channels, channelRuntimeHTTPClient)
+			for _, channel := range channels {
+				if usesHTTPTransport && (channel == channelRuntimeHTTPClient || channel == channelRuntimeSubprocessLauncher) {
 					continue
 				}
 				if channel != channelSandboxExecution || template.SandboxProfile.SandboxProfileID == "podman-network" {

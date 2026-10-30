@@ -53,12 +53,7 @@ class ControlledHTTPSession(_HTTPSession):
 
     @property
     def metric_secrets(self) -> tuple[str, ...]:
-        return tuple(
-            value.get_secret_value()
-            for session in self._transport._sessions
-            if session.material is not None
-            for value in session.material.fields.values()
-        )
+        return self._transport.private_values()
 
     def credential_catalog(self):
         try:

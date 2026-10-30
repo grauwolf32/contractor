@@ -74,6 +74,8 @@ acceptance_criteria:
     when: "The integration is enabled for engagement Audits"
     then: "Standalone behavior and normalized reports retain their contracts"
 tests:
+  - command: make test-nuclei-engagement
+    covers: [A1, A2, A3]
   - command: "cd runtime && uv run pytest -W error tests/test_scan_toolset.py tests/test_http_proxy_bridge.py tests/test_nuclei_engagement.py tests/test_shared_engagement_allocation.py tests/test_engagement_allocation.py"
     covers: [A1, A2, A3, A4]
   - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/config/... ./internal/contracts/... ./internal/auditservice/... ./internal/controlplane/..."
@@ -84,7 +86,11 @@ tests:
     covers: [A4]
   - command: "cd ui && corepack pnpm exec vitest --run src/routes/checks/start/rulepack-metadata.test.ts"
     covers: [A4]
-  - command: make lint
+  - command: "go vet ./... && go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 -checks U1000 -tests -tags=e2e,integration ./... && go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt <repository-root>"
+    covers: [A1, A2, A3, A4]
+  - command: "python3 scripts/check_release_verify_graph.py && python3 scripts/check_spec.py && python3 scripts/shared_fixture_gate.py --sources-only && cd runtime && uv run python ../scripts/check_tasks.py && uv run lint-imports --no-cache --no-logo"
+    covers: [A1, A2, A3, A4]
+  - command: "cd runtime && uv run ruff check . && uv run ruff format --check ."
     covers: [A1, A2, A3, A4]
 
 decisions:
@@ -103,8 +109,11 @@ decisions:
     transport. Only selected snapshotted HTTP templates with an admitted normal
     HTTP feature set execute. Raw/unsafe/pipeline/race, external protocols, flow,
     external payload files and impure DSL helpers fail before target traffic.
-    Native cookie handling is disabled in the private execution copy, because
-    credential and learned-cookie state belong to the shared Runtime transport.
+    Private execution copies request disabled native cookies; the bridge also
+    strips engine-added Cookie headers because explicit native jars can override
+    that option. Credential and learned-cookie authority stays in Runtime.
+    Selection uses inert metadata copies so original variables cannot evaluate
+    during native listing. The supported engine is exactly provisioned v3.11.1.
   lifecycle: >-
     The complete scanner invocation is registered with the allocation HTTP owner.
     Cancellation joins the scanner process and bridge connections before scratch
@@ -113,3 +122,22 @@ decisions:
   reversal: >-
     Expand the admitted template features or scanner set only with a concrete
     caller and real traffic evidence that the same boundary remains enforceable.
+
+  evidence:
+    - "Installed Nuclei v3.11.1 and its actual help/proxy behaviour"
+    - "https://github.com/projectdiscovery/nuclei/blob/v3.11.1/pkg/protocols/http/httpclientpool/clientpool.go"
+    - "https://github.com/projectdiscovery/nuclei/blob/v3.11.1/pkg/protocols/http/request.go"
+    - "https://github.com/projectdiscovery/nuclei/blob/v3.11.1/pkg/protocols/common/variables/variables.go"
+
+delivery:
+  deferred_gates:
+    authority: >-
+      User explicitly requested merging implemented work while postponing general
+      unrelated failures, then continuing the next planned task. Focused
+      acceptance checks remain required; full-suite success is not claimed.
+    command: make lint
+    outcome: >-
+      The gate stops in the unchanged UI export checker: MAXIMUM_AUTOMATIC_OPENAPI_BYTES
+      in preview-plan.ts and PLANNER_FACTS/PlannerFacts in studio/planners.ts.
+      Go vet, staticcheck, test-only exports, Runtime Ruff/import contracts and
+      specification/task/fixture/release-graph checks are run independently.

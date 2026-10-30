@@ -87,7 +87,7 @@
     {
       "name": "url-11",
       "arguments": {
-        "url": "http://host/\u00e9"
+        "url": "http://host/é"
       },
       "valid": false
     },
@@ -459,6 +459,70 @@
           "name": "repeat-request",
           "revision": "revision-pack"
         }
+      },
+      "valid": false
+    },
+    {
+      "name": "credential assigned ID",
+      "arguments": {
+        "url": "https://example.test/",
+        "credential_id": "target-auth"
+      },
+      "valid": true
+    },
+    {
+      "name": "credential underscore",
+      "arguments": {
+        "url": "https://example.test/",
+        "credential_id": "target_auth"
+      },
+      "valid": true
+    },
+    {
+      "name": "credential empty",
+      "arguments": {
+        "url": "https://example.test/",
+        "credential_id": ""
+      },
+      "valid": false
+    },
+    {
+      "name": "credential too long",
+      "arguments": {
+        "url": "https://example.test/",
+        "credential_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "valid": false
+    },
+    {
+      "name": "credential upper",
+      "arguments": {
+        "url": "https://example.test/",
+        "credential_id": "Target"
+      },
+      "valid": false
+    },
+    {
+      "name": "credential null",
+      "arguments": {
+        "url": "https://example.test/",
+        "credential_id": null
+      },
+      "valid": false
+    },
+    {
+      "name": "credential array",
+      "arguments": {
+        "url": "https://example.test/",
+        "credential_id": []
+      },
+      "valid": false
+    },
+    {
+      "name": "credential space",
+      "arguments": {
+        "url": "https://example.test/",
+        "credential_id": "a b"
       },
       "valid": false
     }
