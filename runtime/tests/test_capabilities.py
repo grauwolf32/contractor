@@ -45,6 +45,7 @@ SHARED_DESCRIPTOR_FIELDS = frozenset(
         "tools",
         "infrastructureChannels",
         "requiresWorkspace",
+        "workspaceObservationTools",
         "requiredSandboxProfiles",
         "activeCheckTools",
         "sandboxActiveCheckTools",
@@ -58,8 +59,8 @@ def test_shared_toolset_descriptor_parity(tmp_path: Path) -> None:
     """Every Runtime ToolsetFactory matches api/testdata/toolset-descriptors.json.
 
     The Server's descriptors are held to the same fixture (internal/config/resolved
-    TestSharedToolsetDescriptorParity), so a tool or Toolset added on one side
-    only fails. activeCheckTools, findingProposalTools and
+    TestSharedToolsetDescriptorParity), so a tool, a Toolset or a workspace
+    observation tool added on one side only fails. activeCheckTools, findingProposalTools and
     requiredWorkflowInputs are classifications only the Server reads.
     """
     path = Path(__file__).resolve().parents[2] / "api" / "testdata" / "toolset-descriptors.json"
@@ -83,6 +84,10 @@ def test_shared_toolset_descriptor_parity(tmp_path: Path) -> None:
             },
             # Allocation validation reads the attribute the same way.
             "requiresWorkspace": getattr(factory, "requires_workspace", False),
+            # Allocation preparation holds each created tool's extractor to it.
+            "workspaceObservationTools": sorted(
+                getattr(factory, "workspace_observation_tools", frozenset())
+            ),
             "requiredSandboxProfiles": sorted(TOOLSET_SANDBOX_REQUIREMENTS.get(ref, ())),
         }
         assert actual == {field: shared[field] for field in actual}, ref

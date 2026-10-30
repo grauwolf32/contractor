@@ -39,6 +39,9 @@ MAX_DIFF_BYTES = 1 << 20
 class WorkspaceChangesToolsetFactory:
     ref = "workspace-changes@1"
     exported_tools = frozenset({"changed_paths", "diff", "rollback_changes"})
+    # Tools whose successful calls record a workspace observation (their
+    # contractor_observation); the Server reads the same set (TLS-R38).
+    workspace_observation_tools = frozenset({"changed_paths"})
     infrastructure_channels = MappingProxyType({})
     requires_workspace = True
     workspace_access = "changes"
@@ -183,13 +186,6 @@ class _BaseChangesTool:
     async def close(self) -> None:
         await self._session.close()
 
-    def contractor_observation(
-        self,
-        tool_args: Mapping[str, Any],
-        result: Any,
-    ) -> WorkspaceToolObservation | None:
-        return workspace_changes_observation(self.name, tool_args, result)
-
     async def _invoke(self, operation: Callable[[], Awaitable[dict[str, Any]]]) -> dict[str, Any]:
         with RecordedToolCall(self._metrics, self.name, {}) as call:
             result = await operation()
@@ -215,6 +211,13 @@ class ChangedPathsTool(_BaseChangesTool):
         Sorted created, modified, deleted and type-changed paths with pagination
         and truncation metadata.
     """
+
+    def contractor_observation(
+        self,
+        tool_args: Mapping[str, Any],
+        result: Any,
+    ) -> WorkspaceToolObservation:
+        return workspace_changes_observation(tool_args, result)
 
     async def __call__(self, cursor: str = "", limit: int = MAX_PAGE_ITEMS) -> dict[str, Any]:
         return await self._invoke(lambda: self._session.changed_paths(cursor, limit))

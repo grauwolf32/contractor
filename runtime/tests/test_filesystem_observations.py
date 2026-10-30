@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
+import pkgutil
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -12,7 +14,9 @@ from fakes.model import scripted_model, text_result, tool_call
 from test_adk_runtime import create_runtime, stage_request
 from test_filesystem_toolset import create_tools, workspace
 
+from contractor_runtime import toolsets
 from contractor_runtime.allocation import WorkerState
+from contractor_runtime.factories import built_in_factories
 from contractor_runtime.observations import (
     WorkspaceToolObservation,
     annotation_tool_observation,
@@ -96,7 +100,7 @@ class Extractor:
         if self.operation == "annotate_trace":
             return annotation_tool_observation(tool_args, result)
         if self.operation == "changed_paths":
-            return workspace_changes_observation(self.operation, tool_args, result)
+            return workspace_changes_observation(tool_args, result)
         return None
 
 
@@ -136,6 +140,41 @@ def test_only_reviewed_workspace_tools_expose_observation_extractors() -> None:
         {"changes": [{"path": "d.py", "change": "created"}]},
     ) == WorkspaceToolObservation(modified=("d.py",))
     assert not hasattr(analyzer, "contractor_observation")
+
+
+def test_every_workspace_observation_extractor_is_declared_by_its_toolset(
+    tmp_path: Path,
+) -> None:
+    """A tool class reports observations exactly when its Toolset declares it.
+
+    The declaration is what toolset-descriptors.json and the Server hold
+    (TLS-R38); allocation preparation enforces it per created tool.
+    """
+
+    def package(module: str) -> str:
+        return ".".join(module.split(".")[:3])
+
+    factories = built_in_factories(tmp_path).toolsets
+    declared: set[tuple[str, str]] = set()
+    for ref, factory in factories.items():
+        observing = getattr(factory, "workspace_observation_tools", frozenset())
+        assert observing <= factory.exported_tools, ref
+        assert not observing or getattr(factory, "requires_workspace", False), ref
+        declared |= {(package(type(factory).__module__), tool) for tool in observing}
+    observed: set[tuple[str, str]] = set()
+    for info in pkgutil.walk_packages(toolsets.__path__, toolsets.__name__ + "."):
+        module = importlib.import_module(info.name)
+        for value in vars(module).values():
+            if (
+                isinstance(value, type)
+                and value.__module__ == module.__name__
+                and isinstance(getattr(value, "name", None), str)
+                and value.name
+                and callable(getattr(value, "contractor_observation", None))
+            ):
+                observed.add((package(module.__name__), value.name))
+    assert observed == declared
+    assert len(declared) == 17
 
 
 @pytest.mark.parametrize(

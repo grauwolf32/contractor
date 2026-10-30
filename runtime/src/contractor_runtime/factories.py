@@ -157,6 +157,11 @@ class ToolsetFactory(Protocol):
     # (read through declared_sensitive_output_tools). Tools may also declare
     # contractor_sensitive_output themselves.
     sensitive_output_tools: frozenset[str] = frozenset()
+    # Exported tools whose successful calls report a workspace observation
+    # through their contractor_observation. Optional: a factory that does not
+    # set it declares none. The Server reads the same set (TLS-R38), and
+    # allocation preparation holds every created tool to it.
+    workspace_observation_tools: frozenset[str] = frozenset()
 
     async def probe(self) -> frozenset[str]: ...
 
