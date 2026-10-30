@@ -529,3 +529,39 @@ Notes:
       exactly what you ran.
 - [ ] The task file is updated (status, commit hash, moved to `tasks/done/`
       when finished) and `make lint` accepts it.
+
+## 9. Collaboration and scope control
+
+- Before substantial planning or implementation, briefly state the intended
+  user-visible outcome, the smallest end-to-end scenario that demonstrates it,
+  and any consequential assumptions. Explain these in product terms before
+  introducing implementation details.
+
+- Distinguish explicit user requirements, established project decisions and
+  agent proposals. Do not silently turn an inferred need, stronger guarantee
+  or possible future use case into a mandatory requirement.
+
+- Surface consequential choices before expanding them into specifications and
+  tasks. State the recommended option, a simpler viable alternative and the
+  practical tradeoff. A choice is consequential when it changes user-visible
+  behavior, guarantees, component ownership or the expected scope of work.
+  Ask only when existing instructions and evidence do not resolve that choice.
+  Make routine decisions autonomously within the agreed direction.
+
+- For substantial features, plan an early, narrow end-to-end demonstration
+  through real components. Use its results to refine later work. Keep a clear
+  distinction between a working demonstration and release readiness.
+
+- If implementation reveals a new prerequisite or materially expands the
+  agreed scope, explain what was discovered, why the existing approach is
+  insufficient and which smaller options remain. Do not quietly accumulate
+  supporting subsystems under the original task.
+
+- When direction changes, review the remaining dependent tasks, specifications
+  and checks before continuing affected work. Identify what becomes obsolete
+  and remove or revise it within the authorized scope. Historical acceptance
+  criteria do not override a newer user decision.
+
+- Report progress against the user-visible outcome. Explain what now works,
+  what remains unproven and whether scope or complexity has changed.
+  Completing infrastructure tasks alone does not establish feature readiness.
