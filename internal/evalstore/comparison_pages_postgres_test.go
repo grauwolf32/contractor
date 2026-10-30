@@ -94,9 +94,9 @@ func seedSelectedView(t *testing.T, pool *pgxpool.Pool, scope Scope, id string, 
 		projectionRows = append(projectionRows, []any{memberID, bytesOf(v), complete})
 	}
 	mustTx(t, pool, func(st *Store) error {
-		// Bulk fixture setup has a separate bound; measured page queries retain
-		// the normal 10-second timeout.
-		if _, err := st.db.Exec(ctx, `SET LOCAL statement_timeout='60s'`); err != nil {
+		// Bulk fixture setup runs without the test pool's statement timeout;
+		// measured page queries keep it.
+		if _, err := st.db.Exec(ctx, `SET LOCAL statement_timeout = 0`); err != nil {
 			return err
 		}
 		_, err := st.db.Exec(ctx, `INSERT INTO eval_experiments(experiment_id,owner_id,project_id,portable_id,control_mode,name,state,expected_count,max_in_flight,wall_ms) VALUES($1,$2,$3,$1,'external','Large selected fixture','finished',$4,1,1000)`, id, scope.OwnerID, scope.ProjectID, n)

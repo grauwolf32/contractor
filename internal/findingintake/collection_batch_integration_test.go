@@ -44,8 +44,8 @@ func (*collectionQueryCounter) TraceQueryEnd(context.Context, *pgx.Conn, pgx.Tra
 
 func TestPostgresRunProposalPagesUseBatchedReadsAndSkipRetainedDocuments(t *testing.T) {
 	f := newDeletionImportFixture(t)
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-	defer cancel()
+	// The test counts queries, not time; go test -timeout bounds it.
+	ctx := t.Context()
 	f.ctx = ctx
 	for i := 1; i < 200; i++ {
 		insertAuditChildReceipt(t, f, fmt.Sprintf("candidate-%03d", i))
@@ -97,8 +97,9 @@ const largeDirectProposals = 2000
 func newLargeDirectCollectionFixture(t *testing.T) deletionImportFixture {
 	t.Helper()
 	f := newDirectCollectionFixture(t)
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
-	t.Cleanup(cancel)
+	// Seeding 2,000 proposals takes as long as the machine needs; go test
+	// -timeout bounds it.
+	ctx := t.Context()
 	f.ctx = ctx
 	verifications := make([]auditdomain.DirectVerificationResult, largeDirectProposals)
 	for i := range verifications {
@@ -139,10 +140,11 @@ func newLargeDirectCollectionFixture(t *testing.T) deletionImportFixture {
 	return f
 }
 
-// Every attempt runs under the production collection timeout and must keep
-// what it committed, so the collection finishes across attempts however long
-// the whole Run takes.
-func TestPostgresLargeDirectCollectionFinishesWithinDefaultTimeout(t *testing.T) {
+// Every attempt ends once it has done the work of one bounded transaction,
+// the least the production collection timeout allows, and must keep what it
+// committed, so the collection finishes across attempts however long the
+// whole Run takes.
+func TestPostgresLargeDirectCollectionFinishesAcrossShortAttempts(t *testing.T) {
 	f := newLargeDirectCollectionFixture(t)
 	trace := &collectionQueryCounter{}
 	transactions := &collectionTransactionTracer{}
@@ -153,7 +155,7 @@ func TestPostgresLargeDirectCollectionFinishesWithinDefaultTimeout(t *testing.T)
 	}
 	f.intake = actor
 	start := time.Now()
-	attempts := collectAcrossAttempts(t, f, true)
+	attempts := collectAcrossAttempts(t, f, transactions, true)
 	t.Logf("fresh 2,001-proposal collection completed in %d attempt(s), %s", attempts, time.Since(start))
 	assertFixtureHolds(t, f, largeDirectProposals+1)
 	// Each attempt resolves the terminal Run and its direct output once.
@@ -199,7 +201,7 @@ func TestPostgresLargeDirectCollectionFinishesAfterTimedOutAttempt(t *testing.T)
 		t.Fatal(err)
 	}
 	f.intake = retryActor
-	attempts := collectAcrossAttempts(t, f, true)
+	attempts := collectAcrossAttempts(t, f, retried, true)
 	t.Logf("collected %d remaining proposals in %d attempt(s)", proposals+1-firstCount, attempts)
 	assertFixtureHolds(t, f, proposals+1)
 	retried.assertBounded(t)
@@ -226,8 +228,9 @@ func TestPostgresLargeDirectCollectionFinishesAfterTimedOutAttempt(t *testing.T)
 func TestPostgresEvidenceHeavyCollectionPageCommitsBoundedTransactions(t *testing.T) {
 	const proposals, evidencePerProposal = 200, 48
 	f := newDeletionImportFixture(t)
-	ctx, cancel := context.WithTimeout(t.Context(), 4*time.Minute)
-	defer cancel()
+	// Attempts end through the transaction tracer, not a deadline; go test
+	// -timeout bounds the test.
+	ctx := t.Context()
 	f.ctx = ctx
 	evidence := writeFixtureEvidence(t, f, evidencePerProposal)
 	for i := range proposals {
@@ -249,7 +252,7 @@ func TestPostgresEvidenceHeavyCollectionPageCommitsBoundedTransactions(t *testin
 		t.Fatalf("interrupted attempt retained %d/%d proposals", firstCount, proposals+1)
 	}
 	start := time.Now()
-	attempts := collectAcrossAttempts(t, f, false)
+	attempts := collectAcrossAttempts(t, f, transactions, false)
 	t.Logf("retained %d proposals with %d evidence revisions each in %d more attempt(s), %d transactions, %s",
 		proposals, evidencePerProposal, attempts, transactions.committed, time.Since(start))
 	assertFixtureHolds(t, f, proposals+1)
@@ -266,34 +269,37 @@ SELECT COALESCE(sum(jsonb_array_length(evidence)), 0)::integer
 	transactions.assertBounded(t)
 }
 
-// collectionAttemptBudget limits how many production-timeout attempts a
-// fixture collection may take. Each attempt commits at least one bounded
-// transaction, so the limit only stops a collection that makes no progress.
-const collectionAttemptBudget = 20
-
-// collectAcrossAttempts repeats collection as the Controller does, each
-// attempt under the production timeout, until one finishes. It returns the
-// number of attempts; an attempt that stops without new holds fails the test.
-func collectAcrossAttempts(t *testing.T, f deletionImportFixture, sourceSucceeded bool) int {
+// collectAcrossAttempts repeats collection as the Controller does after an
+// attempt's operation timeout expires, until one attempt finishes. The
+// production timeout promises an attempt time for one bounded transaction
+// (RetainAuditCollectionBatch), not more, so transactions, the tracer of
+// f.intake's pool, ends each attempt at its first artifact import beyond
+// that work, however fast or loaded the machine is. A transaction larger
+// than the bound therefore rolls back, and every attempt that stops must
+// have retained new proposals; holds never exceed the fixture's proposals,
+// so the loop ends. It returns the number of attempts.
+func collectAcrossAttempts(
+	t *testing.T, f deletionImportFixture, transactions *collectionTransactionTracer, sourceSucceeded bool,
+) int {
 	t.Helper()
-	for attempt := 1; attempt <= collectionAttemptBudget; attempt++ {
+	for attempt := 1; ; attempt++ {
 		before := countFixtureHolds(t, f)
-		attemptCtx, cancel := context.WithTimeout(f.ctx, collectionAttemptTimeout)
+		attemptCtx, cancel := context.WithCancel(f.ctx)
+		transactions.limitAttempt(cancel)
 		err := collectFixtureProposals(attemptCtx, f, sourceSucceeded)
-		expired := attemptCtx.Err() != nil
+		interrupted := attemptCtx.Err() != nil
+		transactions.limitAttempt(nil)
 		cancel()
 		if err == nil {
 			return attempt
 		}
-		if !expired {
+		if !interrupted {
 			t.Fatalf("collection attempt %d: %v", attempt, err)
 		}
 		if after := countFixtureHolds(t, f); after <= before {
 			t.Fatalf("collection attempt %d committed no progress (%d holds): %v", attempt, after, err)
 		}
 	}
-	t.Fatalf("collection did not finish in %d attempts", collectionAttemptBudget)
-	return 0
 }
 
 func countFixtureHolds(t *testing.T, f deletionImportFixture) int {
@@ -398,16 +404,25 @@ func TestPostgresReceiptCitingARemovedRevisionIsAccessDenied(t *testing.T) {
 	}
 }
 
+// collectionTransactionImportBound is the most artifact imports one bounded
+// retention transaction performs: the work bound plus the one proposal, with
+// its maximum evidence, that may cross it.
+const collectionTransactionImportBound = auditdomain.MaximumCollectionTransactionWork + 1 + MaxEvidenceRefs
+
 // collectionTransactionTracer observes the retention transactions of a
 // single-connection actor pool: how many committed and the most artifact
 // imports one of them performed. With interrupt set, it cancels the attempt
-// right after the first retention transaction commits.
+// right after the next retention transaction commits. With endAttempt set,
+// it cancels the attempt at its first import beyond
+// collectionTransactionImportBound.
 type collectionTransactionTracer struct {
-	mu         sync.Mutex
-	imports    int
-	maxImports int
-	committed  int
-	interrupt  context.CancelFunc
+	mu             sync.Mutex
+	imports        int
+	maxImports     int
+	committed      int
+	interrupt      context.CancelFunc
+	endAttempt     context.CancelFunc
+	attemptImports int
 }
 
 type collectionCommitKey struct{}
@@ -423,6 +438,13 @@ func (c *collectionTransactionTracer) TraceQueryStart(ctx context.Context, _ *pg
 	case strings.Contains(statement, "insert into artifact_lineage") &&
 		slices.Contains(data.Args, any(artifacts.LineageAuditImport)):
 		c.imports++
+		c.attemptImports++
+		if c.endAttempt != nil && c.attemptImports > collectionTransactionImportBound {
+			// The import starts with a cancelled context, so it fails and
+			// its transaction rolls back.
+			c.endAttempt()
+			c.endAttempt = nil
+		}
 	case statement == "commit":
 		return context.WithValue(ctx, collectionCommitKey{}, c.imports)
 	}
@@ -444,13 +466,21 @@ func (c *collectionTransactionTracer) TraceQueryEnd(ctx context.Context, _ *pgx.
 	}
 }
 
+// limitAttempt starts an attempt that endAttempt cancels once its imports
+// exceed collectionTransactionImportBound; nil ends the limit.
+func (c *collectionTransactionTracer) limitAttempt(endAttempt context.CancelFunc) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.endAttempt, c.attemptImports = endAttempt, 0
+}
+
 // assertBounded checks that no retention transaction exceeded the work bound
 // by more than the one proposal that may cross it.
 func (c *collectionTransactionTracer) assertBounded(t *testing.T) {
 	t.Helper()
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.committed == 0 || c.maxImports > auditdomain.MaximumCollectionTransactionWork+1+MaxEvidenceRefs {
+	if c.committed == 0 || c.maxImports > collectionTransactionImportBound {
 		t.Fatalf("%d retention transaction(s), largest imported %d artifacts", c.committed, c.maxImports)
 	}
 }
