@@ -436,7 +436,12 @@ return only that projection.
 decoder ([CTL-R149](control-plane.md)) and validated for that read alone, and
 the projection service keeps it without copying or validating it again. An
 unchanged revision is revalidated with `If-None-Match` and served from that
-snapshot. Projections only read the snapshot.
+snapshot. Projections only read the snapshot. A changed-revision read at the
+State's path bounds (10,000 scope paths and interactions, about 1.9 MB) costs
+about 40,000 allocations and 10 to 13 MB; a deterministic test bounds both
+with about 20 percent headroom, so a second decode or a copy of the snapshot
+fails it. The wall time of such a read, 60 ms at most, depends on the host
+and is measured by a benchmark beside that test, not gated.
 
 **PLN-R48.** Projection tools accept no state key, JSONPath,
 expression, field list or arbitrary aggregation program.
