@@ -281,8 +281,10 @@ def test_metadata_pages_bound_work_bytes_and_cursor_authority_without_entry_repe
             "sourceId": f"source-{i % 128}",
             "origin": "https://example.test",
             "method": "GET",
-            "path": f"/metadata/{i}",
-            "pointer": "/" + "x" * 8000,
+            # The pointer is at its 2 KiB bound; the long path keeps each rule
+            # large enough that pages end on the byte budget, not the count.
+            "path": f"/metadata/{i}/" + "y" * 4000,
+            "pointer": "/" + "x" * 2047,
             "parameters": [],
             "structural": [],
         }
