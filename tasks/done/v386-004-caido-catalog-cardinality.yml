@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V12-004
 priority: P2
-status: in_progress
+status: completed
 depends_on: []
 languages: [python, markdown]
 goal: Bound catalog browsing and selection without classifying valid larger Caido catalogs as malformed responses.
@@ -77,3 +77,52 @@ tests:
     covers: [A4]
   - command: make lint
     covers: [A4]
+implementation_commit: 4eb9d85e7362796268b0c30681269f1cdca9a098
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): dc40b7d03dc7:
+      uv run --project runtime pytest runtime/tests/test_caido_*.py
+      runtime/tests/test_http_caido_*.py: 188 passed; new
+      tests/test_caido_catalogs.py fails on the original tools.py (43 of 44);
+      config validate --root ./configs: valid; check_spec.py and
+      build_graph.py --check: pass; ruff/lint-imports: pass; go test -tags=e2e
+      -run TestHTTPAndCaidoAcrossHeterogeneousRuntimeProcesses: FAIL,
+      pre-existing and unrelated (http/initial stage expects no
+      http_credentials/http_credential_read, added by 27af751d9;
+      tests/e2e/http_caido_gateway_test.go:33-36); the Caido stage reported no
+      failure | 4eb9d85e7362: follow-up: make docs-dependencies;
+      docs-dependencies-check passes
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.
+    - >-
+      make test-http-caido-e2e was not run:
+      tests/e2e/http_caido_gateway_test.go:33-36 still expects the HTTP tool
+      list from before V411-027, which predates this task; filed as V425-004.

@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: findings
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [markdown, python]
 goal: "FND-R109, FND-R123 and FND-R135 name their codes, every findings_* code the Runtime findings tools return is in the errors.md registry with its retryability, and a test holds the Runtime to that list."
@@ -69,3 +69,41 @@ tests:
     covers: [A1]
   - command: make lint
     covers: [A1, A2]
+implementation_commit: e633a996cd511b2588ca5395b9f921047dd60774
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): e633a996cd51:
+      pytest tests/test_findings_reader_toolset.py
+      tests/test_security_findings_toolset.py: 102 passed; check_spec.py: ok;
+      go test ./internal/apierror: ok; go build ./...: ok; ruff check/format:
+      ok
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.

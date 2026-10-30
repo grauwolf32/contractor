@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: persistence
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, sql]
 goal: "No package reads a table whose owner sits above it in the layer stack unless its registry entry names the open task that removes the read or a recorded acceptance with its reversal condition, and each known upward read is either removed or so recorded."
@@ -122,3 +122,54 @@ decisions:
     [known]) or a PER-UR record that lists that reader and relation, and a record fails when
     a reader and relation it lists is not named by an upward entry. Run on b523ae77's
     registry it reports the nine upward [reads] entries of the finding.
+implementation_commit: d8666eeba4fbda2d78ec6d706c9baf4061026044
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): d8666eeba4fb:
+      go test -run
+      TestUpwardRead|TestSQLAccess|TestTableOwnership|TestMigrationRoutines|TestRoutineOwnership
+      ./internal/persistence (DB) PASS; go test -run
+      TestLayer|TestLocalsDoNotShadowImportedPackages|TestForbiddenImport
+      ./internal/archtest PASS; go test -run <every test of the touched
+      credentials test files incl. new
+      TestRuntimeCredentialPostgresDeleteRefusesAProjectHTTPTarget>
+      ./internal/credentials (DB) PASS; go test -run
+      TestEngagement|TestAuditStartRechecksProjectHTTPTargetCredentialUse
+      ./internal/auditservice (DB) PASS; go test -run
+      TestPlacement*CredentialsDoNotBorrowAnotherConnection
+      ./internal/controlplane (DB) PASS; go test -run
+      TestPostgresCredentialMutationsWithoutMasterKeyArePermanent
+      ./internal/httpapi/public (DB) PASS; go test -run
+      TestPostgresProjectIdempotencyOwnershipPaginationAndCAS|TestProjectValidationBounds
+      ./internal/projectstore (DB) PASS; testonlyexports PASS; check_spec
+      PASS; check_tasks PASS; go build/vet/gofmt OK
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.

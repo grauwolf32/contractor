@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: quality
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python]
 goal: "The tests listed here end attempts, seed fixtures and prove budgets through hooks, injected clocks and database settings rather than elapsed wall time, so machine load cannot fail them while each still fails when the behaviour it checks breaks."
@@ -103,3 +103,55 @@ tests:
     covers: [A1, A2]
   - command: make lint
     covers: [A1, A2]
+implementation_commit: 154bb8d76442bbd7b92fb4b40e0f3cd461bfd211
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): 154bb8d76442:
+      findingintake -tags integration
+      LargeDirectCollection|EvidenceHeavyCollectionPage|RunProposalPages
+      count=2 pass; auditstore AuditPurgeAtScale pass; evalstore
+      BulkExperimentWrites|ClaimPlan count=3 + consolidation/selected pages
+      pass; evalservice EvalPurgeYields pass; persistence
+      OrdinaryWaitBudgets|MaintenanceBudgets|MigrationLockCancellation count=3
+      pass; pytest test_audit_result_publication.py pass; A2 breaks tried
+      (oversized/unbounded retention tx, per-row collection trigger, dropped
+      claim index, index scans off in purge, pool statement_timeout changed,
+      migrator ignoring cancellation, publication deadline/request timeout
+      removed): each failed
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.
+    - >-
+      Repeated runs on 2026-10-30 with contractor_test_bigrun while other
+      sessions loaded the host: findingintake -count=20 (575 s), auditstore
+      TestPostgresAuditPurgeAtScale -count=5, evalstore -count=20,
+      persistence/postgres budget and migration-lock tests -count=20, all
+      passed; runtime tests/test_audit_result_publication.py passed (57
+      tests).

@@ -6,7 +6,7 @@ epic: persistence
 kind: chore
 introduced_by: V369-001
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, sql]
 goal: "The table ownership check sees relations that reach SQL through a helper argument, lock clauses appended apart from FROM, the tables that migration functions called from Go SQL read, write or lock, and the writes that migration triggers make to another owner's tables."
@@ -154,3 +154,48 @@ decisions:
     called from runstore SQL produce exactly those two problems; an entry admits the
     trigger's write but not the call's lock. Before this task PER-R23 excluded migration
     functions, so neither probe was checked on b523ae77.
+implementation_commit: 0dd98e8c223088337acb05efcce343c6af914731
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): ec93ab86ab0e:
+      go test -run
+      TestSQLAccess|TestTableOwnership|TestRoutineOwnership|TestMigrationRoutines
+      ./internal/persistence (DB) PASS; go test -run TestReadBody|TestSplit
+      ./internal/persistence/explaintest PASS; go test -run
+      TestSharedPostgresEvalPurgeCoversCascadesAndTriggers
+      ./internal/evalstore (DB) PASS; go test -run
+      TestPostgresIntegrationMigrationsAndConstraints
+      ./internal/persistence/postgres (DB) PASS; testonlyexports guard PASS;
+      check_spec PASS; go build/vet/gofmt OK | 0dd98e8c2230: follow-up:
+      SQLSTATE literal guard (TestSQLStateLiteral*) and explaintest package
+      pass
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.

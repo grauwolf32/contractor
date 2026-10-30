@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: planner-worker
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python]
 goal: "The Server decides whether a Worker binding has workspace observations from the same descriptor data the Runtime uses to record them, not from its own tool list."
@@ -80,3 +80,50 @@ tests:
     covers: [A1]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: 33ce7157137309d9e42593f136af9428e7366f3c
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): 33ce71571373:
+      after merging main: go test ./internal/config/resolved -run
+      Descriptor|WorkspaceObservation|Toolset PASS;
+      ./internal/planner/streamline -run
+      TestSelectedWorkspaceObservation*|TestStateTools*|TestSharedStreamlineStateTools*|TestStateProjection*|TestSharedRouterStateTool*
+      PASS; go test ./internal/planner/stateview PASS; pytest
+      tests/test_capabilities.py tests/test_observations.py
+      tests/test_filesystem_observations.py (53) PASS,
+      tests/test_allocation.py (53) PASS,
+      test_workspace_changes_toolset/test_edit_files_toolset/test_taint_annotations/test_filesystem_toolset
+      PASS; A1 mutations (Go descriptor tool removed; Runtime factory
+      declaration removed) fail the parity/extractor tests; A3: b523ae77 had
+      no classification field to compare; go build/vet/gofmt, ruff,
+      lint-imports, shared_fixture_gate --sources-only, check_spec OK
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.

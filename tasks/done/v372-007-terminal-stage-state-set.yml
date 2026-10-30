@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: execution-core
 kind: chore
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, sql]
 goal: "The active and terminal StageExecution state sets (SCH-R42) have one Go definition in runstore that every Go switch uses, and tests hold every state list in production Go SQL and the OpenAPI StageExecutionState enum to it, as V367-003 did for the Run state sets."
@@ -91,3 +91,48 @@ tests:
     covers: [A3]
   - command: make lint
     covers: [A1, A2, A3, A4]
+implementation_commit: 0501aa30991de6c486d1bba2f0f6433f414e6672
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): 0501aa30991d:
+      runstore -run
+      TestStageStateSets|TestRunStateSets|TestRunLifecycle|TestPostgresStageExecutionStateSetsMatchSchema|TestPostgresRunStateSetsMatchSchema
+      (DB): PASS; go test ./internal/planner/session: PASS; planner/scan -run
+      History|Scan (DB): PASS; httpapi/public -run
+      TestRunStatus|TestRunDetail|TestPostgresRunDetail|Attempt (DB): PASS;
+      scheduler -tags integration -run
+      Release|BrokenActiveStage|ReadsOnlyTheActiveStage|TerminalStage|Recover
+      (DB): PASS; telemetry -run Retention|Cleanup|Prune|StageMetrics (DB):
+      PASS; A2 (new state in active set) and A4 (probe literal, removed enum
+      value) mutations fail the new test as required; go build ./..., go vet,
+      gofmt: OK
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.
