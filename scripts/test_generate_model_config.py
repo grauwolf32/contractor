@@ -11,7 +11,14 @@ from unittest import mock
 
 import yaml
 
-from generate_model_config import ConfigError, MAX_BYTES, ROLES, generate, render
+from generate_model_config import (
+    MAX_BYTES,
+    ROLES,
+    SELECTION_ROLES,
+    ConfigError,
+    generate,
+    render,
+)
 
 
 class ModelConfigurationTest(unittest.TestCase):
@@ -69,6 +76,14 @@ class ModelConfigurationTest(unittest.TestCase):
                 "maxTotalTokens": 25000000,
                 "temperature": 0.6,
             },
+            "compactor": {
+                "policyVersion": "1",
+                "gatewayAlias": "compactor-model",
+                "maxOutputTokens": 8192,
+                "maxModelCalls": 1,
+                "maxTotalTokens": 1500000,
+                "temperature": 0.6,
+            },
         }
         self.write("deploy/models/catalog/large.yaml", self.large)
         self.write("deploy/models/catalog/small.yaml", self.small)
@@ -105,7 +120,7 @@ class ModelConfigurationTest(unittest.TestCase):
 
     def test_default_routes_context_and_role_budgets_are_compiled_together(self):
         output = render(self.root)
-        self.assertEqual(len(output), 14)
+        self.assertEqual(len(output), 17)
         routes = yaml.safe_load(output["deploy/litellm/litellm_config.yaml"])["model_list"]
         for role in ROLES:
             policy = yaml.safe_load(output[f"configs/model-policies/{role}.yaml"])
@@ -129,7 +144,7 @@ class ModelConfigurationTest(unittest.TestCase):
 
     def test_each_role_can_change_model_without_changing_others_or_budgets(self):
         baseline = render(self.root)
-        for index, role in enumerate(ROLES):
+        for index, role in enumerate(SELECTION_ROLES):
             with self.subTest(role=role):
                 self.select(**{role: "small"})
                 output = render(self.root)
@@ -167,7 +182,7 @@ class ModelConfigurationTest(unittest.TestCase):
     def test_generate_and_check_detect_drift_and_restore_it_without_touching_templates(self):
         template = self.write("configs/agent-templates/example.yaml", {"contextWindowRatio": 0.8})
         unchanged = template.read_bytes()
-        self.assertEqual(len(generate(self.root)), 14)
+        self.assertEqual(len(generate(self.root)), 17)
         self.assertEqual(generate(self.root, check=True), [])
         target = self.root / "configs/model-policies/worker.yaml"
         target.write_text("drift\n")
@@ -219,6 +234,34 @@ class ModelConfigurationTest(unittest.TestCase):
                 self.write("deploy/models/roles.yaml", budgets)
                 with self.assertRaises(ConfigError):
                     render(self.root)
+
+    def test_compactor_is_one_call_tool_free_finite_and_not_selectable(self):
+        output = render(self.root)
+        compactor = yaml.safe_load(output["configs/model-policies/compactor.yaml"])["spec"]
+        self.assertEqual(compactor["maxModelCalls"], 1)
+        self.assertEqual(compactor["maxTotalTokens"], 1500000)
+        self.assertNotIn("maxToolCalls", compactor)
+        catalog = json.loads(output["configs/model-selection.json"])
+        for model in catalog["models"]:
+            self.assertNotIn("compactor", model["policies"])
+        for change in (
+            {"maxModelCalls": 2},
+            {"maxToolCalls": 1},
+            {"maxWorkerCalls": 1},
+            {"maxTotalTokens": None},
+        ):
+            with self.subTest(change=change):
+                budgets = copy.deepcopy(self.budgets)
+                budgets["compactor"].update(change)
+                if change.get("maxTotalTokens", 0) is None:
+                    del budgets["compactor"]["maxTotalTokens"]
+                self.write("deploy/models/roles.yaml", budgets)
+                with self.assertRaises(ConfigError):
+                    render(self.root)
+        self.write("deploy/models/roles.yaml", self.budgets)
+        self.select(compactor="small")
+        with self.assertRaisesRegex(ConfigError, "four supported roles"):
+            render(self.root)
 
     def test_small_output_model_is_available_for_summary_without_reducing_worker_budgets(self):
         self.write("deploy/models/catalog/small.yaml", dict(self.small, maxOutputTokens=10000))
@@ -273,7 +316,7 @@ class ModelConfigurationTest(unittest.TestCase):
     def test_file_and_profile_count_bounds_accept_the_limit_and_reject_overflow(self):
         for index in range(30):
             self.write(f"deploy/models/catalog/fixture-{index}.yaml", self.small)
-        self.assertEqual(len(render(self.root)), 134)
+        self.assertEqual(len(render(self.root)), 167)
         self.write("deploy/models/catalog/overflow.yaml", self.small)
         with self.assertRaisesRegex(ConfigError, "32 profiles"):
             render(self.root)
@@ -322,7 +365,7 @@ class ModelConfigurationTest(unittest.TestCase):
         catalog = json.loads(after["configs/model-selection.json"])
         self.assertEqual(len(catalog["models"]), 2)
         for model in catalog["models"]:
-            self.assertEqual(set(model["policies"]), set(ROLES))
+            self.assertEqual(set(model["policies"]), set(SELECTION_ROLES))
         generate(self.root)
         old_routes = {
             route["model_name"]
@@ -334,12 +377,14 @@ class ModelConfigurationTest(unittest.TestCase):
             route["model_name"]
             for route in yaml.safe_load(changed["deploy/litellm/litellm_config.yaml"])["model_list"]
         }
-        self.assertEqual(len(old_routes - new_routes), 4)
-        self.assertEqual(len(new_routes - old_routes), 4)
+        self.assertEqual(len(old_routes - new_routes), len(ROLES))
+        self.assertEqual(len(new_routes - old_routes), len(ROLES))
         self.assertTrue(generate(self.root, check=True))
         generate(self.root)
         self.assertEqual(generate(self.root, check=True), [])
-        self.assertEqual(len(list((self.root / "configs/model-policies/models").iterdir())), 8)
+        self.assertEqual(
+            len(list((self.root / "configs/model-policies/models").iterdir())), 2 * len(ROLES)
+        )
 
     def test_failed_replace_leaves_checkable_drift_and_no_temporary_files(self):
         generate(self.root)
@@ -347,8 +392,8 @@ class ModelConfigurationTest(unittest.TestCase):
         with mock.patch("generate_model_config.os.replace", side_effect=OSError("unavailable")):
             with self.assertRaises(OSError):
                 generate(self.root)
-        self.assertEqual(len(generate(self.root, check=True)), 5)
-        self.assertEqual(len(list((self.root / "configs/model-policies").iterdir())), 5)
+        self.assertEqual(len(generate(self.root, check=True)), 6)
+        self.assertEqual(len(list((self.root / "configs/model-policies").iterdir())), 6)
         generate(self.root)
         self.assertEqual(generate(self.root, check=True), [])
 
