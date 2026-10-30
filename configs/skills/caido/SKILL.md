@@ -38,9 +38,10 @@ analysis or when starting from a captured request. Every replay has a fresh
 
 ## Available Caido operations
 
-- `caido_scope(action="list")` lists bounded scopes.
-  `caido_scope(action="create", name=..., allowlist=..., denylist=...)` creates
-  one scope with at most 256 allow/deny terms in total.
+- `caido_scope(action="list", limit=100, offset=0)` reads one page of scopes.
+  Read `total_scopes` and `truncated`; when truncated, list again with
+  `offset=next_offset`. `caido_scope(action="create", name=..., allowlist=...,
+  denylist=...)` creates one scope with at most 256 allow/deny terms in total.
 - `caido_history(filter="", limit=20, offset=0)` reads one newest-first page
   using bounded HTTPQL.
 - `caido_request_detail(request_id)` returns metadata and bounded raw previews,
@@ -55,7 +56,8 @@ analysis or when starting from a captured request. Every replay has a fresh
   at most 1 MiB of payload text in total. Placeholder locations are calculated
   on the exact tagged UTF-8 request sent to Caido.
 - `caido_automate_results(session_id, entry_id="", limit=50, offset=0, ...)`
-  reads a bounded result page. Omit `entry_id` to select the newest entry.
+  reads a bounded result page. Omit `entry_id` to select the session's newest
+  entry; an `entry_id` from another session is `not_found`.
 - `caido_sitemap(parent_id="", scope_id="", depth="DIRECT", cursor="", limit=100)`
   starts a root or descendant selection; depth is `DIRECT` or `ALL`. Read
   `total_entries`, `offset` and `truncated`. When truncated, continue with
@@ -63,7 +65,9 @@ analysis or when starting from a captured request. Every replay has a fresh
   and may be shorter for large labels. A new selection or refresh invalidates
   earlier cursors. If the whole provider response is too large, narrow the
   parent or scope.
-- `caido_workflow_list(kind="")` lists installed workflows. IDs are
+- `caido_workflow_list(kind="", limit=100, offset=0)` reads one page of
+  installed workflows. When `truncated`, call again with the same `kind` and
+  `offset=next_offset` before concluding a workflow is missing. IDs are
   instance-specific: resolve by name each time rather than assuming an ID.
 - `caido_workflow_run(workflow_id, input="...")` runs a convert workflow;
   `caido_workflow_run(workflow_id, request_id="...")` starts an active

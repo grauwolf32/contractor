@@ -152,25 +152,25 @@ func (h *auditHandlers) createAudit(w http.ResponseWriter, r *http.Request) {
 		handleError(w, err)
 		return
 	}
-	projectID := r.PathValue("projectId")
-	digest, labels, err := createAuditRequestDigest(projectID, request)
+	params := auditservice.CreateDraftParams{
+		Labels:  runlabels.RunMetadataLabels(request.Labels).Clone(),
+		OwnerID: principalUserID(r.Context()), ProjectID: r.PathValue("projectId"),
+		OperationsPrincipal: runtimeCredentialUser(r.Context()).Operations,
+		Profile:             auditservice.ProfileSelector{Name: request.Profile.Name, Version: request.Profile.Version},
+		Inputs:              request.Inputs, RuntimeLabels: request.RuntimeLabels, Scope: request.Scope,
+		IdempotencyKey: key,
+	}
+	params.RequestDigest, err = auditservice.CreateDraftRequestDigest(params)
 	if err != nil {
 		handleError(w, err)
 		return
 	}
-	auditID, err := h.NewID("audit_")
+	params.AuditID, err = h.NewID("audit_")
 	if err != nil {
 		handleError(w, fmt.Errorf("generate Audit ID: %w", err))
 		return
 	}
-	audit, created, err := h.Audits.CreateDraft(r.Context(), auditservice.CreateDraftParams{
-		Labels:  runlabels.RunMetadataLabels(request.Labels).Clone(),
-		AuditID: auditID, OwnerID: principalUserID(r.Context()), ProjectID: projectID,
-		OperationsPrincipal: runtimeCredentialUser(r.Context()).Operations,
-		Profile:             auditservice.ProfileSelector{Name: request.Profile.Name, Version: request.Profile.Version},
-		Inputs:              request.Inputs, RuntimeLabels: labels, Scope: request.Scope,
-		IdempotencyKey: key, RequestDigest: digest,
-	})
+	audit, created, err := h.Audits.CreateDraft(r.Context(), params)
 	if err != nil {
 		handleError(w, err)
 		return
@@ -323,7 +323,11 @@ func (h *auditHandlers) startAudit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	auditID := r.PathValue("auditId")
-	digest := auditRequestDigest("start", auditID, revision, seconds)
+	digest, err := auditservice.LifecycleRequestDigest("start", auditID, revision, seconds)
+	if err != nil {
+		handleError(w, err)
+		return
+	}
 	credentialUser := runtimeCredentialUser(r.Context())
 	started, err := h.Audits.Start(r.Context(), auditservice.StartParams{
 		OwnerID: credentialUser.UserID, OperationsPrincipal: credentialUser.Operations,
@@ -409,9 +413,12 @@ func (h *auditHandlers) mutateAudit(w http.ResponseWriter, r *http.Request, acti
 	}
 	params := auditservice.MutationParams{
 		OwnerID: principalUserID(r.Context()), AuditID: r.PathValue("auditId"),
-		ExpectedRevision: revision, IdempotencyKey: key,
-		RequestDigest:   auditRequestDigest(action, r.PathValue("auditId"), revision, seconds),
-		DeadlineSeconds: seconds,
+		ExpectedRevision: revision, IdempotencyKey: key, DeadlineSeconds: seconds,
+	}
+	params.RequestDigest, err = auditservice.LifecycleRequestDigest(action, params.AuditID, revision, seconds)
+	if err != nil {
+		handleError(w, err)
+		return
 	}
 	var result auditservice.MutationResult
 	switch action {

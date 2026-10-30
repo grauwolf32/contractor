@@ -452,7 +452,7 @@ its owning requirement.
 | `LIM-FND-26` | default 20 items, range 1–100 items | `limit` argument of `list_findings` | Runtime `list_findings` reader | [FND-R129](../findings/findings.md) |
 | `LIM-FND-27` | 512 UTF-8 bytes | `title_preview` text of a `list_findings` item, cut only at a code point boundary | Runtime `list_findings` reader | [FND-R132](../findings/findings.md) |
 | `LIM-FND-28` | 2048 bytes | `description_preview` text of a `list_findings` item, cut only at a code point boundary | Runtime `list_findings` reader | [FND-R132](../findings/findings.md) |
-| `LIM-FND-29` | 256 KiB | Canonical JSON response of one `list_findings` call, including the final cursor | Runtime `list_findings` reader (explicit limit error when one complete item cannot fit) | [FND-R134](../findings/findings.md) |
+| `LIM-FND-29` | 256 KiB | Canonical JSON response of one `list_findings` call, including the final cursor | Runtime `list_findings` reader (`findings_limit_exceeded` when one complete item cannot fit) | [FND-R134](../findings/findings.md) |
 | `LIM-FND-30` | 1024 bytes | Decoded cursor JSON of `list_findings` | Runtime `list_findings` reader | [FND-R138](../findings/findings.md) |
 | `LIM-FND-31` | 1366 ASCII bytes | Encoded `list_findings` cursor (unpadded base64url) | Runtime `list_findings` reader | [FND-R138](../findings/findings.md) |
 | `LIM-FND-32` | 64 MiB | Complete private finding submission, including selected HTTP capture | Runtime FindingProposalClient and bounded Server intake decoder; existing transfer admission bounds concurrent buffers | [FND-R55](../findings/findings.md) |
@@ -473,6 +473,7 @@ its owning requirement.
 | `LIM-FND-47` | 1 MiB canonical analysis, depth 32, 100000 JSON values, 16 KiB per text field; 32 sources, 256 locations, 32 flows, 128 steps per flow, 32 HTTP exchanges | Optional finding analysis | Server resolver and Runtime authoring shape codec | [FND-R191](../findings/findings.md), [FND-R195](../findings/findings.md) |
 | `LIM-FND-48` | 16 MiB distinct selected document bytes and 1023 documents; 64 MiB total declared expanded ZIP bytes, 10000 entries per archive, 4 MiB per member, 512-byte POSIX path | One collection analysis resolver | Exact-source cache, central-directory preflight and bounded member reads | [FND-R192](../findings/findings.md), [FND-R195](../findings/findings.md) |
 | `LIM-FND-49` | At most 256 explicit finding revisions and 256 distinct expanded receipts, existing collection evidence bounds; 16 MiB each snapshot/SARIF, 4 MiB and 4096 diagnostic items | Audit-local generic finding export | Indexed batch reads and bounded contribution probes; stop before partial publication, no parent scan; immutable normalized duplicate option | [FND-R197](../findings/findings.md), [FND-R200](../findings/findings.md) |
+| `LIM-FND-50` | 64 MiB | Evidence of one finding proposal: the stored sizes of its exact evidence refs plus the selected HTTP exchange Artifact, replays excluded; the request bytes of the submission are LIM-FND-32 | Server finding intake, in the intake transaction before any Artifact or receipt is written (`invalid_finding_request`, 400, permanent) | [FND-R55](../findings/findings.md) |
 | `LIM-GIT-1` | 512 UTF-8 bytes | Path length of one entry in the imported source tree | Server Git importer | [GIT-R26](../artifacts/git-import.md) |
 | `LIM-GIT-2` | 1 key per owner | Optional Git SSH private keys per owner | Server Git key settings (/v1/settings/git-key) | [GIT-R37](../artifacts/git-import.md) |
 | `LIM-GIT-3` | 32 KiB | SSH private-key input | Server Git key settings (PUT /v1/settings/git-key) | [GIT-R40](../artifacts/git-import.md) |
@@ -513,7 +514,7 @@ its owning requirement.
 | `LIM-HTP-19` | 16 MiB | one Caido GraphQL response, received and decoded | caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-20` | 1 MiB | raw request supplied to Caido replay or a workflow | caido@1 tools and the caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-21` | 8192 characters | inline raw preview in a Caido tool result | caido@1 tools and the caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
-| `LIM-HTP-22` | 100 entries | one Caido history, sitemap, results or findings page | caido@1 tools and the caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
+| `LIM-HTP-22` | 100 entries | one Caido history, sitemap, scope, workflow, results or findings page | caido@1 tools and the caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-23` | 256 terms | Caido scope allowlist plus denylist (`caido_scope(action="create")`) | caido@1 (`caido_scope`) | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-24` | 8192 UTF-8 bytes | HTTPQL or filter text | caido@1 tools and the caido-graphql@1 adapter | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-25` | 32 targets | Automate targets | caido@1 (`caido_automate_run`) | [HTP-R87](../tools/http-caido.md) |
@@ -526,7 +527,7 @@ its owning requirement.
 | `LIM-HTP-32` | 0 retries | Caido request retries configured for an Automate run | caido@1 (`caido_automate_run`) | [HTP-R106](../tools/http-caido.md) |
 | `LIM-HTP-33` | 64 MiB of serialized capture JSON | Shared HTTP/Caido buffer of one allocation; independent of the 128-entry count | Runtime capture buffer; release replaced bytes and evict oldest captures until both bounds hold | [HTP-R71](../tools/http-caido.md) |
 | `LIM-HTP-34` | 100,000 JSON values and depth 32 | One decoded Caido GraphQL response | caido-graphql@1 structural validation | [HTP-R87](../tools/http-caido.md) |
-| `LIM-HTP-35` | 1 MiB of compact UTF-8 JSON | One model-visible Caido tool result | caido@1 result validation and sitemap page assembly | [HTP-R87](../tools/http-caido.md) |
+| `LIM-HTP-35` | 1 MiB of compact UTF-8 JSON | One model-visible Caido tool result | caido@1 result validation and sitemap and catalog page assembly | [HTP-R87](../tools/http-caido.md) |
 | `LIM-HTP-36` | One snapshot: 16 MiB encoded entries plus at most 100,001 eight-byte offsets | Retained sitemap selection of one allocation; row count also bounded by LIM-HTP-34 | caido@1 snapshot builder, replacement and teardown | [HTP-R126](../tools/http-caido.md) |
 | `LIM-HTP-37` | 128 cookies and 65536 encoded UTF-8 JSON bytes including metadata | One ordinary persisted target cookie jar, or the aggregate of exact-origin private jars for one controlled identity | Runtime bounded read, strict encode/decode and controlled private session admission | [HTP-R128](../tools/http-caido.md), [HTP-R140](../tools/http-caido.md) |
 | `LIM-HTP-38` | Retired | Former automatic-authentication limit; no current contract or executor | Closed manual-session contract | [HTP-R142](../tools/http-caido.md) |

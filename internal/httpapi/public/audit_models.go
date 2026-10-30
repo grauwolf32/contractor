@@ -1,7 +1,6 @@
 package public
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,10 +11,6 @@ import (
 	"github.com/grauwolf32/contractor/internal/auditstandards"
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
-	"github.com/grauwolf32/contractor/internal/contentdigest"
-	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/runlabels"
-	"github.com/grauwolf32/contractor/internal/runtimeconfig"
 )
 
 func auditProfileReadModel(source auditservice.ProfileProjection, detail bool) auditProfileResponse {
@@ -151,43 +146,6 @@ func writeAuditJSON(w http.ResponseWriter, status int, response auditResponse) {
 	writeJSON(w, status, response)
 }
 
-func createAuditRequestDigest(projectID string, request createAuditRequest) (string, []string, error) {
-	labels, err := runtimeconfig.NormalizeRunLabels(request.RuntimeLabels)
-	if err != nil {
-		return "", nil, err
-	}
-	metadata, err := runlabels.NormalizeAuditLabels(request.Labels)
-	if err != nil {
-		return "", nil, fmt.Errorf("%w: invalid Audit labels: %v", errInvalidRequest, err)
-	}
-	canonical := struct {
-		Labels        runlabels.RunMetadataLabels      `json:"labels,omitempty"`
-		ProjectID     string                           `json:"projectId"`
-		Profile       auditProfileSelectorRequest      `json:"profile"`
-		Inputs        map[string]contracts.ArtifactRef `json:"inputs"`
-		RuntimeLabels []string                         `json:"runtimeLabels"`
-		Scope         auditservice.Scope               `json:"scope"`
-	}{metadata, projectID, request.Profile, request.Inputs, labels, request.Scope}
-	digest, err := contentdigest.JSON(canonical)
-	if err != nil {
-		return "", nil, err
-	}
-	return digest, labels, nil
-}
-
-// auditRequestDigest binds one Audit lifecycle request: its action (start,
-// pause, resume, cancel or delete), the Audit, the expected revision and the
-// optional time limit.
-func auditRequestDigest(action, auditID string, revision uint64, seconds ...*int) string {
-	encoded, _ := json.Marshal(struct {
-		Action          string `json:"action"`
-		AuditID         string `json:"auditId"`
-		Revision        uint64 `json:"revision"`
-		DeadlineSeconds *int   `json:"deadlineSeconds,omitempty"`
-	}{action, auditID, revision, firstTimeLimit(seconds)})
-	return contentdigest.Bytes(encoded)
-}
-
 func pointerString(value *string) string {
 	if value == nil {
 		return ""
@@ -200,13 +158,6 @@ func pointerItemState(value *auditstore.ItemState) string {
 		return ""
 	}
 	return string(*value)
-}
-
-func firstTimeLimit(values []*int) *int {
-	if len(values) == 0 {
-		return nil
-	}
-	return values[0]
 }
 
 // maximumAuditTimeLimitBodyBytes bounds the optional JSON body of Audit start

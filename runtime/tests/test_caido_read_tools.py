@@ -83,7 +83,10 @@ def test_all_read_tools_use_static_operations_and_normalize_bounded_results(
                     "allowlist": ["*.target.example"],
                     "denylist": ["admin.target.example"],
                 }
-            ]
+            ],
+            "total_scopes": 1,
+            "offset": 0,
+            "truncated": False,
         }
 
         history = await tools["caido_history"](filter=HTTPQL, limit=20, offset=2)
@@ -124,7 +127,10 @@ def test_all_read_tools_use_static_operations_and_normalize_bounded_results(
                     "enabled": True,
                     "global": False,
                 }
-            ]
+            ],
+            "total_workflows": 1,
+            "offset": 0,
+            "truncated": False,
         }
         findings = await tools["caido_workflow_findings"](limit=10)
         assert findings["findings"][0]["request_id"] == "request-1"

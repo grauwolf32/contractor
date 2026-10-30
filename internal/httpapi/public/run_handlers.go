@@ -507,7 +507,7 @@ func stageAttemptsReadModel(detail runservice.RunDetail) ([]stageAttemptResponse
 		if resources == nil {
 			resources = []telemetry.AllocationResourceSummary{}
 		}
-		if !terminalStageState(execution.State) {
+		if !execution.State.Terminal() {
 			value := execution.StageExecutionID
 			activeExecutionID = &value
 		}
@@ -621,15 +621,6 @@ func runtimeConfigReadModel(snapshot runtimeconfig.RunSnapshot) runRuntimeConfig
 		result.Labels[index] = project(snapshot.Labels[index])
 	}
 	return result
-}
-
-func terminalStageState(state runstore.StageExecutionState) bool {
-	switch state {
-	case runstore.StageSucceeded, runstore.StageFailed, runstore.StageInterrupted, runstore.StageCancelled:
-		return true
-	default:
-		return false
-	}
 }
 
 func stageExecutionConfigReadModel(
