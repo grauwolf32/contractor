@@ -294,10 +294,7 @@ func awaitControlPlaneLease(ctx context.Context, pool *pgxpool.Pool, publicAddre
 			return nil, errors.Join(ctx.Err(), stop())
 		case serveErr := <-done:
 			stopStandby()
-			if serveErr == nil {
-				serveErr = errors.New("listener exited before lease acquisition")
-			}
-			return nil, fmt.Errorf("standby readiness listener stopped: %w", serveErr)
+			return nil, standbyListenerStopped(ctx, serveErr)
 		case <-ticker.C:
 			acquired, err = lease.acquireOrReconnect(ctx, logger)
 			if err != nil {
@@ -325,6 +322,22 @@ func awaitControlPlaneLease(ctx context.Context, pool *pgxpool.Pool, publicAddre
 // the standby holds no lock, it reconnects and reports no acquisition rather
 // than failing, so a single acquisition timeout never exits the process. It
 // returns an error only when the outer context is done.
+// standbyListenerStopped is how standing by ends when the readiness listener
+// stopped with serveErr. Shutdown cancels ctx, which stops the listener too,
+// so the standby loop may find the listener's end ready together with
+// ctx.Done and select either: once ctx is done the standby reports its
+// cancellation, and the process exits without an error (FAIL-PER-2). Only a
+// listener that stopped while ctx is live stops the Server with an error.
+func standbyListenerStopped(ctx context.Context, serveErr error) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Join(err, serveErr)
+	}
+	if serveErr == nil {
+		serveErr = errors.New("listener exited before lease acquisition")
+	}
+	return fmt.Errorf("standby readiness listener stopped: %w", serveErr)
+}
+
 func (lease *controlPlaneLease) acquireOrReconnect(ctx context.Context, logger *slog.Logger) (bool, error) {
 	pollCtx, cancel := context.WithTimeout(ctx, lease.tolerance)
 	acquired, err := lease.tryAcquire(pollCtx)
