@@ -65,6 +65,12 @@ function sanitiseValue(
   }
 }
 
+const OPENAPI_VERSION = /^3\.\d+\.\d+(?:[-+].*)?$/;
+// A top-level `openapi: 3.x.y` or `swagger: "2.0"` key of a block YAML
+// mapping, quoted or not.
+const YAML_OPENAPI_DECLARATION =
+  /^(?:openapi[ \t]*:[ \t]*["']?3\.\d+\.\d+|swagger[ \t]*:[ \t]*["']?2\.0\b)/m;
+
 function isOpenApiDocument(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     return false;
@@ -72,9 +78,23 @@ function isOpenApiDocument(value: unknown): value is Record<string, unknown> {
   const candidate = value as Record<string, unknown>;
   return (
     (typeof candidate.openapi === "string" &&
-      /^3\.\d+\.\d+(?:[-+].*)?$/.test(candidate.openapi)) ||
+      OPENAPI_VERSION.test(candidate.openapi)) ||
     candidate.swagger === "2.0"
   );
+}
+
+/**
+ * Whether a document too large to render automatically declares OpenAPI,
+ * without the YAML parse that renders it: JSON is parsed natively, YAML is
+ * recognised by its top-level version key. parseOpenApiDocument still
+ * decides when the document is rendered.
+ */
+export function declaresOpenApi(source: string): boolean {
+  try {
+    return isOpenApiDocument(JSON.parse(source));
+  } catch {
+    return YAML_OPENAPI_DECLARATION.test(source);
+  }
 }
 
 export function parseOpenApiDocument(

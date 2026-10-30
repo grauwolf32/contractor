@@ -428,6 +428,18 @@ definition, or with a fence or HTML block whose end cannot be told line by
 line, renders as one section. A section longer than LIM-UI-16 is shown as
 text with a notice instead of being parsed; Source shows the whole body.
 
+**UI-R213.** OpenAPI Preview renders a document of at most LIM-UI-17 at once.
+A larger document that declares OpenAPI opens on Source and is neither parsed
+nor rendered until the user asks for it; the Rendered view names the limit
+and warns that rendering can stop the page from responding for a few
+seconds. A document that turns out not to be OpenAPI says so and stays in
+Source.
+
+Rationale: the renderer builds every operation of an untagged document at
+once, and none of its settings bounds that work: at 1 MiB it held the page
+for over a second, and the YAML parse alone for about 0.3 s. Reopen the limit
+when the renderer can render operations on demand.
+
 **UI-R55.** Workflow logical Worker bindings link to the exact AgentTemplate
 version.
 

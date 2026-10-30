@@ -43,6 +43,29 @@ function largeReport(): { source: string; lastSection: number } {
 
 const LARGE_REPORT = largeReport();
 
+// An OpenAPI document just under the 1 MiB preview limit (LIM-UI-12) with
+// about 6,800 untagged operations, which Scalar would render all at once.
+function largeOpenApi(): string {
+  let source =
+    "openapi: 3.1.0\ninfo:\n  title: Large API\n  version: 1.0.0\npaths:\n";
+  for (let index = 0; ; index++) {
+    const id = String(index).padStart(5, "0");
+    const part = [
+      `  /items/${id}:`,
+      "    get:",
+      `      summary: Get item ${id}`,
+      "      responses:",
+      "        '200':",
+      `          description: Item ${id}`,
+      "",
+    ].join("\n");
+    if (source.length + part.length > 1024 * 1024 - 1024) {
+      return source;
+    }
+    source += part;
+  }
+}
+
 // One table longer than a Markdown section may be (LIM-UI-16).
 function longTable(): string {
   let table = "| Endpoint | Method |\n| --- | --- |\n";
@@ -154,6 +177,10 @@ const artifacts = {
   "large-report": {
     mediaType: "text/markdown",
     source: LARGE_REPORT.source,
+  },
+  "large-openapi": {
+    mediaType: "application/yaml",
+    source: largeOpenApi(),
   },
   "long-table": {
     mediaType: "text/markdown",
@@ -370,6 +397,66 @@ test("renders a 1 MiB Markdown report in sections and a long table as text", asy
     preview.getByRole("heading", { name: "After the inventory" }),
   ).toBeAttached();
 });
+
+test("opens a 1 MiB OpenAPI document on Source and renders it on request", async ({
+  page,
+}) => {
+  await installArtifactAPI(page);
+  await openPreview(page, "large-openapi");
+
+  // Nothing is parsed or rendered until asked for (LIM-UI-17).
+  await expect(page.getByRole("tab", { name: "Source" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(page.locator("pre.artifact-preview")).toContainText(
+    "summary: Get item 00000",
+  );
+  await expect(page.locator(".openapi-artifact-preview")).toHaveCount(0);
+
+  await page.getByRole("tab", { name: "Rendered" }).click();
+  await expect(
+    page.getByText(
+      "This OpenAPI document is larger than 128 KiB, so it is not rendered automatically.",
+      { exact: false },
+    ),
+  ).toBeVisible();
+  await expect(page.locator(".openapi-artifact-preview")).toHaveCount(0);
+  await page.getByRole("button", { name: "Render document" }).click();
+  await expect(
+    page.getByText("Large API", { exact: true }).first(),
+  ).toBeVisible({ timeout: 60_000 });
+  await expect(
+    page.getByRole("heading", { name: "Get item 00000", exact: true }),
+  ).toBeVisible();
+});
+
+for (const theme of ["light", "dark", "black"]) {
+  test(`OpenAPI render request at 390px in ${theme}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.addInitScript(
+      (value) => localStorage.setItem("contractor.theme", value),
+      theme,
+    );
+    await installArtifactAPI(page);
+    await openPreview(page, "large-openapi");
+    await page.getByRole("tab", { name: "Rendered" }).click();
+    await expect(
+      page.getByRole("button", { name: "Render document" }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`openapi-request-${theme}-390.png`),
+      fullPage: true,
+    });
+  });
+}
 
 for (const theme of ["light", "dark", "black"]) {
   test("HTTP evidence at 390px in " + theme, async ({ page }, testInfo) => {
