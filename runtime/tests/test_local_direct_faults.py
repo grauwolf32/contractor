@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import os
-import socket
+import stat
+import subprocess
+import sys
 import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -24,6 +26,8 @@ from contractor_runtime.contracts import (
 from contractor_runtime.projectfs import WorkspaceStorageError
 from contractor_runtime.state import ProcessState
 
+BIND_SOCKET = "import socket, sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])"
+
 
 @pytest.mark.parametrize("kind", ["symlink", "hardlink", "fifo", "socket"])
 def test_unsupported_external_types_cannot_use_stale_memory_or_escape(
@@ -36,46 +40,42 @@ def test_unsupported_external_types_cannot_use_stale_memory_or_escape(
             outside = tmp_path / "outside"
             outside.write_bytes(b"outside-secret")
             target.unlink()
-            endpoint = None
-            try:
-                if kind == "symlink":
-                    target.symlink_to(outside)
-                elif kind == "hardlink":
-                    os.link(outside, target)
-                elif kind == "fifo":
-                    os.mkfifo(target)
-                else:
-                    endpoint = socket.socket(socket.AF_UNIX)
-                    # Keep Unix socket paths below the platform length limit.
-                    descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY)
-                    try:
-                        endpoint.bind(f"/proc/self/fd/{descriptor}/sock")
-                    finally:
-                        os.close(descriptor)
-                    (root / "sock").rename(target)
-                # Listed as an opaque leaf; the rest of the tree stays usable.
-                current = await asyncio.wait_for(session.snapshot(), timeout=1)
-                assert "src/a.txt" in current.binary_paths
-                assert all(file.path != "src/a.txt" for file in current.files)
-                await session.write_text("unrelated.txt", "still writable")
-                for operation in (
-                    lambda: session.read_text("src/a.txt"),
-                    lambda: session.write_text("src/a.txt", "unsafe"),
-                    lambda: session.update_text("src/a.txt", lambda text: text),
-                    lambda: session.copy_path("src", "copied", recursive=True),
-                    lambda: session.move_path("src", "moved"),
-                    lambda: session.delete_path("src", recursive=True),
-                    lambda: session.delete_path("src/a.txt"),
-                ):
-                    with pytest.raises(WorkspaceStorageError) as failure:
-                        await asyncio.wait_for(operation(), timeout=1)
-                    assert str(failure.value) == "workspace_type_conflict"
-                assert outside.read_bytes() == b"outside-secret"
-                assert previous.files[0].text == "source\r\n"
-                assert not (root / "copied").exists() and not (root / "moved").exists()
-            finally:
-                if endpoint is not None:
-                    endpoint.close()
+            if kind == "symlink":
+                target.symlink_to(outside)
+            elif kind == "hardlink":
+                os.link(outside, target)
+            elif kind == "fifo":
+                os.mkfifo(target)
+            else:
+                # A child binds the name relative to its working directory,
+                # which keeps the Unix socket path below the platform limit;
+                # the socket inode stays after the child exits.
+                subprocess.run(
+                    [sys.executable, "-c", BIND_SOCKET, target.name],
+                    cwd=target.parent,
+                    check=True,
+                )
+                assert stat.S_ISSOCK(target.lstat().st_mode)
+            # Listed as an opaque leaf; the rest of the tree stays usable.
+            current = await asyncio.wait_for(session.snapshot(), timeout=1)
+            assert "src/a.txt" in current.binary_paths
+            assert all(file.path != "src/a.txt" for file in current.files)
+            await session.write_text("unrelated.txt", "still writable")
+            for operation in (
+                lambda: session.read_text("src/a.txt"),
+                lambda: session.write_text("src/a.txt", "unsafe"),
+                lambda: session.update_text("src/a.txt", lambda text: text),
+                lambda: session.copy_path("src", "copied", recursive=True),
+                lambda: session.move_path("src", "moved"),
+                lambda: session.delete_path("src", recursive=True),
+                lambda: session.delete_path("src/a.txt"),
+            ):
+                with pytest.raises(WorkspaceStorageError) as failure:
+                    await asyncio.wait_for(operation(), timeout=1)
+                assert str(failure.value) == "workspace_type_conflict"
+            assert outside.read_bytes() == b"outside-secret"
+            assert previous.files[0].text == "source\r\n"
+            assert not (root / "copied").exists() and not (root / "moved").exists()
 
     asyncio.run(scenario())
 

@@ -1,0 +1,61 @@
+schema_version: "1.0"
+id: V425-002
+title: "Build the Trailmark graph for workspace paths longer than the host PATH_MAX"
+milestone: hub-audit-defects-2026-10
+epic: code-analysis
+kind: defect
+introduced_by: V15-003
+priority: P3
+status: pending
+depends_on: []
+languages: [python]
+goal: "A graph build over workspace paths the workspace rules accept (up to 4096 UTF-8 bytes) succeeds, or reports those files through explicit coverage, on every supported host instead of failing the whole build with code_analysis_engine_failed on macOS."
+context:
+  review: "Filed by V401-007 (2026-10-30) from the macOS Runtime suite run; first seen in the 2026-10-23 merged verification run (docs/research/2026-10-23-server-runtime-review.md)"
+  specification:
+    - docs/spec/tools/code-analysis.md
+    - docs/spec/tools/workspace.md#WSP-R13
+    - docs/spec/operations/operations.md#OPS-R1
+  severity: low
+  finding: >-
+    runtime/tests/test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor
+    (:503) fails on macOS arm64 with CodeAnalysisError
+    code_analysis_engine_failed. Its files sit 31 directories deep, about
+    1,600 bytes below the workspace root, which WSP-R13 allows (Worker State
+    workspace paths reach 4096 UTF-8 bytes). _materialize_snapshot
+    (runtime/src/contractor_runtime/toolsets/code_analysis/trailmark_host.py:907-939)
+    writes each mirror file by absolute path (mirror.joinpath, mkdir, open),
+    and the absolute path exceeds the 1,024-byte macOS PATH_MAX, so the
+    write raises "OSError: [Errno 63] File name too long", which
+    TrailmarkChildHost turns into code_analysis_engine_failed
+    (trailmark_host.py:276-278). Linux PATH_MAX is 4,096 bytes, so the same
+    tree builds there.
+  siblings: >-
+    The Trailmark child then reads the mirror by absolute path as well, so a
+    mirror written through directory descriptors alone would fail in the
+    child; the fix must cover the child's reads (for example a working
+    directory inside the mirror and relative paths) or admit only files whose
+    mirror path fits the host limit and report the rest as coverage. The
+    shallow surface (tools.py) reads workspace text through the workspace
+    session and is not affected; check the taint and source-review mirrors,
+    if any, for the same absolute-path writes.
+scope:
+  in:
+    - "The graph mirror and the Trailmark child handle every workspace path the workspace rules accept, or the admission step reports files whose mirror path exceeds the host limit through explicit coverage, decided and recorded in the code-analysis specification."
+    - "A regression test with a path longer than 1,024 bytes that runs on macOS and Linux."
+  out:
+    - "Changing the workspace path limits (WSP-R13)."
+acceptance_criteria:
+  - id: A1
+    text: "test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor passes on macOS arm64 and Linux."
+  - id: A2
+    text: "A file whose mirror path exceeds the host PATH_MAX never fails the whole build; it is graphed or reported by the decided coverage reason."
+  - id: A3
+    text: "The regression test fails on the unfixed code on macOS."
+tests:
+  - command: "cd runtime && uv run --locked pytest -q -p no:randomly tests/test_code_analysis_graph.py tests/test_trailmark_child.py"
+    covers: [A1, A2, A3]
+  - command: make test-runtime
+    covers: [A1, A2]
+  - command: make lint
+    covers: [A1]
