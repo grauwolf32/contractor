@@ -50,7 +50,8 @@ models:
 - **Value:** blank-text and byte counting differed (V368-008), the capability
   grammar had three copies (V367-007), diagnostic byte bounds differed
   (V372-027), integers above 2^53 cannot cross the A2A DataPart exactly
-  (V371-004, open; [WRK-R164](../spec/execution/worker.md)).
+  (V371-004 bounded every WorkerCompletion integer to 2^53-1;
+  [WRK-R164](../spec/execution/worker.md)).
 
 Generating both models from one description removes the first kind by
 construction. The second kind needs value rules that both languages evaluate

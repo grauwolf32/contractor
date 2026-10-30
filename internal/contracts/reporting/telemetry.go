@@ -317,11 +317,11 @@ func (r ExecutionReport) validateStored() error {
 }
 
 // metricIntegerInRange reports whether value may be an integer of
-// ExecutionMetrics: every one lies between 0 and MaxResourceInteger, so the
+// ExecutionMetrics: every one lies between 0 and contracts.MaxExactInteger, so the
 // sums the Server builds from them stay far from the int64 range and every
 // JSON consumer reads them exactly (OBS-R111, LIM-OBS-17).
 func metricIntegerInRange(value int64) bool {
-	return value >= 0 && value <= MaxResourceInteger
+	return value >= 0 && value <= contracts.MaxExactInteger
 }
 
 func (r ExecutionReport) validate(received bool) error {
@@ -456,7 +456,7 @@ func (m ExecutionMetrics) Validate() error {
 			summarizer.InputTokens, summarizer.OutputTokens, summarizer.TotalTokens,
 			summarizer.TokenUsageUnavailable,
 		} {
-			if value > MaxResourceInteger {
+			if value > contracts.MaxExactInteger {
 				return contracts.Invalidf("worker summarizer metrics must not exceed 2^53-1")
 			}
 		}

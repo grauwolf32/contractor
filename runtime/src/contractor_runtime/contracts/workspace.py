@@ -12,7 +12,7 @@ from pydantic import (
 from contractor_runtime.contracts.artifacts import ArtifactRef
 from contractor_runtime.contracts.base import (
     ID_PATTERN,
-    MAX_UINT64,
+    MAX_EXACT_INTEGER,
     MAX_WORKER_FILES_READ,
     WireModel,
     WorkspaceMode,
@@ -23,14 +23,16 @@ from contractor_runtime.contracts.base import (
 
 
 class WorkspaceObservationSummary(WireModel):
-    scoped_files: int = Field(ge=0, le=MAX_UINT64)
+    # A WorkerCompletion member: its counts cross the A2A DataPart as doubles,
+    # so each one is at most MAX_EXACT_INTEGER (WRK-R164).
+    scoped_files: int = Field(ge=0, le=MAX_EXACT_INTEGER)
     scope_complete: bool
-    discovered_files: int = Field(ge=0, le=MAX_UINT64)
-    read_files: int = Field(ge=0, le=MAX_UINT64)
-    matched_files: int = Field(ge=0, le=MAX_UINT64)
-    modified_files: int = Field(ge=0, le=MAX_UINT64)
+    discovered_files: int = Field(ge=0, le=MAX_EXACT_INTEGER)
+    read_files: int = Field(ge=0, le=MAX_EXACT_INTEGER)
+    matched_files: int = Field(ge=0, le=MAX_EXACT_INTEGER)
+    modified_files: int = Field(ge=0, le=MAX_EXACT_INTEGER)
     detail_complete: bool
-    unread_files: int | None = Field(default=None, ge=0, le=MAX_UINT64)
+    unread_files: int | None = Field(default=None, ge=0, le=MAX_EXACT_INTEGER)
     files_read: list[str] = Field(max_length=MAX_WORKER_FILES_READ)
     files_read_truncated: bool
 

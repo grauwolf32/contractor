@@ -17,6 +17,7 @@ from contractor_runtime.contracts.base import (
     _STATE_METRIC_NAME_PATTERN,
     ID_PATTERN,
     MAX_AGENT_STATE_SNAPSHOT_BYTES,
+    MAX_EXACT_INTEGER,
     MAX_STATE_WORKSPACE_PATH_BYTES,
     MAX_STATE_WORKSPACE_PATHS,
     MAX_UINT64,
@@ -103,8 +104,8 @@ class WorkerModelResult(WireModel):
 
 
 class ToolObservationCount(WireModel):
-    calls: int = Field(ge=0, le=MAX_UINT64)
-    failures: int = Field(ge=0, le=MAX_UINT64)
+    calls: int = Field(ge=0, le=MAX_EXACT_INTEGER)
+    failures: int = Field(ge=0, le=MAX_EXACT_INTEGER)
 
     @model_validator(mode="after")
     def validate_count(self) -> Self:
@@ -439,10 +440,17 @@ class WorkerInvocationState(WireModel):
 
 
 class WorkerCompletion(VersionedWireModel):
+    """The strict private A2A response, validated before it is encoded.
+
+    The A2A DataPart carries numbers as doubles, so every integer in it, the
+    state revision and each observation count, is at most MAX_EXACT_INTEGER;
+    a larger value is rejected here instead of arriving rounded (WRK-R164).
+    """
+
     result: WorkerResult | None = None
     failure: WorkerFailure | None = None
     invocation_id: str
-    state_revision: int = Field(gt=0, le=MAX_UINT64)
+    state_revision: int = Field(gt=0, le=MAX_EXACT_INTEGER)
 
     @model_validator(mode="after")
     def validate_completion(self) -> Self:

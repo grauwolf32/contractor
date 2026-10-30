@@ -71,7 +71,10 @@ type WorkerFailure struct {
 }
 
 // WorkerCompletion is the strict private A2A response shared by Go and Python.
-// Exactly one of Result and Failure is present.
+// Exactly one of Result and Failure is present. Every integer in it, the
+// stateRevision and each observation count, is at most MaxExactInteger: the
+// A2A DataPart carries numbers as doubles, so a larger value would arrive
+// rounded (WRK-R164).
 type WorkerCompletion struct {
 	APIVersion    string         `json:"apiVersion" strictjson:"required"`
 	Result        *WorkerResult  `json:"result,omitempty"`
@@ -81,6 +84,9 @@ type WorkerCompletion struct {
 }
 
 func (c ToolObservationCount) validate() error {
+	if c.Calls > MaxExactInteger || c.Failures > MaxExactInteger {
+		return Invalidf("Worker observation counts must not exceed 2^53-1")
+	}
 	if c.Failures > c.Calls {
 		return Invalidf("Worker observation failures exceed calls")
 	}
@@ -88,6 +94,14 @@ func (c ToolObservationCount) validate() error {
 }
 
 func (s WorkspaceObservationSummary) validate() error {
+	for _, count := range []uint64{s.ScopedFiles, s.DiscoveredFiles, s.ReadFiles, s.MatchedFiles, s.ModifiedFiles} {
+		if count > MaxExactInteger {
+			return Invalidf("Worker workspace observation counts must not exceed 2^53-1")
+		}
+	}
+	if s.UnreadFiles != nil && *s.UnreadFiles > MaxExactInteger {
+		return Invalidf("Worker workspace observation counts must not exceed 2^53-1")
+	}
 	if s.FilesRead == nil || len(s.FilesRead) > MaxWorkerFilesRead {
 		return Invalidf("Worker filesRead must be a non-null list of at most %d paths", MaxWorkerFilesRead)
 	}
@@ -203,8 +217,8 @@ func (c WorkerCompletion) Validate() error {
 	if !ValidBoundedOpaqueWorkerID(c.InvocationID) {
 		return Invalidf("Worker invocationId is invalid")
 	}
-	if c.StateRevision == 0 {
-		return Invalidf("Worker stateRevision must be positive")
+	if c.StateRevision == 0 || c.StateRevision > MaxExactInteger {
+		return Invalidf("Worker stateRevision must be 1..2^53-1")
 	}
 	size, err := ResultJSONSize(c)
 	if err != nil || size > MaxWorkerCompletionBytes {
