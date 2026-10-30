@@ -82,7 +82,7 @@ func TestReadBodyFindsWritesLocksReadsCallsAndDynamicSQL(t *testing.T) {
 			calls: []Name{{Object: "values"}, {Object: "conflict"}}},
 		{name: "reads and joins", source: "SELECT x INTO y FROM a AS p, public.b JOIN c q ON q.id = p.id LEFT JOIN LATERAL jsonb_each(p.doc) AS e ON true " +
 			"WHERE EXISTS (SELECT 1 FROM d) AND EXTRACT(EPOCH FROM NEW.at) > 0; DELETE FROM f USING g WHERE f.id = g.id; " +
-			"FOR row IN SELECT * FROM h LOOP END LOOP; RAISE EXCEPTION 'no' USING ERRCODE = 'P0001'",
+			"FOR row IN SELECT * FROM h LOOP END LOOP; RAISE EXCEPTION 'no' USING ERRCODE = 'raise_exception'",
 			writes: []Name{{Object: "f"}},
 			reads: []Name{{Object: "a"}, {Schema: "public", Object: "b"}, {Object: "c"}, {Object: "d"}, {Schema: "new", Object: "at"},
 				{Object: "g"}, {Object: "h"}, {Object: "errcode"}},
