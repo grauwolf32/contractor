@@ -12156,7 +12156,7 @@
     "WorkerSummarizerConfigBody": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["modelPolicy", "contextWindowRatio"],
+      "required": ["modelPolicy", "contextWindowRatio", "includeReasoning"],
       "properties": {
         "instructions": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/InstructionsRef"
@@ -12173,7 +12173,8 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "exclusiveMaximum": 1
-        }
+        },
+        "includeReasoning": { "type": "boolean" }
       }
     },
     "AgentTemplateBody": {

@@ -12085,10 +12085,13 @@ type WorkerCompletionDiagnosticsPhase string
 
 // WorkerSummarizerConfigBody defines model for WorkerSummarizerConfigBody.
 type WorkerSummarizerConfigBody struct {
-	ContextWindowRatio float32          `json:"contextWindowRatio"`
-	CumulativeBudget   *int             `json:"cumulativeBudget,omitempty"`
-	Instructions       *InstructionsRef `json:"instructions,omitempty"`
-	ModelPolicy        ModelPolicyRef   `json:"modelPolicy"`
+	ContextWindowRatio float32 `json:"contextWindowRatio"`
+	CumulativeBudget   *int    `json:"cumulativeBudget,omitempty"`
+
+	// IncludeReasoning Whether the terminal summarizer input includes the Worker model's provider-supplied reasoning as tagged, redacted and bounded text. Authoring omission resolves to false.
+	IncludeReasoning bool             `json:"includeReasoning"`
+	Instructions     *InstructionsRef `json:"instructions,omitempty"`
+	ModelPolicy      ModelPolicyRef   `json:"modelPolicy"`
 }
 
 // WorkerTelemetryExportConfig Worker telemetry export settings. Not supported under planner.telemetry. The pending byte limit must cover the batch size.

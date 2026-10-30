@@ -118,6 +118,10 @@ def _agent_template_digest(template: ResolvedAgentTemplate) -> str:
         if template.summarizer.cumulative_budget is not None:
             summarizer["cumulativeBudget"] = template.summarizer.cumulative_budget
         summarizer["contextWindowRatio"] = template.summarizer.context_window_ratio
+        # Enabled reasoning is a manifest member; false adds none, so the digest
+        # of every template without it is unchanged (TPL-R58).
+        if template.summarizer.include_reasoning:
+            summarizer["includeReasoning"] = True
         instructions = template.summarizer.instructions
         if instructions is not None:
             summarizer["instructions"] = {

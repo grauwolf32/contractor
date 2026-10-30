@@ -260,6 +260,22 @@ func TestSharedAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 		"Worker-call budget": func(summarizer map[string]any) {
 			summarizer["modelPolicy"].(map[string]any)["maxWorkerCalls"] = float64(1)
 		},
+		// Omission is the only representation of false (TPL-R47).
+		"explicit false reasoning": func(summarizer map[string]any) {
+			summarizer["includeReasoning"] = false
+		},
+		"null reasoning": func(summarizer map[string]any) {
+			summarizer["includeReasoning"] = nil
+		},
+		"string reasoning": func(summarizer map[string]any) {
+			summarizer["includeReasoning"] = "true"
+		},
+		"case-aliased reasoning": func(summarizer map[string]any) {
+			summarizer["IncludeReasoning"] = true
+		},
+		"snake-case reasoning": func(summarizer map[string]any) {
+			summarizer["include_reasoning"] = true
+		},
 	}
 	for name, mutate := range tests {
 		name, mutate := name, mutate
@@ -276,6 +292,18 @@ func TestSharedAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 			}
 		})
 	}
+	t.Run("duplicate reasoning", func(t *testing.T) {
+		t.Parallel()
+		encoded := contractstest.ReadFixture(t, "valid", "allocation-spec-summarizer-instructions.json")
+		duplicated := bytes.Replace(encoded, []byte(`"includeReasoning":true`),
+			[]byte(`"includeReasoning":true,"includeReasoning":true`), 1)
+		if bytes.Equal(duplicated, encoded) {
+			t.Fatal("golden reasoning fixture has no includeReasoning member")
+		}
+		if _, err := contracts.DecodePrivateStrict[AllocationSpec](duplicated); err == nil {
+			t.Fatal("duplicate includeReasoning was accepted")
+		}
+	})
 	encoded, _ := json.Marshal(baseline)
 	var effectiveBound map[string]any
 	_ = json.Unmarshal(encoded, &effectiveBound)
@@ -292,6 +320,44 @@ func TestSharedAllocationSpecRequiresValidWorkerSummarizer(t *testing.T) {
 	encoded, _ = json.Marshal(missingWorkerContext)
 	if _, err := contracts.DecodePrivateStrict[AllocationSpec](encoded); err == nil {
 		t.Fatal("summarized effective Worker without context window was accepted")
+	}
+}
+
+func TestSharedAllocationSpecIncludeReasoningIsTrueOrOmitted(t *testing.T) {
+	t.Parallel()
+
+	enabled, err := contracts.DecodePrivateStrict[AllocationSpec](
+		contractstest.ReadFixture(t, "valid", "allocation-spec-summarizer-instructions.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	disabled, err := contracts.DecodePrivateStrict[AllocationSpec](
+		contractstest.ReadFixture(t, "valid", "allocation-spec-summarizer.json"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !enabled.AgentTemplate.Summarizer.IncludeReasoning || disabled.AgentTemplate.Summarizer.IncludeReasoning {
+		t.Fatalf("includeReasoning = %v/%v, want true/false",
+			enabled.AgentTemplate.Summarizer.IncludeReasoning, disabled.AgentTemplate.Summarizer.IncludeReasoning)
+	}
+	for _, test := range []struct {
+		spec AllocationSpec
+		want bool
+	}{{enabled, true}, {disabled, false}} {
+		encoded, err := json.Marshal(test.spec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(encoded, []byte(`"includeReasoning":true`)) != test.want ||
+			bytes.Contains(encoded, []byte(`"includeReasoning":false`)) {
+			t.Fatalf("encoded includeReasoning for %v: %s", test.want, encoded)
+		}
+		decoded, err := contracts.DecodePrivateStrict[AllocationSpec](encoded)
+		if err != nil || decoded.AgentTemplate.Summarizer.IncludeReasoning != test.want {
+			t.Fatalf("round trip = (%v, %v)", decoded.AgentTemplate.Summarizer, err)
+		}
 	}
 }
 

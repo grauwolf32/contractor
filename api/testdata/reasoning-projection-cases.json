@@ -1,0 +1,255 @@
+{
+  "description": "Provider reasoning projection (WRK-R182, LIM-WRK-28, LIM-WRK-29). A text value is a string or a list of segments, each a string or {repeat, count}. Each part is redacted with its secrets, then bounded so that its compact UTF-8 JSON serialization {\"reasoning\": text} is at most partBytes; a cut part keeps the longest code-point prefix that fits together with the truncation marker. expected null means the input produces no part. Each budget admits sizes in order until totalBytes. The Runtime's contractor_runtime.reasoning module is the only implementation; every model consumer of provider reasoning uses it.",
+  "limits": {
+    "partBytes": 8192,
+    "totalBytes": 65536,
+    "tag": "reasoning",
+    "truncationMarker": "[TRUNCATED]"
+  },
+  "parts": [
+    {
+      "name": "plain",
+      "text": "Try the parser next.",
+      "secrets": [],
+      "expected": {
+        "text": "Try the parser next.",
+        "size": 36,
+        "truncated": false
+      }
+    },
+    {
+      "name": "empty is absent",
+      "text": "",
+      "secrets": [],
+      "expected": null
+    },
+    {
+      "name": "whitespace is absent",
+      "text": " \n\t",
+      "secrets": [],
+      "expected": null
+    },
+    {
+      "name": "redacted before admission",
+      "text": "use sk-live-reasoning-canary-0123 under /srv/private/run-1 now",
+      "secrets": [
+        "sk-live-reasoning-canary-0123",
+        "/srv/private/run-1"
+      ],
+      "expected": {
+        "text": "use [REDACTED] under [REDACTED] now",
+        "size": 51,
+        "truncated": false
+      }
+    },
+    {
+      "name": "ASCII at the part bound",
+      "text": [
+        {
+          "repeat": "a",
+          "count": 8176
+        }
+      ],
+      "secrets": [],
+      "expected": {
+        "text": [
+          {
+            "repeat": "a",
+            "count": 8176
+          }
+        ],
+        "size": 8192,
+        "truncated": false
+      }
+    },
+    {
+      "name": "ASCII one byte over the part bound",
+      "text": [
+        {
+          "repeat": "a",
+          "count": 8177
+        }
+      ],
+      "secrets": [],
+      "expected": {
+        "text": [
+          {
+            "repeat": "a",
+            "count": 8165
+          },
+          "[TRUNCATED]"
+        ],
+        "size": 8192,
+        "truncated": true
+      }
+    },
+    {
+      "name": "multibyte cut on a code point",
+      "text": [
+        {
+          "repeat": "界",
+          "count": 3000
+        }
+      ],
+      "secrets": [],
+      "expected": {
+        "text": [
+          {
+            "repeat": "界",
+            "count": 2721
+          },
+          "[TRUNCATED]"
+        ],
+        "size": 8190,
+        "truncated": true
+      }
+    },
+    {
+      "name": "escaped quotes are charged as serialized",
+      "text": [
+        {
+          "repeat": "\"",
+          "count": 5000
+        }
+      ],
+      "secrets": [],
+      "expected": {
+        "text": [
+          {
+            "repeat": "\"",
+            "count": 4082
+          },
+          "[TRUNCATED]"
+        ],
+        "size": 8191,
+        "truncated": true
+      }
+    },
+    {
+      "name": "control characters are charged as serialized",
+      "text": [
+        {
+          "repeat": "\u0001",
+          "count": 2000
+        }
+      ],
+      "secrets": [],
+      "expected": {
+        "text": [
+          {
+            "repeat": "\u0001",
+            "count": 1360
+          },
+          "[TRUNCATED]"
+        ],
+        "size": 8187,
+        "truncated": true
+      }
+    },
+    {
+      "name": "secret across the cut never leaks a prefix",
+      "text": [
+        {
+          "repeat": "a",
+          "count": 8160
+        },
+        "sk-live-reasoning-canary-0123",
+        {
+          "repeat": "b",
+          "count": 100
+        }
+      ],
+      "secrets": [
+        "sk-live-reasoning-canary-0123"
+      ],
+      "expected": {
+        "text": [
+          {
+            "repeat": "a",
+            "count": 8160
+          },
+          "[REDA",
+          "[TRUNCATED]"
+        ],
+        "size": 8192,
+        "truncated": true
+      }
+    },
+    {
+      "name": "lone surrogate is replaced",
+      "text": "x\ud800y",
+      "secrets": [],
+      "expected": {
+        "text": "x?y",
+        "size": 19,
+        "truncated": false
+      }
+    }
+  ],
+  "budgets": [
+    {
+      "name": "exactly the total bound",
+      "sizes": [
+        8192,
+        8192,
+        8192,
+        8192,
+        8192,
+        8192,
+        8192,
+        8192
+      ],
+      "admitted": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "omitted": false
+    },
+    {
+      "name": "one byte over the total bound",
+      "sizes": [
+        8192,
+        8192,
+        8192,
+        8192,
+        8192,
+        8192,
+        8192,
+        8192,
+        1
+      ],
+      "admitted": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        false
+      ],
+      "omitted": true
+    },
+    {
+      "name": "a smaller later part still fits",
+      "sizes": [
+        60000,
+        8192,
+        5536
+      ],
+      "admitted": [
+        true,
+        false,
+        true
+      ],
+      "omitted": true
+    }
+  ]
+}

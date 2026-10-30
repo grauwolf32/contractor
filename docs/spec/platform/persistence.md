@@ -20,7 +20,8 @@ and the one receipt table of keyed mutations, how advisory lock keys are
 built, and the shape and lease rule of controller claims. It owns the schema
 migrator: the one transaction of a migration run, the migration ledger that
 keeps applied migrations immutable, the migration budget and what a migration
-may do within it. It also indexes the
+may do within it, and the rule that keeps the functions table definitions
+evaluate restorable from a backup. It also indexes the
 PostgreSQL state and the transaction and serialization rules that domain
 documents own, so each can be found from here while it is stated only in its
 owner.
@@ -829,6 +830,44 @@ every INSERT and UPDATE of a Project-scoped artifact binding, each of which is
 an artifact write that a deleting Project rejects at the write itself
 ([DEL-R40](../artifacts/retention-and-deletion.md)).
 
+### Functions that table definitions evaluate
+
+**PER-R46.** A function that a table definition makes PostgreSQL evaluate,
+in a column default, a generated column, a CHECK constraint of a table or
+domain, or an index expression or predicate, binds the names it uses when
+it is created, and so does every function it calls in turn. A `LANGUAGE sql`
+function among them has a SQL-standard body (`BEGIN ATOMIC … END` or
+`RETURN`); a function in another language pins `search_path = pg_catalog`,
+so it can name only built-in objects. `pg_restore` creates tables, loads
+their rows and builds their indexes with an empty search path, and a body
+kept as text resolves its names only when it runs: one that names another
+schema object fails the restore when `CREATE TABLE` inlines it or `COPY`
+evaluates it, and inside a PL/pgSQL exception handler it turns into a false
+verdict that rejects every restored row. With this rule a custom-format dump
+of a migrated database restores with `pg_restore --exit-on-error` into an
+empty database, as the
+[offline backup and restore](../../operations/artifact-blob-storage.md#offline-backup-and-restore)
+procedure does. SQL-standard bodies need PostgreSQL 14 or later; the project
+runs and tests on PostgreSQL 17.
+
+Decision: a SQL-standard body binds the functions it calls when it is
+created and records them as dependencies, so `pg_dump` creates them first
+and writes their names qualified, and PostgreSQL still inlines the body into
+the queries that call it. Migrations create it with the search path of the
+schema they install, so it works unchanged in the per-test schemas.
+Alternatives considered: `SET search_path FROM CURRENT` on each function
+(rejected: it pins the schema name the migrator happened to use, changes a
+setting on every call and keeps PostgreSQL from inlining a SQL function);
+names qualified with a fixed schema such as `public` (rejected: they break
+the per-test schemas and an installation in any other schema). Evidence: the
+generated column `audit_items.retained_dependency_hold_count` made every
+restore fail at `CREATE TABLE audit_items`, and the Run snapshot CHECK of
+`workflow_runs` rejected every restored Run, because its PL/pgSQL validator
+turned the unresolved call of the pinned-configuration validator into false.
+Reopen this when a table definition needs a function that cannot have a
+SQL-standard body and must call another schema function; its replacement
+must still restore with an empty search path.
+
 ### Keyed mutations and controller claims
 
 **PER-R24.** A keyed mutation is a request its caller may repeat under an
@@ -1484,6 +1523,20 @@ outlasts its retries is the retryable `503 storage_transaction_conflict`
     create of the previous holder makes no Gateway call (PER-R34, PER-R36,
     [RCF-R72](../configuration/runtime-config.md)); tests in
     [`internal/credentials/lifecycle_handover_postgres_test.go`](../../../internal/credentials/lifecycle_handover_postgres_test.go).
+30. Every function that a table definition of the migrated schema evaluates,
+    directly or through other functions, has a SQL-standard body or pins
+    `search_path = pg_catalog`, and the check finds each kind of table
+    definition and a text body behind a SQL-standard one (PER-R46); tests
+    `TestPostgresTableDefinitionFunctionsAreRestorable` and
+    `TestPostgresTableDefinitionFunctionCheckFindsTextBodies` in
+    [`internal/persistence/postgres/table_functions_postgres_test.go`](../../../internal/persistence/postgres/table_functions_postgres_test.go).
+    A custom-format dump with a row in every table whose CHECK constraints or
+    generated columns call a schema function restores with
+    `pg_restore --exit-on-error` into an empty database, with those rows and
+    their generated values unchanged and nothing left to migrate; test
+    `TestBackupRestorePreservesExactArtifactsAndCAS` in
+    [`tests/integration/restore/restore_test.go`](../../../tests/integration/restore/restore_test.go),
+    run by `make test-backup-restore`.
 
 ## Non-goals
 

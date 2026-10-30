@@ -1,0 +1,43 @@
+schema_version: '1.0'
+id: V425-014
+title: Make the Runtime process-liveness assertions able to fail on macOS
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+introduced_by: V401-007
+priority: P3
+status: pending
+depends_on: []
+languages:
+- python
+goal: Runtime tests that assert a child process ended check it on every supported development OS, and
+  the test suite has one jumping clock fake.
+context:
+  origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
+  finding: '/proc/<pid> liveness assertions pass vacuously on macOS: runtime/tests/test_tool_process.py:108,240,279;
+    test_code_analysis_child_lifecycle.py:152,159,177; test_scan_sqlmap_request.py:321; test_scan_ffuf.py:585;
+    test_tool_operation_ownership.py:256. runtime/tests/test_capabilities.py defines its own JumpingClockLoop
+    duplicating runtime/tests/fakes/clock.py.'
+  siblings: Every other runtime test that reads /proc.
+scope:
+  in:
+  - One portable liveness helper in the test fakes (for example os.kill(pid, 0) plus waitpid where the
+    test owns the child) used by every listed assertion.
+  - test_capabilities.py uses fakes/clock.py.
+  out:
+  - Production process handling.
+acceptance_criteria:
+- id: A1
+  text: Each listed assertion fails on macOS when the child is left running.
+- id: A2
+  text: No duplicate jumping clock remains.
+tests:
+- command: cd runtime && uv run --locked pytest -q tests/test_tool_process.py tests/test_code_analysis_child_lifecycle.py
+    tests/test_scan_sqlmap_request.py tests/test_scan_ffuf.py tests/test_tool_operation_ownership.py tests/test_capabilities.py
+  covers:
+  - A1
+  - A2
+- command: make test-runtime
+  covers:
+  - A1
+  - A2

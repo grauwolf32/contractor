@@ -17,6 +17,15 @@ import (
 
 const summarizerTranscriptCanary = "ephemeral-worker-summary-transcript-canary"
 
+// summarizerReasoningCanary is provider reasoning_content of the first normal
+// Worker response. It may reach only a summarizer request whose AgentTemplate
+// sets includeReasoning: true, as a tagged ordinary part (WRK-R181).
+const summarizerReasoningCanary = "ephemeral-worker-provider-reasoning-canary"
+
+// summarizerReasoningClause is the start of the fixed Runtime instruction
+// clause that accompanies included reasoning (WRK-R183).
+const summarizerReasoningClause = `Parts tagged "reasoning" are the Worker model's own earlier reasoning`
+
 type summarizerGatewayCapture struct {
 	Mode              string
 	Model             string
@@ -25,6 +34,9 @@ type summarizerGatewayCapture struct {
 	MaxOutputTokens   int
 	TranscriptPresent bool
 	SecretRedacted    bool
+	// ReasoningTagged reports a tagged, redacted reasoning part, the fixed
+	// instruction clause and reasoningTruncated=false in a summarizer request.
+	ReasoningTagged bool
 }
 
 // summarizerGateway is an offline OpenAI-compatible boundary fixture. It
@@ -181,6 +193,11 @@ func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		SecretRedacted: !strings.Contains(string(encoded), g.token) &&
 			strings.Contains(string(encoded), "[REDACTED]"),
 	}
+	var reasoning summaryReasoning
+	if isSummary {
+		reasoning = inspectSummaryReasoning(request)
+		capture.ReasoningTagged = reasoning.tagged && reasoning.untruncated && reasoning.clause
+	}
 
 	g.mu.Lock()
 	if isSummary {
@@ -204,6 +221,23 @@ func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if !capture.TranscriptPresent || !capture.SecretRedacted {
 			g.fail(w, http.StatusBadRequest, "terminal summarizer projection was missing or unsafe")
+			return
+		}
+		if mode == "reasoning-on" && !capture.ReasoningTagged {
+			g.fail(w, http.StatusBadRequest, "enabled summarizer reasoning was not tagged ordinary input")
+			return
+		}
+		if mode != "reasoning-on" && strings.Contains(string(encoded), summarizerReasoningCanary) {
+			g.fail(w, http.StatusBadRequest, "summarizer received reasoning that its template did not enable")
+			return
+		}
+		// The enabled option without provider reasoning keeps its clause and
+		// marker but invents no reasoning part; every other mode has neither.
+		if (mode == "reasoning-absent" &&
+			(!reasoning.clause || !reasoning.untruncated || reasoning.parts != 0)) ||
+			(mode != "reasoning-on" && mode != "reasoning-absent" &&
+				(reasoning.clause || reasoning.marker || reasoning.parts != 0)) {
+			g.fail(w, http.StatusBadRequest, "summarizer reasoning option did not match its template")
 			return
 		}
 		select {
@@ -264,6 +298,11 @@ func (g *summarizerGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		// artifact. It proves that the bounded transcript reaches only the live
 		// summarizer request. The configured Gateway token proves value redaction.
 		message["content"] = summarizerTranscriptCanary + " " + g.token
+		if mode == "reasoning-on" || mode == "reasoning-off" {
+			// Actual provider reasoning, which the Gateway adapter maps to a
+			// thought part; reasoning-absent supplies none.
+			message["reasoning_content"] = summarizerReasoningCanary + " " + g.token
+		}
 		usage := normalUsage(mode, normalCall)
 		g.writeCompletion(w, model, message, "tool_calls", usage)
 		return
@@ -383,7 +422,8 @@ func normalUsage(mode string, call int) map[string]any {
 			return summarizerUsage(100, 19900, 20000)
 		}
 		return summarizerUsage(7, 3, 10)
-	case "cumulative", "invalid-summary", "cancel-summary", "provider-timeout", "empty-summary", "thought-summary", "limited-summary":
+	case "cumulative", "invalid-summary", "cancel-summary", "provider-timeout", "empty-summary", "thought-summary", "limited-summary",
+		"reasoning-on", "reasoning-off", "reasoning-absent":
 		return summarizerUsage(100, 19_900, 20_000)
 	case "context-window":
 		return summarizerUsage(7168, 3, 7171)
@@ -429,7 +469,8 @@ func summarizerRequestMode(request map[string]any) (string, error) {
 		"cancel-summary": true, "provider-timeout": true,
 		"empty-summary": true, "thought-summary": true, "limited-summary": true,
 		"reuse-after-failure": true, "reuse-after-cancel": true,
-		"continuation": true,
+		"continuation": true, "reasoning-on": true, "reasoning-off": true,
+		"reasoning-absent": true,
 	}
 	values := map[string]bool{}
 	walkDomainJSON(request, func(object map[string]any) {
@@ -495,6 +536,43 @@ func (g *summarizerGateway) serveContinuationPlanner(w http.ResponseWriter, requ
 		return
 	}
 	g.writeCompletion(w, "planner-model", message, "tool_calls", summarizerUsage(7, 3, 10))
+}
+
+// summaryReasoning is what a summarizer request shows of the reasoning option.
+type summaryReasoning struct {
+	// parts counts {"reasoning": ...} parts in the summary input document.
+	parts int
+	// tagged reports the canary only as one redacted reasoning part.
+	tagged bool
+	// marker and untruncated report reasoningTruncated and its false value.
+	marker, untruncated bool
+	// clause reports the fixed instruction clause in the system message.
+	clause bool
+}
+
+func inspectSummaryReasoning(request map[string]any) summaryReasoning {
+	var observed summaryReasoning
+	walkDomainJSON(request, func(object map[string]any) {
+		if text, ok := object["reasoning"].(string); ok {
+			observed.parts++
+			if len(object) == 1 && text == summarizerReasoningCanary+" [REDACTED]" {
+				observed.tagged = true
+			}
+		}
+		if value, ok := object["reasoningTruncated"].(bool); ok {
+			observed.marker = true
+			observed.untruncated = !value
+		}
+	})
+	messages, _ := request["messages"].([]any)
+	for _, raw := range messages {
+		message, _ := raw.(map[string]any)
+		if text, ok := message["content"].(string); ok && message["role"] == "system" &&
+			strings.Contains(text, summarizerReasoningClause) {
+			observed.clause = true
+		}
+	}
+	return observed
 }
 
 func summarizerResultMessage(request map[string]any, result string) (map[string]any, error) {

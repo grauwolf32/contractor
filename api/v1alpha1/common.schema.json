@@ -114,7 +114,8 @@
           ]
         },
         "cumulativeBudget": {"type": "integer", "minimum": 1, "maximum": 100000000},
-        "contextWindowRatio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1}
+        "contextWindowRatio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
+        "includeReasoning": {"const": true}
       }
     },
     "toolsetRef": {

@@ -1,0 +1,138 @@
+schema_version: "1.0"
+id: V372-007
+title: "Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them"
+milestone: hub-audit-defects-2026-10
+epic: execution-core
+kind: chore
+priority: P3
+status: completed
+depends_on: []
+languages: [go, sql]
+goal: "The active and terminal StageExecution state sets (SCH-R42) have one Go definition in runstore that every Go switch uses, and tests hold every state list in production Go SQL and the OpenAPI StageExecutionState enum to it, as V367-003 did for the Run state sets."
+context:
+  review: "Out-of-scope finding of the hub audit fix batch, wave 2 (group w2f: V370-011, V370-012), recorded 2026-10-12; file:line verified on b2b09ea"
+  specification: "docs/spec/execution/scheduler.md#SCH-R42"
+  revalidated: >-
+    2026-10-24 on b523ae77. Done elsewhere and dropped from this task: the
+    UI copy TERMINAL_STAGE_STATES (ui/src/api/performance.ts) was removed by
+    V385-001 (7fa7f1c0), which validates responses against the generated
+    schema, and no UI copy of the set remains in ui/src; V409-008
+    (e9f08301f89759fbe76ad26c572a16cdc88adfd6) added
+    TestPostgresStageExecutionStateSetsMatchSchema
+    (internal/runstore/stage_states_postgres_test.go:18), which holds the
+    stage_executions state CHECK, the stage_execution_state_shape tie of
+    terminal_at and every partial index to the declared
+    StageExecutionState constants, with handwritten active and terminal
+    subsets that must partition them. V409-008 records that the
+    production predicate, the Go switches, the Go SQL literal scan and the
+    OpenAPI check remain this task's scope. File:line references below are
+    current; the telemetry statements moved and the UI sibling is gone.
+  finding: >-
+    runstore declares the StageExecution states
+    (internal/runstore/types.go:88-99) without an active or terminal set or
+    predicate, unlike the Run states (activeRunStates and
+    terminalRunStates, types.go:32-67). In Go the terminal set is a
+    hand-written switch in four places: planner/session/scan_history.go:82,
+    scheduler/allocation_release.go:264-271 (terminalStageExecution),
+    scheduler/run_execution.go:126 (the terminal arm of the progression
+    switch) and httpapi/public/run_handlers.go:620-627
+    (terminalStageState). In production Go SQL the terminal set is the
+    literal state IN ('succeeded', 'failed', 'interrupted', 'cancelled') in
+    four statements: telemetry/repository.go:327 and :336 (allocation and
+    Planner report retention), telemetry/repository_sql.go:53
+    (cleanupStageMetricsSQL) and runstore/stage_store_sql.go:61
+    (listTerminalStageExecutionsWithAllocationsSQL); the active set is the
+    literal ('preparing', 'running', 'finalizing', 'aborting') in
+    runstore/stage_store_sql.go:75, runstore/store_sql.go:198 and :221 and
+    runstore/resume_store_sql.go:30. The OpenAPI StageExecutionState enum
+    (api/openapi/contractor-public-v1.yaml:14071-14072) is held to the Go
+    constants by no test. A state added to SCH-R42 has to be found in every
+    copy (AGENTS.md 3.1). TestRunStateSetsMatchOpenAPIAndGoSQL
+    (internal/runstore/run_states_test.go:125) already scans Go SQL for Run
+    state lists and rejects a StageExecution list only as not a Run list.
+    Predates the shallow history (boundary 6349621).
+  siblings: >-
+    Subsets that are not the active or terminal set and stay hand-written
+    with a reason: the escalation and summary lineage checks
+    (scheduler/stage_finalization.go:519, scheduler/summary.go:87) and
+    resumption (runstore/resume_store_sql.go:21) use failed or interrupted,
+    the outcomes that can be escalated or resumed; the scan must recognise
+    them as declared subsets rather than reject them. The terminal-history
+    indexes filter on terminal_at, which stage_execution_state_shape ties
+    to the terminal set (checked by the V409-008 marker), so a terminal_at
+    predicate is an accepted alternative to the literal list. The
+    telemetry statements read runstore's stage_executions from below in the
+    layer stack; V372-008 may move them, and this task follows wherever
+    they live.
+scope:
+  in:
+    - "Active and terminal StageExecution sets in runstore (a Terminal predicate on StageExecutionState and the partition, as for the Run states) used by every Go switch listed above."
+    - "A test like TestRunStateSetsMatchOpenAPIAndGoSQL that finds every StageExecution state list in production Go SQL and accepts only the active set, the terminal set or a declared named subset (failed or interrupted), and holds the OpenAPI StageExecutionState enum to the declared states."
+    - "TestPostgresStageExecutionStateSetsMatchSchema takes its active and terminal subsets from the production sets instead of the handwritten lists."
+  out:
+    - "StageExecution lifecycle semantics, the retention rules and the public enum's values."
+    - "Removing telemetry's upward read of stage_executions (V372-008)."
+    - "UI changes: no UI copy of the set remains (V385-001)."
+acceptance_criteria:
+  - id: A1
+    text: "No Go file outside runstore lists the terminal StageExecution states in a switch or a slice; each uses the runstore predicate."
+  - id: A2
+    given: "A new constant added to StageExecutionState and to one of the two sets"
+    when: "The tests run without the SQL literals or the OpenAPI enum being updated"
+    then: "The Go SQL scan names each stale literal with file:line, and the OpenAPI check names StageExecutionState."
+  - id: A3
+    text: "Telemetry retention, allocation release, scan history, Run detail and the migrated-schema state-set tests pass unchanged."
+  - id: A4
+    text: "The new scan fails on b523ae77 when a probe literal that is neither set nor a declared subset is added to a production SQL string, and the OpenAPI check fails with one enum value removed."
+tests:
+  - command: "go test ./internal/runstore ./internal/scheduler ./internal/telemetry ./internal/planner/session ./internal/httpapi/public"
+    covers: [A1, A2, A4]
+  - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/telemetry ./internal/runstore ./internal/scheduler"
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+implementation_commit: 0501aa30991de6c486d1bba2f0f6433f414e6672
+verification:
+  date: '2026-10-30'
+  environment: >-
+    macOS arm64 (Apple M5 Max, 18 CPUs); Go 1.26.9; Node 24.20.0 with pnpm
+    11.24.0; the locked Runtime venv; local PostgreSQL (Homebrew), database
+    contractor_test_bigrun. Wave-wide gate run on main acb704b2c after all six
+    lanes landed; make lint and the wire gate again on fde39a943.
+  commands:
+    - >-
+      Lane verification (targeted, recorded in the lane ledger): 0501aa30991d:
+      runstore -run
+      TestStageStateSets|TestRunStateSets|TestRunLifecycle|TestPostgresStageExecutionStateSetsMatchSchema|TestPostgresRunStateSetsMatchSchema
+      (DB): PASS; go test ./internal/planner/session: PASS; planner/scan -run
+      History|Scan (DB): PASS; httpapi/public -run
+      TestRunStatus|TestRunDetail|TestPostgresRunDetail|Attempt (DB): PASS;
+      scheduler -tags integration -run
+      Release|BrokenActiveStage|ReadsOnlyTheActiveStage|TerminalStage|Recover
+      (DB): PASS; telemetry -run Retention|Cleanup|Prune|StageMetrics (DB):
+      PASS; A2 (new state in active set) and A4 (probe literal, removed enum
+      value) mutations fail the new test as required; go build ./..., go vet,
+      gofmt: OK
+    - >-
+      make lint passed on main fde39a943 (after the coordinator's follow-up
+      fixes 125358eb0, acb704b2c, 5594dd066 and f8db0b81d, and V422-002's own
+      fixes).
+    - >-
+      make test-wire-cross-language passed on f527d2dbf (343 fixtures, 390 Go
+      and 280 Python shared tests); on fde39a943 it failed only on the orphan
+      engagement fixture left by V422-002, removed by V425-018.
+    - >-
+      go test -tags integration -count=1 over every package except tests/e2e,
+      with the database, on acb704b2c: passed except
+      TestRealGitReadOnlyContainer (no podman alpine image on this Mac) and
+      TestBackupRestorePreservesExactArtifactsAndCAS, which fails the same way
+      on b222f41fc before the wave (V425-003).
+    - >-
+      make test-runtime on acb704b2c (macOS): 5633 passed, 133 skipped, 2
+      failed, the macOS defects V425-001 and V425-002.
+    - >-
+      make ui-verify, make ui-browser-mocked, make verify-public-api and make
+      verify-public-api-postgres passed on acb704b2c; the UI tests changed
+      later in f8db0b81d passed with vitest, tsc, eslint and the export gate.
+    - >-
+      User decision on 2026-10-30: close the wave tasks on this record.
