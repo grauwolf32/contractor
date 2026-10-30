@@ -169,18 +169,18 @@ func resolveRoot(root string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve configuration root %q: %w", root, err)
 	}
-	resolved, err := filepath.EvalSymlinks(absolute)
+	resolvedPath, err := filepath.EvalSymlinks(absolute)
 	if err != nil {
 		return "", fmt.Errorf("resolve configuration root %q: %w", root, err)
 	}
-	info, err := os.Stat(resolved)
+	info, err := os.Stat(resolvedPath)
 	if err != nil {
 		return "", fmt.Errorf("stat configuration root %q: %w", root, err)
 	}
 	if !info.IsDir() {
 		return "", fmt.Errorf("configuration root %q is not a directory", root)
 	}
-	return resolved, nil
+	return resolvedPath, nil
 }
 
 func (l *loader) discover(subtree string) ([]manifestFile, error) {

@@ -33,8 +33,8 @@ type requestBodyBound struct {
 // publication, Artifact payloads (LIM-ART-4) and Eval documents (API-R6);
 // every other JSON body has the shared 1 MiB bound (LIM-API-1).
 func publicRequestBodyBounds() map[string]requestBodyBound {
-	tooLarge := func(bytes int64) requestBodyBound {
-		return requestBodyBound{bytes: bytes, status: http.StatusRequestEntityTooLarge, code: "request_too_large"}
+	tooLarge := func(byteCount int64) requestBodyBound {
+		return requestBodyBound{bytes: byteCount, status: http.StatusRequestEntityTooLarge, code: "request_too_large"}
 	}
 	bounds := map[string]requestBodyBound{
 		"mutateProjectSitemap":     tooLarge(projectsitemap.MaxBatchBytes),

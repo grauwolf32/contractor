@@ -302,11 +302,11 @@ func TestWorkerSummarizerRejectsEffectiveRunPolicyBelowSoftThreshold(t *testing.
 	writeFile(t, filepath.Join(root, "model-policies/test-low-worker.yaml"), []byte(lowWorkerPolicyYAML))
 	snapshot := mustLoad(t, root)
 	patch := decodeExecutionConfigPatch(t, `{"workers":{"modelPolicy":"test-low-worker@1"}}`)
-	resolved, err := snapshot.ResolveRunWorkflow(
+	workflow, err := snapshot.ResolveRunWorkflow(
 		t.Context(), "artifact-copy@1", patch, developmentCredentialLookup(t, snapshot),
 	)
 	if err == nil || !strings.Contains(err.Error(), "below Worker maxTotalTokens") {
-		t.Fatalf("ResolveRunWorkflow() = (%+v, %v), want summarizer threshold error", resolved, err)
+		t.Fatalf("ResolveRunWorkflow() = (%+v, %v), want summarizer threshold error", workflow, err)
 	}
 }
 

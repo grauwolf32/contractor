@@ -69,7 +69,7 @@ func TestStreamlineDispatchAndFinishInspectMetadataWithTransferSlotsSaturated(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		addSubtaskStep("Analyze the input", "Produce the final report"),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
@@ -81,7 +81,7 @@ func TestStreamlineDispatchAndFinishInspectMetadataWithTransferSlotsSaturated(t 
 		"builder": stageResult("report ready", map[string]contracts.ArtifactRef{"report": report}),
 	}}
 	sessions := newFakeSessions()
-	factory, err := NewConfiguredFactory(sessions, sessions, workers, inspector, unavailableWorkerStateReader{}, testModelFactory(model), Limits{})
+	factory, err := NewConfiguredFactory(sessions, sessions, workers, inspector, unavailableWorkerStateReader{}, testModelFactory(scripted), Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestStreamlineDispatchAndFinishInspectMetadataWithTransferSlotsSaturated(t 
 
 func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testing.T) {
 	reportRevision := "report-r1"
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		addSubtaskStep("Analyze the input", "Produce the final report"),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
@@ -119,7 +119,7 @@ func TestStreamlineCallsSingleWorkerWithStoredSubtaskAndCompleteContext(t *testi
 		refKey(exactRef("inputs", "source", "source-r1")):    "text/plain",
 		refKey(exactRef("review", "report", reportRevision)): "application/json",
 	}}
-	factory := mustFactory(t, sessions, workers, inspector, model, Limits{})
+	factory := mustFactory(t, sessions, workers, inspector, scripted, Limits{})
 	invocation := testInvocation("builder")
 	telemetryAdapter, telemetryPayload := streamlineTestTelemetry(t, invocation)
 	invocation.Instrumentation = telemetryAdapter.Instrumentation()
@@ -257,7 +257,7 @@ func streamlineTestTelemetry(
 
 func TestStreamlineRejectsUnknownToolAndInvalidFinishThenCorrects(t *testing.T) {
 	revision := "report-r1"
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		functionStep("worker_not_prepared", map[string]any{
 			"subtask_id": "0",
 		}),
@@ -281,7 +281,7 @@ func TestStreamlineRejectsUnknownToolAndInvalidFinishThenCorrects(t *testing.T) 
 	inspector := &fakeInspector{mediaTypes: map[string]string{
 		refKey(exactRef("builder", "report", revision)): "application/json",
 	}}
-	factory := mustFactory(t, sessions, workers, inspector, model, Limits{})
+	factory := mustFactory(t, sessions, workers, inspector, scripted, Limits{})
 	instance, err := factory.Create(testInvocation("builder"))
 	if err != nil {
 		t.Fatal(err)
@@ -301,7 +301,7 @@ func TestStreamlineRejectsUnknownToolAndInvalidFinishThenCorrects(t *testing.T) 
 }
 
 func TestStreamlineFinishesWithFailedCandidate(t *testing.T) {
-	model := &scriptedModel{steps: []modelStep{functionStep(finishToolName, map[string]any{
+	scripted := &scriptedModel{steps: []modelStep{functionStep(finishToolName, map[string]any{
 		"outcome": string(stageresult.StageFailed), "summary": "analysis could not be completed",
 		"artifacts": map[string]any{},
 		"error": map[string]any{
@@ -310,7 +310,7 @@ func TestStreamlineFinishesWithFailedCandidate(t *testing.T) {
 	})}}
 	sessions := newFakeSessions()
 	instance, err := mustFactory(
-		t, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, model, Limits{},
+		t, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, scripted, Limits{},
 	).Create(testInvocation("builder"))
 	if err != nil {
 		t.Fatal(err)
@@ -330,7 +330,7 @@ func TestStreamlineFinishesWithFailedCandidate(t *testing.T) {
 }
 
 func TestStreamlineCompletionWriteSurvivesTransientErrorAndDatabaseWait(t *testing.T) {
-	model := &scriptedModel{steps: []modelStep{functionStep(finishToolName, map[string]any{
+	scripted := &scriptedModel{steps: []modelStep{functionStep(finishToolName, map[string]any{
 		"outcome": string(stageresult.StageFailed), "summary": "analysis could not be completed",
 		"artifacts": map[string]any{},
 		"error": map[string]any{
@@ -350,7 +350,7 @@ func TestStreamlineCompletionWriteSurvivesTransientErrorAndDatabaseWait(t *testi
 		}
 	}
 	instance, err := mustFactory(
-		t, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, model, Limits{},
+		t, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, scripted, Limits{},
 	).Create(testInvocation("builder"))
 	if err != nil {
 		t.Fatal(err)
@@ -378,7 +378,7 @@ func TestStreamlineFailedCompletionWriteKeepsFailureRetryability(t *testing.T) {
 }
 
 func TestStreamlineWorkerFailureFailsDispatchButPlannerStillOwnsFinish(t *testing.T) {
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		addSubtaskStep("Analyze the source", "Return the bounded finding"),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		functionStep(finishToolName, map[string]any{
@@ -401,7 +401,7 @@ func TestStreamlineWorkerFailureFailsDispatchButPlannerStillOwnsFinish(t *testin
 	}}
 	sessions := newFakeSessions()
 	instance, err := mustFactory(
-		t, sessions, workers, &fakeInspector{}, model, Limits{},
+		t, sessions, workers, &fakeInspector{}, scripted, Limits{},
 	).Create(testInvocation("builder"))
 	if err != nil {
 		t.Fatal(err)
@@ -427,7 +427,7 @@ func TestStreamlineWorkerFailureFailsDispatchButPlannerStillOwnsFinish(t *testin
 }
 
 func TestStreamlineRejectsInvalidFinishShapesThenAcceptsCorrection(t *testing.T) {
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		functionStep(finishToolName, map[string]any{
 			"outcome": string(stageresult.StageSucceeded), "summary": "invalid success",
 			"artifacts": map[string]any{},
@@ -445,7 +445,7 @@ func TestStreamlineRejectsInvalidFinishShapesThenAcceptsCorrection(t *testing.T)
 		}),
 	}}
 	instance, err := mustFactory(
-		t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, model, Limits{},
+		t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, scripted, Limits{},
 	).Create(testInvocation("builder"))
 	if err != nil {
 		t.Fatal(err)
@@ -560,7 +560,7 @@ func TestStreamlineExposesExactSingleWorkerToolContract(t *testing.T) {
 
 func TestStreamlineRejectsModelSelectedContextBeforeWorkerCall(t *testing.T) {
 	revision := "report-r1"
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		addSubtaskStep("Build the report", "Use the immutable Stage context"),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{
 			"subtask_id":  "0",
@@ -581,7 +581,7 @@ func TestStreamlineRejectsModelSelectedContextBeforeWorkerCall(t *testing.T) {
 	inspector := &fakeInspector{mediaTypes: map[string]string{
 		refKey(exactRef("builder", "report", revision)): "application/json",
 	}}
-	instance, err := mustFactory(t, newFakeSessions(), workers, inspector, model, Limits{}).
+	instance, err := mustFactory(t, newFakeSessions(), workers, inspector, scripted, Limits{}).
 		Create(testInvocation("builder"))
 	if err != nil {
 		t.Fatal(err)
@@ -603,18 +603,18 @@ func TestStreamlineRejectsModelSelectedContextBeforeWorkerCall(t *testing.T) {
 
 func TestStreamlineRejectsInvalidWorkerCardinalityBeforeSideEffects(t *testing.T) {
 	for _, bindings := range [][]string{nil, {"analyzer", "reviewer"}} {
-		model := &scriptedModel{fallback: textStep("must not run")}
+		scripted := &scriptedModel{fallback: textStep("must not run")}
 		workers := &fakeWorkerInvoker{}
 		sessions := newFakeSessions()
 		inspector := &fakeInspector{}
-		_, err := mustFactory(t, sessions, workers, inspector, model, Limits{}).
+		_, err := mustFactory(t, sessions, workers, inspector, scripted, Limits{}).
 			Create(testInvocation(bindings...))
 		if err == nil || !strings.Contains(err.Error(), "requires exactly one logical Agent binding") {
 			t.Fatalf("Create(%v) error = %v", bindings, err)
 		}
-		if sessions.adkCalls != 0 || model.callCount() != 0 || len(workers.calls) != 0 {
+		if sessions.adkCalls != 0 || scripted.callCount() != 0 || len(workers.calls) != 0 {
 			t.Fatalf("invalid factory caused side effects: sessions=%d model=%d Workers=%d",
-				sessions.adkCalls, model.callCount(), len(workers.calls))
+				sessions.adkCalls, scripted.callCount(), len(workers.calls))
 		}
 	}
 }
@@ -719,7 +719,7 @@ func TestConfiguredFactoryBuildsEachPlannerFromInvocationModelAccess(t *testing.
 
 func TestStreamlineRejectsPendingSuccessfulFinishThenCompletesSubtask(t *testing.T) {
 	revision := "report-r1"
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		addSubtaskStep("Build the report", "Produce the declared output"),
 		functionStep(finishToolName, map[string]any{
 			"outcome": string(stageresult.StageSucceeded), "summary": "premature",
@@ -737,7 +737,7 @@ func TestStreamlineRejectsPendingSuccessfulFinishThenCompletesSubtask(t *testing
 	inspector := &fakeInspector{mediaTypes: map[string]string{
 		refKey(exactRef("builder", "report", revision)): "application/json",
 	}}
-	instance, err := mustFactory(t, newFakeSessions(), workers, inspector, model, Limits{}).
+	instance, err := mustFactory(t, newFakeSessions(), workers, inspector, scripted, Limits{}).
 		Create(testInvocation("builder"))
 	if err != nil {
 		t.Fatal(err)
@@ -757,7 +757,7 @@ func TestStreamlineRejectsPendingSuccessfulFinishThenCompletesSubtask(t *testing
 
 func TestStreamlineRejectsStaleSubtaskBeforeWorkerSideEffect(t *testing.T) {
 	revision := "report-r1"
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		addSubtaskStep("First", "Execute first"),
 		addSubtaskStep("Second", "Execute second"),
 		functionStep(listSubtasksToolName, map[string]any{}),
@@ -775,7 +775,7 @@ func TestStreamlineRejectsStaleSubtaskBeforeWorkerSideEffect(t *testing.T) {
 	inspector := &fakeInspector{mediaTypes: map[string]string{
 		refKey(exactRef("builder", "report", revision)): "application/json",
 	}}
-	instance, err := mustFactory(t, newFakeSessions(), workers, inspector, model, Limits{}).
+	instance, err := mustFactory(t, newFakeSessions(), workers, inspector, scripted, Limits{}).
 		Create(testInvocation("builder"))
 	if err != nil {
 		t.Fatal(err)
@@ -807,7 +807,7 @@ func TestStreamlineRejectsStaleSubtaskBeforeWorkerSideEffect(t *testing.T) {
 
 func TestStreamlineWorkerErrorClearsClaimAndAllowsNextSubtask(t *testing.T) {
 	revision := "report-r1"
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		addSubtaskStep("First", "This dispatch will fail"),
 		addSubtaskStep("Second", "Produce the report"),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
@@ -826,7 +826,7 @@ func TestStreamlineWorkerErrorClearsClaimAndAllowsNextSubtask(t *testing.T) {
 	inspector := &fakeInspector{mediaTypes: map[string]string{
 		refKey(exactRef("builder", "report", revision)): "application/json",
 	}}
-	instance, err := mustFactory(t, newFakeSessions(), workers, inspector, model, Limits{}).
+	instance, err := mustFactory(t, newFakeSessions(), workers, inspector, scripted, Limits{}).
 		Create(testInvocation("builder"))
 	if err != nil {
 		t.Fatal(err)
@@ -844,10 +844,10 @@ func TestStreamlineWorkerErrorClearsClaimAndAllowsNextSubtask(t *testing.T) {
 }
 
 func TestStreamlineStopsWhenModelCallBudgetIsExhausted(t *testing.T) {
-	model := &scriptedModel{fallback: textStep("not finished")}
+	scripted := &scriptedModel{fallback: textStep("not finished")}
 	sessions := newFakeSessions()
 	factory := mustFactory(
-		t, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, model,
+		t, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, scripted,
 		Limits{MaxWallTime: time.Minute},
 	)
 	invocation := testInvocation("builder")
@@ -860,17 +860,17 @@ func TestStreamlineStopsWhenModelCallBudgetIsExhausted(t *testing.T) {
 	}
 	_, err = instance.Run(t.Context())
 	assertPlannerCode(t, err, "planner_model_call_limit")
-	if model.callCount() != 2 || sessions.completion == nil || sessions.completion.Failure == nil ||
+	if scripted.callCount() != 2 || sessions.completion == nil || sessions.completion.Failure == nil ||
 		sessions.completion.Failure.Code != "planner_model_call_limit" {
-		t.Fatalf("calls=%d completion=%+v", model.callCount(), sessions.completion)
+		t.Fatalf("calls=%d completion=%+v", scripted.callCount(), sessions.completion)
 	}
 }
 
 func TestStreamlineExportsUsageFromChargedRejectedModelResponse(t *testing.T) {
-	model := &scriptedModel{fallback: func(*model.LLMRequest) (*model.LLMResponse, error) {
+	scripted := &scriptedModel{fallback: func(*model.LLMRequest) (*model.LLMResponse, error) {
 		return nil, &gatewayResponseRejected{reason: "invalid response", usage: &genai.GenerateContentResponseUsageMetadata{PromptTokenCount: 30, CandidatesTokenCount: 40, TotalTokenCount: 70}}
 	}}
-	factory := mustFactory(t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, model, Limits{})
+	factory := mustFactory(t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, scripted, Limits{})
 	invocation := testInvocation("builder")
 	adapter, payloads := streamlineTestTelemetry(t, invocation)
 	invocation.Instrumentation = adapter.Instrumentation()
@@ -905,7 +905,7 @@ func TestStreamlineExportsUsageFromChargedRejectedModelResponse(t *testing.T) {
 }
 
 func TestStreamlineStopsWhenTokenBudgetIsExceeded(t *testing.T) {
-	model := &scriptedModel{fallback: func(*model.LLMRequest) (*model.LLMResponse, error) {
+	scripted := &scriptedModel{fallback: func(*model.LLMRequest) (*model.LLMResponse, error) {
 		response, _ := textStep("not finished")(nil)
 		response.UsageMetadata = &genai.GenerateContentResponseUsageMetadata{
 			PromptTokenCount: 40, CandidatesTokenCount: 20, TotalTokenCount: 60,
@@ -913,7 +913,7 @@ func TestStreamlineStopsWhenTokenBudgetIsExceeded(t *testing.T) {
 		return response, nil
 	}}
 	factory := mustFactory(
-		t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, model,
+		t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, scripted,
 		Limits{MaxWallTime: time.Minute},
 	)
 	invocation := testInvocation("builder")
@@ -926,13 +926,13 @@ func TestStreamlineStopsWhenTokenBudgetIsExceeded(t *testing.T) {
 	}
 	_, err = instance.Run(t.Context())
 	assertPlannerCode(t, err, "planner_token_limit")
-	if model.callCount() != 2 {
-		t.Fatalf("model calls = %d", model.callCount())
+	if scripted.callCount() != 2 {
+		t.Fatalf("model calls = %d", scripted.callCount())
 	}
 }
 
 func TestStreamlineStopsBeforeWorkerCallBeyondBudget(t *testing.T) {
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		addSubtaskStep("First", "Run the first call"),
 		addSubtaskStep("Second", "Run the second call"),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
@@ -942,7 +942,7 @@ func TestStreamlineStopsBeforeWorkerCallBeyondBudget(t *testing.T) {
 		"builder": stageResult("intermediate", map[string]contracts.ArtifactRef{}),
 	}}
 	factory := mustFactory(
-		t, newFakeSessions(), workers, &fakeInspector{}, model,
+		t, newFakeSessions(), workers, &fakeInspector{}, scripted,
 		Limits{MaxWallTime: time.Minute},
 	)
 	invocation := testInvocation("builder")
@@ -962,7 +962,7 @@ func TestStreamlineStopsBeforeWorkerCallBeyondBudget(t *testing.T) {
 
 func TestStreamlineFinishesAfterWorkerBudgetAndTextTurn(t *testing.T) {
 	const revision = "report-r1"
-	model := &scriptedModel{steps: []modelStep{
+	scripted := &scriptedModel{steps: []modelStep{
 		addSubtaskStep("Build the report", "Produce the declared report"),
 		functionStep(executeCurrentSubtaskToolName, map[string]any{"subtask_id": "0"}),
 		textStep("The report is ready."),
@@ -979,13 +979,13 @@ func TestStreamlineFinishesAfterWorkerBudgetAndTextTurn(t *testing.T) {
 	}}
 	invocation := testInvocation("builder")
 	invocation.ModelAccess.ModelPolicy.MaxWorkerCalls = 1
-	instance, err := mustFactory(t, newFakeSessions(), workers, inspector, model, Limits{}).Create(invocation)
+	instance, err := mustFactory(t, newFakeSessions(), workers, inspector, scripted, Limits{}).Create(invocation)
 	if err != nil {
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Outcome != stageresult.StageSucceeded || len(workers.calls) != 1 || model.callCount() != 4 {
-		t.Fatalf("Run = (%+v, %v); Worker calls = %d; model calls = %d", result, err, len(workers.calls), model.callCount())
+	if err != nil || result.Outcome != stageresult.StageSucceeded || len(workers.calls) != 1 || scripted.callCount() != 4 {
+		t.Fatalf("Run = (%+v, %v); Worker calls = %d; model calls = %d", result, err, len(workers.calls), scripted.callCount())
 	}
 }
 
@@ -1013,32 +1013,32 @@ func TestStreamlineRecoveryDoesNotInvokeModelOrWorker(t *testing.T) {
 	})
 	sessions := newFakeSessions()
 	sessions.recovered = &planner.Completion{Result: &recovered}
-	model := &scriptedModel{fallback: func(*model.LLMRequest) (*model.LLMResponse, error) {
+	scripted := &scriptedModel{fallback: func(*model.LLMRequest) (*model.LLMResponse, error) {
 		return nil, errors.New("must not run")
 	}}
 	workers := &fakeWorkerInvoker{}
 	inspector := &fakeInspector{mediaTypes: map[string]string{
 		refKey(recovered.Artifacts["report"]): "application/json",
 	}}
-	factory := mustFactory(t, sessions, workers, inspector, model, Limits{})
+	factory := mustFactory(t, sessions, workers, inspector, scripted, Limits{})
 	instance, err := factory.Create(testInvocation("builder"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	result, err := instance.Run(t.Context())
-	if err != nil || result.Summary != "already done" || model.callCount() != 0 ||
+	if err != nil || result.Summary != "already done" || scripted.callCount() != 0 ||
 		len(workers.calls) != 0 || sessions.adkCalls != 0 {
-		t.Fatalf("recovery result=%+v err=%v model=%d workers=%d adk=%d", result, err, model.callCount(), len(workers.calls), sessions.adkCalls)
+		t.Fatalf("recovery result=%+v err=%v model=%d workers=%d adk=%d", result, err, scripted.callCount(), len(workers.calls), sessions.adkCalls)
 	}
 }
 
 func TestStreamlineProviderErrorIsSafe(t *testing.T) {
 	const secret = "sk-provider-secret-never-persist"
-	model := &scriptedModel{fallback: func(*model.LLMRequest) (*model.LLMResponse, error) {
+	scripted := &scriptedModel{fallback: func(*model.LLMRequest) (*model.LLMResponse, error) {
 		return nil, errors.New("provider echoed " + secret)
 	}}
 	sessions := newFakeSessions()
-	factory := mustFactory(t, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, model, Limits{})
+	factory := mustFactory(t, sessions, &fakeWorkerInvoker{}, &fakeInspector{}, scripted, Limits{})
 	instance, err := factory.Create(testInvocation("builder"))
 	if err != nil {
 		t.Fatal(err)
@@ -1057,10 +1057,10 @@ func TestStreamlineProviderErrorIsSafe(t *testing.T) {
 }
 
 func TestStreamlineRejectsResponseWithoutTokenUsage(t *testing.T) {
-	model := &scriptedModel{fallback: func(*model.LLMRequest) (*model.LLMResponse, error) {
+	scripted := &scriptedModel{fallback: func(*model.LLMRequest) (*model.LLMResponse, error) {
 		return &model.LLMResponse{Content: genai.NewContentFromText("not finished", genai.RoleModel)}, nil
 	}}
-	factory := mustFactory(t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, model, Limits{})
+	factory := mustFactory(t, newFakeSessions(), &fakeWorkerInvoker{}, &fakeInspector{}, scripted, Limits{})
 	instance, err := factory.Create(testInvocation("builder"))
 	if err != nil {
 		t.Fatal(err)
@@ -1405,17 +1405,17 @@ func testInvocation(bindings ...string) planner.Invocation {
 	}
 }
 
-func stageResult(summary string, artifacts map[string]contracts.ArtifactRef) stageresult.StageContentResult {
+func stageResult(summary string, resultArtifacts map[string]contracts.ArtifactRef) stageresult.StageContentResult {
 	return stageresult.StageContentResult{
 		APIVersion: contracts.APIVersion, Outcome: stageresult.StageSucceeded,
-		Summary: summary, Artifacts: artifacts,
+		Summary: summary, Artifacts: resultArtifacts,
 	}
 }
 
 func workerCompletion(
 	subtaskID string,
 	result string,
-	artifacts map[string]contracts.ArtifactRef,
+	resultArtifacts map[string]contracts.ArtifactRef,
 ) contracts.WorkerCompletion {
 	return contracts.WorkerCompletion{
 		APIVersion: contracts.APIVersion,
@@ -1425,7 +1425,7 @@ func workerCompletion(
 				Profile: contracts.WorkerObservationProfileLeanV1,
 				Tools:   map[string]contracts.ToolObservationCount{},
 			},
-			Artifacts: artifacts, Summarized: false,
+			Artifacts: resultArtifacts, Summarized: false,
 		},
 		InvocationID: "worker-invocation-1", StateRevision: 2,
 	}

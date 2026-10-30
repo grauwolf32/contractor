@@ -72,8 +72,8 @@ func TestWorkflowQueriesRejectInvalidParameters(t *testing.T) {
 
 func TestWorkflowDetailProjectsSafeOpenAPIFields(t *testing.T) {
 	fixture := newHandlerFixtureWithConfig(t, publicCatalogFixture)
-	resolved := catalogWorkflow(t, "openapi-from-workspace@7")
-	detail := serveQuery(t, fixture.handler, workflowDetailTarget(resolved))
+	resolvedWorkflow := catalogWorkflow(t, "openapi-from-workspace@7")
+	detail := serveQuery(t, fixture.handler, workflowDetailTarget(resolvedWorkflow))
 	if detail.Code != http.StatusOK {
 		t.Fatalf("Workflow detail = %d: %s", detail.Code, detail.Body.String())
 	}
@@ -91,7 +91,7 @@ func TestWorkflowDetailProjectsSafeOpenAPIFields(t *testing.T) {
 		workflow.Inputs["source"].Primary {
 		t.Fatalf("Workflow primary output projection = %+v", workflow.Outputs)
 	}
-	unsafeText := resolved.Stages["openapi_build"].Instructions.Text
+	unsafeText := resolvedWorkflow.Stages["openapi_build"].Instructions.Text
 	if strings.Contains(detail.Body.String(), unsafeText) || strings.Contains(detail.Body.String(), "llmGatewayUrl") ||
 		strings.Contains(detail.Body.String(), "http://") {
 		t.Fatalf("Workflow detail leaked instruction text or endpoint: %s", detail.Body.String())
@@ -100,8 +100,8 @@ func TestWorkflowDetailProjectsSafeOpenAPIFields(t *testing.T) {
 
 func TestWorkflowDetailProjectsSafeSkillRequirements(t *testing.T) {
 	fixture := newHandlerFixtureWithConfig(t, publicCatalogFixture)
-	resolved := catalogWorkflow(t, "likec4-from-workspace@7")
-	skillDetail := serveQuery(t, fixture.handler, workflowDetailTarget(resolved))
+	resolvedWorkflow := catalogWorkflow(t, "likec4-from-workspace@7")
+	skillDetail := serveQuery(t, fixture.handler, workflowDetailTarget(resolvedWorkflow))
 	if skillDetail.Code != http.StatusOK {
 		t.Fatalf("Skill Workflow detail = %d: %s", skillDetail.Code, skillDetail.Body.String())
 	}

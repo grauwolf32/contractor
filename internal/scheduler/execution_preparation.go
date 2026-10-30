@@ -42,12 +42,12 @@ func (s *Scheduler) workerExecutionSettingsForRun(
 		if !ok || reservation.ResolvedRuntimeConfig == nil {
 			return nil, fmt.Errorf("Worker %q has no complete Runtime configuration", logicalName)
 		}
-		resolved := reservation.ResolvedRuntimeConfig.Clone()
+		runtimeConfig := reservation.ResolvedRuntimeConfig.Clone()
 		modelFree := stage.Agents[logicalName].Template.IsToolWorker()
-		if resolved.Validate() != nil || resolved.ModelFree != modelFree {
+		if runtimeConfig.Validate() != nil || runtimeConfig.ModelFree != modelFree {
 			return nil, fmt.Errorf("Worker %q has no complete Runtime configuration", logicalName)
 		}
-		runtimeSettings, err := s.materializeRuntimeSettings(ctx, resolved)
+		runtimeSettings, err := s.materializeRuntimeSettings(ctx, runtimeConfig)
 		if err != nil {
 			return nil, err
 		}
@@ -59,9 +59,9 @@ func (s *Scheduler) workerExecutionSettingsForRun(
 			runtimeSettings.HTTPOriginTarget = target
 		}
 		result[logicalName] = runtimesettings.WorkerExecutionSettings{
-			ModelPolicy: resolved.ModelPolicy.Clone(), RuntimeSettings: runtimeSettings,
-			SummarizerModelPolicy:           resolved.SummarizerModelPolicy,
-			ResolvedRuntimeConfigProvenance: resolved.Provenance,
+			ModelPolicy: runtimeConfig.ModelPolicy.Clone(), RuntimeSettings: runtimeSettings,
+			SummarizerModelPolicy:           runtimeConfig.SummarizerModelPolicy,
+			ResolvedRuntimeConfigProvenance: runtimeConfig.Provenance,
 		}
 	}
 	return result, nil
@@ -135,11 +135,11 @@ func (s *Scheduler) materializeHTTPOriginTarget(
 
 func (s *Scheduler) materializeRuntimeSettings(
 	ctx context.Context,
-	resolved runtimeconfig.ResolvedRuntimeConfig,
+	runtimeConfig runtimeconfig.ResolvedRuntimeConfig,
 ) (runtimesettings.RuntimeSettings, error) {
 	result := runtimesettings.RuntimeSettings{
 		LLMRecovery:           s.options.GatewayRecovery != nil,
-		LLMGatewayURL:         resolved.LLMGateway.URL,
+		LLMGatewayURL:         runtimeConfig.LLMGateway.URL,
 		ArtifactAPIURL:        s.options.RuntimeTransport.ArtifactAPIURL,
 		RequestTimeoutSeconds: s.options.RuntimeTransport.RequestTimeoutSeconds,
 	}
@@ -147,34 +147,34 @@ func (s *Scheduler) materializeRuntimeSettings(
 		copied := *limits
 		result.SourceArchiveLimits = &copied
 	}
-	if signatures := resolved.LLMGateway.FailureSignatures; signatures != nil {
+	if signatures := runtimeConfig.LLMGateway.FailureSignatures; signatures != nil {
 		copied := signatures.Clone()
 		result.LLMGatewayFailureSignatures = &copied
 	}
-	if resolved.LLMCredential != nil {
+	if runtimeConfig.LLMCredential != nil {
 		if s.options.Credentials == nil {
 			return runtimesettings.RuntimeSettings{}, fmt.Errorf("selected LLM credential is unavailable")
 		}
 		token, err := s.options.Credentials.ResolveLLMCredential(
-			ctx, *resolved.LLMCredential, resolved.LLMGateway.Ref,
+			ctx, *runtimeConfig.LLMCredential, runtimeConfig.LLMGateway.Ref,
 		)
 		if err := resolvedCredentialError(token, err); err != nil {
 			return runtimesettings.RuntimeSettings{}, err
 		}
 		result.LLMGatewayToken = &token
 	}
-	if resolved.WorkerTelemetry != nil {
+	if runtimeConfig.WorkerTelemetry != nil {
 		telemetry := &runtimesettings.TelemetrySettings{
-			Adapter: runtimesettings.RuntimeAdapterOTLPHTTP, Endpoint: resolved.WorkerTelemetry.Endpoint,
-			Headers: map[string]contracts.SecretString{}, CaptureContent: resolved.WorkerTelemetry.CaptureContent,
-			FlushTimeoutSeconds: resolved.WorkerTelemetry.FlushTimeoutSeconds,
+			Adapter: runtimesettings.RuntimeAdapterOTLPHTTP, Endpoint: runtimeConfig.WorkerTelemetry.Endpoint,
+			Headers: map[string]contracts.SecretString{}, CaptureContent: runtimeConfig.WorkerTelemetry.CaptureContent,
+			FlushTimeoutSeconds: runtimeConfig.WorkerTelemetry.FlushTimeoutSeconds,
 		}
 		// The Server pins every export value (RCF-R102): a RuntimeConfig that
 		// omits the export or retry block gets the defaults (RCF-R99, RCF-R103),
 		// copied so the settings never alias the resolved configuration.
-		export := runtimesettings.PinTelemetryExport(resolved.WorkerTelemetry.Export)
+		export := runtimesettings.PinTelemetryExport(runtimeConfig.WorkerTelemetry.Export)
 		telemetry.Export = &export
-		if credentialID := resolved.WorkerTelemetry.Credential; credentialID != "" {
+		if credentialID := runtimeConfig.WorkerTelemetry.Credential; credentialID != "" {
 			if err := s.useRuntimeCredential(
 				ctx, credentialID, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialOTLPHeaders},
 				func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
@@ -195,19 +195,19 @@ func (s *Scheduler) materializeRuntimeSettings(
 		}
 		result.Telemetry = telemetry
 	}
-	if resolved.HTTPProxy != nil {
+	if runtimeConfig.HTTPProxy != nil {
 		proxy := &runtimesettings.HTTPProxySettings{
-			Adapter: runtimesettings.RuntimeAdapterHTTPProxy, ProxyURL: resolved.HTTPProxy.ProxyURL,
-			Targets: make([]runtimesettings.HTTPProxyTarget, len(resolved.HTTPProxy.Targets)),
+			Adapter: runtimesettings.RuntimeAdapterHTTPProxy, ProxyURL: runtimeConfig.HTTPProxy.ProxyURL,
+			Targets: make([]runtimesettings.HTTPProxyTarget, len(runtimeConfig.HTTPProxy.Targets)),
 		}
-		for index, target := range resolved.HTTPProxy.Targets {
+		for index, target := range runtimeConfig.HTTPProxy.Targets {
 			proxy.Targets[index] = runtimesettings.HTTPProxyTarget(target)
 		}
-		if resolved.HTTPProxy.CABundlePEM != "" {
-			bundle := resolved.HTTPProxy.CABundlePEM
+		if runtimeConfig.HTTPProxy.CABundlePEM != "" {
+			bundle := runtimeConfig.HTTPProxy.CABundlePEM
 			proxy.CABundlePEM = &bundle
 		}
-		if credentialID := resolved.HTTPProxy.Credential; credentialID != "" {
+		if credentialID := runtimeConfig.HTTPProxy.Credential; credentialID != "" {
 			if err := s.useRuntimeCredential(
 				ctx, credentialID,
 				[]runtimesettings.RuntimeCredentialKind{
@@ -247,8 +247,8 @@ func (s *Scheduler) materializeRuntimeSettings(
 		}
 		result.HTTPProxy = proxy
 	}
-	if resolved.Caido != nil {
-		timeout := resolved.Caido.RequestTimeoutSeconds
+	if runtimeConfig.Caido != nil {
+		timeout := runtimeConfig.Caido.RequestTimeoutSeconds
 		if timeout == 0 || timeout > result.RequestTimeoutSeconds {
 			timeout = result.RequestTimeoutSeconds
 		}
@@ -256,14 +256,14 @@ func (s *Scheduler) materializeRuntimeSettings(
 			timeout = runtimesettings.MaxCaidoRequestTimeoutSeconds
 		}
 		caido := &runtimesettings.CaidoSettings{
-			Adapter: runtimesettings.RuntimeAdapterCaidoGraphQL, Endpoint: resolved.Caido.Endpoint,
+			Adapter: runtimesettings.RuntimeAdapterCaidoGraphQL, Endpoint: runtimeConfig.Caido.Endpoint,
 			RequestTimeoutSeconds: timeout,
 		}
-		if resolved.Caido.CABundlePEM != "" {
-			bundle := resolved.Caido.CABundlePEM
+		if runtimeConfig.Caido.CABundlePEM != "" {
+			bundle := runtimeConfig.Caido.CABundlePEM
 			caido.CABundlePEM = &bundle
 		}
-		if credentialID := resolved.Caido.Credential; credentialID != "" {
+		if credentialID := runtimeConfig.Caido.Credential; credentialID != "" {
 			if err := s.useRuntimeCredential(
 				ctx, credentialID, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialCaidoBearer},
 				func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {
@@ -283,8 +283,8 @@ func (s *Scheduler) materializeRuntimeSettings(
 		}
 		result.Caido = caido
 	}
-	if resolved.Interactsh != nil {
-		timeout := resolved.Interactsh.RequestTimeoutSeconds
+	if runtimeConfig.Interactsh != nil {
+		timeout := runtimeConfig.Interactsh.RequestTimeoutSeconds
 		if timeout == 0 || timeout > result.RequestTimeoutSeconds {
 			timeout = result.RequestTimeoutSeconds
 		}
@@ -292,14 +292,14 @@ func (s *Scheduler) materializeRuntimeSettings(
 			timeout = runtimesettings.MaxInteractshRequestTimeoutSeconds
 		}
 		interactsh := &runtimesettings.InteractshSettings{
-			Adapter: runtimesettings.RuntimeAdapterInteractshHTTP, Endpoint: resolved.Interactsh.Endpoint,
+			Adapter: runtimesettings.RuntimeAdapterInteractshHTTP, Endpoint: runtimeConfig.Interactsh.Endpoint,
 			RequestTimeoutSeconds: timeout,
 		}
-		if resolved.Interactsh.CABundlePEM != "" {
-			bundle := resolved.Interactsh.CABundlePEM
+		if runtimeConfig.Interactsh.CABundlePEM != "" {
+			bundle := runtimeConfig.Interactsh.CABundlePEM
 			interactsh.CABundlePEM = &bundle
 		}
-		if credentialID := resolved.Interactsh.Credential; credentialID != "" {
+		if credentialID := runtimeConfig.Interactsh.Credential; credentialID != "" {
 			if err := s.useRuntimeCredential(
 				ctx, credentialID, []runtimesettings.RuntimeCredentialKind{runtimesettings.RuntimeCredentialInteractshToken},
 				func(kind runtimesettings.RuntimeCredentialKind, plaintext []byte) error {

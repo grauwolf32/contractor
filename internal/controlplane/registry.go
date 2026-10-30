@@ -607,13 +607,13 @@ func (r *InMemoryRegistry) CommitCandidateReservations(
 	}
 	for _, allocationID := range existing.allocationIDs {
 		stored := r.allocations[allocationID]
-		resolved := configurations[allocationID].Resolved.Clone()
+		runtimeConfig := configurations[allocationID].Resolved.Clone()
 		stored.reservation.ExecutionConfig = AllocationExecutionConfig{
-			ModelPolicy: resolved.ModelPolicy.Ref,
-			LLMGateway:  resolved.LLMGateway.Ref,
-			Credential:  clone.Pointer(resolved.LLMCredential),
+			ModelPolicy: runtimeConfig.ModelPolicy.Ref,
+			LLMGateway:  runtimeConfig.LLMGateway.Ref,
+			Credential:  clone.Pointer(runtimeConfig.LLMCredential),
 		}
-		stored.reservation.ResolvedRuntimeConfig = &resolved
+		stored.reservation.ResolvedRuntimeConfig = &runtimeConfig
 		stored.reservation.PerformanceCollectionPolicy = configurations[allocationID].PerformanceCollectionPolicy
 		if configurations[allocationID].PerformanceMetrics != nil {
 			request := *configurations[allocationID].PerformanceMetrics
