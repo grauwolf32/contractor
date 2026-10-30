@@ -128,7 +128,7 @@ func TestSharedTargetCredentialMaterialCasesGateCreation(t *testing.T) {
 	}
 }
 
-// TestTargetCredentialCreateReturnsOnlySafeMetadata creates each pentest
+// TestTargetCredentialCreateReturnsOnlySafeMetadata creates each engagement
 // target credential kind (RCF-R184) through the public API: success returns
 // the identity and kind without any secret byte, and an out-of-bounds login
 // material is 400 invalid_request.

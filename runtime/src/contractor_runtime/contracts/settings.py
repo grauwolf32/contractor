@@ -609,7 +609,7 @@ def default_source_archive_limits() -> SourceArchiveLimits:
     )
 
 
-class PentestIdentityMaterial(WireModel):
+class HTTPIdentityMaterial(WireModel):
     credential: RuntimeCredentialRef
     fields: dict[str, SecretStr] = Field(min_length=1, max_length=128)
 
@@ -626,7 +626,7 @@ class PentestIdentityMaterial(WireModel):
                 )
                 or sum(len(name) + len(value) for name, value in values.items()) > 16384
             ):
-                raise ValueError("pentest cookie material is invalid")
+                raise ValueError("engagement cookie material is invalid")
             return self
         if (
             any(
@@ -637,19 +637,19 @@ class PentestIdentityMaterial(WireModel):
             )
             or sum(len(v.encode()) for v in values.values()) > 16384
         ):
-            raise ValueError("pentest identity material is invalid")
+            raise ValueError("engagement identity material is invalid")
         if self.credential.kind == "target-basic@1":
             if (
                 set(values) != {"username", "password"}
                 or len(values["username"].encode()) > 256
                 or ":" in values["username"]
             ):
-                raise ValueError("pentest basic material is invalid")
+                raise ValueError("engagement basic material is invalid")
         elif self.credential.kind == "target-bearer@1":
             if set(values) != {"token"} or not is_credential_field_value(values["token"]):
-                raise ValueError("pentest bearer material is invalid")
+                raise ValueError("engagement bearer material is invalid")
         else:
-            raise ValueError("pentest credential kind is invalid")
+            raise ValueError("engagement credential kind is invalid")
         return self
 
     @field_serializer("fields", when_used="json")
@@ -682,18 +682,18 @@ class RuntimeSettings(WireModel):
     caido: CaidoSettings | None = None
     interactsh: InteractshSettings | None = None
     http_origin_target: HTTPOriginTargetSettings | None = None
-    pentest_identities: dict[str, PentestIdentityMaterial] | None = Field(
+    http_identities: dict[str, HTTPIdentityMaterial] | None = Field(
         default=None, min_length=1, max_length=7, exclude_if=lambda value: value is None
     )
     request_timeout_seconds: int = Field(gt=0)
 
     @model_validator(mode="after")
     def validate_settings(self) -> Self:
-        if self.pentest_identities is not None and any(
+        if self.http_identities is not None and any(
             re.fullmatch(r"[a-z][a-z0-9-]{0,63}", name) is None or name == "anonymous"
-            for name in self.pentest_identities
+            for name in self.http_identities
         ):
-            raise ValueError("pentest material identity is invalid")
+            raise ValueError("engagement material identity is invalid")
         if self.llm_gateway_url is not None:
             _require_runtime_endpoint("runtimeSettings.llmGatewayUrl", self.llm_gateway_url)
         elif self.llm_gateway_token is not None or self.llm_gateway_failure_signatures is not None:

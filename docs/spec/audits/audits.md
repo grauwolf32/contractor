@@ -1327,7 +1327,7 @@ override.
 | `deadlineSeconds: 0` | Start without a deadline | Clear the deadline |
 | Override omitted | Use the pinned profile's default | Preserve no-limit mode or the positive remainder frozen at `paused_at`; otherwise renew the pinned profile's default |
 
-For a typed pentest engagement, the resulting Start or Resume allowance is
+For a typed engagement engagement, the resulting Start or Resume allowance is
 additionally capped by its pinned `budgets.activeSeconds` (AUD-R242); zero
 cannot remove that cap.
 
@@ -1756,7 +1756,7 @@ Semantic keys are unique across mapping names. The finding-check-plan.v1
 registry maps `verify`, `static-trace` and `http-probe` to `verify`; `replay`,
 `applicability` and `alternative` each use their same-named phase. Neither role
 names nor model-supplied Workflow references register methods or infer phases.
-Verify and replay remain ordinary check roles and imply no pentest proof authority.
+Verify and replay remain ordinary check roles and imply no engagement proof authority.
 Unknown keys, ambiguous mappings and incompatible executor contracts fail strict
 authored and retained-profile validation.
 
@@ -1827,12 +1827,12 @@ Workflow and Skill consumer pins keep their existing Server encoding and remain
 opaque to Runtime readers. A bare digest or configuration name/version is never
 substituted for source membership, exact consumer closure or authorization.
 
-## Typed pentest engagement
+## Typed engagement engagement
 
 **AUD-R241.** A profile selects at most one exact Project input with media type
-`application/vnd.contractor.pentest-engagement+json`. Its closed document uses
-`contractor.pentest.engagement.v1` and contains `schema`, `accessMode`, `target`,
-`scope`, `identities`, `inputs`, `budgets`, `policy` and `testData`. Arrays are
+`application/vnd.contractor.engagement+json`. Its closed document uses
+`contractor.engagement.v1` and contains `schema`, `accessMode`, `target`,
+`scope`, `identities`, `inputs`, `budgets` and `policy`. Arrays are
 present even when empty; optional members are omitted, never null. Duplicate
 or unknown members, invalid Unicode, unsupported versions and non-integral,
 nonfinite or out-of-range numbers are rejected without echoing input bytes.
@@ -1841,9 +1841,8 @@ The document byte limit is LIM-AUD-31; tighter package and Audit input limits
 still apply.
 
 `target` contains exact `origins` and optional `deployment.marker`.
-`scope` contains `routes`, `exclusions`, `actionClasses` and
-`callbackDestinations`. Each route has an `origin`, `pathPrefixes`, `methods`,
-`actionClasses` and canonical network `addressRanges`. An identity has a unique
+`scope` contains `routes` and `exclusions`. Each route has an `origin`,
+`pathPrefixes`, `methods` and canonical network `addressRanges`. An identity has a unique
 `id`, `kind`, `origins`, optional `role`/`tenant`, and an exact non-secret
 `credential` reference for non-anonymous kinds. Exactly one identity is
 `anonymous`, with no credential. Kinds are `anonymous`, `basic`, `bearer` and
@@ -1855,26 +1854,21 @@ secret digest.
 
 Input entries are `{id, role, artifact, contentDigest}` with exact ArtifactRefs
 and roles `source`, `openapi`, `request-examples` or `documentation`. The
-containing Project supplies scope. Test-data descriptors contain `id`,
-`origin`, `identityIds`, `resourcePrefix`, `mutationAllowed` and
-`cleanupRequired`. Nested cardinalities are bounded by LIM-AUD-32/33.
+containing Project supplies scope. Nested cardinalities are bounded by
+LIM-AUD-32/33. Action classes and test-data descriptors return only when a
+production Workflow creates test objects and owns their cleanup.
 
-**AUD-R242.** The engagement requires explicit positive integer `budgets`.
-LIM-AUD-34 records the hard maxima for active time, target requests, request
-rate/concurrency, discovery, surface, hypotheses, rounds, submitted Runs,
-recipes, replay, byte retention, model calls/tokens and action intents.
-Existing profile/operator limits also apply, and the tighter bound wins.
-Pinning a budget alone does not authorize traffic. Start and Resume still cap
-ordinary per-continuation deadlines under AUD-R207. A policy that requires
-`pentest-target-http@1` additionally enforces cumulative active time at action
-admission and every start grant: queue wait and active continuations count;
-owner pause and frozen report review freeze the clock; resume never resets
-consumption. The durable
-clock is initialized by start and maintained at Audit state transitions.
-Unknown, corrupt, negative or exhausted remaining allowance denies new target
-work. Grant allowance is clipped to that remainder and to existing Run, Stage,
-allocation and request deadlines. Interrupted requests retain their charges;
-expiry cannot clear their holds ([AUX-R105](execution.md)).
+**AUD-R242.** The engagement's `budgets` retain `activeSeconds`, `rounds`,
+`submittedRuns` and `evidenceBytes` under LIM-AUD-34. The ordinary Audit
+limits and deadline own these bounds, with the tighter profile bound winning;
+Start and Resume follow AUD-R207. No separate cumulative active clock exists.
+The same artifact may optionally supply `targetRequests`, `requestsPerSecond`,
+`concurrentRequests`, `requestBodyBytes` and `responseBodyBytes`. These fields
+are projected into `allocation.engagement.http.limits` and enforced
+locally by Runtime under HTP-R145. Each omitted limit is absent; process/env
+settings and implied defaults cannot supply it. Each allocation starts fresh.
+An engagement Audit has `maxItemRunAttempts: 1`, irrespective of a larger profile
+value. Capability selection and limits never authorize traffic outside scope.
 
 **AUD-R243.** Engagement URLs accept absolute HTTP(S) with ASCII DNS A-labels
 or canonical IPv4/IPv6, an optional query and no userinfo or fragment. Origins
@@ -1888,16 +1882,15 @@ matching and future transmission: reject dot segments, repeated separators,
 encoded slash/backslash/NUL and nested escaping that could change a later
 decode. Query values are request data. A path prefix matches whole segments:
 `/api` matches `/api/items` but not `/api-admin`. Exclusions win, and every seed
-must be authorized for `GET` and `read`. URL/path bytes are bounded by
+must be authorized for `GET`. URL/path bytes are bounded by
 LIM-AUD-33. These checks do not resolve DNS or establish connected-address
 reachability.
 
 **AUD-R244.** Policy version `1` selects `activeChecks: automatic`,
-`retryPolicy: conservative@1`, `replayPolicy: fresh-session@1`, and bounded
-required/optional capability selectors. Action classes are `read`, `probe`,
-`test-data-write`, `cleanup` and capability-selected `callback-probe`.
+bounded required/optional capability selectors. Retry behavior belongs to the
+Runtime transport under HTP-R139; there are no selectable retry/replay policies.
 Capability selection never grants target or identity authority. The supported
-metadata contract is `pentest-engagement@1`; its presence does not advertise
+metadata contract is `engagement@1`; its presence does not advertise
 controlled HTTP, proof, login, browser or callback execution. Unsupported
 Server requirements fail closed with `audit_profile_unsupported`.
 
@@ -1913,29 +1906,17 @@ sitemap/findings context never changes baseline authority. Shared sitemap
 metadata is available in either mode under SMT-R14 and grants no source-file
 access; Project findings context follows its separate access contract.
 
-**AUD-R246.** `POST /v1/audits/{auditId}/preflight` validates one authenticated
-owner's draft revision under a required strong `If-Match`. It accepts no body
-or query parameters and needs no idempotency key: it is a bounded read with
-its own LIM-AUD-35 deadline, no target/DNS/login requests, decrypted secrets,
-authorization or durable holds. The result carries `auditId`, `revision`,
-`baselineInputDigest`, `compatibleCapabilities`, `missingCapabilities`,
-`serverCompatible` and bounded compatibility `reasons`. It uses `no-store`
-and the checked revision's ETag. Start repeats authoritative validation and
-never treats a previous preflight as authorization (FAIL-AUD-12). Missing or
-foreign entities return safe 404, a stale revision 412, and a non-draft state
-409. Malformed request syntax uses 400; document failures retain their existing
-validation classification; storage conflicts are retryable 503. Compatibility
-reasons additionally include `pentest_capability_unsupported`,
-`pentest_source_closure_unsupported` and `pentest_active_checks_unsupported`.
-
-**AUD-R247.** Start extends its immutable baseline with the versioned
-`contractor.audit.pentest-baseline.v1` engagement snapshot: the exact artifact,
+**AUD-R247.** Start authoritatively validates the engagement, credentials and
+compatibility. Unsupported engagements return `audit_profile_unsupported` with
+`engagement_capability_unsupported`, `engagement_source_closure_unsupported` or
+`engagement_active_checks_unsupported` reasons. Start extends its immutable baseline
+with the versioned `contractor.audit.engagement-baseline.v1` engagement snapshot:
+the exact artifact,
 validated document, policy digest, trusted authorizing owner, authorization
 time. The snapshot contains no executable authentication recipes. Exact nested
-input refs and credential revisions are
-
-validated and held through existing Artifact links and credential dispatch
-holds in the start transaction. Profile, Workflow, Skill and RuntimeConfig
+input refs and credential revisions are validated and held through existing
+Artifact links and credential dispatch holds in the start transaction.
+Profile, Workflow, Skill and RuntimeConfig
 pins retain their existing ownership. Project policy or draft changes racing
 staging fail before commit; replay uses the original start key and keeps its
 original pins. Mutable labels and aliases cannot replace them. Project
@@ -1949,10 +1930,10 @@ It reads outside the Runtime Registry lock and rechecks allocation authority
 before dispatch. The immutable baseline lookup does not require an active
 Audit: pause blocks new child admission while existing Runs drain; Run
 cancellation, Project deletion and the allocation grant retain their existing
-dispatch fences. The projection contains immutable engagement/policy attribution and finite
-budgets. Metadata-only allocations omit `http`. Explicitly requiring
-`pentest-target-http@1` supplies typed routes/exclusions, assigned identities
-and the trusted infrastructure denyset. The Server selects an advertising
+dispatch fences. The projection contains immutable engagement/policy attribution. Metadata-only allocations omit `http`. Explicitly requiring
+`http-target@1` supplies typed routes/exclusions, assigned identities
+optional per-allocation HTTP limits from the selected engagement and the trusted
+infrastructure denyset. The Server selects an advertising
 Runtime before placement. Preparation performs no target discovery or startup
 request. The Worker chooses requests through HTTP tools with an optional explicit
 credential_id (HTP-R140). Neither mutable Project settings, physical labels nor
@@ -1978,6 +1959,6 @@ cancellation and release ([CTL-R169](../execution/control-plane.md)).
   until its own receipt/pin protocol exists.
 - Trusted captures, general proof/replay recipes, browser login
   and optional finding-review extensions remain capability-gated designs in
-  [proposal 0033: autonomous pentest Audits](../../proposals/0033-autonomous-pentest-audits.md).
+  [proposal 0033: autonomous engagement Audits](../../proposals/0033-autonomous-pentest-audits.md).
   Generic registered proposed-check routing is specified above; those future
   integrations retain its profile authority and lifecycle fences.

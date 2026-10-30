@@ -4,7 +4,7 @@
 // managed Evals (30), scan preparation/planning (31/32), OpenAPI scan adapter,
 // model-gateway recovery (04) and trusted-proxy login attribution (06).
 // #planned marks components whose owning spec is a draft: SARIF export (28),
-// pentest Audits (33) and the Audit prioritization capability (34; pure core
+// engagement Audits (33) and the Audit prioritization capability (34; pure core
 // exists). Task files retain delivery evidence; README rows own status text.
 specification {
   element actor {
@@ -481,7 +481,7 @@ model {
         #contractor
       }
 
-      pentestProgram = component 'Pentest Engagement Program — engagement baseline, enforced scope, hypotheses, deterministic admission and proof routing' {
+      engagementProgram = component 'Engagement Engagement Program — engagement baseline, enforced scope, hypotheses, deterministic admission and proof routing' {
         #contractor #planned
       }
     }
@@ -949,7 +949,7 @@ model {
         #contractor #optional
       }
 
-      pentestTools = component 'Selected pentest-engagement@1 / pentest-http@1 / pentest-proof@1 — enforced target adapter, isolated identities, trusted capture and replay' {
+      engagementTools = component 'Selected engagement@1 / engagement-http@1 / engagement-proof@1 — enforced target adapter, isolated identities, trusted capture and replay' {
         #contractor #planned
       }
 
@@ -1232,8 +1232,8 @@ model {
   // Draft proposals 0028, 0033 and 0034 — specified, not available product functionality
   server.auditCoordination.auditController -> server.auditCoordination.prioritySelector 'Reproducible ordering and selection from complete validated verdicts' #planned
   server.orchestration.priorityPlanner -> server.auditCoordination.prioritySelector 'Strict verdicts from independent bounded model calls' #planned
-  server.auditCoordination.pentestProgram -> runtimeAgent.allocationCapabilities.pentestTools 'Engagement projection, exact credential holds and proof registration' #planned
-  server.auditCoordination.pentestProgram -> server.auditCoordination.findingIntake 'Machine-assessed findings through the existing intake; no second finding store' #planned
+  server.auditCoordination.engagementProgram -> runtimeAgent.allocationCapabilities.engagementTools 'Engagement projection, exact credential holds and proof registration' #planned
+  server.auditCoordination.engagementProgram -> server.auditCoordination.findingIntake 'Machine-assessed findings through the existing intake; no second finding store' #planned
   server.artifactPlane.sarifExporter -> server.auditCoordination.findingIntake 'Freeze explicit selection, review revisions and exact evidence' #planned
   server.artifactPlane.sarifExporter -> server.artifactPlane.artifactService 'Publish SARIF and diagnostics artifacts' #planned
 }
@@ -4592,7 +4592,7 @@ views {
 
   view plannedCapabilities {
     title '47 / Roadmap / Draft Proposals 0028, 0033 and 0034'
-    description 'Dashed components are specified in draft documents and are not available product functionality: structured finding analysis with SARIF export (28), autonomous pentest Audits (33) and contextual Audit checklist prioritization (34; only the pure verdict/selection core exists).'
+    description 'Dashed components are specified in draft documents and are not available product functionality: structured finding analysis with SARIF export (28), autonomous engagement Audits (33) and contextual Audit checklist prioritization (34; only the pure verdict/selection core exists).'
 
     include server.artifactPlane.sarifExporter with {
       title 'Finding Analysis + SARIF (28)'
@@ -4605,11 +4605,11 @@ views {
       title 'ArtifactStore'
       navigateTo artifacts
     }
-    include server.auditCoordination.pentestProgram with {
-      title 'Pentest Engagement Program (33)'
+    include server.auditCoordination.engagementProgram with {
+      title 'Engagement Engagement Program (33)'
     }
-    include runtimeAgent.allocationCapabilities.pentestTools with {
-      title 'pentest-* Toolsets (33)'
+    include runtimeAgent.allocationCapabilities.engagementTools with {
+      title 'engagement-* Toolsets (33)'
     }
     include server.orchestration.priorityPlanner with {
       title 'audit-priority@1 Planner (34)'
@@ -4629,10 +4629,10 @@ views {
     include server.artifactPlane.sarifExporter -> server.artifactPlane.artifactService with {
       title 'SARIF + diagnostics'
     }
-    include server.auditCoordination.pentestProgram -> runtimeAgent.allocationCapabilities.pentestTools with {
+    include server.auditCoordination.engagementProgram -> runtimeAgent.allocationCapabilities.engagementTools with {
       title 'Engagement / proof'
     }
-    include server.auditCoordination.pentestProgram -> server.auditCoordination.findingIntake with {
+    include server.auditCoordination.engagementProgram -> server.auditCoordination.findingIntake with {
       title 'Machine-assessed findings'
     }
     include server.orchestration.priorityPlanner -> server.auditCoordination.prioritySelector with {

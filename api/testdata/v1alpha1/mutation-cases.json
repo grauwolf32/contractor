@@ -54,7 +54,7 @@
         ""
       ]
     },
-    "agent-registration-pentest.json": {
+    "agent-registration-engagement.json": {
       "enum": [
         "/apiVersion",
         "/observedState"
@@ -588,16 +588,14 @@
         "/report/worker/toolCalls/0/error"
       ]
     },
-    "allocation-spec-pentest-metadata.json": {
+    "allocation-spec-engagement-metadata.json": {
       "enum": [
         "/apiVersion",
-        "/pentestEngagement/accessMode",
-        "/pentestEngagement/policy/activeChecks",
-        "/pentestEngagement/policy/replayPolicy",
-        "/pentestEngagement/policy/requiredCapabilities/0",
-        "/pentestEngagement/policy/retryPolicy",
-        "/pentestEngagement/policy/version",
-        "/pentestEngagement/schema",
+        "/engagement/accessMode",
+        "/engagement/policy/activeChecks",
+        "/engagement/policy/requiredCapabilities/0",
+        "/engagement/policy/version",
+        "/engagement/schema",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
         "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
@@ -605,24 +603,24 @@
       ],
       "maxLength": [
         {
+          "pointer": "/engagement/engagement/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/engagement/engagement/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/0",
+          "maxLength": 256
+        },
+        {
           "pointer": "/logicalAgentName",
           "maxLength": 128
         },
         {
           "pointer": "/namespace",
           "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/name",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/namespace",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
-          "maxLength": 256
         },
         {
           "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
@@ -651,6 +649,21 @@
       ],
       "maxBytes": [
         {
+          "pointer": "/engagement/engagement/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/engagement/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/0",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
           "pointer": "/logicalAgentName",
           "maxLength": 128,
           "verdict": "reject"
@@ -658,21 +671,6 @@
         {
           "pointer": "/namespace",
           "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/name",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/namespace",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
-          "maxLength": 256,
           "verdict": "reject"
         },
         {
@@ -717,12 +715,11 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/engagement",
+        "/engagement/engagement",
+        "/engagement/policy",
         "/modelPolicy",
         "/modelPolicy/ref",
-        "/pentestEngagement",
-        "/pentestEngagement/budgets",
-        "/pentestEngagement/engagement",
-        "/pentestEngagement/policy",
         "/resolvedRuntimeConfigProvenance",
         "/resolvedRuntimeConfigProvenance/agentLabels/0",
         "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
@@ -748,12 +745,11 @@
         "/agentTemplate/sandboxProfile",
         "/agentTemplate/toolsets/0",
         "/agentTemplate/toolsets/0/ref",
+        "/engagement",
+        "/engagement/engagement",
+        "/engagement/policy",
         "/modelPolicy",
         "/modelPolicy/ref",
-        "/pentestEngagement",
-        "/pentestEngagement/budgets",
-        "/pentestEngagement/engagement",
-        "/pentestEngagement/policy",
         "/resolvedRuntimeConfigProvenance",
         "/resolvedRuntimeConfigProvenance/agentLabels/0",
         "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
@@ -1951,6 +1947,851 @@
         "/artifact"
       ]
     },
+    "engagement-allocation-basic.json": {
+      "enum": [
+        "/apiVersion",
+        "/engagement/accessMode",
+        "/engagement/http/adapter",
+        "/engagement/http/identities/0/id",
+        "/engagement/http/identities/0/kind",
+        "/engagement/http/identities/1/credential/kind",
+        "/engagement/http/identities/1/kind",
+        "/engagement/http/routes/0/methods/0",
+        "/engagement/policy/activeChecks",
+        "/engagement/policy/requiredCapabilities/0",
+        "/engagement/policy/requiredCapabilities/1",
+        "/engagement/policy/version",
+        "/engagement/schema",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
+        "/runtimeSettings/httpIdentities/account-a/credential/kind",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/engagement/engagement/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/engagement/engagement/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/engagement/http/identities/0/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/engagement/http/identities/1/credential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/engagement/http/identities/1/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/engagement/http/protectedDestinations/0/addresses/0",
+          "maxLength": 45
+        },
+        {
+          "pointer": "/engagement/http/protectedDestinations/0/hostname",
+          "maxLength": 253
+        },
+        {
+          "pointer": "/engagement/http/routes/0/origin",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/engagement/http/routes/0/pathPrefixes/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/0",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/1",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runtimeSettings/httpIdentities/account-a/credential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runtimeSettings/httpIdentities/account-a/fields/password",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/runtimeSettings/httpIdentities/account-a/fields/username",
+          "maxLength": 8192
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/engagement/engagement/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/engagement/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/identities/0/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/identities/1/credential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/identities/1/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/protectedDestinations/0/addresses/0",
+          "maxLength": 45,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/protectedDestinations/0/hostname",
+          "maxLength": 253,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/routes/0/origin",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/routes/0/pathPrefixes/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/0",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/1",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeSettings/httpIdentities/account-a/credential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeSettings/httpIdentities/account-a/fields/password",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeSettings/httpIdentities/account-a/fields/username",
+          "maxLength": 8192,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/engagement",
+        "/engagement/engagement",
+        "/engagement/http",
+        "/engagement/http/identities/0",
+        "/engagement/http/identities/1",
+        "/engagement/http/identities/1/credential",
+        "/engagement/http/protectedDestinations/0",
+        "/engagement/http/routes/0",
+        "/engagement/policy",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings",
+        "/runtimeSettings/httpIdentities/account-a",
+        "/runtimeSettings/httpIdentities/account-a/credential"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/engagement",
+        "/engagement/engagement",
+        "/engagement/http",
+        "/engagement/http/identities/0",
+        "/engagement/http/identities/1",
+        "/engagement/http/identities/1/credential",
+        "/engagement/http/protectedDestinations/0",
+        "/engagement/http/routes/0",
+        "/engagement/policy",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runMetadataLabels",
+        "/runtimeSettings",
+        "/runtimeSettings/httpIdentities",
+        "/runtimeSettings/httpIdentities/account-a",
+        "/runtimeSettings/httpIdentities/account-a/credential",
+        "/runtimeSettings/httpIdentities/account-a/fields"
+      ]
+    },
+    "engagement-allocation-cookies.json": {
+      "enum": [
+        "/apiVersion",
+        "/engagement/accessMode",
+        "/engagement/http/adapter",
+        "/engagement/http/identities/0/id",
+        "/engagement/http/identities/0/kind",
+        "/engagement/http/identities/1/credential/kind",
+        "/engagement/http/identities/1/kind",
+        "/engagement/http/routes/0/methods/0",
+        "/engagement/http/routes/0/methods/1",
+        "/engagement/policy/activeChecks",
+        "/engagement/policy/requiredCapabilities/0",
+        "/engagement/policy/requiredCapabilities/1",
+        "/engagement/policy/version",
+        "/engagement/schema",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
+        "/runtimeSettings/httpIdentities/account-a/credential/kind",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/engagement/engagement/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/engagement/engagement/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/engagement/http/identities/0/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/engagement/http/identities/1/credential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/engagement/http/identities/1/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/engagement/http/protectedDestinations/0/addresses/0",
+          "maxLength": 45
+        },
+        {
+          "pointer": "/engagement/http/protectedDestinations/0/hostname",
+          "maxLength": 253
+        },
+        {
+          "pointer": "/engagement/http/routes/0/origin",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/engagement/http/routes/0/pathPrefixes/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/0",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/1",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runtimeSettings/httpIdentities/account-a/credential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runtimeSettings/httpIdentities/account-a/fields/session",
+          "maxLength": 8192
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/engagement/engagement/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/engagement/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/identities/0/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/identities/1/credential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/identities/1/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/protectedDestinations/0/addresses/0",
+          "maxLength": 45,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/protectedDestinations/0/hostname",
+          "maxLength": 253,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/routes/0/origin",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/routes/0/pathPrefixes/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/0",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/1",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeSettings/httpIdentities/account-a/credential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runtimeSettings/httpIdentities/account-a/fields/session",
+          "maxLength": 8192,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/engagement",
+        "/engagement/engagement",
+        "/engagement/http",
+        "/engagement/http/identities/0",
+        "/engagement/http/identities/1",
+        "/engagement/http/identities/1/credential",
+        "/engagement/http/protectedDestinations/0",
+        "/engagement/http/routes/0",
+        "/engagement/policy",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings",
+        "/runtimeSettings/httpIdentities/account-a",
+        "/runtimeSettings/httpIdentities/account-a/credential"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/engagement",
+        "/engagement/engagement",
+        "/engagement/http",
+        "/engagement/http/identities/0",
+        "/engagement/http/identities/1",
+        "/engagement/http/identities/1/credential",
+        "/engagement/http/protectedDestinations/0",
+        "/engagement/http/routes/0",
+        "/engagement/policy",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runMetadataLabels",
+        "/runtimeSettings",
+        "/runtimeSettings/httpIdentities",
+        "/runtimeSettings/httpIdentities/account-a",
+        "/runtimeSettings/httpIdentities/account-a/credential",
+        "/runtimeSettings/httpIdentities/account-a/fields"
+      ]
+    },
+    "engagement-allocation-preflight.json": {
+      "enum": [
+        "/apiVersion",
+        "/engagement/accessMode",
+        "/engagement/http/adapter",
+        "/engagement/http/identities/0/id",
+        "/engagement/http/identities/0/kind",
+        "/engagement/http/routes/0/methods/0",
+        "/engagement/policy/activeChecks",
+        "/engagement/policy/requiredCapabilities/0",
+        "/engagement/policy/requiredCapabilities/1",
+        "/engagement/policy/version",
+        "/engagement/schema",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
+        "/workerSessionMode"
+      ],
+      "maxLength": [
+        {
+          "pointer": "/engagement/engagement/name",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/engagement/engagement/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/engagement/http/identities/0/origins/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/engagement/http/protectedDestinations/0/addresses/0",
+          "maxLength": 45
+        },
+        {
+          "pointer": "/engagement/http/protectedDestinations/0/hostname",
+          "maxLength": 253
+        },
+        {
+          "pointer": "/engagement/http/routes/0/origin",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/engagement/http/routes/0/pathPrefixes/0",
+          "maxLength": 8192
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/0",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/1",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256
+        }
+      ],
+      "maxBytes": [
+        {
+          "pointer": "/engagement/engagement/name",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/engagement/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/identities/0/origins/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/protectedDestinations/0/addresses/0",
+          "maxLength": 45,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/protectedDestinations/0/hostname",
+          "maxLength": 253,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/routes/0/origin",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/http/routes/0/pathPrefixes/0",
+          "maxLength": 8192,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/0",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/engagement/policy/requiredCapabilities/1",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/logicalAgentName",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/namespace",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
+          "maxLength": 128,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/eval.id",
+          "maxLength": 256,
+          "verdict": "reject"
+        },
+        {
+          "pointer": "/runMetadataLabels/purpose",
+          "maxLength": 256,
+          "verdict": "reject"
+        }
+      ],
+      "unknownMember": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/engagement",
+        "/engagement/engagement",
+        "/engagement/http",
+        "/engagement/http/identities/0",
+        "/engagement/http/limits",
+        "/engagement/http/protectedDestinations/0",
+        "/engagement/http/routes/0",
+        "/engagement/policy",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runtimeSettings"
+      ],
+      "duplicateKey": [
+        "",
+        "/agentTemplate",
+        "/agentTemplate/instructions",
+        "/agentTemplate/modelPolicy",
+        "/agentTemplate/modelPolicy/ref",
+        "/agentTemplate/ref",
+        "/agentTemplate/runtime",
+        "/agentTemplate/sandboxProfile",
+        "/agentTemplate/toolsets/0",
+        "/agentTemplate/toolsets/0/ref",
+        "/engagement",
+        "/engagement/engagement",
+        "/engagement/http",
+        "/engagement/http/identities/0",
+        "/engagement/http/limits",
+        "/engagement/http/protectedDestinations/0",
+        "/engagement/http/routes/0",
+        "/engagement/policy",
+        "/modelPolicy",
+        "/modelPolicy/ref",
+        "/resolvedRuntimeConfigProvenance",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0",
+        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/default",
+        "/resolvedRuntimeConfigProvenance/default/config",
+        "/resolvedRuntimeConfigProvenance/llmCredential",
+        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
+        "/resolvedRuntimeConfigProvenance/runLabels/0",
+        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
+        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
+        "/runMetadataLabels",
+        "/runtimeSettings"
+      ]
+    },
     "finalize-allocation.json": {
       "enum": [
         "/apiVersion"
@@ -2040,1568 +2881,6 @@
         "",
         "/credentialManager",
         "/ref"
-      ]
-    },
-    "pentest-action-grant.json": {
-      "enum": [
-        "/apiVersion",
-        "/operation"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        ""
-      ],
-      "duplicateKey": [
-        ""
-      ]
-    },
-    "pentest-action-prepare.json": {
-      "enum": [
-        "/apiVersion",
-        "/operation",
-        "/prepare/generation",
-        "/prepare/method",
-        "/prepare/phase"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/prepare"
-      ],
-      "duplicateKey": [
-        "",
-        "/prepare"
-      ]
-    },
-    "pentest-action-request-identity.json": {
-      "enum": [
-        "/apiVersion",
-        "/operation",
-        "/prepare/generation",
-        "/prepare/method",
-        "/prepare/phase"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/prepare/url",
-          "maxLength": 8192,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/prepare"
-      ],
-      "duplicateKey": [
-        "",
-        "/prepare"
-      ]
-    },
-    "pentest-action-sending.json": {
-      "enum": [
-        "/apiVersion",
-        "/operation"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        ""
-      ],
-      "duplicateKey": [
-        ""
-      ]
-    },
-    "pentest-action-settle.json": {
-      "enum": [
-        "/apiVersion",
-        "/operation",
-        "/outcome/kind",
-        "/outcome/responseBytes",
-        "/outcome/statusCode"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/outcome"
-      ],
-      "duplicateKey": [
-        "",
-        "/outcome"
-      ]
-    },
-    "pentest-action-started.json": {
-      "enum": [
-        "/apiVersion",
-        "/operation"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        ""
-      ],
-      "duplicateKey": [
-        ""
-      ]
-    },
-    "pentest-allocation-basic.json": {
-      "enum": [
-        "/apiVersion",
-        "/pentestEngagement/accessMode",
-        "/pentestEngagement/http/adapter",
-        "/pentestEngagement/http/identities/0/id",
-        "/pentestEngagement/http/identities/0/kind",
-        "/pentestEngagement/http/identities/1/credential/kind",
-        "/pentestEngagement/http/identities/1/kind",
-        "/pentestEngagement/http/routes/0/actionClasses/0",
-        "/pentestEngagement/http/routes/0/methods/0",
-        "/pentestEngagement/policy/activeChecks",
-        "/pentestEngagement/policy/replayPolicy",
-        "/pentestEngagement/policy/requiredCapabilities/0",
-        "/pentestEngagement/policy/requiredCapabilities/1",
-        "/pentestEngagement/policy/retryPolicy",
-        "/pentestEngagement/policy/version",
-        "/pentestEngagement/schema",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
-        "/runtimeSettings/pentestIdentities/account-a/credential/kind",
-        "/workerSessionMode"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/logicalAgentName",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/namespace",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/name",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/namespace",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/0/origins/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/1/credential/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/1/origins/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/http/protectedDestinations/0/addresses/0",
-          "maxLength": 45
-        },
-        {
-          "pointer": "/pentestEngagement/http/protectedDestinations/0/hostname",
-          "maxLength": 253
-        },
-        {
-          "pointer": "/pentestEngagement/http/routes/0/origin",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/http/routes/0/pathPrefixes/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/runMetadataLabels/eval.id",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/runMetadataLabels/purpose",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/credential/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/password",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/username",
-          "maxLength": 8192
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/logicalAgentName",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/namespace",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/name",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/namespace",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/0/origins/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/1/credential/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/1/origins/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/protectedDestinations/0/addresses/0",
-          "maxLength": 45,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/protectedDestinations/0/hostname",
-          "maxLength": 253,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/routes/0/origin",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/routes/0/pathPrefixes/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runMetadataLabels/eval.id",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runMetadataLabels/purpose",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/credential/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/password",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/username",
-          "maxLength": 8192,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/agentTemplate",
-        "/agentTemplate/instructions",
-        "/agentTemplate/modelPolicy",
-        "/agentTemplate/modelPolicy/ref",
-        "/agentTemplate/ref",
-        "/agentTemplate/runtime",
-        "/agentTemplate/sandboxProfile",
-        "/agentTemplate/toolsets/0",
-        "/agentTemplate/toolsets/0/ref",
-        "/modelPolicy",
-        "/modelPolicy/ref",
-        "/pentestEngagement",
-        "/pentestEngagement/budgets",
-        "/pentestEngagement/engagement",
-        "/pentestEngagement/http",
-        "/pentestEngagement/http/identities/0",
-        "/pentestEngagement/http/identities/1",
-        "/pentestEngagement/http/identities/1/credential",
-        "/pentestEngagement/http/protectedDestinations/0",
-        "/pentestEngagement/http/routes/0",
-        "/pentestEngagement/policy",
-        "/resolvedRuntimeConfigProvenance",
-        "/resolvedRuntimeConfigProvenance/agentLabels/0",
-        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
-        "/resolvedRuntimeConfigProvenance/default",
-        "/resolvedRuntimeConfigProvenance/default/config",
-        "/resolvedRuntimeConfigProvenance/llmCredential",
-        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
-        "/resolvedRuntimeConfigProvenance/runLabels/0",
-        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
-        "/runtimeSettings",
-        "/runtimeSettings/pentestIdentities/account-a",
-        "/runtimeSettings/pentestIdentities/account-a/credential"
-      ],
-      "duplicateKey": [
-        "",
-        "/agentTemplate",
-        "/agentTemplate/instructions",
-        "/agentTemplate/modelPolicy",
-        "/agentTemplate/modelPolicy/ref",
-        "/agentTemplate/ref",
-        "/agentTemplate/runtime",
-        "/agentTemplate/sandboxProfile",
-        "/agentTemplate/toolsets/0",
-        "/agentTemplate/toolsets/0/ref",
-        "/modelPolicy",
-        "/modelPolicy/ref",
-        "/pentestEngagement",
-        "/pentestEngagement/budgets",
-        "/pentestEngagement/engagement",
-        "/pentestEngagement/http",
-        "/pentestEngagement/http/identities/0",
-        "/pentestEngagement/http/identities/1",
-        "/pentestEngagement/http/identities/1/credential",
-        "/pentestEngagement/http/protectedDestinations/0",
-        "/pentestEngagement/http/routes/0",
-        "/pentestEngagement/policy",
-        "/resolvedRuntimeConfigProvenance",
-        "/resolvedRuntimeConfigProvenance/agentLabels/0",
-        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
-        "/resolvedRuntimeConfigProvenance/default",
-        "/resolvedRuntimeConfigProvenance/default/config",
-        "/resolvedRuntimeConfigProvenance/llmCredential",
-        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
-        "/resolvedRuntimeConfigProvenance/runLabels/0",
-        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
-        "/runMetadataLabels",
-        "/runtimeSettings",
-        "/runtimeSettings/pentestIdentities",
-        "/runtimeSettings/pentestIdentities/account-a",
-        "/runtimeSettings/pentestIdentities/account-a/credential",
-        "/runtimeSettings/pentestIdentities/account-a/fields"
-      ]
-    },
-    "pentest-allocation-cookies.json": {
-      "enum": [
-        "/apiVersion",
-        "/pentestEngagement/accessMode",
-        "/pentestEngagement/http/adapter",
-        "/pentestEngagement/http/identities/0/id",
-        "/pentestEngagement/http/identities/0/kind",
-        "/pentestEngagement/http/identities/1/credential/kind",
-        "/pentestEngagement/http/identities/1/kind",
-        "/pentestEngagement/http/routes/0/actionClasses/0",
-        "/pentestEngagement/http/routes/0/actionClasses/1",
-        "/pentestEngagement/http/routes/0/methods/0",
-        "/pentestEngagement/http/routes/0/methods/1",
-        "/pentestEngagement/policy/activeChecks",
-        "/pentestEngagement/policy/replayPolicy",
-        "/pentestEngagement/policy/requiredCapabilities/0",
-        "/pentestEngagement/policy/requiredCapabilities/1",
-        "/pentestEngagement/policy/retryPolicy",
-        "/pentestEngagement/policy/version",
-        "/pentestEngagement/schema",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
-        "/runtimeSettings/pentestIdentities/account-a/credential/kind",
-        "/workerSessionMode"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/logicalAgentName",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/namespace",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/name",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/namespace",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/0/origins/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/1/credential/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/1/origins/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/http/protectedDestinations/0/addresses/0",
-          "maxLength": 45
-        },
-        {
-          "pointer": "/pentestEngagement/http/protectedDestinations/0/hostname",
-          "maxLength": 253
-        },
-        {
-          "pointer": "/pentestEngagement/http/routes/0/origin",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/http/routes/0/pathPrefixes/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/runMetadataLabels/eval.id",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/runMetadataLabels/purpose",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/credential/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/session",
-          "maxLength": 8192
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/logicalAgentName",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/namespace",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/name",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/namespace",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/0/origins/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/1/credential/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/1/origins/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/protectedDestinations/0/addresses/0",
-          "maxLength": 45,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/protectedDestinations/0/hostname",
-          "maxLength": 253,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/routes/0/origin",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/routes/0/pathPrefixes/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runMetadataLabels/eval.id",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runMetadataLabels/purpose",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/credential/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runtimeSettings/pentestIdentities/account-a/fields/session",
-          "maxLength": 8192,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/agentTemplate",
-        "/agentTemplate/instructions",
-        "/agentTemplate/modelPolicy",
-        "/agentTemplate/modelPolicy/ref",
-        "/agentTemplate/ref",
-        "/agentTemplate/runtime",
-        "/agentTemplate/sandboxProfile",
-        "/agentTemplate/toolsets/0",
-        "/agentTemplate/toolsets/0/ref",
-        "/modelPolicy",
-        "/modelPolicy/ref",
-        "/pentestEngagement",
-        "/pentestEngagement/budgets",
-        "/pentestEngagement/engagement",
-        "/pentestEngagement/http",
-        "/pentestEngagement/http/identities/0",
-        "/pentestEngagement/http/identities/1",
-        "/pentestEngagement/http/identities/1/credential",
-        "/pentestEngagement/http/protectedDestinations/0",
-        "/pentestEngagement/http/routes/0",
-        "/pentestEngagement/policy",
-        "/resolvedRuntimeConfigProvenance",
-        "/resolvedRuntimeConfigProvenance/agentLabels/0",
-        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
-        "/resolvedRuntimeConfigProvenance/default",
-        "/resolvedRuntimeConfigProvenance/default/config",
-        "/resolvedRuntimeConfigProvenance/llmCredential",
-        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
-        "/resolvedRuntimeConfigProvenance/runLabels/0",
-        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
-        "/runtimeSettings",
-        "/runtimeSettings/pentestIdentities/account-a",
-        "/runtimeSettings/pentestIdentities/account-a/credential"
-      ],
-      "duplicateKey": [
-        "",
-        "/agentTemplate",
-        "/agentTemplate/instructions",
-        "/agentTemplate/modelPolicy",
-        "/agentTemplate/modelPolicy/ref",
-        "/agentTemplate/ref",
-        "/agentTemplate/runtime",
-        "/agentTemplate/sandboxProfile",
-        "/agentTemplate/toolsets/0",
-        "/agentTemplate/toolsets/0/ref",
-        "/modelPolicy",
-        "/modelPolicy/ref",
-        "/pentestEngagement",
-        "/pentestEngagement/budgets",
-        "/pentestEngagement/engagement",
-        "/pentestEngagement/http",
-        "/pentestEngagement/http/identities/0",
-        "/pentestEngagement/http/identities/1",
-        "/pentestEngagement/http/identities/1/credential",
-        "/pentestEngagement/http/protectedDestinations/0",
-        "/pentestEngagement/http/routes/0",
-        "/pentestEngagement/policy",
-        "/resolvedRuntimeConfigProvenance",
-        "/resolvedRuntimeConfigProvenance/agentLabels/0",
-        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
-        "/resolvedRuntimeConfigProvenance/default",
-        "/resolvedRuntimeConfigProvenance/default/config",
-        "/resolvedRuntimeConfigProvenance/llmCredential",
-        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
-        "/resolvedRuntimeConfigProvenance/runLabels/0",
-        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
-        "/runMetadataLabels",
-        "/runtimeSettings",
-        "/runtimeSettings/pentestIdentities",
-        "/runtimeSettings/pentestIdentities/account-a",
-        "/runtimeSettings/pentestIdentities/account-a/credential",
-        "/runtimeSettings/pentestIdentities/account-a/fields"
-      ]
-    },
-    "pentest-allocation-preflight.json": {
-      "enum": [
-        "/apiVersion",
-        "/pentestEngagement/accessMode",
-        "/pentestEngagement/http/adapter",
-        "/pentestEngagement/http/identities/0/id",
-        "/pentestEngagement/http/identities/0/kind",
-        "/pentestEngagement/http/routes/0/actionClasses/0",
-        "/pentestEngagement/http/routes/0/methods/0",
-        "/pentestEngagement/policy/activeChecks",
-        "/pentestEngagement/policy/replayPolicy",
-        "/pentestEngagement/policy/requiredCapabilities/0",
-        "/pentestEngagement/policy/requiredCapabilities/1",
-        "/pentestEngagement/policy/retryPolicy",
-        "/pentestEngagement/policy/version",
-        "/pentestEngagement/schema",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/kind",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/kind",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/kind",
-        "/workerSessionMode"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/logicalAgentName",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/namespace",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/name",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/namespace",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/0/origins/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/http/protectedDestinations/0/addresses/0",
-          "maxLength": 45
-        },
-        {
-          "pointer": "/pentestEngagement/http/protectedDestinations/0/hostname",
-          "maxLength": 253
-        },
-        {
-          "pointer": "/pentestEngagement/http/routes/0/origin",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/http/routes/0/pathPrefixes/0",
-          "maxLength": 8192
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
-          "maxLength": 128
-        },
-        {
-          "pointer": "/runMetadataLabels/eval.id",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/runMetadataLabels/purpose",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/logicalAgentName",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/namespace",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/name",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/engagement/namespace",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/identities/0/origins/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/protectedDestinations/0/addresses/0",
-          "maxLength": 45,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/protectedDestinations/0/hostname",
-          "maxLength": 253,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/routes/0/origin",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/http/routes/0/pathPrefixes/0",
-          "maxLength": 8192,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/0",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/pentestEngagement/policy/requiredCapabilities/1",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/llmCredential/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2/credentialId",
-          "maxLength": 128,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runMetadataLabels/eval.id",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runMetadataLabels/purpose",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/agentTemplate",
-        "/agentTemplate/instructions",
-        "/agentTemplate/modelPolicy",
-        "/agentTemplate/modelPolicy/ref",
-        "/agentTemplate/ref",
-        "/agentTemplate/runtime",
-        "/agentTemplate/sandboxProfile",
-        "/agentTemplate/toolsets/0",
-        "/agentTemplate/toolsets/0/ref",
-        "/modelPolicy",
-        "/modelPolicy/ref",
-        "/pentestEngagement",
-        "/pentestEngagement/budgets",
-        "/pentestEngagement/engagement",
-        "/pentestEngagement/http",
-        "/pentestEngagement/http/identities/0",
-        "/pentestEngagement/http/protectedDestinations/0",
-        "/pentestEngagement/http/routes/0",
-        "/pentestEngagement/policy",
-        "/resolvedRuntimeConfigProvenance",
-        "/resolvedRuntimeConfigProvenance/agentLabels/0",
-        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
-        "/resolvedRuntimeConfigProvenance/default",
-        "/resolvedRuntimeConfigProvenance/default/config",
-        "/resolvedRuntimeConfigProvenance/llmCredential",
-        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
-        "/resolvedRuntimeConfigProvenance/runLabels/0",
-        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
-        "/runtimeSettings"
-      ],
-      "duplicateKey": [
-        "",
-        "/agentTemplate",
-        "/agentTemplate/instructions",
-        "/agentTemplate/modelPolicy",
-        "/agentTemplate/modelPolicy/ref",
-        "/agentTemplate/ref",
-        "/agentTemplate/runtime",
-        "/agentTemplate/sandboxProfile",
-        "/agentTemplate/toolsets/0",
-        "/agentTemplate/toolsets/0/ref",
-        "/modelPolicy",
-        "/modelPolicy/ref",
-        "/pentestEngagement",
-        "/pentestEngagement/budgets",
-        "/pentestEngagement/engagement",
-        "/pentestEngagement/http",
-        "/pentestEngagement/http/identities/0",
-        "/pentestEngagement/http/protectedDestinations/0",
-        "/pentestEngagement/http/routes/0",
-        "/pentestEngagement/policy",
-        "/resolvedRuntimeConfigProvenance",
-        "/resolvedRuntimeConfigProvenance/agentLabels/0",
-        "/resolvedRuntimeConfigProvenance/agentLabels/0/config",
-        "/resolvedRuntimeConfigProvenance/default",
-        "/resolvedRuntimeConfigProvenance/default/config",
-        "/resolvedRuntimeConfigProvenance/llmCredential",
-        "/resolvedRuntimeConfigProvenance/llmGatewayConfig",
-        "/resolvedRuntimeConfigProvenance/runLabels/0",
-        "/resolvedRuntimeConfigProvenance/runLabels/0/config",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/0",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/1",
-        "/resolvedRuntimeConfigProvenance/runtimeCredentialRefs/2",
-        "/runMetadataLabels",
-        "/runtimeSettings"
-      ]
-    },
-    "pentest-reply-authorized.json": {
-      "enum": [
-        "/apiVersion",
-        "/state"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        ""
-      ],
-      "duplicateKey": [
-        ""
-      ]
-    },
-    "pentest-reply-cancelled_before_send.json": {
-      "enum": [
-        "/apiVersion",
-        "/outcome/kind",
-        "/outcome/reason",
-        "/outcome/responseBytes",
-        "/state"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/outcome"
-      ],
-      "duplicateKey": [
-        "",
-        "/outcome"
-      ]
-    },
-    "pentest-reply-completed.json": {
-      "enum": [
-        "/apiVersion",
-        "/outcome/kind",
-        "/outcome/responseBytes",
-        "/state"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/outcome"
-      ],
-      "duplicateKey": [
-        "",
-        "/outcome"
-      ]
-    },
-    "pentest-reply-denied.json": {
-      "enum": [
-        "/apiVersion",
-        "/outcome/kind",
-        "/outcome/reason",
-        "/outcome/responseBytes",
-        "/state"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/outcome"
-      ],
-      "duplicateKey": [
-        "",
-        "/outcome"
-      ]
-    },
-    "pentest-reply-failed.json": {
-      "enum": [
-        "/apiVersion",
-        "/outcome/kind",
-        "/outcome/reason",
-        "/outcome/responseBytes",
-        "/state"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/outcome"
-      ],
-      "duplicateKey": [
-        "",
-        "/outcome"
-      ]
-    },
-    "pentest-reply-prepared.json": {
-      "enum": [
-        "/apiVersion",
-        "/state"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        ""
-      ],
-      "duplicateKey": [
-        ""
-      ]
-    },
-    "pentest-reply-sending.json": {
-      "enum": [
-        "/apiVersion",
-        "/state"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        ""
-      ],
-      "duplicateKey": [
-        ""
-      ]
-    },
-    "pentest-reply-started.json": {
-      "enum": [
-        "/apiVersion",
-        "/state"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        ""
-      ],
-      "duplicateKey": [
-        ""
-      ]
-    },
-    "pentest-reply-unknown_outcome.json": {
-      "enum": [
-        "/apiVersion",
-        "/outcome/kind",
-        "/outcome/reason",
-        "/outcome/responseBytes",
-        "/state"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/grantId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        "",
-        "/outcome"
-      ],
-      "duplicateKey": [
-        "",
-        "/outcome"
-      ]
-    },
-    "pentest-reply-waiting.json": {
-      "enum": [
-        "/apiVersion",
-        "/state"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/actionId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/attemptId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        ""
-      ],
-      "duplicateKey": [
-        ""
-      ]
-    },
-    "pentest-transport-stop.json": {
-      "enum": [
-        "/apiVersion"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/allocationId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/expectedRuntimeInstanceId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/allocationId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/expectedRuntimeInstanceId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        ""
-      ],
-      "duplicateKey": [
-        ""
-      ]
-    },
-    "pentest-transport-stopped.json": {
-      "enum": [
-        "/apiVersion"
-      ],
-      "maxLength": [
-        {
-          "pointer": "/allocationId",
-          "maxLength": 256
-        },
-        {
-          "pointer": "/runtimeInstanceId",
-          "maxLength": 256
-        }
-      ],
-      "maxBytes": [
-        {
-          "pointer": "/allocationId",
-          "maxLength": 256,
-          "verdict": "reject"
-        },
-        {
-          "pointer": "/runtimeInstanceId",
-          "maxLength": 256,
-          "verdict": "reject"
-        }
-      ],
-      "unknownMember": [
-        ""
-      ],
-      "duplicateKey": [
-        ""
       ]
     },
     "release-allocation.json": {

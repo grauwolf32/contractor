@@ -15,7 +15,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -42,9 +42,11 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 	f.service.now = time.Now
 	document := f.document("http://127.0.0.1")
 	if controlled {
-		document.Policy.RequiredCapabilities = append(document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterPentestTargetHTTP))
+		document.Policy.RequiredCapabilities = append(document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterHTTPTarget))
 	}
 	if accessMode == "source-assisted" {
+		requests := uint32(17)
+		document.Budgets.TargetRequests = &requests
 		document.AccessMode = accessMode
 		source, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "source"}, artifacts.Payload{MediaType: "text/plain", Data: []byte("print('fixture source')")}, nil)
 		if err != nil {
@@ -54,9 +56,9 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 		if err != nil {
 			t.Fatal(err)
 		}
-		document.Inputs = append(document.Inputs, pentestcontract.Input{ID: "source", Role: "source", Artifact: source.Ref, ContentDigest: metadata.Digest})
+		document.Inputs = append(document.Inputs, engagementcontract.Input{ID: "source", Role: "source", Artifact: source.Ref, ContentDigest: metadata.Digest})
 		f.credential(t, "allocated-account", f.project.OwnerID)
-		document.Identities = append(document.Identities, pentestcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "allocated-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+		document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "allocated-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	}
 	draft, err := f.create(t, "allocation-engagement", document)
 	if err != nil {
@@ -120,13 +122,13 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 	if err != nil {
 		t.Fatal(err)
 	}
-	protected := func(context.Context) ([]pentestcontract.ProtectedDestination, error) {
+	protected := func(context.Context) ([]engagementcontract.ProtectedDestination, error) {
 		if f.pool.Stat().AcquiredConns() != 0 {
 			t.Fatal("infrastructure resolution held a database transaction")
 		}
-		return []pentestcontract.ProtectedDestination{{Hostname: "server.example", Addresses: []string{"10.22.1.2"}, Port: 443}}, nil
+		return []engagementcontract.ProtectedDestination{{Hostname: "server.example", Addresses: []string{"10.22.1.2"}, Port: 443}}, nil
 	}
-	requirements, err := AllocationPentestAdapterRequirements(f.ctx, f.pool, runID, stage.StageExecutionID)
+	requirements, err := AllocationEngagementAdapterRequirements(f.ctx, f.pool, runID, stage.StageExecutionID)
 	if err != nil || (len(requirements) == 1) != controlled {
 		t.Fatalf("requirements=%v err=%v", requirements, err)
 	}
@@ -140,18 +142,27 @@ func testEngagementStartToPrivateAllocationPins(t *testing.T, accessMode string,
 		t.Fatalf("private projection=%+v %v", first, err)
 	}
 	pin := baseline.Engagement
-	if first.EngagementDigest != pin.Artifact.Digest || first.PolicyDigest != pin.PolicyDigest || first.AuthorizedBy != f.project.OwnerID || !first.AuthorizedAt.Equal(pin.AuthorizedAt) || first.Budgets != document.Budgets || !first.Engagement.SameExact(pin.Artifact.Ref) || (first.HTTP != nil) != controlled {
+	if controlled {
+		if document.Budgets.TargetRequests == nil {
+			if first.HTTP.Limits != nil {
+				t.Fatal("omitted limits acquired a default")
+			}
+		} else if first.HTTP.Limits == nil || first.HTTP.Limits.TargetRequests == nil || *first.HTTP.Limits.TargetRequests != *document.Budgets.TargetRequests {
+			t.Fatal("allocation lost the engagement's explicit HTTP limit")
+		}
+	}
+	if first.EngagementDigest != pin.Artifact.Digest || first.PolicyDigest != pin.PolicyDigest || first.AuthorizedBy != f.project.OwnerID || !first.AuthorizedAt.Equal(pin.AuthorizedAt) || !first.Engagement.SameExact(pin.Artifact.Ref) || (first.HTTP != nil) != controlled {
 		t.Fatalf("private projection drifted or exposed unassigned authority: %+v", first)
 	}
 	if controlled && (!reflect.DeepEqual(first.HTTP.Routes, document.Scope.Routes) || first.HTTP.Identities[0].ID != "anonymous" || first.HTTP.Identities[0].Credential != nil) {
 		t.Fatal("controlled assignment drifted or exposed identity authority")
 	}
-	document.Target.Deployment = &pentestcontract.Deployment{Marker: "new mutable document"}
+	document.Target.Deployment = &engagementcontract.Deployment{Marker: "new mutable document"}
 	replacement, err := json.Marshal(document)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: pin.Artifact.Ref.Namespace, Name: pin.Artifact.Ref.Name}, artifacts.Payload{MediaType: pentestcontract.MediaType, Data: replacement}, pin.Artifact.Ref.Revision); err != nil {
+	if _, err = f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: pin.Artifact.Ref.Namespace, Name: pin.Artifact.Ref.Name}, artifacts.Payload{MediaType: engagementcontract.MediaType, Data: replacement}, pin.Artifact.Ref.Revision); err != nil {
 		t.Fatal(err)
 	}
 	prohibited := contracts.ActiveChecksProhibited

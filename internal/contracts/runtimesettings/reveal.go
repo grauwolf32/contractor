@@ -20,22 +20,22 @@ func (s RuntimeSettings) RevealJSON() ([]byte, error) {
 	type plain RuntimeSettings
 	return json.Marshal(struct {
 		plain
-		PentestIdentities map[string]revealedPentestIdentity `json:"pentestIdentities,omitempty"`
-		LLMGatewayToken   *string                            `json:"llmGatewayToken,omitempty"`
-		Telemetry         *revealedTelemetry                 `json:"telemetry,omitempty"`
-		HTTPProxy         *revealedHTTPProxy                 `json:"httpProxy,omitempty"`
-		Caido             *revealedCaido                     `json:"caido,omitempty"`
-		Interactsh        *revealedInteractsh                `json:"interactsh,omitempty"`
-		HTTPOriginTarget  *revealedHTTPOriginTarget          `json:"httpOriginTarget,omitempty"`
+		HTTPIdentities   map[string]revealedHTTPIdentity `json:"httpIdentities,omitempty"`
+		LLMGatewayToken  *string                         `json:"llmGatewayToken,omitempty"`
+		Telemetry        *revealedTelemetry              `json:"telemetry,omitempty"`
+		HTTPProxy        *revealedHTTPProxy              `json:"httpProxy,omitempty"`
+		Caido            *revealedCaido                  `json:"caido,omitempty"`
+		Interactsh       *revealedInteractsh             `json:"interactsh,omitempty"`
+		HTTPOriginTarget *revealedHTTPOriginTarget       `json:"httpOriginTarget,omitempty"`
 	}{
-		plain:             plain(s),
-		PentestIdentities: revealPentestIdentities(s.PentestIdentities),
-		LLMGatewayToken:   revealSecret(s.LLMGatewayToken),
-		Telemetry:         revealTelemetry(s.Telemetry),
-		HTTPProxy:         revealHTTPProxy(s.HTTPProxy),
-		Caido:             revealCaido(s.Caido),
-		Interactsh:        revealInteractsh(s.Interactsh),
-		HTTPOriginTarget:  revealHTTPOriginTarget(s.HTTPOriginTarget),
+		plain:            plain(s),
+		HTTPIdentities:   revealHTTPIdentities(s.HTTPIdentities),
+		LLMGatewayToken:  revealSecret(s.LLMGatewayToken),
+		Telemetry:        revealTelemetry(s.Telemetry),
+		HTTPProxy:        revealHTTPProxy(s.HTTPProxy),
+		Caido:            revealCaido(s.Caido),
+		Interactsh:       revealInteractsh(s.Interactsh),
+		HTTPOriginTarget: revealHTTPOriginTarget(s.HTTPOriginTarget),
 	})
 }
 
@@ -146,22 +146,22 @@ func revealHTTPOriginTarget(settings *HTTPOriginTargetSettings) *revealedHTTPOri
 	}
 }
 
-type revealedPentestIdentity struct {
+type revealedHTTPIdentity struct {
 	Credential RuntimeCredentialRef `json:"credential"`
 	Fields     map[string]string    `json:"fields"`
 }
 
-func revealPentestIdentities(source map[string]PentestIdentityMaterial) map[string]revealedPentestIdentity {
+func revealHTTPIdentities(source map[string]HTTPIdentityMaterial) map[string]revealedHTTPIdentity {
 	if source == nil {
 		return nil
 	}
-	result := make(map[string]revealedPentestIdentity, len(source))
+	result := make(map[string]revealedHTTPIdentity, len(source))
 	for id, material := range source {
 		fields := make(map[string]string, len(material.Fields))
 		for name, value := range material.Fields {
 			fields[name] = value.Reveal()
 		}
-		result[id] = revealedPentestIdentity{Credential: material.Credential, Fields: fields}
+		result[id] = revealedHTTPIdentity{Credential: material.Credential, Fields: fields}
 	}
 	return result
 }

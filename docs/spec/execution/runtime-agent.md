@@ -1182,7 +1182,7 @@ advertised execution capability or an additional operator setting.
 
 Only source/workspace ZIP hydration and selected Skill package preparation use
 it; each still extracts and validates a fresh allocation-owned directory.
-Overlay state, arbitrary Artifact reads, HTTP/cookie sessions, private pentest
+Overlay state, arbitrary Artifact reads, HTTP/cookie sessions, private engagement
 evidence, Interactsh, credentials and model/conversation state are ineligible.
 Direct workspace reads still acquire current disk snapshots (WSP-R71).
 

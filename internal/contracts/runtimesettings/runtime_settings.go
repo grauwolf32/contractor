@@ -226,11 +226,11 @@ func (s HTTPProxySettings) Validate() error {
 }
 
 type RuntimeSettings struct {
-	PentestIdentities   map[string]PentestIdentityMaterial `json:"pentestIdentities,omitempty"`
-	SourceArchiveLimits *sourcezip.Limits                  `json:"sourceArchiveLimits,omitempty" strictjson:"nullable"`
-	LLMRecovery         bool                               `json:"llmRecovery,omitempty"`
-	LLMGatewayURL       string                             `json:"llmGatewayUrl,omitempty"`
-	LLMGatewayToken     *contracts.SecretString            `json:"llmGatewayToken,omitempty" strictjson:"nullable"`
+	HTTPIdentities      map[string]HTTPIdentityMaterial `json:"httpIdentities,omitempty"`
+	SourceArchiveLimits *sourcezip.Limits               `json:"sourceArchiveLimits,omitempty" strictjson:"nullable"`
+	LLMRecovery         bool                            `json:"llmRecovery,omitempty"`
+	LLMGatewayURL       string                          `json:"llmGatewayUrl,omitempty"`
+	LLMGatewayToken     *contracts.SecretString         `json:"llmGatewayToken,omitempty" strictjson:"nullable"`
 	// LLMGatewayFailureSignatures carries the selected Gateway's declared set;
 	// absent means the protocol default, exactly as on the Gateway body.
 	LLMGatewayFailureSignatures *llmgateway.GatewayFailureSignatures `json:"llmGatewayFailureSignatures,omitempty" strictjson:"nullable"`
@@ -247,7 +247,7 @@ type RuntimeSettings struct {
 // Callers use them only at boundaries that must reject or redact plaintext.
 func (s RuntimeSettings) SecretValues() []string {
 	result := make([]string, 0, 36)
-	for _, material := range s.PentestIdentities {
+	for _, material := range s.HTTPIdentities {
 		for _, value := range material.Fields {
 			result = append(result, value.Reveal())
 		}
@@ -292,12 +292,12 @@ func (s RuntimeSettings) SecretValues() []string {
 }
 
 func (s RuntimeSettings) Validate() error {
-	if s.PentestIdentities != nil && (len(s.PentestIdentities) < 1 || len(s.PentestIdentities) > 7) {
-		return contracts.Invalidf("pentest identities exceed their bound")
+	if s.HTTPIdentities != nil && (len(s.HTTPIdentities) < 1 || len(s.HTTPIdentities) > 7) {
+		return contracts.Invalidf("engagement identities exceed their bound")
 	}
-	for id, material := range s.PentestIdentities {
+	for id, material := range s.HTTPIdentities {
 		if id == "anonymous" || !targetIdentityPattern.MatchString(id) || material.Validate() != nil {
-			return contracts.Invalidf("pentest identity material is invalid")
+			return contracts.Invalidf("engagement identity material is invalid")
 		}
 	}
 	if s.SourceArchiveLimits != nil {

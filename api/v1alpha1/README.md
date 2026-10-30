@@ -119,7 +119,7 @@ tokens, the public create request, Go RuntimeSettings decoding, the Runtime's
 schema are checked against it; the Runtime also checks that h11 sends every
 value it accepts.
 
-`target-credential-cases.json` holds the pentest target credentials (RCF-R184).
+`target-credential-cases.json` holds the engagement target credentials (RCF-R184).
 Its references are `RuntimeCredentialRef` texts checked by Go decoding, the
 Runtime model and the `RuntimeCredentialRef` definition of this schema; its
 materials are the creation material of each target kind, checked by the
@@ -253,22 +253,11 @@ above when retention-independent paging is required. The golden metadata fixture
 both language readers; generated required-member and mutation cases cover
 missing, duplicate, unknown and overlong members.
 
-The pentest preflight boundary uses `pentest-preflight-request.schema.json` and
-`pentest-preflight-response.schema.json` for the Server's allocation-bound
-`run`/`stop` control command. `stopped: true` is evidence only for the exact
-allocation and Runtime instance after its transport has joined.
-
-`pentest-action-command.schema.json` and `pentest-action-reply.schema.json` define
-one authenticated allocation endpoint, `POST /pentest-actions`, with the closed
-`prepare`, `grant`, `sending`, `started` and `settle` operations. The Server derives
-actor identity and semantic receipt keys. Waiting carries only `retryAfterMs`;
-an authorized grant carries its immutable identity and a remaining allowance of
-at most 120000 ms. Replays never renew that allowance. Safe outcomes contain no
-headers, bodies, URL queries or redirect Location; a redirect continuation is
-bound by the digest of its canonical target URL.
-
-`pentest-allocation.schema.json` contains an optional typed `preflight` assignment
-only when the pinned policy requires `pentest-target-http@1`. It carries explicit
-anonymous seeds, scope and protected infrastructure destinations. An allocation
-without this assignment performs no target work. The shared fixture index covers
-every command/reply state, missing/null/unknown fields, aliases and numeric bounds.
+The engagement is a typed Project artifact. Its private allocation projection
+in `engagement-allocation.schema.json` carries exact attribution and an optional
+`http` assignment with scope, assigned identities, protected infrastructure and
+any explicitly configured `limits`. HTTP limits come only from the engagement;
+an omitted field is not supplied by process configuration or a default. Every
+allocation enforces its own limits in Runtime. There is no per-request Server
+permit/journal protocol or separate target transport-stop RPC. Ordinary
+allocation cancellation/release joins target work and clears private state.

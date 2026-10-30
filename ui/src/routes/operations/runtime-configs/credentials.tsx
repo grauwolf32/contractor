@@ -39,9 +39,9 @@ const KIND_LABELS: Record<CredentialKind, string> = {
   "interactsh-token@1": "Interactsh server token",
   "http-origin-basic@1": "HTTP origin basic auth",
   "http-origin-bearer@1": "HTTP origin bearer token",
-  "target-basic@1": "Pentest target basic auth",
-  "target-bearer@1": "Pentest target bearer token",
-  "target-cookies@1": "Pentest target cookies",
+  "target-basic@1": "HTTP target basic auth",
+  "target-bearer@1": "HTTP target bearer token",
+  "target-cookies@1": "HTTP target cookies",
 };
 
 interface HeaderDraft {

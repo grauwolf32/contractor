@@ -18,7 +18,7 @@ from contractor_runtime.adapters import (
     AdapterPreparationError,
     AllocationAdapterHost,
 )
-from contractor_runtime.adapters.pentest_target import PentestHTTPTransport
+from contractor_runtime.adapters.http_transport import HTTPTransport
 from contractor_runtime.agent_skills.runtime import AgentSkillPreparationError
 from contractor_runtime.allocation.cleanup import (
     _await_before_deadline,
@@ -42,10 +42,6 @@ from contractor_runtime.contracts import (
     ReleaseAllocationRequest,
     TerminationError,
     WorkerHandle,
-)
-from contractor_runtime.contracts.pentest_action import (
-    PentestTransportRequest,
-    PentestTransportResponse,
 )
 from contractor_runtime.factories import (
     FactoryRegistry,
@@ -121,7 +117,6 @@ class AllocationService:
         self._lock = asyncio.Lock()
         self._context: _AllocationContext | None = None
         self._released_allocation_id: str | None = None
-        self._released_pentest_joined = False
         self._fingerprint_key = os.urandom(32)
 
     def _force_exit(self, code: int) -> Any:
@@ -251,7 +246,7 @@ class AllocationService:
             collector: SitemapCollector | None = None
             worker: WorkerRuntime | None = None
             execution: PreparedExecution | None = None
-            pentest: PentestHTTPTransport | None = None
+            http_transport: HTTPTransport | None = None
             # The slot lock and validation have accepted this owner. Include
             # adapter/workspace/Worker preparation in the requested interval.
             resource_metrics = self._start_resources(spec)
@@ -333,12 +328,12 @@ class AllocationService:
                 if execution is not None:
                     execution.bind_failure(worker_state.execution.fail)
                 if (
-                    spec.pentestEngagement is not None
-                    and spec.pentestEngagement.http is not None
-                    and self._factories.pentest_target_factory is not None
+                    spec.engagement is not None
+                    and spec.engagement.http is not None
+                    and self._factories.http_transport_factory is not None
                 ):
-                    pentest = self._factories.pentest_target_factory.create(spec)
-                    pentest.configure(authority_deadline=self._confirmed_control_deadline)
+                    http_transport = self._factories.http_transport_factory.create(spec)
+                    http_transport.configure(authority_deadline=self._confirmed_control_deadline)
                 async with asyncio.timeout(
                     max(0.0, (adapter_deadline - self._now()).total_seconds())
                 ):
@@ -351,14 +346,12 @@ class AllocationService:
                         execution,
                         tools,
                         adapter_deadline,
-                        pentest,
+                        http_transport,
                     )
                 # Target identity credentials belong only to controlled HTTP
                 # owner. The ordinary Worker/summarizer must not copy them
                 # into its own long-lived redaction or model state.
-                worker_settings = spec.runtime_settings.model_copy(
-                    update={"pentest_identities": None}
-                )
+                worker_settings = spec.runtime_settings.model_copy(update={"http_identities": None})
                 worker = await runtime_factory.create(
                     WorkerBuildContext(
                         allocation_id=spec.allocation_id,
@@ -432,12 +425,11 @@ class AllocationService:
                     resource_metrics=resource_metrics,
                     collector=collector,
                     prepare_response=response,
-                    pentest=pentest,
+                    http_transport=http_transport,
                 )
                 await self._state.commit_allocation(spec.allocation_id)
                 self._context = context
                 self._released_allocation_id = None
-                self._released_pentest_joined = False
                 return response
             except AdapterPreparationError as error:
                 await self._rollback_prepare(
@@ -450,7 +442,7 @@ class AllocationService:
                     adapter_host,
                     execution,
                     collector=collector,
-                    pentest=pentest,
+                    http_transport=http_transport,
                 )
                 if not error.cleanup_confirmed:
                     await self._state.fence_allocation(spec.allocation_id)
@@ -472,7 +464,7 @@ class AllocationService:
                     adapter_host,
                     execution,
                     collector=collector,
-                    pentest=pentest,
+                    http_transport=http_transport,
                 )
                 raise AllocationError(
                     error.code,
@@ -491,7 +483,7 @@ class AllocationService:
                     adapter_host,
                     execution,
                     collector=collector,
-                    pentest=pentest,
+                    http_transport=http_transport,
                 )
                 if not error.cleanup_confirmed:
                     await self._state.fence_allocation(spec.allocation_id)
@@ -513,7 +505,7 @@ class AllocationService:
                     adapter_host,
                     execution,
                     collector=collector,
-                    pentest=pentest,
+                    http_transport=http_transport,
                 )
                 raise
             except asyncio.CancelledError:
@@ -527,7 +519,7 @@ class AllocationService:
                     adapter_host,
                     execution,
                     collector=collector,
-                    pentest=pentest,
+                    http_transport=http_transport,
                 )
                 raise
             except (FindingsError, HTTPToolError) as error:
@@ -541,7 +533,7 @@ class AllocationService:
                     adapter_host,
                     execution,
                     collector=collector,
-                    pentest=pentest,
+                    http_transport=http_transport,
                 )
                 raise AllocationError(
                     error.code,
@@ -564,7 +556,7 @@ class AllocationService:
                     adapter_host,
                     execution,
                     collector=collector,
-                    pentest=pentest,
+                    http_transport=http_transport,
                 )
                 raise AllocationError(
                     "allocation_preparation_failed",
@@ -579,35 +571,6 @@ class AllocationService:
                     # Failed prepare has no final-report delivery route. Keep
                     # its existing rollback semantics, discard observations.
                     resource_metrics.close()
-
-    async def pentest_transport(self, request: PentestTransportRequest) -> PentestTransportResponse:
-        # Only attach/join under the slot lock. Target I/O and shutdown joins
-        # run outside it, so abort and lease loss can always fence the task.
-        async with self._lock:
-            if request.expected_runtime_instance_id != self._state.instance_id:
-                raise _conflict("controlled HTTP identifies another Runtime instance")
-            context = self._context
-            if context is None:
-                if (
-                    self._released_allocation_id == request.allocation_id
-                    and self._released_pentest_joined
-                ):
-                    return self._transport_response(request)
-                raise _not_found()
-            context = self._require_context(request.allocation_id)
-            resource = context.pentest
-            if resource is None:
-                raise _conflict("allocation has no controlled HTTP assignment")
-        await self._stop_pentest_or_exit(context, self._now() + timedelta(seconds=10))
-        return self._transport_response(request)
-
-    def _transport_response(self, request):
-        return PentestTransportResponse(
-            apiVersion=API_VERSION,
-            allocationId=request.allocation_id,
-            runtimeInstanceId=self._state.instance_id,
-            stopped=True,
-        )
 
     async def finalize(self, request: FinalizeAllocationRequest) -> AllocationFinalResponse:
         return await self._terminate(
@@ -673,7 +636,6 @@ class AllocationService:
                 await self._prepare_release_cleanup(context)
             await self._state.confirm_release(context.allocation_id, keep_fenced=keep_fenced)
             self._released_allocation_id = context.allocation_id
-            self._released_pentest_joined = context.pentest is not None
             context.terminal_response = None
             self._context = None
 
@@ -737,7 +699,7 @@ class AllocationService:
         context: _AllocationContext,
         deadline: datetime,
     ) -> None:
-        await self._stop_pentest_or_exit(context, deadline)
+        await self._close_http_or_exit(context, deadline)
         await _close_tools(context.tools)
         if context.collector is not None:
             await context.collector.close()
@@ -845,7 +807,7 @@ class AllocationService:
         execution: PreparedExecution | None,
         result: dict[str, ToolInstance],
         preparation_deadline: datetime,
-        pentest: PentestHTTPTransport | None = None,
+        http_transport: HTTPTransport | None = None,
     ) -> None:
         for selection in spec.agent_template.toolsets:
             ref = f"{selection.ref.toolset_id}@{selection.ref.version}"
@@ -872,7 +834,7 @@ class AllocationService:
             created = await factory.create_selected(
                 **(
                     {
-                        "controlled_http": pentest,
+                        "controlled_http": http_transport,
                         "deployment_marker": (
                             spec.agent_template.sitemap.deployment
                             if spec.agent_template.sitemap is not None
@@ -1012,7 +974,7 @@ class AllocationService:
             if context.execution is not None:
                 context.execution.reject()
             await self._state.begin_draining(allocation_id)
-            await self._stop_pentest_or_exit(context, deadline)
+            await self._close_http_or_exit(context, deadline)
             worker = context.worker
             if worker is None:
                 raise _conflict("allocation Worker is already absent")
@@ -1073,7 +1035,7 @@ class AllocationService:
             raise ValueError("Worker shutdown grace must be positive")
         if context.execution is not None:
             context.execution.reject()
-        await self._stop_pentest_or_exit(context, self._now() + timedelta(seconds=timeout_seconds))
+        await self._close_http_or_exit(context, self._now() + timedelta(seconds=timeout_seconds))
         if context.worker is None:
             if context.release_cleanup_task is not None:
                 await self._state.fence_allocation(context.allocation_id)
@@ -1129,11 +1091,13 @@ class AllocationService:
         )
         await self._state.fence_allocation(context.allocation_id)
 
-    async def _stop_pentest_or_exit(self, context: _AllocationContext, deadline: datetime) -> None:
-        if context.pentest is None:
+    async def _close_http_or_exit(self, context: _AllocationContext, deadline: datetime) -> None:
+        if context.http_transport is None:
             return
         try:
-            await _await_before_deadline(context.pentest.close, deadline=deadline, now=self._now)
+            await _await_before_deadline(
+                context.http_transport.close, deadline=deadline, now=self._now
+            )
         except BaseException:
             await self._state.fence_allocation(context.allocation_id)
             self._force_exit(70)
@@ -1268,7 +1232,7 @@ class AllocationService:
         adapter_host: AllocationAdapterHost | None,
         execution: PreparedExecution | None = None,
         collector: SitemapCollector | None = None,
-        pentest: PentestHTTPTransport | None = None,
+        http_transport: HTTPTransport | None = None,
     ) -> None:
         if execution is not None:
             # Keep a full owner even when readiness was never committed. A
@@ -1292,7 +1256,7 @@ class AllocationService:
                 runtime_settings=spec.runtime_settings,
                 worker=worker,
                 execution=execution,
-                pentest=pentest,
+                http_transport=http_transport,
                 collector=collector,
             )
             self._context = context
@@ -1327,8 +1291,8 @@ class AllocationService:
             except Exception:
                 failed = True
 
-        if pentest is not None:
-            await attempt(pentest.close)
+        if http_transport is not None:
+            await attempt(http_transport.close)
         if worker is not None:
             await attempt(lambda: worker.abort(deadline))
         await attempt(lambda: _close_tools(tools))

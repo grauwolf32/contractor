@@ -91,12 +91,6 @@ func (c *Controller) reconcile(
 	}
 	defer cancel()
 	audit := snapshot.Audit
-	// Reconcile exact transport stop proofs before collecting/deleting child Runs.
-	// Generic release/lease expiry is deliberately insufficient for this phase.
-	if changed, err := c.reconcilePentestActions(ctx, claim, snapshot); changed || err != nil {
-		return changed, err
-	}
-
 	// A non-nil phase result stops this pass, including retryable no-op outcomes.
 	if result := c.reconcileReviewAndDeadline(ctx, claim, snapshot); result != nil {
 		return result.changed, result.err

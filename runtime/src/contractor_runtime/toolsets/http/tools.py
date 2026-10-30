@@ -1116,7 +1116,7 @@ class HTTPRequestTool(_HTTPTool):
     Only a bounded text preview is returned inline. Use http_read_body to inspect
     more text or binary content. Ordinary HTTP exchanges can be saved with finding.
     Controlled Audit HTTP keeps a private response buffer; it does not create trusted
-    pentest proof. Audit limits may be lower (at most 1 MiB response and 32 KiB headers).
+    engagement proof. Configured allocation limits may tighten the common HTTP buffer bounds.
     Audit calls use only explicit credential_id, never Project target credentials.
     http_request_unknown_outcome is nonretryable: report the gap without repeating
     the request. Audit cookie state is allocation-only, without artifact checkpoints.
