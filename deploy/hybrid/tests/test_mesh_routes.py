@@ -66,6 +66,7 @@ elif name == "route":
         if is_self:
             print("destination: " + (s["address"] if exact else s["network_address"]))
             print("      flags: " + ("<UP,HOST,DONE>" if exact else "<UP,DONE>"))
+            print("    gateway: " + s.get("self_route_gateway", s["interface"]))
             print("  interface: " + s["self_route_interface"])
         else:
             destination = s["network_address"] if exact and is_network else "default"
@@ -79,14 +80,24 @@ elif name == "route":
             print("fixture-secret: route write failed", file=sys.stderr)
             sys.exit(1)
         if not s.get("ignore_write") and not (is_self and s.get("self_ignore_write")):
+            gateway = args[args.index("-interface") + 1]
+            ifp = args[args.index("-ifp") + 1] if "-ifp" in args else None
             if is_self:
                 s["self_exact"] = args[1] != "delete"
-                s["self_route_interface"] = (
-                    s["route_interface"] if args[1] == "delete" else args[-1]
-                )
+                s["self_route_gateway"] = gateway
+                if args[1] == "delete":
+                    s["self_route_interface"] = s["route_interface"]
+                elif ifp and not s.get("ignore_ifp"):
+                    s["self_route_interface"] = ifp
+                elif args[1] == "add":
+                    s["self_route_interface"] = gateway
             else:
                 s["exact"] = True
-                s["route_interface"] = args[-1]
+                s["route_gateway"] = gateway
+                if ifp and not s.get("ignore_ifp"):
+                    s["route_interface"] = ifp
+                elif args[1] == "add":
+                    s["route_interface"] = gateway
 path.write_text(json.dumps(s))
 """
 
@@ -165,8 +176,8 @@ class MacOSMeshRoutes(unittest.TestCase):
         self.assertEqual(
             self.mutations(),
             [
-                ["-n", "add", "-net", "10.89.0.0/24", "-interface", "utun23"],
-                ["-n", "change", "-host", "10.89.0.10", "-interface", "lo0"],
+                ["-n", "add", "-net", "10.89.0.0/24", "-interface", "utun23", "-ifp", "utun23"],
+                ["-n", "change", "-host", "10.89.0.10", "-interface", "lo0", "-ifp", "lo0"],
             ],
         )
         self.assertIn("10.89.0.0/24 via utun23", output)
@@ -183,7 +194,7 @@ class MacOSMeshRoutes(unittest.TestCase):
         self.invoke()
         self.assertEqual(
             self.mutations(),
-            [["-n", "change", "-net", "10.89.0.0/24", "-interface", "utun19"]],
+            [["-n", "change", "-net", "10.89.0.0/24", "-interface", "utun19", "-ifp", "utun19"]],
         )
         self.assertEqual(self.calls("wg-quick"), [])
 
@@ -195,11 +206,16 @@ class MacOSMeshRoutes(unittest.TestCase):
         self.assertEqual(self.calls("wg-quick"), [])
 
     def test_existing_mesh_repairs_only_the_self_route(self):
-        self.write_state(exact=True, route_interface="utun19", self_route_interface="utun19")
+        self.write_state(
+            exact=True,
+            route_interface="utun19",
+            self_route_interface="utun19",
+            self_route_gateway="lo0",
+        )
         self.assertIn("10.89.0.10 via lo0", self.invoke())
         self.assertEqual(
             self.mutations(),
-            [["-n", "change", "-host", "10.89.0.10", "-interface", "lo0"]],
+            [["-n", "change", "-host", "10.89.0.10", "-interface", "lo0", "-ifp", "lo0"]],
         )
         self.assertEqual(self.calls("wg-quick"), [])
         before = self.mutations()
@@ -216,11 +232,11 @@ class MacOSMeshRoutes(unittest.TestCase):
         self.invoke()
         self.assertEqual(
             self.mutations(),
-            [["-n", "add", "-host", "10.89.0.10", "-interface", "lo0"]],
+            [["-n", "add", "-host", "10.89.0.10", "-interface", "lo0", "-ifp", "lo0"]],
         )
 
     def test_self_route_write_and_readback_failures_do_not_claim_readiness(self):
-        for failure in ["self_write_failed", "self_ignore_write"]:
+        for failure in ["self_write_failed", "self_ignore_write", "ignore_ifp"]:
             with self.subTest(failure=failure):
                 self.write_state(
                     exact=True,
@@ -235,6 +251,10 @@ class MacOSMeshRoutes(unittest.TestCase):
                     mesh.local_up(self.args)
                 self.assertNotIn("Local mesh ready", output.getvalue())
                 self.assertNotIn("fixture-secret", str(error.exception))
+                if failure == "ignore_ifp":
+                    state = json.loads(self.state.read_text())
+                    self.assertEqual(state["self_route_gateway"], "lo0")
+                    self.assertEqual(state["self_route_interface"], "utun19")
 
     def test_wrong_identity_or_ambiguous_address_cannot_change_routes(self):
         for values in [
@@ -327,7 +347,7 @@ class MacOSMeshRoutes(unittest.TestCase):
         self.assertLess(deletion, teardown)
         self.assertEqual(
             self.mutations(),
-            [["-n", "delete", "-host", "10.89.0.10", "-interface", "lo0"]],
+            [["-n", "delete", "-host", "10.89.0.10", "-interface", "lo0", "-ifp", "lo0"]],
         )
         self.assertEqual(
             self.calls("wg-quick"),

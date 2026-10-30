@@ -264,6 +264,8 @@ def macos_local_up(state, doc, executable):
                     str(network),
                     "-interface",
                     interface,
+                    "-ifp",
+                    interface,
                 ]
             )
         )
@@ -289,6 +291,8 @@ def macos_local_up(state, doc, executable):
                     "-host",
                     str(address),
                     "-interface",
+                    "lo0",
+                    "-ifp",
                     "lo0",
                 ]
             )
@@ -329,7 +333,21 @@ def local_down(args):
         # This /32 uses lo0 rather than utun, so wg-quick's interface-route
         # cleanup cannot own it. Also clean it after an out-of-band teardown.
         if macos_exact_host_route(own, address) and own.get("interface") == "lo0":
-            run(privileged([route, "-n", "delete", "-host", str(address), "-interface", "lo0"]))
+            run(
+                privileged(
+                    [
+                        route,
+                        "-n",
+                        "delete",
+                        "-host",
+                        str(address),
+                        "-interface",
+                        "lo0",
+                        "-ifp",
+                        "lo0",
+                    ]
+                )
+            )
             after = macos_route(route, address)
             if not after or (
                 macos_exact_host_route(after, address) and after.get("interface") == "lo0"

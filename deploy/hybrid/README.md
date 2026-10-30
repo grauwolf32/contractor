@@ -51,6 +51,9 @@ reconciles one exact host route for the controller's own mesh address through
 `lo0` (for example, `10.77.0.10/32`). Local Runtime calls to the advertised
 private API can then use local delivery, while remote peer routes still use
 the mesh interface. Both route classes are read back before reporting readiness.
+On macOS the commands pass `-ifp` to select the actual output interface as well
+as `-interface` to set the directly reachable link gateway. A changed gateway
+alone does not prove that an existing route moved to another interface.
 Repeating the command repairs routing without restarting an existing matching CLI tunnel:
 run it again after activating a personal VPN that captures mesh traffic. The
 personal VPN, default route, DNS and keys are unchanged. A conflicting or
