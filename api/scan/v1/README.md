@@ -2,7 +2,7 @@
 
 This directory defines [HTTPRequestSet](http-request-set.schema.json) and
 [ScanPlan](scan-plan.schema.json) structural schemas, and the
-[Worker error code table](testdata/worker-error-codes.json).
+[Worker error code table](../../testdata/scan/worker-error-codes.json).
 
 ## HTTPRequestSet
 
@@ -103,7 +103,7 @@ outcomes instead of silently rescanning them.
 ## Worker error codes
 
 A scan Worker observation reports `status: completed|failed` and a nullable
-`errorCode`. [worker-error-codes.json](testdata/worker-error-codes.json) lists
+`errorCode`. [worker-error-codes.json](../../testdata/scan/worker-error-codes.json) lists
 every code the Runtime scan tools emit, an example `exitCode` and the job
 outcome the Planner records for it: scanner absence is `unavailable`;
 pre-launch refusals, timeouts, truncation and malformed output are

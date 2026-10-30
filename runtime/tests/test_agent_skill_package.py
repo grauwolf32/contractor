@@ -27,11 +27,12 @@ from contractor_runtime.agent_skills.package import (
     _validate_member_path,
 )
 
-FIXTURES = Path(__file__).parents[2] / "testdata" / "agent-skills" / "cases.json"
-PORTABLE_PATHS = Path(__file__).parents[2] / "testdata" / "agent-skills" / "portable-paths.json"
+SHARED = Path(__file__).parents[2] / "api" / "testdata" / "agent-skills"
+FIXTURES = SHARED / "cases.json"
+PORTABLE_PATHS = SHARED / "portable-paths.json"
 
 
-def test_portable_paths_match_server_fixture() -> None:
+def test_shared_portable_paths_match_server_fixture() -> None:
     for case in json.loads(PORTABLE_PATHS.read_text())["cases"]:
         if case["valid"]:
             assert _validate_member_path(case["path"]) == (case["path"], False)

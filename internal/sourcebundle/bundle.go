@@ -35,7 +35,7 @@ var ErrArchiveTooLarge = errors.New("source ZIP exceeds the 64 MiB Artifact limi
 // The runtime source_analysis toolset skips files below these directories or
 // with these extensions (IGNORED_DIRECTORY_NAMES and BINARY_EXTENSIONS), and
 // files that are not strict UTF-8. It cannot open a bundle with no other
-// file. testdata/source_member_paths.json pins both lists in Go and Python.
+// file. api/testdata/source-member-paths.json pins both lists in Go and Python.
 var (
 	runtimeIgnoredDirectories = map[string]bool{
 		".git": true, ".hg": true, ".idea": true, ".mypy_cache": true, ".pytest_cache": true,

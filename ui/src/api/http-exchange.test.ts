@@ -1,7 +1,7 @@
 import { ARTIFACT_STORAGE_TIMESTAMPS } from "../test/builders";
 import { describe, expect, it } from "vitest";
 import captures from "../../../api/testdata/http-capture-cases.json";
-import attempts from "../../../internal/auditdomain/testdata/finding-http-attempts.json";
+import attempts from "../../../api/testdata/findings/finding-http-attempts.json";
 import {
   canPreviewArtifact,
   HTTP_EXCHANGE_MEDIA_TYPE,

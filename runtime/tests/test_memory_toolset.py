@@ -183,7 +183,7 @@ def test_write_replace_append_list_search_and_tag_semantics() -> None:
 
 def test_shared_memory_projection_json() -> None:
     fixtures = json.loads(
-        (Path(__file__).parents[2] / "testdata/memory/projections.json").read_text()
+        (Path(__file__).parents[2] / "api/testdata/memory/projections.json").read_text()
     )
     for fixture in fixtures:
         raw = fixture["note"]

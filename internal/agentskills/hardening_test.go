@@ -3,10 +3,11 @@ package agentskills
 import (
 	"encoding/base64"
 	"encoding/json"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
 )
 
 func TestSharedPackageCorpusCoversHardeningClasses(t *testing.T) {
@@ -35,13 +36,11 @@ func TestSharedPackageCorpusCoversHardeningClasses(t *testing.T) {
 	}
 }
 
+// FuzzValidateAgentSkillPackage seeds its corpus with the shared package
+// corpus, which TestSharedPackageCorpus checks.
 func FuzzValidateAgentSkillPackage(f *testing.F) {
-	payload, err := os.ReadFile("../../testdata/agent-skills/cases.json")
-	if err != nil {
-		f.Fatal(err)
-	}
 	var fixtures packageFixtureSet
-	if err := json.Unmarshal(payload, &fixtures); err != nil {
+	if err := json.Unmarshal(contractstest.ReadFile(f, "api", "testdata", "agent-skills", "cases.json"), &fixtures); err != nil {
 		f.Fatal(err)
 	}
 	for _, fixture := range fixtures.Cases {
