@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-110 open tasks: 38 in progress, 61 pending, 11 deferred. 1212 finished: 1202 completed, 10 archived.
+109 open tasks: 37 in progress, 61 pending, 11 deferred. 1213 finished: 1203 completed, 10 archived.
 
 ## In progress
 
@@ -48,7 +48,6 @@ the epics are in [epics.yml](epics.yml).
 | [V414-021](v414-021-migration-file-deadline.yml) | persistence | defect | P3 | Decide the client deadline of a migration file: per statement or a migration budget of its own |
 | [V414-022](v414-022-eval-purge-guard-lexer.yml) | evals | chore | P3 | Read trigger functions with the explaintest lexer in the Eval purge coverage guard and check rewrite rules |
 | [V414-024](v414-024-plan-tests-exact-reads.yml) | persistence | chore | P3 | Measure the V407-025 drain and held-credential row budgets with explaintest Analysis.Reads |
-| [V422-002](v422-002-simplify-pentest-transport.yml) | audits | chore | P2 | Simplify pentest engagement and enforce transport limits per Runtime slot |
 
 ## Pending
 
@@ -82,7 +81,7 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V55-009](v55-009-scan-candidate-ranking.yml) | feature | P2 | — | Optionally rank existing scan candidates with an LLM |
 | [V412-005](v412-005-controlled-scanner-pentest-integration.yml) | feature | P2 | V411-020 | Gate controlled ffuf execution through the pentest transport |
-| [V422-003](v422-003-nuclei-engagement-transport.yml) | feature | P2 | V422-002 | Run Nuclei with the engagement's allocation-local HTTP authority |
+| [V422-003](v422-003-nuclei-engagement-transport.yml) | feature | P2 | — | Run Nuclei with the engagement's allocation-local HTTP authority |
 
 ### Findings tools and collections (`findings`)
 
@@ -203,7 +202,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 4 | 17 | 8 | 8 | 13 |
 | Workflow catalog and document workflows (`workflows`) | 6 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 34 | 11 | 54 |
-| Audits (`audits`) | 27 | 67 | 82 | 34 | 118 |
+| Audits (`audits`) | 26 | 67 | 82 | 34 | 118 |
 | Evaluations (`evals`) | 7 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 66 | 14 | 59 |
