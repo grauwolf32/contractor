@@ -10,9 +10,9 @@ from collections import deque
 import httpx
 
 from contractor_runtime.adapters.http_transport import HTTPTransport, HTTPTransportError
+from contractor_runtime.core.http_limits import MAX_HISTORY
 from contractor_runtime.threads import to_thread_until_done
 from contractor_runtime.toolsets.common.http_capture import RecentHTTPCaptures
-from contractor_runtime.toolsets.common.http_limits import MAX_HISTORY
 from contractor_runtime.toolsets.http.capture import CapturedAttempt, CapturedExchange
 from contractor_runtime.toolsets.http.errors import HTTPToolError
 from contractor_runtime.toolsets.http.tools import (

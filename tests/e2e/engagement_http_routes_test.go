@@ -73,8 +73,13 @@ func TestEngagementHTTPRouteMatrixAcrossProcesses(t *testing.T) {
 				if len(got) < 1 || got[0].Kind != "completed" || got[0].StatusCode != 302 {
 					t.Fatalf("redirect did not actually execute: %+v", got)
 				}
-				if len(got) != 1 {
-					t.Fatalf("forbidden redirect obtained another attempt: %+v", got)
+				// A CIDR exclusion can reject after DNS admission without opening
+				// a socket. Only the initial 302 is a physical target response;
+				// exact connection/path counts above independently prove no send.
+				for _, next := range got[1:] {
+					if next.Kind != "denied" || next.Reason != "policy_denied" || next.StatusCode != 0 {
+						t.Fatalf("forbidden redirect executed: %+v", got)
+					}
 				}
 			})
 		}

@@ -10,16 +10,16 @@ import pytest
 from private_schemas import private_validator
 from pydantic import ValidationError
 
-from contractor_runtime.finding_proposals import MAX_FINDING_SUBMISSION_BYTES
-from contractor_runtime.toolsets.common import http_capture
-from contractor_runtime.toolsets.common.http_capture import CapturedHTTPExchange, RecentHTTPCaptures
-from contractor_runtime.toolsets.common.http_limits import (
+from contractor_runtime.core.http_limits import (
     MAX_EXCHANGE_ATTEMPTS,
     MAX_HEADER_BYTES,
     MAX_HISTORY,
     MAX_REQUEST_BODY_BYTES,
     MAX_RESPONSE_BODY_BYTES,
 )
+from contractor_runtime.finding_proposals import MAX_FINDING_SUBMISSION_BYTES
+from contractor_runtime.toolsets.common import http_capture
+from contractor_runtime.toolsets.common.http_capture import CapturedHTTPExchange, RecentHTTPCaptures
 
 
 def test_shared_http_finding_capture():

@@ -8,9 +8,9 @@ from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta, timezone
 from urllib.parse import quote, unquote_plus, urlsplit, urlunsplit
 
+from contractor_runtime.core.http_limits import MAX_URL_BYTES
 from contractor_runtime.core.target_policy import validate_host_syntax
 from contractor_runtime.toolsets.common.finding_locations import validate_web_url
-from contractor_runtime.toolsets.common.http_limits import MAX_URL_BYTES
 
 MAX_OBSERVATIONS = 100
 MAX_PARAMETERS = 100

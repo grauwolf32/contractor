@@ -12,9 +12,7 @@ from typing import Annotated, Any, Literal
 from pydantic import Field, field_validator, model_validator
 
 from contractor_runtime import threads
-from contractor_runtime.toolsets.common.finding_locations import ClosedModel, WebLocation
-from contractor_runtime.toolsets.common.http_evidence import HTTPHeader
-from contractor_runtime.toolsets.common.http_limits import (
+from contractor_runtime.core.http_limits import (
     MAX_EXCHANGE_ATTEMPTS,
     MAX_HEADER_BYTES,
     MAX_HISTORY,
@@ -22,6 +20,8 @@ from contractor_runtime.toolsets.common.http_limits import (
     MAX_RESPONSE_BODY_BYTES,
     header_block_bytes,
 )
+from contractor_runtime.toolsets.common.finding_locations import ClosedModel, WebLocation
+from contractor_runtime.toolsets.common.http_evidence import HTTPHeader
 
 HTTP_EXCHANGE_MEDIA_TYPE = "application/vnd.contractor.http-exchange+json"
 HTTP_EXCHANGE_SCHEMA = "contractor.http.exchange.v1"

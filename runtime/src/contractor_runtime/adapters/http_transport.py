@@ -18,9 +18,9 @@ from contractor_runtime.adapters.http_session import IdentitySession, PrivateRes
 from contractor_runtime.adapters.http_stream import ControlledBackend, RequestBoundary
 from contractor_runtime.contracts import AllocationSpec
 from contractor_runtime.contracts.engagement import MAX_URL_BYTES, HTTPLimits, resolve_redirect_url
+from contractor_runtime.core.http_limits import MAX_RESPONSE_BODY_BYTES
 from contractor_runtime.core.target_policy import Resolver, TargetDenied, TargetUnresolved
 from contractor_runtime.threads import to_thread_until_done
-from contractor_runtime.toolsets.common.http_limits import MAX_RESPONSE_BODY_BYTES
 
 TARGET_ADAPTER = "http-target@1"
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}

@@ -33,6 +33,24 @@ from contractor_runtime.adapters.http_proxy import (
 from contractor_runtime.adapters.otlp_retry import retry_after_seconds
 from contractor_runtime.contracts import RuntimeSettings
 from contractor_runtime.contracts.fields import is_field_value
+from contractor_runtime.core.http_limits import (
+    MAX_ATTEMPTS,
+    MAX_COOKIES,
+    MAX_HEADER_BYTES,
+    MAX_HEADER_VALUE_BYTES,
+    MAX_HEADERS,
+    MAX_HISTORY,
+    MAX_PREVIEW_CHARACTERS,
+    MAX_QUERY_BYTES,
+    MAX_QUERY_KEYS,
+    MAX_READ_UNITS,
+    MAX_REDIRECTS,
+    MAX_REQUEST_BODY_BYTES,
+    MAX_REQUEST_HEADER_BYTES,
+    MAX_RESPONSE_BODY_BYTES,
+    MAX_URL_BYTES,
+    header_block_bytes,
+)
 from contractor_runtime.core.http_session import (
     discard_expired_cookies,
     extract_sendable_cookies,
@@ -60,24 +78,6 @@ from contractor_runtime.toolsets.common.http_capture import (
     allocation_http_captures,
 )
 from contractor_runtime.toolsets.common.http_evidence import HTTPAttempt
-from contractor_runtime.toolsets.common.http_limits import (
-    MAX_ATTEMPTS,
-    MAX_COOKIES,
-    MAX_HEADER_BYTES,
-    MAX_HEADER_VALUE_BYTES,
-    MAX_HEADERS,
-    MAX_HISTORY,
-    MAX_PREVIEW_CHARACTERS,
-    MAX_QUERY_BYTES,
-    MAX_QUERY_KEYS,
-    MAX_READ_UNITS,
-    MAX_REDIRECTS,
-    MAX_REQUEST_BODY_BYTES,
-    MAX_REQUEST_HEADER_BYTES,
-    MAX_RESPONSE_BODY_BYTES,
-    MAX_URL_BYTES,
-    header_block_bytes,
-)
 from contractor_runtime.toolsets.common.http_observations import (
     HTTPObservationSink,
     notify_http_observations,

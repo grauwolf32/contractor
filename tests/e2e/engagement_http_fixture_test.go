@@ -242,7 +242,7 @@ func waitEngagementAuditClosed(t *testing.T, h *engagementProcessHarness, pool *
 	waitEngagementCondition(t, h.ctx, func() bool {
 		var state string
 		var released bool
-		err := pool.QueryRow(h.ctx, `SELECT state, NOT EXISTS (SELECT 1 FROM stage_allocations WHERE run_id IN (SELECT run_id FROM audit_executions WHERE audit_id=$1) AND release_completed_at IS NULL) FROM audits WHERE audit_id=$1`, audit).Scan(&state, &released)
+		err := pool.QueryRow(h.ctx, `SELECT state, NOT EXISTS (SELECT 1 FROM stage_allocations a JOIN stage_executions s USING(stage_execution_id) JOIN audit_executions e ON e.run_id=s.run_id WHERE e.audit_id=$1 AND a.release_completed_at IS NULL) FROM audits WHERE audit_id=$1`, audit).Scan(&state, &released)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -16,8 +16,8 @@ from contractor_runtime.adapters.http_proxy import ProxyHTTPClient
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import ArtifactAPIError, ArtifactTransportError
 from contractor_runtime.contracts import HTTPOriginTargetSettings, RuntimeSettings
+from contractor_runtime.core.http_limits import MAX_COOKIE_SESSION_BYTES, MAX_COOKIES
 from contractor_runtime.core.http_session import matching_cookies
-from contractor_runtime.toolsets.common.http_limits import MAX_COOKIE_SESSION_BYTES, MAX_COOKIES
 from contractor_runtime.toolsets.http.cookies import (
     COOKIE_BINDING,
     CookieCheckpoint,

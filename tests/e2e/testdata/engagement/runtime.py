@@ -61,7 +61,7 @@ class ObservedHTTPTransport(HTTPTransport):
         token = self._invocation.set(index)
         try:
             result = await super()._request_chain(*args, **kwargs)
-            if self._test_observed.get(index) is not result[0]:
+            if index not in self._test_observed:
                 self._observe(*result)
             return result
         finally:
