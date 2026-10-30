@@ -17,6 +17,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/contracts/contractstest"
+	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -119,7 +120,7 @@ INSERT INTO audit_phase_probe VALUES ($1, 'owner', 'project', 'profile', '1', 's
 		switch {
 		case err == nil:
 			return ""
-		case errors.As(err, &pgError) && pgError.Code == "23514":
+		case errors.As(err, &pgError) && pgError.Code == persistencepostgres.SQLStateCheckViolation:
 			return pgError.Message
 		}
 		t.Fatal(err)
