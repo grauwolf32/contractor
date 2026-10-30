@@ -59,9 +59,12 @@ class _InvocationBudget:
         self.tool_calls += 1
         self._sync()
 
-    def after_model_response(self, usage: Any | None) -> None:
+    def after_model_response(self, usage: Any | None, *, record_prompt: bool = True) -> None:
+        """Charge one response; only the main model measures the prompt (WRK-R192)."""
+
         projected = project_token_usage(usage)
-        self.latest_prompt_tokens = projected.prompt_tokens
+        if record_prompt:
+            self.latest_prompt_tokens = projected.prompt_tokens
         if projected.total_tokens is None:
             self.token_usage_unavailable += 1
             self._sync()

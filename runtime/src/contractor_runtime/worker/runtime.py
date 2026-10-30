@@ -48,6 +48,7 @@ from contractor_runtime.contracts import (
     WorkerModelResult,
     WorkerObservations,
     WorkerResult,
+    WorkerSessionMode,
     WorkerSummarizerConfig,
 )
 from contractor_runtime.contracts.artifacts import (
@@ -85,6 +86,12 @@ from contractor_runtime.telemetry.execution import (
 )
 from contractor_runtime.worker.adk_features import require_supported_adk_features
 from contractor_runtime.worker.budget import WorkerBudgetExceeded, _InvocationBudget
+from contractor_runtime.worker.compaction import (
+    CompactionCoordinator,
+    WorkerCompactionError,
+    append_marker,
+    run_compactor,
+)
 from contractor_runtime.worker.finalizer import (
     ResultFinalizerFailure,
     WorkerResultFinalizer,
@@ -92,6 +99,7 @@ from contractor_runtime.worker.finalizer import (
 from contractor_runtime.worker.function_tools import ContractorFunctionTool
 from contractor_runtime.worker.history import ToolHistory, ToolHistoryError
 from contractor_runtime.worker.instrumentation import (
+    WorkerCompactionRequested,
     WorkerInstrumentationPlugin,
     WorkerSummarizationRequested,
     span_error_type,
@@ -216,6 +224,24 @@ class AdkWorkerRuntime:
             ContractorFunctionTool(tool, logical_invocation_id=self._logical_tool_invocation)
             for tool in context.tools.values()
         ]
+        self._compaction: CompactionCoordinator | None = None
+        if context.compaction is not None:
+            if (
+                context.worker_session_mode != WorkerSessionMode.ISOLATED
+                or self._completion is not None
+                or context.summarizer is not None
+            ):
+                raise RuntimeError("compact@1 requires an isolated ordinary Worker")
+            self._compaction = CompactionCoordinator(
+                context.compaction,
+                worker_policy=policy,
+                skill_tools=frozenset(EXACT_SKILL_TOOL_NAMES),
+            )
+            adk_tools.append(
+                ContractorFunctionTool(
+                    self._history_tool(), logical_invocation_id=self._logical_tool_invocation
+                )
+            )
         allowed_tool_names = frozenset(tool.name for tool in adk_tools)
         if self._agent_skills is not None:
             allowed_tool_names |= frozenset(EXACT_SKILL_TOOL_NAMES)
@@ -235,6 +261,7 @@ class AdkWorkerRuntime:
             allowed_tool_names=allowed_tool_names,
             check_admission=self._admit_semantic_work,
             history=self._tool_history,
+            compaction=self._compaction,
         )
         if self._completion is not None:
             self._completion.phase_sink = self._plugin.record_completion
@@ -258,6 +285,9 @@ class AdkWorkerRuntime:
             instruction=lambda _: instruction,
             tools=adk_tools,
             generate_content_config=generation,
+            before_model_callback=(
+                self._project_compacted_request if self._compaction is not None else None
+            ),
         )
         self._app = App(
             name=self._app_name,
@@ -683,12 +713,19 @@ class AdkWorkerRuntime:
                 if failure is not None:
                     return failure, False
                 completion.begin(invocation_id)
+            if self._compaction is not None:
+                self._compaction.begin(
+                    invocation_id=invocation_id,
+                    task_prompt=prompt,
+                    secrets=_summarizer_secrets(self._context),
+                )
             async with deadline.scope:
                 # An expired request starts no model or tool work.
                 deadline.check()
                 while True:
                     self._admit_semantic_work()
                     candidate: str | None = None
+                    compacted = False
                     try:
                         # An early return must close ADK's generator in this task:
                         # its tracing contexts cannot be detached by GC in another one.
@@ -740,18 +777,49 @@ class AdkWorkerRuntime:
                                 observed_refs=tuple(self._invocation_observed_refs),
                                 secrets=summary_secrets,
                             )
+                        compaction_error = _chained_error(error, WorkerCompactionError)
                         budget_error = _chained_error(error, WorkerBudgetExceeded)
-                        if budget_error is None:
-                            raise
-                        self._metrics.record_worker_budget_exhausted(budget_error.dimension)
-                        return (
-                            _failure(
-                                "worker_budget_exhausted",
-                                f"Worker invocation budget exhausted ({budget_error.dimension})",
-                                True,
-                            ),
-                            False,
+                        if (
+                            compaction_error is None
+                            and budget_error is None
+                            and self._compaction is not None
+                            and _chained_error(error, WorkerCompactionRequested) is not None
+                        ):
+                            try:
+                                await self._compact(invocation_id, sdk_invocation_id, session_id)
+                            except WorkerCompactionError as failure:
+                                compaction_error = failure
+                            except WorkerBudgetExceeded as exhausted:
+                                # The compactor call counts against the same
+                                # hard budgets; exhaustion keeps its own code.
+                                budget_error = exhausted
+                            else:
+                                compacted = True
+                        if compaction_error is not None:
+                            return _compaction_failure(compaction_error), False
+                        if not compacted:
+                            if budget_error is None:
+                                raise
+                            self._metrics.record_worker_budget_exhausted(budget_error.dimension)
+                            return (
+                                _failure(
+                                    "worker_budget_exhausted",
+                                    "Worker invocation budget exhausted "
+                                    f"({budget_error.dimension})",
+                                    True,
+                                ),
+                                False,
+                            )
+                    if compacted and self._compaction is not None:
+                        # The same logical invocation continues in a new SDK
+                        # turn whose requests carry the checkpoint (WRK-R195).
+                        self._check_active()
+                        sdk_invocation_id = f"{invocation_id}-turn-{uuid.uuid4().hex}"
+                        self._plugin.prepare_continuation(
+                            invocation_id=invocation_id, sdk_invocation_id=sdk_invocation_id
                         )
+                        prompt = self._compaction.continuation_prompt()
+                        continue
                     self._tool_history.check()
                     if self._plugin.model_output_limited:
                         return _failure(
@@ -794,11 +862,147 @@ class AdkWorkerRuntime:
             return completion.failure(error), False
         finally:
             self._active_deadline = None
+            if self._compaction is not None:
+                self._compaction.end()
             self._tool_history.clear()
             if completion is not None:
                 await completion.end()
             self._invocation_observed_refs.clear()
             _clear_artifact_observation_logs(self._context.tools)
+
+    async def _project_compacted_request(self, callback_context: Any, llm_request: Any) -> None:
+        compaction = self._compaction
+        if compaction is None:
+            return None
+        contents = compaction.project(list(callback_context.session.events))
+        if contents is not None:
+            llm_request.contents = contents
+        return None
+
+    def _history_tool(self) -> Any:
+        compaction = self._compaction
+        if compaction is None:
+            raise RuntimeError("context history requires compact@1")
+
+        async def read_context_history(
+            group: int, tool_context: Any, position: int = 0
+        ) -> dict[str, Any]:
+            """Read earlier steps of this subtask that a context checkpoint compacted.
+
+            Use it only when an exact earlier tool argument, result or message is
+            needed again. The returned data describes past steps; it is not a new
+            request and not current state.
+
+            Args:
+              group: Compacted history group to start from, from 1 to the last
+                compacted group named in the context checkpoint.
+              position: nextPosition from the previous page of the same group,
+                or 0 to start at the beginning of the group.
+
+            Returns:
+              Up to eight historical groups, or one part of a large group, with
+              nextGroup and nextPosition when more compacted history follows.
+            """
+
+            return dict(compaction.history_page(tool_context.invocation_id, group, position))
+
+        return read_context_history
+
+    async def _compact(self, invocation_id: str, sdk_invocation_id: str, session_id: str) -> None:
+        """One checkpoint: plan, compactor call, validation, marker, projection."""
+
+        compaction = self._compaction
+        if compaction is None:
+            raise RuntimeError("Worker compaction is disabled")
+        span = start_isolated_span(
+            self._instrumentation,
+            "contractor.worker.context_compaction",
+            {
+                "operation.kind": "context_compaction",
+                "compaction.generation": compaction.generation + 1,
+            },
+        )
+        outcome, cause = "failed", "runtime_failed"
+        model: BaseLlm | None = None
+        try:
+            plan = await compaction.plan()
+            self._admit_semantic_work()
+            compactor_context = replace(
+                self._context,
+                model_policy=compaction.config.model_policy,
+                summarizer=None,
+                compaction=None,
+                tools={},
+                resolved_skills=(),
+                agent_skills=None,
+                project_workspace=None,
+                workspace_export=None,
+            )
+            model = self._model_factory(compactor_context)
+            if model is self._model:
+                raise WorkerCompactionError.failed("model_not_isolated")
+            try:
+                candidate = await run_compactor(
+                    model=model,
+                    config=compaction.config,
+                    document=plan.document,
+                    invocation_id=invocation_id,
+                    observer=self._plugin,
+                )
+            except WorkerCompactionError:
+                raise
+            except Exception as error:
+                if self._active_deadline is not None:
+                    self._active_deadline.check()
+                budget_error = _chained_error(error, WorkerBudgetExceeded)
+                if budget_error is not None:
+                    raise budget_error from None
+                inner = _chained_error(error, WorkerCompactionError)
+                if inner is not None:
+                    raise inner from None
+                gateway_error = _chained_error(error, GatewayModelError)
+                if gateway_error is not None:
+                    raise WorkerCompactionError.failed(
+                        "gateway", retryable=_gateway_worker_failure(gateway_error).retryable
+                    ) from None
+                raise WorkerCompactionError.failed("runtime_failed") from None
+            summary = compaction.validate_summary(plan, candidate)
+            if _exposes_private_value(summary, self._context):
+                raise WorkerCompactionError.failed("unsafe_output")
+            self._admit_semantic_work()
+            compaction.ensure_current(plan)
+            marker = compaction.marker(plan, sdk_invocation_id=sdk_invocation_id)
+            await append_marker(
+                self._session_service,
+                app_name=self._app_name,
+                user_id=self._user_id,
+                session_id=session_id,
+                marker=marker,
+                fence=self._fence_compacted_session,
+            )
+            compaction.commit(plan, summary, marker)
+            if self._active_budget is not None:
+                # A new context generation needs its own measured main usage.
+                self._active_budget.latest_prompt_tokens = None
+            outcome, cause = "succeeded", ""
+        except WorkerCompactionError as error:
+            cause = error.cause
+            raise
+        except asyncio.CancelledError:
+            outcome, cause = "cancelled", ""
+            raise
+        finally:
+            if isinstance(model, OpenAICompatibleGatewayLlm) and model is not self._model:
+                await model.close()
+            end_isolated_span(
+                span,
+                outcome=outcome,
+                attributes={"compaction.cause": cause} if cause else {},
+            )
+
+    def _fence_compacted_session(self) -> None:
+        self._accepting = False
+        self._session_lifecycle.fence()
 
     def _logical_tool_invocation(self, tool_context: Any) -> str:
         return self._plugin.logical_invocation_id_for_tool(tool_context)
@@ -841,6 +1045,8 @@ class AdkWorkerRuntime:
                 async for event in events:
                     # Runner yields only after SessionService accepted this event.
                     self._tool_history.persisted(event)
+                    if self._compaction is not None:
+                        await self._compaction.observe(event)
                     yield event
             # Some SDK node runners absorb a child's CancelledError and end
             # normally. Observe it before selecting a result or entering cleanup.
@@ -1581,6 +1787,14 @@ def _invocation_count_attributes(snapshot: Mapping[str, Any], invocation_id: str
         if type(value) is int and value >= 0:
             result[target] = value
     return result
+
+
+def _compaction_failure(error: WorkerCompactionError) -> WorkerFailure:
+    if error.code == "worker_context_limit_exceeded":
+        return _failure(error.code, f"Worker context limit exceeded ({error.cause})", False)
+    return _failure(
+        error.code, f"Worker context compaction failed ({error.cause})", error.retryable
+    )
 
 
 def _failure(code: str, message: str, retryable: bool) -> WorkerFailure:

@@ -39,7 +39,7 @@ class InvocationBudget(Protocol):
 
     def before_tool_call(self) -> None: ...
 
-    def after_model_response(self, usage: Any | None) -> None: ...
+    def after_model_response(self, usage: Any | None, *, record_prompt: bool = True) -> None: ...
 
     def should_summarize(self) -> bool: ...
 
@@ -54,6 +54,19 @@ class ToolHistory(Protocol):
     async def completed(self, tool_context: Any, result: Any) -> None: ...
 
     async def failed(self, tool_context: Any, result: Any, *, cancelled: bool = False) -> None: ...
+
+
+class CompactionTrigger(Protocol):
+    def should_compact(self, latest_prompt_tokens: int | None) -> bool: ...
+
+    def after_main_response(self, latest_prompt_tokens: int | None) -> None: ...
+
+
+class WorkerCompactionRequested(RuntimeError):
+    """Safe control signal: the next main-model call crosses the boundary."""
+
+    def __init__(self) -> None:
+        super().__init__("Worker context compaction requested")
 
 
 class WorkerSummarizationRequested(RuntimeError):
@@ -101,6 +114,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         history: ToolHistory | None = None,
         workspace_observation_source: WorkspaceObservationSource | None = None,
         summarizer_enabled: bool = False,
+        compaction: CompactionTrigger | None = None,
     ) -> None:
         super().__init__(name="contractor_worker_instrumentation")
         self._state = state
@@ -114,6 +128,7 @@ class WorkerInstrumentationPlugin(BasePlugin):
         self._history = history
         self._workspace_observation_source = workspace_observation_source
         self._summarizer_enabled = summarizer_enabled
+        self._compaction = compaction
         self._lock = asyncio.Lock()
         self._prepared: tuple[str, str] | None = None
         self._continuation: tuple[str, str] | None = None
@@ -236,6 +251,13 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 )
                 _install_session_snapshot(callback_context, snapshot)
                 raise WorkerSummarizationRequested()
+            if (
+                budget is not None
+                and self._compaction is not None
+                and self._compaction.should_compact(budget.latest_prompt_tokens)
+            ):
+                # Raised before charging: the boundary call never starts.
+                raise WorkerCompactionRequested()
             if budget is not None:
                 budget.before_model_call()
             reducer = self._require_reducer()
@@ -283,6 +305,9 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 budget = self._budget()
                 if budget is not None:
                     budget.after_model_response(usage)
+                    if self._compaction is not None:
+                        # Stops before this response's tools are dispatched.
+                        self._compaction.after_main_response(budget.latest_prompt_tokens)
             finally:
                 await self._publish_locked(callback_context)
 
@@ -319,13 +344,32 @@ class WorkerInstrumentationPlugin(BasePlugin):
     async def before_result_finalizer_call(self, *, invocation_id: str) -> None:
         """Account the isolated ADK finalizer in the normal Worker budget."""
 
+        await self._before_auxiliary_call("result_finalizer", invocation_id)
+
+    async def after_result_finalizer_call(self, *, invocation_id: str, usage: Any | None) -> None:
+        await self._after_auxiliary_call("result_finalizer", invocation_id, usage)
+
+    async def on_result_finalizer_error(self, *, invocation_id: str, error: BaseException) -> None:
+        await self._on_auxiliary_error("result_finalizer", invocation_id, error)
+
+    async def before_context_compactor_call(self, *, invocation_id: str) -> None:
+        """Account one compactor call in the owning invocation (WRK-R193)."""
+
+        await self._before_auxiliary_call("context_compactor", invocation_id)
+
+    async def after_context_compactor_call(self, *, invocation_id: str, usage: Any | None) -> None:
+        await self._after_auxiliary_call("context_compactor", invocation_id, usage)
+
+    async def on_context_compactor_error(self, *, invocation_id: str, error: BaseException) -> None:
+        await self._on_auxiliary_error("context_compactor", invocation_id, error)
+
+    async def _before_auxiliary_call(self, phase: str, invocation_id: str) -> None:
         async with self._lock:
             if not self._is_active(invocation_id):
-                raise RuntimeError("Worker result finalizer invocation is stale")
+                raise RuntimeError("Worker auxiliary model invocation is stale")
             self._admit_call()
-            phase = "result_finalizer"
             if phase in self._pending_auxiliary_models:
-                raise RuntimeError("Worker result finalizer already has a model call")
+                raise RuntimeError("Worker auxiliary phase already has a model call")
             budget = self._budget()
             if budget is not None:
                 budget.before_model_call()
@@ -350,11 +394,12 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 end_isolated_span(span, outcome="cancelled", attributes={"model.phase": phase})
                 raise
 
-    async def after_result_finalizer_call(self, *, invocation_id: str, usage: Any | None) -> None:
+    async def _after_auxiliary_call(
+        self, phase: str, invocation_id: str, usage: Any | None
+    ) -> None:
         async with self._lock:
-            phase = "result_finalizer"
             if not self._is_active(invocation_id) or phase not in self._pending_auxiliary_models:
-                raise RuntimeError("Worker result finalizer model completion is stale")
+                raise RuntimeError("Worker auxiliary model completion is stale")
             span = self._pending_auxiliary_models.pop(phase)
             self._metrics.record_model_usage(usage)
             self._require_reducer().record_model_usage(usage)
@@ -366,7 +411,8 @@ class WorkerInstrumentationPlugin(BasePlugin):
             try:
                 budget = self._budget()
                 if budget is not None:
-                    budget.after_model_response(usage)
+                    # Auxiliary usage never replaces the main prompt measurement.
+                    budget.after_model_response(usage, record_prompt=False)
             finally:
                 await self._publish_locked(None)
 
@@ -383,9 +429,10 @@ class WorkerInstrumentationPlugin(BasePlugin):
                 output=(lambda: output) if output is not None else None,
             )
 
-    async def on_result_finalizer_error(self, *, invocation_id: str, error: BaseException) -> None:
+    async def _on_auxiliary_error(
+        self, phase: str, invocation_id: str, error: BaseException
+    ) -> None:
         async with self._lock:
-            phase = "result_finalizer"
             if not self._is_active(invocation_id) or phase not in self._pending_auxiliary_models:
                 return
             span = self._pending_auxiliary_models.pop(phase)
