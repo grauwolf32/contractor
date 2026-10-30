@@ -6,7 +6,7 @@ epic: http-tools
 kind: defect
 introduced_by: V12-004
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages: [python, markdown]
 goal: Bound catalog browsing and selection without classifying valid larger Caido catalogs as malformed responses.

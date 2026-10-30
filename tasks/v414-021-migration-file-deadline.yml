@@ -6,7 +6,7 @@ epic: persistence
 kind: defect
 introduced_by: V29-007
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: >-

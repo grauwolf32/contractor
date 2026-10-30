@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V369-004
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go]
 goal: "The handler-test double of ListItemAttempts returns an empty list for every requested item without attempts, as the PostgreSQL store does, and listAuditItems renders an empty attempts array for an item the map lacks, so no test and no store renders attempts: null."

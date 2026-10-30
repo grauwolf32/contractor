@@ -5,7 +5,7 @@ milestone: review-v407-v409-followups-2026-10
 epic: api-contracts
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, typescript, yaml]
 goal: >-

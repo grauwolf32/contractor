@@ -6,7 +6,7 @@ epic: persistence
 kind: chore
 introduced_by: V369-001
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: "The table ownership check sees relations that reach SQL through a helper argument, lock clauses appended apart from FROM, the tables that migration functions called from Go SQL read, write or lock, and the writes that migration triggers make to another owner's tables."

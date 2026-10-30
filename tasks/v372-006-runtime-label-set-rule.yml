@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: runtime-config
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, typescript, python]
 goal: "Run label selection, Runtime Agent principal labels and the public label replacement apply RCF-R118 to RCF-R120 and LIM-RCF-26 through one Go definition, and the UI and the Runtime registration models give the same verdict on one shared case list."

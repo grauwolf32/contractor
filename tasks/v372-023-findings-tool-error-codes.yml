@@ -5,7 +5,7 @@ milestone: hub-audit-defects-2026-10
 epic: findings
 kind: chore
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [markdown, python]
 goal: "FND-R109, FND-R123 and FND-R135 name their codes, every findings_* code the Runtime findings tools return is in the errors.md registry with its retryability, and a test holds the Runtime to that list."
