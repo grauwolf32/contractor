@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-110 open tasks: 39 in progress, 60 pending, 11 deferred. 1209 finished: 1199 completed, 10 archived.
+109 open tasks: 38 in progress, 60 pending, 11 deferred. 1210 finished: 1200 completed, 10 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V371-014](v371-014-scheduler-stage-history-reads.yml) | execution-core | defect | P3 | Count escalation attempts and check the first tick without reading Stage snapshots |
 | [V371-015](v371-015-memory-claim-paused-skip.yml) | quality | chore | P3 | Model the paused-owner claim skip in the Scheduler's memory store doubles |
 | [V371-021](v371-021-postgres-test-wall-clock.yml) | quality | chore | P3 | Replace wall-clock budgets in the Scheduler and runstore PostgreSQL tests |
-| [V371-022](v371-022-capability-probe-test-budget.yml) | quality | chore | P3 | Remove the 10 ms probe budget from the capability discovery tests |
 | [V372-006](v372-006-runtime-label-set-rule.yml) | runtime-config | chore | P3 | Give the Runtime label set rule one Go definition and hold the UI and the Runtime to it |
 | [V372-007](v372-007-terminal-stage-state-set.yml) | execution-core | chore | P3 | Define the terminal StageExecution states once and hold Go SQL and OpenAPI to them |
 | [V372-008](v372-008-upward-table-reads.yml) | persistence | chore | P3 | Remove the table reads that point up the layer stack or name who owns each one |
@@ -210,4 +209,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 43 | 7 | 18 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 37 | 22 | 12 |
 | PostgreSQL persistence and schema (`persistence`) | 6 | 0 | 24 | 44 | 13 |
-| Quality, CI and process (`quality`) | 17 | 1 | 27 | 102 | 23 |
+| Quality, CI and process (`quality`) | 16 | 1 | 27 | 102 | 23 |
