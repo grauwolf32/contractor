@@ -2,6 +2,8 @@ package planner
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 )
 
@@ -24,6 +26,11 @@ func NewRegistry(factories ...Factory) (*Registry, error) {
 		result.factories[factory.Ref()] = factory
 	}
 	return result, nil
+}
+
+// Refs returns the sorted refs of the registered PlannerFactories.
+func (r *Registry) Refs() []string {
+	return slices.Sorted(maps.Keys(r.factories))
 }
 
 func (r *Registry) Create(ref string, invocation Invocation) (Planner, error) {

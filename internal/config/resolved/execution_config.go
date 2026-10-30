@@ -262,7 +262,7 @@ func ValidateStageExecutionConfig(stageName string, stage ResolvedStage) error {
 	if err := validateModelDefaults(stage.ModelDefaults); err != nil {
 		return err
 	}
-	plannerRef := stage.Planner.PlannerID + "@" + stage.Planner.Version
+	plannerRef := stage.Planner.Selector()
 	if IsModelFreeStage(stage) {
 		if stage.ExecutionConfig.Planner != nil {
 			return fmt.Errorf("Stage %q %s must not have Planner executionConfig", stageName, plannerRef)

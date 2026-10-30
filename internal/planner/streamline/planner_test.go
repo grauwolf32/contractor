@@ -245,7 +245,7 @@ func streamlineTestTelemetry(
 		FlushTimeout: time.Second, RunMetadataLabels: runlabels.RunMetadataLabels{},
 		Resource: telemetry.PlannerResource{
 			RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
-			PlannerRef: Ref,
+			PlannerRef: resolved.StreamlinePlanner,
 		},
 	})
 	if err != nil {
@@ -628,7 +628,7 @@ func TestConfiguredFactoryBuildsEachPlannerFromInvocationModelAccess(t *testing.
 			models := []*scriptedModel{{}, {}}
 			var accesses []planner.ModelAccess
 			newConfigured := NewConfiguredFactory
-			if profile.ref == planner.RouterRef {
+			if profile.ref == resolved.RouterPlanner {
 				newConfigured = NewConfiguredRouterDelegate
 			}
 			factory, err := newConfigured(

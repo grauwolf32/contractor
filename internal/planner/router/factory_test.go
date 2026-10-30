@@ -183,7 +183,7 @@ func routerTestTelemetry(
 		FlushTimeout: time.Second, RunMetadataLabels: runlabels.RunMetadataLabels{},
 		Resource: telemetry.PlannerResource{
 			RunID: invocation.RunID, StageExecutionID: invocation.StageExecutionID,
-			PlannerRef: planner.RouterRef,
+			PlannerRef: resolved.RouterPlanner,
 		},
 	})
 	if err != nil {
@@ -342,7 +342,7 @@ func TestRouterFactoryRejectsEmptyBindingsBeforeSideEffects(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if factory.Ref() != planner.RouterRef {
+	if factory.Ref() != resolved.RouterPlanner {
 		t.Fatalf("Router factory ref = %q", factory.Ref())
 	}
 	invocation := testInvocation()

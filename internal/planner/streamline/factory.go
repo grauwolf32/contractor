@@ -28,11 +28,11 @@ type plannerProfile struct {
 
 var (
 	streamlineProfile = plannerProfile{
-		ref: Ref, adkAppName: "contractor_streamline", agentName: "streamline_planner",
+		ref: resolved.StreamlinePlanner, adkAppName: "contractor_streamline", agentName: "streamline_planner",
 		agentDescription: "Plans one immutable Contractor Stage using its sole prepared Worker.",
 	}
 	routerProfile = plannerProfile{
-		ref: planner.RouterRef, adkAppName: "contractor_router", agentName: "router_planner",
+		ref: resolved.RouterPlanner, adkAppName: "contractor_router", agentName: "router_planner",
 		agentDescription: "Plans one immutable Contractor Stage and routes each subtask to one fixed logical Worker.",
 		routesWorkers:    true,
 	}
@@ -300,7 +300,7 @@ func validateInvocation(profile plannerProfile, invocation planner.Invocation) (
 		strings.TrimSpace(invocation.Stage.Instructions.Text) == "" {
 		return nil, fmt.Errorf("Stage objective and instructions are required")
 	}
-	if invocation.Stage.Planner.PlannerID+"@"+invocation.Stage.Planner.Version != profile.ref {
+	if invocation.Stage.Planner.Selector() != profile.ref {
 		return nil, fmt.Errorf("%s cannot execute a Stage for another PlannerFactory", profile.ref)
 	}
 	if profile.routesWorkers {

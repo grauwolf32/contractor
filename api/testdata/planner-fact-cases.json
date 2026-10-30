@@ -1,0 +1,25 @@
+{
+  "description": "The registered PlannerFactories and their Server-visible facts (CAT-R79): singleAgent (the Stage binds exactly one logical Agent; every other Planner takes one or more), modelFree (the Stage has no Planner executionConfig) and agentResults (each Stage result comes from a namespace of one of the Stage's Agents; scan-plan@1 binds its results through scanPlan). planners lists exactly the registered Planners. Each case gives a Stage's Planner, its number of Agents and whether its result comes from an Agent namespace, and whether the Server and the Studio accept that Stage.",
+  "planners": [
+    {"ref": "passthrough@1", "singleAgent": true, "modelFree": true, "agentResults": true},
+    {"ref": "router@1", "singleAgent": false, "modelFree": false, "agentResults": true},
+    {"ref": "scan-plan@1", "singleAgent": false, "modelFree": true, "agentResults": false},
+    {"ref": "streamline@1", "singleAgent": true, "modelFree": false, "agentResults": true}
+  ],
+  "cases": [
+    {"name": "passthrough with one Agent", "planner": "passthrough@1", "agents": 1, "resultFromAgent": true, "valid": true},
+    {"name": "passthrough with two Agents", "planner": "passthrough@1", "agents": 2, "resultFromAgent": true, "valid": false},
+    {"name": "passthrough without Agents", "planner": "passthrough@1", "agents": 0, "resultFromAgent": false, "valid": false},
+    {"name": "streamline with one Agent", "planner": "streamline@1", "agents": 1, "resultFromAgent": true, "valid": true},
+    {"name": "streamline with two Agents", "planner": "streamline@1", "agents": 2, "resultFromAgent": true, "valid": false},
+    {"name": "router with one Agent", "planner": "router@1", "agents": 1, "resultFromAgent": true, "valid": true},
+    {"name": "router with two Agents", "planner": "router@1", "agents": 2, "resultFromAgent": true, "valid": true},
+    {"name": "router without Agents", "planner": "router@1", "agents": 0, "resultFromAgent": false, "valid": false},
+    {"name": "scan-plan with two Agents", "planner": "scan-plan@1", "agents": 2, "resultFromAgent": true, "valid": true},
+    {"name": "scan-plan without Agents", "planner": "scan-plan@1", "agents": 0, "resultFromAgent": false, "valid": false},
+    {"name": "passthrough result outside its Agents", "planner": "passthrough@1", "agents": 1, "resultFromAgent": false, "valid": false},
+    {"name": "streamline result outside its Agents", "planner": "streamline@1", "agents": 1, "resultFromAgent": false, "valid": false},
+    {"name": "router result outside its Agents", "planner": "router@1", "agents": 2, "resultFromAgent": false, "valid": false},
+    {"name": "scan-plan result outside its Agents", "planner": "scan-plan@1", "agents": 2, "resultFromAgent": false, "valid": true}
+  ]
+}

@@ -25,6 +25,12 @@ type PlannerRef struct {
 	Version   string `json:"version"`
 }
 
+// Selector returns the exact <id>@<version> selector of r, the form the
+// descriptor registry keys and the Planner selector constants use.
+func (r PlannerRef) Selector() string {
+	return r.PlannerID + "@" + r.Version
+}
+
 // ParameterSlot is the v1alpha1 string parameter contract.
 type ParameterSlot struct {
 	Required bool `json:"required"`

@@ -216,10 +216,17 @@ its binary. Loading the configuration set, decoding a persisted Workflow
 snapshot (CAT-R78) and Runtime Agent placement check a selection against that
 registry, and no caller supplies another. Each PlannerFactory descriptor
 states whether its Stage binds exactly one logical Agent or one or more
-([LIM-PLN-1](../platform/limits.md), [LIM-PLN-2](../platform/limits.md)) and
+([LIM-PLN-1](../platform/limits.md), [LIM-PLN-2](../platform/limits.md)),
 whether the Planner runs without a model, so that its Stage has no Planner
-`executionConfig`. A persisted snapshot whose Stage selects a Planner the
-registry does not contain is invalid on read.
+`executionConfig`, and whether each Stage result comes from a namespace of one
+of the Stage's Agents ([WFL-R61](workflows.md)). A persisted snapshot whose
+Stage selects a Planner the registry does not contain is invalid on read. The
+Server composes exactly one PlannerFactory for each descriptor and does not
+start when a descriptor has no factory or a factory has no descriptor. Code
+that applies a rule to one Planner names it through the registry's Planner
+selectors, never through a string literal. The Studio applies the same
+single-Agent and result-source facts, and `api/testdata/planner-fact-cases.json`
+holds both sides to the registry.
 
 ### Manifest files
 

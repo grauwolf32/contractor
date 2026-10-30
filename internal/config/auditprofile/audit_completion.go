@@ -71,7 +71,7 @@ func ValidateAuditWorkerCompletion(binding ResolvedAuditWorkflowBinding) error {
 }
 
 func validateAuditCompletionStage(binding ResolvedAuditWorkflowBinding, stageName, agentName string, stage resolved.ResolvedStage) error {
-	if stage.Planner.PlannerID != "passthrough" || stage.Planner.Version != "1" || len(stage.Agents) != 1 {
+	if stage.Planner.Selector() != resolved.PassthroughPlanner || len(stage.Agents) != 1 {
 		return fmt.Errorf("workerCompletion requires a single-Worker passthrough@1 Stage")
 	}
 	agent, ok := stage.Agents[agentName]
