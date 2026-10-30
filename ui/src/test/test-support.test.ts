@@ -88,7 +88,7 @@ describe("fake Server", () => {
         }),
       ),
     ).rejects.toMatchObject({ code: "invalid_api_response", status: 200 });
-    expect(failure(503).status).toBe(503);
+    expect(failure(503, "storage_transaction_conflict").status).toBe(503);
   });
 
   it("serves artifact content as raw bytes, also when it is JSON", async () => {

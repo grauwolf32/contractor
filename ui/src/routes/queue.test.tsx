@@ -315,7 +315,7 @@ describe("Runs Queue view", () => {
       const { queueReads } = renderQueue(() => {
         if (failReads) {
           failReads = false;
-          return failure(503, "unavailable", "Queue unavailable", true);
+          return failure(503, "storage_transaction_conflict", "Queue unavailable", true);
         }
         return json(page([queueItem("run-live")]));
       });
@@ -446,7 +446,7 @@ describe("Runs Queue view", () => {
   it("shows an unknown admission state and keeps the control disabled when the gate cannot be read", async () => {
     renderQueue(() => json(page([])), "/runs", {
       "GET /v1/queue/control": () =>
-        failure(503, "unavailable", "Queue control unavailable", true),
+        failure(503, "storage_transaction_conflict", "Queue control unavailable", true),
     });
 
     expect(

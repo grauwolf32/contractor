@@ -134,7 +134,7 @@ describe("Artifact routes", () => {
     ).toBeVisible();
     expect(screen.queryByText(/(Current|Historical) revision/)).toBeNull();
     await act(async () => {
-      respond(failure(503, "unavailable", "Metadata unavailable"));
+      respond(failure(503, "storage_transaction_conflict", "Metadata unavailable"));
       await metadata;
     });
     expect(await screen.findByText("Could not load this file")).toBeVisible();
@@ -152,7 +152,7 @@ describe("Artifact routes", () => {
           expect(url.searchParams.get("namespace")).toBe("projects");
           reads += 1;
           return reads === 1
-            ? failure(503, "unavailable", "Storage is temporarily unavailable")
+            ? failure(503, "storage_transaction_conflict", "Storage is temporarily unavailable")
             : json(page([]));
         },
       },

@@ -541,7 +541,7 @@ describe("FindingDecision", () => {
       finding: makeFinding(),
       pendingLookup: () =>
         lookupFails
-          ? failure(503, "unavailable", "review store unavailable")
+          ? failure(503, "storage_transaction_conflict", "review store unavailable")
           : undefined,
     });
     const bar = await decisionBar();

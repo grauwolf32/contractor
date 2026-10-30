@@ -415,6 +415,233 @@ func isIdent(expression ast.Expr, name string) bool {
 	return ok && ident.Name == name
 }
 
+// browserTestDoubles are the browser test sources that answer API errors:
+// unit tests, their shared fixtures and the browser specs' mock API.
+var browserTestDoubles = []string{browserSource, "../../ui/e2e"}
+
+// TestBrowserTestDoublesAnswerRegisteredCodes reads every API error a browser
+// test double answers: an envelope literal (one with a requestId, or with a
+// retryable flag answered with an error status), a response helper of
+// ui/src/test/responses.ts or a fixture's own error helper. Each code must be
+// registered and, where the status is given, answered with the registry's
+// status, so a fixture cannot drift from what the Server sends (ERR-R14).
+func TestBrowserTestDoublesAnswerRegisteredCodes(t *testing.T) {
+	// The defaults of ui/src/test/responses.ts that the scan applies.
+	responses, err := os.ReadFile(filepath.Join(browserSource, "test", "responses.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, signature := range []string{
+		`code = status === 404 ? "not_found" : "internal_error",`,
+		`export function conflict(code = "conflict", message = "Changed"): Response {`,
+		`return failure(412, "precondition_failed", message);`,
+	} {
+		if !strings.Contains(string(responses), signature) {
+			t.Fatalf("ui/src/test/responses.ts no longer has %q, which this scan models", signature)
+		}
+	}
+	envelopeCode := regexp.MustCompile(`\bcode:\s*"([^"]*)"`)
+	requestID := regexp.MustCompile(`\brequestId\s*[:,}]`)
+	retryable := regexp.MustCompile(`\bretryable\s*[:,}]`)
+	envelopeStatus := regexp.MustCompile(`^\s*(?:\}\s*)?\)?\s*,\s*(?:\{\s*status:\s*)?(\d{3})\b`)
+	failureCall := regexp.MustCompile(`\bfailure\(`)
+	failureArguments := regexp.MustCompile(`^\s*(\d{3})\s*(?:,\s*(?:"([^"]*)"|(\w+)))?`)
+	localFailure := regexp.MustCompile(`\b(?:const|let|function)\s+failure\b`)
+	conflictCall := regexp.MustCompile(`\bconflict\(\s*(?:"([^"]*)")?`)
+	helper := regexp.MustCompile(`\bfunction (\w+)\(code: string, status = (\d{3})\)`)
+	answers, unreadable := 0, []string{}
+	check := func(where, code string, status int) {
+		answers++
+		kind, ok := Lookup(code)
+		switch {
+		case !ok:
+			t.Errorf("%s: a test double answers %s, which is not a registered code", where, code)
+		case status != 0 && status != kind.Status():
+			t.Errorf("%s: a test double answers %s with status %d; the registry gives %d", where, code, status, kind.Status())
+		}
+	}
+	for _, root := range browserTestDoubles {
+		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			name := entry.Name()
+			if entry.IsDir() {
+				if name == "generated" || name == "node_modules" {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			slashed := filepath.ToSlash(path)
+			if !(strings.HasSuffix(name, ".ts") || strings.HasSuffix(name, ".tsx")) ||
+				!(strings.Contains(name, ".test.") || strings.Contains(slashed, "/test/") || root != browserSource) {
+				return nil
+			}
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			text := string(content)
+			at := func(offset int) string {
+				return slashed + ":" + strconv.Itoa(strings.Count(text[:offset], "\n")+1)
+			}
+			for _, match := range envelopeCode.FindAllStringSubmatchIndex(text, -1) {
+				begin, end, ok := enclosingObject(text, match[0])
+				if !ok {
+					continue
+				}
+				status := 0
+				if found := envelopeStatus.FindStringSubmatch(text[end:min(end+120, len(text))]); found != nil {
+					status, _ = strconv.Atoi(found[1])
+				}
+				object := text[begin:end]
+				if requestID.MatchString(object) || (status >= 400 && retryable.MatchString(object)) {
+					check(at(match[0]), text[match[2]:match[3]], status)
+				}
+			}
+			if !localFailure.MatchString(text) || strings.HasSuffix(slashed, "/test/responses.ts") {
+				for _, match := range failureCall.FindAllStringIndex(text, -1) {
+					if strings.HasSuffix(strings.TrimRight(text[:match[0]], " "), "function") {
+						continue
+					}
+					arguments := failureArguments.FindStringSubmatch(text[match[1]:])
+					if arguments == nil {
+						unreadable = append(unreadable, at(match[0]))
+						continue
+					}
+					status, _ := strconv.Atoi(arguments[1])
+					code := arguments[2]
+					if arguments[3] != "" {
+						// The helpers of responses.ts forward their own code
+						// parameter; every other call names its code.
+						if !strings.HasSuffix(slashed, "/test/responses.ts") {
+							unreadable = append(unreadable, at(match[0]))
+						}
+						continue
+					}
+					if code == "" {
+						code = "internal_error"
+						if status == 404 {
+							code = "not_found"
+						}
+					}
+					check(at(match[0]), code, status)
+				}
+			}
+			for _, match := range conflictCall.FindAllStringSubmatchIndex(text, -1) {
+				if strings.HasSuffix(strings.TrimRight(text[:match[0]], " "), "function") {
+					continue
+				}
+				code := "conflict"
+				if match[2] >= 0 {
+					code = text[match[2]:match[3]]
+				}
+				check(at(match[0]), code, 409)
+			}
+			for _, definition := range helper.FindAllStringSubmatch(text, -1) {
+				defaultStatus, _ := strconv.Atoi(definition[2])
+				calls := regexp.MustCompile(`\b` + definition[1] + `\(`)
+				arguments := regexp.MustCompile(`^\s*"([^"]*)"\s*(?:,\s*(\d{3})\s*)?\)`)
+				for _, match := range calls.FindAllStringIndex(text, -1) {
+					if strings.HasSuffix(strings.TrimRight(text[:match[0]], " "), "function") {
+						continue
+					}
+					found := arguments.FindStringSubmatch(text[match[1]:])
+					if found == nil {
+						unreadable = append(unreadable, at(match[0]))
+						continue
+					}
+					status := defaultStatus
+					if found[2] != "" {
+						status, _ = strconv.Atoi(found[2])
+					}
+					check(at(match[0]), found[1], status)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, where := range unreadable {
+		t.Errorf("%s: an error helper call must name its status and code literally", where)
+	}
+	if answers == 0 {
+		t.Fatal("the scan found no test double answering an API error")
+	}
+}
+
+// TestRunTriageComparesRegisteredCodes holds the attempt codes that the Run
+// triage treats as model infrastructure issues to the registry: each one has
+// a row in the generated or the assembled table of errors.md (ERR-R24).
+func TestRunTriageComparesRegisteredCodes(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join(browserSource, "routes", "runs", "triage.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	set := regexp.MustCompile(`(?s)const MODEL_INFRASTRUCTURE_ISSUE_CODES = new Set\(\[(.*?)\]\)`).FindSubmatch(source)
+	if set == nil {
+		t.Fatal("ui/src/routes/runs/triage.ts has no MODEL_INFRASTRUCTURE_ISSUE_CODES set")
+	}
+	document, err := os.ReadFile(registryDocument)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assembled := map[string]bool{}
+	text := string(document)
+	for _, match := range regexp.MustCompile("(?m)^\\| `([^`]+)` \\|").FindAllStringSubmatch(text[strings.Index(text, assembledMarker):], -1) {
+		assembled[match[1]] = true
+	}
+	codes := regexp.MustCompile(`"([^"]+)"`).FindAllSubmatch(set[1], -1)
+	if len(codes) == 0 {
+		t.Fatal("the Run triage set names no code")
+	}
+	for _, match := range codes {
+		code := string(match[1])
+		if _, public := Lookup(code); !public && !assembled[code] {
+			t.Errorf("the Run triage compares %s, which has no errors.md registry row", code)
+		}
+	}
+}
+
+// enclosingObject returns the bounds of the innermost object literal of text
+// that contains offset, from its opening to just after its closing brace.
+func enclosingObject(text string, offset int) (int, int, bool) {
+	depth, begin := 0, -1
+	for index := offset; index >= 0; index-- {
+		switch text[index] {
+		case '}':
+			depth++
+		case '{':
+			if depth == 0 {
+				begin = index
+			} else {
+				depth--
+			}
+		}
+		if begin >= 0 {
+			break
+		}
+	}
+	if begin < 0 {
+		return 0, 0, false
+	}
+	depth = 0
+	for index := begin; index < len(text); index++ {
+		switch text[index] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return begin, index + 1, true
+			}
+		}
+	}
+	return 0, 0, false
+}
+
 // TestBrowserClientComparesOnlyRegisteredCodes reads the browser client's
 // production sources: every code it compares a public API error or error
 // frame with, and every error details kind it parses, is registered, unless

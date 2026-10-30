@@ -55,6 +55,16 @@ never resolves to latest or is recreated from cached bytes. Operations are bound
 by their domain's bytes, rows and computation limits plus the shared Stage result
 limits; a registry entry alone does not authorize unbounded work.
 
+**SOP-R9.** A failed operation Stage ends with an interrupted StageTermination
+that carries the operation's own classified failure, or one of these codes:
+`server_operation_unavailable` — the Server has no operation execution;
+non-retryable; `invalid_request` — the arguments cannot be bound from the Run
+parameters; non-retryable; `server_operation_timeout` — a deadline inside the
+operation expired before the Stage deadline; retryable;
+`server_operation_failed` — any other failure; retryable only for a transient
+database failure; and `stage_deadline_exceeded`
+([SCH-R184](scheduler.md)) once the Stage deadline has passed.
+
 The Workflow form is explicit:
 
 ```yaml
