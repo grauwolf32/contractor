@@ -99,18 +99,6 @@ from contractor_runtime.contracts.codec import (
     PrivateProtocolDecodeError as PrivateProtocolDecodeError,
 )
 from contractor_runtime.contracts.codec import decode_private as decode_private
-from contractor_runtime.contracts.pentest_action import (
-    PentestActionCommand as PentestActionCommand,
-)
-from contractor_runtime.contracts.pentest_action import (
-    PentestActionReply as PentestActionReply,
-)
-from contractor_runtime.contracts.pentest_action import (
-    PentestTransportRequest as PentestTransportRequest,
-)
-from contractor_runtime.contracts.pentest_action import (
-    PentestTransportResponse as PentestTransportResponse,
-)
 from contractor_runtime.contracts.registration import AgentHeartbeat as AgentHeartbeat
 from contractor_runtime.contracts.registration import AgentRegistration as AgentRegistration
 from contractor_runtime.contracts.registration import (

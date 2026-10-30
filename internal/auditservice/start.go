@@ -22,7 +22,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contentdigest"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
 	"github.com/grauwolf32/contractor/internal/projectstore"
@@ -658,7 +658,7 @@ func verifyInputMetadata(ctx context.Context, store artifacts.ScopedStore, profi
 	rulepacks := auditRulepackInputs(profile)
 	for index, name := range names {
 		metadata := described[index]
-		if metadata.MediaType == pentestcontract.MediaType && metadata.SizeBytes > pentestcontract.MaxDocumentBytes {
+		if metadata.MediaType == engagementcontract.MediaType && metadata.SizeBytes > engagementcontract.MaxDocumentBytes {
 			return nil, fmt.Errorf("%w: engagement exceeds its byte limit", ErrInvalid)
 		}
 		if err := selection.Inputs[name].Verify(metadata); err != nil {

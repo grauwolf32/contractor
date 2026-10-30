@@ -14,7 +14,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/jackc/pgx/v5"
@@ -22,7 +22,7 @@ import (
 
 type engagementSelection struct {
 	artifact           auditstore.ExactArtifact
-	document           pentestcontract.Document
+	document           engagementcontract.Document
 	inputs             []auditstore.ArtifactLink
 	credentialIDs      []string
 	unclassifiedInputs bool
@@ -31,11 +31,11 @@ type engagementSelection struct {
 func readEngagement(ctx context.Context, service *artifacts.Service, projectID string, profile auditprofile.ResolvedAuditProfile, selection DraftSelection) (*engagementSelection, error) {
 	var selected *engagementSelection
 	for name, exact := range selection.Inputs {
-		if exact.MediaType != pentestcontract.MediaType {
+		if exact.MediaType != engagementcontract.MediaType {
 			continue
 		}
 		slot, ok := profile.Inputs[name]
-		if !ok || !slices.Contains(slot.MediaTypes, pentestcontract.MediaType) || len(slot.MediaTypes) != 1 || selected != nil {
+		if !ok || !slices.Contains(slot.MediaTypes, engagementcontract.MediaType) || len(slot.MediaTypes) != 1 || selected != nil {
 			return nil, fmt.Errorf("%w: engagement needs exactly one explicit typed input slot", ErrInvalid)
 		}
 		selected = &engagementSelection{artifact: exact, inputs: []auditstore.ArtifactLink{}, credentialIDs: []string{}}
@@ -49,23 +49,23 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 	}
 	// Check metadata before loading bytes; an oversized engagement is rejected
 	// even when selected by an earlier draft.
-	if selected.artifact.SizeBytes > pentestcontract.MaxDocumentBytes {
+	if selected.artifact.SizeBytes > engagementcontract.MaxDocumentBytes {
 		return nil, fmt.Errorf("%w: engagement exceeds its byte limit", ErrInvalid)
 	}
 	read, err := store.ReadExact(ctx, selected.artifact)
 	if err != nil {
 		return nil, err
 	}
-	document, err := pentestcontract.Decode(read.Payload.Data)
+	document, err := engagementcontract.Decode(read.Payload.Data)
 	if err != nil {
-		return nil, fmt.Errorf("%w: pentest engagement failed validation", ErrInvalid)
+		return nil, fmt.Errorf("%w: engagement engagement failed validation", ErrInvalid)
 	}
 	selected.document = document
 	if len(document.Inputs) > auditprofile.MaxAuditProfileInputs {
 		return nil, fmt.Errorf("%w: engagement inputs exceed Audit input limit", ErrInvalid)
 	}
 	for _, exact := range selection.Inputs {
-		if exact.MediaType == pentestcontract.MediaType {
+		if exact.MediaType == engagementcontract.MediaType {
 			continue
 		}
 		classified := false
@@ -83,7 +83,7 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 	for _, input := range document.Inputs {
 		refs = append(refs, input.Artifact)
 		expected = append(expected, contracts.ExactArtifact{Ref: input.Artifact, Digest: input.ContentDigest})
-		keys = append(keys, "pentest-input/"+input.ID)
+		keys = append(keys, "engagement-input/"+input.ID)
 	}
 	for _, identity := range document.Identities {
 		if identity.Credential != nil {
@@ -104,7 +104,7 @@ func readEngagement(ctx context.Context, service *artifacts.Service, projectID s
 				Schema     string                   `json:"schema"`
 				Engagement auditstore.ExactArtifact `json:"engagement"`
 				Input      string                   `json:"input"`
-			}{"contractor.audit.pentest-input.v1", selected.artifact, keys[i]})
+			}{"contractor.audit.engagement-input.v1", selected.artifact, keys[i]})
 			if err != nil {
 				return nil, err
 			}
@@ -145,7 +145,7 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 	for _, capability := range append(slices.Clone(selected.document.Policy.RequiredCapabilities), selected.document.Policy.OptionalCapabilities...) {
 		// Controlled identity preflight has a placed Runtime consumer. Other
 		// execution capabilities still need their own production consumer.
-		if capability != pentestcontract.Capability && capability != string(runtimesettings.RuntimeAdapterPentestTargetHTTP) {
+		if capability != engagementcontract.Capability && capability != string(runtimesettings.RuntimeAdapterHTTPTarget) {
 			missing = true
 		}
 	}
@@ -153,7 +153,7 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 	for _, binding := range profile.Workflows {
 		for _, stage := range binding.Workflow.Stages {
 			for _, agent := range stage.Agents {
-				if slices.Contains(selected.document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterPentestTargetHTTP)) {
+				if slices.Contains(selected.document.Policy.RequiredCapabilities, string(runtimesettings.RuntimeAdapterHTTPTarget)) {
 					network = network || resolved.TemplateRequiresUncontrolledNetwork(agent.Template)
 				} else {
 					network = network || resolved.TemplateRequiresNetwork(agent.Template)
@@ -162,13 +162,13 @@ func engagementCompatibility(profile auditprofile.ResolvedAuditProfile, activeCh
 		}
 	}
 	if missing || network {
-		reasons = append(reasons, ReasonPentestCapabilityUnsupported)
+		reasons = append(reasons, ReasonEngagementCapabilityUnsupported)
 	}
 	if activeChecks != contracts.ActiveChecksAutomatic || profile.Interaction.ActiveChecks != contracts.ActiveChecksAutomatic {
-		reasons = append(reasons, ReasonPentestActiveChecksUnsupported)
+		reasons = append(reasons, ReasonEngagementActiveChecksUnsupported)
 	}
 	if selected.document.AccessMode == "blackbox" && !blackboxClosure(profile, selected) {
-		reasons = append(reasons, ReasonPentestSourceClosureUnsupported)
+		reasons = append(reasons, ReasonEngagementSourceClosureUnsupported)
 	}
 	return reasons
 }
@@ -220,12 +220,12 @@ func validateEngagementBaseline(baseline BaselineSnapshot) error {
 	}
 	matched := false
 	for _, input := range baseline.Inputs {
-		matched = matched || (input.Verify(engagement.Artifact) == nil && input.MediaType == pentestcontract.MediaType)
+		matched = matched || (input.Verify(engagement.Artifact) == nil && input.MediaType == engagementcontract.MediaType)
 	}
 	if !matched {
 		return fmt.Errorf("%w: engagement is not an exact baseline input", ErrInvalid)
 	}
-	if engagement.Schema != auditbaseline.EngagementSchema || engagement.Artifact.Validate() != nil || !engagement.Artifact.HasMetadata() || engagement.Artifact.MediaType != pentestcontract.MediaType || engagement.Document.Validate() != nil || engagement.AuthorizedBy == "" || engagement.AuthorizedAt.IsZero() {
+	if engagement.Schema != auditbaseline.EngagementSchema || engagement.Artifact.Validate() != nil || !engagement.Artifact.HasMetadata() || engagement.Artifact.MediaType != engagementcontract.MediaType || engagement.Document.Validate() != nil || engagement.AuthorizedBy == "" || engagement.AuthorizedAt.IsZero() {
 		return fmt.Errorf("%w: engagement baseline is invalid", ErrInvalid)
 	}
 	digest, err := engagement.Document.Policy.Digest()
@@ -247,6 +247,7 @@ func cloneEngagement(source *auditbaseline.EngagementSnapshot) *auditbaseline.En
 	result := *source
 	result.Artifact = source.Artifact.Clone()
 	d := &result.Document
+	d.Budgets.HTTPLimits = d.Budgets.HTTPLimits.Clone()
 	d.Target.Origins = slices.Clone(d.Target.Origins)
 	if d.Target.Deployment != nil {
 		value := *d.Target.Deployment
@@ -254,8 +255,6 @@ func cloneEngagement(source *auditbaseline.EngagementSnapshot) *auditbaseline.En
 	}
 	d.Scope.Routes = cloneEngagementRoutes(d.Scope.Routes)
 	d.Scope.Exclusions = cloneEngagementRoutes(d.Scope.Exclusions)
-	d.Scope.ActionClasses = slices.Clone(d.Scope.ActionClasses)
-	d.Scope.CallbackDestinations = slices.Clone(d.Scope.CallbackDestinations)
 	d.Identities = slices.Clone(d.Identities)
 	for i := range d.Identities {
 		identity := &d.Identities[i]
@@ -279,20 +278,15 @@ func cloneEngagement(source *auditbaseline.EngagementSnapshot) *auditbaseline.En
 	}
 	d.Policy.RequiredCapabilities = slices.Clone(d.Policy.RequiredCapabilities)
 	d.Policy.OptionalCapabilities = slices.Clone(d.Policy.OptionalCapabilities)
-	d.TestData = slices.Clone(d.TestData)
-	for i := range d.TestData {
-		d.TestData[i].IdentityIDs = slices.Clone(d.TestData[i].IdentityIDs)
-	}
 	return &result
 }
 
-func cloneEngagementRoutes(source []pentestcontract.Route) []pentestcontract.Route {
+func cloneEngagementRoutes(source []engagementcontract.Route) []engagementcontract.Route {
 	result := slices.Clone(source)
 	for i := range result {
 		route := &result[i]
 		route.PathPrefixes = slices.Clone(route.PathPrefixes)
 		route.Methods = slices.Clone(route.Methods)
-		route.ActionClasses = slices.Clone(route.ActionClasses)
 		route.AddressRanges = slices.Clone(route.AddressRanges)
 	}
 	return result

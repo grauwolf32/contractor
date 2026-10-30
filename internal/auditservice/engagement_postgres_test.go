@@ -23,7 +23,7 @@ import (
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
 	"github.com/grauwolf32/contractor/internal/config/resolved"
 	"github.com/grauwolf32/contractor/internal/contracts"
-	"github.com/grauwolf32/contractor/internal/contracts/pentestcontract"
+	"github.com/grauwolf32/contractor/internal/contracts/engagementcontract"
 	"github.com/grauwolf32/contractor/internal/contracts/runtimesettings"
 	"github.com/grauwolf32/contractor/internal/credentials"
 	"github.com/grauwolf32/contractor/internal/findingintake"
@@ -77,7 +77,7 @@ func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string,
 		pool = limited
 	}
 	snapshot := loadAuditServiceProfilesWithEdits(t, func(s string) string {
-		s = strings.Replace(s, "  inputs:\n", "  inputs:\n    engagement: {required: true, mediaTypes: [application/vnd.contractor.pentest-engagement+json]}\n", 1)
+		s = strings.Replace(s, "  inputs:\n", "  inputs:\n    engagement: {required: true, mediaTypes: [application/vnd.contractor.engagement+json]}\n", 1)
 		return strings.Replace(s, "activeChecks: prohibited", "activeChecks: automatic", 1)
 	}, editWorker, func(files map[string]string) {
 		if customize != nil {
@@ -118,16 +118,16 @@ func newEngagementFixtureWithEdits(t *testing.T, editWorker func(string) string,
 	}
 	return &engagementFixture{ctx, pool, service, creds, project, store, contracts.ExactArtifact{Ref: meta.Ref, Digest: meta.Digest, MediaType: meta.MediaType, SizeBytes: meta.Size}, now}
 }
-func (f *engagementFixture) document(origin string) pentestcontract.Document {
-	return pentestcontract.Document{Schema: pentestcontract.Schema, AccessMode: "blackbox", Target: pentestcontract.Target{Origins: []string{origin}}, Scope: pentestcontract.Scope{Routes: []pentestcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, ActionClasses: []string{"read"}, AddressRanges: []string{"127.0.0.0/8"}}}, Exclusions: []pentestcontract.Route{}, ActionClasses: []string{"read"}, CallbackDestinations: []string{}}, Identities: []pentestcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}}, Inputs: []pentestcontract.Input{{ID: "checklist", Role: "documentation", Artifact: f.checklist.Ref, ContentDigest: f.checklist.Digest}}, Policy: pentestcontract.Policy{Version: "1", ActiveChecks: "automatic", RetryPolicy: "conservative@1", ReplayPolicy: "fresh-session@1", RequiredCapabilities: []string{pentestcontract.Capability}, OptionalCapabilities: []string{}}, TestData: []pentestcontract.TestData{}, Budgets: pentestcontract.Budgets{ActiveSeconds: 120, TargetRequests: 10, RequestsPerSecond: 1, ConcurrentRequests: 1, CrawlDepth: 1, FetchedPages: 10, SurfaceVariants: 10, Hypotheses: 10, Rounds: 1, SubmittedRuns: 3, RecipeSteps: 4, ReplayExecutions: 1, RequestBodyBytes: 1024, ResponseBodyBytes: 1024, EvidenceBytes: 1024, ModelCalls: 2, ModelTokens: 4096, ActionIntents: 10}}
+func (f *engagementFixture) document(origin string) engagementcontract.Document {
+	return engagementcontract.Document{Schema: engagementcontract.Schema, AccessMode: "blackbox", Target: engagementcontract.Target{Origins: []string{origin}}, Scope: engagementcontract.Scope{Routes: []engagementcontract.Route{{Origin: origin, PathPrefixes: []string{"/"}, Methods: []string{"GET"}, AddressRanges: []string{"127.0.0.0/8"}}}, Exclusions: []engagementcontract.Route{}}, Identities: []engagementcontract.Identity{{ID: "anonymous", Kind: "anonymous", Origins: []string{origin}}}, Inputs: []engagementcontract.Input{{ID: "checklist", Role: "documentation", Artifact: f.checklist.Ref, ContentDigest: f.checklist.Digest}}, Policy: engagementcontract.Policy{Version: "1", ActiveChecks: "automatic", RequiredCapabilities: []string{engagementcontract.Capability}, OptionalCapabilities: []string{}}, Budgets: engagementcontract.Budgets{ActiveSeconds: 120, Rounds: 1, SubmittedRuns: 3, EvidenceBytes: 1024}}
 }
-func (f *engagementFixture) create(t *testing.T, id string, document pentestcontract.Document) (auditstore.Audit, error) {
+func (f *engagementFixture) create(t *testing.T, id string, document engagementcontract.Document) (auditstore.Audit, error) {
 	t.Helper()
 	data, err := json.Marshal(document)
 	if err != nil {
 		t.Fatal(err)
 	}
-	artifact, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: id}, artifacts.Payload{MediaType: pentestcontract.MediaType, Data: data}, nil)
+	artifact, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: id}, artifacts.Payload{MediaType: engagementcontract.MediaType, Data: data}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestEngagementStartPinsAndReplay(t *testing.T) {
 	defer target.Close()
 	document := f.document(target.URL)
 	f.credential(t, "target-one", f.project.OwnerID)
-	document.Identities = append(document.Identities, pentestcontract.Identity{ID: "account-a", Kind: "bearer", Origins: []string{target.URL}, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "target-one", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+	document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: []string{target.URL}, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "target-one", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	draft, err := f.create(t, "engagement-valid", document)
 	if err != nil {
 		t.Fatal(err)
@@ -169,7 +169,7 @@ func TestEngagementStartPinsAndReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Every stored optional engagement member is omitted or non-null.
-	for _, bad := range []string{`null`, `{"schema":"contractor.audit.pentest-baseline.v1","artifact":null}`} {
+	for _, bad := range []string{`null`, `{"schema":"contractor.audit.engagement-baseline.v1","artifact":null}`} {
 		var fields map[string]json.RawMessage
 		if err := json.Unmarshal(started.Audit.BaselineSnapshot, &fields); err != nil {
 			t.Fatal(err)
@@ -198,6 +198,40 @@ func TestEngagementStartPinsAndReplay(t *testing.T) {
 	}
 }
 
+func TestEngagementAuditPinsOneAttemptAndHTTPLimits(t *testing.T) {
+	f := newEngagementFixture(t)
+	document := f.document("http://127.0.0.1")
+	requests := uint32(7)
+	document.Budgets.TargetRequests = &requests
+	draft, err := f.create(t, "single-attempt", document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := auditprofile.DecodeResolvedAuditProfileSnapshot(draft.ProfileSnapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.Execution.MaxItemRunAttempts <= 1 {
+		t.Fatal("fixture must offer retries to prove the engagement override")
+	}
+	if draft.Limits.MaxItemRunAttempts != 1 {
+		t.Fatalf("engagement retries=%d", draft.Limits.MaxItemRunAttempts)
+	}
+	started, err := f.service.Start(f.ctx, f.start(draft))
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseline, err := DecodeBaseline(started.Audit.BaselineSnapshot)
+	if err != nil || baseline.Engagement.Document.Budgets.TargetRequests == nil || *baseline.Engagement.Document.Budgets.TargetRequests != requests {
+		t.Fatalf("HTTP limits not pinned: %v", err)
+	}
+	clone := cloneEngagement(baseline.Engagement)
+	*clone.Document.Budgets.TargetRequests = 99
+	if *baseline.Engagement.Document.Budgets.TargetRequests != requests {
+		t.Fatal("cloned HTTP limits alias the baseline")
+	}
+}
+
 func TestEngagementStartAcceptsSharedSitemapKnowledge(t *testing.T) {
 	f := newEngagementFixtureWithEdits(t, func(worker string) string {
 		return strings.Replace(worker, "  toolsets:\n", "  sitemap:\n    version: sitemap-access@1\n    collectObservations: false\n  toolsets:\n    - ref: sitemap@1\n      tools: [list_sitemap_entries]\n", 1)
@@ -215,7 +249,7 @@ func TestEngagementStartValidatesOwnershipRevisionAndCredentials(t *testing.T) {
 	f := newEngagementFixture(t)
 	document := f.document("http://127.0.0.1")
 	f.credential(t, "target-stale", f.project.OwnerID)
-	document.Identities = append(document.Identities, pentestcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "target-stale", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+	document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "target-stale", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	draft, err := f.create(t, "engagement-stale", document)
 	if err != nil {
 		t.Fatal(err)
@@ -246,14 +280,14 @@ func TestEngagementStartValidatesOwnershipRevisionAndCredentials(t *testing.T) {
 func TestEngagementUnsupportedCapabilitiesAndBlackboxClosures(t *testing.T) {
 	f := newEngagementFixture(t)
 	document := f.document("http://127.0.0.1")
-	document.Policy.RequiredCapabilities = append(document.Policy.RequiredCapabilities, "pentest-http@1")
+	document.Policy.RequiredCapabilities = append(document.Policy.RequiredCapabilities, "engagement-http@1")
 	draft, err := f.create(t, "engagement-unsupported", document)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = f.service.Start(f.ctx, f.start(draft))
 	var unsupported *UnsupportedError
-	if !errors.As(err, &unsupported) || !slices.Equal(unsupported.Reasons, []CompatibilityReason{ReasonPentestCapabilityUnsupported}) {
+	if !errors.As(err, &unsupported) || !slices.Equal(unsupported.Reasons, []CompatibilityReason{ReasonEngagementCapabilityUnsupported}) {
 		t.Fatalf("unsupported start lost compatibility reasons: %v", err)
 	}
 	profile, err := f.service.profiles.AuditProfile("test-checklist@1")
@@ -293,7 +327,7 @@ func TestEngagementUnsupportedCapabilitiesAndBlackboxClosures(t *testing.T) {
 			copySelection := *selected
 			test.mutate(&copyProfile, &copySelection)
 			reasons := engagementCompatibility(copyProfile, contracts.ActiveChecksAutomatic, &copySelection)
-			if !slices.Contains(reasons, ReasonPentestSourceClosureUnsupported) {
+			if !slices.Contains(reasons, ReasonEngagementSourceClosureUnsupported) {
 				t.Fatalf("source closure allowed: %v", reasons)
 			}
 		})
@@ -312,9 +346,9 @@ func TestEngagementSourceAssistedRetainsExactInputsAndPurgeReleasesHolds(t *test
 		t.Fatal(err)
 	}
 	document.AccessMode = "source-assisted"
-	document.Inputs = append(document.Inputs, pentestcontract.Input{ID: "source", Role: "source", Artifact: source.Ref, ContentDigest: metadata.Digest})
+	document.Inputs = append(document.Inputs, engagementcontract.Input{ID: "source", Role: "source", Artifact: source.Ref, ContentDigest: metadata.Digest})
 	f.credential(t, "source-account", f.project.OwnerID)
-	document.Identities = append(document.Identities, pentestcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "source-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+	document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "source-account", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 	draft, err := f.create(t, "engagement-source", document)
 	if err != nil {
 		t.Fatal(err)
@@ -326,7 +360,7 @@ func TestEngagementSourceAssistedRetainsExactInputsAndPurgeReleasesHolds(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	held, err := f.service.ReadArtifact(f.ctx, f.project.OwnerID, draft.AuditID, "pentest-input/source", *source.Ref.Revision)
+	held, err := f.service.ReadArtifact(f.ctx, f.project.OwnerID, draft.AuditID, "engagement-input/source", *source.Ref.Revision)
 	if err != nil || string(held.Payload.Data) != "original source snapshot" {
 		t.Fatalf("exact source replaced: %s %v", held.Payload.Data, err)
 	}
@@ -366,7 +400,7 @@ func TestEngagementCredentialOwnershipAndStartDeleteRace(t *testing.T) {
 				f := newEngagementFixture(t, conns)
 				document := f.document("http://127.0.0.1")
 				f.credential(t, "race-target", f.project.OwnerID)
-				document.Identities = append(document.Identities, pentestcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "race-target", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+				document.Identities = append(document.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: document.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "race-target", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 				draft, err := f.create(t, "engagement-race", document)
 				if err != nil {
 					t.Fatal(err)
@@ -404,7 +438,7 @@ func TestEngagementCredentialOwnershipAndStartDeleteRace(t *testing.T) {
 		f := newEngagementFixture(t)
 		f.credential(t, "foreign-target", "another-owner")
 		doc := f.document("http://127.0.0.1")
-		doc.Identities = append(doc.Identities, pentestcontract.Identity{ID: "account-a", Kind: "bearer", Origins: doc.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "foreign-target", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
+		doc.Identities = append(doc.Identities, engagementcontract.Identity{ID: "account-a", Kind: "bearer", Origins: doc.Target.Origins, Credential: &runtimesettings.RuntimeCredentialRef{CredentialID: "foreign-target", Kind: runtimesettings.RuntimeCredentialTargetBearer}})
 		if _, err := f.create(t, "engagement-foreign", doc); !errors.Is(err, credentials.ErrRuntimeCredentialNotFound) {
 			t.Fatalf("foreign credential error=%v", err)
 		}
@@ -420,15 +454,15 @@ func TestEngagementPersistedClosureStopsBeforeExposure(t *testing.T) {
 	for _, test := range []struct {
 		name     string
 		worker   func(string) string
-		document func(*pentestcontract.Document)
+		document func(*engagementcontract.Document)
 		want     CompatibilityReason
 	}{
-		{"unclassified-selected-input", nil, func(d *pentestcontract.Document) { d.Inputs = []pentestcontract.Input{} }, ReasonPentestSourceClosureUnsupported},
+		{"unclassified-selected-input", nil, func(d *engagementcontract.Document) { d.Inputs = []engagementcontract.Input{} }, ReasonEngagementSourceClosureUnsupported},
 		{"source-skill", func(s string) string {
 			return strings.Replace(s, "  toolsets:", "  skills: [{namespace: skills, name: source-context}]\n  toolsets:", 1)
-		}, nil, ReasonPentestSourceClosureUnsupported},
-		{"repository-hydration", nil, nil, ReasonPentestSourceClosureUnsupported},
-		{"network-sandbox", func(s string) string { return strings.Replace(s, "local-workdir@1", "podman-network@1", 1) }, nil, ReasonPentestCapabilityUnsupported},
+		}, nil, ReasonEngagementSourceClosureUnsupported},
+		{"repository-hydration", nil, nil, ReasonEngagementSourceClosureUnsupported},
+		{"network-sandbox", func(s string) string { return strings.Replace(s, "local-workdir@1", "podman-network@1", 1) }, nil, ReasonEngagementCapabilityUnsupported},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			f := newEngagementFixtureWithEdits(t, test.worker, func(files map[string]string) {
@@ -492,7 +526,7 @@ func TestEngagementStartValidatesProjectPolicyAndSuppressesDefaultIdentity(t *te
 	}
 	_, err = f.service.Start(f.ctx, f.start(draft))
 	var unsupported *UnsupportedError
-	if !errors.As(err, &unsupported) || !slices.Contains(unsupported.Reasons, ReasonPentestActiveChecksUnsupported) {
+	if !errors.As(err, &unsupported) || !slices.Contains(unsupported.Reasons, ReasonEngagementActiveChecksUnsupported) {
 		t.Fatalf("start ignored current Project policy or lost reason: %v", err)
 	}
 	automatic := contracts.ActiveChecksAutomatic
@@ -540,7 +574,7 @@ func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oversized, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "oversized-engagement"}, artifacts.Payload{MediaType: pentestcontract.MediaType, Data: []byte(strings.Repeat(" ", pentestcontract.MaxDocumentBytes+1))}, nil)
+	oversized, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "oversized-engagement"}, artifacts.Payload{MediaType: engagementcontract.MediaType, Data: []byte(strings.Repeat(" ", engagementcontract.MaxDocumentBytes+1))}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -567,7 +601,7 @@ func TestEngagementMetadataAdmissionPrecedesPayloadReads(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	written, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "metadata-engagement"}, artifacts.Payload{MediaType: pentestcontract.MediaType, Data: data}, nil)
+	written, err := f.store.Write(f.ctx, contracts.ArtifactRef{Namespace: "inputs", Name: "metadata-engagement"}, artifacts.Payload{MediaType: engagementcontract.MediaType, Data: data}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

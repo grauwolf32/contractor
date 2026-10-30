@@ -23,7 +23,7 @@ from contractor_runtime.contracts.base import (
     _require_text,
     normalize_run_metadata_labels,
 )
-from contractor_runtime.contracts.pentest_allocation import PentestAllocationProjection
+from contractor_runtime.contracts.engagement_allocation import EngagementAllocationProjection
 from contractor_runtime.contracts.reports import PerformanceMetricsRequest
 from contractor_runtime.contracts.settings import (
     AgentTemplateRef,
@@ -119,7 +119,7 @@ class AllocationSpec(VersionedWireModel):
 
     # Pydantic 2.13 silently ignores a disabled optional field-name alias.
     # Keeping this authority field's exact wire spelling makes other names unknown.
-    pentestEngagement: PentestAllocationProjection | None = None
+    engagement: EngagementAllocationProjection | None = None
     completion_contract: WorkerCompletionContract | None = None
     allocation_id: str
     run_id: str
@@ -147,25 +147,25 @@ class AllocationSpec(VersionedWireModel):
 
     @model_validator(mode="after")
     def validate_spec(self) -> Self:
-        assignment = self.pentestEngagement.http if self.pentestEngagement else None
-        materials = self.runtime_settings.pentest_identities or {}
+        assignment = self.engagement.http if self.engagement else None
+        materials = self.runtime_settings.http_identities or {}
         identities = assignment.identities if assignment else []
         expected = {identity.id for identity in identities if identity.credential is not None}
         if set(materials) != expected:
-            raise ValueError("pentest private material differs from assignment")
+            raise ValueError("engagement private material differs from assignment")
         for identity in identities:
             if identity.credential is None:
                 continue
             material = materials[identity.id]
             if material.credential != identity.credential:
-                raise ValueError("pentest private credential differs from assignment")
+                raise ValueError("engagement private credential differs from assignment")
         if (
-            self.pentestEngagement is not None
-            and self.pentestEngagement.access_mode == "blackbox"
+            self.engagement is not None
+            and self.engagement.access_mode == "blackbox"
             and self.workspace is not None
             and (self.workspace.sources or self.workspace.state is not None)
         ):
-            raise ValueError("blackbox pentest allocation forbids repository workspace hydration")
+            raise ValueError("blackbox allocation forbids repository workspace hydration")
         if self.completion_contract is not None:
             self.completion_contract.validate_allocation(self.namespace, self.agent_template)
         for field, value in (

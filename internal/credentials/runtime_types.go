@@ -155,7 +155,7 @@ func NewHTTPOriginBearerCredential(token string) (RuntimeCredentialMaterial, err
 	}{Token: token})
 }
 
-// NewTargetBasicCredential is a pentest target identity's Basic pair. It
+// NewTargetBasicCredential is a engagement target identity's Basic pair. It
 // keeps the HTTP origin Basic bounds (RCF-R114).
 func NewTargetBasicCredential(username, password string) (RuntimeCredentialMaterial, error) {
 	if !validBoundedSecret(username, 256) || !validBoundedSecret(password, MaximumRuntimeSecretBytes) || strings.Contains(username, ":") {
@@ -167,7 +167,7 @@ func NewTargetBasicCredential(username, password string) (RuntimeCredentialMater
 	}{Password: password, Username: username})
 }
 
-// NewTargetBearerCredential is a pentest target identity's bearer token. It
+// NewTargetBearerCredential is a engagement target identity's bearer token. It
 // keeps the bearer token bound and field-value grammar (RCF-R114).
 func NewTargetBearerCredential(token string) (RuntimeCredentialMaterial, error) {
 	if !validFieldValue(token, MaximumRuntimeSecretBytes) {

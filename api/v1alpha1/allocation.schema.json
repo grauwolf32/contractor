@@ -541,8 +541,8 @@
         "summarizerModelPolicy": {
           "$ref": "common.schema.json#/$defs/workerSummarizerConfig/properties/modelPolicy"
         },
-        "pentestEngagement": {
-          "$ref": "pentest-allocation.schema.json"
+        "engagement": {
+          "$ref": "engagement-allocation.schema.json"
         }
       },
       "required": [
@@ -1284,7 +1284,7 @@
           ],
           "default": null
         },
-        "pentestIdentities": {
+        "httpIdentities": {
           "type": "object",
           "minProperties": 1,
           "maxProperties": 7,

@@ -50,14 +50,6 @@ func (s *OwnerStore) keyedAuditMutation(
 				if changed, err = mutate(tx); err != nil {
 					return persistencepostgres.Receipt{}, err
 				}
-				if operation == auditstore.MutationStart {
-					// UPDATE RETURNING precedes the AFTER transition clock.
-					// Refresh its narrow recovery hint once at initial start;
-					// subsequent ordinary reads already see the stored value.
-					if err := tx.QueryRow(ctx, `SELECT pentest_active_us IS NOT NULL FROM audits WHERE audit_id=$1`, changed.audit.AuditID).Scan(&changed.audit.PentestControlled); err != nil {
-						return persistencepostgres.Receipt{}, err
-					}
-				}
 				response, err := json.Marshal(changed.response)
 				if err != nil {
 					return persistencepostgres.Receipt{}, err

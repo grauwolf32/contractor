@@ -296,7 +296,7 @@ make release-verify
 | Worker session modes and lockstep rollout | [Runtime upgrades](../operations/runtime-configuration.md#worker-session-mode-upgrade) |
 | Audit programs | `make test-audit-program-library-e2e`; [Audit walkthrough](../guides/audits.md) |
 | Findings producer/collection/reader | `make test-findings-e2e`; [contract](../spec/findings/findings.md) |
-| Controlled HTTP identity preflight | `make test-pentest-http-process`; [independent process, socket and accounting evidence](pentest-http-conformance.md) |
+| Controlled HTTP identity preflight | `make test-engagement-http-process`; [independent process, socket and accounting evidence](engagement-http-conformance.md) |
 | Performance collection and profiling | [Operations performance](../operations/performance.md) |
 | Podman execution | [Podman provisioning and verification](../../deploy/podman/README.md) |
 | Runtime host provisioning (Ansible role) | `make test-ansible` (also in `make lint`; needs `uv`); [Ansible guide](../../deploy/ansible/README.md) |

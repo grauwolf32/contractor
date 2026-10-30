@@ -195,9 +195,9 @@ func TestAuditCreateStartQueryAndStableErrors(t *testing.T) {
 
 	for _, reason := range []auditservice.CompatibilityReason{
 		auditservice.ReasonActiveCheckApprovalUnsupported,
-		auditservice.ReasonPentestCapabilityUnsupported,
-		auditservice.ReasonPentestSourceClosureUnsupported,
-		auditservice.ReasonPentestActiveChecksUnsupported,
+		auditservice.ReasonEngagementCapabilityUnsupported,
+		auditservice.ReasonEngagementSourceClosureUnsupported,
+		auditservice.ReasonEngagementActiveChecksUnsupported,
 	} {
 		management.err = &auditservice.UnsupportedError{Reasons: []auditservice.CompatibilityReason{reason}}
 		unsupported := auditAuthenticatedRequest(http.MethodPost, "/v1/audits/audit-fixed/start", nil)

@@ -4071,7 +4071,7 @@ export interface components {
             reportAcceptance: "automatic" | "human-required";
         };
         /** @enum {unknown} */
-        AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "active_check_approval_unsupported" | "finding_confirmation_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported" | "pentest_capability_unsupported" | "pentest_source_closure_unsupported" | "pentest_active_checks_unsupported";
+        AuditCompatibilityReason: "preparation_unsupported" | "discovery_unsupported" | "assessment_unsupported" | "multiple_rounds_unsupported" | "batching_unsupported" | "automatic_active_checks_unsupported" | "project_active_checks_prohibited" | "active_check_approval_unsupported" | "finding_confirmation_unsupported" | "manual_applicability_unsupported" | "report_acceptance_unsupported" | "manual_item_unsupported" | "engagement_capability_unsupported" | "engagement_source_closure_unsupported" | "engagement_active_checks_unsupported";
         AuditProfile: {
             ref: components["schemas"]["AuditProfileRef"];
             mode: components["schemas"]["AuditProfileMode"];
@@ -5365,7 +5365,7 @@ export interface components {
         };
         RuntimeAdapterDiagnostic: {
             /** @enum {string} */
-            ref: "otlp-http@1" | "http-proxy@1" | "caido-graphql@1" | "interactsh-http@1" | "pentest-target-http@1";
+            ref: "otlp-http@1" | "http-proxy@1" | "caido-graphql@1" | "interactsh-http@1" | "http-target@1";
             operations: components["schemas"]["DiagnosticUnsignedDecimal"];
             failedOperations: components["schemas"]["DiagnosticUnsignedDecimal"];
             flushAttempted?: boolean;

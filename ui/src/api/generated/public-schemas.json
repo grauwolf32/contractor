@@ -5316,9 +5316,9 @@
         "manual_applicability_unsupported",
         "report_acceptance_unsupported",
         "manual_item_unsupported",
-        "pentest_capability_unsupported",
-        "pentest_source_closure_unsupported",
-        "pentest_active_checks_unsupported"
+        "engagement_capability_unsupported",
+        "engagement_source_closure_unsupported",
+        "engagement_active_checks_unsupported"
       ]
     },
     "AuditProfile": {
@@ -9114,7 +9114,7 @@
             "http-proxy@1",
             "caido-graphql@1",
             "interactsh-http@1",
-            "pentest-target-http@1"
+            "http-target@1"
           ]
         },
         "operations": {

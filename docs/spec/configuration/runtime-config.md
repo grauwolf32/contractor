@@ -929,7 +929,7 @@ The same store holds the Project target-origin kinds `http-origin-basic@1` and
 requires detaching it from every Project ([Projects](../artifacts/projects.md),
 PRJ-R79).
 
-The same store holds the pentest target identity kinds `target-basic@1`,
+The same store holds the engagement target identity kinds `target-basic@1`,
 `target-bearer@1` and `target-cookies@1` (RCF-R184).
 
 **RCF-R112.** One encrypted runtime-credential plaintext is canonical JSON of
@@ -967,7 +967,7 @@ Runtime, the private schema and the public API are held to the credential
 field-value rule by
 [`credential-field-value-cases.json`](../../../api/testdata/v1alpha1/credential-field-value-cases.json).
 
-**RCF-R184.** The pentest target identity kinds are `target-basic@1`, a Basic
+**RCF-R184.** The engagement target identity kinds are `target-basic@1`, a Basic
 username and password under the RCF-R114 bounds; `target-bearer@1`, a bearer
 token that is a credential field value (RCF-R114); and `target-cookies@1`, a
 `cookies` object of 1–128 name/value pairs (LIM-RCF-30). Names are ASCII HTTP

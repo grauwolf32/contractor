@@ -297,12 +297,12 @@ settings, reports and their consumers use the current fields under the
 original model names, with one schema and fixture catalog
 (CTL-R8).
 
-**CTL-R168.** An optional pentest engagement projection on AllocationSpec is
+**CTL-R168.** An optional engagement engagement projection on AllocationSpec is
 resolved by the composition-owned Audit reader from the trusted Run/Stage
 reservation, outside Registry locks. It follows [AUD-R248](../audits/audits.md):
 exact immutable attribution, no secret material, and only task-assigned routes,
 identities and inputs. Metadata-only preparation omits the typed `http`
-assignment. Controlled HTTP requires the explicit `pentest-target-http@1`
+assignment. Controlled HTTP requires the explicit `http-target@1`
 capability in the immutable policy and the selected Runtime advertisement; it
 is independent of RuntimeConfig adapter provenance. Both wire validators and
 Runtime prepare reject an execution assignment whose enforcement is absent.
@@ -311,7 +311,7 @@ Basic, Bearer or supplied-cookie credentials.
 After placement and trusted baseline resolution, composition decrypts only the
 exact held references through the existing synchronous credential consumer,
 with its independent LIM-CTL-19 lookup deadline. It sends a secret-typed
-`runtimeSettings.pentestIdentities` map keyed by assigned identity, separate
+`runtimeSettings.httpIdentities` map keyed by assigned identity, separate
 from non-secret engagement attribution. Every entry's exact credential ID/kind
 must match its assignment; missing, extra or mismatched entries/fields fail
 prepare before target I/O. The grant is checked again after resolution and
@@ -1729,32 +1729,15 @@ CTL-R75).
 - Concurrent Tasks inside one Worker allocation (CTL-R113).
 - Dynamic Planner expansion of the Worker pool: see [planners](planners.md).
 
-**CTL-R169.** Ordinary prepare constructs the allocation-owned controlled HTTP
-resource without target I/O. The model starts target work only through an explicit
-HTTP tool call. Before target preparation, the Server persists its admitted
-Stage deadline on the exact allocation. Prepare RPC and storage operations keep
-their separate original context deadline; persisting Stage authority never extends
-that context. Each later HTTP tool request is separately clipped to its call timeout,
-confirmed allocation lease, grant and active Audit budget. The first
-recorded deadline is immutable: equal or later proposals keep it; an earlier
-proposal conflicts and requires joined cleanup before a new allocation. This
-avoids silently narrowing authority after a sending acknowledgement; action
-admission and every grant enforce the fixed bound. Preparing or replaying a Worker
-handle never starts a target pass. The private transport RPC is stop-only: its
-request contains `apiVersion`, `allocationId` and `expectedRuntimeInstanceId`;
-its response contains `apiVersion`, `allocationId`, `runtimeInstanceId` and
-`stopped: true`. It contains no counters or identity summaries: accounting belongs
-to the existing action journal and cannot authorize cleanup. The exact principal
-is authenticated by mTLS; allocation/process IDs must match the reservation.
-The allocation lock only
-registers/joins ownership, never surrounds target I/O. Abort, finalize, lease
-expiry and release cancel and join the resource before cleaning its clients.
-The stop RPC proves termination only for that exact instance and known
-allocation (or its existing bounded released tombstone). Server persists the
-proof before generic release. An absent allocation may bypass that proof only
-when the Registry write fence has joined admission and a durable indexed read
-proves that no prepared/held attempt exists; no stop marker is fabricated.
-A restarted process or uncertain stop cannot release an outstanding hold.
+**CTL-R169.** Ordinary prepare constructs allocation-owned controlled HTTP
+without target I/O from the exact engagement projection. HTTP work begins only
+through its explicit caller. Each call is clipped to its request timeout and
+confirmed allocation lease. The ordinary Scheduler and Audit lifecycle own
+Stage/Audit cancellation and deadlines. The allocation lock registers ownership
+without surrounding target I/O. Abort, finalize, lease expiry and release cancel
+and join HTTP work before clearing clients and secrets. No target request needs
+a Server permit; no separate stop RPC, persisted stop proof or target deadline
+column exists. A new allocation has fresh limits and private session state.
 
 **CTL-R170.** Allocation grants may include immutable concrete Project artifact
 read targets under ART-R135. Composition derives one sitemap/map target from the

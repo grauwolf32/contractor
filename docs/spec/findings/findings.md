@@ -46,7 +46,7 @@ It leaves to other documents:
 - Generic Audit-local SARIF export: FND-R197 through FND-R208 below. Future
   consumer-specific profiles:
   [proposal 0028](../../proposals/0028-finding-analysis-and-sarif.md);
-  redacted evidence for autonomous pentest Audits:
+  redacted evidence for autonomous engagement Audits:
   [proposal 0033](../../proposals/0033-autonomous-pentest-audits.md).
 - Shared registries: [limits](../platform/limits.md),
   [errors](../platform/errors.md),
@@ -440,11 +440,11 @@ captured as the marker `[runtime-target-credential]`. Values that the model
 supplied or set in its session are its own and are retained as sent.
 
 The ordinary `http-tools@1` finding capture is not the redacted projection
-proposed for autonomous pentest evidence: it keeps credentials the model
+proposed for autonomous engagement evidence: it keeps credentials the model
 supplied itself and replaces only the Runtime-injected Project target
 credential with the placeholder `[runtime-target-credential]`. The full
 redaction of credentials and session material proposed for
-autonomous pentest evidence is described in
+autonomous engagement evidence is described in
 [proposal 0033](../../proposals/0033-autonomous-pentest-audits.md).
 
 **FND-R53.** Selected HTTP evidence mirrors the existing HTTP bounds:

@@ -34,10 +34,6 @@ from contractor_runtime.contracts import (
     GatewayFailureSignatures,
     HeartbeatResponse,
     ModelPolicyRef,
-    PentestActionCommand,
-    PentestActionReply,
-    PentestTransportRequest,
-    PentestTransportResponse,
     PrivateProtocolDecodeError,
     ReleaseAllocationRequest,
     ResolvedAgentTemplate,
@@ -64,10 +60,6 @@ INDEX = json.loads((FIXTURES / "index.json").read_text(encoding="utf-8"))
 MODELS: dict[str, type[BaseModel]] = {
     model.__name__: model
     for model in (
-        PentestActionCommand,
-        PentestActionReply,
-        PentestTransportRequest,
-        PentestTransportResponse,
         AbortAllocationRequest,
         AgentHeartbeat,
         AgentRegistration,

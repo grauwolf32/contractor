@@ -26,8 +26,8 @@ class ReportReuseTest(unittest.TestCase):
         for name, count in findings["PYTHON_CASES"].items():
             for index in range(count):
                 ET.SubElement(suite, "testcase", classname=classname, name=f"{name}[{index}]")
-        pentest = reports.gate("test-pentest-http-process.py")
-        for identity in pentest["matrix"]()["python"]:
+        engagement = reports.gate("test-engagement-http-process.py")
+        for identity in engagement["matrix"]()["python"]:
             classname, name = identity.rsplit("::", 1)
             ET.SubElement(suite, "testcase", classname=classname, name=name)
         # Optional tests outside both focused scopes did not fail their old gates.

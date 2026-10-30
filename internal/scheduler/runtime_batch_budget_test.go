@@ -163,12 +163,6 @@ func TestSchedulerLeavesRuntimeBatchBudgetsToWorkerController(t *testing.T) {
 	if len(workers.preparedReservations) != 1 || len(h.store.stages) != 1 || h.store.stages[0].AdmittedAt == nil {
 		t.Fatal("no admitted prepared Stage")
 	}
-	expected := h.store.stages[0].AdmittedAt.Add(h.scheduler.options.PlannerTimeout)
-	for _, reservation := range workers.preparedReservations[0] {
-		if !reservation.PentestDeadline.Equal(expected) {
-			t.Fatalf("target deadline=%v, Stage deadline=%v", reservation.PentestDeadline, expected)
-		}
-	}
 	if len(workers.releases) != 1 || workers.releases[0].set {
 		t.Fatalf("release batches = %+v; want one without an inherited deadline", workers.releases)
 	}

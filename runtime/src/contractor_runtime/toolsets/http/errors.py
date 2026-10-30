@@ -6,7 +6,6 @@ _ERROR_RETRYABILITY = MappingProxyType(
     {
         "http_request_invalid": False,
         "http_credential_unavailable": False,
-        "http_request_unknown_outcome": False,
         "http_target_denied": False,
         "http_request_failed": True,
         "http_response_invalid": False,

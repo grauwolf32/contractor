@@ -894,8 +894,8 @@ intent; replay never consumes twice (FAIL-AUX-1).
 
 **AUX-R83.** Reserved and committed consumption are recorded separately,
 together with the current outstanding intent/Run count used by the
-Server-owned dispatch look-ahead. Controlled target requests use the action
-journal, grant and recovery rules in AUX-R104–106.
+Server-owned dispatch look-ahead. HTTP request quotas belong to each Runtime
+allocation under AUX-R104–106.
 
 **AUX-R84.** Model, token, Tool, HTTP and context limits remain enforced by
 each pinned child execution policy.
@@ -1157,77 +1157,24 @@ Shared rules are in
 
 ### Model-driven controlled Audit HTTP
 
-**AUX-R104.** `POST /private/v1/allocations/{allocationId}/pentest-actions`
-accepts the closed `prepare`, `grant`, `sending`, `started` and `settle`
-commands. The Server derives Audit, owner, Project, Run, Stage and Runtime
-process from the authenticated allocation; request data cannot select them.
-Preparation carries the explicitly selected assigned identityId, phase=request,
-generation=0 and an allocation-local stepIndex in 0..99999, bounded by the
-existing actionIntents cap, plus method, requestBodyBytes, requestFingerprint,
-targetDigest, URL and physical redirect/retry ordinals. Method determines the
-action class under HTP-R137; Server independently checks route/credential scope
-and the body-byte cap. Runtime uses an allocation-random HMAC key for opaque
-request/target identities. The request fingerprint covers method, URL, expanded
-headers and body; targetDigest covers the exact canonical URL. Server persists
-only origin and these opaque identities, not raw private URL/body/header hashes.
-The action key includes Audit, allocation, identity, generation, phase and index.
-Every mutation uses the existing Audit-owned `KeyedMutation` receipt with a
-Server-derived semantic key and separate command digest. Exact replay cannot
-charge twice; changed bytes are `pentest_action_conflict`. A new allocation
-cannot reuse an earlier allocation's completed invocation as its session.
-Pending or unknown held traffic for that identity in a prior allocation prevents
-replacement work. Every physical send charges the cumulative target budget.
+**AUX-R104.** Server validates and pins the typed engagement and existing Audit
+budgets at admission. Its allocation projection carries exact engagement
+attribution, routes/exclusions, assigned credentials and any configured local
+HTTP limits. Runtime interprets and executes HTTP locally; no per-request
+Server call, permit, receipt or PostgreSQL request journal exists.
 
+**AUX-R105.** Ordinary Audit/Run receipts, allocation leases and lifecycle
+fences retain their ownership. Cancellation and release join target work and
+clear credentials through the ordinary allocation path (CTL-R169). Controller
+settlement and purge wait for ordinary child release, without a separate stop
+proof, action recovery loop or retained possibly-sent marker.
 
-Preparation atomically reserves the action intent. Grant atomically charges a
-physical request and concurrency against the pinned Audit caps. A waiting
-response is a bounded retry hint, not an accepted grant receipt. Only one
-unacknowledged grant exists across the Audit. `sending` must commit before
-application bytes; `started` is acknowledged only after the first accepted
-application byte. A process-local monotonic cooldown then enforces at least
-1/RPS before the next grant. Its durable generation fences duplicate late
-acknowledgements; restart or cache loss pays a full interval, never a catch-up
-burst. A replay returns only the remaining original allowance and cannot renew
-its expiry. Runtime deducts elapsed time from its original grant-request
-dispatch, including every retry, before any first-byte write.
-
-Admission, grant and sending require active Project/Audit/Run/Stage and an
-unfenced allocation. Authenticated started/settle observations may finish
-existing attempts during drain. Invalid documents yield
-`pentest_action_invalid` (400); conflicting commands, exhausted budgets and
-stale fences yield `pentest_action_conflict`, `pentest_budget_exhausted` and
-`pentest_action_fenced` (409); denied scope is `pentest_scope_denied` (403),
-unsupported controlled transport is `pentest_transport_unsupported` (400).
-Foreign or missing allocation authority uses the existing safe 404. Only
-classified `storage_transaction_conflict` (503, `Retry-After`) permits bounded
-storage retry. Target HTTP status is outcome data, never a private API error.
-
-**AUX-R105.** `audit_actions` and `audit_action_attempts` retain only bounded
-identity, digests, grants and safe outcomes. Reserved/charged usage and unknown
-holds survive pause and Server restart. Lost acknowledgements reconcile the
-same command and attempt; expiry alone never refunds a request or releases
-concurrency. The Controller reads at most LIM-AUD-36 rows/bytes per pass and
-mutates under its existing live claim. It may settle a prepared/authorized
-attempt as cancelled-before-send, or sending/started as unknown, only after
-an exact instance-bound joined-transport proof. A generic release timestamp,
-absent Registry entry or restarted Runtime's empty release response is not
-proof. Missing proof leaves the hold unresolved and blocks final settlement
-and deletion while ordinary child cancellation and collection continue.
-
-The allocation's persisted stop marker carries the exact Run, Stage, Runtime
-principal and process identity. Journal attribution is immutable temporal
-identity, retained after child Run deletion; it is not a nullable second
-foreign key. Audit ownership governs bounded journal purge. Child deletion
-is blocked until pending actions reconcile, so it cannot erase necessary
-stop evidence. Individual actions cannot be deleted by callers.
-
-**AUX-R106.** Allocation preparation and ready replay perform no target work.
-Only an explicit model HTTP tool call creates an invocation. Within that
-invocation, lost control replies reconcile the same action/attempt receipts;
-unknown sending outcomes never authorize another send. A replacement allocation
-creates fresh private state, subject to AUX-R105's unresolved-traffic fence.
-The stop-only RPC and exact process acknowledgement follow CTL-R169. Raw response
-buffers, headers, credential values and redirect queries stay outside the journal.
-Keyed target identity permits only the matching redirect continuation; target
-scope is independently checked. All target work is owned/joined by the allocation;
-no network call occurs under an Audit transaction or Registry mutex.
+**AUX-R106.** Preparation is passive; only explicit HTTP tool calls start target
+requests. An engagement Audit never automatically repeats an item after a failed
+Run (`maxItemRunAttempts: 1`). Runtime's sole automatic transport retry follows
+HTP-R139. Each allocation owns fresh optional HTTP counters and private sessions.
+The Audit author accepts aggregate request overrun across parallel or replacement
+allocations; the Server deliberately keeps no global target request counter.
+The owning Audit/Runtime boundary is reopened if a production requirement needs
+a quota independent of allocation count or lifetime. Tests prove independent
+allocation budgets; this accepted risk does not weaken scope or credentials.
