@@ -6,7 +6,7 @@ epic: execution-core
 kind: feature
 priority: P1
 status: in_progress
-depends_on: [V425-025]
+depends_on: [V425-025, V426-002]
 languages: [go, typescript]
 goal: >-
   The browser obtains shared non-secret limits from Server at application
