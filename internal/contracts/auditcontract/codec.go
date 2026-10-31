@@ -68,9 +68,17 @@ func Decode(data, context []byte) ([]byte, error) {
 		if !validProgram(value) {
 			return nil, errInvalid
 		}
+	case "contractor.audit.proposal-context.v1":
+		if !validProposalContext(value) {
+			return nil, errInvalid
+		}
 	case "contractor.audit.proposals.v1":
-		program, contextErr := decode(context)
-		if contextErr != nil || program["schema"] != "contractor.audit.program.v1" || !validProgram(program) || !validProposals(value, program) {
+		trusted, contextErr := decode(context)
+		if contextErr != nil || trusted["schema"] != "contractor.audit.proposal-context.v1" || !validProposalContext(trusted) {
+			return nil, errInvalid
+		}
+		program := trusted["program"].(map[string]any)
+		if !validProposals(value, program, trusted["materials"].(map[string]any)) {
 			return nil, errInvalid
 		}
 	case "contractor.audit.context.v1":
@@ -110,8 +118,8 @@ func decode(data []byte) (map[string]any, error) {
 	raw, parseErr := strictjson.DecodeBounded(data, strictjson.Bounds{
 		MaxDepth: 64, MaxNodes: 250000, MaxStringBytes: 65536,
 	}, func(s string) (float64, bool) {
-		n, err := strconv.ParseFloat(s, 64)
-		return n, err == nil
+		n, err := strconv.ParseInt(s, 10, 64)
+		return float64(n), err == nil && n >= -contracts.MaxExactInteger && n <= contracts.MaxExactInteger
 	})
 	value, ok := raw.(map[string]any)
 	if parseErr != nil || !ok {
@@ -121,7 +129,7 @@ func decode(data []byte) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if validator.Validate(value) != nil || !validBytes(value) || !validSelectors(value) {
+	if validator.Validate(value) != nil || !validBytes(value) || !validSelectors(value) || !validHypothesisSizes(value) {
 		return nil, errInvalid
 	}
 	if len(data) > documentLimit(value["schema"].(string)) {
@@ -147,6 +155,33 @@ func decode(data []byte) (map[string]any, error) {
 		}
 	}
 	return value, nil
+}
+
+func validHypothesisSizes(value map[string]any) bool {
+	if value["schema"] != "contractor.audit.context.v1" {
+		return true
+	}
+	for _, raw := range value["items"].([]any) {
+		if hypothesis, ok := raw.(map[string]any)["hypothesis"]; ok {
+			data, err := strictjson.Canonical(hypothesis)
+			if err != nil || len(data) > 32768 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func checkingBinding(binding map[string]any) bool {
+	if _, ok := binding["outputs"].(map[string]any)["result"]; !ok {
+		return false
+	}
+	for _, raw := range binding["inputs"].(map[string]any) {
+		if raw.(map[string]any)["source"] == "task-context" {
+			return true
+		}
+	}
+	return false
 }
 
 func validSelectors(value map[string]any) bool {
@@ -240,7 +275,13 @@ func validProgram(v map[string]any) bool {
 		if _, ok := workflows[task["workflow"].(string)]; !ok {
 			return false
 		}
+		if !validInputSelections(task, workflows[task["workflow"].(string)].(map[string]any), inputs, nil) {
+			return false
+		}
 		if h, ok := task["hypothesis"]; ok {
+			if !checkingBinding(workflows[task["workflow"].(string)].(map[string]any)) {
+				return false
+			}
 			if _, ok = hypotheses[h.(string)]; !ok {
 				return false
 			}
@@ -254,7 +295,60 @@ func validProgram(v map[string]any) bool {
 	return true
 }
 
-func validProposals(v, program map[string]any) bool {
+func validProposalContext(value map[string]any) bool {
+	data, err := strictjson.Canonical(value["program"])
+	if err != nil {
+		return false
+	}
+	_, err = Decode(data, nil)
+	return err == nil
+}
+
+func validInputSelections(task, binding, inputs, materials map[string]any) bool {
+	selected, ok := task["inputs"].(map[string]any)
+	if !ok {
+		return true
+	}
+	for slot, raw := range selected {
+		mapping, ok := binding["inputs"].(map[string]any)[slot].(map[string]any)
+		if !ok || mapping["source"] != "audit-input" {
+			return false
+		}
+		name := raw.(string)
+		if materials == nil {
+			selected, ok := inputs[name].(map[string]any)
+			if !ok {
+				return false
+			}
+			target := inputs[mapping["name"].(string)].(map[string]any)
+			allowed := []string{}
+			for _, raw := range target["media_types"].([]any) {
+				allowed = append(allowed, raw.(string))
+			}
+			for _, raw := range selected["media_types"].([]any) {
+				if !contracts.AcceptsMediaType(allowed, raw.(string)) {
+					return false
+				}
+			}
+			continue
+		}
+		material, ok := materials[name].(map[string]any)
+		if !ok {
+			return false
+		}
+		declaration := inputs[mapping["name"].(string)].(map[string]any)
+		allowed := []string{}
+		for _, media := range declaration["media_types"].([]any) {
+			allowed = append(allowed, media.(string))
+		}
+		if !contracts.AcceptsMediaType(allowed, material["media_type"].(string)) {
+			return false
+		}
+	}
+	return true
+}
+
+func validProposals(v, program, materials map[string]any) bool {
 	seeds := v["hypotheses"].(map[string]any)
 	work := v["work"].([]any)
 	if len(seeds)+len(work) == 0 || len(seeds)+len(work) > 128 {
@@ -281,8 +375,13 @@ func validProposals(v, program map[string]any) bool {
 		if _, ok := program["workflows"].(map[string]any)[task["workflow"].(string)]; !ok {
 			return false
 		}
-		if key, ok := task["hypothesis"].(string); ok && !aliases[key] {
+		if !validInputSelections(task, program["workflows"].(map[string]any)[task["workflow"].(string)].(map[string]any), program["inputs"].(map[string]any), materials) {
 			return false
+		}
+		if key, ok := task["hypothesis"].(string); ok {
+			if !aliases[key] || !checkingBinding(program["workflows"].(map[string]any)[task["workflow"].(string)].(map[string]any)) {
+				return false
+			}
 		}
 	}
 	return true
@@ -349,7 +448,8 @@ func assemble(v, context map[string]any) bool {
 		}
 		origin := map[string]any{"audit_id": context["audit_id"], "run_id": context["run_id"], "task_id": member["task_id"]}
 		if checking {
-			origin["hypothesis"] = hypothesis
+			snapshot := hypothesis.(map[string]any)
+			origin["hypothesis"] = map[string]any{"id": snapshot["id"], "revision": snapshot["revision"]}
 		}
 		receipts, hasReceipts := member["finding_receipts"]
 		if authored {

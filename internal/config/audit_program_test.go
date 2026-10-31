@@ -24,7 +24,7 @@ func TestSharedAuditCommonProgramsLoadRealCatalog(t *testing.T) {
 	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-common", "programs.json"), &fixtures); err != nil {
 		t.Fatal(err)
 	}
-	snapshot := mustLoad(t, copyCoreFixture(t))
+	snapshot := mustLoad(t, copyCoreFixture(t, "audit-common-catalog"))
 	fixtures.Cases = append(fixtures.Cases, fixtures.LoaderCases...)
 	for _, c := range fixtures.Cases {
 		t.Run(c.Name, func(t *testing.T) {

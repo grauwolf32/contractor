@@ -6,7 +6,8 @@ schema, embedded alongside it by the Go validator.
 
 `contractor-server config validate --root <catalog> --audit-document <JSON>`
 validates real Workflow bindings. For conclusions or accepted results add
-`--audit-context <trusted-context.json>`; local files establish conformance only,
+`--audit-context <trusted-context.json>`; proposals use a pinned-program/selected-
+material context. Local files establish conformance only,
 not live authority. This operation creates no runnable profile or Run.
 
 Go rejects malformed/duplicate/case-aliased/unknown JSON, enforces UTF-8/raw/

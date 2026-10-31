@@ -28,6 +28,9 @@
     },
     {
       "$ref": "#/$defs/proposals"
+    },
+    {
+      "$ref": "#/$defs/proposal_context"
     }
   ],
   "$defs": {
@@ -38,7 +41,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 65536,
-      "pattern": "[^\\s]",
+      "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]",
       "x-maxUtf8Bytes": 65536
     },
     "digest": {
@@ -53,7 +56,7 @@
         "revision": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 50000
+          "maximum": 9007199254740991
         }
       },
       "required": [
@@ -256,6 +259,16 @@
         },
         "hypothesis": {
           "$ref": "#/$defs/key"
+        },
+        "inputs": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/key"
+          },
+          "maxProperties": 32
         }
       },
       "required": [
@@ -439,7 +452,7 @@
         "revision": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 50000
+          "maximum": 9007199254740991
         },
         "statement": {
           "$ref": "#/$defs/text"
@@ -575,6 +588,9 @@
         },
         "hypothesis": {
           "$ref": "#/$defs/hypothesis_ref"
+        },
+        "objective": {
+          "$ref": "#/$defs/text"
         }
       },
       "required": [
@@ -583,7 +599,8 @@
         "task_id",
         "workflow",
         "inputs",
-        "parameters"
+        "parameters",
+        "objective"
       ],
       "additionalProperties": false
     },
@@ -597,7 +614,7 @@
           "$ref": "#/$defs/resource_id"
         },
         "hypothesis": {
-          "$ref": "#/$defs/hypothesis_ref"
+          "$ref": "#/$defs/hypothesis"
         },
         "evidence": {
           "type": "array",
@@ -614,12 +631,16 @@
           },
           "maxItems": 128,
           "uniqueItems": true
+        },
+        "objective": {
+          "$ref": "#/$defs/text"
         }
       },
       "required": [
         "item_key",
         "task_id",
-        "evidence"
+        "evidence",
+        "objective"
       ],
       "additionalProperties": false
     },
@@ -723,7 +744,7 @@
             "minLength": 1,
             "maxLength": 512,
             "x-maxUtf8Bytes": 512,
-            "pattern": "[^\\s]"
+            "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]"
           },
           "maxItems": 512,
           "uniqueItems": true
@@ -777,7 +798,7 @@
             "minLength": 1,
             "maxLength": 512,
             "x-maxUtf8Bytes": 512,
-            "pattern": "[^\\s]"
+            "pattern": "[^\t\n\u000b\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000]"
           },
           "maxItems": 512,
           "uniqueItems": true
@@ -1114,6 +1135,33 @@
             "$ref": "#/$defs/initial"
           },
           "maxItems": 128
+        }
+      }
+    },
+    "proposal_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "program",
+        "materials"
+      ],
+      "properties": {
+        "schema": {
+          "const": "contractor.audit.proposal-context.v1"
+        },
+        "program": {
+          "$ref": "#/$defs/program"
+        },
+        "materials": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/key"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/artifact"
+          },
+          "maxProperties": 32
         }
       }
     }

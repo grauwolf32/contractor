@@ -34,6 +34,8 @@ def _decode(data: str):
     def bytes_and_depth(v, depth=1):
         if depth > 64:
             raise ValueError("depth")
+        if type(v) is float:
+            raise ValueError("integer JSON token required")
         if isinstance(v, str) and ("\x00" in v or len(v.encode("utf-8")) > 65536):
             raise ValueError("string bytes")
         if isinstance(v, dict):
@@ -81,10 +83,24 @@ def _validate_case(case):
         if len(keys) != len(set(keys)):
             raise ValueError("duplicate work")
         for task in value["initial_work"]:
+            for slot, name in task.get("inputs", {}).items():
+                binding = bindings[task["workflow"]]
+                if (
+                    slot not in binding["inputs"]
+                    or binding["inputs"][slot]["source"] != "audit-input"
+                    or name not in value["inputs"]
+                ):
+                    raise ValueError("initial material selection")
             if task["workflow"] not in bindings or (
                 "hypothesis" in task and task["hypothesis"] not in value["hypotheses"]
             ):
                 raise ValueError("unknown task binding")
+            if "hypothesis" in task:
+                binding = bindings[task["workflow"]]
+                if "result" not in binding["outputs"] or not any(
+                    source["source"] == "task-context" for source in binding["inputs"].values()
+                ):
+                    raise ValueError("checking input/result")
         for binding in bindings.values():
             for source in binding["inputs"].values():
                 if source["source"] == "audit-input" and source["name"] not in value["inputs"]:
@@ -101,10 +117,11 @@ def _validate_case(case):
         if "continuation" in value and value["continuation"]["workflow"] not in bindings:
             raise ValueError("unknown continuation")
         return
-    if value["schema"] == "contractor.audit.control.v1":
+    if value["schema"] in {"contractor.audit.control.v1", "contractor.audit.task.v1"}:
         return
     if value["schema"] == "contractor.audit.proposals.v1":
-        program = _decode(case["context"])
+        trusted = _decode(case["context"])
+        program = trusted["program"]
         seeds = set(program["hypotheses"]) | set(value["hypotheses"])
         if set(program["hypotheses"]) & set(value["hypotheses"]):
             raise ValueError("seed collision")
@@ -115,8 +132,30 @@ def _validate_case(case):
             if task["key"] in seen or task["workflow"] not in program["workflows"]:
                 raise ValueError("work binding")
             seen.add(task["key"])
-            if "hypothesis" in task and task["hypothesis"] not in seeds:
-                raise ValueError("hypothesis binding")
+            binding = program["workflows"][task["workflow"]]
+            for slot, name in task.get("inputs", {}).items():
+                if (
+                    slot not in binding["inputs"]
+                    or binding["inputs"][slot]["source"] != "audit-input"
+                    or name not in trusted["materials"]
+                ):
+                    raise ValueError("proposal material selection")
+                declaration = program["inputs"][binding["inputs"][slot]["name"]]
+                if (
+                    "*/*" not in declaration["media_types"]
+                    and trusted["materials"][name]["media_type"] not in declaration["media_types"]
+                ):
+                    raise ValueError("selected media type")
+            if "hypothesis" in task:
+                binding = program["workflows"][task["workflow"]]
+                if (
+                    task["hypothesis"] not in seeds
+                    or "result" not in binding["outputs"]
+                    or not any(
+                        source["source"] == "task-context" for source in binding["inputs"].values()
+                    )
+                ):
+                    raise ValueError("hypothesis binding")
         return
     context = _decode(case["context"])
     members = {member["item_key"]: member for member in context["items"]}
@@ -129,6 +168,14 @@ def _validate_case(case):
             raise ValueError("membership")
         seen.add(key)
         member = members[key]
+        if (
+            "hypothesis" in member
+            and len(
+                json.dumps(member["hypothesis"], ensure_ascii=False, separators=(",", ":")).encode()
+            )
+            > 32768
+        ):
+            raise ValueError("hypothesis snapshot bytes")
         if ("hypothesis" in member) != ("verdict" in item):
             raise ValueError("checking context")
         if item.get("verdict") in {"supported", "refuted"} and (
@@ -143,7 +190,7 @@ def _validate_case(case):
             audit_id=context["audit_id"], run_id=context["run_id"], task_id=member["task_id"]
         )
         if "hypothesis" in member:
-            expected["hypothesis"] = member["hypothesis"]
+            expected["hypothesis"] = {key: member["hypothesis"][key] for key in ("id", "revision")}
         if value["schema"] == "contractor.audit.result.v1" and (
             item["origin"] != expected
             or item.get("finding_receipts") != member.get("finding_receipts")
@@ -152,7 +199,7 @@ def _validate_case(case):
 
 
 def test_shared_audit_common_documents():
-    for name in ("programs.json", "results.json", "controls.json", "proposals.json"):
+    for name in ("programs.json", "results.json", "controls.json", "proposals.json", "tasks.json"):
         fixtures = json.loads((ROOT / "api/testdata/audit-common" / name).read_text())
         assert fixtures["cases"]
         for case in fixtures["cases"]:

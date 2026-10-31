@@ -20,7 +20,7 @@ type fixtureCase struct {
 }
 
 func TestSharedAuditCommonDocuments(t *testing.T) {
-	for _, file := range []string{"programs.json", "results.json", "controls.json", "proposals.json"} {
+	for _, file := range []string{"programs.json", "results.json", "controls.json", "proposals.json", "tasks.json"} {
 		var fixtures struct {
 			Cases []fixtureCase `json:"cases"`
 		}
@@ -104,6 +104,48 @@ func TestSharedAuditCommonByteAndMutationBounds(t *testing.T) {
 	for _, bad := range [][]byte{append([]byte(`{"schema":"`), 0xff), []byte(strings.Repeat("[", 100) + strings.Repeat("]", 100))} {
 		if _, err := auditcontract.Decode(bad, nil); err == nil {
 			t.Fatal("malformed input accepted")
+		}
+	}
+}
+
+func TestSharedAuditCommonTextUsesTheWireWhitespaceRule(t *testing.T) {
+	var wire struct {
+		Blank []string `json:"blank"`
+		Text  []string `json:"text"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "v1alpha1", "blank-text-cases.json"), &wire); err != nil {
+		t.Fatal(err)
+	}
+	var fixture struct {
+		Cases []fixtureCase `json:"cases"`
+	}
+	if err := json.Unmarshal(contractstest.ReadFile(t, "api", "testdata", "audit-common", "results.json"), &fixture); err != nil {
+		t.Fatal(err)
+	}
+	if len(wire.Blank) == 0 || len(wire.Text) == 0 || len(fixture.Cases) == 0 {
+		t.Fatal("empty whitespace selection")
+	}
+	var document map[string]any
+	if err := json.Unmarshal([]byte(fixture.Cases[0].Document), &document); err != nil {
+		t.Fatal(err)
+	}
+	for _, group := range []struct {
+		values []string
+		valid  bool
+	}{{wire.Blank, false}, {wire.Text, true}} {
+		for _, text := range group.values {
+			document["items"].([]any)[0].(map[string]any)["rationale"] = text
+			data, err := json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = auditcontract.Decode(data, []byte(fixture.Cases[0].Context))
+			// NUL is nonblank in the shared classification but forbidden in
+			// every persisted common document independently of whitespace.
+			want := group.valid && !strings.ContainsRune(text, '\x00')
+			if (err == nil) != want {
+				t.Fatalf("wire whitespace classification drift: valid=%v error=%v", want, err)
+			}
 		}
 	}
 }

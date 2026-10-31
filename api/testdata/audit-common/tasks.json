@@ -1,0 +1,24 @@
+{
+  "cases": [
+    {
+      "name": "ordinary-exploration-task",
+      "document": "{\"schema\": \"contractor.audit.task.v1\", \"audit_id\": \"audit-1\", \"task_id\": \"task-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected material\", \"inputs\": {\"source\": {\"scope_kind\": \"audit\", \"scope_id\": \"audit-1\", \"ref\": {\"namespace\": \"evidence\", \"name\": \"observation\", \"revision\": \"rev-1\"}, \"digest\": \"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"media_type\": \"text/plain\", \"size_bytes\": 3}}, \"parameters\": {}}",
+      "valid": true
+    },
+    {
+      "name": "exact-hypothesis-task",
+      "document": "{\"schema\": \"contractor.audit.task.v1\", \"audit_id\": \"audit-1\", \"task_id\": \"task-1\", \"workflow\": \"inspect\", \"objective\": \"Inspect selected material\", \"inputs\": {\"source\": {\"scope_kind\": \"audit\", \"scope_id\": \"audit-1\", \"ref\": {\"namespace\": \"evidence\", \"name\": \"observation\", \"revision\": \"rev-1\"}, \"digest\": \"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"media_type\": \"text/plain\", \"size_bytes\": 3}}, \"parameters\": {}, \"hypothesis\": {\"id\": \"owner-independent-hypothesis\", \"revision\": 1}}",
+      "valid": true
+    },
+    {
+      "name": "task-without-objective",
+      "document": "{\"schema\": \"contractor.audit.task.v1\", \"audit_id\": \"audit-1\", \"task_id\": \"task-1\", \"workflow\": \"inspect\", \"inputs\": {\"source\": {\"scope_kind\": \"audit\", \"scope_id\": \"audit-1\", \"ref\": {\"namespace\": \"evidence\", \"name\": \"observation\", \"revision\": \"rev-1\"}, \"digest\": \"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"media_type\": \"text/plain\", \"size_bytes\": 3}}, \"parameters\": {}, \"hypothesis\": {\"id\": \"owner-independent-hypothesis\", \"revision\": 1}}",
+      "valid": false
+    },
+    {
+      "name": "task-without-exact-input",
+      "document": "{\"schema\": \"contractor.audit.task.v1\", \"audit_id\": \"audit-1\", \"task_id\": \"task-1\", \"workflow\": \"inspect\", \"inputs\": {\"source\": {\"scope_kind\": \"audit\", \"scope_id\": \"audit-1\", \"ref\": {\"namespace\": \"evidence\", \"name\": \"observation\"}, \"digest\": \"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"media_type\": \"text/plain\", \"size_bytes\": 3}}, \"parameters\": {}, \"hypothesis\": {\"id\": \"owner-independent-hypothesis\", \"revision\": 1}, \"objective\": \"Check scoped assertion\"}",
+      "valid": false
+    }
+  ]
+}

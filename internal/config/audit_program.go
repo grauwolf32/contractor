@@ -68,9 +68,9 @@ func ValidateAuditProgram(s *Snapshot, data []byte) error {
 				return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: unknown Workflow parameter")
 			}
 		}
-		for _, raw := range binding["outputs"].(map[string]any) {
+		for logical, raw := range binding["outputs"].(map[string]any) {
 			slot, ok := workflow.Outputs[raw.(string)]
-			if !ok || !slot.Required {
+			if !ok || !slot.Required || logical == "result" && !contracts.AcceptsMediaType(slot.MediaTypes, "application/json") {
 				return apierror.New(apierror.AuditDocumentInvalid, "audit_document_invalid: output must name a required Workflow output")
 			}
 		}

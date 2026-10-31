@@ -14,8 +14,11 @@ import (
 
 func TestSharedAuditCommonOfflineCommand(t *testing.T) {
 	root := configtest.CopyWithPolicies(t, "../config/testdata/valid")
+	if err := os.CopyFS(root, os.DirFS("../config/testdata/audit-common-catalog")); err != nil {
+		t.Fatal(err)
+	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	for _, file := range []string{"programs.json", "results.json", "controls.json", "proposals.json"} {
+	for _, file := range []string{"programs.json", "results.json", "controls.json", "proposals.json", "tasks.json"} {
 		var fixtures struct {
 			Cases []struct {
 				Document string `json:"document"`

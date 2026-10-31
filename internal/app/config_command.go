@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -76,7 +77,11 @@ func runConfigCLI(args []string, logger *slog.Logger) error {
 				return err
 			}
 		} else if document["schema"] == "contractor.audit.proposals.v1" {
-			if err := contractorconfig.ValidateAuditProgram(snapshot, context); err != nil {
+			var trusted map[string]json.RawMessage
+			if err := strictjson.Decode(context, &trusted); err != nil {
+				return err
+			}
+			if err := contractorconfig.ValidateAuditProgram(snapshot, trusted["program"]); err != nil {
 				return err
 			}
 		}

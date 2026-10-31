@@ -28,7 +28,10 @@ A finding is an evidenced problem, subject to the existing
 closed documents and reuses the existing shared wire name, ID, media type and
 exact ArtifactRef definitions. No model-authored final package or internal ZIP
 is required. A hypothesis ID is opaque and independent of its owner's identity;
-its revision remains exact when ownership changes. There is no owner prefix in
+its revision remains exact when ownership changes. The positive revision counter
+uses the existing exact-integer bound (LIM-AUD-22), independently of the per-Audit
+revision-count budget; fractional or exponent JSON tokens cannot alias an integer
+revision during decoding. There is no owner prefix in
 that ID and no second Project hypothesis registry.
 
 | Document | Authority and content |
@@ -36,7 +39,8 @@ that ID and no second Project hypothesis registry.
 | `program` | Authored selected Workflow aliases, input contracts, initial work and named hypothesis seeds, continuation and limits/policy |
 | `hypothesis` | System identity/revision and immutable statement, scope and grounds |
 | `task` | Accepted Audit/task identity, selected Workflow alias, exact input descriptors/parameters and optional hypothesis pin |
-| `context` | Trusted Audit/Run, exact Workflow identity/digest, bounded item-key/task membership, optional per-item hypothesis and admitted evidence descriptors |
+| `context` | Trusted Audit/Run, exact Workflow identity/digest, bounded item-key/task membership and objective, optional exact readable hypothesis snapshot and admitted evidence descriptors |
+| `proposal-context` | Server-local pinned program and exact selected material handles used to validate producer choices; not a model-authored program or second execution state |
 | `proposals` | Bounded model-proposed named seeds/work using allowed bindings; no persisted IDs, scope permission or automatic admission |
 | `conclusions` | Model-authored per-item content, conditions, evidence and limitations; no provenance fields |
 | `result` | Ordinary output with system-derived origin on each item; no Run status or mandatory finding |
@@ -57,6 +61,12 @@ explicit Audit material, trusted task context or prior-results JSON; no arbitrar
 object paths, per-provider parsing, second Workflow graph or automatic
 cross-Workflow dependencies are interpreted by this validator. Workflow closures
 are pinned by the accepted task owner, not by model output.
+
+A hypothesis-bound initial or proposed task must select a Workflow binding with
+a JSON `task-context` input and required JSON `result` output. The trusted
+context carries the task objective and complete exact hypothesis statement,
+scope, grounds and source provenance; its result origin retains the stable
+ID/revision. A context key/ID alone cannot stand in for the assertion.
 
 **ACT-R3.** An initial task names an allowed Workflow and optionally a named
 seed. Unknown names and duplicate work keys are invalid. Initial work may be
@@ -95,6 +105,11 @@ new decision, within pinned budgets. No model call occurs on every controller ti
 ordinary output carrying named seeds and work only; its combined record count
 obeys the mutation slice bound. Validation against the pinned program rejects
 unknown Workflow/hypothesis aliases, collisions and authored system identities.
+Optional work input selections name only available material handles from the
+trusted frozen source set. They cannot overwrite task-context/prior-results
+inputs or select foreign/incompatible artifacts. Initial selections name only
+already selected Audit input slots. The owner resolves accepted choices to exact
+ordinary Task input descriptors, without a graph of future output dependencies.
 
 **ACT-R8.** The control contract is soft pause/drain, Resume of accepted work,
 and terminal Cancel. Admission and Run/HTTP/model timeouts retain separate owners.
@@ -135,8 +150,8 @@ live registry. Reading alone creates no hold.
 
 **ACT-R12.** The CLI accepts `config validate --audit-document <JSON>` after
 loading the real catalog. Conclusions/results and proposals additionally require the exact
-`--audit-context <JSON>` supplied by the trusted caller (per-item context for results; pinned program for
-proposals). Local context files are
+`--audit-context <JSON>` supplied by the trusted caller (per-item context for results; a server-local pinned program and selected-material
+context for proposals). Local context files are
 validation inputs, not proof of live authority. There are no database writes,
 credentials, target calls, grants or implicit execution effects. Other JSON
 Artifacts and external archive/export contracts keep their own formats.

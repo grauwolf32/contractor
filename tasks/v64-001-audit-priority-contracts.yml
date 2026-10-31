@@ -39,6 +39,7 @@ context:
     or authorizing dependent tasks. Ordinary dependency/status rules still apply; the delegate sets
     in_progress when starting. Approval removal is settled and must not be reopened as a cutover choice.
   contract_decisions: User confirmed soft pause/drain, Resume of accepted work and terminal Cancel on 2026-10-31; also confirmed 10000 hypotheses, 50000 revisions, 32 KiB per document, 256 MiB revision bytes, 128 records and 1 MiB metadata per mutation.
+  verification_prerequisite: V64-019 separately removes inherited export exceptions that referenced archived V64-006; its completed cleanup restores the mandatory lint gate without changing priority behavior.
   execution_authority: User requested implementation in this chat on 2026-10-31. Work is isolated on codex/audit-task-contracts; dependent tasks are not started.
   design:
   - docs/proposals/0050-audit-common-hypothesis-model.md
@@ -105,7 +106,7 @@ requirements:
     to every hypothesis in its Run.
 - id: R3
   text: Preserve current task/iteration/batch ceilings and evidence/report bounds until an explicitly
-    reviewed change; proposed new hypothesis bounds are finite and recorded once in LIM/shared fixtures.
+    reviewed change; confirmed hypothesis bounds are recorded once in LIM/shared fixtures, separately from the owner-independent exact revision counter.
 - id: R4
   text: Remove formal approval requests, waiting/expiry/renewal states, approval-required policy and report
     acceptance from the target contract. Keep ordinary scope, allowed/prohibited operations and access
@@ -200,7 +201,7 @@ tests:
   - A5
 - command: make lint
 test_prerequisites:
-- Commands below are future implementation acceptance, not results of this planning update.
+- The implementation results below were obtained with a dedicated disposable PostgreSQL database and canonical macOS TMPDIR.
 - Use disposable PostgreSQL with CONTRACTOR_TEST_DATABASE_URL set; configured/unavailable DB or mandatory
   skips fail. A focused selector matching zero tests fails.
 - Use testdata catalogs and pseudo-Skills, not live configs in unit/integration tests. Run whole touched-package
@@ -235,3 +236,19 @@ replanning:
   - V25-011
   reason: Replaces earlier scope and acceptance with the common Audit research plan; this is not implementation
     or completion.
+
+verification:
+  date: '2026-11-01'
+  environment: Go 1.26.9, Node 24.20.0, locked Runtime dependencies and a dedicated disposable PostgreSQL database.
+  results:
+  - command: go test -count=1 ./internal/contracts/auditcontract ./internal/config/... ./internal/contracts/... ./internal/auditdomain ./internal/app ./internal/archtest
+    outcome: Passed the complete touched-package suites, including the real catalog, offline CLI, source-removal inventory and architecture checks.
+  - command: make test-wire-cross-language
+    outcome: Passed; 363 shared fixture files, 391 Go shared test functions and 288 Python shared test functions were checked. The Runtime shared selection ran 1583 tests successfully; 4353 unrelated tests were deselected.
+  - command: make verify-public-api verify-public-api-postgres
+    outcome: Passed the public operation/error/schema checks and PostgreSQL race checks. This task adds no public HTTP field or operation; generated public clients remain current.
+  - command: make lint
+    outcome: Passed the final sequential run, including generators, staticcheck, export ownership, UI lint, task/spec/source gates, Runtime lint and import layers.
+  observations:
+  - One earlier concurrent lint run hit PermissionError from os.killpg in the existing report-capture test. The isolated report suite and final complete sequential lint both passed; report-capture code was not changed.
+  boundary: Ordinary execution, storage migration, Project ownership changes and Runtime completion activation remain assigned to the dependent tasks. No live-model quality result is claimed by contract conformance.
