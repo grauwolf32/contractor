@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -107,7 +108,40 @@ WHERE (scope_kind='audit' AND scope_id=$1 AND namespace=$2 AND name=$3)
 			t.Fatalf("ordinary workflows: %d %v", gateway.CompletedStages(), gateway.Failures())
 		}
 		deleteASVSBacktraceRun(t, h.ctx, h.client, h.baseURL, source.RunID)
-		data, _ := download(t, h.client, fmt.Sprintf("%s/v1/audits/%s/artifacts?key=prepare:%s:material&revision=%s", h.baseURL, draft.AuditID, source.ExecutionID, *material.Ref.Revision))
+		var data []byte
+		waitScanCondition(t, h, "retained material after source purge", func() bool {
+			target := fmt.Sprintf("%s/v1/audits/%s/artifacts?key=prepare:%s:material&revision=%s", h.baseURL, draft.AuditID, source.ExecutionID, *material.Ref.Revision)
+			req, err := http.NewRequestWithContext(h.ctx, http.MethodGet, target, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Authorization", "Bearer "+publicToken)
+			response, err := h.client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer response.Body.Close()
+			// Child deletion can advance the Audit while ReadArtifact checks its
+			// snapshot. Retry only that classified optimistic-read conflict.
+			if response.StatusCode == http.StatusConflict {
+				var failure struct {
+					Code      string `json:"code"`
+					Retryable bool   `json:"retryable"`
+				}
+				if err := json.NewDecoder(response.Body).Decode(&failure); err != nil || failure.Code != "conflict" || !failure.Retryable {
+					t.Fatalf("unexpected material read conflict: %+v %v", failure, err)
+				}
+				return false
+			}
+			if response.StatusCode != http.StatusOK {
+				t.Fatalf("material read: %d %s", response.StatusCode, copyBounded(response.Body))
+			}
+			data, err = io.ReadAll(io.LimitReader(response.Body, 1<<20))
+			if err != nil {
+				t.Fatal(err)
+			}
+			return true
+		})
 		if !bytes.Equal(data, payload) {
 			t.Fatal("source Run purge changed retained bytes")
 		}
