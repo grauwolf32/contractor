@@ -4,20 +4,35 @@ title: Bound the Project deletion drain check by active work, not finished Run h
 milestone: hub-audit-defects-2026-10
 epic: projects-artifacts
 kind: defect
+introduced_by: V407-025
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
 - sql
-goal: The Project deletion drain check reads a number of rows bounded by the Project's active Runs, independent
-  of finished Run history and other owners.
+goal: The active-Run lookup in the Project deletion drain check reads only the Project's active Runs, independent
+  of finished Run history and other owners; the existing allocation-release and Audit barriers remain bounded and unchanged.
 context:
   origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
   severity: low
   finding: waitForDrainSQL in internal/projectlifecycle/controller_sql.go reads more index entries as
     finished Run history grows (V414-024 measured 214 rows, then 356 with more history) and scans every
     owner's active Runs.
+  specification:
+  - docs/spec/artifacts/retention-and-deletion.md#DEL-R44
+  implementation_decision: >-
+    2026-10-31 agent implementation choice: add a partial owner/Project index
+    over the canonical active Run states. Retain the existing production SQL
+    and deletion outcomes. This removes the history/global-active bitmap
+    inputs from the active-Run predicate. As the existing DEL-R44 performance
+    contract states, the separate release barrier still walks currently
+    unreleased allocations, including release retries for terminal Runs;
+    its budget is not a new promise of Project-only allocation indexing.
+    A new allocation ownership projection would broaden this task beyond
+    the reported Run-index defect and is not introduced. The Audit and purge
+    rechecks retain their existing indexes and behavior. Reopen this index
+    choice if the active-state set or the Run/Project ownership changes.
   siblings: Other drain and hold checks that V407-025 reduced; the held-credential check measured by V414-024.
 scope:
   in:
@@ -32,10 +47,7 @@ acceptance_criteria:
 - id: A2
   text: The budget test fails on the unfixed statement.
 tests:
-- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/projectlifecycle/...
-  covers:
-  - A1
-  - A2
+- command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 ./internal/projectlifecycle/... ./internal/runstore/... ./internal/persistence/...
+  covers: [A1, A2]
 - command: make lint
-  covers:
-  - A1
+  covers: [A1]

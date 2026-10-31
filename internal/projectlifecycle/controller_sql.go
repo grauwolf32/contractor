@@ -12,15 +12,9 @@ package projectlifecycle
 // the Run history or every owner's active Runs (V407-025). The owner drops no
 // Run: workflow_runs_project_owner_fkey ties every Run of a Project to the
 // Project's one owner.
-//   - the active Run check names the owner as well as the Project, so the
-//     planner finds the Project's Runs through
-//     workflow_runs_owner_project_created_idx, which the Project alone cannot
-//     use because the owner leads it, and visits no Run of another Project.
-//     On the test's fixture the planner intersects those index entries with
-//     the entries of the active Runs (workflow_runs_runtime_credentials_idx),
-//     so the check reads one index entry for each Run of the Project and for
-//     each active Run, but no Run row unless one of the Project's Runs is
-//     active;
+//   - the active Run check names owner and Project and uses the partial
+//     workflow_runs_owner_project_active_idx. A drained Project reads no
+//     Run entry, independent of its terminal history and foreign active Runs;
 //   - the allocation check starts from the allocations whose release has not
 //     completed (stage_allocations_pending_release_idx): the live ones and
 //     those whose release is being retried. It reads one Run per allocation
