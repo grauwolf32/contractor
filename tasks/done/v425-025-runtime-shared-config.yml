@@ -5,7 +5,7 @@ milestone: runtime-shared-config-2026-10
 epic: execution-core
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, python]
 goal: >-
@@ -94,3 +94,13 @@ verification_notes: >-
   Runtime broad check deselects two tests owning already-tracked macOS APFS
   and PATH_MAX failures (V425-001 and V425-002); relevant changed packages
   receive separate full suites. PostgreSQL checks use a disposable database.
+
+implementation_commit: 2bbb324243eaff44ed93de50a3617e016d13aefe
+verification:
+  - Full Runtime run passed 5784 tests, with 133 platform/integration skips and the two declared macOS deselections.
+  - Final small-policy transport regression and full Artifact/bootstrap suites passed 53 tests after separating JSON response budgets from the payload ceiling.
+  - All listed Go suites passed against disposable PostgreSQL; wire gate passed 356 shared fixtures, 394 Go and 284 Python shared tests.
+  - Control and Artifact cross-language integration and the production Server/Runtime Artifact copy passed.
+  - UI verification passed 2632 tests plus one expected failure, typecheck, lint and build; public API verification and make lint passed.
+  - A loaded broad attempt raced the existing 150 ms Podman flood timeout; the unchanged 50-test owner suite and a subsequent serial broad run passed.
+  - Public browser startup delivery is the user-requested follow-up V425-026; this commit initially reads the UI ceiling from its generated schema.
