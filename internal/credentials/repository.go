@@ -106,17 +106,11 @@ LIMIT $2`, afterCredentialID, limit)
 	if err != nil {
 		return nil, persistencepostgres.WrapError("list encrypted credentials", err)
 	}
-	defer rows.Close()
-	result := make([]Record, 0)
-	for rows.Next() {
-		record, scanErr := scanRecord(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, record)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, persistencepostgres.WrapError("iterate encrypted credentials", rows.Err())
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Record, error) {
+		return scanRecord(row)
+	})
+	if err != nil {
+		return nil, persistencepostgres.WrapError("iterate encrypted credentials", err)
 	}
 	return result, nil
 }
@@ -182,16 +176,8 @@ LIMIT $2`, credentialID, limit)
 	if err != nil {
 		return nil, persistencepostgres.WrapError("inspect active RuntimeConfig LLM credential bindings", err)
 	}
-	defer rows.Close()
-	labels := make([]string, 0)
-	for rows.Next() {
-		var label string
-		if err := rows.Scan(&label); err != nil {
-			return nil, persistencepostgres.WrapError("read active RuntimeConfig LLM credential binding", err)
-		}
-		labels = append(labels, label)
-	}
-	if err := rows.Err(); err != nil {
+	labels, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
 		return nil, persistencepostgres.WrapError("iterate active RuntimeConfig LLM credential bindings", err)
 	}
 	return labels, nil
@@ -313,17 +299,11 @@ LIMIT $1`, limit)
 	if err != nil {
 		return nil, persistencepostgres.WrapError("list prepared credential operations", err)
 	}
-	defer rows.Close()
-	result := make([]Operation, 0)
-	for rows.Next() {
-		operation, scanErr := scanOperation(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, operation)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, persistencepostgres.WrapError("iterate prepared credential operations", rows.Err())
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Operation, error) {
+		return scanOperation(row)
+	})
+	if err != nil {
+		return nil, persistencepostgres.WrapError("iterate prepared credential operations", err)
 	}
 	return result, nil
 }

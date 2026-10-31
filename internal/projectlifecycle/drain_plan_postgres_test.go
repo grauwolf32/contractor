@@ -29,14 +29,13 @@ import (
 // allocation, so the unreleased allocations are the live ones. Audits belong
 // to the other Projects, a few of them still running. drainEmpty has no Run
 // and no Audit, like a Project in its Artifact purge. The history then grows
-// to drainGrownRuns. Every table stays within the 30000 rows that ANALYZE
-// samples whole at the default statistics target, so its statistics, and
-// with them the plans, are the same on every run.
+// to ten times as many Runs. The fixture raises the statistics target so
+// ANALYZE samples every row even in the grown 180000-row Stage tables.
 const (
 	drainOwners      = 6
 	drainProjects    = 5
 	drainRuns        = 6000
-	drainGrownRuns   = 9999
+	drainGrownRuns   = 60000
 	drainActiveEvery = 50
 	drainAudits      = 600
 	drainTarget      = "project-0-0"
@@ -230,18 +229,14 @@ VACUUM (INDEX_CLEANUP ON, ANALYZE) projects, workflow_runs, stage_executions, st
 	}
 }
 
-// TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations explains
-// the drain check and the purge recheck of Project deletion on a realistic
-// database, before and after its Run history grows by two thirds. The drain
-// check of a drained Project reads, of workflow_runs, the index entries of
-// the Project's Runs and of the active Runs, whose intersection finds no Run
-// row, and at most one Run per unreleased allocation; of the Stage tables at
-// most one row per unreleased allocation; and no Audit. The purge recheck of
-// a Project without Runs descends one index of each table and reads no entry.
-// Both answer as the statements before V407-025 did, which the test explains
-// on the same data for the record. The result cases roll back changes that
-// the second measurement must not count, so the fixture has a database of
-// its own (explaintest.Database).
+// TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations checks
+// custom and generic read budgets before and after terminal history grows
+// tenfold. The active-Run lookup visits only the Project's active Runs; the
+// allocation path retains its existing bound of one Run per unreleased
+// allocation. Result cases preserve cancellation, release and Audit barriers.
+// A rollback-only index removal proves the same budget rejects the unfixed
+// history-dependent plan. The fixture owns a database so VACUUM removes the
+// rolled-back versions before subsequent measurements.
 func TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations(t *testing.T) {
 	databaseURL := os.Getenv("CONTRACTOR_TEST_DATABASE_URL")
 	if databaseURL == "" {
@@ -253,6 +248,15 @@ func TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations(t *testing
 		_, err := persistencepostgres.ApplyMigrations(ctx, pool, persistencepostgres.MigrationBudgets{})
 		return err
 	})
+	for _, statement := range []string{
+		`ALTER TABLE workflow_runs ALTER COLUMN state SET STATISTICS 1000`,
+		`ALTER TABLE stage_executions ALTER COLUMN state SET STATISTICS 1000`,
+		`ALTER TABLE stage_allocations ALTER COLUMN release_completed_at SET STATISTICS 1000`,
+	} {
+		if _, err := pool.Exec(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if _, err := pool.Exec(ctx, drainProjectsSQL, drainOwners, drainProjects); err != nil {
 		t.Fatal(err)
 	}
@@ -274,11 +278,12 @@ func TestProjectDrainChecksReadOnlyTheProjectAndUnreleasedAllocations(t *testing
 	// dead index entries that only the next VACUUM removes.
 	checkDrainPlans(t, ctx, pool, "fixture")
 	checkDrainResults(t, ctx, pool)
-	// More terminal history, in the target Project too, adds only the index
-	// entries of the target's new Runs to what the checks read.
+	// Terminal history, including the target's, grows tenfold. It must not
+	// increase the budget: active Runs and unreleased allocations stay fixed.
 	populateDrainRuns(t, ctx, pool, drainRuns+1, drainGrownRuns, 0)
 	analyzeDrainFixture(t, ctx, pool)
 	checkDrainPlans(t, ctx, pool, "grown history")
+	checkDrainIndexRegression(t, ctx, pool)
 }
 
 // checkDrainResults compares both statements with their originals on the
@@ -395,9 +400,8 @@ var errRollback = errors.New("rolled back")
 // although EXPLAIN rounds its rows per loop to zero.
 func checkDrainPlans(t *testing.T, ctx context.Context, pool *pgxpool.Pool, label string) {
 	t.Helper()
-	// projectRuns are the target's Runs, all terminal, and activeRuns every
-	// owner's active Runs: the two inputs of the bitmap intersection that
-	// finds the target's active Runs.
+	// Record the target's terminal history and global active Runs as evidence
+	// that neither collection contributes to the new active-Run lookup budget.
 	var unreleased, projectRuns, activeRuns int64
 	if err := pool.QueryRow(ctx, `
 SELECT (SELECT count(*) FROM stage_allocations WHERE release_completed_at IS NULL),
@@ -428,27 +432,27 @@ SELECT (SELECT count(*) FROM stage_allocations WHERE release_completed_at IS NUL
 	}
 
 	drain, originalDrain := explain(waitForDrainSQL, drainTarget, drainOwner), explain(originalWaitForDrainSQL, drainTarget)
-	t.Logf("%s, %d unreleased allocations, %d Runs in the target, %d active Runs: drain check of the drained Project, reads %s, %d blocks:\n%s\nbefore V407-025, reads %s, %d blocks:\n%s",
+	t.Logf("%s, %d unreleased allocations, %d Runs in the target, %d active Runs: drain check of the drained Project, reads %s, %d blocks:\n%s\noriginal SQL on the current schema, reads %s, %d blocks:\n%s",
 		label, unreleased, projectRuns, activeRuns, reads(drain), drain.Plan.Blocks(), drain.Plan,
 		reads(originalDrain), originalDrain.Plan.Blocks(), originalDrain.Plan)
-	for table, budget := range map[string]int64{
-		// The index entries of the target's Runs and of the active Runs, and
-		// one Run for each unreleased allocation.
-		"workflow_runs": projectRuns + activeRuns + unreleased + drainPlanningEntries,
+	budgets := map[string]int64{
+		// No active Run in this Project; at most one Run is visited per
+		// currently unreleased allocation, independent of terminal history.
+		"workflow_runs": unreleased + drainPlanningEntries,
 		// One Stage and one allocation for each unreleased allocation.
 		"stage_executions":  unreleased + drainPlanningEntries,
 		"stage_allocations": unreleased + drainPlanningEntries,
 		// The target has no Audit, and no other Project's Audit is read.
 		"audits": 0,
-	} {
+	}
+	for table, budget := range budgets {
 		if read := drain.Reads.Of(table); read > budget {
 			t.Errorf("%s: the drain check read %d rows of %s, budget %d:\n%s", label, read, table, budget, drain.Plan)
 		}
 	}
-	if drain.Plan.Blocks() >= originalDrain.Plan.Blocks() {
-		t.Errorf("%s: the drain check reads %d blocks, no fewer than the %d it read before V407-025",
-			label, drain.Plan.Blocks(), originalDrain.Plan.Blocks())
-	}
+	// Both SQL spellings benefit from the new partial index. Comparing them
+	// on today's schema no longer represents the old execution cost; the
+	// rollback-only index removal below measures that negative control.
 
 	purge, originalPurge := explain(purgeRemainsSQL, drainEmpty, drainOwner), explain(originalPurgeRemainsSQL, drainEmpty)
 	t.Logf("%s: purge recheck of the Project without Runs, reads %s, %d blocks:\n%s\nbefore V407-025, %d blocks:\n%s",
@@ -478,9 +482,51 @@ SELECT (SELECT count(*) FROM stage_allocations WHERE release_completed_at IS NUL
 			t.Fatalf("%s: generic %s plan: %v", label, name, err)
 		}
 		t.Logf("%s: generic %s plan:\n%s", label, name, generic)
-		if scans := generic.SeqScans(); !generic.Uses("workflow_runs_owner_project_created_idx") ||
+		index := "workflow_runs_owner_project_created_idx"
+		if name == "drain check" {
+			index = "workflow_runs_owner_project_active_idx"
+			measured, err := explaintest.ExplainPrepared(ctx, conn, explaintest.Generic, sql, drainTarget, drainOwner)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, table := range runTables {
+				if read := measured.Reads.Of(table); read > budgets[table] {
+					t.Errorf("%s: generic drain read %d %s entries, budget %d:\n%s", label, read, table, budgets[table], measured.Plan)
+				}
+			}
+		}
+		if scans := generic.SeqScans(); !generic.Uses(index) ||
 			slices.ContainsFunc(scans, func(table string) bool { return slices.Contains(runTables, table) }) {
 			t.Errorf("%s: the generic %s plan does not find the Project's Runs by owner and Project:\n%s", label, name, generic)
+		}
+	}
+}
+
+// Removing only the new index restores the production query's old plan.
+// It must exceed exactly the same Run-read budget used by the positive cases.
+func checkDrainIndexRegression(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
+	t.Helper()
+	var unreleased int64
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM stage_allocations WHERE release_completed_at IS NULL`).Scan(&unreleased); err != nil {
+		t.Fatal(err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(context.WithoutCancel(ctx))
+	if _, err := tx.Exec(ctx, `DROP INDEX workflow_runs_owner_project_active_idx`); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range explaintest.Modes {
+		analysis, err := explaintest.ExplainPrepared(ctx, tx, mode, waitForDrainSQL, drainTarget, drainOwner)
+		if err != nil {
+			t.Fatal(err)
+		}
+		read, budget := analysis.Reads.Of("workflow_runs"), unreleased+drainPlanningEntries
+		t.Logf("without the selective index, %s reads %d Run entries, budget %d", mode, read, budget)
+		if read <= budget {
+			t.Errorf("%s unfixed plan fits the regression budget (%d <= %d):\n%s", mode, read, budget, analysis.Plan)
 		}
 	}
 }

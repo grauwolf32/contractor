@@ -346,6 +346,7 @@ ORDER BY conname`)
 		"workflow_runs_claim_idx":                          nil,
 		"workflow_runs_deferred_claim_idx":                 nil,
 		"workflow_runs_owner_nonterminal_queue_idx":        declared["active"],
+		"workflow_runs_owner_project_active_idx":           declared["active"],
 		"workflow_runs_runtime_llm_credentials_idx":        declared["active"],
 		"workflow_runs_workflow_credentials_idx":           declared["active"],
 		"workflow_runs_runtime_credentials_idx":            declared["active"],

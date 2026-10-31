@@ -134,17 +134,7 @@ func (s *GitKeys) Verify(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		var owners []string
-		for rows.Next() {
-			var owner string
-			if err := rows.Scan(&owner); err != nil {
-				rows.Close()
-				return err
-			}
-			owners = append(owners, owner)
-		}
-		err = rows.Err()
-		rows.Close()
+		owners, err := pgx.AppendRows([]string(nil), rows, pgx.RowTo[string])
 		if err != nil {
 			return err
 		}

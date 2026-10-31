@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	persistencepostgres "github.com/grauwolf32/contractor/internal/persistence/postgres"
+	"github.com/jackc/pgx/v5"
 )
 
 const stageTransitionDecisionColumns = `
@@ -65,16 +66,10 @@ ORDER BY decided_at, source_execution_id`, runID)
 	if err != nil {
 		return nil, fmt.Errorf("list transition decisions for WorkflowRun %q: %w", runID, err)
 	}
-	defer rows.Close()
-	result := make([]StageTransitionDecision, 0)
-	for rows.Next() {
-		decision, scanErr := scanStageTransitionDecision(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan transition decision for WorkflowRun %q: %w", runID, scanErr)
-		}
-		result = append(result, decision)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (StageTransitionDecision, error) {
+		return scanStageTransitionDecision(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate transition decisions for WorkflowRun %q: %w", runID, err)
 	}
 	return result, nil

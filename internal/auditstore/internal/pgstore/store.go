@@ -42,16 +42,8 @@ func (s *CredentialHolds) listHeldAuditIDsByCredential(
 	if err != nil {
 		return nil, fmt.Errorf("inspect Audit %s credential holds: %w", kind, err)
 	}
-	defer rows.Close()
-	result := make([]string, 0, limit)
-	for rows.Next() {
-		var auditID string
-		if err := rows.Scan(&auditID); err != nil {
-			return nil, fmt.Errorf("read Audit %s credential hold: %w", kind, err)
-		}
-		result = append(result, auditID)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.AppendRows(make([]string, 0, limit), rows, pgx.RowTo[string])
+	if err != nil {
 		return nil, fmt.Errorf("iterate Audit %s credential holds: %w", kind, err)
 	}
 	return result, nil
@@ -122,16 +114,10 @@ func (s *QueryStore) List(ctx context.Context, params auditstore.ListParams) ([]
 	if err != nil {
 		return nil, fmt.Errorf("list Audits: %w", err)
 	}
-	defer rows.Close()
-	result := make([]auditstore.Audit, 0, params.Limit)
-	for rows.Next() {
-		audit, scanErr := scanAudit(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan Audit page: %w", scanErr)
-		}
-		result = append(result, audit)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.AppendRows(make([]auditstore.Audit, 0, params.Limit), rows, func(row pgx.CollectableRow) (auditstore.Audit, error) {
+		return scanAudit(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate Audit page: %w", err)
 	}
 	return result, nil

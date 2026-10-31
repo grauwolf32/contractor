@@ -27,16 +27,10 @@ func (s *QueryStore) ListFindings(
 	if err != nil {
 		return nil, fmt.Errorf("list Audit findings: %w", err)
 	}
-	defer rows.Close()
-	result := make([]auditstore.FindingRecord, 0, params.Limit)
-	for rows.Next() {
-		row, scanErr := scanCorrelatedFindingRecord(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, row)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.AppendRows(make([]auditstore.FindingRecord, 0, params.Limit), rows, func(row pgx.CollectableRow) (auditstore.FindingRecord, error) {
+		return scanCorrelatedFindingRecord(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate Audit findings: %w", err)
 	}
 	rows.Close()

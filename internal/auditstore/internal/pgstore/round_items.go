@@ -7,6 +7,7 @@ import (
 
 	"github.com/grauwolf32/contractor/internal/auditstore"
 	"github.com/grauwolf32/contractor/internal/config/auditprofile"
+	"github.com/jackc/pgx/v5"
 )
 
 // ListRoundItems reads every item of one Round in ordinal order. A Round
@@ -30,16 +31,10 @@ SELECT `+prefixedItemColumns("item")+`
 	if err != nil {
 		return nil, fmt.Errorf("list Audit Round items: %w", err)
 	}
-	defer rows.Close()
-	result := make([]auditstore.Item, 0)
-	for rows.Next() {
-		item, scanErr := scanItem(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan Audit Round item: %w", scanErr)
-		}
-		result = append(result, item)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (auditstore.Item, error) {
+		return scanItem(row)
+	})
+	if err != nil {
 		return nil, err
 	}
 	if len(result) > auditprofile.MaxAuditItemsPerRound {

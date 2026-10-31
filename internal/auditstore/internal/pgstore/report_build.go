@@ -135,16 +135,10 @@ func (s *QueryStore) ListReportPages(ctx context.Context, auditID string, revisi
 	if err != nil {
 		return nil, fmt.Errorf("list Audit report pages: %w", err)
 	}
-	defer rows.Close()
-	result := make([]auditstore.ReportPage, 0)
-	for rows.Next() {
-		page, scanErr := scanReportPage(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, page)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (auditstore.ReportPage, error) {
+		return scanReportPage(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate Audit report pages: %w", err)
 	}
 	if len(result) > auditstore.MaxReportPages {
@@ -245,16 +239,10 @@ func (s *QueryStore) ListReportItems(
 	if err != nil {
 		return nil, fmt.Errorf("list Audit report items: %w", err)
 	}
-	defer rows.Close()
-	result := make([]auditstore.ReportItem, 0, limit)
-	for rows.Next() {
-		item, scanErr := scanReportItem(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, item)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.AppendRows(make([]auditstore.ReportItem, 0, limit), rows, func(row pgx.CollectableRow) (auditstore.ReportItem, error) {
+		return scanReportItem(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate Audit report items: %w", err)
 	}
 	return result, nil
