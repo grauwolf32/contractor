@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-85 open tasks: 10 in progress, 64 pending, 11 deferred. 1265 finished: 1250 completed, 15 archived.
+84 open tasks: 9 in progress, 64 pending, 11 deferred. 1266 finished: 1251 completed, 15 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
-| [V425-007](v425-007-ui-preparation-and-error-fixtures.yml) | ui | chore | P3 | Derive the UI's past-preparation check from the phase definition and its test errors from the registry |
 
 ## Pending
 
@@ -206,7 +205,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 23 | 67 | 82 | 35 | 121 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
-| Web UI (`ui`) | 2 | 25 | 66 | 15 | 59 |
+| Web UI (`ui`) | 1 | 25 | 66 | 15 | 59 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 7 | 20 |
 | Public API and wire contracts (`api-contracts`) | 4 | 2 | 38 | 25 | 14 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 27 | 45 | 14 |
