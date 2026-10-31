@@ -31,10 +31,7 @@ func newHTTPCaidoGateway(token, targetURL string) *domainGateway {
 }
 
 func httpCaidoHTTPGatewayStage(name, targetURL string) domainGatewayStage {
-	tools := []string{
-		"http_history", "http_read_body", "http_request", "http_session_clear",
-		"http_session_get", "http_session_set", "read_text_artifact", "write_text_artifact",
-	}
+	tools := append(gatewayToolsetTools("http-tools@1"), gatewayToolsetTools("text-artifacts@1")...)
 	tools = withMemoryTools(tools)
 	sort.Strings(tools)
 	return domainGatewayStage{
@@ -92,13 +89,14 @@ func httpCaidoHTTPGatewayStage(name, targetURL string) domainGatewayStage {
 }
 
 func httpCaidoCaidoGatewayStage(name, scopeName string) domainGatewayStage {
+	// The Caido Worker selects only these three HTTP tools, not the full
+	// http-tools export. Keep that explicit selection independent of additions.
 	tools := []string{
-		"caido_automate_results", "caido_automate_run", "caido_history", "caido_replay",
-		"caido_request_detail", "caido_scope", "caido_sitemap", "caido_workflow_findings",
-		"caido_workflow_list", "caido_workflow_run", "finding", "http_history", "http_read_body",
+		"finding", "http_history", "http_read_body",
 		"http_request", "list_skills", "load_skill", "load_skill_resource",
 		"read_text_artifact", "write_text_artifact",
 	}
+	tools = append(tools, gatewayToolsetTools("caido@1")...)
 	tools = withMemoryTools(tools)
 	sort.Strings(tools)
 	return domainGatewayStage{

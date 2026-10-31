@@ -25,11 +25,7 @@ import (
 
 const codeAnalysisSourceCanary = "CODE_ANALYSIS_SOURCE_CONTENT_CANARY"
 
-var completeCodeAnalysisTools = []string{
-	"attack_surface", "complexity_hotspots", "entrypoint_paths_to", "find_callees",
-	"find_callers", "find_symbol", "functions_that_raise", "graph_summary",
-	"list_symbols", "paths_between", "search_def",
-}
+var completeCodeAnalysisTools = gatewayToolsetTools("code-analysis@1")
 
 func TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses(t *testing.T) {
 	if testing.Short() {

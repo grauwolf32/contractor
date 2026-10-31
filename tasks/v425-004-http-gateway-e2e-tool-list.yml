@@ -6,13 +6,23 @@ epic: http-tools
 kind: defect
 introduced_by: V411-027
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
 goal: make test-http-caido-e2e checks the HTTP tools the Runtime actually exports, so a tool change cannot
   leave the gate stale again.
 context:
+  decision: >-
+    2026-10-31: read complete HTTP, Caido, text-artifacts, Memory and Code
+    Analysis exports through resolved.ToolsetTools, whose shared fixture
+    parity is already checked against Runtime factories. Keep explicit
+    per-template subsets: the Caido Worker's three HTTP tools, engagement's
+    three HTTP tools, the single selected scan_nuclei operation, and the
+    OpenAPI/LikeC4 builder versus validator selections. Integration lease tests
+    construct explicit tool selections rather than asserting a whole export.
+    Runtime tool requests are still compared exactly with expected names;
+    deriving expectations never reads them from the actual request.
   origin: Reported by a lane of the 2026-10-30 defect wave and rechecked on main fde39a943 by the coordinator.
   severity: medium
   finding: 'tests/e2e/http_caido_gateway_test.go:33-36 (httpCaidoHTTPGatewayStage) hard-codes the HTTP
@@ -36,6 +46,8 @@ acceptance_criteria:
   text: Adding a tool to the HTTP toolset descriptor without touching the e2e test keeps the test correct;
     removing one from the Runtime export fails it.
 tests:
+- command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=e2e -count=1 -timeout=12m ./tests/e2e -run '^(TestCodeAnalysisAcrossHeterogeneousRuntimeProcesses|TestTaintAnnotationsAcrossRealRuntimeProcess|TestProjectSitemapHTTPCollectionAcrossProductionProcesses|TestProductionMemoryTemplatesAcrossProcesses)$'"
+  covers: [A1, A2]
 - command: make test-http-caido-e2e
   covers:
   - A1
