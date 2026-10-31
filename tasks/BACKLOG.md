@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-90 open tasks: 11 in progress, 68 pending, 11 deferred. 1256 finished: 1241 completed, 15 archived.
+91 open tasks: 12 in progress, 68 pending, 11 deferred. 1256 finished: 1241 completed, 15 archived.
 
 ## In progress
 
@@ -22,6 +22,7 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-020](v425-020-remove-unused-compaction-threshold.yml) | quality | chore | P3 | Remove the unused Planner compaction test threshold |
+| [V425-021](v425-021-register-context-management-fixture.yml) | quality | chore | P3 | Register the Workflow context-management shared fixture readers |
 
 ## Pending
 
@@ -197,7 +198,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 1 | 41 | 56 | 21 | 84 |
-| Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 47 | 28 | 66 |
+| Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 47 | 28 | 67 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 43 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -215,4 +216,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 7 | 20 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 38 | 25 | 14 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 27 | 45 | 14 |
-| Quality, CI and process (`quality`) | 13 | 1 | 27 | 105 | 25 |
+| Quality, CI and process (`quality`) | 14 | 1 | 27 | 106 | 25 |

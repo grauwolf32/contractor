@@ -1,0 +1,44 @@
+schema_version: "1.0"
+id: V425-021
+title: "Register the Workflow context-management shared fixture readers"
+milestone: worker-context-compaction-2026-10
+epic: quality
+kind: chore
+introduced_by: V417-003
+priority: P3
+status: in_progress
+depends_on: []
+languages: [json]
+goal: "The shared-fixture gates recognize the existing Go and Studio readers of Workflow context-management cases."
+context:
+  origin: "Reproduced while executing the user-requested V372-030 cleanup on 2026-10-31."
+  authority: >-
+    Agent-proposed minimal prerequisite for the mandatory lint gate; no
+    Workflow contract or compaction behavior changes are proposed.
+  finding: >-
+    api/testdata/workflow-context-management-cases.json has no entry in
+    api/testdata/readers.json. The actual readers are
+    internal/config/context_management_test.go:31 and
+    ui/src/routes/studio/context-management.test.ts:3. The fixture arrived
+    with V417-003 (merged in 9571dad9103ab5120b74b29bda57334c9e3e2f26).
+    scripts/test_shared_fixture_gate.py rejects the undeclared UI reader.
+  boundary: >-
+    These are Workflow authoring cases read by Go and the Studio. Runtime
+    receives resolved selections, so do not invent a Python authoring reader.
+scope:
+  in:
+    - "Declare the existing Go and UI readers in the shared-fixture manifest."
+  out:
+    - "Changing fixture cases, decoders, compaction or existing V417 task status."
+acceptance_criteria:
+  - id: A1
+    text: "make lint and the cross-language gate pass with the actual fixture readers declared."
+  - id: A2
+    text: "The existing Go and UI context-management fixture tests pass unchanged in behavior."
+tests:
+  - command: make lint
+    covers: [A1]
+  - command: make test-wire-cross-language
+    covers: [A1, A2]
+  - command: "cd ui && corepack pnpm test --run src/routes/studio/context-management.test.ts"
+    covers: [A2]
