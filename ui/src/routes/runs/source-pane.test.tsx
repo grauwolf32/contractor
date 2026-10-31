@@ -286,6 +286,7 @@ describe("originating Run list", () => {
     );
     const pane = await screen.findByRole("region", { name: "Source Runs" });
     await within(pane).findByText(/Could not load the source Run list/);
+    expect(within(pane).getByText("Source unavailable")).toBeVisible();
     expect(
       await screen.findByRole("heading", { name: "review" }),
     ).toBeVisible();
