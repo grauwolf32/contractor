@@ -19,7 +19,7 @@ context:
   authority: 'User request on 2026-10-25: create detailed tasks for Go ADK v2.6.0 and Planner compaction, including
     compatibility, tests and mutual exclusion with terminal summarization; keep Scheduler substantially unchanged.
     These pending records authorize planning only, do not start implementation and do not change the current
-    delivery focus. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-planner together with V417-001, V417-003 and V420-002. User decision on 2026-10-31: use the existing generated compactor@1 for all shipped Planners, remove the duplicate Planner policy example, and include summary-continuation targets; Worker behavior remains unchanged. Catalog activation and continuation wiring are tracked in V420-006.'
+    delivery focus. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-planner together with V417-001, V417-003 and V420-002. User decision on 2026-10-31: use the existing generated compactor@1 for all shipped Planners, remove the duplicate Planner policy example, and include summary-continuation targets; Worker behavior remains unchanged. Catalog activation and continuation wiring are tracked in V420-006. User decision 2026-11-01 supersedes the earlier context-block base selection: Planner compactor policies are selected only through Workflow executionConfig, with a single behavior-only context grammar for ordinary Stages and summary continuations; V425-042 owns this simplification. Removed ExecutionConfig profiles and Run overrides are not restored.'
   review: tasks/evidence/v419-go-adk-26-review.json
   specification:
   - docs/spec/execution/planners.md#PLN-R1
@@ -256,6 +256,12 @@ test_prerequisites:
   supported Runtime lock. New shared grammar or wire changes, if actually needed, must update all implementations
   and shared fixtures in the owning task.
 decisions:
+- >-
+  2026-11-01 (user decision, V425-042): supersedes the older authoring/precedence
+  notes below. plannerContextManagement contains no modelPolicy; Workflow
+  executionConfig and existing escalation selections alone choose the exact
+  Planner compactor policy. Worker context authoring and this task's status
+  remain outside that refactor. Historical implementation notes are retained.
 - >-
   2026-10-31 (lane cmp-planner): the resolved snapshot encodes none as an absent
   plannerContextManagement member, not as an explicit {strategy: none}; a snapshot that

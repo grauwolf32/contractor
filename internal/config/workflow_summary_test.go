@@ -219,6 +219,8 @@ func TestSummaryPlannerCompactionRejectsInvalidAndInapplicableChoices(t *testing
 		{"terminal branch", "strategy: compact@1", "strategy: terminal@1"},
 		{"unknown member", "              strategy: compact@1", "              strategy: compact@1\n              unknown: true"},
 		{"duplicate member", "              strategy: compact@1", "              strategy: compact@1\n              strategy: compact@1"},
+		{"null model selection", "              strategy: compact@1", "              strategy: compact@1\n              modelPolicy: null"},
+		{"model selection through merge", "              strategy: compact@1", "              strategy: compact@1\n              <<: {modelPolicy: test-compactor@1}"},
 		{"inline model selection", "              strategy: compact@1", "              strategy: compact@1\n              modelPolicy: test-compactor@1"},
 		{"null ratio", "              strategy: compact@1", "              strategy: compact@1\n              contextWindowRatio: null"},
 		{"none with fields", "strategy: compact@1", "strategy: none"},

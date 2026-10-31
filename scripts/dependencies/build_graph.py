@@ -137,6 +137,7 @@ class Graph:
             location = f"{field}.{name}"
             kinds = {
                 "modelPolicy": "ModelPolicy",
+                "compactorModelPolicy": "ModelPolicy",
                 "llmGateway": "LLMGatewayConfig",
                 "credential": "Credential",
             }
