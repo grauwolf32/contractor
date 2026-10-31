@@ -1,0 +1,54 @@
+schema_version: "1.0"
+id: V415-006
+title: Explicitly select the macOS route interface independently of its gateway
+milestone: runtime-host-provisioning-2026-10
+epic: operations
+kind: defect
+introduced_by: V415-005
+priority: P1
+status: completed
+depends_on: []
+languages: [python]
+goal: Mesh route repairs set the actual output interface and never confuse a changed link gateway with a repaired route.
+context:
+  severity: medium
+  finding: >-
+    deploy/wireguard/mesh.py:283 passes only -interface lo0 to route change.
+    A live macOS invocation returns success and changes the gateway to lo0,
+    while route get still reports interface utun5 and TCP connections time out.
+    The command-process fixture incorrectly changed both fields together.
+  siblings: >-
+    The existing private /24 repair has the same implicit interface assumption.
+    Cover host-route creation, change and cleanup as well as subnet repair;
+    retain exact-interface readback and Linux behavior.
+scope:
+  in:
+    - Pass explicit -ifp interface selection in macOS mesh route mutations.
+    - Model route gateway and output interface independently in subprocess fixtures.
+    - Regress the observed gateway-only result and verify interface readback failures remain visible.
+    - Document the macOS option distinction and the pending live verification.
+  out:
+    - Change default routes, Runtime endpoints, certificates, VPN configuration or scanner behavior.
+acceptance_criteria:
+  - id: A1
+    text: An existing self host route with gateway lo0 but interface utun is repaired with explicit -ifp lo0 and verified by its output interface.
+  - id: A2
+    text: Captured subnet routes explicitly select the verified mesh interface and host-route add/delete use the same explicit selection.
+  - id: A3
+    text: A route command that changes only the gateway cannot produce a successful readiness message.
+  - id: A4
+    text: Regression scenarios fail on the previous implementation and the complete hybrid suite and lint pass.
+tests:
+  - command: sh deploy/hybrid/test.sh
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A2, A3, A4]
+verification_results:
+  - "Live failure reproduced: netstat showed gateway lo0 with output interface utun5; mTLS via the mesh address still timed out."
+  - "The corrected subprocess fixture reproduced controller loopback route verification failed on the previous helper."
+  - "21 mesh-route tests passed, including independent gateway/interface state and an ignored-ifp readback failure."
+  - "Complete hybrid deployment suite: 44 tests passed; Ruff checks/format and shell syntax passed."
+  - "make lint passed, including Go, UI, Ansible, deployment, task/specification and Runtime import checks."
+  - "Live administrator rerun verified interface lo0 for 10.77.0.10 and utun5 for 10.77.0.11/12. Native mTLS Artifact API requests completed in 1-2 ms."
+  - "Run run_baf00246202aed26ecdd50fa43053e6b succeeded on local/diag via the native mesh Artifact API without an endpoint override; localhost:8132 logged HTTP 200 and the Git-clone package pin matched."
+implementation_commit: ef9274cb6f35bc54a614e971b67ee28e5673065f

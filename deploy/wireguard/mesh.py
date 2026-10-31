@@ -195,24 +195,31 @@ def macos_route(route, destination, *, network=False):
     if network:
         argv.append("-net")
     result = subprocess.run(
-        [*argv, str(destination)], capture_output=True, text=True, timeout=10, check=False
+        [*argv, str(destination)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
     )
     if result.returncode:
         return {}
     return dict(line.strip().split(": ", 1) for line in result.stdout.splitlines() if ": " in line)
 
 
-def macos_local_up(state, doc, executable):
+def macos_mesh_context(state, doc):
     network = ipaddress.ip_network(doc["network"])
     address = ipaddress.ip_address(doc["controller_address"])
     hosts = doc["hosts"]
+    peer_addresses = [ipaddress.ip_address(host["address"]) for host in hosts]
     if (
         network.version != 4
         or network.prefixlen != 24
         or not network.is_private
         or address not in network
         or not 1 <= len(hosts) <= 16
-        or any(ipaddress.ip_address(host["address"]) not in network for host in hosts)
+        or any(peer not in network for peer in peer_addresses)
+        or address in peer_addresses
+        or len(set(peer_addresses)) != len(peer_addresses)
     ):
         raise ValueError(
             "local mesh routing requires its declared private IPv4 /24 and 1..16 peers"
@@ -224,6 +231,17 @@ def macos_local_up(state, doc, executable):
         [tools["wg"], "pubkey"], data=secret(state / "wireguard/controller/private.key")
     ).strip()
     interface = macos_interface(tools["ifconfig"], tools["wg"], str(address), public_key)
+    return network, address, hosts, tools, interface, public_key
+
+
+def macos_exact_host_route(value, address):
+    return value.get("destination") == str(address) and "HOST" in value.get("flags", "").strip(
+        "<>"
+    ).split(",")
+
+
+def macos_local_up(state, doc, executable):
+    network, address, hosts, tools, interface, public_key = macos_mesh_context(state, doc)
     if interface is None:
         config = state / "wireguard/controller/wg-mesh.conf"
         run(privileged([executable, "up", str(config)]))
@@ -246,6 +264,8 @@ def macos_local_up(state, doc, executable):
                     str(network),
                     "-interface",
                     interface,
+                    "-ifp",
+                    interface,
                 ]
             )
         )
@@ -259,7 +279,31 @@ def macos_local_up(state, doc, executable):
         raise RuntimeError(
             "mesh route verification failed; check conflicting VPN routes and rerun local-up"
         )
-    print(f"Local mesh ready: {network} via {interface}; default route unchanged")
+    own = macos_route(route, address)
+    exact_host = macos_exact_host_route(own, address)
+    if not exact_host or own.get("interface") != "lo0":
+        run(
+            privileged(
+                [
+                    route,
+                    "-n",
+                    "change" if exact_host else "add",
+                    "-host",
+                    str(address),
+                    "-interface",
+                    "lo0",
+                    "-ifp",
+                    "lo0",
+                ]
+            )
+        )
+        own = macos_route(route, address)
+    if not macos_exact_host_route(own, address) or own.get("interface") != "lo0":
+        raise RuntimeError("controller loopback route verification failed; rerun local-up")
+    print(
+        f"Local mesh ready: {network} via {interface}; "
+        f"controller {address} via lo0; default route unchanged"
+    )
 
 
 def local_up(args):
@@ -272,6 +316,48 @@ def local_up(args):
         macos_local_up(state, doc, executable)
     else:
         subprocess.run(privileged([executable, "up", str(config)]), check=True)
+
+
+def local_down(args):
+    state, doc = load_state(args.state)
+    config = state / "wireguard/controller/wg-mesh.conf"
+    executable = shutil.which("wg-quick")
+    if not executable:
+        raise RuntimeError("install WireGuard tools and wireguard-go locally first")
+    if sys.platform == "darwin":
+        _, address, _, tools, interface, _ = macos_mesh_context(state, doc)
+        route = tools["route"]
+        own = macos_route(route, address)
+        if not own:
+            raise RuntimeError("controller route lookup failed; refusing unverified teardown")
+        # This /32 uses lo0 rather than utun, so wg-quick's interface-route
+        # cleanup cannot own it. Also clean it after an out-of-band teardown.
+        if macos_exact_host_route(own, address) and own.get("interface") == "lo0":
+            run(
+                privileged(
+                    [
+                        route,
+                        "-n",
+                        "delete",
+                        "-host",
+                        str(address),
+                        "-interface",
+                        "lo0",
+                        "-ifp",
+                        "lo0",
+                    ]
+                )
+            )
+            after = macos_route(route, address)
+            if not after or (
+                macos_exact_host_route(after, address) and after.get("interface") == "lo0"
+            ):
+                raise RuntimeError("controller loopback route removal could not be verified")
+        if interface is None:
+            print("Local mesh is already down; controller loopback route is absent")
+            return
+    run(privileged([executable, "down", str(config)]))
+    print("Local mesh stopped")
 
 
 def status(args):
@@ -301,6 +387,7 @@ def main():
     )
     commands.add_parser("render")
     commands.add_parser("local-up")
+    commands.add_parser("local-down")
     commands.add_parser("status")
     args = parser.parse_args()
     os.umask(0o077)
@@ -309,7 +396,12 @@ def main():
     elif args.command == "render":
         render(*load_state(args.state))
     else:
-        {"apply": apply, "local-up": local_up, "status": status}[args.command](args)
+        {
+            "apply": apply,
+            "local-up": local_up,
+            "local-down": local_down,
+            "status": status,
+        }[args.command](args)
 
 
 if __name__ == "__main__":

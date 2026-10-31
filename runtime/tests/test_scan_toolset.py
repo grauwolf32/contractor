@@ -843,6 +843,8 @@ def test_shared_nuclei_pinned_worker_manifest_receipt_and_private_bytes(
         source = tmp_path / "templates"
         (source / "fixture.yaml").write_text(NUCLEI_PIN_FIXTURE)
         digest = package_pin(source, tmp_path / "reference")
+        (source / ".git").mkdir()
+        (source / ".git/metadata.yaml").write_text("Git metadata must not reach the scanner")
         for name, value in {
             "templates_digest": digest,
             "timeout_seconds": 1 if outcome == "timeout" else 15,

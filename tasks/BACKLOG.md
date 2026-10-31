@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-89 open tasks: 10 in progress, 68 pending, 11 deferred. 1253 finished: 1238 completed, 15 archived.
+89 open tasks: 10 in progress, 68 pending, 11 deferred. 1256 finished: 1241 completed, 15 archived.
 
 ## In progress
 
@@ -203,7 +203,7 @@ tasks in `introduced_by`.
 | Run workspaces and project filesystem (`workspaces`) | 1 | 16 | 15 | 5 | 16 |
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 5 | 22 | 27 | 9 | 25 |
-| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 9 | 9 | 18 |
+| Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 19 |
 | Findings tools and collections (`findings`) | 2 | 16 | 9 | 8 | 13 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 18 | 15 | 12 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 36 | 11 | 54 |
@@ -211,7 +211,7 @@ tasks in `introduced_by`.
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 25 | 66 | 15 | 59 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 43 | 7 | 18 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 7 | 20 |
 | Public API and wire contracts (`api-contracts`) | 5 | 2 | 38 | 25 | 14 |
 | PostgreSQL persistence and schema (`persistence`) | 4 | 0 | 27 | 45 | 14 |
 | Quality, CI and process (`quality`) | 12 | 1 | 27 | 104 | 25 |

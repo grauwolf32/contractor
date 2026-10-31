@@ -578,14 +578,19 @@ package for a supplied mismatching pin (FAIL-SCN-12).
 `{"schemaVersion":1,"files":[{"path":...,"digest":...,"size":...},...]}`.
 Each path is package-relative with `/` separators; records sort by UTF-8 path
 bytes. Include every regular file, including helper resources and engine ignore
-files, without extension filtering. Symlinks and special files fail. Bound the
-package to 50000 files, 512 MiB aggregate and 16 MiB per file (LIM-SCN-69 to
+files, without extension filtering, except the package-root entry named `.git`.
+Exclude that entry and all its descendants from copying, hashing and package
+bounds without opening or following it; this includes Git worktree marker files
+and links. Nested entries named `.git` remain ordinary package content. All
+other symlinks and special files fail. Bound the package to 50000 files,
+512 MiB aggregate and 16 MiB per file (LIM-SCN-69 to
 LIM-SCN-71); directory traversal admits at most 100000 entries, depth 64 and
 1024 UTF-8 path bytes (LIM-SCN-73 to LIM-SCN-75). Reject empty packages. The
 canonical package/provenance JSON is at most 16 MiB (LIM-SCN-72).
 
-**SCN-R228.** Before pinned scanning, Runtime copies and hashes the complete
-installation into a private per-invocation directory using link-refusing opens,
+**SCN-R228.** Before pinned scanning, Runtime copies and hashes the installation
+content defined by SCN-R227 into a private per-invocation directory using
+link-refusing opens,
 regular-file checks and streaming count/byte limits. Copying, hashing and
 selected-template manifest assembly run off the event loop and consume the
 scanner preparation deadline. Scanning reads only verified private bytes,
