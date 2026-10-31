@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V417-003
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [json]
 goal: "The shared-fixture gates recognize the existing Go and Studio readers of Workflow context-management cases."
@@ -42,3 +42,9 @@ tests:
     covers: [A1, A2]
   - command: "cd ui && corepack pnpm test --run src/routes/studio/context-management.test.ts"
     covers: [A2]
+
+implementation_commit: feff9d87e339a9df5ef9ad456cd80ba3cc7570f3
+verification_results:
+  - "2026-10-31: make lint passed after the separate V425-020 unused-constant correction."
+  - "make test-wire-cross-language passed: 355 fixtures, 392 Go shared tests and 284 Python shared tests (1577 Runtime cases), plus 375 Runtime contract cases."
+  - "The existing Studio context-management fixture suite passed all 23 cases."
