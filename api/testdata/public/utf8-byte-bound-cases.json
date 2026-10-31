@@ -1,5 +1,5 @@
 {
-  "description": "Public strings that the Server bounds in UTF-8 bytes rather than in characters. Each OpenAPI component schema below, at path (empty for the component itself), declares its bound as x-max-utf8-bytes next to an equal maxLength (in code points, which no longer binds first); rule names the limits.md entry. A reader builds, for each character, the string of exactly maxBytes bytes (the character repeated, padded with a) and that string plus one a: the first is within the bound and the second is not. An owner whose value has structure (a URL, an SSH key, a sitemap rule) embeds the character run in an otherwise valid value of the same byte length. Go checks the declarations and each owning validator; the UI checks src/api/contract.ts stringRule. Every other public request string with a maxLength declares an ASCII-only grammar, under which maxLength counts bytes, or is listed in internal/httpapi/public/utf8_byte_bounds_test.go with the reason its Server bound is not a byte bound.",
+  "description": "Public strings that the Server bounds in UTF-8 bytes rather than in characters. Each OpenAPI component schema below, at path (empty for the component itself), declares its bound as x-max-utf8-bytes next to an equal maxLength (in code points, which no longer binds first); rule names the limits.md entry. A reader builds, for each character, the string of exactly maxBytes bytes (the character repeated, padded with a) and that string plus one a: the first is within the bound and the second is not. An owner whose value has structure (a URL, an SSH key, a sitemap rule) embeds the character run in an otherwise valid value of the same byte length. Go checks the declarations and each owning validator; the UI checks src/api/contract.ts stringRule. Every other public request string with a maxLength declares an ASCII-only grammar, under which maxLength counts bytes, or is listed in internal/httpapi/public/utf8_byte_bounds_test.go with the reason its Server bound is not a byte bound. An optional prefix embeds the repeated character run in a structured string; its bytes count toward maxBytes.",
   "characters": [
     "a",
     "é",
@@ -420,6 +420,31 @@
       ],
       "maxBytes": 2048,
       "rule": "LIM-SMT-16"
+    },
+    {
+      "schema": "RunMetadataLabelSelector",
+      "path": [],
+      "maxBytes": 320,
+      "rule": "LIM-RUN-11",
+      "prefix": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa="
+    },
+    {
+      "schema": "SitemapEditorRule",
+      "path": [
+        "properties",
+        "origin"
+      ],
+      "maxBytes": 8192,
+      "rule": "LIM-SMT-2"
+    },
+    {
+      "schema": "SitemapEditorRule",
+      "path": [
+        "properties",
+        "path"
+      ],
+      "maxBytes": 8192,
+      "rule": "LIM-SMT-2"
     }
   ]
 }

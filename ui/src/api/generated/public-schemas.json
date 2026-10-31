@@ -515,13 +515,21 @@
         "structural"
       ],
       "properties": {
-        "origin": { "type": "string", "maxLength": 8192 },
+        "origin": {
+          "type": "string",
+          "maxLength": 8192,
+          "x-max-utf8-bytes": 8192
+        },
         "method": {
           "type": "string",
           "pattern": "^[A-Z]{1,16}$",
           "maxLength": 16
         },
-        "path": { "type": "string", "maxLength": 8192 },
+        "path": {
+          "type": "string",
+          "maxLength": 8192,
+          "x-max-utf8-bytes": 8192
+        },
         "pointer": {
           "type": "string",
           "maxLength": 2048,
@@ -4445,6 +4453,13 @@
           "propertyNames": { "not": { "pattern": "^audit\\." } }
         }
       ]
+    },
+    "RunMetadataLabelSelector": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 320,
+      "x-max-utf8-bytes": 320,
+      "pattern": "^[^=]+=[\\s\\S]*$"
     },
     "RunMetadataLabels": {
       "type": "object",

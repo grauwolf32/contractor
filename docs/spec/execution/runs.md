@@ -717,8 +717,12 @@ selectors are a logical AND.
 existence, inequality, set, regex, prefix or OR syntax.
 
 **RUN-R80.** An invalid selector fails the request with
-`400` and no partial interpretation; an unknown or unmatched pair returns an
-empty owner-scoped page (FAIL-RUN-6).
+`400 invalid_request` and no partial interpretation; an unknown or unmatched
+pair returns an empty owner-scoped page (FAIL-RUN-6). Each decoded key and
+value uses the metadata-label bounds (LIM-RUN-4, LIM-RUN-5), so the combined
+selector is at most 320 UTF-8 bytes including '=' (LIM-RUN-11). A shorter key
+does not increase the value allowance. Both owner and Project Run lists apply
+these checks before querying Runs.
 
 **RUN-R81.** Label filtering composes with the existing owner,
 state and keyset-pagination constraints. Pagination remains stable

@@ -2736,6 +2736,7 @@ export interface components {
             expected?: components["schemas"]["SitemapSource"];
             rules: components["schemas"]["SitemapEditorRule"][];
         };
+        /** @description Server validates origin and path together: their combined UTF-8 size must not exceed 8192 bytes (LIM-SMT-2). Each part also stays within that bound; unused bytes in one part are available to the other. Invalid routes return 400 invalid_request. Origin must be a canonical HTTP(S) origin and path must start with '/' and contain no query or fragment. */
         SitemapEditorRule: {
             origin: string;
             method: string;
@@ -3798,6 +3799,8 @@ export interface components {
         AuditLabels: components["schemas"]["RunMetadataLabels"] & {
             [key: string]: unknown;
         };
+        /** @description Exact metadata-label key=value selector after query decoding. The first '=' separates the key from the value. Server validates the key with the RunMetadataLabels key grammar (1–63 ASCII bytes, LIM-RUN-4) and the value with its value bound (0–256 UTF-8 bytes, no U+0000, LIM-RUN-5). The combined bound is 320 UTF-8 bytes (LIM-RUN-11); a shorter key does not increase the value allowance. Invalid parts return 400 invalid_request. */
+        RunMetadataLabelSelector: string;
         /** @description Immutable ordinary key/value labels. cloud and local derive Runtime placement; an empty value selects the namespace and a non-empty value selects its provider/site child path. Other keys are descriptive. */
         RunMetadataLabels: {
             [key: string]: string;
@@ -10148,7 +10151,7 @@ export interface operations {
                 state?: components["schemas"]["WorkflowRunState"];
                 /** @description Read-only active or terminal state grouping applied before pagination. */
                 lifecycle?: components["schemas"]["WorkflowRunLifecycle"];
-                label?: string[];
+                label?: components["schemas"]["RunMetadataLabelSelector"][];
             };
             header?: never;
             path: {
@@ -11403,7 +11406,7 @@ export interface operations {
                 /** @description Read-only active or terminal state grouping applied before pagination. */
                 lifecycle?: components["schemas"]["WorkflowRunLifecycle"];
                 /** @description Repeat for an exact key/value conjunction. The first decoded '=' separates the metadata-label key from its value; percent-encode value delimiters when constructing the URL. */
-                label?: string[];
+                label?: components["schemas"]["RunMetadataLabelSelector"][];
             };
             header?: never;
             path?: never;

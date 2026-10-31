@@ -46,6 +46,7 @@ var utf8ByteBoundOwners = map[string]int{
 	"LIM-PRJ-5":  projectstore.MaxDescriptionBytes,
 	"LIM-REV-11": auditservice.MaxReviewRationale,
 	"LIM-RUN-5":  runlabels.MaxRunMetadataLabelValue,
+	"LIM-RUN-11": runlabels.MaxRunMetadataLabelKey + len("=") + runlabels.MaxRunMetadataLabelValue,
 	"LIM-AUD-29": -1,
 	"LIM-AUD-39": auditstore.MaxArtifactLogicalKeyBytes,
 	"LIM-AUD-40": auditstore.MaxSubjectKeyBytes,
@@ -69,13 +70,7 @@ var requestStringsWithoutByteBound = map[string]string{
 	"CreateCredentialRequest/properties/label": "credentials.MaximumCredentialLabel counts code points",
 	"ModelPolicyBody/properties/model":         "config.Manager bounds the model name in code points",
 	"parameters/CatalogQuery":                  "maxCatalogSearchRunes counts code points",
-	// A Run label selector key=value has no bound of its own: its key is
-	// ASCII by the RunMetadataLabels key grammar (63 bytes) and its value
-	// counts bytes (LIM-RUN-5), which one string schema cannot both express.
-	"GET /v1/runs query label/items":                                  "composite: key grammar and LIM-RUN-5 value bytes",
-	"GET /v1/projects/{projectId}/runs query label/items":             "composite: key grammar and LIM-RUN-5 value bytes",
-	"SitemapEditorRule/properties/origin":                             "composite: origin and path share one 8 KiB byte bound (LIM-SMT-2)",
-	"SitemapEditorRule/properties/path":                               "composite: origin and path share one 8 KiB byte bound (LIM-SMT-2)",
+
 	"GET /v1/eval-experiments query projectId":                        "compared with stored Project IDs; no size bound",
 	"GET /v1/eval-experiments/{id}/charts/{chart} query suiteId":      "compared with the pinned suites; no size bound",
 	"GET /v1/eval-experiments/{id}/members query suiteId":             "compared with the pinned suites; no size bound",
@@ -116,6 +111,21 @@ func TestSharedUTF8ByteBoundsAreDeclared(t *testing.T) {
 	}
 	for _, violation := range utf8ByteBoundViolations(document, source, fields, requestStringsWithoutByteBound) {
 		t.Error(violation)
+	}
+	// Restoring any former composite exception must fail against the real
+	// declarations, rather than silently exempting its Server byte checks.
+	for _, location := range []string{
+		"GET /v1/runs query label/items",
+		"GET /v1/projects/{projectId}/runs query label/items",
+		"SitemapEditorRule/properties/origin",
+		"SitemapEditorRule/properties/path",
+	} {
+		violations := utf8ByteBoundViolations(document, source, fields, map[string]string{location: "composite probe"})
+		if !slices.ContainsFunc(violations, func(v string) bool {
+			return strings.HasPrefix(v, location+" is listed without a byte bound")
+		}) {
+			t.Errorf("restoring composite exception %s did not fail: %v", location, violations)
+		}
 	}
 }
 

@@ -5,8 +5,9 @@ title: Validate per-part byte bounds of Run label selectors and sitemap rules in
 milestone: hub-audit-defects-2026-10
 epic: api-contracts
 kind: defect
+introduced_by: V414-009
 priority: P2
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - go
@@ -23,6 +24,22 @@ context:
     because one schema cannot express per-part bounds: Run label selectors key=value (key grammar, LIM-RUN-5
     value bytes) and sitemap rule origin+path (one shared 8 KiB). A client can send a selector value over
     LIM-RUN-5 bytes; check whether the Server refuses it today and with which code.'
+  specification:
+  - docs/spec/api/public-api.md#API-R4
+  - docs/spec/execution/runs.md#RUN-R80
+  - docs/spec/artifacts/project-sitemap.md#SMT-R5
+  implementation_decision: >-
+    2026-10-31 agent investigation: both Server validators already enforce the
+    intended limits. parseRunMetadataLabelSelectors delegates to runstore's
+    normalizer and runlabels.ValidateRunMetadataLabel; projectsitemap.validRoute
+    bounds origin+path before URL projection. Reuse these owners and prove them
+    through real public handlers and PostgreSQL instead of adding a second validator.
+    Keep the current query and body shapes. A shared selector component declares
+    its existing derived 320-byte envelope (63+1+256, LIM-RUN-11), while its
+    description preserves the independent part bounds. Sitemap parts declare
+    their 8 KiB envelope and their description preserves the shared sum bound.
+    Splitting public fields would widen this contract-only correction without
+    removing the need for domain validation. Reopen if the selector syntax changes.
   siblings: Every public parameter or body string that joins bounded parts (search requestStringsWithoutByteBound
     and internal/contracts/runlabels).
 scope:
@@ -44,6 +61,10 @@ tests:
   covers:
   - A1
   - A2
+- command: go test -count=1 ./internal/projectsitemap/... ./internal/publicclient/...
+  covers: [A1]
+- command: make test-wire-cross-language
+  covers: [A1, A2]
 - command: make verify-public-api
   covers:
   - A1
