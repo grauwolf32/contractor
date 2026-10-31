@@ -18,33 +18,17 @@ goal: Authors can enable provider-supplied reasoning for the existing terminal s
 context:
   authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
     includeReasoning independently deliverable. This record plans work; it does not start implementation
-    or change existing delivery priorities. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-sum together with V417-001, V417-003 and V420-002.'
+    or change existing delivery priorities. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-sum together with V417-001, V417-003 and V420-002.
+    User decision on 2026-10-31: continue V417-001 with an explicit true/false boolean
+    in normalized snapshots, AllocationSpec and digest manifests; omission remains an
+    authoring-only default to false. The database is test-only and conflicting records
+    may be repaired or deleted manually; preserving their old encoding is not required.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/configuration/agent-templates.md#TPL-R47
   - docs/spec/configuration/agent-templates.md#TPL-R52
   - docs/spec/execution/worker.md#WRK-R146
   - docs/spec/platform/observability.md#OBS-R54
-  decision_needed: >-
-    2026-10-31, lane cmp-sum. R1 says resolved snapshots and private wire
-    "require an explicit boolean". Implemented instead (agent proposal,
-    recorded as TPL-R116 in docs/spec/configuration/agent-templates.md):
-    authoring accepts true or false, and below authoring the member is
-    true-only; omission is the only false in resolved snapshots,
-    AllocationSpec and the digest manifest, and every reader rejects
-    explicit false, null, other types, aliases and duplicates. A dropped true
-    fails the AgentTemplate digest check, so omission cannot hide a lost flag.
-    Reason: stored Run, Stage, Audit profile, scan sweep and Eval snapshots
-    are strictly decoded and are also hashed outside the template manifest
-    (auditprofile.Digest re-verified on decode, scanstore pinned selection,
-    Eval Workflow SHA, retained Audit dependency digests); 16 shipped
-    AgentTemplates have a summarizer block, so an always-present member makes
-    every stored summarizer-bearing snapshot in the demo database unreadable.
-    Options: (a) keep true-only (recommended; no migration, no data change);
-    (b) explicit boolean everywhere as R1 states, which needs either an
-    authorized demo-data reset or a new Go-driven re-pinning migration for
-    the dependent digests (scope growth, its own task). The user should
-    confirm (a), or choose (b), before the coordinator closes this task.
   implementation_boundary: Update numbered owning specifications, limits/errors/failure/lifecycle registries,
     strict schemas, fixtures and every affected reader/writer together with implemented behavior. Generated
     clients are regenerated through their tools. No legacy readers, unsupported accepted configuration,
@@ -201,3 +185,66 @@ test_prerequisites:
   work counters for assertions, not wall-clock thresholds.
 dependency_note: depends_on is intentionally empty. Neither implementation acceptance nor this milestone
   exit depends on any V417 compaction task.
+
+decisions:
+- >-
+  2026-10-31 (user decision): restore R1's explicit includeReasoning boolean below
+  authoring, rejecting missing, null, non-boolean, aliased and duplicate members.
+  Both true and false are serialized and included in the exact AgentTemplate digest
+  manifest. Authoring omission normalizes to false. This replaces the true-only
+  encoding introduced to preserve existing snapshot digests (TPL-R116); consistent
+  strict readers take precedence over keeping test records readable. Conflicting
+  test data may be manually repaired or deleted. No database records are changed by
+  this implementation. Reopen only if a future deployment requires data retention.
+
+verification_results:
+- >-
+  2026-10-31: continued on codex/terminal-reasoning-explicit-boolean from
+  main 7eca667f4. Toolchain: Go 1.26.9, Node 24.20.0, locked Runtime
+  dependencies. PostgreSQL tests used a newly created disposable local database;
+  no demo database records were changed.
+- >-
+  go test ./internal/config/... ./internal/contracts/... ./internal/controlplane/...
+  passed, including explicit false serialization, strict persisted Workflow reads,
+  invalid/missing/duplicate members and shared digest cases. go test
+  ./internal/archtest passed. The summarizer hardening gate also passed all its
+  selected Go packages under -race.
+- >-
+  make test-worker-summarizer-e2e passed, including 294 focused Runtime tests,
+  the full selected Go package suites under -race, and the real Server/Runtime/
+  PostgreSQL TestWorkerSummarizerProductionBoundaries process test (365.256s).
+  Reasoning-on/off/absent, summary cancellation, Runtime reuse and on.summarized
+  Planner continuation passed. New direct PostgreSQL assertions verified that
+  the stored Run snapshot contains the actual JSON true/false member for each
+  reasoning scenario, rather than relying on a decoder default.
+- >-
+  make test-postgres passed all ten packages against real PostgreSQL.
+  make verify-public-api and make test-config passed, including shipped catalog
+  validation. Generated Go/UI client freshness checks passed; the public schema
+  already required the boolean, so no public API or generated client change was needed.
+- >-
+  make ui-verify passed on its second full run: 213 test files, 2632 tests passed,
+  one existing expected failure, 17 server tests passed and production build passed.
+  The first run failed the unrelated finding-export.test.tsx:196 visibility assertion;
+  no UI source was changed between runs.
+- >-
+  make test-runtime finished with 5763 passed, 133 platform/opt-in skips and
+  the two already documented macOS failures owned by V425-001 and V425-002:
+  test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification
+  and test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor.
+  All terminal summarizer/boolean cases passed. Full Runtime Ruff checks,
+  Ruff formatting and all four import-layer contracts passed.
+- >-
+  make test-wire-cross-language: contract packages and 375 selected Runtime
+  contract tests passed; the shared gate passed 392 Go shared tests and 1577
+  Runtime cases (284 shared functions), then failed because the pre-existing
+  workflow-context-management-cases.json has no entry in api/testdata/readers.json.
+  The explicit-boolean fixtures themselves passed on both sides.
+- >-
+  make lint reached staticcheck after generated client, dependency graph,
+  model configuration, UI gates, formatting and go vet checks passed, then failed
+  on the pre-existing unused compactionThreshold constant in
+  internal/planner/streamline/compaction_test.go:27. The missing fixture-reader
+  registration and unused Planner constant belong to the merged compaction slices;
+  this terminal-boolean change does not alter them. Keep V417-001 in_progress
+  until all required gates pass; the macOS failures remain owned by V425-001/002.

@@ -595,9 +595,8 @@ contains:
 - optional boolean `includeReasoning`, default false, which adds the normal
   Worker model's provider reasoning to the summarizer input
   ([WRK-R181](../execution/worker.md)). Authoring accepts `true` or `false`;
-  the resolved summarizer, its persisted snapshots and AllocationSpec carry
-  the member only as `true`, and omission there is the only representation of
-  false (TPL-R116).
+  the resolved summarizer, its persisted snapshots and AllocationSpec require
+  the explicit boolean, including `false` (TPL-R116).
 
 **TPL-R48.** The block has fixed `terminal@1` semantics in this API version. It
 is not a generic bag of compaction options and is never silently reinterpreted
@@ -631,24 +630,19 @@ construction (TPL-R63).
 ([Runtime configuration](runtime-config.md)) but cannot enable summarization or
 change its policy or soft limits.
 
-**TPL-R116.** `includeReasoning` is a true-only member below the authoring
-boundary, like the optional summarizer block itself and a tool binding's
-`optional: true`. Authoring YAML accepts a YAML boolean only and rejects null,
-an empty value, strings, numbers, sequences, case or snake-case aliases and
-duplicate keys. The Server's normalized snapshot decoder, the private
-AllocationSpec schema and the Runtime model accept the member only as `true`
-and reject explicit `false`, `null`, other types, aliases and duplicates; the
-public AgentTemplate read model always reports the boolean. Guarantee: a
-Server or Runtime that drops an enabled flag fails the AgentTemplate digest
-check (TPL-R58, TPL-R63), so omission cannot silently stand for a lost `true`.
-Alternative: an explicit boolean in every resolved snapshot and AllocationSpec.
-It was not chosen because snapshot JSON is also hashed outside the template
-manifest (Audit profiles, scan sweeps, Eval Workflow digests and retained Audit
-dependencies) and is strictly decoded, so an always-present member would make
-every stored summarizer-bearing snapshot unreadable without a demo-data reset
-or a re-pinning migration. Reversal condition: a release digest lock or data
-reset that removes those stored snapshots; the change is then one schema and
-decoder edit on each side.
+**TPL-R116.** `includeReasoning` is an explicit required boolean below the
+authoring boundary. Authoring omission normalizes to `false`; authored values
+must be YAML booleans, with null, empty values, strings, numbers, sequences,
+case or snake-case aliases and duplicate keys rejected. The Server's normalized
+snapshot decoder, private AllocationSpec schema, Runtime model and public
+AgentTemplate read model require either `true` or `false`; they reject omission,
+`null`, other types, aliases and duplicates. Both boolean values join the exact
+AgentTemplate digest manifest (TPL-R58, TPL-R63). A dropped flag fails strict
+decoding, and a changed flag fails digest verification. Omission-based false
+encoding was rejected to keep resolved values explicit across terminal and
+compaction consumers. Pre-change snapshots without the member are invalid;
+preserving test data is not a compatibility requirement. Reopen this decision
+before a deployment whose existing data must be retained.
 
 The trigger, context boundary, input, output and failure behavior of terminal
 summarization are owned by [Worker](../execution/worker.md).
@@ -693,8 +687,8 @@ representation:
 - an optional summarizer appears with its exact ModelPolicy ref, normalized
   context-window ratio and optional cumulative budget; when its own
   instructions are configured, their resolved `{ref, digest}` is also included,
-  and omitting them adds no member to the manifest; `includeReasoning: true`
-  is included when reasoning is enabled, and false adds no member;
+  and omitting them adds no member to the manifest; the normalized boolean
+  `includeReasoning` is always included, whether `true` or `false`;
 - every model, toolset and sandbox reference appears in its normalized exact
   form;
 - the computed AgentTemplate digest itself is the only AgentTemplate field

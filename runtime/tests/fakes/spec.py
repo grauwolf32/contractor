@@ -75,6 +75,7 @@ def allocation_spec(
             modelPolicy=summarizer_policy,
             contextWindowRatio=0.9,
             cumulativeBudget=20_000,
+            includeReasoning=False,
         )
     template = ResolvedAgentTemplate(
         ref=AgentTemplateRef(

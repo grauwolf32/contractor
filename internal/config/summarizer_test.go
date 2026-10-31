@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"path/filepath"
 	"strings"
@@ -488,6 +489,50 @@ func TestWorkerSummarizerIncludeReasoningRejectsInvalidAuthoring(t *testing.T) {
 			snapshot, err := Load(root)
 			if err == nil || snapshot != nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Load() = (%v, %v), want error containing %q", snapshot, err, test.want)
+			}
+		})
+	}
+}
+
+func TestWorkerSummarizerResolvedIncludeReasoningRequiresExplicitBoolean(t *testing.T) {
+	t.Parallel()
+	root := copyCoreFixture(t)
+	installWorkerSummarizer(t, root)
+	snapshot := mustLoad(t, root)
+	workflow, err := snapshot.ResolveRunWorkflow(
+		t.Context(), "artifact-copy@1", resolved.ExecutionConfigPatch{}, developmentCredentialLookup(t, snapshot),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := resolved.EncodeResolvedWorkflowSnapshot(workflow)
+	if err != nil {
+		t.Fatal(err)
+	}
+	member := []byte(`"includeReasoning":false`)
+	if !bytes.Contains(encoded, member) {
+		t.Fatal("normalized false must be serialized explicitly")
+	}
+	reloaded, err := resolved.DecodeResolvedWorkflowSnapshot(encoded)
+	if err != nil || reloaded.Stages["copy"].Agents["builder"].Template.Summarizer.IncludeReasoning {
+		t.Fatalf("snapshot false round trip: %v", err)
+	}
+	for name, replacement := range map[string]string{
+		"missing":     "",
+		"null":        `,"includeReasoning":null`,
+		"string":      `,"includeReasoning":"false"`,
+		"number":      `,"includeReasoning":0`,
+		"case alias":  `,"IncludeReasoning":false`,
+		"snake alias": `,"include_reasoning":false`,
+		"duplicate":   `,"includeReasoning":false,"includeReasoning":false`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := bytes.Replace(encoded, append([]byte(","), member...), []byte(replacement), 1)
+			if bytes.Equal(candidate, encoded) {
+				t.Fatal("snapshot fixture has no replaceable boolean member")
+			}
+			if _, err := resolved.DecodeResolvedWorkflowSnapshot(candidate); err == nil {
+				t.Fatal("invalid resolved summarizer was accepted")
 			}
 		})
 	}

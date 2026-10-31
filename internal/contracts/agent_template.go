@@ -124,23 +124,18 @@ type WorkerSummarizerConfig struct {
 	ContextWindowRatio float64               `json:"contextWindowRatio" strictjson:"required"`
 	CumulativeBudget   *int                  `json:"cumulativeBudget,omitempty"`
 	// IncludeReasoning admits the Worker model's provider reasoning into the
-	// terminal summarizer input (TPL-R47, WRK-R181). Like the summarizer block
-	// itself, omission is the only representation of false in resolved
-	// snapshots and AllocationSpec; a present member must be true.
-	IncludeReasoning bool `json:"includeReasoning,omitempty"`
+	// terminal summarizer input (TPL-R47, WRK-R181). Both boolean values are
+	// explicit in resolved snapshots and AllocationSpec (TPL-R116).
+	IncludeReasoning bool `json:"includeReasoning" strictjson:"required"`
 }
 
-// UnmarshalJSON decodes strictly and accepts includeReasoning only as true, so
-// false keeps the single encoding that existing digests were computed over.
+// UnmarshalJSON enforces the closed resolved shape, including required booleans,
+// even when its parent is decoded through encoding/json.
 func (c *WorkerSummarizerConfig) UnmarshalJSON(data []byte) error {
 	type wire WorkerSummarizerConfig
 	var value wire
-	fields, err := DecodeStrictObject(data, &value)
-	if err != nil {
+	if _, err := DecodeStrictObject(data, &value); err != nil {
 		return err
-	}
-	if raw, present := fields["includeReasoning"]; present && strings.TrimSpace(string(raw)) != "true" {
-		return Invalidf("Worker summarizer includeReasoning must be omitted or true")
 	}
 	*c = WorkerSummarizerConfig(value)
 	return nil

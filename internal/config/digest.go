@@ -119,11 +119,7 @@ func agentTemplateDigest(selector resolved.Selector, template contracts.Resolved
 			summarizer["cumulativeBudget"] = *template.Summarizer.CumulativeBudget
 		}
 		summarizer["contextWindowRatio"] = template.Summarizer.ContextWindowRatio
-		// Enabled reasoning is a manifest member; false adds none, so the
-		// digest of every template without it is unchanged (TPL-R58).
-		if template.Summarizer.IncludeReasoning {
-			summarizer["includeReasoning"] = true
-		}
+		summarizer["includeReasoning"] = template.Summarizer.IncludeReasoning
 		if instructions := template.Summarizer.Instructions; instructions != nil {
 			summarizer["instructions"] = map[string]any{
 				"ref": instructions.Ref, "digest": instructions.Digest,

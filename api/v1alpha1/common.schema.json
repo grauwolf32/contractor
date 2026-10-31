@@ -90,7 +90,7 @@
     "workerSummarizerConfig": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["modelPolicy", "contextWindowRatio"],
+      "required": ["modelPolicy", "contextWindowRatio", "includeReasoning"],
       "properties": {
         "instructions": {
           "allOf": [
@@ -115,7 +115,7 @@
         },
         "cumulativeBudget": {"type": "integer", "minimum": 1, "maximum": 100000000},
         "contextWindowRatio": {"type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1},
-        "includeReasoning": {"const": true}
+        "includeReasoning": {"type": "boolean"}
       }
     },
     "workerContextManagement": {

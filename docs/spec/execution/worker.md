@@ -1366,8 +1366,8 @@ decides context acceptance. Context failures keep their non-retryable
 classification (WRK-R18).
 
 **WRK-R181.** An AgentTemplate summarizer with `includeReasoning: true`
-(TPL-R47) adds provider reasoning to the summarizer input; omission means
-false. Provider reasoning is only the text a provider returned in
+(TPL-R47) adds provider reasoning to the summarizer input. Authoring omission
+normalizes to false; the resolved value is an explicit required boolean (TPL-R116). Provider reasoning is only the text a provider returned in
 `reasoning_content` or `reasoning`, which the Gateway adapter maps to thought
 parts. With true, each thought part with text in a model-role normal-loop
 event becomes a tagged ordinary JSON part `{"reasoning": "<text>"}` in place

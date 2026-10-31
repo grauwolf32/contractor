@@ -257,6 +257,23 @@ func runSummarizerProcessScenario(
 		t, ctx, server, runtimeProcess, gateway, publicClient, publicBaseURL,
 		runID, expectation.state,
 	)
+	if expectation.mode == "reasoning-on" || expectation.mode == "reasoning-off" || expectation.mode == "reasoning-absent" {
+		// Inspect the stored JSON directly: a decoder default must not hide a
+		// writer that drops false from the immutable Run snapshot (TPL-R116).
+		var includeReasoning []byte
+		if err := pool.QueryRow(ctx, `
+SELECT workflow_snapshot #> '{stages,summarize,agents,builder,template,summarizer,includeReasoning}'
+FROM workflow_runs WHERE run_id = $1`, runID).Scan(&includeReasoning); err != nil {
+			t.Fatalf("%s stored reasoning flag: %v", expectation.mode, err)
+		}
+		want := "true"
+		if expectation.mode == "reasoning-off" {
+			want = "false"
+		}
+		if string(includeReasoning) != want {
+			t.Fatalf("%s stored includeReasoning = %q, want explicit %s", expectation.mode, includeReasoning, want)
+		}
+	}
 	if len(status.Attempts) != 1 || status.Attempts[0].State != expectation.state {
 		t.Fatalf("%s attempt = %+v", expectation.mode, status.Attempts)
 	}

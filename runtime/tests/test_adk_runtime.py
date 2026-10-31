@@ -3968,7 +3968,7 @@ async def create_runtime(
                 **(
                     {"cumulativeBudget": cumulative_budget} if cumulative_budget is not None else {}
                 ),
-                **({"includeReasoning": True} if include_reasoning else {}),
+                includeReasoning=include_reasoning,
             ),
         )
 
