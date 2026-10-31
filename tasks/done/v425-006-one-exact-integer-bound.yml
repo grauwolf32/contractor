@@ -6,7 +6,7 @@ epic: api-contracts
 kind: chore
 introduced_by: V371-004
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages:
 - go
@@ -67,3 +67,24 @@ tests:
   covers:
   - A1
   - A2
+implementation_commit: e500a9935b78e3f4d6568fbd8af94caa3977a76c
+verification:
+  date: '2026-10-31'
+  source_commit: 399ddcdb71d6b7c28a7dfb3de06d03590c7120c5
+  integrated_base: 7f5222c12
+  commands:
+    - All listed Go package suites passed with disposable PostgreSQL configured, including exactinteger, documentnumber, contracts, config, memory, audits, findings, performance, sitemap, scanplan and archtest.
+    - The listed Runtime selection passed 2056 tests across 58 files; one process bridge test was skipped because it is launched by make test-audit-completion-e2e with the real Go Artifact API.
+    - make test-wire-cross-language passed with 357 fixtures, 395 Go and 285 Python shared tests; its initial Runtime contract suite passed 377 tests.
+    - make lint passed, including Go copy-guard probes, the Python copy-guard probes, shared fixture source checks and import-layer checks.
+    - make docs-dependencies regenerated the required dependency document after introducing the foundation definition.
+  outcome: >-
+    The accepted numeric range, validation failures and UI behavior are unchanged.
+    Executable Go and Runtime consumers derive the fixed bound; decimal comparisons
+    derive its text instead of copying the digits. Shared cases cover positive and
+    negative endpoints, integral decimal spellings, exponents and fractions that
+    round into the accepted float range. Runtime declarative schema maxima are
+    pinned to the same fixture. V425-017 and its report-size boundary are untouched.
+  prerequisite: >-
+    V426-003 separately repairs a missing Git wire-import registry entry that
+    reproduced on main and blocked the full architecture suite.
