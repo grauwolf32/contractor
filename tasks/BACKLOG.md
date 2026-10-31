@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-85 open tasks: 9 in progress, 65 pending, 11 deferred. 1265 finished: 1250 completed, 15 archived.
+85 open tasks: 10 in progress, 64 pending, 11 deferred. 1265 finished: 1250 completed, 15 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
+| [V425-007](v425-007-ui-preparation-and-error-fixtures.yml) | ui | chore | P3 | Derive the UI's past-preparation check from the phase definition and its test errors from the registry |
 
 ## Pending
 
@@ -137,7 +138,6 @@ the epics are in [epics.yml](epics.yml).
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
 | [V411-018](v411-018-pentest-ui-journey.yml) | feature | P1 | V411-015, V411-017, V411-010 | Build the ordinary HTTP Audit setup and evidence UI journey |
-| [V425-007](v425-007-ui-preparation-and-error-fixtures.yml) | chore | P3 | — | Derive the UI's past-preparation check from the phase definition and its test errors from the registry |
 
 ### Public API and wire contracts (`api-contracts`)
 

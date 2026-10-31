@@ -1,5 +1,6 @@
 import { invalidAPIResponse } from "./error";
 import type { components } from "./generated/public";
+import { auditPastPreparation } from "./states";
 
 type Audit = components["schemas"]["Audit"];
 
@@ -12,7 +13,7 @@ type Audit = components["schemas"]["Audit"];
 export function requireAuditComposition(audit: Audit, status: number): Audit {
   const roles = Object.values(audit.preparation?.roles ?? {});
   const generated = audit.generatedInventory;
-  const prepared = audit.phase === "inventory" || audit.phase === "rounds";
+  const prepared = auditPastPreparation(audit.phase);
   if (
     (generated !== undefined &&
       (audit.phase !== "rounds" ||

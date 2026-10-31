@@ -39,7 +39,6 @@ function setup(
           503,
           "storage_transaction_conflict",
           "Preset catalog unavailable",
-          true,
         );
       }
       const later = url.searchParams.has("cursor");
@@ -63,12 +62,7 @@ function setup(
     },
     "GET /v1/audit-standards/{scheme}/versions/{version}": () =>
       options.failStandard
-        ? failure(
-            503,
-            "storage_transaction_conflict",
-            "Standard unavailable",
-            true,
-          )
+        ? failure(503, "storage_transaction_conflict", "Standard unavailable")
         : json(standardResponse(options.standard ?? standardFixture)),
     "GET /v1/workflows/{name}/versions/{version}": () =>
       json(

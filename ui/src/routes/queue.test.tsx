@@ -319,7 +319,6 @@ describe("Runs Queue view", () => {
             503,
             "storage_transaction_conflict",
             "Queue unavailable",
-            true,
           );
         }
         return json(page([queueItem("run-live")]));
@@ -455,7 +454,6 @@ describe("Runs Queue view", () => {
           503,
           "storage_transaction_conflict",
           "Queue control unavailable",
-          true,
         ),
     });
 

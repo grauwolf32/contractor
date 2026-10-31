@@ -56,7 +56,6 @@ function revisionConflict(): Response {
     409,
     "conflict",
     "resource state changed; retry with the current revision",
-    true,
   );
 }
 

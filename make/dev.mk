@@ -96,9 +96,9 @@ docs-dependencies:
 docs-dependencies-check:
 	cd runtime && uv run python ../scripts/dependencies/build_graph.py --check
 
-# Regenerates the public error code table of docs/spec/platform/errors.md from
-# the Server's error registry in internal/apierror; its tests fail while the
-# table lags the registry.
+# Regenerates the public error code table of docs/spec/platform/errors.md and
+# the browser test retryability fixture from internal/apierror; its tests fail
+# while either generated document lags the registry.
 docs-error-registry:
 	go test -count=1 ./internal/apierror -run '^TestRegistryTableIsCurrent$$' -update
 

@@ -22,7 +22,7 @@ import {
 import { RESPONSE_SCHEMAS } from "../../src/api/generated/response-schemas";
 import type { components } from "../../src/api/generated/public";
 import { conforming } from "../../src/test/builders";
-import { operationOf } from "../../src/test/responses";
+import { errorRetryable, operationOf } from "../../src/test/responses";
 
 type Schemas = components["schemas"];
 
@@ -160,14 +160,14 @@ export async function fulfillError(
   status: number,
   code: string,
   message = code,
-  extra: Partial<Schemas["Error"]> = {},
+  extra: Partial<Omit<Schemas["Error"], "code" | "retryable">> = {},
 ): Promise<void> {
   await fulfillJSON(
     route,
     conforming("Error", {
       code,
       message,
-      retryable: false,
+      retryable: errorRetryable(code),
       requestId: "request-e2e",
       ...extra,
     }),

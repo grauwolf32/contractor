@@ -6,10 +6,12 @@ epic: ui
 kind: chore
 introduced_by: V414-020
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages:
 - typescript
+- go
+- json
 goal: The UI decides whether an Audit is past preparation in one place, and test error responses carry
   the registry's retryability.
 context:
@@ -19,6 +21,12 @@ context:
     V414-020 introduced. The test helper failure() in ui/src/test/responses.ts:54 defaults retryable to
     false, while internal_error is retryable in the error registry, so tests can model responses the Server
     never sends.'
+  implementation_decision: >-
+    2026-10-31: Extend the existing make docs-error-registry generator with a
+    test-only JSON retryability fixture pinned to internal/apierror; share its
+    lookup across unit, Eval and Playwright response helpers. Remove the optional
+    override rather than preserve independently authored retryability flags.
+    Extend the existing phase-copy gate to the past-preparation predicate.
   siblings: Other UI code that compares Audit phases by literal, and other test helpers that build error
     bodies.
 scope:
@@ -39,6 +47,13 @@ tests:
   - A1
   - A2
 - command: make ui-verify
+  covers:
+  - A1
+  - A2
+- command: go test -count=1 ./internal/apierror
+  covers:
+  - A2
+- command: make lint
   covers:
   - A1
   - A2

@@ -338,7 +338,6 @@ describe("Material detail", () => {
               503,
               "storage_transaction_conflict",
               "Artifact bytes are unavailable",
-              true,
             )
           : bytes("hello", "text/plain"),
     });

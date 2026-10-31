@@ -266,7 +266,6 @@ describe("Operations routes", () => {
             503,
             "storage_transaction_conflict",
             "Operations snapshot is unavailable",
-            true,
           );
         }
         return json(snapshot(snapshotReads === 1 ? "7" : "12"));

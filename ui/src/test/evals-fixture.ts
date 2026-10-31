@@ -13,6 +13,7 @@ import progress from "../../../api/testdata/evals/valid/progress-chart.json" wit
 import differences from "../../../api/testdata/evals/valid/deltas-chart.json" with { type: "json" };
 import type { components } from "../api/generated/public";
 import { workflowResource } from "./builders-execution";
+import { errorRetryable } from "./responses";
 import type {
   EvalCommand,
   EvalDatasetInput,
@@ -112,13 +113,13 @@ export function createEvalFixture(
       },
     };
   }
-  /** An error envelope; only an unavailable service is worth retrying. */
+  /** An error envelope with the public registry's retryability. */
   function error(code: string, status = 409) {
     return response(
       {
         code,
         message: code,
-        retryable: status === 503,
+        retryable: errorRetryable(code),
         requestId: "request_eval_fixture",
         details: { kind: "eval", recovery: "reload" },
       },
