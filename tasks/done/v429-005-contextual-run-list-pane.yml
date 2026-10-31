@@ -5,7 +5,7 @@ milestone: ui-journey-usability
 epic: ui
 kind: feature
 priority: P2
-status: in_progress
+status: completed
 depends_on: [V429-004]
 languages: [typescript, css]
 goal: A Run opened from an existing list keeps that list beside its detail, without independent Queue/Completed switches.
@@ -65,7 +65,7 @@ acceptance_criteria:
   - id: A3
     text: Desktop/mobile keyboard, back-to-list and focus behavior work with shared primitives and all themes.
 tests:
-  - command: make ui-verify
+  - command: VITEST_MAX_WORKERS=2 make ui-verify
     covers: [A1, A2, A3]
   - command: make ui-gates
     covers: [A1, A2, A3]
@@ -75,3 +75,31 @@ tests:
     covers: [A1, A2, A3]
   - command: python3 scripts/check_tasks.py
     covers: [A1, A2, A3]
+
+verification:
+  - >-
+    Real Application tests open filtered Completed and Queue pages, retain their
+    state/membership/cursor/exact metadata selectors, select a sibling without
+    growing return state, and return to the exact source page/state. Project
+    recent/successful/history links retain their original 5/3/25-item queries.
+    Direct/invalid origins, failed reads, empty pages and absent selections are
+    explicit; a full 50-Run page performs no per-row detail read or cursor walk.
+  - >-
+    The immutable production-build browser snapshot passed 57 cases across seven
+    navigation, Project, draft, repeat, lifecycle, preset and responsive specs,
+    without skips or retries. Source panes have no view switches, desktop rows
+    retain selection, and mobile back retains filters/cursor at 390/320 px in
+    light, dark and black. Native preview sibling navigation was also verified.
+  - >-
+    VITEST_MAX_WORKERS=2 make ui-verify passed: 218 files, 2681 passing tests and
+    one existing expected failure, 17 static-server tests, generated-client,
+    lint/formatting, both typechecks and production build. The earlier unbounded
+    run hit test timeouts while another checkout compiled and tested; limiting
+    workers reran the complete suite without changing assertions or timeouts.
+    make ui-gates, task/spec checks and diff whitespace checks passed.
+  - >-
+    New comparison evidence is saved in production-contextual-list-20261101
+    beside the preserved original Run prototype. Original OpenDesign projects,
+    conversations, files, versions and the verified recoverable backup remain
+    intact. This branch has not been merged into main.
+implementation_commit: 9a3be29efa5aad66aa9567ba9d9e5909f01dc453

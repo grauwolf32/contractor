@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-80 open tasks: 12 in progress, 57 pending, 11 deferred. 1301 finished: 1283 completed, 18 archived.
+79 open tasks: 11 in progress, 57 pending, 11 deferred. 1302 finished: 1284 completed, 18 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
-| [V429-005](v429-005-contextual-run-list-pane.yml) | ui | feature | P2 | Retain the originating Run list beside Run detail |
 | [V429-006](v429-006-compact-run-output-actions.yml) | ui | defect | P2 | Compact Run output links and wrap narrow preview actions |
 
 ## Pending
@@ -196,7 +195,7 @@ tasks in `introduced_by`.
 | Audits (`audits`) | 19 | 67 | 84 | 35 | 124 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
-| Web UI (`ui`) | 4 | 30 | 68 | 16 | 61 |
+| Web UI (`ui`) | 3 | 30 | 68 | 16 | 61 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 8 | 20 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 46 | 15 |
