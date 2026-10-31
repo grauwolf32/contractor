@@ -1,0 +1,52 @@
+schema_version: "1.0"
+id: V425-022
+title: "Build and run the Git read-only probe for the container platform"
+milestone: hub-audit-structure-2026-10
+epic: quality
+kind: defect
+introduced_by: V35-002
+priority: P2
+status: in_progress
+depends_on: []
+languages: [go]
+goal: "The real read-only Git import proof runs from macOS through Podman Machine as well as native Linux, using a Linux binary for the container architecture."
+context:
+  authority: "2026-10-31: user corrected the host-native build of a binary intended to execute in a Linux container while continuing V372-030 verification."
+  severity: low
+  finding: >-
+    internal/gitimport/real_git_integration_test.go:487-492 sets only
+    CGO_ENABLED=0, producing a Darwin binary on macOS for an Alpine container.
+    The same test assumes the container shares the client's localhost and
+    temporary filesystem; neither holds across Podman Machine.
+  siblings: >-
+    This is the only Go test -c subprocess in internal/ that launches its output
+    with Podman. Other Git integration tests execute on the host and retain
+    their native fixtures. The HTTPS and SSH container paths both need reachable
+    fixture addresses with certificate and host-key validation preserved.
+  decision: >-
+    Read the Podman server OS and architecture and explicitly cross-compile the
+    static probe for Linux. Transfer the small fixture directory through podman
+    cp into a stopped container, then start it read-only; do not depend on VM
+    bind mounts. Native Linux retains host networking; macOS Podman Machine
+    reaches host fixtures through host.containers.internal. Preserve HTTPS CA
+    verification and the explicit fixture server name, plus SSH known_hosts.
+    Separate the cold cross-build budget from the container execution budget.
+scope:
+  in:
+    - "Container target, fixture transfer, HTTPS/SSH addressing and bounded cleanup in the existing integration test."
+    - "A real Podman regression with an explicit Linux ELF check before launch."
+  out:
+    - "Production Git import behavior and arbitrary remote Podman hosts."
+    - "Changing runtime sandbox policy or disabling certificate verification."
+acceptance_criteria:
+  - id: A1
+    text: "The probe is a static Linux ELF for the Podman server architecture even when Go runs on macOS."
+  - id: A2
+    text: "The real container imports the HTTPS and private SSH fixture, validates commit/content and proves its filesystem is read-only."
+  - id: A3
+    text: "Container cleanup runs on success and failure, and the full Git import package and lint pass."
+tests:
+  - command: "go test -tags=integration -count=1 -timeout=10m ./internal/gitimport"
+    covers: [A1, A2, A3]
+  - command: make lint
+    covers: [A3]
