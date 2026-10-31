@@ -263,7 +263,6 @@ export function starter(kind: Kind): Draft {
             description: "Describe this agent",
             runtime: "adk@1",
             instructions: { ref: "instructions/worker.md" },
-            modelPolicy: "worker@1",
             sandboxProfile: "local-workdir@1",
             toolsets: [],
           }

@@ -1,7 +1,11 @@
 import { ARTIFACT_STORAGE_TIMESTAMPS } from "../src/test/builders";
 import { expect, test, type Page } from "@playwright/test";
 
-import { project as projectBuilder } from "../src/test/builders";
+import {
+  audit as auditBuilder,
+  finding as findingBuilder,
+  project as projectBuilder,
+} from "../src/test/builders";
 import {
   runRuntimeConfiguration,
   runStatus,
@@ -63,6 +67,24 @@ async function installProjectAPI(
     frozen: false,
     createdAt: "2026-09-01T10:01:00Z",
   };
+  const reviewCheck = auditBuilder(
+    PROJECT_ID,
+    "check_review_browser",
+    "waiting_review",
+    {
+      profile: {
+        name: "source-checklist",
+        version: "1",
+        digest: `sha256:${"a".repeat(64)}`,
+      },
+    },
+  );
+  const reviewFinding = findingBuilder(
+    reviewCheck.auditId,
+    "finding_review_browser",
+    {},
+    { title: "Possible missing object authorization" },
+  );
   const resultSource = "note: selected output";
   const resultRef = {
     namespace: "outputs",
@@ -127,7 +149,23 @@ async function installProjectAPI(
         return;
       }
       if (url.pathname === `/v1/projects/${PROJECT_ID}/audits`) {
-        await fulfillJSON(route, { items: [], page: { hasMore: false } });
+        await fulfillJSON(route, {
+          items: options.showResult ? [reviewCheck] : [],
+          page: { hasMore: false },
+        });
+        return;
+      }
+      if (
+        options.showResult &&
+        url.pathname === `/v1/audits/${reviewCheck.auditId}/findings`
+      ) {
+        await fulfillJSON(route, {
+          items: [reviewFinding],
+          total: 1,
+          auditRevision: 1,
+          asOf: "2026-11-01T08:30:00Z",
+          page: { hasMore: false },
+        });
         return;
       }
       if (url.pathname === "/v1/workflows") {
@@ -418,7 +456,7 @@ test("Project sections open inputs and Run setup, with explicit confirmed deleti
   ).toBeVisible();
   // The overview's Materials chips end with the link that opens the sheet.
   await page
-    .getByRole("list", { name: "Materials" })
+    .getByRole("region", { name: "Project materials" })
     .getByRole("link", { name: "Add material", exact: true })
     .click();
   const chooser = page.getByRole("dialog", { name: "Add material" });
@@ -549,6 +587,32 @@ for (const theme of ["light", "dark", "black"] as const) {
         composer.getByRole("button", { name: "Start a check" }),
       ).toBeVisible();
       expect(outputReads).toHaveLength(0);
+      // The reviewed design uses an open canvas with independent document
+      // cards, not white panels nested inside another white panel.
+      const presentation = await page.evaluate(() => {
+        const color = (selector: string) =>
+          getComputedStyle(document.querySelector(selector)!).backgroundColor;
+        return {
+          canvas: color(".projects-workspace > .ui-detail-pane"),
+          card: color(".projects-output"),
+        };
+      });
+      expect(presentation.canvas).not.toBe(presentation.card);
+      await expect(results).toHaveCSS("border-top-width", "0px");
+      const glance = page.getByRole("region", { name: "At a glance" });
+      const materials = page.getByRole("region", { name: "Project materials" });
+      expect((await glance.boundingBox())!.y).toBeLessThan(
+        (await materials.boundingBox())!.y,
+      );
+      const timeline = page.getByRole("region", { name: "Timeline" });
+      const disclosure = timeline.locator("details");
+      await expect(disclosure).not.toHaveAttribute("open");
+      await disclosure.locator("summary").click();
+      await expect(timeline.locator(".ui-activity").first()).toBeVisible();
+      expect(
+        await timeline.locator(".ui-activity svg").count(),
+      ).toBeGreaterThan(0);
+      await disclosure.locator("summary").click();
       const positions = await page.evaluate(() => {
         const box = (selector: string) =>
           document.querySelector(selector)!.getBoundingClientRect().toJSON();

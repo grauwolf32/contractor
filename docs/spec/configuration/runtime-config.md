@@ -251,7 +251,8 @@ allocation semantics.
 execution bounds and model alias can use different endpoints or tokens and the
 same endpoint can serve several policies. Neither AgentTemplate nor ModelPolicy
 carries the LLM Gateway URL, token, provider routing or credential;
-AgentTemplate selects only its default exact ModelPolicy.
+Workflow executionConfig selects exact main and summary ModelPolicies;
+AgentTemplate contains reusable behavior without model selections.
 
 **RCF-R12.** In an LLMGatewayConfig, `protocol` and `url` are mandatory, and
 the only accepted protocol is `openai-compatible@1`.

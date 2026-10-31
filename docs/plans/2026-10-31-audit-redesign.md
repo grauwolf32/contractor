@@ -86,6 +86,29 @@ V64-002 дают материалы, Project findings и раннюю сквоз
 Небольшой private HTTP fixture V411-019 имеет уже завершённые prerequisites;
 он готовится независимо от контрактной цепочки и используется ранним HTTP demo.
 
+### Минимальный шаг V64-004
+
+Уточнение пользователя от 2026-11-01: начать с явно выбранных артефактов;
+автоматически переносить отчёт со всем содержимым по его ссылкам пока не нужно.
+Audit получает обычный scope в ArtifactStore. Handoff и публикация используют
+существующие exact fork/read/CAS/retention операции. Несколько обычных inputs
+Workflow поддерживаются и дальше; универсального dependency manifest нет.
+
+Первый production caller уже существует: `auditimport.Importer.collectRoleSuccess`
+сохраняет объявленный output, `PinnedSubmissionBuilder.resolveRoleInputs`
+выбирает принятый exact output, а `RunService.CreateAudit` создаёт input fork
+следующего Run. V64-004 переводит эти операции на Audit scope и добавляет
+минимальную owner-authenticated публикацию материала в Project. Текущий
+контроллер используется только как существующее место вызова; его замена —
+V64-002. Новый coordinator в V64-004 не реализуется.
+
+Приёмку доказывает новая обязательная группа `workspace` в существующих
+composition matrix/runner: handoff, публикация после удаления источника,
+replay, collision/CAS и authority/lifecycle fences. Старые preparation/Round/
+approval случаи эту группу не заменяют. Составной sitemap snapshot с его
+явно выбранными исходными файлами остаётся в уже существующей V410-025,
+вне базового V64-011; дополнительных задач и платформенных механизмов нет.
+
 ```mermaid
 flowchart TD
     C[V64-001 contracts] --> A[V64-004 artifacts]

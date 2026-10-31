@@ -1758,7 +1758,6 @@ spec:
   description: Produces one deterministic test result
   runtime: adk@1
   instructions: {ref: instructions/worker.md}
-  modelPolicy: worker@1
   toolsets:
     - ref: run-artifacts@1
       tools: [read_artifact, write_artifact]
@@ -1777,6 +1776,7 @@ spec:
     workers:
       llmGateway: test-gateway@1
       credential: development-worker
+      modelPolicy: worker@1
   entryStage: check
   stages:
     check:

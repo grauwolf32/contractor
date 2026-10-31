@@ -85,17 +85,30 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 			}
 			gateway := newSharedMemoryGateway("test-only")
 			t.Cleanup(gateway.close)
-			gateway.workerModel = actual.ModelPolicy.Model
+			expectedWorkflow, err := expectedCatalog.Workflow("artifact-copy@2")
+			if err != nil {
+				t.Fatal(err)
+			}
+			actualWorkflow, err := actualCatalog.Workflow("artifact-copy@2")
+			if err != nil {
+				t.Fatal(err)
+			}
+			expectedPolicy := expectedWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy
+			actualPolicy := actualWorkflow.Stages["copy"].ExecutionConfig.Agents["builder"].ModelPolicy
+			if !reflect.DeepEqual(actualPolicy, expectedPolicy) {
+				t.Fatal("staging changed Workflow policy")
+			}
+			gateway.workerModel = actualPolicy.Model
 			for _, marker := range []string{
 				"MEMORY_STREAMLINE_FIRST_WORKER", "MEMORY_STREAMLINE_RETRY_WORKER",
 				"MEMORY_STREAMLINE_CONTINUE_WORKER", "MEMORY_ROUTER_BUILDER_WORKER",
 				"MEMORY_ROUTER_REVIEWER_WORKER", "Copy the source artifact into the declared result artifact",
 			} {
-				_, worker, err := gateway.sharedMemoryScenario(expected.ModelPolicy.Model, marker)
+				_, worker, err := gateway.sharedMemoryScenario(expectedPolicy.Model, marker)
 				if err != nil || !worker {
 					t.Fatalf("selected Worker model/context rejected: %v", err)
 				}
-				if _, _, err := gateway.sharedMemoryScenario(expected.ModelPolicy.Model+"-wrong", marker); err == nil {
+				if _, _, err := gateway.sharedMemoryScenario(expectedPolicy.Model+"-wrong", marker); err == nil {
 					t.Fatal("accepted an unselected Worker model")
 				}
 			}
@@ -106,20 +119,20 @@ func TestProductionMemoryConfigurationStaging(t *testing.T) {
 				t.Fatal(err)
 			}
 			request := map[string]any{
-				"model": expected.ModelPolicy.Model,
+				"model": expectedPolicy.Model,
 				"messages": []any{map[string]any{
 					"role": "user", "content": workerResultFinalizerMarker + string(finalizerInput),
 				}},
 			}
 			_, reason, model, _, _, _, err := gateway.next(request)
-			if err != nil || reason != "stop" || model != expected.ModelPolicy.Model {
+			if err != nil || reason != "stop" || model != expectedPolicy.Model {
 				t.Fatalf("selected result-finalizer model rejected: model=%q reason=%q error=%v", model, reason, err)
 			}
-			request["model"] = expected.ModelPolicy.Model + "-wrong"
+			request["model"] = expectedPolicy.Model + "-wrong"
 			if _, _, _, _, _, _, err := gateway.next(request); err == nil {
 				t.Fatal("result finalizer accepted an unselected Worker model")
 			}
-			request["model"] = expected.ModelPolicy.Model
+			request["model"] = expectedPolicy.Model
 			request["tools"] = []any{map[string]any{"function": map[string]any{"name": "read_memory"}}}
 			if _, _, _, _, _, _, err := gateway.next(request); err == nil {
 				t.Fatal("result finalizer accepted model-visible tools")

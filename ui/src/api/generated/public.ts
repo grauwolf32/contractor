@@ -6333,7 +6333,6 @@ export interface components {
         };
         WorkerSummarizerConfigBody: {
             instructions?: components["schemas"]["InstructionsRef"];
-            modelPolicy: components["schemas"]["ModelPolicyRef"];
             cumulativeBudget?: number;
             contextWindowRatio: number;
             /** @description Whether the terminal summarizer input includes the Worker model's provider-supplied reasoning as tagged, redacted and bounded text. Authoring omission resolves to false. */
@@ -6344,7 +6343,6 @@ export interface components {
             description: string;
             runtime: components["schemas"]["Selector"];
             instructions?: components["schemas"]["InstructionsRef"];
-            modelPolicy?: components["schemas"]["ModelPolicyRef"];
             summarizer?: components["schemas"]["WorkerSummarizerConfigBody"];
             skills?: components["schemas"]["AgentSkillRef"][];
             toolsets: components["schemas"]["ToolsetSelection"][];

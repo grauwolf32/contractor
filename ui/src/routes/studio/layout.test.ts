@@ -187,7 +187,7 @@ describe("Studio dependency layout", () => {
         name: `skill-${index}`,
       })),
     });
-    expect(result.nodes).toHaveLength(29);
+    expect(result.nodes).toHaveLength(28);
     expect(
       result.nodes.find((node) => node.type === "agent")!.x,
     ).toBeGreaterThan(

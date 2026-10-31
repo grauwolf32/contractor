@@ -38,6 +38,16 @@ spec:
       llmGateway: local-litellm@1
       credential: development-worker
 
+      modelPolicy: worker@2
+    stages:
+      likec4_build:
+        agents:
+          builder:
+            summarizerModelPolicy: summarizer@1
+      likec4_validate:
+        agents:
+          validator:
+            summarizerModelPolicy: summarizer@1
   entryStage: likec4_build
   stages:
     likec4_build:

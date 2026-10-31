@@ -219,7 +219,6 @@ export function buildGraph(draft: Draft): StudioGraph {
       textValue(spec.runtime),
     );
     for (const [key, title] of [
-      ["modelPolicy", "Model policy"],
       ["instructions", "Instructions"],
       ["sandboxProfile", "Sandbox"],
       ["summarizer", "Summarizer"],
@@ -234,10 +233,13 @@ export function buildGraph(draft: Draft): StudioGraph {
         ["spec", key],
         key,
         title,
-        textValue(spec[key]) ||
-          textValue(record(spec[key]).ref) ||
-          textValue(record(spec[key]).modelPolicy) ||
-          "Unconfigured",
+        key === "summarizer"
+          ? spec.summarizer === undefined
+            ? "Disabled"
+            : "Terminal summary"
+          : textValue(spec[key]) ||
+              textValue(record(spec[key]).ref) ||
+              "Unconfigured",
       );
       edge(["spec", key], ["metadata"], title, "wire");
     }

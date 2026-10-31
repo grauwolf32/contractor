@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/configload"
-	"github.com/grauwolf32/contractor/internal/configload/configloadtest"
 )
 
 func TestCodeAnalysisE2EConfigurationLoads(t *testing.T) {
@@ -19,7 +18,7 @@ func TestCodeAnalysisE2EConfigurationLoads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated Code Analysis process configuration must load: %v", err)
 	}
-	production, err := configloadtest.AgentTemplate(snapshot, "workspace_source_graph_analyst@3")
+	production, err := snapshot.ModelPolicy("worker@2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +35,8 @@ func TestCodeAnalysisE2EConfigurationLoads(t *testing.T) {
 				t.Fatal(err)
 			}
 			template := workflow.Stages["analyze"].Agents["analyst"].Template
-			if !reflect.DeepEqual(template.ModelPolicy, production.ModelPolicy) {
+			policy := workflow.Stages["analyze"].ExecutionConfig.Agents["analyst"].ModelPolicy
+			if !reflect.DeepEqual(policy, production) {
 				t.Fatal("generated analyst must use the current production Worker policy")
 			}
 			var tools []string
@@ -54,10 +54,10 @@ func TestCodeAnalysisE2EConfigurationLoads(t *testing.T) {
 					toolCalls++
 				}
 			}
-			if template.ModelPolicy.MaxModelCalls < calls || template.ModelPolicy.MaxToolCalls < toolCalls {
+			if policy.MaxModelCalls < calls || policy.MaxToolCalls < toolCalls {
 				t.Fatalf("policy cannot execute the unchanged script: need %d model and %d tool calls", calls, toolCalls)
 			}
-			t.Logf("resolved %s@%s model=%s total_model_calls_including_finalizer=%d script_tool_calls=%d", template.ModelPolicy.Ref.PolicyID, template.ModelPolicy.Ref.Version, template.ModelPolicy.Model, calls, toolCalls)
+			t.Logf("resolved %s@%s model=%s total_model_calls_including_finalizer=%d script_tool_calls=%d", policy.Ref.PolicyID, policy.Ref.Version, policy.Model, calls, toolCalls)
 		})
 	}
 }

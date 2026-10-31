@@ -39,6 +39,7 @@ import {
   RunMetadataLabelChips,
   RunStateChip,
 } from "./components";
+import { RunListSourceContext } from "./source-context";
 import { RunIdLink, RunsFilter } from "./list-parts";
 import { RUN_STATE_LABELS } from "../../app/vocabulary";
 
@@ -437,15 +438,15 @@ export function CompletedRunsPanel() {
   const encodedLabelSelectors = searchParams.getAll("label");
   const decoded = safelyDecodeLabelSelectors(encodedLabelSelectors, limits);
   const selectorTokens = decoded.selectors.map(selectorToken);
+  const options = {
+    ...(state === undefined ? {} : { state }),
+    lifecycle: "terminal" as const,
+    ...(cursor === undefined ? {} : { cursor }),
+    labelSelectors: decoded.selectors,
+  };
   const query = useQuery({
     queryKey: queryKeys.runs.list(state, cursor, selectorTokens, "terminal"),
-    queryFn: () =>
-      listRuns(api, {
-        ...(state === undefined ? {} : { state }),
-        lifecycle: "terminal",
-        ...(cursor === undefined ? {} : { cursor }),
-        labelSelectors: decoded.selectors,
-      }),
+    queryFn: () => listRuns(api, options),
     enabled: decoded.error === undefined,
   });
   const deletion = useMutation({
@@ -487,109 +488,113 @@ export function CompletedRunsPanel() {
   }
 
   return (
-    <div className="runs-view">
-      <div className="runs-toolbar">
-        <div className="runs-filters">
-          <RunsFilter
-            label="State"
-            options={STATE_OPTIONS}
-            value={state ?? ""}
-            onChange={replaceState}
+    <RunListSourceContext
+      value={{ kind: "completed", label: "Completed", options }}
+    >
+      <div className="runs-view">
+        <div className="runs-toolbar">
+          <div className="runs-filters">
+            <RunsFilter
+              label="State"
+              options={STATE_OPTIONS}
+              value={state ?? ""}
+              onChange={replaceState}
+            />
+          </div>
+          <RefreshButton
+            className="runs-icon-button"
+            size="sm"
+            isFetching={query.isFetching}
+            disabled={decoded.error !== undefined}
+            onRefresh={() => void query.refetch()}
           />
         </div>
-        <RefreshButton
-          className="runs-icon-button"
-          size="sm"
-          isFetching={query.isFetching}
-          disabled={decoded.error !== undefined}
-          onRefresh={() => void query.refetch()}
+        <RunLabelFilters
+          key={encodedLabelSelectors.join("\u0000")}
+          selectors={decoded.selectors}
+          parseError={decoded.error}
+          onReplace={replaceLabelSelectors}
         />
-      </div>
-      <RunLabelFilters
-        key={encodedLabelSelectors.join("\u0000")}
-        selectors={decoded.selectors}
-        parseError={decoded.error}
-        onReplace={replaceLabelSelectors}
-      />
-      <div className="runs-results">
-        {decoded.error !== undefined ? (
-          <EmptyState title="Clear the malformed metadata filters to load Runs." />
-        ) : (
-          <QueryView
-            query={query}
-            loading={
-              <p className="ui-caption" aria-live="polite">
-                Loading completed Runs…
-              </p>
+        <div className="runs-results">
+          {decoded.error !== undefined ? (
+            <EmptyState title="Clear the malformed metadata filters to load Runs." />
+          ) : (
+            <QueryView
+              query={query}
+              loading={
+                <p className="ui-caption" aria-live="polite">
+                  Loading completed Runs…
+                </p>
+              }
+              isEmpty={(data) => data.items.length === 0}
+              empty={
+                <EmptyState title="No completed Runs match this view.">
+                  <p>Terminal Runs appear here after execution finishes.</p>
+                </EmptyState>
+              }
+            >
+              {(data) => (
+                <table className="runs-table" data-has-actions="">
+                  <thead>
+                    <tr>
+                      <th scope="col">Run</th>
+                      <th scope="col">Workflow</th>
+                      <th scope="col">State</th>
+                      <th scope="col">Context &amp; details</th>
+                      <th scope="col">Finished</th>
+                      <th scope="col">
+                        <span className="ui-visually-hidden">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.items.map((run) => (
+                      <CompletedRunRow
+                        key={run.runId}
+                        run={run}
+                        onDelete={() => {
+                          deletion.reset();
+                          setDeleteTarget(run.runId);
+                        }}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </QueryView>
+          )}
+        </div>
+        <CursorControls
+          size="sm"
+          label="Run pages"
+          {...pages.controls(query.data?.page)}
+        />
+        {deleteTarget === undefined ? null : (
+          <AlertDialog
+            eyebrow="Permanent action"
+            title="Delete completed Run?"
+            confirmLabel="Delete Run"
+            pendingLabel="Deleting…"
+            pending={deletion.isPending}
+            error={
+              deletion.error === null ? null : (
+                <ErrorNotice error={deletion.error} />
+              )
             }
-            isEmpty={(data) => data.items.length === 0}
-            empty={
-              <EmptyState title="No completed Runs match this view.">
-                <p>Terminal Runs appear here after execution finishes.</p>
-              </EmptyState>
-            }
+            onCancel={() => {
+              deletion.reset();
+              setDeleteTarget(undefined);
+            }}
+            onConfirm={() => deletion.mutate(deleteTarget)}
           >
-            {(data) => (
-              <table className="runs-table" data-has-actions="">
-                <thead>
-                  <tr>
-                    <th scope="col">Run</th>
-                    <th scope="col">Workflow</th>
-                    <th scope="col">State</th>
-                    <th scope="col">Context &amp; details</th>
-                    <th scope="col">Finished</th>
-                    <th scope="col">
-                      <span className="ui-visually-hidden">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.items.map((run) => (
-                    <CompletedRunRow
-                      key={run.runId}
-                      run={run}
-                      onDelete={() => {
-                        deletion.reset();
-                        setDeleteTarget(run.runId);
-                      }}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </QueryView>
+            <p>
+              This permanently removes Run <code>{deleteTarget}</code>, its
+              execution history, and all Run-owned Artifacts. Shared source
+              Artifacts and published Project outputs are retained.
+            </p>
+          </AlertDialog>
         )}
       </div>
-      <CursorControls
-        size="sm"
-        label="Run pages"
-        {...pages.controls(query.data?.page)}
-      />
-      {deleteTarget === undefined ? null : (
-        <AlertDialog
-          eyebrow="Permanent action"
-          title="Delete completed Run?"
-          confirmLabel="Delete Run"
-          pendingLabel="Deleting…"
-          pending={deletion.isPending}
-          error={
-            deletion.error === null ? null : (
-              <ErrorNotice error={deletion.error} />
-            )
-          }
-          onCancel={() => {
-            deletion.reset();
-            setDeleteTarget(undefined);
-          }}
-          onConfirm={() => deletion.mutate(deleteTarget)}
-        >
-          <p>
-            This permanently removes Run <code>{deleteTarget}</code>, its
-            execution history, and all Run-owned Artifacts. Shared source
-            Artifacts and published Project outputs are retained.
-          </p>
-        </AlertDialog>
-      )}
-    </div>
+    </RunListSourceContext>
   );
 }

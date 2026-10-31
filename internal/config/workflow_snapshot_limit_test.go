@@ -34,7 +34,7 @@ func TestCatalogRejectsAWorkflowWhoseSnapshotExceedsItsBound(t *testing.T) {
 // credential lookup, so the Run cannot be accepted and fail later.
 func TestWorkflowSnapshotBoundAppliesToTheSnapshotARunStores(t *testing.T) {
 	root := copyCoreFixture(t)
-	replaceFile(t, templatePath(root), "test-worker@1", "worker@1")
+	replaceFile(t, filepath.Join(root, "workflows/artifact_copy.yaml"), "test-worker@1", "worker@1")
 	data, err := os.ReadFile(filepath.Join(root, "model-policies/test-worker.yaml"))
 	if err != nil {
 		t.Fatal(err)

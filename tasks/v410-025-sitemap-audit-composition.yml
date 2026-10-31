@@ -25,7 +25,10 @@ context:
   authority: 'User decision on 2026-10-31: keep Audit complexity controlled, use ordinary Runs and exact
     Audit/Project materials, and allow exploration without a hypothesis. The user then requested sitemap
     work in parallel with Audit and explicitly asked to rewrite tasks. This feature takes only the Audit-dependent
-    scope split from V410-006/007; independent sitemap delivery does not wait for it.'
+    scope split from V410-006/007; independent sitemap delivery does not wait for it. User clarification
+    on 2026-11-01 keeps V64-004 to one self-contained artifact. Composite handling stays with a separate
+    actual consumer. This existing sitemap composition task is that concrete follow-up; it does not block
+    the basic Audit slice and does not create a universal dependency subsystem.'
   specification:
   - docs/spec/artifacts/project-sitemap.md
   - docs/spec/artifacts/artifact-store.md
@@ -43,9 +46,9 @@ context:
   - V410-006
   - V410-007
   boundary: SMT owns map/snapshot/reconciliation domain rules. ArtifactStore owns exact context and publication/
-    retention. V64-002 and its V64-004 prerequisite own task dependencies, Run submission, workspace and
-    recovery. Reuse those owners without a sitemap-specific execution lifecycle, collector or transfer
-    store.
+    retention. V64-002 owns task sequencing, Run submission and recovery; V64-004 owns ordinary exact
+    per-artifact workspace/fork/publication primitives. Reuse those owners without a sitemap-specific
+    execution lifecycle, collector or transfer store.
   implementation_gate: Keep pending until both prerequisites are completed and the user has authorized
     the reviewed Audit redesign. This request authorizes replanning only, not code, migrations, live Runs
     or deployment. This Audit review gate does not apply to standalone V410-006/007.
@@ -56,6 +59,14 @@ context:
   - internal/auditcontroller
   - tests/e2e
   - docs/guides
+  composite_consumer: The concrete case is projectsitemap SnapshotAllocation/retainSnapshotInputs and
+    its existing project-sitemap-context@1 snapshotDocument.inputs descriptors (internal/projectsitemap/snapshot.go).
+    The SMT owner resolves only the at-most-eight configured original Run-creation snapshotInputs under
+    current authorization. Adapt that domain-owned snapshot/input projection for Audit handoff and Project
+    publication using the ordinary Artifact forks supplied by V64-004. Keep exact root/source lineage
+    and independently usable selected originals after source Audit/Run deletion; do not infer dependency
+    authority from arbitrary JSON. This is explicit SMT-owned input selection, not an automatic report-link
+    collector. Keep it outside basic V64-011; V64-004 does not wait for it.
 scope:
   in:
   - Bind released sitemap Workflows into common Audit tasks with explicit dependencies and exact inputs;
@@ -66,6 +77,11 @@ scope:
     existing concrete callers if present and remove superseded bindings rather than retaining two paths.
   - Register migrated/new cases in the existing Audit composition gate; let V411-014/V411-020 consume
     their result and reuse V410-007 scale/lifecycle evidence.
+  - Implement only this actual composite snapshot/original-input case through the existing SMT typed contract
+    and ordinary Artifact owner. SMT owns interpretation and consumer projection; ArtifactStore stays
+    content-opaque. Reuse the existing at-most-eight input selection and byte limits, with no general
+    manifest, recursive dependency resolver, new store or controller. V64-004 supplies the per-artifact
+    primitive; Workflows may select several explicit inputs.
   out:
   - Standalone catalog/release work in V410-006/007 and optional Caido/browser integrations.
   - Redesigning Audit coordination, ArtifactStore scopes/retention, hypotheses, findings or approvals;

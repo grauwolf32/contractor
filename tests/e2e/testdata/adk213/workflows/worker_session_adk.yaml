@@ -16,6 +16,7 @@ spec:
     workers:
       llmGateway: local-litellm@1
       credential: development-worker
+      modelPolicy: session_tools_worker@1
   entryStage: probe
   stages:
     probe:

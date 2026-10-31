@@ -109,7 +109,7 @@ func TestShippedCatalogInPlaceChangeIsVisibleInRunSnapshots(t *testing.T) {
 				t.Fatalf("dependency identities changed: %+v/%+v -> %+v/%+v",
 					oldTemplate.Ref, oldPolicy, newTemplate.Ref, newPolicy)
 			}
-			if (newTemplate.Ref.Digest != oldTemplate.Ref.Digest) != test.dependencyChanged ||
+			if newTemplate.Ref.Digest != oldTemplate.Ref.Digest ||
 				(newPolicy.Digest != oldPolicy.Digest) != test.dependencyChanged {
 				t.Fatalf("dependency digests: template %s -> %s, policy %s -> %s",
 					oldTemplate.Ref.Digest, newTemplate.Ref.Digest, oldPolicy.Digest, newPolicy.Digest)

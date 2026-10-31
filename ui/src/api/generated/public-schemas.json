@@ -12129,13 +12129,10 @@
     "WorkerSummarizerConfigBody": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["modelPolicy", "contextWindowRatio", "includeReasoning"],
+      "required": ["contextWindowRatio", "includeReasoning"],
       "properties": {
         "instructions": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/InstructionsRef"
-        },
-        "modelPolicy": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelPolicyRef"
         },
         "cumulativeBudget": {
           "type": "integer",
@@ -12161,12 +12158,11 @@
         "required": ["execution"],
         "properties": {
           "instructions": { "not": {} },
-          "modelPolicy": { "not": {} },
           "summarizer": { "not": {} }
         }
       },
       "else": {
-        "required": ["instructions", "modelPolicy"],
+        "required": ["instructions"],
         "properties": { "execution": { "not": {} } }
       },
       "properties": {
@@ -12179,9 +12175,6 @@
         },
         "instructions": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/InstructionsRef"
-        },
-        "modelPolicy": {
-          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ModelPolicyRef"
         },
         "summarizer": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/WorkerSummarizerConfigBody"

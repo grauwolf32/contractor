@@ -8,7 +8,6 @@ spec:
   runtime: adk@1
   instructions:
     ref: instructions/session-tools-worker.md
-  modelPolicy: session_tools_worker@1
   toolsets:
     - ref: run-artifacts@1
       tools: [read_artifact]

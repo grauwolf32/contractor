@@ -7,8 +7,6 @@ import { Application } from "./app/application";
 import { applicationRoutes } from "./app/router";
 import { initializeTheme } from "./app/theme";
 import { loadRuntimeConfig } from "./config/runtime-config";
-import "@fontsource-variable/manrope";
-import "@fontsource-variable/jetbrains-mono";
 import "./app/theme.css";
 import "./styles.css";
 import "./app/ui-primitives.css";

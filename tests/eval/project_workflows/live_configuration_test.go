@@ -95,11 +95,13 @@ func copyLiveConfiguration(t *testing.T, repositoryRoot, target string, settings
 					}
 				}
 			}
-			for _, agent := range stage.Agents {
-				if agent.Template.Summarizer != nil {
-					ref := agent.Template.Summarizer.ModelPolicy.Ref
-					if policies[ref.PolicyID+"@"+ref.Version] {
-						return nil, errors.New("selected Worker policy is shared with a summarizer")
+			for _, selection := range liveStageVariants(stage) {
+				for _, consumer := range selection.Agents {
+					if consumer.SummarizerModelPolicy != nil {
+						ref := consumer.SummarizerModelPolicy.Ref
+						if policies[ref.PolicyID+"@"+ref.Version] {
+							return nil, errors.New("selected Worker policy is shared with a summarizer")
+						}
 					}
 				}
 			}

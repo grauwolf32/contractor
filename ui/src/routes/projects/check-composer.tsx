@@ -5,6 +5,7 @@ import type { ArtifactMetadata } from "../../api/artifacts";
 import type { AuditProfile } from "../../api/audits";
 import type { Project } from "../../api/projects";
 import { artifactAccepts } from "../../run-drafts/validation";
+import { Icon } from "../../app/icon";
 import { Button, StatusGlyph } from "../../ui";
 import { useAuditPresets } from "../catalog/audit-preset-data";
 import { auditPresetLabel } from "./audits/labels";
@@ -163,10 +164,10 @@ export function CheckComposer({
         />
         <div className="projects-composer-footer">
           <Link to={startCheckPath(project.projectId, objective)}>
-            Choose check type
+            <Icon name="catalog" size={14} /> Choose check type
           </Link>
-          <Button type="submit" variant="primary">
-            Start a check <span aria-hidden="true">→</span>
+          <Button type="submit" variant="primary" size="sm">
+            Start a check <Icon name="arrow-right" size={15} />
           </Button>
         </div>
       </div>

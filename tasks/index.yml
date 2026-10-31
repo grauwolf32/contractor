@@ -9,6 +9,12 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User clarification 2026-11-01 keeps V64-004 to the existing role-output collection and dependent
+    RunService input path, using real Audit Artifact scope and per-artifact exact forks/publication.
+    Multiple explicit Workflow inputs remain supported. Automatic report-link/dependency collection
+    is not a current priority; no universal composite format, resolver or new coordinator belongs in
+    V64-004. The existing V410-025 owns its concrete sitemap snapshot/original-input composition after
+    the basic primitives. New workspace-specific mandatory cases extend the existing composition gate.
     User request 2026-11-01 authorized implementing the three review defects from completed V64-001:
     V64-020/021/022 (completed, P1, introduced_by V64-001). V64-020 accepts an explicitly empty
     proposal from an optional generator; it does not require generation or allow blank hypothesis text.

@@ -1009,6 +1009,13 @@
   min-width: 0;
 }
 
+.runs-result-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
 .runs-result-link {
   display: block;
   min-width: 0;
@@ -1832,4 +1839,158 @@ a.runs-publication-ref {
     margin-bottom: var(--space-4);
     gap: var(--space-2-5);
   }
+}
+
+/* Reviewed OpenDesign detail composition; shared theme/control vocabulary. */
+.runs-detail-page {
+  max-width: 75rem;
+}
+.runs-detail-page > .runs-run {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.runs-detail-page .ui-detail-header {
+  padding: var(--space-2) var(--space-5) var(--space-4);
+  border-bottom: 0;
+}
+.runs-detail-page .ui-detail-header-heading {
+  font-size: var(--text-xl);
+}
+.runs-detail-page .runs-facts {
+  width: 100%;
+  margin: 0;
+  padding: var(--space-3) var(--space-3-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+.runs-detail-page .runs-facts .ui-id-chip {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.runs-detail-page .runs-run-body {
+  padding: 0 var(--space-5) var(--space-8);
+  gap: var(--space-6);
+}
+.runs-detail-page .runs-h2 {
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+.runs-detail-page .runs-triage {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3-5);
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface);
+  border-radius: var(--radius-2xl);
+}
+.runs-detail-page .runs-next {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  padding: var(--space-3) var(--space-3-5);
+  background: var(--surface-subtle);
+}
+.runs-detail-page .runs-shortcuts {
+  border: 0;
+  padding-top: 0;
+}
+.runs-detail-page .runs-result.run-result-primary {
+  border-color: var(--info-line);
+  box-shadow: inset 3px 0 0 var(--info);
+}
+.runs-detail-page .runs-result-actions {
+  margin-left: auto;
+}
+.runs-detail-page .runs-triage-heading > .runs-h2 {
+  font-size: var(--text-lg);
+}
+
+@container (max-width: 28rem) {
+  .runs-detail-page .ui-detail-header {
+    padding-inline: var(--space-4);
+  }
+  .runs-detail-page .runs-run-body {
+    padding-inline: var(--space-4);
+  }
+  .runs-detail-page .runs-result-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .runs-detail-page .runs-result-actions {
+    margin-left: 0;
+  }
+  .runs-detail-page .runs-result-buttons {
+    flex-basis: 100%;
+  }
+}
+
+.runs-detail-page .runs-sections {
+  display: grid;
+  gap: var(--space-2-5);
+  border: 0;
+  background: transparent;
+}
+.runs-detail-page .runs-section {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+}
+.runs-detail-page .runs-section-summary {
+  grid-template-columns: minmax(0, 1fr) auto 13px;
+}
+.runs-detail-page .runs-section-title {
+  grid-column: 1;
+}
+.runs-detail-page .runs-section-description {
+  grid-column: 1;
+}
+.runs-detail-page .runs-section-aside {
+  grid-column: 2;
+}
+.runs-detail-page .runs-section-summary > .runs-section-chevron {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+
+@container (max-width: 28rem) {
+  .runs-detail-page .runs-section-summary {
+    grid-template-columns: minmax(0, 1fr) 13px;
+  }
+  .runs-detail-page .runs-section-aside {
+    grid-column: 1;
+    grid-row: 3;
+    text-align: left;
+  }
+  .runs-detail-page .runs-section-summary > .runs-section-chevron {
+    grid-column: 2;
+  }
+}
+
+/* The left pane is the originating list, not a second Runs destination. */
+.runs-source-workspace {
+  min-width: 0;
+}
+.runs-source-workspace .runs-detail-page {
+  max-width: none;
+}
+.runs-source-workspace .ui-list-pane {
+  background: var(--surface);
+}
+.runs-source-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.runs-source-note {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.runs-source-workspace > .ui-panes-detail {
+  padding: var(--space-5);
+  background: var(--background);
 }

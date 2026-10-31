@@ -38,6 +38,16 @@ spec:
       llmGateway: local-litellm@1
       credential: development-worker
 
+      modelPolicy: worker@2
+    stages:
+      openapi_build:
+        agents:
+          builder:
+            summarizerModelPolicy: summarizer@1
+      openapi_validate:
+        agents:
+          validator:
+            summarizerModelPolicy: summarizer@1
   entryStage: openapi_build
   stages:
     openapi_build:

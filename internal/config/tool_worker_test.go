@@ -97,7 +97,6 @@ func TestToolWorkerRejectsModelAndInvalidBindings(t *testing.T) {
 	for _, change := range []func(*contracts.ResolvedAgentTemplate){
 		func(t *contracts.ResolvedAgentTemplate) { t.Execution = nil },
 		func(t *contracts.ResolvedAgentTemplate) { t.Instructions.Text = "unused" },
-		func(t *contracts.ResolvedAgentTemplate) { t.ModelPolicy.Model = "unused" },
 		func(t *contracts.ResolvedAgentTemplate) { t.Execution.Tool = "scan_naabu" },
 		func(t *contracts.ResolvedAgentTemplate) {
 			t.Execution.Arguments["url"] = contracts.ToolArgumentBinding{Source: "parameter"}

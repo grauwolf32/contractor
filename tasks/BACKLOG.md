@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-76 open tasks: 10 in progress, 55 pending, 11 deferred. 1307 finished: 1289 completed, 18 archived.
+76 open tasks: 10 in progress, 55 pending, 11 deferred. 1312 finished: 1294 completed, 18 archived.
 
 ## In progress
 
@@ -178,7 +178,7 @@ tasks in `introduced_by`.
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Run execution core (`execution-core`) | 2 | 47 | 56 | 22 | 84 |
-| Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 47 | 29 | 70 |
+| Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 47 | 29 | 71 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 44 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
 | Agent Skills (`agent-skills`) | 0 | 11 | 4 | 2 | 4 |
@@ -187,12 +187,12 @@ tasks in `introduced_by`.
 | HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 25 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
 | Findings tools and collections (`findings`) | 2 | 17 | 8 | 9 | 14 |
-| Workflow catalog and document workflows (`workflows`) | 5 | 19 | 15 | 14 | 19 |
+| Workflow catalog and document workflows (`workflows`) | 5 | 19 | 15 | 15 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
 | Audits (`audits`) | 18 | 67 | 87 | 36 | 128 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
-| Web UI (`ui`) | 2 | 29 | 66 | 17 | 60 |
+| Web UI (`ui`) | 2 | 30 | 68 | 18 | 63 |
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 8 | 20 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 46 | 15 |

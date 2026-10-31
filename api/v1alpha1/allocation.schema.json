@@ -549,7 +549,7 @@
           "default": null
         },
         "summarizerModelPolicy": {
-          "$ref": "common.schema.json#/$defs/workerSummarizerConfig/properties/modelPolicy"
+          "$ref": "common.schema.json#/$defs/workerSummarizerModelPolicy"
         },
         "engagement": {
           "$ref": "engagement-allocation.schema.json"
@@ -610,6 +610,7 @@
             }
           },
           "then": {
+            "required": ["summarizerModelPolicy"],
             "properties": {
               "agentTemplate": {
                 "required": [

@@ -41,10 +41,12 @@ func configureSummaryWorkflow(t *testing.T, workflow *resolved.ResolvedWorkflow)
 	worker := stage.ExecutionConfig.Agents["builder"]
 	worker.ModelPolicy.ContextWindowTokens = 131072
 	stage.ExecutionConfig.Agents["builder"] = worker
-	binding.Template.ModelPolicy = worker.ModelPolicy.Clone()
 	summaryPolicy := worker.ModelPolicy.Clone()
 	summaryPolicy.MaxModelCalls, summaryPolicy.MaxToolCalls, summaryPolicy.MaxWorkerCalls = 1, 0, 0
-	binding.Template.Summarizer = &contracts.WorkerSummarizerConfig{ModelPolicy: summaryPolicy, ContextWindowRatio: 0.9}
+	binding.Template.Summarizer = &contracts.WorkerSummarizerConfig{ContextWindowRatio: 0.9}
+	worker.SummarizerModelPolicy = &summaryPolicy
+	worker.Origins.SummarizerModelPolicy = "workflow.executionConfig.workers"
+	stage.ExecutionConfig.Agents["builder"] = worker
 	stage.Agents["builder"] = binding
 	stage.On.Failed = resolved.TransitionAction{Kind: resolved.TransitionFail}
 	stage.On.Interrupted = resolved.TransitionAction{Kind: resolved.TransitionFail}
