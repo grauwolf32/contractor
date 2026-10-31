@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-001
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-001
 languages:
@@ -121,9 +121,9 @@ test_prerequisites:
   selection is a failure.
 - On macOS use a canonical TMPDIR for the existing strict-root tests. If implementation expands into store
   behavior, report the scope change before proceeding.
-implementation_commit: null
+implementation_commit: be190ddc489cba873fabe4b26c76ca4f186b4d14
 verification:
 - Before the fix, the 33000-byte statement and combined-content regressions failed in Decode, the real loaded catalog and offline CLI (2026-11-01).
 - Complete auditcontract/config/.../app/archtest suites and the independent Python conformance module passed after the fix. Shared cases cover 32768 and 32769 canonical bytes with ASCII, multibyte Unicode, scope/grounds and JSON escaping across initial/generated/pinned-context seeds.
 - Separate cases retain full-document metadata charging for standalone/context/mutation hypotheses and allow unrelated 33000-byte result rationale. No persistence behavior or database fixture was introduced.
-- Full cross-language and lint gates remain required before completion.
+- make test-wire-cross-language and make lint passed on 2026-11-01. The existing cross-language gate used a dedicated disposable PostgreSQL database and validated 367 fixtures with 392 Go and 288 Python shared tests; its Runtime selection passed 1583 tests.
