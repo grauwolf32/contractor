@@ -20,9 +20,11 @@ languages:
 goal: The shipped compact@1 behavior has an integrated deterministic proof across real Server, Runtime
   and PostgreSQL, with documented limits and a release gate that does not depend on live-model quality.
 context:
-  authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
-    includeReasoning independently deliverable. This record plans work; it does not start implementation
-    or change existing delivery priorities.'
+  authority: 'User decisions on 2026-10-31: Contractor is a research platform. Audit provides durable
+    coordination over ordinary Runs, fixed assertions use common hypotheses, exploratory findings may
+    have no hypothesis, deduplication and exact Audit/Run origin remain, hypothesis associations are automatic
+    and owner-independent, formal approvals are removed almost completely, and complexity must decrease
+    or stay controlled. The user requested task replanning and diagrams for review before implementation.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/execution/worker.md
@@ -37,6 +39,14 @@ context:
   adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
     Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
     not 2.8 callback/identity assumptions.
+  implementation_gate: Planning only. The user will review the revised task graph and proposal 0050 before
+    authorizing implementation. Keep pending and do not start code, migrations, live Runs or deployment
+    from this planning update.
+  design:
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/plans/2026-10-31-audit-redesign.md
+  redesign_boundary: Retarget the Audit branch of the real-process compaction gate to common result/context
+    semantics; preserve ordinary Worker, SDK/budget/cancellation and required-case evidence.
 scope:
   in:
   - A context-compaction family/process gate, required-case inventory and release-graph integration using

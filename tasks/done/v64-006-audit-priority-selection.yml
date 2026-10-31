@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P2
-status: pending
+status: archived
 depends_on:
 - V64-000
 - V64-002
@@ -18,19 +18,38 @@ languages:
 goal: Choose useful next experiments from a bounded eligible frontier with transparent budgets and diversity,
   without requiring LLM scores or a minimum round size.
 context:
-  authority: >-
-    On 2026-10-24 the user explicitly requested pending status for the reviewed
-    proposal 0045 plan, including shared V62 prerequisites. The earlier deferral
-    is historical; dependency completion still gates implementation start.
+  authority: On 2026-10-24 the user explicitly requested pending status for the reviewed proposal 0045
+    plan, including shared V62 prerequisites. The earlier deferral is historical; dependency completion
+    still gates implementation start. On 2026-10-31 the user accepted common hypotheses for all Audit
+    assertion checks, with optional research creating new hypotheses, and authorized removing almost all
+    formal approvals. This supersedes conflicting earlier scope and acceptance; replacement task boundaries
+    remain open. The user also defined findings as hypothesis confirmations/refutations, required deduplication
+    and hypothesis links for later selection, and made reducing or controlling Audit complexity the primary
+    design constraint. Findings retain Audit/Run origin and an exact hypothesis link when present; exploratory
+    tasks can produce findings without a prior hypothesis. On 2026-10-31 the user required automatic task/finding
+    association with hypothesis identity and revision, without manually assembling that pair.
+  redesign_requirement: Task selection automatically binds the exact selected hypothesis revision. Creation/retry
+    reconciles that pin; source edits cannot rebind an accepted task to latest.
+  decision_needed: The target Finding is a research conclusion with Audit/Run origin and optional exact
+    hypothesis association. Preserve deduplication and all source contributions without a universal security-issue,
+    mandatory hypothesis or human-confirmation gate. Before implementation, reconcile this task scope,
+    dependencies and gates with proposal 0050. Keep this task pending and do not execute its superseded
+    research-only scope. Select tasks for fixed and generated hypotheses through the common coordinator;
+    compare fixed source order with contextual deterministic selection and replace the old direct-inventory
+    bypass and item-approval gates.
   proposal: docs/proposals/0045-audit-hypothesis-search.md
-  design: docs/plans/2026-10-24-audit-hypothesis-search.md
+  design:
+  - docs/plans/2026-10-24-audit-hypothesis-search.md
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/plans/2026-10-31-audit-redesign.md
   specification:
   - docs/spec/audits/audits.md
   - docs/spec/audits/execution.md
   - docs/spec/artifacts/artifact-store.md
   - docs/spec/platform/persistence.md
-  deterministic_boundary: Direct Runs and current deterministic Audit inventories bypass research; no
-    mandatory hypotheses, generation, ranking, new Scheduler mode or attack tree.
+  deterministic_boundary: All Audit assertion checks use common hypotheses. Fixed checklist/standard seeds
+    remain deterministic without generation, ranking or a separate research phase. Direct Runs and supporting
+    non-assertion work need no hypotheses.
   implementation_boundary: Each new table, state, export and schema must have its named production writer/reader
     in this task; include the smallest actual integration caller, not a test-only placeholder waiting
     for another task.
@@ -153,7 +172,8 @@ reactivation:
   date: '2026-10-24'
   previous_status: deferred
   reason: Explicit user request to queue the reviewed proposal 0045 tasks as pending.
-  execution_rule: Implementation may start after declared dependencies complete; this update starts no implementation.
+  execution_rule: Implementation may start after declared dependencies complete; this update starts no
+    implementation.
 previous_deferral:
   date: '2026-10-21'
   previous_status: pending
@@ -188,3 +208,10 @@ verification_requirements:
   Planning does not populate implementation_commit or fabricate successful checks.
 - Keep direct deterministic behavior, existing claims/receipts and source-to-consumer exact provenance
   explicit in real-path assertions.
+archive:
+  date: '2026-10-31'
+  previous_status: pending
+  reason: User-requested Audit replanning replaces this separate execution/selection/cycle boundary with
+    the shared coordinator and ordinary task/Run path. Scope is merged, not implemented.
+  superseded_by:
+  - V64-012

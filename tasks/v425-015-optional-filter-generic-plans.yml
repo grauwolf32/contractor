@@ -21,6 +21,19 @@ context:
     internal/projectstore/store_sql.go and internal/findingintake/postgres_sql.go. Only the two statements
     fixed by V414-025 and V414-026 were measured.'
   siblings: All statements listed above; the V414-025/026 fixes are the pattern.
+  authority: 'User decisions on 2026-10-31: Contractor is a research platform. Audit provides durable
+    coordination over ordinary Runs, fixed assertions use common hypotheses, exploratory findings may
+    have no hypothesis, deduplication and exact Audit/Run origin remain, hypothesis associations are automatic
+    and owner-independent, formal approvals are removed almost completely, and complexity must decrease
+    or stay controlled. The user requested task replanning and diagrams for review before implementation.'
+  implementation_gate: Only the Audit redesign/obsolete-target portion awaits user review of proposal
+    0050. Existing authorization and independent non-Audit defect work are unchanged; do not treat the
+    redesign as a prerequisite for those fixes.
+  design:
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/plans/2026-10-31-audit-redesign.md
+  redesign_boundary: Keep non-Audit generic-plan budget work independently actionable. Recompute only
+    the Audit query target list after owner changes; do not optimize removed report/review queries.
 scope:
   in:
   - 'Per statement: an explaintest Analysis.Reads test of the generic plan at realistic size, and the

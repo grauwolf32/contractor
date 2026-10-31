@@ -9,46 +9,59 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
-    User decision 2026-10-31: Sweep is not a product entity. Concrete target
-    scans belong to ordinary Project Audits and selected Workflows. V425-033
-    removes the independent local and durable sweeps, their API/CLI and
-    persistence through the existing web-scan Audit path. This supersedes
-    preservation of cross-Project sweeps in V406-018. Implementation was authorized
-    on 2026-10-31; V425-035 separately repairs the existing custom-rule Audit
-    input read bound required by the replacement demonstration.
-    Pentest delivery revised by the user on 2026-10-30: V422-002 and V422-003
-    are completed on main; preserve their recorded implementation and verification.
-    Next V411-007 connects actual HTTP evidence, V411-019 supplies small
-    independent fixtures and V411-015 demonstrates a
-    runnable ordinary HTTP Audit before later context/UI integrations. Keep
-    the base HTTP path independent of browser, callback, scanners and V64.
-    V411-020 accepts the composed slice after its revised prerequisites, and
-    V411-021 separately evaluates live quality. V411-006/008/009/012 and
-    V412-002 are archived historical designs and cannot be prerequisites of
-    active delivery. V422-003 delivered Nuclei integration with local HTTP authority;
-    V412-005 is the remaining ffuf integration. No action journal, global HTTP quota,
-    automatic login, separate preflight API or proof/recipe framework is
-    scheduled by the remaining tasks. This replaces the 2026-10-24 pentest
-    execution order, without starting implementation in this planning change.
-    Unrelated delivery directions retained from 2026-10-24: the sitemap lane
-    proceeds through V410-006/007 and optional V410-008 after its completed
-    foundations. The V414 follow-ups run in groups that share code (secrets and
-    telemetry; Evals; Planner session and store error classes; SQL read bounds;
-    OpenAPI rules and byte bounds; Audit read model; Server lifecycle; Runtime;
-    finding fence) and close through V414-027. This is delivery order, not an
-    additional technical dependency. Following the 2026-10-24 proposal 0045 review,
-    the user explicitly queued V64-001 through V64-018 and V62-005/006/007/013
-    as pending. Implementation starts only after declared dependencies complete;
-    this status update starts no work. Optional model-ranking evidence belongs
-    to V64-016, not the deterministic core exit. V61 and V62-008 remain deferred.
-    The earlier evening resumption covered tasks not blocked by V62; the
-    newly pending shared tasks can now enter execution once their prerequisites complete. Each lane works on its branch claude/<lane>
-    and merges each closed task into main; the coordinator assigns migration
-    numbers before lanes merge. Synchronised on 2026-10-25 after every lane
-    closed its task: next, before other V410-V414 work, the follow-ups the
-    lanes found (V414-034 to V414-039), then the remaining queues with five or
-    six lanes, not ten, because ten parallel Go and PostgreSQL suites
-    overloaded the machine and made real-deadline tests fail.
+    Audit task-formation request 2026-10-31: after accepting the common execution skeleton the user
+    requested concrete tasks. Sixteen existing pending tasks form the base package (12 core, 3 HTTP,
+    one report-bound regression); their scope/acceptance reflects the accepted result/finding distinction.
+    Implementation is a subsequent step. Replanned Audit-dependent tasks carry this explicit implementation
+    gate; dependency completion alone does not authorize their execution. V64-001 finalizes the remaining
+    explicitly labelled contract proposals; accepted structural decisions are not reopened. This planning change starts no
+    implementation. User clarification accepted on 2026-10-31: investigation, checking and generation
+    use the same accepted-task/ordinary-Run/result path. No mandatory discovery-finding-generator
+    sequence exists; initial work may check authored hypotheses or generate from selected materials,
+    and an Audit can complete without findings or generation. Use one Audit task/Run
+    coordination path, exact Audit/Project Artifact handoff/publication, Project findings with
+    deduplication and immutable source contributions, and Audit-owned hypotheses with stable owner-
+    independent IDs/revisions. User clarification accepted on 2026-10-31: ordinary check outputs
+    retain supported/refuted/inconclusive results with tested conditions; AppSec findings record
+    evidenced problems and remain optional. Negative results feed history and later generation,
+    without a separate assessment ledger. Trusted task/Run context derives hypothesis links automatically;
+    exploration can have no hypothesis. Remove formal approval requests/report acceptance and
+    replace them with pinned operation policy and optional direct annotations. Basic task owners are
+    V64-001/004/014/002/012/013/008/009/010/011 plus V411-010/011; HTTP evidence/fixture/demo remain
+    V411-007/019/015 and the report bound remains V425-017. V64-003, V64-006 and V64-007 are
+    archived as merged into V64-002/012/013, not implemented. V64-005/015/016/017/018 stay optional
+    pending extensions outside V64-011. Deferred V61/V62-008 and in-progress unrelated work are
+    unchanged. User decision 2026-10-31: Sweep is not a product entity. Concrete target scans belong
+    to ordinary Project Audits and selected Workflows. V425-033 removes the independent local and
+    durable sweeps, their API/CLI and persistence through the existing web-scan Audit path. This
+    supersedes preservation of cross-Project sweeps in V406-018. Implementation was authorized on
+    2026-10-31; V425-035 separately repairs the existing custom-rule Audit input read bound required
+    by the replacement demonstration. Pentest delivery revised by the user on 2026-10-30: V422-002
+    and V422-003 are completed on main; preserve their recorded implementation and verification. The
+    early HTTP demonstration V411-015 now follows the lean Audit coordinator V64-002, actual capture
+    V411-007 and private fixture V411-019. Keep the base HTTP path independent of browser, callback,
+    scanners and V64. V411-020 accepts the composed slice after its revised prerequisites, and
+    V411-021 separately evaluates live quality. V411-006/008/009/012 and V412-002 are archived
+    historical designs and cannot be prerequisites of active delivery. V422-003 delivered Nuclei
+    integration with local HTTP authority; V412-005 is the remaining ffuf integration. No action
+    journal, global HTTP quota, automatic login, separate preflight API or proof/recipe framework is
+    scheduled by the remaining tasks. This replaces the 2026-10-24 pentest execution order, without
+    starting implementation in this planning change. Unrelated delivery directions retained from
+    2026-10-24: the sitemap lane proceeds through V410-006/007 and optional V410-008 after its
+    completed foundations. The V414 follow-ups run in groups that share code (secrets and telemetry;
+    Evals; Planner session and store error classes; SQL read bounds; OpenAPI rules and byte bounds;
+    Audit read model; Server lifecycle; Runtime; finding fence) and close through V414-027. This is
+    delivery order, not an additional technical dependency. The 2026-10-24 research-only task graph
+    is superseded by the reviewed planning package; completed V62 history stays intact. The new
+    review gate controls Audit-dependent replanned work; independent sitemap work stays under its existing task policy. Optional model-ranking evidence belongs to V64-016, not
+    the deterministic core exit. V61 and V62-008 remain deferred. The earlier evening resumption
+    covered tasks not blocked by V62; the newly pending shared tasks can now enter execution once
+    their prerequisites complete. Each lane works on its branch claude/<lane> and merges each closed
+    task into main; the coordinator assigns migration numbers before lanes merge. Synchronised on
+    2026-10-25 after every lane closed its task: next, before other V410-V414 work, the follow-ups
+    the lanes found (V414-034 to V414-039), then the remaining queues with five or six lanes, not
+    ten, because ten parallel Go and PostgreSQL suites overloaded the machine and made real-deadline
+    tests fail.
   task_files_are_self_contained: true
   task_statuses:
     pending: Not yet taken into development.
@@ -162,7 +175,11 @@ milestones:
     outcome: Managed browser observations update the shared Project sitemap through the same safe reducer and allocation-bound context.
   - id: autonomous-http-pentest-2026-10
     exit_task: V411-020
-    outcome: An early ordinary HTTP Workflow demonstrates scoped requests, explicit supplied credentials and actual selected evidence. The composed HTTP slice adds bounded discovery/context, nonblocking review and truthful ordinary reports/API/UI through a deterministic process gate, using allocation-local HTTP limits without journal, recipe or proof prerequisites.
+    outcome: >-
+      An early ordinary HTTP Workflow executes on the lean Audit task/Run path with supplied
+      credentials and actual selected evidence. The composed HTTP extension adds
+      sitemap/sandbox/context/API/UI and truthful gaps after the common base; no HTTP-specific
+      admission, collector, recipe/proof or mandatory generation/ranking is introduced.
   - id: autonomous-pentest-quality-2026-10
     exit_task: V411-021
     outcome: A frozen repeated-sample experiment records independent pentest quality results against equal-input baselines without conflating protocol conformance with model quality.
@@ -668,11 +685,14 @@ milestones:
   - id: audit-check-prioritization
     exit_task: V64-011
     outcome: >-
-      An opt-in Audit research profile generates bounded hypotheses from guides
-      and selected materials, selects experiments deterministically, and uses
-      accepted results for later choices with exact context, lineage and honest
-      coverage. Direct Runs and deterministic inventories bypass research;
-      model ranking, attack trees and pentest integration are independent slices.
+      The lean Audit base supports ordinary exploratory work, deterministic checklist/manual
+      hypotheses, ordinary generation from exact materials, findings and selected check results
+      including refutations/gaps, automatic per-item source links, ordinary result history separate
+      from retained Project problem findings/deduplication, Artifact publication and
+      truthful pause/recovery through real API/UI/Runtime/PostgreSQL. Replaced
+      approval/ZIP/admission machinery is removed and complexity evidence is recorded. The user
+      reviews this plan before implementation; ranking/frontier/attack-tree extensions are not base
+      conditions.
   - id: audit-iterative-composition-2026-10
     exit_task: V62-013
     outcome: >-
@@ -694,9 +714,10 @@ milestones:
   - id: audit-research-pentest-2026-10
     exit_task: V64-018
     outcome: >-
-      A separately selected research-enabled pentest profile connects accepted
-      hypothesis experiments to the existing proof/replay contracts and report
-      projection. Both baseline research and baseline pentest remain independent.
+      Optional research expansion composes common hypothesis verification with
+      ordinary HTTP checks, retained evidence and reports under proposal 0050.
+      Baseline HTTP assertion checks need no dynamic generation, model ranking
+      or archived proof subsystem; both base capabilities remain independently usable.
   - id: findings-benchmark-contracts
     exit_task: V63-001
     outcome: >-

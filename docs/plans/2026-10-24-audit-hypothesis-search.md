@@ -1,5 +1,7 @@
 # Optional Audit hypothesis search
 
+Superseded planning baseline. On 2026-10-31 the user requested the common Audit task graph and diagrams for review before implementation. [Proposal 0050](../proposals/0050-audit-common-hypothesis-model.md) and the [current task plan](2026-10-31-audit-redesign.md) govern the replacement. V64-003/006/007 are archived as merged into V64-002/012/013; remaining pending work has an explicit user-review gate. The stages and graph below retain the historical research-only plan, not current implementation instructions.
+
 Pentest integration update, 2026-10-30: the current V64-018 task replaces the
 original proof-specific bridge with composition of ordinary HTTP checks,
 evidence and reports. Archived V411-008/009/012 are historical context, not
@@ -14,7 +16,7 @@ pending. The current task files own status, dependencies and acceptance;
 V64-018 follows the revised ordinary HTTP integration scope. V61 and V62-008
 remain deferred. This documentation update implements no capability.
 
-## 1. Delivery outcome and boundaries
+## 1. Earlier delivery outcome and boundaries
 
 An explicitly selected research profile generates hypotheses from guides and
 selected Project materials, chooses useful experiments, records scoped results
@@ -31,12 +33,11 @@ feasible high-attention human work precedes comparable automated work. Scope,
 prerequisites, budgets and review still apply; blocked requests retain their
 attention and expose the blocking reason rather than becoming low priority.
 
-Direct Runs and existing deterministic Audit inventories bypass research
-entirely. They neither create hypothesis/cycle records nor call generation or
-ranking, wait for a research phase, or require research inputs. Preserving
-that path is a core acceptance condition, not a temporary rollout fallback.
-An optional finite-checklist ranking policy does not replace direct inventory
-execution.
+The old zero-hypothesis deterministic inventory boundary is superseded.
+Fixed assertion checks use common hypotheses created from their selected
+source without generation/ranking calls or a separate research phase.
+Direct Runs and supporting non-assertion operations need no hypotheses.
+The old task boundaries below require reconciliation with this common core.
 
 The first research release uses a deterministic selection policy. Generation
 can use deterministic adapters or ordinary Workers; optional model ranking is

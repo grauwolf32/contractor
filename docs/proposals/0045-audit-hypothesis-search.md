@@ -1,65 +1,75 @@
 # Hypothesis search within Audits
 
-Proposal 0045 · Status: **Draft design; selected direction, not implemented.**
-Recorded on 2026-10-24. This proposal specifies an optional research domain
-inside Audit, using ordinary Contractor execution. It revises the future V64
-integration direction; it does not enable a capability, change normative
-contracts, reactivate tasks or authorize implementation.
+Proposal 0045 · Status: **Superseded research-only design.**
+Recorded on 2026-10-24; direction revised by the user on 2026-10-31.
+The detailed task rewrite and diagrams are now in proposal 0050 and the 2026-10-31 plan, pending user review before implementation. V64-003/006/007 were merged and archived; completed history is unchanged.
+[Proposal 0050](0050-audit-common-hypothesis-model.md) records the accepted
+common hypothesis boundary and the remaining Audit redesign choices. Sections
+2–13 below retain the earlier integration design for replanning; their
+research-only registry, direct-inventory bypass, approval and transport
+requirements cannot override the newer decision. The user also defined Finding
+as a confirmation/refutation with a hypothesis link, required deduplication,
+and made reducing or controlling Audit complexity the primary constraint.
+Exploratory findings can lack a prior hypothesis; their Audit/Run origin and
+all deduplicated contributions remain attributable. This is a design revision,
+not an implementation or a change to the current normative contracts.
 
 Pentest integration revised on 2026-10-30: V64-018 composes existing research
 admission with ordinary HTTP checks, selected evidence and reports. It does not
 depend on the archived pentest recipe/proof admission task. Earlier references
 to specialized 0033 proof/replay are historical design and cannot restore the
-removed request journal, recipe DSL or proof authority. The core research
-scope and its independent delivery remain unchanged.
+removed request journal, recipe DSL or proof authority. Proposal 0050 now
+revises the common verification boundary while keeping dynamic expansion optional.
 
-An Audit can derive hypotheses from selected Project materials and guides,
-choose useful experiments, retain their provenance and use results to select
-the next work. Existing deterministic Runs and Audits remain direct execution
-paths, without hypotheses, generation or ranking. An attack tree can later
-present relationships between research goals, hypotheses and evidence without
-becoming a prerequisite for execution.
+All Audit checks of assertions use the common hypothesis model, including
+fixed checklists and selected standard entries. Research enables new
+hypotheses during the Audit. Fixed seeds and deterministic checks require no
+model generation or ranking. Direct Runs and supporting operations such as
+OpenAPI generation need no fabricated hypotheses. An attack tree remains an
+optional analytical view.
 
 ## 1. Decisions and boundaries
 
 | Decision | Proposed guarantee |
 | --- | --- |
-| Optional research | A profile explicitly enables search. Absence of that selection preserves the current inventory, admission and execution path, including its deterministic behavior. |
-| Domain owner | The research pool belongs to one Audit, with its scope, baseline and budgets. Project supplies materials and explicitly selected historical context. |
-| Execution owner | Audit admits immutable work; Run Service creates ordinary Runs; Scheduler owns execution, retries and allocations. Search adds no execution engine or Worker lease. |
+| Common assertion verification | Fixed checklist seeds, manual hypotheses and dynamically generated hypotheses share one Audit verification path. |
+| Optional research | A profile explicitly enables generation and expansion. Fixed sources remain usable without generation, ranking or research-specific execution phases. |
+| Domain owner | Hypotheses belong to one Audit and retain their exact sources and assessments. Fixed source entries retain their coverage denominator. |
+| Execution owner | The common Audit coordinator selects tasks; ordinary Runs and Scheduler own execution. Research adds no execution engine or Worker lease. |
 | Choice unit | Select an experiment against exact hypothesis revisions, rather than an abstract hypothesis score alone. |
 | Sources | A person, guides alone, Project materials and accepted observations can each supply hypotheses. Live observations are not required for a cold hypothesis. |
 | Human attention | A human-submitted hypothesis receives high verification priority by default, recorded separately from evidence support and model usefulness judgments. |
 | Identity and history | Trusted code assigns identity and validates revisions, sparse relationships, provenance and result membership. Model text does not establish authority or truth. |
 | Selection | Feasibility, usefulness assessment and final budget-aware selection are separate. Model ranking is optional even when search is enabled. |
 | Storage | Indexed Audit metadata and relationships support selection and UI queries; ArtifactStore owns immutable documents, evidence, forks and retention. |
-| Handoff | Every admitted experiment receives a bounded exact context package and materialized authorized dependencies. A manifest alone grants no cross-Run access. |
-| Findings | Research candidates need not enter finding intake. FindingProposal, review and evidence contracts retain their distinct meaning. |
+| Handoff | Audit-owned materials use common ArtifactStore mechanisms. The concrete scope, access and dependency transport remain open in proposal 0050; refs alone grant no authority. |
+| Findings | A finding records a research conclusion with Audit/Run origin and an optional exact hypothesis association. Deduplication preserves contributions; security issue ratings are domain-specific. Formal approvals are being removed almost completely. |
 | Attack trees | Optional analytical projections over exact hypotheses and results. Causal lineage, AND/OR conditions and execution dependencies have separate semantics. |
 
 ### 1.1 Deterministic execution remains first class
 
-The supported paths are:
+The target paths are:
 
 ```mermaid
 flowchart TD
     W[Direct Workflow Run] --> R[Run Service and Scheduler]
-    I[Deterministic Audit inventory] --> A[Audit admission]
-    M[Selected materials and guides] --> H[Optional hypothesis research]
-    H --> S[Deterministic selection with optional model ranking]
-    S --> A
+    I[Fixed checklist and standard seeds] --> H[Common Audit hypotheses]
+    M[Selected materials and guides] --> G[Optional research expansion]
+    G --> H
+    H --> S[Common task selection]
+    S --> A[Common Audit coordination]
     A --> R
     R --> E[Accepted results and evidence]
-    E -->|Research enabled for this Audit| H
+    E --> H
+    E -->|Research enabled for this Audit| G
     H -. optional projection .-> T[Attack tree]
 ```
 
-Direct Runs, model-free Workflows and existing deterministic Audit profiles
-must not create hypothesis records, invoke a generator/ranker, wait for a
-research phase, or require research context. Their existing input, result,
-coverage, retry and cancellation contracts remain authoritative. New shared
-code is justified only at a boundary already needed by both paths; an ordinary
-check must not acquire a dummy hypothesis to pass through it.
+Direct Runs and supporting operations need no hypotheses. Fixed assertion
+checks create real hypotheses deterministically from their selected source;
+they require no generator/ranker call or optional research phase. Execution
+failure, semantic assessment, finding triage and checklist coverage remain
+distinct. Current implementations change only through later reviewed tasks.
 
 Fixed checklist ranking is a separate opt-in use of selection, not a mandatory
 replacement for deterministic inventories. Search itself can use fixed rules
@@ -67,17 +77,18 @@ for generation, eligibility and selection. Evaluating an LLM ranker against a
 deterministic selector must require changing the selected policy, not the
 execution machinery or evidence contract.
 
-This is preservation of supported current modes, not a legacy compatibility
-reader. Future contracts remain strict; no aliases or lenient schema fallback
-are introduced. A research configuration that is unsupported or incomplete
-fails validation before execution rather than silently switching modes.
+The former requirement that deterministic Audit assertion checks create zero
+hypotheses is superseded. Future contracts remain strict, with no compatibility
+reader or hidden conversion. An unsupported configuration fails validation
+before execution rather than silently switching modes.
 
 ### 1.2 Alternatives
 
 | Alternative | Strength | Reason for this decision |
 | --- | --- | --- |
 | Immutable hypothesis batches only | Small pilot; uses ordinary artifacts | A large pool, indexed readiness, lineage queries and repeated selection would otherwise become an implicit database in JSON. Batches remain a useful initial execution strategy. |
-| Audit research domain | Explicit hypotheses and selection; reuse of execution | Selected: the pool, selector, context assembler and UI are concrete production readers. |
+| Separate Audit research domain | Explicit hypotheses and selection; reuse of execution | Superseded by common assertion verification in proposal 0050. |
+| Common Audit hypothesis model | Fixed assertions and research share verification, evidence and continuation | Selected boundary; concrete persistence and transport remain to be designed. |
 | General research graph engine | Reusable across unrelated research products | Defer until a second product demonstrates a common execution/search protocol. A hypothesis graph and an optional attack tree do not require that engine. |
 
 ## 2. Relationship to existing contracts and proposals

@@ -9,15 +9,18 @@ status: pending
 depends_on:
 - V417-003
 - V417-004
+- V64-012
 languages:
 - go
 - python
 goal: An Audit Worker can continue an unfinished check after compaction while the existing completeness
   gate, trusted result collection and publication receipts remain authoritative.
 context:
-  authority: 'User request on 2026-10-25: split proposal 0046 into tasks and make terminal summarizer
-    includeReasoning independently deliverable. This record plans work; it does not start implementation
-    or change existing delivery priorities.'
+  authority: 'User decisions on 2026-10-31: Contractor is a research platform. Audit provides durable
+    coordination over ordinary Runs, fixed assertions use common hypotheses, exploratory findings may
+    have no hypothesis, deduplication and exact Audit/Run origin remain, hypothesis associations are automatic
+    and owner-independent, formal approvals are removed almost completely, and complexity must decrease
+    or stay controlled. The user requested task replanning and diagrams for review before implementation.'
   proposal: docs/proposals/0046-workflow-context-compaction.md
   specification:
   - docs/spec/audits/worker-completion.md#AWC-R3
@@ -33,6 +36,15 @@ context:
   adk_migration: V418-007 accepts the exact ADK 2.13.0 lock before V417-002 establishes compaction integration.
     Internal SDK turns are not new logical Contractor invocations; use the accepted migration contract,
     not 2.8 callback/identity assumptions.
+  implementation_gate: Planning only. The user will review the revised task graph and proposal 0050 before
+    authorizing implementation. Keep pending and do not start code, migrations, live Runs or deployment
+    from this planning update.
+  design:
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/plans/2026-10-31-audit-redesign.md
+  redesign_boundary: Preserve trusted per-item task context, exact results/evidence and receipts through
+    compaction under the revised Runtime/Run intake path. Do not preserve internal ZIP or a new collector
+    for its own sake.
 scope:
   in:
   - Effective context-policy validation for Audit Worker completion and every reachable escalation, replacing
@@ -55,10 +67,10 @@ requirements:
     A fully complete check finishes without an unnecessary compactor call. An incomplete check keeps its
     collector and continuation contract; compaction may shorten history but cannot report the check complete.
 - id: R3
-  text: Preserve the exact current task manifest, required items, evidence requirements, revisions, submitted
-    results, trusted observations and publication receipts outside the summary under one logical completion
-    collector across all ADK turns. Repeated SDK before_run callbacks must not begin/reset the collector
-    again. No synthesized submission/activation, extra publication or extra Run/A2A task occurs at a checkpoint.
+  text: Preserve system-derived per-item task/hypothesis context, accepted partial results, evidence requirements,
+    exact revisions and existing publication receipts outside summaries under one logical invocation.
+    Repeated SDK callbacks do not reset ownership or authorize extra publication; no ZIP manifest format
+    is a required mechanism.
 - id: R4
   text: Model-authored summaries and reasoning remain untrusted text. An incorrect hypothesis or invented
     artifact/evidence ref cannot satisfy required evidence or become a confirmed finding. History access
