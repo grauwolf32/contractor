@@ -951,7 +951,12 @@ work from earlier attempts remain visible in their immutable reports, never
 reset as historical accounting. No new automatic resume or unmetered call
 loop is introduced.
 
-**SCH-R173.** The continuation's StageSpec preserves the original objective,
+**SCH-R173.** The continuation's StageSpec carries the target Planner context
+policy selected by on.summarized.escalate (WFL-R86), with the exact compactor
+policy already pinned in its effective execution configuration. Retries, manual
+resumptions and immutable-snapshot revalidation preserve that selection; they
+never enable compaction on the source Worker or re-resolve the catalog.
+The continuation's StageSpec preserves the original objective,
 instructions, Worker binding, template, namespace, toolsets, parameters,
 authorized scope and final result contract. Its StageContext copies the source
 input revisions explicitly and adds separate saved-summary provenance and

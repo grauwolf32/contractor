@@ -558,6 +558,18 @@ func runSummaryContinuationProcess(t *testing.T, ctx context.Context, server, ru
 		originalStage.Objective != continuedStage.Objective || originalStage.Instructions != continuedStage.Instructions {
 		t.Fatal("continuation changed original authority or Worker binding")
 	}
+	if originalStage.PlannerContextManagement != nil || continuedStage.PlannerContextManagement == nil ||
+		continuedStage.PlannerContextManagement.Strategy != resolved.PlannerContextCompact ||
+		continuedStage.ExecutionConfig.Planner.CompactorModelPolicy == nil ||
+		continuedStage.ExecutionConfig.Planner.CompactorModelPolicy.Ref.PolicyID != "compactor" {
+		t.Fatal("continuation did not preserve its independent Planner compaction selection")
+	}
+	gateway.mu.Lock()
+	compactions := gateway.compactorCalls
+	gateway.mu.Unlock()
+	if compactions != 1 {
+		t.Fatalf("continuation Planner compactions = %d, want one", compactions)
+	}
 	summary := source.AcceptedResult.SummaryArtifact
 	raw, _ := download(t, client, baseURL+"/v1/runs/"+runID+"/artifacts/"+summary.Namespace+"/"+summary.Name+"?revision="+url.QueryEscape(*summary.Revision))
 	if string(raw) != "Terminal summary for continuation" {
@@ -589,7 +601,7 @@ func runSummaryContinuationProcess(t *testing.T, ctx context.Context, server, ru
 		t.Fatal("continuation changed the logical Worker or reused its old allocation")
 	}
 	if status.Attempts[0].Metrics == nil || status.Attempts[1].Metrics == nil ||
-		status.Attempts[0].Metrics.TotalTokens != 20000 || status.Attempts[1].Metrics.TotalTokens != 60 {
+		status.Attempts[0].Metrics.TotalTokens != 20000 || status.Attempts[1].Metrics.TotalTokens != 2*3075+10+60+30 {
 		t.Fatal("previous usage disappeared from public attempts")
 	}
 	return runID

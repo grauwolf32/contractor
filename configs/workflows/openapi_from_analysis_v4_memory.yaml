@@ -50,13 +50,13 @@ spec:
           template: openapi_builder@3
           namespace: openapi
       context:
-        workspace:
+        workspace: &workspace_overlay
           mode: overlay
           sources:
             - artifact: source
               target: ""
         artifacts:
-          source:
+          source: &source_artifact
             namespace: inputs
             name: source
             required: true
@@ -81,24 +81,25 @@ spec:
       on:
         succeeded:
           next: openapi_validate
-        failed:
+        failed: &retry_policy
           retry:
             maxAttempts: 4
             then:
               fail: {}
-        interrupted:
-          retry:
-            maxAttempts: 4
-            then:
-              fail: {}
+        interrupted: *retry_policy
         summarized:
-          escalate:
+          escalate: &planner_continuation
             maxAttempts: 1
             planner: streamline@1
+            plannerContextManagement:
+              strategy: compact@1
+              instructions:
+                ref: instructions/planner-compaction.md
             deadlineSeconds: 1800
             executionConfig:
               planner:
                 modelPolicy: planner@2
+                compactorModelPolicy: compactor@1
                 llmGateway: local-litellm@1
                 credential: development-planner
 
@@ -112,16 +113,9 @@ spec:
           template: openapi_validator@3
           namespace: openapi
       context:
-        workspace:
-          mode: overlay
-          sources:
-            - artifact: source
-              target: ""
+        workspace: *workspace_overlay
         artifacts:
-          source:
-            namespace: inputs
-            name: source
-            required: true
+          source: *source_artifact
           dependency_report:
             namespace: inputs
             name: dependency_report
@@ -150,23 +144,11 @@ spec:
       on:
         succeeded:
           succeed: {}
-        failed:
+        failed: &retry_policy_2
           retry:
             maxAttempts: 2
             then:
               fail: {}
-        interrupted:
-          retry:
-            maxAttempts: 2
-            then:
-              fail: {}
+        interrupted: *retry_policy_2
         summarized:
-          escalate:
-            maxAttempts: 1
-            planner: streamline@1
-            deadlineSeconds: 1800
-            executionConfig:
-              planner:
-                modelPolicy: planner@2
-                llmGateway: local-litellm@1
-                credential: development-planner
+          escalate: *planner_continuation

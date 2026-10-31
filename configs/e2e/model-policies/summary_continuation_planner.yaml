@@ -1,0 +1,13 @@
+apiVersion: contractor/v1alpha1
+kind: ModelPolicy
+metadata:
+  name: summary_continuation_planner
+  version: "1"
+spec:
+  model: planner-model
+  contextWindowTokens: 4096
+  maxOutputTokens: 512
+  maxModelCalls: 8
+  maxWorkerCalls: 4
+  maxTotalTokens: 65536
+  temperature: 0

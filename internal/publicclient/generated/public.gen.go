@@ -12359,6 +12359,9 @@ type WorkflowSummaryTransition struct {
 		PlannerId interface{} `json:"plannerId"`
 		Version   interface{} `json:"version"`
 	} `json:"planner"`
+
+	// PlannerContextManagement Resolved Planner context management of a Planner Stage (PLN-R125). Always present for a Planner Stage: none keeps the whole Planner conversation, compact@1 carries every threshold explicitly. The compactor ModelPolicy is the Planner execution selection compactorModelPolicy.
+	PlannerContextManagement *PlannerContextManagement `json:"plannerContextManagement,omitempty"`
 }
 
 // WorkflowSummaryTransitionKind defines model for WorkflowSummaryTransition.Kind.

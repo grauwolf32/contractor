@@ -1,4 +1,4 @@
-# configs/examples/streamline_compaction_workflow.yaml with its Planner,
+# configs/examples/streamline_review_workflow.yaml with its Planner,
 # compactor and Agent retargeted to this slice's test policies and the core
 # fixture's artifact_builder@1.
 apiVersion: contractor/v1alpha1

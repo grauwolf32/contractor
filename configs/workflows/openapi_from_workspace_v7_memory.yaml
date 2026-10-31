@@ -26,10 +26,10 @@ spec:
     openapi_validation_report:
       required: true
       mediaTypes: [text/markdown]
-    workspace_state:
+    workspace_state: &workspace_state_output
       required: true
       mediaTypes: [application/vnd.contractor.workspace-overlay+json]
-    workspace_diff:
+    workspace_diff: &workspace_diff_output
       required: true
       mediaTypes: [text/x-diff]
 
@@ -52,7 +52,7 @@ spec:
           namespace: analysis
       context:
         artifacts:
-          source:
+          source: &source_artifact
             namespace: inputs
             name: source
             required: true
@@ -70,33 +70,30 @@ spec:
             required: true
             mediaTypes: [text/markdown]
             from: {namespace: analysis, name: dependencies}
-          workspace_state:
-            required: true
-            mediaTypes: [application/vnd.contractor.workspace-overlay+json]
-          workspace_diff:
-            required: true
-            mediaTypes: [text/x-diff]
+          workspace_state: *workspace_state_output
+          workspace_diff: *workspace_diff_output
       on:
         succeeded:
           next: project_discovery
-        failed:
+        failed: &retry_policy
           retry:
             maxAttempts: 2
             then:
               fail: {}
-        interrupted:
-          retry:
-            maxAttempts: 2
-            then:
-              fail: {}
+        interrupted: *retry_policy
         summarized:
-          escalate:
+          escalate: &planner_continuation
             maxAttempts: 1
             planner: streamline@1
+            plannerContextManagement:
+              strategy: compact@1
+              instructions:
+                ref: instructions/planner-compaction.md
             deadlineSeconds: 1800
             executionConfig:
               planner:
                 modelPolicy: planner@2
+                compactorModelPolicy: compactor@1
                 llmGateway: local-litellm@1
                 credential: development-planner
 
@@ -111,10 +108,7 @@ spec:
           namespace: analysis
       context:
         artifacts:
-          source:
-            namespace: inputs
-            name: source
-            required: true
+          source: *source_artifact
           dependency_report:
             namespace: analysis
             name: dependencies
@@ -123,7 +117,7 @@ spec:
             namespace: analysis
             name: workspace_state
             required: true
-        workspace:
+        workspace: &workspace_overlay
           mode: overlay
           sources:
             - artifact: source
@@ -139,35 +133,15 @@ spec:
             required: true
             mediaTypes: [text/markdown]
             from: {namespace: analysis, name: project}
-          workspace_state:
-            required: true
-            mediaTypes: [application/vnd.contractor.workspace-overlay+json]
-          workspace_diff:
-            required: true
-            mediaTypes: [text/x-diff]
+          workspace_state: *workspace_state_output
+          workspace_diff: *workspace_diff_output
       on:
         succeeded:
           next: openapi_build
-        failed:
-          retry:
-            maxAttempts: 2
-            then:
-              fail: {}
-        interrupted:
-          retry:
-            maxAttempts: 2
-            then:
-              fail: {}
+        failed: *retry_policy
+        interrupted: *retry_policy
         summarized:
-          escalate:
-            maxAttempts: 1
-            planner: streamline@1
-            deadlineSeconds: 1800
-            executionConfig:
-              planner:
-                modelPolicy: planner@2
-                llmGateway: local-litellm@1
-                credential: development-planner
+          escalate: *planner_continuation
 
     openapi_build:
       objective: Build an evidence-linked OpenAPI document for the implemented inbound HTTP API
@@ -180,10 +154,7 @@ spec:
           namespace: openapi
       context:
         artifacts:
-          source:
-            namespace: inputs
-            name: source
-            required: true
+          source: *source_artifact
           dependency_report:
             namespace: analysis
             name: dependencies
@@ -200,51 +171,26 @@ spec:
             namespace: analysis
             name: workspace_state
             required: true
-        workspace:
-          mode: overlay
-          sources:
-            - artifact: source
-              target: ""
-          state:
-            artifact: prior_workspace_state
-          export:
-            state: workspace_state
-            diff: workspace_diff
+        workspace: *workspace_overlay
       result:
         artifacts:
           openapi:
             required: true
             mediaTypes: [application/yaml]
             from: {namespace: openapi, name: openapi}
-          workspace_state:
-            required: true
-            mediaTypes: [application/vnd.contractor.workspace-overlay+json]
-          workspace_diff:
-            required: true
-            mediaTypes: [text/x-diff]
+          workspace_state: *workspace_state_output
+          workspace_diff: *workspace_diff_output
       on:
         succeeded:
           next: openapi_validate
-        failed:
+        failed: &retry_policy_2
           retry:
             maxAttempts: 4
             then:
               fail: {}
-        interrupted:
-          retry:
-            maxAttempts: 4
-            then:
-              fail: {}
+        interrupted: *retry_policy_2
         summarized:
-          escalate:
-            maxAttempts: 1
-            planner: streamline@1
-            deadlineSeconds: 1800
-            executionConfig:
-              planner:
-                modelPolicy: planner@2
-                llmGateway: local-litellm@1
-                credential: development-planner
+          escalate: *planner_continuation
 
     openapi_validate:
       objective: Validate and minimally repair the candidate OpenAPI document against source evidence
@@ -257,10 +203,7 @@ spec:
           namespace: openapi
       context:
         artifacts:
-          source:
-            namespace: inputs
-            name: source
-            required: true
+          source: *source_artifact
           dependency_report:
             namespace: analysis
             name: dependencies
@@ -277,16 +220,7 @@ spec:
             namespace: openapi
             name: workspace_state
             required: true
-        workspace:
-          mode: overlay
-          sources:
-            - artifact: source
-              target: ""
-          state:
-            artifact: prior_workspace_state
-          export:
-            state: workspace_state
-            diff: workspace_diff
+        workspace: *workspace_overlay
       result:
         artifacts:
           openapi:
@@ -297,12 +231,8 @@ spec:
             required: true
             mediaTypes: [text/markdown]
             from: {namespace: openapi, name: validation-report}
-          workspace_state:
-            required: true
-            mediaTypes: [application/vnd.contractor.workspace-overlay+json]
-          workspace_diff:
-            required: true
-            mediaTypes: [text/x-diff]
+          workspace_state: *workspace_state_output
+          workspace_diff: *workspace_diff_output
       workflowOutputs:
         openapi: openapi
         openapi_validation_report: validation_report
@@ -311,23 +241,7 @@ spec:
       on:
         succeeded:
           succeed: {}
-        failed:
-          retry:
-            maxAttempts: 2
-            then:
-              fail: {}
-        interrupted:
-          retry:
-            maxAttempts: 2
-            then:
-              fail: {}
+        failed: *retry_policy
+        interrupted: *retry_policy
         summarized:
-          escalate:
-            maxAttempts: 1
-            planner: streamline@1
-            deadlineSeconds: 1800
-            executionConfig:
-              planner:
-                modelPolicy: planner@2
-                llmGateway: local-litellm@1
-                credential: development-planner
+          escalate: *planner_continuation

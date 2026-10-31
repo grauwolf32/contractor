@@ -19,19 +19,8 @@ context:
   authority: 'User request on 2026-10-25: create detailed tasks for Go ADK v2.6.0 and Planner compaction, including
     compatibility, tests and mutual exclusion with terminal summarization; keep Scheduler substantially unchanged.
     These pending records authorize planning only, do not start implementation and do not change the current
-    delivery focus. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-planner together with V417-001, V417-003 and V420-002.'
+    delivery focus. User decision on 2026-10-30: start implementation now; the coordinator session runs it in lane cmp-planner together with V417-001, V417-003 and V420-002. User decision on 2026-10-31: use the existing generated compactor@1 for all shipped Planners, remove the duplicate Planner policy example, and include summary-continuation targets; Worker behavior remains unchanged. Catalog activation and continuation wiring are tracked in V420-006.'
   review: tasks/evidence/v419-go-adk-26-review.json
-  decision_needed: >-
-    2026-10-31 (lane cmp-planner): should the default catalog ship a loaded compactor
-    ModelPolicy? A compactor policy's model must name a live Gateway route, and the routes
-    are generated per selected model by make model-config, so a hand-written loaded policy
-    goes stale when the deployment default model changes. Options: (a) have
-    scripts/generate_model_config.py also emit a non-selectable compactor policy that
-    follows the summarizer route with compactor budgets (maxModelCalls 1, finite
-    maxTotalTokens); (b) make compactor a fifth deployment model-selection role, which
-    widens Server model-selection and the four-role defaults; (c) keep the copy-to-load
-    example only (current state). Recommendation: (a) when a bundled Workflow first opts
-    in; (c) until then.
   specification:
   - docs/spec/execution/planners.md#PLN-R1
   - docs/spec/execution/planners.md#PLN-R81
@@ -71,8 +60,8 @@ requirements:
   text: Enforce the per-owner mutual exclusion on authoring, persisted snapshot read and execution admission.
     Reject Planner terminal/summarizer settings, mixed branches, ignored compactor overrides on none and compaction
     for current model-free/passthrough Stage. Preserve independently configured Worker terminal summarization
-    and existing summary escalation, which keeps Planner compaction off in this slice; do not emit summarized=true
-    from compaction.
+    and existing summary escalation. A summary-continuation target may independently select Planner compaction
+    under the 2026-10-31 user decision (V420-006); do not emit summarized=true from compaction.
 - id: R3
   text: Require the selected main ModelPolicy context window for compact@1. Resolve the tool-free compactor
     exact policy/instructions using the effective Planner Gateway/credential and existing publication/pinning
@@ -307,3 +296,11 @@ decisions:
   2026-10-31 (lane cmp-planner): the Eval managed schema ExecutionSelection gains
   compactorModelPolicy because Eval recipes reuse the Go ExecutionConfigPatch decoder;
   without it the shared decoder and the schema would disagree.
+
+- >-
+  2026-10-31 (user decision): the merged generator already supplies compactor@1
+  and its own Gateway route. V420-006 removes the duplicate hand-written
+  planner_compactor_policy.yaml and enables compact@1 for every shipped modelled
+  Planner, including explicit summary-continuation targets. This supersedes the
+  earlier copy-to-load-only policy decision and the open catalog-supply question.
+  The four deployment model-selection roles and Worker strategies are unchanged.

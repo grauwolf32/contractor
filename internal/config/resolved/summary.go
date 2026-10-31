@@ -32,6 +32,9 @@ func (e *EscalateTransition) UnmarshalJSON(data []byte) error {
 	} else if _, deadline := fields["deadlineSeconds"]; deadline {
 		return fmt.Errorf("deadlineSeconds requires a summary strategy Planner")
 	}
+	if _, present := fields["plannerContextManagement"]; present && decoded.PlannerContextManagement == nil {
+		return fmt.Errorf("escalation plannerContextManagement must not be null")
+	}
 	*e = EscalateTransition(decoded)
 	return nil
 }
@@ -59,7 +62,7 @@ func escalationStage(stage ResolvedStage, outcome string, escalation EscalateTra
 	variant := stage
 	variant.ExecutionConfig = cloneStageExecutionConfig(stage.ExecutionConfig)
 	if outcome != "summarized" {
-		if escalation.Planner != nil || escalation.DeadlineSeconds != 0 {
+		if escalation.Planner != nil || escalation.DeadlineSeconds != 0 || escalation.PlannerContextManagement != nil {
 			return ResolvedStage{}, fmt.Errorf("Planner strategy and deadline overrides require on.summarized")
 		}
 		return variant, nil
@@ -95,6 +98,7 @@ func escalationStage(stage ResolvedStage, outcome string, escalation EscalateTra
 		return ResolvedStage{}, fmt.Errorf("summary escalation requires an explicit Planner modelPolicy and llmGateway")
 	}
 	variant.Planner = *escalation.Planner
+	variant.PlannerContextManagement = escalation.PlannerContextManagement.Clone()
 	variant.ExecutionConfig.Planner = &ResolvedConsumerExecutionConfig{}
 	return variant, nil
 }

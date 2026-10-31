@@ -686,6 +686,13 @@ func (l *loader) resolveTransitionAction(
 		if err != nil {
 			return resolved.TransitionAction{}, err
 		}
+		if plannerRef == nil && source.Escalate.PlannerContextManagement.Kind != 0 {
+			return resolved.TransitionAction{}, fmt.Errorf("%s: plannerContextManagement requires on.summarized Planner continuation", field)
+		}
+		plannerContext, _, err := l.resolvePlannerContextPolicy(source.Escalate.PlannerContextManagement, false, false)
+		if err != nil {
+			return resolved.TransitionAction{}, fmt.Errorf("%s.escalate.plannerContextManagement: %w", field, err)
+		}
 		executionConfig, err := l.resolveEscalationExecutionConfig(
 			field+".escalate.executionConfig", source.Escalate.ExecutionConfig,
 		)
@@ -705,11 +712,12 @@ func (l *loader) resolveTransitionAction(
 		action = resolved.TransitionAction{
 			Kind: resolved.TransitionEscalate,
 			Escalate: &resolved.EscalateTransition{
-				MaxAttempts:     source.Escalate.MaxAttempts,
-				Planner:         plannerRef,
-				DeadlineSeconds: deadlineSeconds,
-				ExecutionConfig: executionConfig,
-				Then:            then,
+				PlannerContextManagement: plannerContext,
+				MaxAttempts:              source.Escalate.MaxAttempts,
+				Planner:                  plannerRef,
+				DeadlineSeconds:          deadlineSeconds,
+				ExecutionConfig:          executionConfig,
+				Then:                     then,
 			},
 		}
 	case source.Succeed != nil:

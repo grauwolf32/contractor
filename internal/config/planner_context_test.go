@@ -106,6 +106,8 @@ func TestPlannerContextManagementRejectsInvalidAuthoring(t *testing.T) {
 		planner string
 	}{
 		{name: "null", old: compactBlock, new: "      plannerContextManagement: null\n"},
+		{name: "none with empty field", old: compactBlock, new: "      plannerContextManagement: {strategy: none, modelPolicy: \"\"}\n"},
+		{name: "null through merge", old: compactBlock, new: "      plannerContextManagement:\n        <<: {strategy: compact@1, modelPolicy: test-compactor@1, instructions: {ref: instructions/planner-compaction.md}, contextWindowRatio: null}\n"},
 		{name: "null-member", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        contextWindowRatio: null\n"},
 		{name: "unknown", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        modelURL: http://model\n"},
 		{name: "duplicate", old: "        strategy: compact@1\n", new: "        strategy: compact@1\n        strategy: none\n"},
@@ -278,5 +280,51 @@ spec:
 	replaceFile(t, compactingWorkflowPath(root), compactBlock, "")
 	if _, err := Load(root); err == nil {
 		t.Fatal("compactor profile applied to a none Stage loaded")
+	}
+}
+
+func TestPlannerContextYAMLAliasesAndMergesResolveLikeInlineConfiguration(t *testing.T) {
+	for _, merge := range []bool{false, true} {
+		t.Run(map[bool]string{false: "alias", true: "merge"}[merge], func(t *testing.T) {
+			root := compactionFixture(t)
+			path := compactingWorkflowPath(root)
+			source := string(readFile(t, path))
+			prefix, body, ok := strings.Cut(source, "    review:\n")
+			if !ok {
+				t.Fatal("fixture has no review Stage")
+			}
+			first := strings.Replace(body, "      plannerContextManagement:\n", "      plannerContextManagement: &planner_compaction\n", 1)
+			first = strings.Replace(first, "          succeed: {}", "          next: again", 1)
+			first = strings.Replace(first, "      workflowOutputs:\n        report: report\n", "", 1)
+			selection := "      plannerContextManagement: *planner_compaction\n"
+			inlineBlock := compactBlock
+			if merge {
+				selection = "      plannerContextManagement:\n        <<: *planner_compaction\n        keepRecentGroups: 2\n"
+				inlineBlock += "        keepRecentGroups: 2\n"
+			}
+			second := strings.Replace(body, compactBlock, selection, 1)
+			writeFile(t, path, []byte(prefix+"    review:\n"+first+"\n    again:\n"+second))
+			aliased, err := mustLoad(t, root).Workflow(compactingSelector)
+			if err != nil {
+				t.Fatal(err)
+			}
+			second = strings.Replace(body, compactBlock, inlineBlock, 1)
+			writeFile(t, path, []byte(prefix+"    review:\n"+first+"\n    again:\n"+second))
+			inline, err := mustLoad(t, root).Workflow(compactingSelector)
+			if err != nil {
+				t.Fatal(err)
+			}
+			left, err := resolved.EncodeResolvedWorkflowSnapshot(aliased)
+			if err != nil {
+				t.Fatal(err)
+			}
+			right, err := resolved.EncodeResolvedWorkflowSnapshot(inline)
+			if err != nil || string(left) != string(right) {
+				t.Fatalf("YAML reference changed a resolved policy or exact pin: %v", err)
+			}
+			if aliased.Stages["review"].PlannerContextManagement == aliased.Stages["again"].PlannerContextManagement {
+				t.Fatal("independent Stage context policies share mutable state")
+			}
+		})
 	}
 }
