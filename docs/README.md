@@ -53,6 +53,12 @@ an Audit-owned writable Podman environment, placement on `local` or a concrete
 cloud VM, and named service publications across Runs. It is a draft; session
 retention, lifecycle details and port forwarding still require contract decisions.
 
+[Dynamic Workflow publication](proposals/0051-dynamic-workflow-publication.md)
+records the 2026-10-31 direction to publish new Workflow variants dynamically
+and compare them through ordinary Runs and Evals. It is a separate future
+capability, with no implementation tasks; the direction alone guides the current
+execution-configuration refactoring.
+
 Accepted contracts belong in the specification; implementation status belongs
 in [task files](../tasks/) governed by [tasks/index.yml](../tasks/index.yml).
 The following are non-normative, and a historical report does not establish
