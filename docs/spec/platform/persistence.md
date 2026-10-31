@@ -848,7 +848,10 @@ of a migrated database restores with `pg_restore --exit-on-error` into an
 empty database, as the
 [offline backup and restore](../../operations/artifact-blob-storage.md#offline-backup-and-restore)
 procedure does. SQL-standard bodies need PostgreSQL 14 or later; the project
-runs and tests on PostgreSQL 17.
+runs and tests on PostgreSQL 17. Checks inspecting routine behavior read the
+deparsed SQL-standard body or the stored string body through one shared
+reader, so neither body form is invisible. A trigger-only reader may read its
+text source directly because SQL functions cannot return `trigger`.
 
 Decision: a SQL-standard body binds the functions it calls when it is
 created and records them as dependencies, so `pg_dump` creates them first

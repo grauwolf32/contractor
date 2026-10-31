@@ -3,6 +3,8 @@ package postgres
 import (
 	"os"
 	"testing"
+
+	"github.com/grauwolf32/contractor/internal/persistence/explaintest"
 )
 
 // TestSharedPostgresFindingCorrelationFenceMigrationKeepsEveryRevision applies
@@ -92,11 +94,24 @@ func TestSharedPostgresFindingCorrelationFenceMigrationKeepsEveryRevision(t *tes
 	// No function of the schema writes projects or locks it exclusively any
 	// more; only projectstore's Go SQL does (PER-R23).
 	var writers []string
-	if err := pool.QueryRow(ctx, `SELECT coalesce(array_agg(proname ORDER BY proname), '{}') FROM pg_proc
+	writersSQL := `SELECT coalesce(array_agg(proname ORDER BY proname), '{}') FROM pg_proc
  WHERE pronamespace = current_schema()::regnamespace
-   AND prosrc ~* '(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+projects\M|FROM\s+projects\M[^;]*FOR\s+(NO\s+KEY\s+)?UPDATE'`,
-	).Scan(&writers); err != nil || len(writers) != 0 {
+   AND ` + explaintest.RoutineBodySQL("") + ` ~* '(UPDATE|INSERT\s+INTO|DELETE\s+FROM)\s+projects\M|FROM\s+projects\M[^;]*FOR\s+(NO\s+KEY\s+)?UPDATE'`
+	if err := pool.QueryRow(ctx, writersSQL).Scan(&writers); err != nil || len(writers) != 0 {
 		t.Fatalf("functions that write or exclusively lock projects = %v, %v", writers, err)
+	}
+
+	// Prove this check can see a SQL-standard writer, then remove the
+	// test-only function before continuing the migration's behavior checks.
+	if _, err := pool.Exec(ctx, `CREATE FUNCTION contractor_test_project_writer() RETURNS void LANGUAGE sql
+BEGIN ATOMIC UPDATE projects SET name = name WHERE false; END`); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, writersSQL).Scan(&writers); err != nil || len(writers) != 1 || writers[0] != "contractor_test_project_writer" {
+		t.Fatalf("SQL-standard Project writer = %v, %v", writers, err)
+	}
+	if _, err := pool.Exec(ctx, `DROP FUNCTION contractor_test_project_writer()`); err != nil {
+		t.Fatal(err)
 	}
 
 	// The triggers step each affected Project once per statement, whatever

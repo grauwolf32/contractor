@@ -6,7 +6,7 @@ epic: persistence
 kind: defect
 introduced_by: V425-003
 priority: P3
-status: pending
+status: in_progress
 depends_on: []
 languages: [go, sql]
 goal: >-
@@ -29,6 +29,14 @@ context:
     writing function with a SQL-standard body would pass these checks
     unseen. V425-003 already switched the PER-R23 routine-ownership check to
     pg_get_function_sqlbody.
+  specification:
+    - docs/spec/platform/persistence.md#PER-R46
+  implementation_decision: >-
+    2026-10-31: Put the shared pg_proc body expression in the existing
+    explaintest helper package and use it in every ordinary routine reader.
+    Keep the existing trigger-only guards query as the documented exception:
+    SQL functions cannot return trigger. Extend the existing lint persistence
+    source checks with the direct-reader guard and negative Go/Python/SQL probes.
   siblings: >-
     Every git grep hit for prosrc under internal/, tests/ and scripts/,
     including internal/persistence/explaintest/guards_sql.go:10 (trigger

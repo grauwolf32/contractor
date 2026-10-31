@@ -98,8 +98,8 @@ func (r migrationRoutines) reach(function string) ([]routineEffect, map[string]s
 // language and body text: the source of a text body, or the deparsed
 // statements of a SQL-standard body (PER-R46), which name the current
 // schema's objects without a schema.
-const routinesFunctionsSQL = `
-SELECT p.proname::text, l.lanname::text, coalesce(pg_get_function_sqlbody(p.oid), p.prosrc)
+var routinesFunctionsSQL = `
+SELECT p.proname::text, l.lanname::text, ` + explaintest.RoutineBodySQL("p") + `
 FROM pg_proc AS p JOIN pg_language AS l ON l.oid = p.prolang
 WHERE p.pronamespace = current_schema()::regnamespace
 ORDER BY 1`
@@ -374,11 +374,10 @@ END;
 $$;
 CREATE TRIGGER workflow_runs_probe_touch_project AFTER INSERT ON workflow_runs
     FOR EACH ROW EXECUTE FUNCTION contractor_probe_touch_project();
-CREATE FUNCTION contractor_probe_lock_project(selected text) RETURNS void LANGUAGE plpgsql AS $$
-BEGIN
-    PERFORM 1 FROM projects WHERE project_id = selected FOR NO KEY UPDATE;
-END;
-$$;`
+CREATE FUNCTION contractor_probe_lock_project(selected text) RETURNS SETOF integer LANGUAGE sql
+BEGIN ATOMIC
+    SELECT 1 FROM projects WHERE project_id = selected FOR NO KEY UPDATE;
+END;`
 
 // TestRoutineOwnershipCheckRejectsProbeRoutines is acceptance A2 of
 // V372-009's check on PostgreSQL: a probe migration whose trigger writes

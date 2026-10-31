@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-83 open tasks: 9 in progress, 63 pending, 11 deferred. 1267 finished: 1252 completed, 15 archived.
+83 open tasks: 10 in progress, 62 pending, 11 deferred. 1267 finished: 1252 completed, 15 archived.
 
 ## In progress
 
@@ -20,6 +20,7 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
+| [V425-019](v425-019-routine-body-checks-see-sql-bodies.yml) | persistence | defect | P3 | Make routine-body checks read SQL-standard function bodies |
 
 ## Pending
 
@@ -152,7 +153,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V425-005](v425-005-stored-size-bounds-agree.yml) | defect | P2 | — | Make Go validation, stored-size CHECKs and the limits registry agree on every remaining column |
 | [V425-015](v425-015-optional-filter-generic-plans.yml) | chore | P3 | — | Measure the generic plans of optional-filter predicates and bound the ones that scan |
-| [V425-019](v425-019-routine-body-checks-see-sql-bodies.yml) | defect | P3 | — | Make routine-body checks read SQL-standard function bodies |
 
 ### Quality, CI and process (`quality`)
 
