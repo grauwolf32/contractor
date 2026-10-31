@@ -6,7 +6,7 @@ epic: audits
 kind: defect
 introduced_by: V64-001
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-001
 languages:
@@ -118,8 +118,8 @@ test_prerequisites:
   selection is a failure.
 - On macOS use a canonical TMPDIR for the existing strict-root tests. If implementation expands into store
   behavior, report the scope change before proceeding.
-implementation_commit: null
+implementation_commit: d1045fde6b46adfba1a918bbc29729263e50b1bf
 verification:
 - The no-new-proposals shared fixture failed in both Decode and the actual offline CLI before the fix (2026-11-01).
 - After the fix, complete auditcontract/app suites and the independent Python common-contract module passed. Empty mutations, blank hypotheses, invalid context and the combined 128-record bound retain rejection coverage.
-- Full cross-language and lint gates remain required before completion.
+- make test-wire-cross-language and make lint passed on 2026-11-01. The existing cross-language gate used a dedicated disposable PostgreSQL database and validated 367 fixtures with 392 Go and 288 Python shared tests; its Runtime selection passed 1583 tests.

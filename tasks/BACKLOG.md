@@ -5,14 +5,13 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-79 open tasks: 13 in progress, 55 pending, 11 deferred. 1304 finished: 1286 completed, 18 archived.
+78 open tasks: 12 in progress, 55 pending, 11 deferred. 1305 finished: 1287 completed, 18 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
-| [V64-020](v64-020-accept-empty-hypothesis-proposals.yml) | audits | defect | P1 | Accept no-new-work results from ordinary hypothesis generation |
 | [V64-021](v64-021-validate-effective-audit-input-requiredness.yml) | audits | defect | P1 | Validate required inputs after initial Audit material overrides |
 | [V64-022](v64-022-bound-hypothesis-seed-bytes.yml) | audits | defect | P1 | Reject oversized hypothesis seeds in programs and proposals |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
@@ -99,7 +98,7 @@ the epics are in [epics.yml](epics.yml).
 | [V64-010](v64-010-audit-priority-profile.yml) | feature | P1 | V64-012, V64-013, V411-010 | Migrate shipped Audit programs and retire the old pipeline |
 | [V64-011](v64-011-audit-priority-release.yml) | feature | P1 | V64-009, V64-010, V411-015, V425-017 | Gate the basic Audit research scenario and complexity reduction |
 | [V64-012](v64-012-audit-hypothesis-registry.yml) | feature | P1 | V64-002, V64-014, V64-022 | Verify fixed and manual hypotheses through Audit tasks |
-| [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | V64-012, V64-004, V411-011, V64-020 | Generate scoped hypotheses from selected materials and check results |
+| [V64-013](v64-013-audit-hypothesis-generation.yml) | feature | P1 | V64-012, V64-004, V411-011 | Generate scoped hypotheses from selected materials and check results |
 | [V64-014](v64-014-audit-hypothesis-assessments.yml) | feature | P1 | V64-004 | Retain Project problem findings and exact source contributions |
 | [V64-015](v64-015-audit-research-frontier.yml) | feature | P2 | V64-011 | Measure whether a larger Audit frontier needs incremental indexing |
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
@@ -192,7 +191,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 17 | 8 | 9 | 14 |
 | Workflow catalog and document workflows (`workflows`) | 5 | 19 | 15 | 14 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
-| Audits (`audits`) | 21 | 67 | 87 | 36 | 128 |
+| Audits (`audits`) | 20 | 67 | 87 | 36 | 128 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 29 | 66 | 17 | 60 |
