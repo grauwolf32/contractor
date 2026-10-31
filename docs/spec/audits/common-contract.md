@@ -103,7 +103,11 @@ through existing receipts. A continuation response does not itself trigger
 another invocation: another call requires new accepted sources or an explicit
 new decision, within pinned budgets. No model call occurs on every controller tick. A proposals document is an
 ordinary output carrying named seeds and work only; its combined record count
-obeys the mutation slice bound. Validation against the pinned program rejects
+obeys the mutation slice bound. Explicitly empty `hypotheses` and `work`
+collections are a successful no-new-proposals output. Generation is optional;
+the consumer settles this decision without creating hypotheses/tasks or
+calling the generator again for the same sources. Missing or malformed output
+is invalid, and hypothesis statements remain nonblank. Validation against the pinned program rejects
 unknown Workflow/hypothesis aliases, collisions and authored system identities.
 Optional work input selections name only available material handles from the
 trusted frozen source set. They cannot overwrite task-context/prior-results

@@ -121,11 +121,14 @@ def _validate_case(case):
         return
     if value["schema"] == "contractor.audit.proposals.v1":
         trusted = _decode(case["context"])
+        if trusted["schema"] != "contractor.audit.proposal-context.v1":
+            raise ValueError("proposal context required")
+        _validate_case({"document": json.dumps(trusted["program"])})
         program = trusted["program"]
         seeds = set(program["hypotheses"]) | set(value["hypotheses"])
         if set(program["hypotheses"]) & set(value["hypotheses"]):
             raise ValueError("seed collision")
-        if not 0 < len(value["hypotheses"]) + len(value["work"]) <= 128:
+        if len(value["hypotheses"]) + len(value["work"]) > 128:
             raise ValueError("proposal slice")
         seen = set()
         for task in value["work"]:

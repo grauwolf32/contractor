@@ -351,7 +351,7 @@ func validInputSelections(task, binding, inputs, materials map[string]any) bool 
 func validProposals(v, program, materials map[string]any) bool {
 	seeds := v["hypotheses"].(map[string]any)
 	work := v["work"].([]any)
-	if len(seeds)+len(work) == 0 || len(seeds)+len(work) > 128 {
+	if len(seeds)+len(work) > 128 {
 		return false
 	}
 	aliases := map[string]bool{}

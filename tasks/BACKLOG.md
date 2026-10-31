@@ -5,13 +5,14 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-79 open tasks: 10 in progress, 58 pending, 11 deferred. 1304 finished: 1286 completed, 18 archived.
+79 open tasks: 11 in progress, 57 pending, 11 deferred. 1304 finished: 1286 completed, 18 archived.
 
 ## In progress
 
 | Task | Epic | Kind | Priority | Title |
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
+| [V64-020](v64-020-accept-empty-hypothesis-proposals.yml) | audits | defect | P1 | Accept no-new-work results from ordinary hypothesis generation |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
@@ -102,7 +103,6 @@ the epics are in [epics.yml](epics.yml).
 | [V64-016](v64-016-audit-research-ranking-evaluation.yml) | chore | P2 | V64-005, V64-011 | Evaluate optional Audit ranking against the deterministic baseline |
 | [V64-017](v64-017-audit-attack-tree-projection.yml) | feature | P2 | V64-011 | Project optional attack trees over retained research conclusions |
 | [V64-018](v64-018-audit-research-pentest-integration.yml) | feature | P2 | V64-011, V411-020 | Compose optional hypothesis generation with ordinary HTTP Audit tasks |
-| [V64-020](v64-020-accept-empty-hypothesis-proposals.yml) | defect | P1 | — | Accept no-new-work results from ordinary hypothesis generation |
 | [V64-021](v64-021-validate-effective-audit-input-requiredness.yml) | defect | P1 | — | Validate required inputs after initial Audit material overrides |
 | [V64-022](v64-022-bound-hypothesis-seed-bytes.yml) | defect | P1 | — | Reject oversized hypothesis seeds in programs and proposals |
 | [V411-010](v411-010-pentest-program-availability.yml) | feature | P1 | V64-002, V64-014 | Remove formal Audit approvals and keep direct analyst actions |
