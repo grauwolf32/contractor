@@ -6,7 +6,7 @@ epic: ui
 kind: chore
 introduced_by: V429-005
 priority: P3
-status: in_progress
+status: completed
 depends_on: [V429-005]
 languages: [typescript]
 goal: The source-list retry test models the real public API storage-conflict failure and passes the API registry guard.
@@ -45,3 +45,31 @@ tests:
     covers: [A1, A2]
   - command: python3 scripts/check_tasks.py
     covers: [A1, A2]
+
+verification:
+  - >-
+    The API registry guard failed against the original storage_unavailable
+    fixture and passes after replacing it with retryable 503
+    storage_transaction_conflict. The twelve real-client source-pane tests
+    pass, including the actual Server message, retained detail and explicit
+    refresh. No invented code remains in UI source/browser tests.
+  - >-
+    After integrating current main, VITEST_MAX_WORKERS=2 make ui-verify passed:
+    218 files, 2682 passing tests and one existing expected failure; all 17
+    static-server tests, generated client checks, formatting/lint, both
+    typechecks and production build passed. Existing preview chunk warnings
+    remain. The final targeted source-pane suite passed again after its message
+    assertion was added.
+  - >-
+    make lint passed, including UI gates, Go checks, task/spec consistency,
+    release-graph checks, Python formatting/layers, deployment/mesh fixture
+    checks and 189 script tests with one existing skip. The complete
+    internal/apierror package passed separately. The combined production build
+    passed 57 browser cases across seven specs without skips or flaky retries.
+  - >-
+    Main integration preserves the reviewed UI version 0.10.33 and the current
+    Workflow/API changes. The independent design-fidelity task was renumbered
+    to V429-007 to preserve main's existing V429-004. New integration reports and
+    screenshots were saved separately beside the preserved OpenDesign sources;
+    original projects, conversations, files and recoverable backups are intact.
+implementation_commit: f999bd2eda572ea356832d43110f65638998451b
