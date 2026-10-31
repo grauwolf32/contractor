@@ -8,6 +8,7 @@ export const EVENT_SCHEMA_ID =
 
 /** A schema under $defs of public-schemas.json. */
 export type PublicSchemaName =
+  | "SharedConfig"
   | "SitemapDocument"
   | "SitemapGroup"
   | "SitemapMember"
@@ -1039,6 +1040,12 @@ export const RESPONSE_SCHEMAS = {
     "403": "Error",
     "413": "Error",
     "429": "Error",
+    "500": "Error",
+  },
+  "GET /v1/config": {
+    "200": "SharedConfig",
+    "400": "Error",
+    "401": "Error",
     "500": "Error",
   },
   "GET /v1/auth/session": {

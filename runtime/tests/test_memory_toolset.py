@@ -12,10 +12,10 @@ from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
 from google.adk.tools import FunctionTool
+from shared_config_defaults import MAX_ARTIFACT_BYTES
 
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
-    MAX_ARTIFACT_BYTES,
     ArtifactAPIError,
     ArtifactClient,
     ArtifactHTTPResponse,

@@ -79,3 +79,15 @@ def runtime_capabilities(tmp_path: Path) -> CapabilitySnapshot:
         toolsets={ref: factory.exported_tools for ref, factory in factories.toolsets.items()},
         sandbox_profiles=factories.sandbox_profiles,
     )
+
+
+@pytest.fixture(autouse=True)
+def shared_config_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests use generated Server policy; production must fetch it over mTLS."""
+    from contractor_runtime import shared_config
+    from contractor_runtime.contracts import SharedConfig, decode_private
+
+    config = decode_private(
+        SharedConfig, (Path(__file__).parent / "testdata/shared-config.json").read_bytes()
+    )
+    monkeypatch.setattr(shared_config, "_snapshot", config.snapshot())

@@ -28,12 +28,12 @@ from contractor_runtime.archive_cache_files import (
     CacheFiles,
 )
 from contractor_runtime.artifacts import (
-    MAX_ARTIFACT_BYTES,
     ArtifactClient,
     ArtifactTransportError,
     ArtifactValue,
 )
 from contractor_runtime.contracts import ArtifactMetadataResult, ArtifactRef
+from contractor_runtime.shared_config import artifact_payload_max_bytes
 from contractor_runtime.threads import consume_task_exception, to_thread_until_done
 
 MAX_CACHE_BYTES = 1 << 30
@@ -322,7 +322,7 @@ class ImmutableArchiveCache:
                 await self._remove(entry)
 
     async def _reserve(self, size: int) -> bool:
-        if not 0 <= size <= MAX_ARTIFACT_BYTES:
+        if not 0 <= size <= artifact_payload_max_bytes():
             return False
         # One admission pass examines at most 64 LRU candidates. No unbounded
         # queue, whole-index scan or network/file work inside bookkeeping.

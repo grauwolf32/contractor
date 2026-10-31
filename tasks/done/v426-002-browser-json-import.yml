@@ -1,0 +1,51 @@
+schema_version: '1.0'
+id: V426-002
+title: Keep the shared error fixture import executable in the Node browser gate
+milestone: hub-audit-defects-2026-10
+epic: ui
+kind: chore
+introduced_by: V425-008
+priority: P1
+status: completed
+depends_on: [V425-008]
+languages: [typescript]
+goal: The real Node 24 browser gate discovers and executes its tests after shared error retryability generation.
+context:
+  finding: >-
+    ui/src/test/responses.ts:8, introduced by fc73ea194 in V425-008,
+    imports error-retryability.generated.json without type json. The V425-026
+    integration gate stops during Playwright discovery with ERR_IMPORT_ATTRIBUTE_MISSING
+    and executes zero tests, although Vite and Vitest accept the import.
+  authority: >-
+    Required prerequisite found while implementing the user-authorized public
+    config endpoint on 2026-10-31; AGENTS.md 4.1 requires a separate task for
+    a newly discovered prerequisite.
+  siblings: >-
+    Inspected JSON imports in shared browser fixtures; existing generated
+    contract and new shared-config JSON imports already carry type json.
+scope:
+  in:
+    - Add the required standard JSON import attribute to the existing shared fixture helper.
+    - Verify the actual browser gate, typecheck and complete helper unit suite.
+  out:
+    - Changing error codes, retryability, generation output or browser test selection.
+acceptance_criteria:
+  - id: A1
+    text: Node 24 imports the helper through the real Playwright path and all 113 mocked browser tests run and pass; zero selected tests remains a failure.
+  - id: A2
+    text: The helper retains registry-derived error retryability and passes its full unit suite and UI typecheck.
+tests:
+  - command: make ui-browser-mocked
+    covers: [A1]
+  - command: cd ui && corepack pnpm test --run src/test/responses.test.ts
+    covers: [A2]
+  - command: cd ui && corepack pnpm typecheck
+    covers: [A2]
+  - command: make lint
+    covers: [A1, A2]
+
+implementation_commit: f550bf2c6617add8310e22e9295281a384257185
+verification:
+  - Mocked browser gate ran and passed all 113 tests across 23 specs under Node 24.20.
+  - The complete responses helper suite passed 2 tests; UI typecheck passed.
+  - make lint passed on the integrated tree, including registered error-code and fixture checks.

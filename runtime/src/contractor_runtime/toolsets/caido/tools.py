@@ -31,7 +31,6 @@ from contractor_runtime.adapters.caido_graphql import (
 )
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import (
-    MAX_ARTIFACT_BYTES,
     ArtifactClient,
     ArtifactClientError,
     ArtifactTransportError,
@@ -45,6 +44,7 @@ from contractor_runtime.core.target_policy import (
 )
 from contractor_runtime.core.tool_metrics import RecordedToolCall, ToolMetrics
 from contractor_runtime.redaction import REDACTED, runtime_secrets, substring_values
+from contractor_runtime.shared_config import artifact_payload_max_bytes
 from contractor_runtime.toolsets.common.artifact_visibility import (
     ArtifactObservingTool,
 )
@@ -1211,7 +1211,7 @@ class _CaidoSession:
         return {"source": "caido", "request_id": request_id, "attempts": [attempt]}
 
     async def _write_artifact(self, prefix: str, data: bytes, media_type: str) -> ArtifactRef:
-        if len(data) > MAX_ARTIFACT_BYTES:
+        if len(data) > artifact_payload_max_bytes():
             raise CaidoToolError("caido_response_too_large")
         client = self._artifact_client
         if client is None:
@@ -2427,13 +2427,16 @@ def _raw_preview(value: bytes) -> dict[str, Any] | None:
 def _blob(value: object) -> bytes:
     if value is None or value == "":
         return b""
-    if not isinstance(value, str) or len(value) > ((MAX_ARTIFACT_BYTES + 2) // 3) * 4:
+    if not isinstance(value, str) or len(value) > ((artifact_payload_max_bytes() + 2) // 3) * 4:
         raise CaidoToolError("caido_response_invalid")
     try:
         decoded = base64.b64decode(value, validate=True)
     except (binascii.Error, ValueError):
         raise CaidoToolError("caido_response_invalid") from None
-    if len(decoded) > MAX_ARTIFACT_BYTES or base64.b64encode(decoded).decode("ascii") != value:
+    if (
+        len(decoded) > artifact_payload_max_bytes()
+        or base64.b64encode(decoded).decode("ascii") != value
+    ):
         raise CaidoToolError("caido_response_invalid")
     return decoded
 

@@ -9,7 +9,6 @@ from dataclasses import dataclass
 
 from contractor_runtime.artifacts import (
     ARTIFACT_HISTORY_MAINTENANCE_PENDING,
-    MAX_ARTIFACT_BYTES,
     ArtifactAPIError,
     ArtifactClient,
     ArtifactTransportError,
@@ -27,6 +26,7 @@ from contractor_runtime.projectfs.overlay import (
     WorkspaceStateError,
 )
 from contractor_runtime.projectfs.storage import WorkspaceStorageError
+from contractor_runtime.shared_config import artifact_payload_max_bytes
 from contractor_runtime.threads import to_thread_until_done
 
 WORKSPACE_DIFF_MEDIA_TYPE = "text/x-diff"
@@ -100,7 +100,7 @@ class WorkspaceAutoExporter:
             raise WorkspaceExportError("reserved_result_slot", retryable=False)
         try:
             bundle = await self._workspace.prepare_export(
-                max_payload_bytes=min(MAX_ARTIFACT_BYTES, MAX_WORKSPACE_EXPORT_BYTES)
+                max_payload_bytes=min(artifact_payload_max_bytes(), MAX_WORKSPACE_EXPORT_BYTES)
             )
             state_ref = await self._write_binding(
                 self._state_slot,

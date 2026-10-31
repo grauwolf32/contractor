@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import random
@@ -19,10 +20,12 @@ from contractor_runtime.contracts import (
     HeartbeatResponse,
     PrivateProtocolDecodeError,
     ReconciliationAction,
+    SharedConfig,
     decode_private,
 )
 from contractor_runtime.lease import LeaseWatchdog
 from contractor_runtime.settings import Settings
+from contractor_runtime.shared_config import install_shared_config
 from contractor_runtime.state import ProcessState, RuntimeState
 from contractor_runtime.threads import consume_task_exception
 
@@ -33,6 +36,8 @@ CONTROL_RETRY_BACKOFF_CEILING_SECONDS = 5.0
 
 
 class ControlTransport(Protocol):
+    async def get_json(self, path: str) -> Mapping[str, Any] | bytes: ...
+
     async def post_json(
         self, path: str, payload: Mapping[str, Any]
     ) -> Mapping[str, Any] | bytes: ...
@@ -80,6 +85,10 @@ class ControlHTTPError(ControlClientError):
         return (
             self.status_code < 500 and self.status_code not in _RETRYABLE_STATUSES_WITHOUT_ENVELOPE
         )
+
+
+class SharedConfigError(ControlClientError):
+    """Startup config is permanently invalid; never register this process."""
 
 
 class RegistrationRejectedError(ControlClientError):
@@ -139,18 +148,37 @@ class MTLSJSONTransport:
         self._connections = connections
         self._timeout = timeout_seconds
 
+    async def get_json(self, path: str) -> bytes:
+        if not path.startswith("/") or "?" in path or "#" in path or not _is_visible_ascii(path):
+            raise ValueError("private control path must be an absolute ASCII path without query")
+        request = _https.encode_request(
+            "GET",
+            self._base_path + path,
+            {
+                "Host": _https.host_header(self._host, self._port),
+                "Accept": "application/json",
+                "X-Request-ID": _https.new_request_id(),
+            },
+            b"",
+        )
+        return await self._exchange(request, idempotent=True)
+
     async def post_json(self, path: str, payload: Mapping[str, Any]) -> bytes:
-        request = self._encode_request(path, payload)
+        return await self._exchange(self._encode_request(path, payload), idempotent=False)
+
+    async def _exchange(self, request: bytes, *, idempotent: bool) -> bytes:
         try:
             response = await self._connections.exchange(
                 self._host,
                 self._port,
                 request,
-                idempotent=False,
+                idempotent=idempotent,
                 timeout_seconds=self._timeout,
                 max_response_bytes=MAX_CONTROL_RESPONSE_BYTES,
             )
         except _https.HTTPResponseTooLargeError:
+            if idempotent:
+                raise SharedConfigError("Control Plane startup config is too large") from None
             raise ControlClientError("Control Plane response is too large") from None
         except _https.HTTPResponseError as error:
             raise ControlClientError(str(error)) from None
@@ -215,6 +243,50 @@ class ControlClient:
     @property
     def timing(self) -> ControlTiming:
         return self._timing
+
+    async def configure_until_stopped(self, stop: asyncio.Event) -> bool:
+        """Load startup policy; only transport/retryable HTTP failures may retry."""
+        failures = 0
+        while not stop.is_set():
+            request = asyncio.create_task(self._transport.get_json("/private/v1/config"))
+            stopped = asyncio.create_task(stop.wait())
+            try:
+                done, _ = await asyncio.wait(
+                    {request, stopped}, return_when=asyncio.FIRST_COMPLETED
+                )
+                if stopped in done:
+                    return False
+                raw = await request
+            except ControlHTTPError as error:
+                if error.permanent:
+                    raise SharedConfigError(
+                        "Control Plane rejected startup config permanently "
+                        f"(HTTP {error.status_code})"
+                    ) from None
+                failures += 1
+            except SharedConfigError:
+                raise
+            except (OSError, TimeoutError, ControlClientError):
+                failures += 1
+            else:
+                try:
+                    config = decode_private(SharedConfig, _response_json(raw))
+                    install_shared_config(config.snapshot())
+                except (PrivateProtocolDecodeError, RuntimeError):
+                    raise SharedConfigError(
+                        "invalid or changed Control Plane startup config"
+                    ) from None
+                return True
+            finally:
+                for task in (request, stopped):
+                    if not task.done():
+                        task.cancel()
+                for task in (request, stopped):
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
+                        await task
+            logger.warning("Control Plane startup config unavailable; retrying")
+            await self._sleep_until_stopped(stop, self._backoff(failures))
+        return False
 
     async def register(self) -> AgentRegistrationResponse:
         registration = await self._state.registration(self._settings)

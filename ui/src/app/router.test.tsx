@@ -9,7 +9,8 @@ import {
 } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
-import { PublicAPI, type AuthSession } from "../api/client";
+import type { AuthSession } from "../api/client";
+import { TestPublicAPI as PublicAPI } from "../test/shared-config";
 import type { SessionAPI } from "../auth/session";
 import type { RuntimeConfig } from "../config/runtime-config";
 import { ChecksRoute } from "../routes/checks";

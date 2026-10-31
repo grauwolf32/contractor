@@ -20,8 +20,7 @@ from contractor_runtime.contracts.base import (
     WireModel,
     _require_text,
 )
-
-MAX_ARTIFACT_BYTES = 64 * 1024 * 1024
+from contractor_runtime.shared_config import artifact_payload_max_bytes
 
 # The Run Namespaces a trusted purpose-specific flow owns (ART-R114): none is a
 # Stage Agent or MemoryTools Namespace, and no Stage or Worker result binds
@@ -161,6 +160,6 @@ class ArtifactMetadataResult(ArtifactReadResult):
     def validate_private_metadata(self) -> Self:
         if re.fullmatch(r"[A-Za-z0-9_-]{1,128}", self.content_cache_key) is None:
             raise ValueError("invalid content cache key")
-        if self.size > MAX_ARTIFACT_BYTES:
+        if self.size > artifact_payload_max_bytes():
             raise ValueError("artifact size exceeds encoded byte bound")
         return self

@@ -10,14 +10,14 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from contractor_runtime.artifacts import MAX_ARTIFACT_BYTES, ArtifactClient, ArtifactValue
+from contractor_runtime.artifacts import ArtifactClient, ArtifactValue
 from contractor_runtime.contracts import ArtifactRef
 from contractor_runtime.core.lines import LINE_BREAK_BYTES
+from contractor_runtime.shared_config import artifact_payload_max_bytes
 from contractor_runtime.threads import to_thread_until_done
 
-# The Artifact API accepts payloads up to 64 MiB. Retain at most one such
+# The Artifact API ceiling comes from startup policy. Retain at most one such
 # payload across Run and text artifact readers in an allocation.
-MAX_CACHED_ARTIFACT_BYTES = MAX_ARTIFACT_BYTES
 # A line index keeps one count of line starts per block of the payload, so its
 # size follows from the payload size alone, whatever its lines or characters,
 # and finding a line scans at most one block. Decoded text is never retained.
@@ -33,9 +33,9 @@ def _line_index_bytes(payload_bytes: int) -> int:
 
 
 # Everything the cache retains: one payload and its line index (LIM-ART-7).
-MAX_ARTIFACT_READ_CACHE_BYTES = MAX_CACHED_ARTIFACT_BYTES + _line_index_bytes(
-    MAX_CACHED_ARTIFACT_BYTES
-)
+def artifact_read_cache_max_bytes() -> int:
+    size = artifact_payload_max_bytes()
+    return size + _line_index_bytes(size)
 
 
 class LineIndex:
@@ -253,5 +253,5 @@ def _cacheable(ref: ArtifactRef, value: ArtifactValue) -> bool:
         and exact.namespace == ref.namespace
         and exact.name == ref.name
         and (ref.revision is None or exact.revision == ref.revision)
-        and size + _line_index_bytes(size) <= MAX_ARTIFACT_READ_CACHE_BYTES
+        and size + _line_index_bytes(size) <= artifact_read_cache_max_bytes()
     )

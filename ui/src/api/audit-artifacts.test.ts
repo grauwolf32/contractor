@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TEST_SHARED_CONFIG } from "../test/shared-config";
 import { readAuditArtifact } from "./audit-artifacts";
 import { fakeServer } from "../test/fake-server";
 import { bytes, failure } from "../test/responses";
@@ -30,31 +31,35 @@ describe("exact Audit receipt content", () => {
     expect(seen[0]!.searchParams.get("member")).toBe("scanner-report");
   });
 
-  it.each([undefined, "67108865", "-1", "invalid", "1", "100"])(
-    "rejects incomplete or invalid byte lengths: %s",
-    async (length) => {
-      const { api } = testAPI(
-        fakeServer({
-          "GET /v1/audits/{auditId}/artifacts": () => {
-            const response = bytes("saved", "text/plain");
-            if (length === undefined) response.headers.delete("Content-Length");
-            else response.headers.set("Content-Length", length);
-            return response;
-          },
-        }),
-      );
-      await expect(
-        readAuditArtifact(
-          api,
-          "audit_one",
-          "prepare:execution:api",
-          "r1",
-          undefined,
-          new AbortController().signal,
-        ),
-      ).rejects.toMatchObject({ code: "invalid_api_response" });
-    },
-  );
+  it.each([
+    undefined,
+    String(TEST_SHARED_CONFIG.limits.artifactPayloadMaxBytes + 1),
+    "-1",
+    "invalid",
+    "1",
+    "100",
+  ])("rejects incomplete or invalid byte lengths: %s", async (length) => {
+    const { api } = testAPI(
+      fakeServer({
+        "GET /v1/audits/{auditId}/artifacts": () => {
+          const response = bytes("saved", "text/plain");
+          if (length === undefined) response.headers.delete("Content-Length");
+          else response.headers.set("Content-Length", length);
+          return response;
+        },
+      }),
+    );
+    await expect(
+      readAuditArtifact(
+        api,
+        "audit_one",
+        "prepare:execution:api",
+        "r1",
+        undefined,
+        new AbortController().signal,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_api_response" });
+  });
 
   it("retains the classified storage failure without replaying a mutation", async () => {
     let calls = 0;

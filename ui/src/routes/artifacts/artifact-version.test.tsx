@@ -66,9 +66,10 @@ describe("Artifact version media types", () => {
         screen.getByRole("button", { name: "Upload new version" }),
       );
       await waitFor(() => expect(onWritten).toHaveBeenCalledOnce());
-      expect(requests).toHaveLength(1);
-      expect(requests[0]?.headers.get("Content-Type")).toBe(mediaType);
-      expect(requests[0]?.headers.get("If-Match")).toBe('"revision-1"');
+      const writes = requests.filter((request) => request.method === "PUT");
+      expect(writes).toHaveLength(1);
+      expect(writes[0]?.headers.get("Content-Type")).toBe(mediaType);
+      expect(writes[0]?.headers.get("If-Match")).toBe('"revision-1"');
     },
   );
 

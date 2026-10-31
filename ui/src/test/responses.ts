@@ -5,7 +5,7 @@
 import { responseViolation, type ResponseOperation } from "../api/contract";
 import { RESPONSE_SCHEMAS } from "../api/generated/response-schemas";
 import type { components } from "../api/generated/public";
-import errorRetryability from "./error-retryability.generated.json";
+import errorRetryability from "./error-retryability.generated.json" with { type: "json" };
 
 export const API_VERSION_HEADERS = {
   "X-Contractor-API-Version": "contractor.public.v1",

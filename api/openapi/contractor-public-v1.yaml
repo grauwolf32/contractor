@@ -3269,6 +3269,25 @@ paths:
         '429': {$ref: '#/components/responses/RateLimited'}
         '500': {$ref: '#/components/responses/InternalError'}
 
+  /v1/config:
+    get:
+      operationId: getSharedConfig
+      tags: [Auth]
+      summary: Read shared non-secret application limits
+      description: Immutable startup policy, also served to Runtime over mTLS. No query or body is accepted.
+      responses:
+        '200':
+          description: Shared configuration snapshot
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/SharedConfig'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '500': {$ref: '#/components/responses/InternalError'}
+
   /v1/auth/session:
     get:
       operationId: getSession
@@ -7461,6 +7480,45 @@ components:
       content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
 
   schemas:
+    SharedConfig: {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "apiVersion",
+        "version",
+        "limits",
+        "digest"
+      ],
+      "properties": {
+        "apiVersion": {
+          "type": "string",
+          "const": "contractor/v1alpha1"
+        },
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "artifactPayloadMaxBytes"
+          ],
+          "properties": {
+            "artifactPayloadMaxBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            }
+          }
+        }
+      }
+    }
+
     SitemapDocument:
       type: object
       additionalProperties: false

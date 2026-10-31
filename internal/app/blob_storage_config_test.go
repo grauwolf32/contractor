@@ -2,6 +2,7 @@ package app
 
 import (
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/grauwolf32/contractor/internal/artifacts"
@@ -49,7 +50,7 @@ spec:
 }
 
 func TestBlobStorageConfigRejectsInvalidThresholds(t *testing.T) {
-	for _, raw := range []string{"-1", "67108865", "1.5", "1MiB", "9223372036854775808"} {
+	for _, raw := range []string{"-1", strconv.Itoa(artifacts.MaxPayloadSize + 1), "1.5", "1MiB", "9223372036854775808"} {
 		t.Run(raw, func(t *testing.T) {
 			getenv := func(key string) string {
 				if key == "CONTRACTOR_ARTIFACT_BLOB_INLINE_MAX_BYTES" {
@@ -62,14 +63,14 @@ func TestBlobStorageConfigRejectsInvalidThresholds(t *testing.T) {
 			}
 		})
 	}
-	for _, raw := range []string{"-1", "67108865", "1.5"} {
+	for _, raw := range []string{"-1", strconv.Itoa(artifacts.MaxPayloadSize + 1), "1.5"} {
 		path := filepath.Join(t.TempDir(), "server.yaml")
 		writeServerConfigTestFile(t, path, "apiVersion: contractor/v1alpha1\nkind: ServerConfig\nspec:\n  artifactBlobInlineMaxBytes: "+raw+"\n")
 		if _, err := ParseConfig([]string{"--config=" + path}, func(string) string { return "" }); err == nil {
 			t.Fatalf("invalid YAML threshold %q accepted", raw)
 		}
 	}
-	for _, raw := range []string{"0", "67108864"} {
+	for _, raw := range []string{"0", strconv.Itoa(artifacts.MaxPayloadSize)} {
 		if _, err := ParseConfig([]string{"--artifact-blob-inline-max-bytes=" + raw}, func(string) string { return "" }); err != nil {
 			t.Fatalf("valid threshold boundary %s rejected: %v", raw, err)
 		}

@@ -281,3 +281,9 @@ an omitted field is not supplied by process configuration or a default. Every
 allocation enforces its own limits in Runtime. There is no per-request Server
 permit/journal protocol or separate target transport-stop RPC. Ordinary
 allocation cancellation/release joins target work and clears private state.
+
+`shared-config.schema.json` describes startup `GET /private/v1/config`.
+The Runtime verifies the digest of canonical `{limits,version}` and freezes
+that snapshot before preparation and registration (CTL-R171, RTA-R126).
+`make shared-config-generate` derives the golden fixture, Runtime test defaults
+and Artifact schema/SQL ceilings from the Server-owned Go definition.

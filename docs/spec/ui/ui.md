@@ -1400,3 +1400,18 @@ saving. Missing, inaccessible, changed and corrupt downloads show an error,
 never a successful file. Leaving the mounted check cancels pending transport
 and prevents a late download. Use shared components and tokens at 390 px and
 in light, dark and black themes.
+
+
+**UI-R214.** After session recovery or sign-in, protected routes obtain
+API-R113 shared configuration before rendering their content. The API client
+validates its schema and canonical digest and caches one immutable snapshot
+for its lifetime. Navigation does not poll or refetch a successful snapshot.
+A failed read blocks protected content with an error and an explicit retry;
+retryable failures use the existing bounded session-query retry policy.
+Unknown versions, fields or invalid digests have no local policy fallback.
+Logout retains no protected view or session query state; a new application
+loads configuration again. Artifact upload controls and explanatory limits,
+ordinary and Audit Artifact downloads and archive admission use the received
+payload ceiling; specialized smaller budgets stay independent. The initial
+Node-served runtime-config document still supplies the API base URL, UI version
+and supported API versions; it contains no shared policy numbers.

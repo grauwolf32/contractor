@@ -1252,3 +1252,19 @@ hold is added. Sitemap limits and cursor/selection semantics remain SMT-R15 and
 SMT-R16. Project reads must not enter the current-Run exact-reference observation
 journal. A cached view is research context; frozen materialization still reads
 and protects the exact source through ArtifactStore on the Server.
+
+
+**RTA-R126.** Startup obtains and strictly validates CTL-R171 configuration
+before Podman recovery, archive-cache opening, capability discovery, listener
+readiness or registration. Basic root ownership and TLS validation may precede
+the fetch. Runtime installs one immutable process snapshot and has no local
+fallback Artifact payload ceiling. All Artifact reads/writes, metadata size
+validation, sitemap descriptors, base64 prechecks, exports and derived exact-read
+cache budgets use that snapshot. A different snapshot requires process restart.
+Malformed/oversized configuration documents, unsupported versions, digest mismatch and
+permanent HTTP rejection stop startup without registration. Network failures,
+per-request timeout and retryable HTTP responses repeat using the existing
+Control Plane backoff (ceiling five seconds), until success or shutdown.
+Each attempt uses the private request timeout and response byte budget.
+Shutdown cancels and joins the fetch before closing its connection; no
+preparation or listener outlives cancelled bootstrap. No policy state persists.

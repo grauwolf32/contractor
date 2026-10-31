@@ -63,8 +63,8 @@ def test_export_respects_a_lower_transport_budget_without_partial_checkpoint(
         bundle = await session.prepare_export()
         assert len(bundle.state) > len(bundle.diff)
         monkeypatch.setattr(
-            "contractor_runtime.projectfs.exporter.MAX_ARTIFACT_BYTES",
-            len(bundle.state) + limit_offset,
+            "contractor_runtime.projectfs.exporter.artifact_payload_max_bytes",
+            lambda: len(bundle.state) + limit_offset,
         )
         client = MemoryArtifactClient()
         exporter = make_exporter(session, client)

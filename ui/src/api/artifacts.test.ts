@@ -18,7 +18,7 @@ import {
   writeArtifact,
   type ArtifactMetadata,
 } from "./artifacts";
-import { PublicAPI } from "./client";
+import { TestPublicAPI as PublicAPI } from "../test/shared-config";
 
 const runtimeConfig: RuntimeConfig = {
   uiVersion: "0.1.0",

@@ -9,7 +9,6 @@ from pydantic import ValidationError
 
 from contractor_runtime import _https, threads
 from contractor_runtime.artifacts import (
-    MAX_ARTIFACT_BYTES,
     MAX_ARTIFACT_JSON_BYTES,
     ArtifactHTTPResponse,
     ArtifactTransport,
@@ -20,9 +19,9 @@ from contractor_runtime.artifacts import (
 )
 from contractor_runtime.contracts import DIGEST_PATTERN, ArtifactRef, validate_media_type
 from contractor_runtime.contracts.artifacts import FINDING_PROPOSAL_NAMESPACE
+from contractor_runtime.shared_config import artifact_payload_max_bytes
 
 # findingintake.MaxRequestBytes / auditdomain.MaximumDocumentBytes.
-MAX_FINDING_SUBMISSION_BYTES = MAX_ARTIFACT_BYTES
 MAX_FINDING_PROPOSAL_BYTES = 8 * 1024 * 1024
 
 
@@ -47,7 +46,7 @@ class FindingProposalClient:
             ).encode("utf-8"),
             name="finding-submission-encode",
         )
-        if len(body) > MAX_FINDING_SUBMISSION_BYTES:
+        if len(body) > artifact_payload_max_bytes():
             raise ValueError("finding proposal request exceeds its size limit")
         response: ArtifactHTTPResponse | None = None
         for attempt in range(2):
@@ -145,7 +144,7 @@ class FindingProposalClient:
             seen.add(key)
             if (
                 type(item["sizeBytes"]) is not int
-                or not 0 <= item["sizeBytes"] <= MAX_ARTIFACT_BYTES
+                or not 0 <= item["sizeBytes"] <= artifact_payload_max_bytes()
             ):
                 raise ArtifactTransportError("finding proposal API returned invalid evidence size")
         for item in request.get("evidenceRefs", []):

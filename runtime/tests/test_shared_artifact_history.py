@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from shared_config_defaults import MAX_ARTIFACT_BYTES
 from test_memory_toolset import (
     ArtifactRequestAttempt,
     FakeArtifactClient,
@@ -22,7 +23,6 @@ from test_memory_toolset import (
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
     ARTIFACT_HISTORY_MAINTENANCE_PENDING,
-    MAX_ARTIFACT_BYTES,
     ArtifactAPIError,
     ArtifactClient,
 )

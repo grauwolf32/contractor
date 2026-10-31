@@ -31,8 +31,8 @@ from contractor_runtime.contracts import (
     validate_artifact_name,
     validate_media_type,
 )
-from contractor_runtime.contracts.artifacts import MAX_ARTIFACT_BYTES
 from contractor_runtime.contracts.base import NAME_PATTERN, is_blank, trim_whitespace
+from contractor_runtime.shared_config import artifact_payload_max_bytes
 
 if TYPE_CHECKING:
     from contractor_runtime.archive_cache import ImmutableArchiveCache
@@ -310,7 +310,7 @@ class ArtifactClient:
             exact.namespace != ref.namespace
             or exact.name != ref.name
             or (ref.revision is not None and exact.revision != ref.revision)
-            or not 0 <= result.size <= MAX_ARTIFACT_BYTES
+            or not 0 <= result.size <= artifact_payload_max_bytes()
         ):
             raise ArtifactTransportError("Artifact API metadata does not match the requested ref")
         return result
@@ -319,10 +319,12 @@ class ArtifactClient:
         self,
         ref: ArtifactRef,
         *,
-        max_bytes: int = MAX_ARTIFACT_BYTES,
+        max_bytes: int | None = None,
         target: ArtifactReadTarget | None = None,
     ) -> ArtifactValue:
-        if type(max_bytes) is not int or not 0 < max_bytes <= MAX_ARTIFACT_BYTES:
+        if max_bytes is None:
+            max_bytes = artifact_payload_max_bytes()
+        if type(max_bytes) is not int or not 0 < max_bytes <= artifact_payload_max_bytes():
             raise ValueError("artifact read byte limit is invalid")
         path = self._ref_path(ref, target=target)
         response = await self._transport.request(
@@ -394,8 +396,8 @@ class ArtifactClient:
             raise ValueError("artifact write target must be versionless")
         if not isinstance(data, bytes):
             raise TypeError("artifact payload must be bytes")
-        if len(data) > MAX_ARTIFACT_BYTES:
-            raise ValueError("artifact payload exceeds the 64 MiB limit")
+        if len(data) > artifact_payload_max_bytes():
+            raise ValueError("artifact payload exceeds the configured Artifact limit")
         validate_media_type(media_type)
         headers = {"Accept": "application/json", "Content-Type": media_type}
         expected_status = 201
@@ -537,7 +539,10 @@ class MTLSArtifactTransport:
     ) -> ArtifactHTTPResponse:
         if method not in {"GET", "PUT", "POST"} or not path.startswith("/") or "#" in path:
             raise ValueError("invalid private Artifact API request target")
-        if not 0 <= max_response_bytes <= MAX_ARTIFACT_BYTES:
+        # Metadata/list/write replies have their own JSON budget. A smaller
+        # payload policy must not make those protocol responses impossible.
+        response_ceiling = max(artifact_payload_max_bytes(), MAX_ARTIFACT_JSON_BYTES)
+        if type(max_response_bytes) is not int or not 0 <= max_response_bytes <= response_ceiling:
             raise ValueError("invalid Artifact API response limit")
         try:
             request_headers = {

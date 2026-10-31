@@ -55,8 +55,9 @@ describe("Wordlist Artifact journey", () => {
       await user.click(screen.getByRole("button", { name: "Create binding" }));
       await waitFor(() => expect(onWritten).toHaveBeenCalledOnce());
       expect(onWritten).toHaveBeenCalledWith(written);
-      expect(requests).toHaveLength(1);
-      const request = requests[0]!;
+      const writes = requests.filter((request) => request.method === "PUT");
+      expect(writes).toHaveLength(1);
+      const request = writes[0]!;
       expect(new URL(request.url).pathname).toBe(
         scope === "user"
           ? "/v1/artifacts/inputs/paths"
