@@ -1,0 +1,32 @@
+schema_version: "1.0"
+id: V425-028
+title: Register the Git import consumer of the shared wire URL limit
+milestone: hub-audit-defects-2026-10
+epic: quality
+kind: chore
+introduced_by: V425-024
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Restore the architecture gate's inventory of the existing Git URL wire-limit consumer.
+context:
+  finding: >-
+    internal/gitimport/client.go:41 uses contracts.MaxGitImportURLBytes since
+    fb5728784f907c42995265310425579cf8b6ab75, but internal/archtest/contracts_importers_test.go:32
+    does not register that package. TestContractsKernelImportersUseWireSymbols fails on
+    the unchanged baseline while verifying V425-027.
+  boundary: The shared byte bound is the existing wire input constraint; this change records its actual consumer without changing ownership, imports or runtime behavior.
+scope:
+  in:
+    - Register internal/gitimport with its actual MaxGitImportURLBytes wire symbol.
+  out:
+    - Git behavior, URL limits, PostgreSQL setup and architecture guard relaxation.
+acceptance_criteria:
+  - id: A1
+    text: The complete architecture suite passes with the actual Git wire-limit consumer registered and all guard rules unchanged.
+tests:
+  - command: go test -count=1 ./internal/archtest
+    covers: [A1]
+  - command: make lint
+    covers: [A1]
