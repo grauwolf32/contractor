@@ -1,0 +1,87 @@
+schema_version: "1.0"
+id: V425-042
+title: Select Planner compactor policies only through Workflow executionConfig
+milestone: hub-audit-structure-2026-10
+epic: workflows
+kind: chore
+introduced_by: V420-002
+priority: P3
+status: in_progress
+depends_on: [V425-041]
+languages: [go, yaml, typescript]
+goal: >-
+  Choose the Planner's main and compactor models in executionConfig while
+  plannerContextManagement describes only compaction behavior.
+context:
+  authority: >-
+    User decision 2026-11-01: accept the demonstrated move of Planner compactor
+    model selection from plannerContextManagement.modelPolicy into
+    executionConfig.planner.compactorModelPolicy, with Workflow-wide or Stage
+    selections. Scope is Planner only. The user's earlier instruction to skip
+    unrelated Runtime failures remains applicable; do not expand into V425-001,
+    V425-002 or new Linux test-environment setup. Studio rewrite and dynamic
+    Workflow publication remain separate.
+  specification:
+    - docs/spec/configuration/workflows.md
+    - docs/spec/configuration/agent-templates.md
+    - docs/spec/execution/planners.md
+    - docs/spec/configuration/catalog.md
+  finding: >-
+    internal/config/planner_context.go:29 resolves an obligatory context-block
+    policy as a base, while workflow.go:316 seeds it into Planner selections
+    before executionConfig overrides it. Summary continuations already use the
+    behavior-only context shape and select their policy through executionConfig.
+  boundary: >-
+    One strict behavior-only Planner context grammar serves ordinary Stages and
+    summary continuations. Execution selection owns the exact compactor policy;
+    context strategy, instructions, thresholds and cycle bounds stay in the
+    context block. Missing/inapplicable policies fail existing consumer
+    validation. Resolved snapshots, model authorization, runtime behavior and
+    Worker compactor authoring retain their existing contracts. The alternative
+    of keeping a context-block base was rejected by the user; reopen only for a
+    concrete consumer that cannot express its selection through executionConfig.
+  demonstration: >-
+    Load a real fixture Workflow using a Workflow-wide compactor policy and a
+    Stage-specific selection, execute normal and summary-continuation Planner
+    compaction through existing process gates, and retain the exact policies in
+    snapshots after catalog changes. Existing YAML anchors and merges reuse
+    behavior without reintroducing the removed model field.
+scope:
+  in:
+    - Remove plannerContextManagement.modelPolicy and base-policy resolution, including obsolete origin and duplicate parser mode.
+    - Require effective compactorModelPolicy through Workflow or escalation executionConfig for compact Planner consumers.
+    - Migrate shipped and active fixture/embedded authoring while preserving exact effective models, instructions and budgets.
+    - Update owning specs, dependency graph, applicable shared fixtures, UI authoring producers and regression tests.
+  out:
+    - Worker contextManagement model selection, new compactor roles, new execution override levels or live model changes.
+    - Studio rewrite, dynamic publication, database migrations and unrelated Runtime defects or test-environment setup.
+acceptance_criteria:
+  - id: A1
+    given: An ordinary or summary-target Planner context block containing modelPolicy, including null or a YAML merge.
+    when: The catalog validates the Workflow.
+    then: It rejects the removed field with no compatibility reader; one parser handles both contexts.
+  - id: A2
+    given: compact Planner behavior and explicit Workflow-wide, Stage or escalation compactor policy selections.
+    when: Catalog and Run resolution validate consumers.
+    then: Exact policies and origins come only from executionConfig; missing or incompatible selections fail and none/model-free consumers reject unused selections.
+  - id: A3
+    given: Shipped workflows, native YAML reuse, frozen snapshots and summary continuations.
+    when: Relevant config, API, persistence and process regressions run.
+    then: Effective compactor models, budgets, authorization, instructions and behavior are preserved, including across reload and recovery.
+  - id: A4
+    text: Specs, authoring producers and validators agree; generated outputs are regenerated only when their source changes and no unrelated subsystem is expanded.
+tests:
+  - command: go test -tags=integration ./internal/config/... ./internal/configload/... ./internal/runservice ./internal/scheduler ./internal/httpapi/public
+    covers: [A1, A2, A3]
+  - command: make test-config
+    covers: [A1, A2, A3]
+  - command: make verify-public-api
+    covers: [A3, A4]
+  - command: make test-hardening-matrices
+    covers: [A3, A4]
+  - command: make ui-verify
+    covers: [A4]
+  - command: go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestPlannerCompactionProductionBoundaries$'
+    covers: [A2, A3]
+  - command: make lint
+    covers: [A1, A4]
