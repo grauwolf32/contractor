@@ -216,16 +216,14 @@ type Snapshot struct {
 	Commit        string
 }
 
+// Fetch consumes a canonical Remote returned by ParseRemote at import intake.
+// Its percent-encoded URL can exceed the original input's byte budget.
 func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, mode Mode, signer ssh.Signer) (Snapshot, error) {
 	if mode != ModeSnapshot && mode != ModeAnalysis {
 		return Snapshot{}, ErrContent
 	}
 	ctx, cancel := context.WithTimeout(ctx, c.limits.Timeout)
 	defer cancel()
-	canonical, err := ParseRemote(remote.URL)
-	if err != nil || canonical != remote {
-		return Snapshot{}, ErrURL
-	}
 	if !c.Allowed(remote) {
 		return Snapshot{}, ErrDestination
 	}
@@ -236,6 +234,7 @@ func (c *Client) Fetch(ctx context.Context, remote Remote, ref string, mode Mode
 	var exchange func([]byte) (io.ReadCloser, error)
 	var cleanup func()
 	var wire *wireBudgetConn
+	var err error
 	if remote.Scheme == "https" {
 		adv, exchange, cleanup, err = c.https(ctx, remote)
 	} else if remote.Scheme == "ssh" {
