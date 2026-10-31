@@ -1,0 +1,134 @@
+schema_version: "1.0"
+id: V425-039
+title: Select execution policies through Workflows instead of Run overrides
+milestone: hub-audit-structure-2026-10
+epic: workflows
+kind: chore
+introduced_by: V3-006
+priority: P3
+status: pending
+depends_on: [V425-038]
+languages: [go, python, typescript]
+goal: >-
+  Run and Eval callers select a Workflow with its authored policies instead of
+  constructing another execution-configuration patch at launch. Preserve exact
+  resolved execution snapshots and compare distinct Workflow variants in Evals.
+context:
+  authority: >-
+    User direction 2026-10-31: prefer separate Workflow definitions for model
+    experiments and consider dynamic Workflow creation/publication as a separate
+    future capability. The user explicitly said that the current refactoring only
+    needs that direction, without implementing publication as a prerequisite.
+    The user then requested merging proposal 0051 and asked for a concrete task
+    approach. The end-to-end removal scope below is the agent's proposal for
+    review; implementation has not started.
+  proposal: docs/proposals/0051-dynamic-workflow-publication.md
+  specification:
+    - docs/spec/configuration/agent-templates.md
+    - docs/spec/configuration/runtime-config.md
+    - docs/spec/execution/runs.md
+    - docs/spec/evals/managed-evals.md
+    - docs/spec/evals/format.md
+  finding: >-
+    internal/runservice/public.go:56 passes an explicit request patch into
+    Workflow resolution; internal/runservice/digest.go:31 hashes it separately.
+    internal/evalservice/preflight_binding.go:43 applies the same patch to Eval
+    variants, and internal/evaldomain/types.go:77 exposes the field on both
+    Workflow and Audit variants even though Audit variants reject non-empty
+    patches. UI launch, Eval setup and repeat-draft paths author or retain it.
+    These paths provide an alternative to selecting a differently authored
+    Workflow; the resolved snapshot guarantee does not require a launch patch.
+  boundary: >-
+    Remove Run/Eval request overrides only. Workflow executionConfig, its Stage
+    and binding settings, AgentTemplate policies, captured deployment defaults
+    and inline escalation settings retain their current owners and precedence.
+    Exact model-specific policies in two Workflow definitions provide the A/B
+    scenario without changing deployment defaults. Keep effective per-consumer
+    values and provenance in Run/Stage/Allocation history; they are execution
+    facts, not caller-authored patches.
+  demonstration: >-
+    A test-only catalog contains two Workflows with matching graph, inputs,
+    outputs, instructions and finite budgets, differing in one exact Worker
+    policy. The owner launches either through the ordinary public API and
+    prepares an A/B Eval selecting the two Workflow refs. PostgreSQL-backed
+    records and allocations retain the selected policy after catalog/default
+    changes. A repeat draft keeps Workflow, parameters, inputs and ordinary
+    labels without an execution override. Declared escalation still selects its
+    pinned effective variant.
+scope:
+  in:
+    - Remove executionConfig from ordinary and Project Run-create requests and Run/Eval client launch parameters.
+    - Remove executionConfig from managed and portable Eval variants, preparation, frozen recipes and submission calls, including the Audit empty-patch special case.
+    - Remove launch patch storage and reconstruction from retained repeat requests, repeat drafts and repeat UI.
+    - Remove Run-specific resolver application, origins and the physical Worker run_execution_config route layer, including shared wire/provenance schemas and fixtures.
+    - Remove model/Gateway/credential override controls from Run and Eval forms while preserving effective configuration read views.
+    - Update owning specs, OpenAPI, portable schemas, strict fixtures, generated clients and active gates together; preserve archived Eval artifacts as historical bytes.
+  out:
+    - Dynamic Workflow publication, new editing or import services, draft storage and filesystem hot reload.
+    - Removing Workflow defaults, Workflow Stage/binding settings, AgentTemplate policies, deployment model selection or inline escalation.
+    - Moving Gateway/credential ownership, removing Runtime labels, placement labels, parameters, inputs or metadata labels.
+    - Reinterpreting historical snapshots, compatibility readers, resetting business data or demo deployment.
+requirements:
+  - id: R1
+    text: Removed request and variant fields are rejected as unknown, including an empty executionConfig object; no ignored compatibility path remains.
+  - id: R2
+    text: Run creation still pins exact resolved base and escalation configurations and validates credentials before acceptance; Runtime performs no mutable model lookup.
+  - id: R3
+    text: Idempotency, repeat and Eval preparation/submission use the simplified request shape without preserving an unreachable launch patch or inventing a new receipt mechanism.
+  - id: R4
+    text: Run/Stage/Allocation effective configuration views retain exact policies, safe credential refs, model identity and applicable provenance; only the removed Run-override origin disappears.
+  - id: R5
+    text: Distinct preloaded Workflow definitions support A/B model comparisons without dynamic publication and without changing active Runs or deployment defaults.
+failure_outcomes:
+  - operation: Accept Run or Eval input
+    permanent: Unknown removed fields, missing Workflow refs, incompatible policies or unavailable selected credentials fail through the existing classified validation outcome before execution acceptance.
+    retryable: Existing storage conflict and unavailable-storage behavior remains; removing the patch does not add a retry loop.
+    ambiguous: Existing request receipts and idempotency keys reconcile response loss; no second execution is appended.
+    cancelled: Existing transaction and execution ownership remains; no new work may outlive cancellation.
+    timeout: Existing Run/Eval preparation and submission deadlines remain authoritative.
+cardinality:
+  - collection: Workflow consumers and Eval members
+    expected: Existing selected Workflow graph and existing Eval case/sample/variant product.
+    maximum: Existing limits in the configuration, execution and Eval owners.
+    bound: No new collection, controller pass, whole-catalog scan, response or transaction is introduced; this task removes patch walks and fields.
+lifecycle:
+  - entity: Run, Eval, repeat snapshot and runtime provenance
+    delete: Existing owner deletion rules remain; no new entity or delete API.
+    cascade: Existing parent retention and cleanup apply to the simplified records.
+    retention: Preserve exact execution evidence. Strict readers reject unsupported old patch-bearing shapes rather than rewriting them or reading current catalog state to reconstruct them.
+acceptance_criteria:
+  - id: A1
+    given: Ordinary/Project Run requests and Workflow/Audit Eval variants with executionConfig, including an empty object.
+    when: The public and portable decoders validate the input.
+    then: The removed field is rejected before durable effects, and schemas and both generated clients expose no launch override.
+  - id: A2
+    given: Two test-only Workflow variants with different exact Worker policies and matching other experiment dimensions.
+    when: Ordinary Runs and a managed Eval are accepted through real PostgreSQL-backed services.
+    then: Each execution pins its intended policy; later catalog/default changes do not retarget accepted work or hide a pin mismatch.
+  - id: A3
+    given: A Workflow with retry/escalation or terminal-summary continuation and selected Runtime labels.
+    when: Configuration resolution, allocation and the existing real-process routing gate execute.
+    then: Pinned policies, credential checks, context behavior and effective history remain correct without a Run-override route layer.
+  - id: A4
+    given: A repeat request and UI launch/Eval forms.
+    when: A new Run or experiment is prepared.
+    then: Workflow, parameters, inputs, Runtime/placement/metadata labels and repeat notices retain their behavior, and no execution-override control, retained patch or dependency on future publication remains.
+  - id: A5
+    given: Updated contracts, active fixtures and all production callers.
+    when: The listed checks run.
+    then: The complete touched-package suites and relevant process/wire/UI gates pass; no new compatibility path, receipt, table or speculative authoring subsystem is added.
+tests:
+  - command: go test -tags=integration ./internal/config/... ./internal/runservice ./internal/runrepeat ./internal/evaldomain ./internal/evalservice ./internal/runtimeconfig ./internal/controlplane ./internal/httpapi/public ./internal/publicclient/... ./internal/app
+    covers: [A1, A2, A3, A4, A5]
+  - command: make verify-public-api
+    covers: [A1, A4, A5]
+  - command: make test-wire-cross-language
+    covers: [A1, A3, A5]
+  - command: make test-config
+    covers: [A2, A3, A5]
+  - command: make ui-verify
+    covers: [A1, A4, A5]
+  - command: go test -tags=e2e -count=1 -timeout=8m ./tests/e2e -run '^TestRoutingAndEscalationProductionBoundaries$'
+    covers: [A3, A5]
+  - command: make lint
+    covers: [A1, A4, A5]
