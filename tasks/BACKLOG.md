@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-88 open tasks: 10 in progress, 67 pending, 11 deferred. 1262 finished: 1247 completed, 15 archived.
+87 open tasks: 9 in progress, 67 pending, 11 deferred. 1263 finished: 1248 completed, 15 archived.
 
 ## In progress
 
@@ -20,7 +20,6 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
-| [V425-024](v425-024-canonical-git-source-url-bound.yml) | projects-artifacts | defect | P3 | Separate canonical Git provenance URL bounds from the import input bound |
 
 ## Pending
 
@@ -88,7 +87,7 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V425-011](v425-011-git-url-validate-once.yml) | defect | P3 | V425-024 | Validate a Git import URL once in its canonical form |
+| [V425-011](v425-011-git-url-validate-once.yml) | defect | P3 | — | Validate a Git import URL once in its canonical form |
 | [V425-012](v425-012-bounded-project-drain-check.yml) | defect | P3 | — | Bound the Project deletion drain check by active work, not finished Run history |
 
 ### Audits (`audits`)
@@ -205,7 +204,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 19 |
 | Findings tools and collections (`findings`) | 2 | 16 | 9 | 8 | 13 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 18 | 15 | 12 | 19 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 3 | 36 | 37 | 11 | 57 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 37 | 11 | 57 |
 | Audits (`audits`) | 23 | 67 | 82 | 35 | 121 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |

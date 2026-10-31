@@ -6,7 +6,7 @@ epic: projects-artifacts
 kind: defect
 introduced_by: V35-002
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go, sql, json, yaml]
 goal: "Every allowed 4096-byte Git input URL can retain its normalized URL in PostgreSQL and the public API without a second, smaller effective limit."
@@ -60,3 +60,10 @@ tests:
     covers: [A2, A3]
   - command: make lint
     covers: [A1, A2, A3]
+implementation_commit: fb5728784f907c42995265310425579cf8b6ab75
+verification_results:
+  - "2026-10-31: the full listed Go package command passed against disposable TCP PostgreSQL, including artifacts, persistence/postgres, contracts, gitimport and public API packages."
+  - "The shared real-store regression accepts 12288 UTF-8 bytes and rejects 12289 through both RecordGitSource and direct SQL, preserving exact readback and leaving no rejected artifact."
+  - "A temporary Go overlay restoring the old 4096-byte validator made that regression fail with artifact integrity failure; tracked sources were unchanged."
+  - "make verify-public-api, make ui-verify and make lint passed. make test-wire-cross-language passed: 355 shared fixtures, 393 Go and 284 Python shared tests, 1577 Runtime shared cases and 375 Runtime contract cases."
+  - "Migration 000064 widens only the existing URL CHECK. make docs-erd regenerated the schema version; no demo database was migrated. The input URL shared cases continue to enforce 4096 bytes."
