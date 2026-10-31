@@ -6,7 +6,7 @@ epic: quality
 kind: chore
 introduced_by: V420-002
 priority: P3
-status: in_progress
+status: completed
 depends_on: []
 languages: [go]
 goal: "The merged Planner compaction tests no longer block make lint with an unused threshold constant."
@@ -35,3 +35,8 @@ tests:
     covers: [A1]
   - command: "CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -count=1 ./internal/planner/..."
     covers: [A2]
+
+implementation_commit: 28251dec787f57e057b774351bbfb533bdb01d90
+verification_results:
+  - "2026-10-31: make lint passed after the separate V425-021 fixture-registration correction."
+  - "go test -count=1 ./internal/planner/... passed all seven packages against disposable PostgreSQL over TCP; no assertions changed."
