@@ -13,9 +13,9 @@ import (
 
 // purgeBatchSize bounds the binding revisions one purge batch removes and the
 // candidate versions or blobs one purge statement locks or deletes
-// (LIM-DEL-2). A Run or Audit purge stays one transaction whose total work the
-// Run revision limit (LIM-ART-6) bounds its work; ProjectScope and Audit
-// namespace purges commit one batch per transaction.
+// (LIM-DEL-2). A Run purge stays one transaction whose total work the Run
+// revision limit (LIM-ART-6) bounds; Project and Audit scope or namespace
+// purges commit one batch per transaction.
 var purgeBatchSize = persistencepostgres.CleanupBatchRows
 
 // PostgresPurger performs the exceptional physical cleanup used by lifecycle

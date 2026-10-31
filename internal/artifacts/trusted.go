@@ -147,8 +147,9 @@ func (s *Service) Fork(ctx context.Context, fork Fork) (ForkResult, error) {
 }
 
 // forkScopesAllowed admits the forks of ART-R72 and ART-R90: a UserScope or
-// ProjectScope source into a RunScope, a RunScope source into a ProjectScope,
-// and one RunScope binding into another of the same Run.
+// ProjectScope or AuditScope source into a RunScope, a RunScope source into a
+// ProjectScope or AuditScope, an AuditScope source into its ProjectScope, and
+// one RunScope binding into another of the same Run.
 func forkScopesAllowed(source, target Scope) bool {
 	switch {
 	case target.kind == ScopeRun:

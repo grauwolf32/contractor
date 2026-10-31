@@ -110,7 +110,8 @@ def main() -> None:
             evidence["reason"] = type(error).__name__
             reports.write_evidence(destination, evidence)
             raise
-    print("Audit composition acceptance passed: real store, processes and browser")
+    boundaries = "real store and processes" if args.case_set == "workspace" else "real store, processes and browser"
+    print(f"Audit composition acceptance passed: {boundaries}")
 
 
 if __name__ == "__main__":

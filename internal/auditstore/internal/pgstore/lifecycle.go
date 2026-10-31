@@ -114,8 +114,9 @@ func (s *ClaimStore) NextLiveRunForDeletion(
 	return "", false, nil
 }
 
-// PurgeClaimed atomically removes one drained Audit's protected Project
-// bindings and domain rows. The claim row is cascaded, so the caller treats a
+// PurgeClaimed removes a bounded batch of one drained Audit's owned artifacts,
+// protected Project bindings and domain rows. The claim row is cascaded last,
+// so the caller treats a
 // subsequent ReleaseClaim miss as the expected successful terminal outcome.
 func (s *ClaimStore) PurgeClaimed(
 	ctx context.Context, claim auditstore.ControllerClaim, namespace string,
