@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-87 open tasks: 9 in progress, 67 pending, 11 deferred. 1263 finished: 1248 completed, 15 archived.
+86 open tasks: 9 in progress, 66 pending, 11 deferred. 1264 finished: 1249 completed, 15 archived.
 
 ## In progress
 
@@ -87,7 +87,6 @@ the epics are in [epics.yml](epics.yml).
 
 | Task | Kind | Priority | Waiting for | Title |
 | --- | --- | --- | --- | --- |
-| [V425-011](v425-011-git-url-validate-once.yml) | defect | P3 | — | Validate a Git import URL once in its canonical form |
 | [V425-012](v425-012-bounded-project-drain-check.yml) | defect | P3 | — | Bound the Project deletion drain check by active work, not finished Run history |
 
 ### Audits (`audits`)
@@ -204,7 +203,7 @@ tasks in `introduced_by`.
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 19 |
 | Findings tools and collections (`findings`) | 2 | 16 | 9 | 8 | 13 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 18 | 15 | 12 | 19 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 2 | 36 | 37 | 11 | 57 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 36 | 37 | 11 | 57 |
 | Audits (`audits`) | 23 | 67 | 82 | 35 | 121 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 48 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |

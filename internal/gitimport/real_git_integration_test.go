@@ -67,6 +67,72 @@ func realRepository(t *testing.T) (string, string) {
 	nativeGit(t, repo, "tag", "-a", "v1", "-m", "release")
 	return repo, strings.TrimSpace(string(nativeGit(t, repo, "rev-parse", "HEAD")))
 }
+
+func TestRealGitUTF8URLIntakeAndFetch(t *testing.T) {
+	repo, commit := realRepository(t)
+	backend := serveGitHTTP(t, repo, nil)
+	t.Cleanup(backend.Close)
+	for _, character := range []string{"é", "€", "🛑"} {
+		t.Run(character, func(t *testing.T) {
+			paths := make(chan string, 2)
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+				select {
+				case paths <- request.URL.Path:
+				default:
+					t.Error("unexpected extra Git request")
+				}
+				request = request.Clone(request.Context())
+				switch {
+				case strings.HasSuffix(request.URL.Path, "/info/refs"):
+					request.URL.Path = "/repo.git/info/refs"
+				case strings.HasSuffix(request.URL.Path, "/git-upload-pack"):
+					request.URL.Path = "/repo.git/git-upload-pack"
+				default:
+					http.NotFound(w, request)
+					return
+				}
+				request.URL.RawPath = ""
+				backend.Config.Handler.ServeHTTP(w, request)
+			}))
+			t.Cleanup(server.Close)
+			room := MaximumRemoteURLBytes - len(server.URL) - 1
+			path := "/" + strings.Repeat(character, room/len(character)) + strings.Repeat("a", room%len(character))
+			raw := server.URL + path
+			remote, err := ParseRemote(raw)
+			if err != nil {
+				t.Fatalf("valid UTF-8 input rejected: %v", err)
+			}
+			if len(raw) != MaximumRemoteURLBytes || len(remote.URL) <= MaximumRemoteURLBytes {
+				t.Fatal("fixture must fit intake exactly and exceed it after percent encoding")
+			}
+			client, err := NewClient(Config{AllowedRemotes: []string{remote.Address}}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client.allowLoopback = true
+			client.tlsConfig = server.Client().Transport.(*http.Transport).TLSClientConfig.Clone()
+			snapshot, err := client.Fetch(t.Context(), remote, "", ModeSnapshot, nil)
+			if err != nil {
+				t.Fatalf("accepted Unicode URL failed to fetch: %v", err)
+			}
+			assertSnapshot(t, snapshot, commit)
+			if snapshot.RepositoryURL != remote.URL {
+				t.Fatal("fetch changed canonical provenance")
+			}
+			for _, suffix := range []string{"/info/refs", "/git-upload-pack"} {
+				select {
+				case got := <-paths:
+					if got != path+suffix {
+						t.Fatal("transport changed the Unicode repository path")
+					}
+				default:
+					t.Fatal("Git transport did not issue the expected request")
+				}
+			}
+		})
+	}
+}
+
 func serveGitHTTP(t *testing.T, repo string, beforeFetch func()) *httptest.Server {
 	t.Helper()
 	return httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

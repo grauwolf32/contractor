@@ -4,13 +4,14 @@ title: "Separate canonical Git provenance URL bounds from the import input bound
 milestone: hub-audit-defects-2026-10
 epic: projects-artifacts
 kind: defect
-introduced_by: V35-002
+introduced_by: V35-003
 priority: P3
 status: completed
 depends_on: []
 languages: [go, sql, json, yaml]
 goal: "Every allowed 4096-byte Git input URL can retain its normalized URL in PostgreSQL and the public API without a second, smaller effective limit."
 context:
+  introduced_note: "git blame traces the provenance URL validator to e6bf1c1f8 (V35-003); V35-002 separately introduced the redundant Fetch validation fixed by V425-011."
   authority: "2026-10-31: user chose to preserve the 4096 UTF-8-byte input limit and increase the canonical URL limit in storage and API while revalidating V425-011."
   specification:
     - docs/spec/artifacts/git-import.md#GIT-R29
