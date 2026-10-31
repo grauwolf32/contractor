@@ -24,11 +24,12 @@ demonstration: The existing Audit role-output collection and dependent-Run submi
   leaves the independently owned Project bytes and lineage readable. This is the material handoff slice,
   not the new coordinator or the complete lean Audit journey.
 context:
-  authority: User decisions on 2026-10-31 require exact Audit/Project materials through existing ArtifactStore,
+  authority: 'User decisions on 2026-10-31 require exact Audit/Project materials through existing ArtifactStore,
     explicit publication and controlled complexity. On 2026-11-01 the user selected a first slice of self-contained
     materials, confirmed that automatic collection of everything referenced by a report is not a priority,
     and kept composite behavior with a separate concrete consumer. Existing V410-025 owns the SMT snapshot
-    case. This amendment starts no implementation.
+    case. This amendment starts no implementation. User concern on 2026-11-01: avoid accumulating redundant
+    artifact copies during handoff/publication.'
   implementation_gate: V64-001 and V410-010 are completed. A user assignment of V64-004 is sufficient
     under normal dependency/status rules; settled V64-001 decisions are not pending review. This amendment
     itself starts no code.
@@ -115,9 +116,11 @@ requirements:
     bindings with truthful source scope/lineage; source mutation/deletion never substitutes latest or
     destructively relocates accepted data.
 - id: R2
-  text: Reuse immutable versions/blobs and the ordinary fork/CAS/retention mechanisms. Reconcile stable
-    producer/output and publication identities with existing receipts. No Workflow/HTTP/model work repairs
-    an acknowledgement.
+  text: Ownership transfer must use the existing fork of the same immutable version/blob, not read/reupload
+    or a new payload version merely to change scope. Keep one Audit binding per accepted producer Run/output,
+    and reuse it for consumers; replay of the same fork/publication adds no binding/revision. Project
+    publication is explicit. Existing owner retention/purge and reference-safe GC release unused data;
+    do not add a cleanup controller or retention policy.
 - id: R3
   text: Audit owner/Project/Run membership and allocation grants come from trusted existing records. Run
     B receives only selected authorized inputs. Source references or matching Project IDs alone grant
@@ -182,13 +185,15 @@ acceptance_criteria:
     exact revision
   then: bytes/digest/revision and Run -> Audit -> Run lineage agree; metadata proves real Audit scope,
     not a Project audit-* namespace; no new coordinator or hypothesis/approval workflow is required; ordinary
-    explicit multi-input behavior remains supported, without an implicit dependency list
+    explicit multi-input behavior remains supported, without an implicit dependency list; real-store checks
+    prove the forks reuse the immutable version/blob, rather than duplicating payload bytes
 - id: A2
   given: an owner-selected Audit material and the actual authenticated publication/read operation
   when: the exact material is published into Project, its acknowledgement is lost/replayed and the drained
     source Run/Audit is purged
   then: one logical Project publication and exact readable bytes/lineage remain under independent Project
-    ownership; accepted consumer inputs remain usable without another producer execution
+    ownership; replay adds no binding/revision, surviving consumers retain their inputs until their own
+    owner releases them, and no producer execution repairs publication
 - id: A3
   given: create collision, valid replacement, stale CAS, foreign owner/Audit, unavailable exact source
     and deletion/cancellation races
