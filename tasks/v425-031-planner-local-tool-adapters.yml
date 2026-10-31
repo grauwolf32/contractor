@@ -1,0 +1,98 @@
+schema_version: "1.0"
+id: V425-031
+title: Share local Planner ADK tool packing and Worker binding lookup
+milestone: hub-audit-structure-2026-10
+epic: planner-worker
+kind: chore
+introduced_by: V17-006
+priority: P3
+status: in_progress
+depends_on: []
+languages: [go]
+goal: Keep one local implementation of ADK tool request packing and eligible Worker lookup for Planner Memory and State tools.
+context:
+  authority: >-
+    User decision 2026-10-31: accept research step 1, common Allocation rollback
+    and local ADK adapters, as detailed in this chat. This task owns the Go
+    Planner half; V425-030 owns the independent Runtime half.
+  review: docs/research/2026-10-31-architecture-simplification-research.md
+  specification:
+    - docs/spec/execution/planners.md#PLN-R3
+    - docs/spec/tools/memory.md
+  finding: >-
+    internal/planner/streamline/memory_tools.go:78 and state_tools.go:86
+    duplicate ProcessRequest packing into request.Tools and FunctionDeclarations.
+    resolveMemoryBinding at memory_tools.go:343 and resolveStateBinding at
+    state_tools.go:174 are identical eligible-binding lookups. Memory's adapter
+    originated in V9-003, commit acf1c0f2a436cf82ce10d26ef9db5e26c606d557;
+    V17-006 added the second copy in 991f557a0497388a98be0085e0179cf47dc3eda2.
+    The later ADK v2.6 migration updated signatures without removing the copies.
+  boundary: >-
+    Introduce only private helpers inside streamline: pack the original concrete
+    tool and its declaration into the ADK request, and resolve a Worker from the
+    already eligible binding slice. Keep each tool's Run, argument validation,
+    declaration schema, eligibility filtering, metrics and error vocabulary with
+    its current owner. Preserve the custom adapter path: functiontool.New would
+    run framework schema validation before Run and change model-visible errors.
+  failure_outcomes: >-
+    A nil request and a duplicate tool name retain the existing errors and
+    mutation behavior. Existing tool groups and declarations remain intact.
+    Streamline resolves only its sole eligible Worker with absent worker_name;
+    Router resolves an exact name from the eligible slice. A failed lookup
+    leaves domain-specific error selection with Memory or State. The registered
+    request.Tools value remains the original tool instance whose Run must execute.
+  verification_prerequisites: >-
+    Use a disposable PostgreSQL database and the locked Runtime environment.
+    Before direct Go tests on macOS, resolve TMPDIR to its physical path as
+    documented in docs/testing/README.md; a symlinked temporary directory is
+    intentionally refused by ArtifactStore and must not be relaxed for this task.
+scope:
+  in:
+    - One private ADK request-packing helper used by plannerMemoryTool.ProcessRequest and plannerStateTool.ProcessRequest.
+    - One private eligible Worker-binding lookup replacing resolveMemoryBinding and resolveStateBinding and all their call sites.
+    - Focused request-packing and concrete dispatch regressions, retaining existing Memory/State schemas, routing and error precedence.
+    - Record net production Go reduction and verification in this task.
+  out:
+    - Generic tool registries, exported helpers, new packages or dependencies, and embedded base types that alter dispatch identity.
+    - Merging domain Run implementations, tool builders, validators, metrics or error vocabularies.
+    - Changes to ADK version, functiontool.New behavior, Scheduler, Runtime, public/private contracts or persistence.
+acceptance_criteria:
+  - id: A1
+    given: Memory and State tools are built for existing Streamline and Router profiles.
+    when: They are packed into an ADK request.
+    then: Both use one private packing implementation, preserve their declaration schemas and register their original concrete instances; the change removes more production Go than it adds.
+  - id: A2
+    given: Nil or populated request state, existing tool groups, and a duplicate name.
+    when: ProcessRequest runs.
+    then: Existing error and mutation behavior is preserved, unrelated groups and declarations remain, and valid requests dispatch to each concrete tool's Run.
+  - id: A3
+    given: Sole-Worker Streamline bindings and Router bindings with differing eligible selections.
+    when: Worker lookup and malformed or unauthorized tool calls occur.
+    then: One lookup enforces the existing selection rules while Memory and State retain their own validation, error codes and error precedence.
+  - id: A4
+    given: The shared helpers replace all copies in both adapters.
+    when: Complete Streamline and Router suites run, including PostgreSQL cases with a disposable database configured.
+    then: Model-visible results, metrics and dispatch remain unchanged, make lint passes, and no database skip is reported as a pass.
+tests:
+  - command: CONTRACTOR_TEST_DATABASE_URL=<disposable-db> go test -tags=integration -count=1 -p=2 ./internal/planner/streamline ./internal/planner/router
+    covers: [A1, A2, A3, A4]
+  - command: make lint
+    covers: [A1, A4]
+implementation_notes:
+  - >-
+    Private packLocalTool registers the original concrete Memory/State tool and
+    its exact declaration, preserving nil request, duplicate, existing tool map
+    and function-group behavior. Private resolveWorkerBinding replaces both
+    eligible-slice lookups. Domain validation, filtering, metrics and error
+    precedence stay in the Memory/State owners; no new framework or export.
+  - >-
+    Production Go shrank by 29 physical lines: 85 removed from the two adapters
+    and 56 added in local_tools.go. Regressions cover both profiles, empty and
+    populated requests, nil/non-function and multiple declaration groups,
+    duplicate mutation behavior, concrete ADK dispatch and eligible binding lookup.
+verification: >-
+  CONTRACTOR_TEST_DATABASE_URL=<dedicated-disposable-db> go test -tags=integration
+  -count=1 -p=2 ./internal/planner/streamline ./internal/planner/router passed with
+  PostgreSQL configured and physical TMPDIR resolved; the complete suites ran,
+  including the database cases. Locked Runtime dependencies were synchronized.
+  make lint verification is ongoing.

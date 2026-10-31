@@ -84,29 +84,7 @@ func (t *plannerStateTool) Declaration() *genai.FunctionDeclaration {
 }
 
 func (t *plannerStateTool) ProcessRequest(_ agent.Context, request *model.LLMRequest) error {
-	if request == nil {
-		return fmt.Errorf("Planner model request is required")
-	}
-	if request.Tools == nil {
-		request.Tools = make(map[string]any)
-	}
-	if _, duplicate := request.Tools[t.operation]; duplicate {
-		return fmt.Errorf("duplicate tool %q", t.operation)
-	}
-	request.Tools[t.operation] = t
-	if request.Config == nil {
-		request.Config = &genai.GenerateContentConfig{}
-	}
-	for _, packed := range request.Config.Tools {
-		if packed != nil && packed.FunctionDeclarations != nil {
-			packed.FunctionDeclarations = append(packed.FunctionDeclarations, t.Declaration())
-			return nil
-		}
-	}
-	request.Config.Tools = append(request.Config.Tools, &genai.Tool{
-		FunctionDeclarations: []*genai.FunctionDeclaration{t.Declaration()},
-	})
-	return nil
+	return packLocalTool(request, t, t.Declaration())
 }
 
 func (t *plannerStateTool) Run(
@@ -115,7 +93,7 @@ func (t *plannerStateTool) Run(
 ) (map[string]any, error) {
 	started := time.Now()
 	args, code := decodeStateToolArgs(t.operation, t.router, raw)
-	binding, bindingOK := t.planner.resolveStateBinding(t.bindings, args.WorkerName)
+	binding, bindingOK := t.planner.resolveWorkerBinding(t.bindings, args.WorkerName)
 	if t.router && !bindingOK {
 		code = stateview.CodeUnavailable
 	}
@@ -169,24 +147,6 @@ func (p *streamlinePlanner) stateBindings(operation string) []workerBinding {
 		}
 	}
 	return result
-}
-
-func (p *streamlinePlanner) resolveStateBinding(
-	bindings []workerBinding,
-	workerName string,
-) (workerBinding, bool) {
-	if !p.profile.routesWorkers {
-		if len(bindings) == 1 && workerName == "" {
-			return bindings[0], true
-		}
-		return workerBinding{}, false
-	}
-	for _, binding := range bindings {
-		if binding.logicalName == workerName {
-			return binding, true
-		}
-	}
-	return workerBinding{}, false
 }
 
 func decodeStateToolArgs(operation string, router bool, raw any) (stateToolArgs, string) {
