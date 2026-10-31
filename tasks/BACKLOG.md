@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-77 open tasks: 12 in progress, 54 pending, 11 deferred. 1298 finished: 1280 completed, 18 archived.
+76 open tasks: 11 in progress, 54 pending, 11 deferred. 1299 finished: 1281 completed, 18 archived.
 
 ## In progress
 
@@ -13,7 +13,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V40-002](v40-002-agent-instruction-paired-runner.yml) | evals | feature | P1 | Prepare instruction experiment bindings and a frozen plan after format readiness |
 | [V64-001](v64-001-audit-priority-contracts.yml) | audits | feature | P1 | Define the lean Audit task and result contract |
-| [V64-019](v64-019-priority-test-exports.yml) | audits | chore | P3 | Restrict unused priority selection exports to test hooks |
 | [V261-001](v261-001-stabilize-release-gate-process-tests.yml) | quality | chore | P1 | Restore the deterministic release process gate |
 | [V341-001](v341-001-investigate-ci-tolerance-bumps.yml) | quality | chore | P2 | Investigate tolerances raised to unblock CI |
 | [V401-007](v401-007-runtime-suite-on-macos.yml) | quality | chore | P3 | Make the Runtime suite pass on macOS: declare the Linux-only Podman tests, make the other tests portable and file the macOS defects |
@@ -190,7 +189,7 @@ tasks in `introduced_by`.
 | Findings tools and collections (`findings`) | 2 | 17 | 8 | 9 | 14 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 18 | 15 | 13 | 19 |
 | Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
-| Audits (`audits`) | 20 | 67 | 84 | 36 | 124 |
+| Audits (`audits`) | 19 | 67 | 84 | 36 | 124 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 2 | 28 | 66 | 16 | 59 |

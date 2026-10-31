@@ -6,7 +6,7 @@ epic: audits
 kind: chore
 introduced_by: V64-000
 priority: P3
-status: in_progress
+status: completed
 depends_on:
 - V64-000
 languages:
@@ -37,4 +37,7 @@ tests:
   covers:
   - A1
   - A2
-implementation_commit: null
+implementation_commit: 99a427c052f5505bdaba89483915b13d8967f916
+verification:
+- go test -count=1 ./internal/auditpriority passed.
+- make lint passed on 2026-11-01, including the export gate and existing package tests.
