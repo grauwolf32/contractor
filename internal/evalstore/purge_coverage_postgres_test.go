@@ -45,8 +45,8 @@ ORDER BY 1, 2`
 
 // purgeFunctionsSQL lists the source of every function of the current
 // schema, overloads joined.
-const purgeFunctionsSQL = `
-SELECT proname::text, string_agg(prosrc, E'\n')
+var purgeFunctionsSQL = `
+SELECT proname::text, string_agg(` + explaintest.RoutineBodySQL("") + `, E'\n')
 FROM pg_proc
 WHERE pronamespace = current_schema()::regnamespace
 GROUP BY proname`
@@ -398,6 +398,13 @@ BEGIN INSERT INTO eval_purge_log VALUES (OLD.member_id); RETURN OLD; END $$`,
 		{"deletion trigger writing through a helper", []string{logTable,
 			`CREATE FUNCTION eval_purge_fixture_helper(note text) RETURNS void LANGUAGE plpgsql AS $$
 BEGIN UPDATE eval_purge_log SET note = note; END $$`,
+			`CREATE FUNCTION eval_purge_fixture() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN PERFORM eval_purge_fixture_helper(OLD.command_id); RETURN OLD; END $$`,
+			`CREATE TRIGGER eval_commands_logged BEFORE DELETE ON eval_commands FOR EACH ROW EXECUTE FUNCTION eval_purge_fixture()`},
+			[]string{"trigger eval_commands_logged on eval_commands writes [eval_purge_log] when the purge deletes from it"}},
+		{"deletion trigger writing through a SQL-standard helper", []string{logTable,
+			`CREATE FUNCTION eval_purge_fixture_helper(note text) RETURNS void LANGUAGE sql
+BEGIN ATOMIC UPDATE eval_purge_log SET note = $1; END`,
 			`CREATE FUNCTION eval_purge_fixture() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN PERFORM eval_purge_fixture_helper(OLD.command_id); RETURN OLD; END $$`,
 			`CREATE TRIGGER eval_commands_logged BEFORE DELETE ON eval_commands FOR EACH ROW EXECUTE FUNCTION eval_purge_fixture()`},
