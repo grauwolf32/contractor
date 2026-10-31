@@ -335,6 +335,7 @@ func newProcessHandler(readiness http.Handler, publicAPI ...http.Handler) http.H
 
 func newPrivateHandler(controlHandler http.Handler, artifactHandler http.Handler) http.Handler {
 	mux := http.NewServeMux()
+	mux.Handle("/private/v1/config", controlHandler)
 	mux.Handle("/private/v1/agents/", controlHandler)
 	mux.Handle("/private/v1/allocations/", artifactHandler)
 	return mux

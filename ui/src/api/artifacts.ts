@@ -1,10 +1,15 @@
-import { REVISION, stringRule } from "./contract";
+import { REVISION, schemaLimit, stringRule } from "./contract";
 import type { PublicAPI } from "./client";
 import type { ResponseOperation } from "./contract";
 import { invalidAPIResponse, PublicAPIError, requireData } from "./error";
 import type { components } from "./generated/public";
 
-export const MAXIMUM_ARTIFACT_BYTES = 64 * 1024 * 1024;
+export const MAXIMUM_ARTIFACT_BYTES = schemaLimit(
+  "ArtifactMetadata",
+  "maximum",
+  "properties",
+  "size",
+);
 // One inline text preview, HTTP exchanges included (LIM-UI-12).
 export const MAXIMUM_PREVIEW_BYTES = 1024 * 1024;
 export const PREVIEW_LIMIT_LABEL = `${MAXIMUM_PREVIEW_BYTES / (1024 * 1024)} MiB`;

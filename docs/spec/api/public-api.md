@@ -276,7 +276,7 @@ selector `key=value` and a sitemap rule origin and path keep a code-point
 ASCII grammar and the value by LIM-RUN-5; origin and path together by
 LIM-SMT-2), which one string schema cannot express.
 
-**API-R5.** An Artifact over its 64 MiB limit
+**API-R5.** An Artifact over its payload limit (LIM-ART-4)
 ([ART-R65](../artifacts/artifact-store.md),
 [LIM-ART-4](../platform/limits.md)) is rejected in the same way, with
 `413 artifact_too_large` (FAIL-API-1).

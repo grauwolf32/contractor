@@ -3588,6 +3588,22 @@
         "/telemetry/headers/Authorization"
       ]
     },
+    "shared-config.json": {
+      "omit": [
+        "/apiVersion",
+        "/digest",
+        "/limits",
+        "/limits/artifactPayloadMaxBytes",
+        "/version"
+      ],
+      "null": [
+        "/apiVersion",
+        "/digest",
+        "/limits",
+        "/limits/artifactPayloadMaxBytes",
+        "/version"
+      ]
+    },
     "stage-content-request.json": {
       "omit": [
         "/apiVersion",

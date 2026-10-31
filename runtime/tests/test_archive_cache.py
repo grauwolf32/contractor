@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
+from shared_config_defaults import MAX_ARTIFACT_BYTES
 from test_artifacts import TIMESTAMP_HEADERS
 
 from contractor_runtime.archive_cache import (
@@ -26,7 +27,6 @@ from contractor_runtime.archive_cache import (
 )
 from contractor_runtime.archive_cache_files import CACHE_DIRECTORY, MARKER, CacheFiles
 from contractor_runtime.artifacts import (
-    MAX_ARTIFACT_BYTES,
     ArtifactAPIError,
     ArtifactClient,
     ArtifactHTTPResponse,
@@ -580,7 +580,7 @@ def test_production_skill_hits_revalidate_trusted_digest_and_manifest(tmp_path):
 def test_actual_cli_startup_gates_cache_by_workspace_storage(tmp_path, monkeypatch, storage):
     import dataclasses
 
-    from test_cli import make_settings
+    from test_cli import ConfigTransport, make_settings
     from test_projectfs_zip import settings
 
     import contractor_runtime.cli as cli
@@ -604,7 +604,7 @@ def test_actual_cli_startup_gates_cache_by_workspace_storage(tmp_path, monkeypat
                 assert not list(tmp_path.rglob(CACHE_DIRECTORY))
 
         monkeypatch.setattr(cli, "_serve", serve_stub)
-        await cli.serve(configured)
+        await cli.serve(configured, transport=ConfigTransport())
         assert not list(tmp_path.rglob("*.data"))
 
     asyncio.run(scenario())

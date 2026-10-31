@@ -12,7 +12,6 @@ from typing import Any
 from contractor_runtime.adapters import AdapterHandles
 from contractor_runtime.adapters.host import EMPTY_ADAPTER_HANDLES
 from contractor_runtime.artifacts import (
-    MAX_ARTIFACT_BYTES,
     ArtifactClient,
     ArtifactTransportError,
 )
@@ -25,6 +24,7 @@ from contractor_runtime.contracts import (
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_metrics import ToolMetrics
 from contractor_runtime.redaction import runtime_secrets
+from contractor_runtime.shared_config import artifact_payload_max_bytes
 from contractor_runtime.toolsets.common.artifact_media import is_binary_media_type
 from contractor_runtime.toolsets.common.artifact_read_cache import (
     ExactArtifactReadCache,
@@ -43,7 +43,6 @@ from contractor_runtime.toolsets.common.factory import require_metrics, require_
 from contractor_runtime.toolsets.common.tool_base import ArtifactTool
 from contractor_runtime.workspace import AllocationWorkspace
 
-MAX_BASE64_PAYLOAD_LENGTH = ((MAX_ARTIFACT_BYTES + 2) // 3) * 4
 MAX_READ_CHUNK_BYTES = 256 * 1024
 # Refs per list_artifacts page: a page stays a few thousand tokens for small
 # models; the private API allows up to MAX_BINDING_LIST_LIMIT.
@@ -246,7 +245,7 @@ class WriteArtifactTool(ArtifactTool):
         namespace: Destination artifact namespace.
         name: Destination artifact binding name.
         media_type: MIME type describing the decoded bytes.
-        data_base64: Canonical base64 payload within the 64 MiB decoded artifact limit.
+        data_base64: Canonical base64 payload within the configured decoded artifact limit.
         expected_revision: Current destination revision for an update; omit only
             to create a new binding.
 
@@ -273,8 +272,10 @@ class WriteArtifactTool(ArtifactTool):
             require_model_visible_binding(namespace, name)
             if not isinstance(data_base64, str):
                 raise ToolInputError("data_base64 must be a canonical base64 string")
-            if len(data_base64) > MAX_BASE64_PAYLOAD_LENGTH:
-                raise ToolInputError("base64 artifact payload exceeds the 64 MiB limit")
+            if len(data_base64) > ((artifact_payload_max_bytes() + 2) // 3) * 4:
+                raise ToolInputError(
+                    "base64 artifact payload exceeds the configured Artifact limit"
+                )
             try:
                 data = base64.b64decode(data_base64, validate=True)
             except (binascii.Error, ValueError) as error:

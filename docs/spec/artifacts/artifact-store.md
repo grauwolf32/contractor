@@ -603,7 +603,7 @@ archive and document subtypes `zip`, `x-zip-compressed`, any `+zip` suffix,
 `java-archive`, `pdf` and `wasm`. Any other media type, including
 `application/octet-stream`, is downloaded once per exact revision and refused
 when it is not valid UTF-8. The allocation keeps one downloaded revision of
-at most 64 MiB, so paging it, or reading a versionless ref whose current
+at most LIM-ART-4, so paging it, or reading a versionless ref whose current
 revision it holds, downloads nothing again. Alongside the revision it keeps
 what it derived from the payload once, off the event loop: whether the
 payload is valid UTF-8 and, for `read_text_artifact`, a line index that
@@ -807,8 +807,8 @@ store, Audit packages, schemas, Runtime and UI share
 validation uses the stored media type and the strict slot matching rules owned
 by [Workflows](../configuration/workflows.md).
 
-**ART-R65.** The generic Artifact payload limit is 64 MiB
-(67,108,864 bytes) (LIM-ART-4), enforced by the public and private APIs,
+**ART-R65.** The generic Artifact payload limit is LIM-ART-4, owned by the
+Server and delivered to Runtime at startup (CTL-R171), enforced by the public and private APIs,
 clients and persistence. Source archive uploads, including source ZIPs, may use
 the full generic limit.
 

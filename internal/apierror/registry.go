@@ -155,8 +155,8 @@ var (
 // Artifacts and Projects.
 var (
 	ArtifactTooLarge = define("artifact_too_large", http.StatusRequestEntityTooLarge, false,
-		"artifact exceeds the 64 MiB limit",
-		"An Artifact exceeds its 64 MiB limit (LIM-ART-4); rejected in the same way as an oversized request body.",
+		"artifact exceeds the configured payload limit",
+		"An Artifact exceeds its payload limit (LIM-ART-4); rejected in the same way as an oversized request body.",
 		link("API-R5", publicAPI))
 	ArtifactFrozen = define("artifact_frozen", http.StatusConflict, false,
 		"artifact binding is frozen and cannot change",

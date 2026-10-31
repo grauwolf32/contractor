@@ -18,6 +18,15 @@ from contractor_runtime.workspace import AllocationWorkspace
 
 
 async def run(args: argparse.Namespace) -> dict[str, object]:
+    # Component probes bypass the production CLI bootstrap deliberately.
+    from contractor_runtime.contracts import SharedConfig, decode_private
+    from contractor_runtime.shared_config import install_shared_config
+
+    install_shared_config(
+        decode_private(
+            SharedConfig, (Path(__file__).parent / "testdata/shared-config.json").read_bytes()
+        ).snapshot()
+    )
     connections = PrivateConnections(
         runtime_agent_client_context(
             ca_file=args.ca,

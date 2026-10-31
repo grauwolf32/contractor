@@ -20,11 +20,11 @@ from document_preparation_probes import (
     yield_to_loop,
 )
 from document_write_faults import FaultInjectingArtifactClient
+from shared_config_defaults import MAX_ARTIFACT_BYTES
 
 import contractor_runtime.toolsets.likec4.tools as likec4_module
 from contractor_runtime.allocation import WorkerState
 from contractor_runtime.artifacts import (
-    MAX_ARTIFACT_BYTES,
     ArtifactAPIError,
     ArtifactResponseLimitError,
     ArtifactValue,
