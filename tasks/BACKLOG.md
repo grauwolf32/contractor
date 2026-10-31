@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-82 open tasks: 10 in progress, 61 pending, 11 deferred. 1281 finished: 1266 completed, 15 archived.
+80 open tasks: 11 in progress, 58 pending, 11 deferred. 1290 finished: 1275 completed, 15 archived.
 
 ## In progress
 
@@ -20,7 +20,8 @@ the epics are in [epics.yml](epics.yml).
 | [V417-003](v417-003-isolated-worker-context-compaction.yml) | planner-worker | feature | P1 | Continue an isolated Worker through workflow-selected context compaction |
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
-| [V425-030](v425-030-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V425-034](v425-034-allocation-prepare-rollback.yml) | execution-core | chore | P3 | Consolidate failed Allocation preparation rollback |
+| [V425-036](v425-036-integrate-sweep-removal-with-main.yml) | audits | chore | P1 | Integrate Sweep removal with the folded baseline and current main |
 
 ## Pending
 
@@ -74,7 +75,6 @@ the epics are in [epics.yml](epics.yml).
 | --- | --- | --- | --- | --- |
 | [V411-007](v411-007-trusted-http-capture.yml) | defect | P1 | — | Retain actual engagement HTTP exchanges through ordinary Audit evidence |
 | [V411-011](v411-011-project-findings-reader.yml) | feature | P1 | V411-015 | Read live Project findings through allocation-authorized existing mechanisms |
-| [V425-032](v425-032-sarif-output-checks-in-tests.yml) | chore | P3 | — | Move SARIF output schema and semantic self-checks into tests |
 
 ### Workflow catalog and document workflows (`workflows`)
 
@@ -84,12 +84,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-014](v411-014-pentest-discovery-surface.yml) | feature | P1 | V411-015, V410-006 | Discover URL-only targets using HTTP tools and the shared sitemap |
 | [V411-015](v411-015-http-pentest-workflow-presets.yml) | feature | P1 | V411-007, V411-019 | Ship an ordinary HTTP pentest Workflow with an early process demonstration |
 | [V412-003](v412-003-browser-pentest-profiles-and-gate.yml) | feature | P2 | V412-001, V410-009, V411-020 | Compose optional browser investigation with truthful availability and results |
-
-### Projects, artifacts and lifecycle controls (`projects-artifacts`)
-
-| Task | Kind | Priority | Waiting for | Title |
-| --- | --- | --- | --- | --- |
-| [V425-012](v425-012-bounded-project-drain-check.yml) | defect | P3 | — | Bound the Project deletion drain check by active work, not finished Run history |
 
 ### Audits (`audits`)
 
@@ -162,7 +156,6 @@ the epics are in [epics.yml](epics.yml).
 | [V411-020](v411-020-pentest-http-release-gate.yml) | chore | P1 | V411-007, V411-010, V411-011, V411-013, V411-014, V411-015, V411-016, V411-017, V411-018, V411-019, V410-007 | Gate the composed ordinary HTTP pentest through real processes |
 | [V417-009](v417-009-context-compaction-release-gate.yml) | chore | P1 | V417-003, V417-004, V417-005, V417-006, V417-007 | Verify context compaction across real processes and close the deterministic milestone |
 | [V420-005](v420-005-planner-compaction-release-gate.yml) | chore | P1 | V420-006, V420-003, V420-004 | Accept Planner compaction through real-process and integrated release gates |
-| [V425-013](v425-013-go-test-wall-clock-wave-3.yml) | chore | P3 | — | Replace the remaining wall-clock waits in Go PostgreSQL tests and restore the listener budget coverage |
 | [V425-014](v425-014-runtime-tests-fail-on-macos.yml) | chore | P3 | — | Make the Runtime process-liveness assertions able to fail on macOS |
 
 ## Deferred
@@ -188,7 +181,7 @@ tasks in `introduced_by`.
 
 | Epic | Open | Feature | Defect | Chore | Later fixes caused |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Run execution core (`execution-core`) | 2 | 43 | 56 | 22 | 84 |
+| Run execution core (`execution-core`) | 2 | 47 | 56 | 22 | 84 |
 | Planners and the Worker model boundary (`planner-worker`) | 9 | 35 | 47 | 29 | 68 |
 | Runtime labels, configuration and credentials (`runtime-config`) | 9 | 26 | 13 | 5 | 44 |
 | Shared Memory tools (`memory`) | 0 | 6 | 9 | 2 | 12 |
@@ -197,14 +190,14 @@ tasks in `introduced_by`.
 | Code analysis and taint annotations (`code-analysis`) | 1 | 14 | 15 | 2 | 20 |
 | HTTP and Caido tools (`http-tools`) | 4 | 22 | 27 | 9 | 25 |
 | Scanner tool Workers and scan planning (`scan-tools`) | 2 | 17 | 10 | 9 | 20 |
-| Findings tools and collections (`findings`) | 3 | 16 | 9 | 9 | 14 |
+| Findings tools and collections (`findings`) | 2 | 16 | 9 | 9 | 14 |
 | Workflow catalog and document workflows (`workflows`) | 4 | 18 | 15 | 12 | 19 |
-| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 1 | 36 | 37 | 11 | 60 |
-| Audits (`audits`) | 23 | 67 | 84 | 35 | 122 |
+| Projects, artifacts and lifecycle controls (`projects-artifacts`) | 0 | 36 | 37 | 11 | 60 |
+| Audits (`audits`) | 24 | 67 | 84 | 36 | 123 |
 | Evaluations (`evals`) | 6 | 21 | 39 | 15 | 49 |
 | Podman sandbox (`sandbox`) | 1 | 10 | 2 | 1 | 3 |
 | Web UI (`ui`) | 1 | 25 | 66 | 16 | 59 |
-| Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 7 | 20 |
+| Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 8 | 20 |
 | Public API and wire contracts (`api-contracts`) | 1 | 2 | 38 | 25 | 16 |
-| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 45 | 14 |
-| Quality, CI and process (`quality`) | 11 | 1 | 28 | 112 | 26 |
+| PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 46 | 15 |
+| Quality, CI and process (`quality`) | 10 | 1 | 28 | 112 | 26 |

@@ -12,8 +12,17 @@ func TestPostgresRemoveScanSweepsPreservesRunsAndSharedArtifacts(t *testing.T) {
 	}
 	ctx := t.Context()
 	pool, _ := isolatedPools(t, ctx, dsn)
-	previous, _ := embeddedMigration(t, "remove_scan_sweeps")
-	installMigrationPrefix(t, ctx, pool, previous)
+	available, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(available) < 2 || available[0].version != 1 || available[1].name != "000002_remove_scan_sweeps.sql" {
+		t.Fatal("expected folded baseline followed by Sweep retirement")
+	}
+	previous := available[0].version
+	if _, err := applyMigrations(ctx, pool, MigrationBudgets{}, available[:1]); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := pool.Exec(ctx, `INSERT INTO projects(project_id,owner_id,kind,name,request_idempotency_key,request_digest) VALUES('scan-project','owner','project','Preserved','create','sha256:'||repeat('a',64))`); err != nil {
 		t.Fatal(err)
 	}

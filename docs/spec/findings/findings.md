@@ -662,9 +662,7 @@ inputs and rejects a Stage of another Run before the transaction, and the
 transaction reads the Stage again for provenance and authorization. The transaction revalidates selected evidence and stores the
 projection atomically with the receipt. Reconcile replay from the receipt
 before reading optional sources, including after source Run deletion; equal
-keys from independent calls retain independent receipts. Migration marks
-existing rows explicitly `not_recorded` without changing their existing data.
-Audit-held projections survive source deletion and one destination's purge;
+keys from independent calls retain independent receipts. Audit-held projections survive source deletion and one destination's purge;
 when their receipt becomes discarded, erase all derived key content and
 record only `discarded` (LIFE-FND-1). Project purge owns final row deletion.
 
@@ -765,8 +763,7 @@ Server-computed keys, or one unavailable reason. The owner finding view exposes
 Reasons are `not_recorded`, `not_provided`, `input_limit`, `asset_unavailable`,
 `selector_unavailable`, `anchor_language_unsupported`, `anchor_parser_unavailable`, `source_invalid`,
 `source_missing`, `parse_error`, `anchor_ambiguous` and `discarded`.
-Migration marks existing rows `not_recorded` without reparsing. Existing receipt
-replay precedes source reads; transport retries use byte-identical prepared
+Existing receipt replay precedes source reads; transport retries use byte-identical prepared
 submissions. Independent calls remain separate observations. Audit holds retain
 exact sources and derivations after source Run deletion, another Audit's purge
 does not remove them, and discard clears every derived field to the unavailable
@@ -791,9 +788,7 @@ actual Audit Project and group hash on the existing finding row. The group hash
 is SHA-256 hex of RFC 8785 JSON
 `["contractor/finding-group/v1", project_id, algorithm, value]`.
 The database derives scope from the Audit, enforces its composite foreign key,
-validates the group shape and rejects primary/first-receipt mutation. Migration
-freezes already retained projections without changing receipts or reparsing
-source. There is no global identity, membership table, extra receipt or
+validates the group shape and rejects primary/first-receipt mutation. There is no global identity, membership table, extra receipt or
 background controller.
 
 **FND-R176.** Authorized finding detail/list responses include the closed
@@ -1640,10 +1635,17 @@ retryable 503 `storage_transaction_conflict` with `Retry-After`.
 **FND-R202.** The `generic/1` policy renders one SARIF 2.1.0 run for the
 owning Audit from its frozen snapshot, without network, model, filesystem or
 store discovery. Exporter version `1.1.1` identifies the structured renderer.
-The actual output bytes must pass the embedded official OASIS Errata 01 JSON
+The actual output bytes must conform to the official OASIS Errata 01 JSON
 Schema (SHA-256 `c3b4bb2d6093897483348925aaa73af03b3e3f4bd4ca38cef26dcb4212a2682e`)
-and independent semantic checks before publication. Schema loading cannot fetch
-external resources. Snapshot and SARIF remain bounded to 16 MiB each;
+and FND-R203 through FND-R208. Regression tests check actual renderer output
+against the pinned schema, independent semantic checks and golden fixtures;
+full output checks and schema embedding run only in tests, with offline-only
+schema loading. Production validates frozen inputs and enforces deterministic
+construction invariants and resource bounds. Renderer defects detectable only
+by the full output checks are caught by the regression suite; reopen this
+boundary if externally supplied SARIF projections enter rendering or the
+validated-input and deterministic-construction boundary changes. Snapshot and
+SARIF remain bounded to 16 MiB each;
 diagnostics remain bounded to 4 MiB and 4096 items. Construction accounts for
 repeated locations, flows and presentations before accumulating oversized output.
 

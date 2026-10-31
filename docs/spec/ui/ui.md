@@ -1412,6 +1412,17 @@ Unknown versions, fields or invalid digests have no local policy fallback.
 Logout retains no protected view or session query state; a new application
 loads configuration again. Artifact upload controls and explanatory limits,
 ordinary and Audit Artifact downloads and archive admission use the received
-payload ceiling; specialized smaller budgets stay independent. The initial
+payload ceiling; specialized smaller budgets stay independent. Requests for
+operations declaring the common public `Limit` parameter cap their preferred
+size by `limits.publicPageMaxItems`; absent sizes use that ceiling. Continuation
+cursors and filters are preserved. Domain-specific list limits remain separate. The initial
 Node-served runtime-config document still supplies the API base URL, UI version
 and supported API versions; it contains no shared policy numbers.
+
+The CTL-R171 Git input byte ceiling controls repository import form and client
+validation before mutation. Run label editors, draft validation and metadata
+filters use the received label count and UTF-8 key/value bounds. Audit authoring
+uses the received derived count that leaves space for child Run provenance.
+Reusable pure validators receive policy explicitly; they do not consult global
+mutable settings or compiled numeric defaults. Runtime placement labels retain
+their separate grammar and bounds.

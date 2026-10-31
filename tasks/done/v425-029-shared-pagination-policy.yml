@@ -1,0 +1,87 @@
+schema_version: '1.0'
+id: V425-029
+title: Deliver pagination ceilings through shared startup configuration
+milestone: runtime-shared-config-2026-10
+epic: execution-core
+kind: feature
+priority: P1
+status: completed
+depends_on: [V425-025, V425-026]
+languages: [go, python, typescript]
+goal: >-
+  A change to a Server pagination ceiling reaches Runtime and browser clients
+  through startup configuration without independently editing their constants.
+demonstration: >-
+  Fetch shared config, request a public list from the browser and a private
+  Artifact list from Runtime with a smaller test ceiling; both consumers obey
+  their received bound and retain ordinary continuation semantics.
+context:
+  authority: >-
+    User decision on 2026-10-31: extend the existing shared configuration with
+    the proposed cross-component settings; keep Server-only limits local.
+    Agent proposal: begin with independent public-page and private-Artifact
+    bounds, preserving current 200 and 256 defaults and local UI preferences.
+  specification: docs/spec/execution/control-plane.md#CTL-R171
+scope:
+  in:
+    - Server-owned pagination values, shared schema and digest over every field.
+    - Runtime Artifact list validation from the immutable snapshot.
+    - Browser list requests bounded by the fetched public limit only for operations declaring the common Limit parameter.
+    - Generated OpenAPI limits, fixtures, clients and boundary regressions.
+  out:
+    - Domain-specific Eval and allocation-history page policies, cursor grammar and hot reload.
+    - Worker results, Worker State, HTTP evidence and UI input families follow separately.
+requirements:
+  - id: R1
+    text: publicPageMaxItems and artifactListMaxItems remain distinct; Go owners are the only editable numeric definitions.
+  - id: R2
+    text: Public lists clamp preferred sizes to the fetched cap; Runtime rejects invalid private list sizes before transport; no local policy fallback.
+  - id: R3
+    text: Schema and fixture generation detects drift, and digest verification includes every shared limit.
+failure_outcomes:
+  - operation: Existing startup config read and subsequent list reads
+    permanent: Existing invalid config and list errors remain permanent, with no fallback snapshot.
+    retryable: Existing bounded startup and API retry policies remain in force.
+    ambiguous: Read-only requests can be repeated without mutations.
+    cancelled: Existing request signal and Runtime cancellation govern the request.
+    timeout: Existing request timeouts remain independent of list size.
+cardinality:
+  - collection: Shared pagination policy
+    expected: Two scalar ceilings in the existing startup document.
+    maximum: Positive exact JSON integers.
+    bound: One successful immutable snapshot per client or Runtime process, no database or collection scan.
+lifecycle:
+  - entity: Existing startup snapshot
+    delete: Released on process or API-client disposal.
+    cascade: No new persistent entities.
+    retention: Restart is required to adopt changed policy.
+acceptance_criteria:
+  - id: A1
+    text: Both endpoints and Go/Python/UI validate the same complete config and reject missing, invalid or digest-tampered fields.
+  - id: A2
+    text: Smaller test pagination limits control real Runtime Artifact client and browser generated-client requests, including continuation; specialized list policies remain independent.
+  - id: A3
+    text: Changing a pagination source updates named schema and fixture bindings while unrelated equal-valued limits remain unchanged.
+tests:
+  - command: go test ./internal/contracts/... ./internal/artifacts/... ./internal/controlplane/... ./internal/httpapi/public/... ./internal/archtest/... ./internal/pagelimit/...
+    covers: [A1, A2]
+  - command: make test-wire-cross-language
+    covers: [A1, A2]
+  - command: make verify-public-api
+    covers: [A1, A3]
+  - command: make ui-verify
+    covers: [A1, A2]
+  - command: cd runtime && uv run pytest tests/test_artifacts.py tests/test_shared_config_bootstrap.py tests/test_run_artifacts_toolset.py
+    covers: [A1, A2]
+  - command: python3 -m unittest discover -s scripts -p test_generate_shared_config.py
+    covers: [A3]
+  - command: make lint
+    covers: [A1, A3]
+
+implementation_commit: 7b1765964ddfa7c84ed93700935f60cea152159d
+verification:
+  - Full touched Go packages passed with disposable PostgreSQL contractor_shared_limits; required-member fixture regeneration preceded the successful final run.
+  - make test-wire-cross-language passed 357 fixtures, 395 Go and 285 Python shared tests; make verify-public-api passed.
+  - make ui-verify passed generated checks, lint, typecheck, 2647 tests plus one expected failure, server tests and production build.
+  - Runtime Artifact, bootstrap and run-artifacts toolset suites passed 72 tests; generator regression passed with independent altered pagination ceilings.
+  - make lint passed including generated dependency graph, source guards, script tests and Runtime import contracts.

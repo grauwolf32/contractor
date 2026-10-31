@@ -124,8 +124,14 @@ V425-005 should no longer repair sweep ID bounds or cosmetically relocate sweep 
 
 Implemented by V425-033 in commit 5392479ea, on `codex/remove-sweeps-audit-scans`.
 The real Audit demonstration also exposed the existing 16 MiB input-read budget
-being rejected by the 4 MiB plan/output ceiling; V425-034 fixed that prerequisite
+being rejected by the 4 MiB plan/output ceiling; V425-035 fixed that prerequisite
 separately. The obsolete standalone template-manifest result advertisement was
 removed; exact internal manifest provenance remains in the ordinary report.
 Production sources decreased by 2,622 lines including the migration. Required
 checks passed, with the full Runtime suite verified on a supported Linux host.
+
+Integration with the later baseline fold (V425-036) renumbers retirement to
+`000002_remove_scan_sweeps.sql` after the new `000001_baseline.sql`. Its populated
+regression starts from that baseline. Retired-chain ledgers remain incompatible
+under PER-R30; any later demo upgrade across the fold needs its separately
+planned data-preserving rebuild. This integration does not reset or deploy a database.

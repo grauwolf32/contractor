@@ -16,15 +16,8 @@ from contractor_runtime.contracts.artifacts import ArtifactRef, is_reserved_resu
 from contractor_runtime.contracts.base import (
     _STATE_METRIC_NAME_PATTERN,
     ID_PATTERN,
-    MAX_AGENT_STATE_SNAPSHOT_BYTES,
     MAX_EXACT_INTEGER,
-    MAX_STATE_WORKSPACE_PATH_BYTES,
-    MAX_STATE_WORKSPACE_PATHS,
     MAX_UINT64,
-    MAX_WORKER_COMPLETION_BYTES,
-    MAX_WORKER_FAILURE_MESSAGE_BYTES,
-    MAX_WORKER_OBSERVATION_TOOLS,
-    MAX_WORKER_RESULT_ARTIFACTS,
     WORKER_FAILURE_CODE_PATTERN,
     WORKER_SUBTASK_ID_PATTERN,
     VersionedWireModel,
@@ -41,6 +34,7 @@ from contractor_runtime.contracts.base import (
 )
 from contractor_runtime.contracts.reports import ToolCallOutcome, WorkerCompletionDiagnostics
 from contractor_runtime.contracts.workspace import WorkspaceObservationSummary
+from contractor_runtime.shared_config import get_shared_config
 
 _WIRE_DEADLINE = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
@@ -125,9 +119,13 @@ class WorkerFailure(WireModel):
             raise ValueError("Worker failure code is invalid")
         if (
             is_blank(self.message)
-            or len(self.message.encode("utf-8")) > MAX_WORKER_FAILURE_MESSAGE_BYTES
+            or len(self.message.encode("utf-8"))
+            > get_shared_config().worker_failure_message_max_bytes
         ):
-            raise ValueError("Worker failure message must contain 1..4096 UTF-8 bytes")
+            raise ValueError(
+                "Worker failure message must contain 1.."
+                f"{get_shared_config().worker_failure_message_max_bytes} UTF-8 bytes"
+            )
         return self
 
 
@@ -253,7 +251,7 @@ class WorkerObservations(WireModel):
 
     @model_validator(mode="after")
     def validate_observations(self) -> Self:
-        if len(self.tools) > MAX_WORKER_OBSERVATION_TOOLS:
+        if len(self.tools) > get_shared_config().worker_observation_max_tools:
             raise ValueError("Worker observation tools exceed their bound")
         for name in self.tools:
             if len(name) > 128 or ID_PATTERN.fullmatch(name) is None:
@@ -332,17 +330,23 @@ class WorkerStateToolCall(WireModel):
 
 
 class WorkerStateWorkspaceObservation(WireModel):
-    scope_paths: list[str] = Field(max_length=MAX_STATE_WORKSPACE_PATHS)
+    scope_paths: list[str]
     scope_complete: bool
-    interactions: list[WorkerStateWorkspaceInteraction] = Field(
-        max_length=MAX_STATE_WORKSPACE_PATHS
-    )
+    interactions: list[WorkerStateWorkspaceInteraction]
     detail_complete: bool
 
     @model_validator(mode="after")
     def validate_workspace(self) -> Self:
+        if (
+            max(len(self.scope_paths), len(self.interactions))
+            > get_shared_config().worker_state_workspace_max_paths
+        ):
+            raise ValueError("Worker State workspace paths exceed their bound")
         scope = [_require_state_workspace_path(path) for path in self.scope_paths]
-        if scope != sorted(set(scope)) or json_byte_size(scope) > MAX_STATE_WORKSPACE_PATH_BYTES:
+        if (
+            scope != sorted(set(scope))
+            or json_byte_size(scope) > get_shared_config().worker_state_workspace_paths_max_bytes
+        ):
             raise ValueError("Worker State workspace scope is invalid")
         interaction_order = [(item.first_ordinal, item.path) for item in self.interactions]
         if interaction_order != sorted(interaction_order) or len(
@@ -351,7 +355,7 @@ class WorkerStateWorkspaceObservation(WireModel):
             raise ValueError("Worker State workspace interactions are invalid")
         if (
             json_byte_size([item.path for item in self.interactions])
-            > MAX_STATE_WORKSPACE_PATH_BYTES
+            > get_shared_config().worker_state_workspace_paths_max_bytes
         ):
             raise ValueError("Worker State workspace interaction paths exceed their bound")
         return self
@@ -368,7 +372,7 @@ class WorkerResult(WireModel):
     def validate_worker_result(self) -> Self:
         _require_worker_subtask_id(self.subtask_id)
         _require_worker_result_text(self.result)
-        if len(self.artifacts) > MAX_WORKER_RESULT_ARTIFACTS:
+        if len(self.artifacts) > get_shared_config().worker_result_max_artifacts:
             raise ValueError("Worker result artifacts exceed their bound")
         for slot, artifact in self.artifacts.items():
             _require_text("Worker result artifact slot", slot)
@@ -464,7 +468,7 @@ class WorkerCompletion(VersionedWireModel):
             raise ValueError("Worker invocationId is invalid")
         if (
             len(self.model_dump_json(by_alias=True, exclude_none=True).encode("utf-8"))
-            > MAX_WORKER_COMPLETION_BYTES
+            > get_shared_config().worker_completion_max_bytes
         ):
             raise ValueError("WorkerCompletion exceeds its bounded contract")
         return self
@@ -494,7 +498,7 @@ class AgentStateSnapshot(VersionedWireModel):
     @model_validator(mode="after")
     def validate_snapshot(self) -> Self:
         if len(self.model_dump_json(by_alias=True).encode("utf-8")) > (
-            MAX_AGENT_STATE_SNAPSHOT_BYTES
+            get_shared_config().worker_state_max_bytes
         ):
             raise ValueError("AgentStateSnapshot exceeds its bounded contract")
         return self

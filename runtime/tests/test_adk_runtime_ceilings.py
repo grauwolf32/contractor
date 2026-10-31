@@ -11,6 +11,7 @@ from fakes.model import scripted_model, text_result, tool_call
 from google.adk.events import Event, EventActions
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
+from shared_config_defaults import MAX_AGENT_STATE_SNAPSHOT_BYTES
 from test_adk_runtime import create_runtime, stage_request
 
 from contractor_runtime.contracts import WorkerSessionMode
@@ -21,7 +22,6 @@ from contractor_runtime.worker.sessions import (
     WorkerSessionLifecycle,
     WorkerSessionLifecycleError,
 )
-from contractor_runtime.worker.state import MAX_AGENT_STATE_SNAPSHOT_BYTES
 from contractor_runtime.worker.state import WorkerStateStore as WorkerState
 
 

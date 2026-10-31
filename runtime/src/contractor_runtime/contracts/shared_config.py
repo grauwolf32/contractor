@@ -18,8 +18,30 @@ from contractor_runtime.shared_config import SharedConfigSnapshot
 
 
 class SharedLimits(WireModel):
+    git_import_url_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    run_metadata_max_labels: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    run_metadata_key_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    run_metadata_value_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    audit_max_labels: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+
+    http_request_body_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    http_response_body_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    http_header_block_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+
+    worker_result_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    worker_completion_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    worker_failure_message_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    worker_result_max_artifacts: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    worker_observation_max_tools: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    worker_workspace_max_files_read: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    worker_state_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    worker_state_workspace_max_paths: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    worker_state_workspace_paths_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+
     model_config = ConfigDict(frozen=True)
     artifact_payload_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    public_page_max_items: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    artifact_list_max_items: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
 
 
 class SharedConfig(VersionedWireModel):
@@ -38,6 +60,4 @@ class SharedConfig(VersionedWireModel):
         return self
 
     def snapshot(self) -> SharedConfigSnapshot:
-        return SharedConfigSnapshot(
-            self.version, self.digest, self.limits.artifact_payload_max_bytes
-        )
+        return SharedConfigSnapshot(self.version, self.digest, **self.limits.model_dump())

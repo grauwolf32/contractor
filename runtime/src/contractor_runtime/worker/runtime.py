@@ -37,7 +37,6 @@ from contractor_runtime.agent_skills.runtime import (
 )
 from contractor_runtime.contracts import (
     API_VERSION,
-    MAX_WORKER_RESULT_BYTES,
     AgentStateSnapshot,
     ArtifactRef,
     ResolvedModelPolicy,
@@ -80,6 +79,7 @@ from contractor_runtime.redaction import (
     runtime_setting_values,
     substring_values,
 )
+from contractor_runtime.shared_config import get_shared_config
 from contractor_runtime.telemetry.execution import (
     ContentFreeInstrumentation,
     declares_sensitive_output,
@@ -1212,7 +1212,7 @@ class AdkWorkerRuntime:
         observed_refs: tuple[ArtifactRef, ...],
     ) -> tuple[WorkerResult | WorkerFailure, bool]:
         candidate_bytes = len(candidate.encode("utf-8"))
-        if candidate_bytes > MAX_WORKER_RESULT_BYTES:
+        if candidate_bytes > get_shared_config().worker_result_max_bytes:
             return _failure(
                 "worker_result_too_large", "Worker terminal result exceeds its limit", False
             ), False
@@ -1638,7 +1638,8 @@ def _validate_result_fields(
     if (
         isinstance(raw_candidate, dict)
         and isinstance(raw_candidate.get("result"), str)
-        and len(raw_candidate["result"].encode("utf-8")) > MAX_WORKER_RESULT_BYTES
+        and len(raw_candidate["result"].encode("utf-8"))
+        > get_shared_config().worker_result_max_bytes
     ):
         return _failure(
             "worker_result_too_large", "Worker structured result exceeds its limit", False
@@ -1884,7 +1885,7 @@ def _lean_observations(
     if not isinstance(raw_tools, Mapping):
         raise RuntimeError("Worker invocation tool metrics are unavailable")
     tools: dict[str, ToolObservationCount] = {}
-    for name in sorted(raw_tools):
+    for name in sorted(raw_tools)[: get_shared_config().worker_observation_max_tools]:
         aggregate = raw_tools[name]
         if not isinstance(name, str) or not isinstance(aggregate, Mapping):
             raise RuntimeError("Worker invocation tool metrics are invalid")
@@ -1897,5 +1898,10 @@ def _lean_observations(
         profile="lean@1",
         tools=tools,
         **({"workspace": workspace} if workspace is not None else {}),
-        truncated=(bool(metrics.get("truncated")) or workspace_truncated or projection_failed),
+        truncated=(
+            bool(metrics.get("truncated"))
+            or workspace_truncated
+            or projection_failed
+            or len(raw_tools) > get_shared_config().worker_observation_max_tools
+        ),
     )

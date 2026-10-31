@@ -1,15 +1,9 @@
-import { schemaLimit, schemaViolation } from "./contract";
+import type { SharedConfig } from "./shared-config";
+import { schemaViolation } from "./contract";
 import {
   runMetadataLabelKeyError,
   runMetadataLabelValueError,
 } from "./run-metadata-labels";
-
-export const AUDIT_LABEL_LIMIT = schemaLimit(
-  "AuditLabels",
-  "maxProperties",
-  "allOf",
-  "1",
-);
 
 /** Only these ordinary label keys constrain Runtime placement. */
 export function labelPlacementError(
@@ -30,6 +24,7 @@ export function labelPlacementError(
 /** Validate editable labels without dropping incomplete entries or values. */
 export function auditLabels(
   entries: readonly { key: string; value: string }[],
+  limits: SharedConfig["limits"],
 ): {
   labels: Record<string, string>;
   error: string | undefined;
@@ -37,7 +32,8 @@ export function auditLabels(
   const labels: Record<string, string> = {};
   for (const { key, value } of entries) {
     const error =
-      runMetadataLabelKeyError(key) ?? runMetadataLabelValueError(value);
+      runMetadataLabelKeyError(key, limits) ??
+      runMetadataLabelValueError(value, limits);
     if (error !== undefined) return { labels, error };
     if (key.startsWith("audit."))
       return {
@@ -48,7 +44,7 @@ export function auditLabels(
       return { labels, error: `Label ${key} is duplicated.` };
     labels[key] = value;
   }
-  const maximum = AUDIT_LABEL_LIMIT;
+  const maximum = limits.auditMaxLabels;
   if (Object.keys(labels).length > maximum)
     return {
       labels,

@@ -15,6 +15,7 @@ from typing import Any
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
+from shared_config_defaults import MAX_STATE_WORKSPACE_PATH_BYTES
 
 from contractor_runtime.agent_skills.package import _parse_manifest
 from contractor_runtime.contracts import (
@@ -24,7 +25,6 @@ from contractor_runtime.contracts import (
     WorkspaceObservationSummary,
 )
 from contractor_runtime.contracts.base import (
-    MAX_STATE_WORKSPACE_PATH_BYTES,
     MAX_WORKER_STATE_PATH_BYTES,
     MAX_WORKER_STATE_PATH_COMPONENTS,
     MAX_WORKSPACE_TARGET_BYTES,

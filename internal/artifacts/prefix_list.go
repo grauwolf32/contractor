@@ -1,12 +1,14 @@
 package artifacts
 
-import "context"
+import (
+	"context"
+	"github.com/grauwolf32/contractor/internal/contracts"
+)
 
 // MaxBindingListLimit bounds every binding listing (ListRefs, ListPrefix)
 // independently of the number of bindings in the scope (LIM-ART-3). The
-// Runtime's artifacts.MAX_BINDING_LIST_LIMIT and
-// api/testdata/v1alpha1/artifact-list-cases.json carry the same value.
-const MaxBindingListLimit = 256
+// Runtime receives this policy through CTL-R171 shared configuration.
+const MaxBindingListLimit = contracts.MaxArtifactListItems
 
 // ListPrefix returns at most limit versionless refs in name order. Callers
 // checking a quota must request one extra result to detect overflow.

@@ -6,13 +6,13 @@ import "github.com/grauwolf32/contractor/internal/contracts"
 // are specified in docs/spec/findings/findings.md.
 const (
 	MaximumFindingLocations     = MaximumEvidencePerItem
-	MaximumFindingPathBytes     = 4096                      // V63-001 relative POSIX path contract.
-	MaximumFindingURLBytes      = 8192                      // Existing http-tools MAX_URL_BYTES.
-	MaximumFindingMethodBytes   = 64                        // V63-001 HTTP token contract.
-	MaximumFindingLine          = contracts.MaxExactInteger // Largest exactly representable JSON/JS integer.
-	MaximumHTTPHeaderBytes      = 64 << 10                  // Existing http-tools MAX_HEADER_BYTES.
-	MaximumHTTPRequestBodyBytes = 1 << 20                   // Existing http-tools MAX_REQUEST_BODY_BYTES.
-	MaximumHTTPRedirects        = 10                        // Existing http-tools MAX_REDIRECTS.
-	MaximumHTTPAttempts         = 3                         // Existing http-tools MAX_ATTEMPTS; shared retry budget.
+	MaximumFindingPathBytes     = 4096                              // V63-001 relative POSIX path contract.
+	MaximumFindingURLBytes      = 8192                              // Existing http-tools MAX_URL_BYTES.
+	MaximumFindingMethodBytes   = 64                                // V63-001 HTTP token contract.
+	MaximumFindingLine          = contracts.MaxExactInteger         // Largest exactly representable JSON/JS integer.
+	MaximumHTTPHeaderBytes      = contracts.MaxHTTPHeaderBlockBytes // Shared CTL-R171 header policy.
+	MaximumHTTPRequestBodyBytes = contracts.MaxHTTPRequestBodyBytes // Shared CTL-R171 request policy.
+	MaximumHTTPRedirects        = 10                                // Existing http-tools MAX_REDIRECTS.
+	MaximumHTTPAttempts         = 3                                 // Existing http-tools MAX_ATTEMPTS; shared retry budget.
 	MaximumHTTPExchangeAttempts = MaximumHTTPRedirects + MaximumHTTPAttempts
 )

@@ -88,7 +88,7 @@ func snapshotJSONReads() []snapshotJSONRead {
 		{
 			name: "Workflow snapshot credential", document: workflowSnapshotDocument,
 			path: []string{"**", llmgateway.CredentialIDMember}, want: llmCredential,
-			sql: []string{"jsonb_path_query_array(workflow_snapshot, '$.**." + llmgateway.CredentialIDMember + ".**', '{}', true)"},
+			sql: []string{"jsonb_path_query_array(workflow_snapshot, '$.**.\"" + llmgateway.CredentialIDMember + "\".**'::jsonpath, '{}'::jsonb, true)"},
 		},
 		{
 			name: "Run snapshot LLM credentials", document: runSnapshotDocument,

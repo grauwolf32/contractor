@@ -75,6 +75,11 @@ class Files(unittest.TestCase):
                 json.dumps(
                     {
                         "version": 1,
+                        "network": "10.42.0.0/24",
+                        "egress": {
+                            "network": "172.25.18.0/30",
+                            "check_url": "https://provider.example/models",
+                        },
                         "hosts": [{"ssh": "first"}, {"ssh": "second"}],
                     }
                 )

@@ -1,9 +1,9 @@
+import { TEST_SHARED_CONFIG } from "../test/shared-config";
 import labelCases from "../../../api/testdata/v1alpha1/run-metadata-label-cases.json";
 import { describe, expect, it } from "vitest";
 
 import {
   normalizeRunMetadataLabelSelectors,
-  RUN_METADATA_LABEL_LIMIT,
   runMetadataLabelKeyError,
   runMetadataLabelValueError,
 } from "./run-metadata-labels";
@@ -15,11 +15,13 @@ function authorable(value: unknown): boolean {
   }
   const entries = Object.entries(value);
   return (
-    entries.length <= RUN_METADATA_LABEL_LIMIT &&
+    entries.length <= TEST_SHARED_CONFIG.limits.runMetadataMaxLabels &&
     entries.every(
       ([key, entry]) =>
-        runMetadataLabelKeyError(key) === undefined &&
-        runMetadataLabelValueError(entry) === undefined,
+        runMetadataLabelKeyError(key, TEST_SHARED_CONFIG.limits) ===
+          undefined &&
+        runMetadataLabelValueError(entry, TEST_SHARED_CONFIG.limits) ===
+          undefined,
     )
   );
 }
@@ -27,13 +29,16 @@ function authorable(value: unknown): boolean {
 describe("Run metadata labels", () => {
   it("normalizes exact selectors and preserves contradictory values", () => {
     expect(
-      normalizeRunMetadataLabelSelectors([
-        { key: "debug", value: "" },
-        { key: "purpose", value: "eval" },
-        { key: "eval.leg", value: "b" },
-        { key: "purpose", value: "eval" },
-        { key: "eval.leg", value: "a" },
-      ]),
+      normalizeRunMetadataLabelSelectors(
+        [
+          { key: "debug", value: "" },
+          { key: "purpose", value: "eval" },
+          { key: "eval.leg", value: "b" },
+          { key: "purpose", value: "eval" },
+          { key: "eval.leg", value: "a" },
+        ],
+        TEST_SHARED_CONFIG.limits,
+      ),
     ).toEqual([
       { key: "debug", value: "" },
       { key: "eval.leg", value: "a" },
@@ -43,13 +48,21 @@ describe("Run metadata labels", () => {
   });
 
   it("provides field-specific authoring failures without trimming opaque values", () => {
-    expect(runMetadataLabelKeyError("contractor.trace")).toBe(
-      "The contractor. prefix is reserved.",
-    );
-    expect(runMetadataLabelKeyError("Eval.ID")).toContain("lowercase ASCII");
-    expect(runMetadataLabelValueError("")).toBeUndefined();
-    expect(runMetadataLabelValueError("\0hidden")).toContain("U+0000");
-    expect(runMetadataLabelValueError(" value ")).toBeUndefined();
+    expect(
+      runMetadataLabelKeyError("contractor.trace", TEST_SHARED_CONFIG.limits),
+    ).toBe("The contractor. prefix is reserved.");
+    expect(
+      runMetadataLabelKeyError("Eval.ID", TEST_SHARED_CONFIG.limits),
+    ).toContain("lowercase ASCII");
+    expect(
+      runMetadataLabelValueError("", TEST_SHARED_CONFIG.limits),
+    ).toBeUndefined();
+    expect(
+      runMetadataLabelValueError("\0hidden", TEST_SHARED_CONFIG.limits),
+    ).toContain("U+0000");
+    expect(
+      runMetadataLabelValueError(" value ", TEST_SHARED_CONFIG.limits),
+    ).toBeUndefined();
   });
 });
 
@@ -66,4 +79,26 @@ describe("shared run metadata label cases", () => {
       ).toBe(false);
     },
   );
+});
+
+it("applies received label policy independently of compiled defaults", () => {
+  const limits = {
+    ...TEST_SHARED_CONFIG.limits,
+    runMetadataMaxLabels: 1,
+    runMetadataKeyMaxBytes: 4,
+    runMetadataValueMaxBytes: 5,
+  };
+  expect(runMetadataLabelKeyError("team", limits)).toBeUndefined();
+  expect(runMetadataLabelKeyError("teams", limits)).toContain("4 UTF-8 bytes");
+  expect(runMetadataLabelValueError("ééx", limits)).toBeUndefined();
+  expect(runMetadataLabelValueError("ééxx", limits)).toContain("5 UTF-8 bytes");
+  expect(() =>
+    normalizeRunMetadataLabelSelectors(
+      [
+        { key: "one", value: "" },
+        { key: "two", value: "" },
+      ],
+      limits,
+    ),
+  ).toThrow("1 entries");
 });

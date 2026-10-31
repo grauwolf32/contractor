@@ -1,4 +1,5 @@
-import type { PublicAPI } from "./client";
+import { getSharedConfig } from "./shared-config";
+import { requireContractHeaders, type PublicAPI } from "./client";
 import { ARTIFACT_NAME_PATTERN } from "./artifacts";
 import { stringRule } from "./contract";
 import { invalidAPIResponse, publicAPIError, requireData } from "./error";
@@ -73,6 +74,20 @@ export async function importGitArtifact(
         ? { "If-None-Match": "*" as const }
         : { "If-Match": `"${draft.expectedRevision}"` },
   };
+  requireContractHeaders(
+    draft.projectId === undefined
+      ? "POST /v1/artifacts/{namespace}/{name}/git-import"
+      : "POST /v1/projects/{projectId}/artifacts/{namespace}/{name}/git-import",
+    params.header,
+  );
+  const { limits } = await getSharedConfig(api, signal);
+  if (
+    new TextEncoder().encode(draft.repositoryUrl).length >
+    limits.gitImportUrlMaxBytes
+  )
+    throw new TypeError(
+      `Repository URL must be at most ${limits.gitImportUrlMaxBytes} UTF-8 bytes.`,
+    );
   const body = {
     repositoryUrl: draft.repositoryUrl,
     mode: draft.mode ?? "snapshot",

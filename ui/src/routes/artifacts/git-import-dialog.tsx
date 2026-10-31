@@ -1,3 +1,4 @@
+import { useSharedConfig } from "../../config/shared-config";
 import { useQueryClient } from "@tanstack/react-query";
 import { useId, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
@@ -69,6 +70,7 @@ export function GitImportDialog({
   onClose: () => void;
   onImported: (result: GitImportResult) => void;
 }) {
+  const { limits } = useSharedConfig();
   const api = usePublicAPI();
   const cache = useQueryClient();
   const heading = useId();
@@ -106,6 +108,17 @@ export function GitImportDialog({
     }
     if (!repositoryUrl || repositoryUrl.trim() !== repositoryUrl) {
       setError(new Error("Enter a repository URL without surrounding spaces."));
+      return;
+    }
+    if (
+      new TextEncoder().encode(repositoryUrl).length >
+      limits.gitImportUrlMaxBytes
+    ) {
+      setError(
+        new Error(
+          `Repository URL must be at most ${limits.gitImportUrlMaxBytes} UTF-8 bytes.`,
+        ),
+      );
       return;
     }
     const signal = operation.start();

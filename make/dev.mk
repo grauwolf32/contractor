@@ -19,6 +19,7 @@ lint: shared-config-check generate-public-client-check docs-dependencies-check m
 	go -C tools/testonlyexports test -count=1 ./...
 	go -C tools/testonlyexports run . -tags=integration,e2e -baseline tools/testonlyexports/baseline.txt "$(CURDIR)"
 	cd runtime && uv run python -m unittest discover -s ../scripts -p 'test_*.py'
+	sh deploy/litellm/test-run-argv.sh
 	sh deploy/phoenix/test-run.sh
 	sh deploy/ansible/tests/run.sh
 	sh deploy/hybrid/test.sh

@@ -52,7 +52,11 @@ async function readConfig(
   // This scalar projection is canonical JSON: keys are sorted, with positive
   // exact integers below the exponential-notation threshold (CTL-R171).
   const projection = JSON.stringify({
-    limits: { artifactPayloadMaxBytes: value.limits.artifactPayloadMaxBytes },
+    limits: Object.fromEntries(
+      Object.entries(value.limits).sort(([a], [b]) =>
+        a < b ? -1 : a > b ? 1 : 0,
+      ),
+    ),
     version: value.version,
   });
   const digest = `sha256:${await sha256Hex(new TextEncoder().encode(projection))}`;

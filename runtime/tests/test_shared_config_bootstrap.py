@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -24,7 +25,11 @@ from contractor_runtime.toolsets.common.artifact_read_cache import artifact_read
 
 
 def document(cap: int = 17) -> dict:
-    projection = {"limits": {"artifactPayloadMaxBytes": cap}, "version": 1}
+    limits = json.loads((Path(__file__).parent / "testdata/shared-config.json").read_text())[
+        "limits"
+    ]
+    limits["artifactPayloadMaxBytes"] = cap
+    projection = {"limits": limits, "version": 1}
     digest = hashlib.sha256(
         json.dumps(projection, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
@@ -249,3 +254,222 @@ def test_small_payload_policy_keeps_metadata_transport_budget(monkeypatch):
         )
 
     asyncio.run(scenario())
+
+
+def test_fetched_artifact_list_ceiling_controls_client_before_transport(monkeypatch):
+    from dataclasses import replace
+
+    monkeypatch.setattr(
+        shared_config, "_snapshot", replace(shared_config._snapshot, artifact_list_max_items=2)
+    )
+
+    async def scenario():
+        transport = AsyncMock()
+        client = ArtifactClient("allocation-test", transport)
+        with pytest.raises(ValueError, match="list limit"):
+            await client.list_artifact_page(limit=3)
+        with pytest.raises(ValueError, match="list limit"):
+            await client.list_artifact_prefix("analysis", "report", limit=3)
+        transport.request.assert_not_called()
+        # Boundary and continuation use the fetched limit without rewriting the cursor.
+        transport.request.side_effect = OSError("observed request")
+        with pytest.raises(OSError):
+            await client.list_artifact_page(limit=2, cursor="next")
+        assert transport.request.call_args.args[1].endswith("limit=2&cursor=next")
+
+    asyncio.run(scenario())
+
+
+def test_shared_received_worker_policy_controls_post_import_models(monkeypatch):
+    from dataclasses import replace
+
+    from contractor_runtime.contracts import (
+        AgentStateSnapshot,
+        WorkerCompletion,
+        WorkerFailure,
+        WorkerObservations,
+        WorkerResult,
+        WorkspaceObservationSummary,
+    )
+    from contractor_runtime.contracts.worker import WorkerStateWorkspaceObservation
+
+    original = shared_config.get_shared_config()
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(
+            original,
+            worker_result_max_bytes=7,
+            worker_failure_message_max_bytes=5,
+            worker_result_max_artifacts=1,
+            worker_observation_max_tools=1,
+            worker_workspace_max_files_read=1,
+            worker_state_workspace_max_paths=1,
+        ),
+    )
+    observations = {"profile": "lean@1", "tools": {}, "truncated": False}
+    result = {
+        "subtaskId": "0",
+        "result": "éééx",
+        "observations": observations,
+        "artifacts": {},
+        "summarized": False,
+    }
+    WorkerResult.model_validate(result)
+    with pytest.raises(ValidationError):
+        WorkerResult.model_validate({**result, "result": "éééxx"})
+    WorkerFailure(code="failed", message="ééx", retryable=False)
+    with pytest.raises(ValidationError):
+        WorkerFailure(code="failed", message="ééxx", retryable=False)
+    artifact = {"namespace": "analysis", "name": "report", "revision": "r1"}
+    WorkerResult.model_validate({**result, "artifacts": {"one": artifact}})
+    with pytest.raises(ValidationError):
+        WorkerResult.model_validate({**result, "artifacts": {"one": artifact, "two": artifact}})
+    count = {"calls": 1, "failures": 0}
+    WorkerObservations.model_validate({**observations, "tools": {"one": count}})
+    with pytest.raises(ValidationError):
+        WorkerObservations.model_validate({**observations, "tools": {"one": count, "two": count}})
+    workspace = dict(
+        scopedFiles=2,
+        scopeComplete=False,
+        discoveredFiles=2,
+        readFiles=2,
+        matchedFiles=0,
+        modifiedFiles=0,
+        detailComplete=False,
+        filesRead=["a.py"],
+        filesReadTruncated=True,
+    )
+    WorkspaceObservationSummary.model_validate(workspace)
+    with pytest.raises(ValidationError):
+        WorkspaceObservationSummary.model_validate(
+            {**workspace, "filesRead": ["a.py", "b.py"], "filesReadTruncated": False}
+        )
+    state_workspace = dict(
+        scopePaths=["a.py"], scopeComplete=False, interactions=[], detailComplete=False
+    )
+    WorkerStateWorkspaceObservation.model_validate(state_workspace)
+    with pytest.raises(ValidationError):
+        WorkerStateWorkspaceObservation.model_validate(
+            {**state_workspace, "scopePaths": ["a.py", "b.py"]}
+        )
+    cap = len(b'["a.py"]')
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(shared_config.get_shared_config(), worker_state_workspace_paths_max_bytes=cap),
+    )
+    WorkerStateWorkspaceObservation.model_validate(state_workspace)
+    with pytest.raises(ValidationError):
+        WorkerStateWorkspaceObservation.model_validate({**state_workspace, "scopePaths": ["aa.py"]})
+
+    completion = WorkerCompletion(
+        apiVersion="contractor/v1alpha1",
+        invocationId="invocation-1",
+        stateRevision=1,
+        result=result,
+    )
+    cap = len(completion.model_dump_json(by_alias=True, exclude_none=True).encode())
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(shared_config.get_shared_config(), worker_completion_max_bytes=cap),
+    )
+    WorkerCompletion.model_validate(completion.model_dump(exclude_none=True))
+    with pytest.raises(ValidationError):
+        WorkerCompletion.model_validate(
+            {**completion.model_dump(exclude_none=True), "invocation_id": "invocation-11"}
+        )
+    # State envelope checking reads the received cap at validation time as well.
+    fixture = (
+        Path(__file__).resolve().parents[2]
+        / "api/testdata/v1alpha1/valid/agent-state-snapshot.json"
+    )
+    monkeypatch.setattr(shared_config, "_snapshot", original)
+    state = AgentStateSnapshot.model_validate_json(fixture.read_bytes())
+    cap = len(state.model_dump_json(by_alias=True, exclude_none=True).encode())
+    monkeypatch.setattr(shared_config, "_snapshot", replace(original, worker_state_max_bytes=cap))
+    AgentStateSnapshot.model_validate_json(fixture.read_bytes())
+    monkeypatch.setattr(
+        shared_config, "_snapshot", replace(original, worker_state_max_bytes=cap - 1)
+    )
+    with pytest.raises(ValidationError):
+        AgentStateSnapshot.model_validate_json(fixture.read_bytes())
+
+
+def test_received_http_policy_controls_post_import_models_and_tools(monkeypatch):
+    import base64
+    from dataclasses import replace
+
+    from contractor_runtime.toolsets.common.http_capture import (
+        CapturedHTTPRequest,
+        CapturedHTTPResponse,
+        StructuredHTTPMessage,
+    )
+    from contractor_runtime.toolsets.http import tools as http_tools
+
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(
+            shared_config.get_shared_config(),
+            http_request_body_max_bytes=3,
+            http_response_body_max_bytes=5,
+            http_header_block_max_bytes=6,
+        ),
+    )
+
+    def message(body):
+        return dict(kind="structured", headers=[], body_base64=base64.b64encode(body).decode())
+
+    CapturedHTTPRequest(method="POST", url="https://example.test/", message=message(b"123"))
+    with pytest.raises(ValidationError):
+        CapturedHTTPRequest(method="POST", url="https://example.test/", message=message(b"1234"))
+    CapturedHTTPResponse(status=200, message=message(b"12345"), complete=True)
+    with pytest.raises(ValidationError):
+        CapturedHTTPResponse(status=200, message=message(b"123456"), complete=True)
+    StructuredHTTPMessage(kind="structured", headers=[dict(name="X", value="ééx")], body_base64="")
+    with pytest.raises(ValidationError):
+        StructuredHTTPMessage(
+            kind="structured", headers=[dict(name="X", value="ééxx")], body_base64=""
+        )
+    assert http_tools._request_body("text", "éx")[0] == "éx".encode()
+    with pytest.raises(http_tools.HTTPToolError):
+        http_tools._request_body("text", "éxx")
+    assert http_tools.decoded_body_cache_max_bytes() == 4 * 5 + 128
+    assert http_tools.request_header_max_bytes() == 6
+
+
+def test_received_metadata_policy_controls_wire_validation_and_telemetry(monkeypatch):
+    from dataclasses import replace
+
+    from contractor_runtime.adapters.otlp_http import (
+        RUN_METADATA_LABEL_ATTRIBUTE_PREFIX,
+        _run_metadata_attributes,
+    )
+    from contractor_runtime.contracts.base import (
+        _require_runtime_labels,
+        normalize_run_metadata_labels,
+    )
+
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(
+            shared_config.get_shared_config(),
+            run_metadata_max_labels=1,
+            run_metadata_key_max_bytes=4,
+            run_metadata_value_max_bytes=5,
+        ),
+    )
+    accepted = {"team": "ééx"}
+    assert normalize_run_metadata_labels(accepted) == accepted
+    assert _run_metadata_attributes(accepted, ()) == {
+        RUN_METADATA_LABEL_ATTRIBUTE_PREFIX + "team": "ééx"
+    }
+    for invalid in ({"teams": "x"}, {"team": "ééxx"}, {"one": "a", "two": "b"}):
+        with pytest.raises(ValueError):
+            normalize_run_metadata_labels(invalid)
+        assert _run_metadata_attributes(invalid, ()) == {}
+    # Placement labels have their own grammar and size policy.
+    _require_runtime_labels("labels", ["team-label"])

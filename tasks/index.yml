@@ -14,7 +14,7 @@ execution_policy:
     removes the independent local and durable sweeps, their API/CLI and
     persistence through the existing web-scan Audit path. This supersedes
     preservation of cross-Project sweeps in V406-018. Implementation was authorized
-    on 2026-10-31; V425-034 separately repairs the existing custom-rule Audit
+    on 2026-10-31; V425-035 separately repairs the existing custom-rule Audit
     input read bound required by the replacement demonstration.
     Pentest delivery revised by the user on 2026-10-30: V422-002 and V422-003
     are completed on main; preserve their recorded implementation and verification.
@@ -116,8 +116,8 @@ execution_policy:
 
 milestones:
   - id: runtime-shared-config-2026-10
-    exit_task: V425-026
-    outcome: Runtime bootstraps shared Artifact policy over mTLS before registration, UI loads the same non-secret policy through the authenticated public API, and one Server-owned value drives schema and persistence checks.
+    exit_task: V427-003
+    outcome: Runtime and UI load immutable non-secret shared policy at startup; Server-owned Artifact, pagination, Worker result/State, HTTP evidence and Git/metadata input ceilings drive consumers, generated schemas and persistence checks.
   - id: data-model-consumers-2026-10
     exit_task: V421-010
     outcome: Accepted data-model review changes connect trusted Audit evidence and finding conditions to reports, expose bounded owner-authorized Runtime and tool-call diagnostics, remove unsupported Eval and private-wire fields end to end, and retain Artifact storage timestamps with accurate API/UI semantics, verified on an integrated deterministic release gate.

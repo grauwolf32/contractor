@@ -1,3 +1,4 @@
+import type { SharedConfig } from "../api/shared-config";
 // One render harness for unit tests: a memory router, a fresh query client,
 // a PublicAPI over a fake Server and, when asked, a signed-in session.
 import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
@@ -76,6 +77,7 @@ export interface RenderOptions {
   /** Signs in with this session (a SessionProvider over a stub API). */
   session?: AuthSession;
   queryClient?: QueryClient;
+  sharedConfig?: SharedConfig;
 }
 
 /**
@@ -110,7 +112,9 @@ export function renderWithAPI(
   const view = render(
     <QueryClientProvider client={queryClient}>
       <PublicAPIProvider api={api}>
-        <SharedConfigProvider config={TEST_SHARED_CONFIG}>
+        <SharedConfigProvider
+          config={options.sharedConfig ?? TEST_SHARED_CONFIG}
+        >
           {tree}
         </SharedConfigProvider>
       </PublicAPIProvider>

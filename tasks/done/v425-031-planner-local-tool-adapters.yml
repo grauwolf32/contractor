@@ -14,7 +14,7 @@ context:
   authority: >-
     User decision 2026-10-31: accept research step 1, common Allocation rollback
     and local ADK adapters, as detailed in this chat. This task owns the Go
-    Planner half; V425-030 owns the independent Runtime half.
+    Planner half; V425-034 (originally V425-030) owns the independent Runtime half.
   review: docs/research/2026-10-31-architecture-simplification-research.md
   specification:
     - docs/spec/execution/planners.md#PLN-R3
@@ -97,5 +97,8 @@ verification: >-
   including the database cases. Locked Runtime dependencies were synchronized.
   make lint passed, including generated clients, static checks, release graph,
   task/spec validation, Ruff and all four Runtime import-layer contracts.
-  The implementation is on codex/allocation-rollback-planner-adapters and is not merged.
+  Integration with current main on 2026-10-31 repeated the complete PostgreSQL
+  Streamline/Router suites and make lint successfully; the Runtime lifecycle
+  selection also passed (133 passed, 15 Linux/Podman skips). The original
+  Allocation task was renumbered to V425-034 to preserve main's pgx task identity.
 implementation_commit: 0d02498473effa42e7249a0fdce2abb54faef17f

@@ -143,6 +143,7 @@
       "maximum": 9007199254740991
     }
   },
+  "x-maxBytes": 262144,
   "oneOf": [
     {
       "required": ["result"],

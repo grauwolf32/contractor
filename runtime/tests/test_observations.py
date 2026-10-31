@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+from dataclasses import replace
 
 import pytest
+from shared_config_defaults import MAX_AGENT_STATE_SNAPSHOT_BYTES
 
 import contractor_runtime.worker.observations as observations_module
+from contractor_runtime import shared_config
 from contractor_runtime.observations import WorkspaceToolObservation
 from contractor_runtime.projectfs import WorkspaceObservationMetadata
 from contractor_runtime.telemetry.invocations import InvocationMetricsReducer
@@ -14,7 +17,7 @@ from contractor_runtime.worker.observations import (
     lean_workspace_summary,
     validate_workspace_observation,
 )
-from contractor_runtime.worker.state import MAX_AGENT_STATE_SNAPSHOT_BYTES, WorkerStateStore
+from contractor_runtime.worker.state import WorkerStateStore
 
 
 def metadata(*paths: str, digest_character: str = "0") -> WorkspaceObservationMetadata:
@@ -69,9 +72,15 @@ def test_reducer_tracks_unique_coverage_and_deterministic_call_order() -> None:
 def test_reducer_bounds_scope_interactions_and_lean_path_detail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(observations_module, "MAX_WORKSPACE_SCOPE_PATHS", 2)
-    monkeypatch.setattr(observations_module, "MAX_WORKSPACE_INTERACTIONS", 3)
-    monkeypatch.setattr(observations_module, "MAX_LEAN_FILES_READ", 2)
+    monkeypatch.setattr(
+        shared_config,
+        "_snapshot",
+        replace(
+            shared_config.get_shared_config(),
+            worker_state_workspace_max_paths=2,
+            worker_workspace_max_files_read=1,
+        ),
+    )
     reducer = WorkspaceObservationReducer.from_metadata(metadata("a.py", "b.py", "c.py", "d.py"))
     assert reducer.scope_paths == ("a.py", "b.py")
     assert reducer.scope_complete is False
@@ -79,13 +88,13 @@ def test_reducer_bounds_scope_interactions_and_lean_path_detail(
         reducer.record(WorkspaceToolObservation(read=(path,)), ordinal=ordinal)
 
     state = reducer.snapshot()
-    assert len(state["interactions"]) == 3
+    assert len(state["interactions"]) == 2
     assert state["detailComplete"] is False
     summary, truncated = lean_workspace_summary(state)
     assert summary is not None
     assert summary.scoped_files == 2
-    assert summary.read_files == 3
-    assert summary.files_read == ["a.py", "b.py"]
+    assert summary.read_files == 2
+    assert summary.files_read == ["a.py"]
     assert summary.files_read_truncated is True
     assert summary.unread_files is None
     assert truncated is True
@@ -121,8 +130,13 @@ def test_scope_byte_limit_stops_at_a_deterministic_lexical_prefix(
     second = "b-" + "y" * 40
     monkeypatch.setattr(
         observations_module,
-        "MAX_WORKSPACE_SCOPE_PATH_BYTES",
-        len(json.dumps([first], separators=(",", ":")).encode("utf-8")),
+        "get_shared_config",
+        lambda: replace(
+            shared_config.get_shared_config(),
+            worker_state_workspace_paths_max_bytes=len(
+                json.dumps([first], separators=(",", ":")).encode("utf-8")
+            ),
+        ),
     )
     reducer = WorkspaceObservationReducer.from_metadata(metadata(first, second))
     assert reducer.scope_paths == (first,)

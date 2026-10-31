@@ -8,7 +8,7 @@ introduced_by: V406-004
 priority: P1
 status: completed
 implementation_commit: 5392479eaa4ce0c5b2557f95a6d695e0b3e79dcc
-depends_on: [V406-018, V422-003, V425-034]
+depends_on: [V406-018, V422-003, V425-035]
 languages: [go, python, sql, typescript, yaml, markdown]
 goal: Owners scan one target through an ordinary Project Audit and its selected Workflow, with no independent Sweep resource or orchestration left.
 demonstration: >-
@@ -82,7 +82,7 @@ context:
     The real custom-rule Audit demonstration exposed a pre-existing read-budget
     mismatch: the 16 MiB rulepack verification request was rejected by the
     adapter's 4 MiB plan/output ceiling. Stop extending this removal task;
-    V425-034 separately fixes and verifies that prerequisite before the final
+    V425-035 separately fixes and verifies that prerequisite before the final
     installed/custom process demonstration. No Sweep compatibility path returns.
   implementation_boundary: >-
     Caller inventory during the real Audit demonstration found the removed primary
@@ -93,6 +93,12 @@ context:
     manifest and exact templateManifest report provenance, generic additional
     Artifact support (Katana) and strict Worker result validation. No new output
     protocol or scanner-specific Planner branch is introduced.
+  integration: >-
+    V425-036 adapts this branch to main's later folded baseline: the same
+    retirement migration is now 000002 after baseline 000001, with its populated
+    regression using the production migrator. The originally recorded migration
+    65 and task V425-034 evidence below belongs to the pre-integration revision;
+    the independent prerequisite is now V425-035 to preserve main's identities.
   verification: >-
     2026-10-31: all listed Go, PostgreSQL, public API, browser/UI, deterministic
     Nuclei Audit process, catalog, architecture and lint commands passed. The

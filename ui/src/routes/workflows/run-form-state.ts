@@ -1,10 +1,8 @@
+import { useSharedConfig } from "../../config/shared-config";
 import { useEffect, useRef, useState } from "react";
 
 import type { ArtifactMetadata } from "../../api/artifacts";
-import {
-  RUN_METADATA_LABEL_LIMIT,
-  type RunMetadataLabelDraft,
-} from "../../api/run-metadata-labels";
+import { type RunMetadataLabelDraft } from "../../api/run-metadata-labels";
 import type {
   RunDraftEntry,
   RunDraftMemoryStore,
@@ -48,6 +46,7 @@ export function useRunDraftState(
   draftEntry: RunDraftEntry,
   draftStore: RunDraftMemoryStore,
 ) {
+  const { limits } = useSharedConfig();
   const [draft, setDraft] = useState<RunDraftState>(() =>
     structuredClone(draftEntry.state),
   );
@@ -120,10 +119,10 @@ export function useRunDraftState(
 
   const metadataLabels = {
     add(key = "", value = ""): void {
-      if (draft.metadataLabels.length >= RUN_METADATA_LABEL_LIMIT) {
+      if (draft.metadataLabels.length >= limits.runMetadataMaxLabels) {
         setErrors((current) => ({
           ...current,
-          metadataLabels: `A Run can have at most ${RUN_METADATA_LABEL_LIMIT} metadata labels.`,
+          metadataLabels: `A Run can have at most ${limits.runMetadataMaxLabels} metadata labels.`,
         }));
         return;
       }
@@ -139,11 +138,11 @@ export function useRunDraftState(
       );
       if (
         draft.metadataLabels.length + missing.length >
-        RUN_METADATA_LABEL_LIMIT
+        limits.runMetadataMaxLabels
       ) {
         setErrors((current) => ({
           ...current,
-          metadataLabels: `The eval preset would exceed ${RUN_METADATA_LABEL_LIMIT} metadata labels.`,
+          metadataLabels: `The eval preset would exceed ${limits.runMetadataMaxLabels} metadata labels.`,
         }));
         return;
       }

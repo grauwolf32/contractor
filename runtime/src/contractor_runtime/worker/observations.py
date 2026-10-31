@@ -18,12 +18,8 @@ from contractor_runtime.observations import (
     exact_observation_path,
 )
 from contractor_runtime.projectfs.storage import WorkspaceObservationMetadata
+from contractor_runtime.shared_config import get_shared_config
 
-MAX_WORKSPACE_SCOPE_PATHS = 10_000
-MAX_WORKSPACE_SCOPE_PATH_BYTES = 2 * 1024 * 1024
-MAX_WORKSPACE_INTERACTIONS = 10_000
-MAX_WORKSPACE_INTERACTION_PATH_BYTES = 2 * 1024 * 1024
-MAX_LEAN_FILES_READ = 25
 _MAX_UINT64 = 2**64 - 1
 _DIGEST = re.compile(r"^sha256:[0-9a-f]{64}$")
 
@@ -94,8 +90,9 @@ class WorkspaceObservationReducer:
         for path in lexical_paths:
             addition = json_byte_size(path) + int(bool(admitted))
             if (
-                len(admitted) >= MAX_WORKSPACE_SCOPE_PATHS
-                or encoded_bytes + addition > MAX_WORKSPACE_SCOPE_PATH_BYTES
+                len(admitted) >= get_shared_config().worker_state_workspace_max_paths
+                or encoded_bytes + addition
+                > get_shared_config().worker_state_workspace_paths_max_bytes
             ):
                 complete = False
                 break
@@ -125,9 +122,9 @@ class WorkspaceObservationReducer:
             if interaction is None:
                 addition = json_byte_size(path) + int(bool(self._interactions))
                 if (
-                    len(self._interactions) >= MAX_WORKSPACE_INTERACTIONS
+                    len(self._interactions) >= get_shared_config().worker_state_workspace_max_paths
                     or self._interaction_path_bytes + addition
-                    > MAX_WORKSPACE_INTERACTION_PATH_BYTES
+                    > get_shared_config().worker_state_workspace_paths_max_bytes
                 ):
                     self.detail_complete = False
                     continue
@@ -178,16 +175,16 @@ def validate_workspace_observation(value: Mapping[str, Any] | None) -> dict[str,
     detail_complete = value.get("detailComplete")
     if (
         not isinstance(scope_paths, list)
-        or len(scope_paths) > MAX_WORKSPACE_SCOPE_PATHS
+        or len(scope_paths) > get_shared_config().worker_state_workspace_max_paths
         or type(scope_complete) is not bool
         or not isinstance(interactions, list)
-        or len(interactions) > MAX_WORKSPACE_INTERACTIONS
+        or len(interactions) > get_shared_config().worker_state_workspace_max_paths
         or type(detail_complete) is not bool
     ):
         raise ValueError("Worker workspace observation bounds are invalid")
     copied_scope = [exact_observation_path(path) for path in scope_paths]
     if copied_scope != sorted(set(copied_scope)) or json_byte_size(copied_scope) > (
-        MAX_WORKSPACE_SCOPE_PATH_BYTES
+        get_shared_config().worker_state_workspace_paths_max_bytes
     ):
         raise ValueError("Worker workspace observation scope is invalid")
     copied_interactions = [_validate_interaction(item) for item in interactions]
@@ -197,7 +194,7 @@ def validate_workspace_observation(value: Mapping[str, Any] | None) -> dict[str,
     ) != len(copied_interactions):
         raise ValueError("Worker workspace interaction order is invalid")
     if json_byte_size([item["path"] for item in copied_interactions]) > (
-        MAX_WORKSPACE_INTERACTION_PATH_BYTES
+        get_shared_config().worker_state_workspace_paths_max_bytes
     ):
         raise ValueError("Worker workspace interaction paths exceed their bound")
     return {
@@ -229,7 +226,7 @@ def lean_workspace_summary(
         except ValueError:
             continue
         files_read.append(path)
-        if len(files_read) == MAX_LEAN_FILES_READ:
+        if len(files_read) == get_shared_config().worker_workspace_max_files_read:
             break
     complete = workspace["scopeComplete"] and workspace["detailComplete"]
     unread_files = len(set(workspace["scopePaths"]) - read) if complete else None

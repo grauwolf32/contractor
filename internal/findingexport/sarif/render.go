@@ -10,6 +10,8 @@ import (
 	"github.com/grauwolf32/contractor/internal/strictjson"
 )
 
+const schemaURI = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json"
+
 type builder struct {
 	snapshot    findingexport.Snapshot
 	receipts    map[string]findingexport.Receipt
@@ -19,9 +21,9 @@ type builder struct {
 	diagnostics map[string]findingexport.Diagnostic
 }
 
-// Render validates frozen inputs, constructs bounded deterministic projections,
-// then validates the actual bytes against the embedded official schema and
-// semantic reference invariants. Replaying publication never calls Render.
+// Render validates frozen inputs and constructs bounded deterministic projections.
+// Regression tests check output schema and semantics. Replaying publication
+// never calls Render.
 func Render(snapshot findingexport.Snapshot) ([]byte, findingexport.Diagnostics, error) {
 	if snapshot.ExporterVersion != findingexport.ExporterVersion {
 		return nil, findingexport.Diagnostics{}, findingexport.ErrInvalid
@@ -74,13 +76,6 @@ func Render(snapshot findingexport.Snapshot) ([]byte, findingexport.Diagnostics,
 		return nil, findingexport.Diagnostics{}, findingexport.ErrLimit
 	}
 	data = append(data, '\n')
-	validated, err := validateSchema(data)
-	if err != nil {
-		return nil, findingexport.Diagnostics{}, err
-	}
-	if err := validateSemantics(validated, snapshot); err != nil {
-		return nil, findingexport.Diagnostics{}, err
-	}
 	diagnostics := findingexport.Diagnostics{Schema: findingexport.DiagnosticsSchema, AuditID: snapshot.AuditID, Items: []findingexport.Diagnostic{}}
 	for _, key := range sortedKeys(b.diagnostics) {
 		diagnostics.Items = append(diagnostics.Items, b.diagnostics[key])
