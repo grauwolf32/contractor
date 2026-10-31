@@ -1,5 +1,5 @@
 schema_version: "1.0"
-id: V425-037
+id: V425-038
 title: Keep escalation execution configuration inside its Workflow
 milestone: hub-audit-structure-2026-10
 epic: workflows
@@ -11,6 +11,11 @@ depends_on: []
 languages: [go, typescript]
 goal: Author reusable escalation settings inside one Workflow with YAML anchors instead of independently published ExecutionConfig profiles.
 context:
+  renumbering: >-
+    Integration 2026-10-31: the isolated branch originally allocated V425-037.
+    Main independently published that ID for redundant Server copy cleanup.
+    Preserve the published main identity and renumber this configuration task
+    to V425-038; its implementation commit and verification remain unchanged.
   authority: >-
     User decision 2026-10-31 in this chat: remove the standalone kind
     ExecutionConfig and executionConfig.ref; reuse inline settings within one
