@@ -57,16 +57,10 @@ func (r *PostgresRepository) ListMetadata(
 	if err != nil {
 		return nil, fmt.Errorf("list artifact metadata: %w", err)
 	}
-	defer rows.Close()
-	result := make([]Metadata, 0, query.Limit)
-	for rows.Next() {
-		metadata, scanErr := scanMetadata(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan artifact metadata: %w", scanErr)
-		}
-		result = append(result, metadata)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.AppendRows(make([]Metadata, 0, query.Limit), rows, func(row pgx.CollectableRow) (Metadata, error) {
+		return scanMetadata(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate artifact metadata: %w", err)
 	}
 	return result, nil
@@ -80,16 +74,10 @@ func (r *PostgresRepository) ListVersions(
 	if err != nil {
 		return nil, fmt.Errorf("list artifact versions: %w", err)
 	}
-	defer rows.Close()
-	result := make([]Metadata, 0, query.Limit)
-	for rows.Next() {
-		metadata, scanErr := scanMetadata(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan artifact version: %w", scanErr)
-		}
-		result = append(result, metadata)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.AppendRows(make([]Metadata, 0, query.Limit), rows, func(row pgx.CollectableRow) (Metadata, error) {
+		return scanMetadata(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate artifact versions: %w", err)
 	}
 	return result, nil

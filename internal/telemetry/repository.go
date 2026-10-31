@@ -160,16 +160,10 @@ func (r *Repository) ListAllocationReports(
 	if err != nil {
 		return nil, fmt.Errorf("list allocation reports: %w", err)
 	}
-	defer rows.Close()
-	result := make([]StoredAllocationReport, 0)
-	for rows.Next() {
-		item, err := scanAllocationReport(rows)
-		if err != nil {
-			return nil, fmt.Errorf("list allocation reports: %w", err)
-		}
-		result = append(result, item)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (StoredAllocationReport, error) {
+		return scanAllocationReport(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("list allocation reports: %w", err)
 	}
 	return result, nil

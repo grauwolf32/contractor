@@ -78,19 +78,9 @@ func (s *Store) NextMembers(ctx context.Context, owner, id string, limit int) ([
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	members := make([]Member, 0, limit)
-	for rows.Next() {
-		member, err := scanMember(rows)
-		if err != nil {
-			return nil, err
-		}
-		members = append(members, member)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-	return members, nil
+	return pgx.AppendRows(make([]Member, 0, limit), rows, func(row pgx.CollectableRow) (Member, error) {
+		return scanMember(row)
+	})
 }
 
 // ReconciliationCandidates gives newly admitted intents a bounded lane while

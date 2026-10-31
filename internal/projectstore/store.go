@@ -135,16 +135,10 @@ func (s *PostgresStore) List(ctx context.Context, params ListParams) ([]Project,
 	if err != nil {
 		return nil, fmt.Errorf("list Projects: %w", err)
 	}
-	defer rows.Close()
-	projects := make([]Project, 0)
-	for rows.Next() {
-		project, scanErr := scanProject(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan Project page: %w", scanErr)
-		}
-		projects = append(projects, project)
-	}
-	if err := rows.Err(); err != nil {
+	projects, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Project, error) {
+		return scanProject(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate Project page: %w", err)
 	}
 	return projects, nil

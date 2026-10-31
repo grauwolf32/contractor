@@ -120,16 +120,10 @@ func (r throughAudit) Scan(dest ...any) error {
 }
 
 func scanReceiptRows(rows pgx.Rows) ([]Receipt, error) {
-	defer rows.Close()
-	result := make([]Receipt, 0)
-	for rows.Next() {
-		receipt, err := scanReceiptRow(rows)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, receipt)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Receipt, error) {
+		return scanReceiptRow(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate Audit finding receipts: %w", err)
 	}
 	return result, nil

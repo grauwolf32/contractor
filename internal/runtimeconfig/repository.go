@@ -154,17 +154,11 @@ LIMIT $3`, afterName, afterVersion, limit)
 	if err != nil {
 		return nil, persistencepostgres.WrapError("list RuntimeConfig versions", err)
 	}
-	defer rows.Close()
-	result := make([]Version, 0)
-	for rows.Next() {
-		item, scanErr := scanVersion(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, item)
-	}
-	if rows.Err() != nil {
-		return nil, persistencepostgres.WrapError("iterate RuntimeConfig versions", rows.Err())
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Version, error) {
+		return scanVersion(row)
+	})
+	if err != nil {
+		return nil, persistencepostgres.WrapError("iterate RuntimeConfig versions", err)
 	}
 	return result, nil
 }
@@ -263,17 +257,11 @@ func (r *Repository) ListBindings(ctx context.Context, afterLabel string, limit 
 	if err != nil {
 		return nil, persistencepostgres.WrapError("list RuntimeConfig bindings", err)
 	}
-	defer rows.Close()
-	result := make([]Binding, 0)
-	for rows.Next() {
-		item, scanErr := scanBinding(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, item)
-	}
-	if rows.Err() != nil {
-		return nil, persistencepostgres.WrapError("iterate RuntimeConfig bindings", rows.Err())
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (Binding, error) {
+		return scanBinding(row)
+	})
+	if err != nil {
+		return nil, persistencepostgres.WrapError("iterate RuntimeConfig bindings", err)
 	}
 	return result, nil
 }
@@ -385,15 +373,10 @@ func (r *Repository) lockBindings(ctx context.Context, labels []string, mode str
 	if err != nil {
 		return nil, persistencepostgres.WrapError("lock RuntimeConfig label bindings", err)
 	}
-	defer rows.Close()
-	for rows.Next() {
-		binding, scanErr := scanBinding(rows)
-		if scanErr != nil {
-			return nil, scanErr
-		}
-		result = append(result, binding)
-	}
-	if err := rows.Err(); err != nil {
+	result, err = pgx.AppendRows(result, rows, func(row pgx.CollectableRow) (Binding, error) {
+		return scanBinding(row)
+	})
+	if err != nil {
 		return nil, persistencepostgres.WrapError("lock RuntimeConfig label bindings", err)
 	}
 	if len(result) != len(ordered) {

@@ -85,16 +85,10 @@ SELECT `+prefixedItemColumns("item")+`
 	if err != nil {
 		return nil, fmt.Errorf("list selected Audit items: %w", err)
 	}
-	defer rows.Close()
-	result := make([]auditstore.Item, 0, len(itemIDs))
-	for rows.Next() {
-		item, scanErr := scanItem(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan selected Audit item: %w", scanErr)
-		}
-		result = append(result, item)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.AppendRows(make([]auditstore.Item, 0, len(itemIDs)), rows, func(row pgx.CollectableRow) (auditstore.Item, error) {
+		return scanItem(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate selected Audit items: %w", err)
 	}
 	return result, nil
@@ -114,16 +108,10 @@ func (s *QueryStore) ListItemsPage(
 	if err != nil {
 		return nil, fmt.Errorf("list owner Audit items: %w", err)
 	}
-	defer rows.Close()
-	result := make([]auditstore.Item, 0, params.Limit)
-	for rows.Next() {
-		item, scanErr := scanItem(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan owner Audit item: %w", scanErr)
-		}
-		result = append(result, item)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.AppendRows(make([]auditstore.Item, 0, params.Limit), rows, func(row pgx.CollectableRow) (auditstore.Item, error) {
+		return scanItem(row)
+	})
+	if err != nil {
 		return nil, fmt.Errorf("iterate owner Audit items: %w", err)
 	}
 	if len(result) == 0 {
@@ -674,16 +662,10 @@ func (s *ClaimStore) listRoleReceipts(
 	if err != nil {
 		return nil, fmt.Errorf("list Audit role collection receipts: %w", err)
 	}
-	defer rows.Close()
-	result := make([]auditstore.CollectionReceiptSummary, 0)
-	for rows.Next() {
-		receipt, scanErr := scanReceiptSummary(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan Audit role collection receipt: %w", scanErr)
-		}
-		result = append(result, receipt)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (auditstore.CollectionReceiptSummary, error) {
+		return scanReceiptSummary(row)
+	})
+	if err != nil {
 		return nil, err
 	}
 	if len(result) > auditstore.MaxAuditRoleExecutionsPerRound {
@@ -704,16 +686,10 @@ SELECT `+ExecutionColumns("audit_executions")+` FROM audit_executions
 	if err != nil {
 		return nil, fmt.Errorf("list Audit role executions: %w", err)
 	}
-	defer rows.Close()
-	result := make([]auditstore.Execution, 0)
-	for rows.Next() {
-		execution, scanErr := ScanExecution(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan Audit role execution: %w", scanErr)
-		}
-		result = append(result, execution)
-	}
-	if err := rows.Err(); err != nil {
+	result, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (auditstore.Execution, error) {
+		return ScanExecution(row)
+	})
+	if err != nil {
 		return nil, err
 	}
 	if len(result) > auditstore.MaxAuditRoleExecutionsPerRound {
