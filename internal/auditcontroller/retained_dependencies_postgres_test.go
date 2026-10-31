@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grauwolf32/contractor/internal/artifacts"
 	"github.com/grauwolf32/contractor/internal/artifacts/artifactstest"
 	"github.com/grauwolf32/contractor/internal/auditdomain"
 	"github.com/grauwolf32/contractor/internal/auditstore"
@@ -191,7 +192,14 @@ func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDelet
 	}
 	project, _ := h.artifacts.Project(snapshot.Audit.ProjectID)
 	for _, mapping := range mappings.Mappings {
-		original, err := project.ReadExact(ctx, mapping.Retained)
+		sourceStore := project
+		for _, dependency := range items[0].Dependencies.Dependencies {
+			if dependency.Name == mapping.Name && dependency.Kind == "prepare-output" {
+				scope, _ := artifacts.AuditScope(snapshot.Audit.AuditID)
+				sourceStore, _ = h.artifacts.Scoped(scope)
+			}
+		}
+		original, err := sourceStore.ReadExact(ctx, mapping.Retained)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -212,6 +220,9 @@ func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDelet
 	// Deleting a fully materialized consumer releases its own progress and
 	// lineage obligations while the accepted Audit copies remain readable.
 	type retainedBeforeDeletion struct {
+		scopeKind         artifacts.ScopeKind
+		scopeID           string
+		store             artifacts.ScopedStore
 		descriptor        auditstore.ExactArtifact
 		payload           []byte
 		holds, childEdges int
@@ -222,22 +233,28 @@ func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDelet
 		if _, exists := retainedBefore[descriptor.Ref.Key()]; exists {
 			continue
 		}
-		read, err := project.ReadExact(ctx, descriptor)
+		sourceStore, scopeKind, scopeID := project, artifacts.ScopeProject, snapshot.Audit.ProjectID
+		if dependency.Kind == "prepare-output" {
+			scopeKind, scopeID = artifacts.ScopeAudit, snapshot.Audit.AuditID
+			scope, _ := artifacts.AuditScope(scopeID)
+			sourceStore, _ = h.artifacts.Scoped(scope)
+		}
+		read, err := sourceStore.ReadExact(ctx, descriptor)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var holds, childEdges int
 		if err := h.pool.QueryRow(ctx, `SELECT revision.hold_count,
     (SELECT count(*) FROM artifact_lineage AS edge
-     WHERE edge.source_scope_kind='project' AND edge.source_scope_id=$1
+     WHERE edge.source_scope_kind=$6 AND edge.source_scope_id=$1
        AND edge.source_namespace=$2 AND edge.source_name=$3 AND edge.source_revision=$4
        AND edge.target_scope_kind='run' AND edge.target_scope_id=$5)
    FROM artifact_binding_revisions AS revision
-   WHERE revision.scope_kind='project' AND revision.scope_id=$1
-     AND revision.namespace=$2 AND revision.name=$3 AND revision.revision=$4`, snapshot.Audit.ProjectID, descriptor.Ref.Namespace, descriptor.Ref.Name, *descriptor.Ref.Revision, child.Run.RunID).Scan(&holds, &childEdges); err != nil || childEdges < 1 {
+   WHERE revision.scope_kind=$6 AND revision.scope_id=$1
+     AND revision.namespace=$2 AND revision.name=$3 AND revision.revision=$4`, scopeID, descriptor.Ref.Namespace, descriptor.Ref.Name, *descriptor.Ref.Revision, child.Run.RunID, scopeKind).Scan(&holds, &childEdges); err != nil || childEdges < 1 {
 			t.Fatalf("consumer did not acquire exact source lineage: holds=%d edges=%d error=%v", holds, childEdges, err)
 		}
-		retainedBefore[descriptor.Ref.Key()] = retainedBeforeDeletion{descriptor: descriptor, payload: append([]byte{}, read.Payload.Data...), holds: holds, childEdges: childEdges}
+		retainedBefore[descriptor.Ref.Key()] = retainedBeforeDeletion{scopeKind: scopeKind, scopeID: scopeID, store: sourceStore, descriptor: descriptor, payload: append([]byte{}, read.Payload.Data...), holds: holds, childEdges: childEdges}
 	}
 	var progressComplete bool
 	if err := h.pool.QueryRow(ctx, `SELECT audit_input_materialization IS NOT NULL AND (audit_input_materialization->>'complete')::boolean
@@ -285,12 +302,12 @@ func TestPostgresRetainedDependenciesUseAcceptedPrepareAndItemAfterProducerDelet
 		t.Fatalf("deleted consumer left dangling state: runs=%d progress=%d scopes=%d revisions=%d lineage=%d", runs, progress, scopes, revisions, lineage)
 	}
 	for _, before := range retainedBefore {
-		read, err := project.ReadExact(ctx, before.descriptor)
+		read, err := before.store.ReadExact(ctx, before.descriptor)
 		if err != nil || string(read.Payload.Data) != string(before.payload) || auditdomain.DigestBytes(read.Payload.Data) != before.descriptor.Digest {
 			t.Fatalf("consumer deletion changed retained bytes: %+v %v", before.descriptor, err)
 		}
 		var holds int
-		if err := h.pool.QueryRow(ctx, `SELECT hold_count FROM artifact_binding_revisions WHERE scope_kind='project' AND scope_id=$1 AND namespace=$2 AND name=$3 AND revision=$4`, snapshot.Audit.ProjectID, before.descriptor.Ref.Namespace, before.descriptor.Ref.Name, *before.descriptor.Ref.Revision).Scan(&holds); err != nil || holds != before.holds-before.childEdges {
+		if err := h.pool.QueryRow(ctx, `SELECT hold_count FROM artifact_binding_revisions WHERE scope_kind=$5 AND scope_id=$1 AND namespace=$2 AND name=$3 AND revision=$4`, before.scopeID, before.descriptor.Ref.Namespace, before.descriptor.Ref.Name, *before.descriptor.Ref.Revision, before.scopeKind).Scan(&holds); err != nil || holds != before.holds-before.childEdges {
 			t.Fatalf("consumer exact hold release mismatch: before=%d child_edges=%d after=%d error=%v", before.holds, before.childEdges, holds, err)
 		}
 	}

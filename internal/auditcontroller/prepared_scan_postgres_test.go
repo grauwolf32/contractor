@@ -167,7 +167,7 @@ func TestPostgresPreparedRulepackRefusedBeforeScanDispatch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			builder, err := NewPinnedSubmissionBuilder(access, &fakeRoleOutputLookup{link: auditstore.ArtifactLink{Artifact: output.Output.Retained}})
+			builder, err := NewPinnedSubmissionBuilder(access, &fakeRoleOutputLookup{link: auditstore.ArtifactLink{Scope: "project", Artifact: output.Output.Retained}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -181,7 +181,7 @@ func TestPostgresPreparedRulepackRefusedBeforeScanDispatch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = builder.validateRulepackInputs(ctx, h.started.Audit.ProjectID, binding.Workflow, inputs)
+			err = builder.validateRulepackInputs(ctx, h.started.Audit, binding, inputs)
 			if test.refused && !errors.Is(err, ErrInvalidSubmission) || !test.refused && err != nil {
 				t.Fatalf("retained role admission: %v", err)
 			}
@@ -208,7 +208,8 @@ func TestPostgresPreparedRulepackRefusedBeforeScanDispatch(t *testing.T) {
 			} else if count != 2 {
 				t.Fatalf("valid prepared output not dispatched: runs=%d state=%s phase=%s stop=%+v", count, audit.State, audit.Phase, audit.StopReason)
 			}
-			project, _ := h.artifacts.Project(audit.ProjectID)
+			scope, _ := artifacts.AuditScope(audit.AuditID)
+			project, _ := h.artifacts.Scoped(scope)
 			meta, err := project.Metadata(ctx, output.Output.Retained.Ref)
 			if err != nil || output.Output.Retained.Verify(meta.Exact()) != nil {
 				t.Fatalf("retained output changed: %v", err)

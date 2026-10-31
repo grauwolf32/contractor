@@ -18,6 +18,7 @@ import (
 )
 
 type AuditManagement interface {
+	PublishMaterial(context.Context, string, string, string, auditservice.MaterialPublicationRequest, *string) (auditservice.MaterialPublication, error)
 	FindingCandidates(context.Context, auditservice.FindingCandidatesParams) (auditservice.FindingCandidatesPage, error)
 	CompareFindings(context.Context, auditservice.FindingComparisonParams) (auditservice.FindingComparisonPage, error)
 	FindingGroupMembers(context.Context, auditservice.FindingMembersParams) (auditservice.FindingMembersPage, error)

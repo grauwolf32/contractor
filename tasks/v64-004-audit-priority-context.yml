@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: pending
+status: in_progress
 depends_on:
 - V64-001
 - V410-010
@@ -30,6 +30,7 @@ context:
     and kept composite behavior with a separate concrete consumer. Existing V410-025 owns the SMT snapshot
     case. This amendment starts no implementation. User concern on 2026-11-01: avoid accumulating redundant
     artifact copies during handoff/publication.'
+  execution_authority: User requested implementation in this chat on 2026-11-01; isolated branch codex/audit-artifact-workspace.
   implementation_gate: V64-001 and V410-010 are completed. A user assignment of V64-004 is sufficient
     under normal dependency/status rules; settled V64-001 decisions are not pending review. This amendment
     itself starts no code.
@@ -60,7 +61,7 @@ context:
     in this task. Reuse RunService, Scheduler, ArtifactStore, finding intake, ControllerClaims and existing
     keyed/natural receipts. No new collector, admission engine, lease store or compatibility reader.
   production_caller:
-    producer: auditimport.Importer.collectRoleSuccess -> ServiceArtifactAccess.RetainRunExact/retainRunExact
+    producer: auditimport.Importer.collectSucceededRole -> ServiceArtifactAccess.RetainRunExact/retainRunExact
       (importer.go/artifacts.go). Move declared ordinary role-output retention from protected Project
       namespace to real Audit scope, reusing its receipt and authority.
     consumer: PinnedSubmissionBuilder.resolveRoleInputs/preparationOutput (auditcontroller/builder.go)

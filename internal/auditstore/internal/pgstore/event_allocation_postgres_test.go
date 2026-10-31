@@ -277,8 +277,7 @@ INSERT INTO audit_review_requests (
 		if _, inserted, err := f.store.Collect(f.ctx, auditstore.CollectParams{
 			Claim: f.claim, ReceiptID: "receipt-collection-dense", ExecutionID: f.execution.ExecutionID,
 			Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("9"),
-			Retained: []auditstore.ArtifactLink{{
-				LogicalKey: "result/" + f.memberID, Artifact: result,
+			Retained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "result/" + f.memberID, Artifact: result,
 				SourceProvenance: json.RawMessage(`{"runId":"run-dense"}`),
 			}},
 			Items: []auditstore.CollectionItem{{
@@ -570,7 +569,7 @@ func proposeDenseReport(t *testing.T, f collectingAuditFixture, roundID string, 
 func denseReportLinks() (auditstore.ArtifactLink, auditstore.ArtifactLink) {
 	revision := "report-r1"
 	link := func(key, name, media string) auditstore.ArtifactLink {
-		return auditstore.ArtifactLink{LogicalKey: key, Artifact: auditstore.ExactArtifact{
+		return auditstore.ArtifactLink{Scope: "project", LogicalKey: key, Artifact: auditstore.ExactArtifact{
 			Ref:    contracts.ArtifactRef{Namespace: "audits", Name: name, Revision: &revision},
 			Digest: testDigest("1"), MediaType: media, SizeBytes: 16,
 		}, SourceProvenance: json.RawMessage(`{}`)}

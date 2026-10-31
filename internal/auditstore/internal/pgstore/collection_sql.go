@@ -220,15 +220,15 @@ WITH collection_input AS MATERIALIZED (
        AND finding.audit_id = assessment.audit_id
 ), link_input AS MATERIALIZED (
     SELECT * FROM jsonb_to_recordset($11::jsonb) AS link(
-        logical_key text, artifact_ref jsonb, artifact_digest text,
+        artifact_scope text, logical_key text, artifact_ref jsonb, artifact_digest text,
         media_type text, size_bytes bigint, source_provenance jsonb, display_ref text
     )
 ), inserted_links AS (
     INSERT INTO audit_artifact_links (
-        audit_id, logical_key, artifact_ref, artifact_digest,
+        audit_id, artifact_scope, logical_key, artifact_ref, artifact_digest,
         media_type, size_bytes, source_provenance, display_ref
     )
-    SELECT receipt.audit_id, link.logical_key, link.artifact_ref,
+    SELECT receipt.audit_id, link.artifact_scope, link.logical_key, link.artifact_ref,
            link.artifact_digest, link.media_type, link.size_bytes,
            link.source_provenance, link.display_ref
       FROM inserted_receipt AS receipt CROSS JOIN link_input AS link

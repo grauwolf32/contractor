@@ -201,7 +201,7 @@ revision.
 
 **DEL-R5.** The controlled scope purge may run only after its gate, the Run
 release gate of terminal Run hard deletion (DEL-R16, DEL-R17) or the Project
-deletion gate (DEL-R44), and then removes a complete RunScope or ProjectScope
+deletion gate (DEL-R44), and then removes a complete RunScope, AuditScope or ProjectScope
 together with the lineage edges owned by that purge set (LIFE-DEL-3,
 LIFE-DEL-4).
 
@@ -289,7 +289,7 @@ durable state (LIFE-DEL-1, LIFE-DEL-3), including:
 
 **DEL-R59.** The purge removes a scope in purge batches of at most 1,000
 binding revisions taken in key order (LIM-DEL-2). Each batch first removes
-the lineage edges into or out of its revisions and the bindings whose current
+the lineage edges into its revisions and ordinary lineage out of them and the bindings whose current
 revision it holds, then the revisions. Their versions and blobs are then
 locked in one global order and the unreferenced ones deleted, at most one
 batch of them per statement. A Run purge stays the one transaction of DEL-R22:
@@ -658,3 +658,13 @@ It commits receipt work before starting an Artifact purge pass and needs no
 per-domain cleanup branch. Sitemap is one caller under
 [SMT-R12](project-sitemap.md) and LIFE-SMT-1; other receipt families retain their
 existing owning lifecycles.
+
+
+**DEL-R68.** Drained Audit deletion purges its ordinary Artifact scope in
+bounded batches through ArtifactStore before deleting the Audit row, alongside
+its remaining purpose-managed Project namespace. Source Run/Audit purge keeps
+new Audit fork/publication edges whose destination survives. Their source
+identity is historical provenance; strict source validation applies at creation,
+and a later read of deleted source bytes reports unavailable. The target edge
+leaves when its own destination is purged. Independent Project publication and
+Run input bytes survive until their owning lifecycles release them.

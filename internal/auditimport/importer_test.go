@@ -280,7 +280,7 @@ func TestImporterRetainsNamedRoleOutputsWithExactProvenance(t *testing.T) {
 		t.Fatalf("retained discovery output = %+v", link)
 	}
 	wantTarget := auditdomain.DeterministicID(
-		"role-output", round.RoundID, "inventory", harness.execution.ExecutionID, "result",
+		"role-output", *harness.execution.RunID, "result",
 	)
 	if len(harness.artifacts.retainedTargets) != 1 ||
 		harness.artifacts.retainedTargets[0].Name != wantTarget {

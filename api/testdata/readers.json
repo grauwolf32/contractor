@@ -14,6 +14,7 @@
     "nuclei-package-manifest.json": {"readers": ["go", "python"]},
     "nuclei-input-cases.json": {"readers": ["go", "python", "ui"]},
     "tool-parameter-binding-cases.json": {"readers": ["go", "python", "ui"]},
+    "public/audit-material-cases.json": {"readers": ["go", "ui"], "reason": "Audit scope and publication are Server/public contracts. Runtime receives only selected ordinary Run input refs."},
     "public/artifact-storage-timestamps.json": {"readers": ["go", "ui"]},
     "public/finding-correlation-cases.json": {"readers": ["go", "ui"]},
     "public/finding-export-cases.json": {"readers": ["go", "ui"]},

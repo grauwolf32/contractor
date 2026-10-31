@@ -67,7 +67,7 @@ func TestClosedStateAndTransitionValidation(t *testing.T) {
 func TestReportSummaryRequiresMarkdown(t *testing.T) {
 	revision := "report-r1"
 	link := func(key, media string) auditstore.ArtifactLink {
-		return auditstore.ArtifactLink{LogicalKey: key, Artifact: auditstore.ExactArtifact{
+		return auditstore.ArtifactLink{Scope: "project", LogicalKey: key, Artifact: auditstore.ExactArtifact{
 			Ref:    contracts.ArtifactRef{Namespace: "audit-test", Name: "report", Revision: &revision},
 			Digest: testDigest("1"), MediaType: media, SizeBytes: 16,
 		}, SourceProvenance: json.RawMessage(`{}`)}

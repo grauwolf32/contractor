@@ -125,8 +125,7 @@ func TestPostgresRecoveryPathsRunInsideACallerTransaction(t *testing.T) {
 			_, _, err := s.Collect(ctx, auditstore.CollectParams{
 				Claim: f.claim, ReceiptID: "receipt-txrecovery", ExecutionID: f.execution.ExecutionID,
 				Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("7"),
-				Retained: []auditstore.ArtifactLink{{
-					LogicalKey: "result/" + f.memberID, Artifact: result,
+				Retained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "result/" + f.memberID, Artifact: result,
 					SourceProvenance: json.RawMessage(`{"runId":"run-txrecovery"}`),
 				}},
 				Items: []auditstore.CollectionItem{{
@@ -142,8 +141,7 @@ func TestPostgresRecoveryPathsRunInsideACallerTransaction(t *testing.T) {
 				Claim: f.claim, ExpectedAuditRevision: f.audit.Revision, RoundID: "round-txrecovery-initial",
 				Manifest: testExact("audits", "txrecovery-initial-worklist", "worklist-r1"),
 				Items:    []auditstore.MaterializedItem{item("txrecovery-initial")},
-				Inventory: auditstore.ArtifactLink{
-					LogicalKey: auditstore.InitialInventoryLogicalKey, SourceProvenance: json.RawMessage(`{}`),
+				Inventory: auditstore.ArtifactLink{Scope: "project", LogicalKey: auditstore.InitialInventoryLogicalKey, SourceProvenance: json.RawMessage(`{}`),
 					Artifact: testExact("audits", "txrecovery-inventory", "inventory-r1"),
 				},
 			})

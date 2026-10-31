@@ -217,8 +217,8 @@ func TestPostgresPreparationDependentRunsRetainExactOutputs(t *testing.T) {
 		t.Fatalf("dependent Run did not receive the exact bytes: %+v %v", forked, err)
 	}
 	lineage, err := refineArtifacts.ListLineage(ctx, forked.Ref, artifacts.LineagePageQuery{Limit: 2})
-	if err != nil || len(lineage) != 1 || !lineage[0].Source.SameExact(output.Output.Retained.Ref) || lineage[0].SourceScope != artifacts.ScopeProject {
-		t.Fatalf("dependent Run fork lost exact Project lineage: %+v %v", lineage, err)
+	if err != nil || len(lineage) != 1 || !lineage[0].Source.SameExact(output.Output.Retained.Ref) || lineage[0].SourceScope != artifacts.ScopeAudit {
+		t.Fatalf("dependent Run fork lost exact Audit lineage: %+v %v", lineage, err)
 	}
 	finishPreparationRun(t, ctx, h, refine, runstore.RunSucceeded, false)
 	preparationStep(t, ctx, c)

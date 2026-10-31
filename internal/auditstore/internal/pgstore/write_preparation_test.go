@@ -13,7 +13,7 @@ func TestCollectionPreparationCountsExactArtifactsOnceAndKeepsLinks(t *testing.T
 	first.SizeBytes = 10
 	second := testExact("audit", "report", "v2")
 	second.SizeBytes = 20
-	params := auditstore.CollectParams{SourceOutput: &first, Retained: []auditstore.ArtifactLink{{LogicalKey: "one", Artifact: first}, {LogicalKey: "alias", Artifact: first}, {LogicalKey: "next", Artifact: second}}, Items: []auditstore.CollectionItem{{ExecutionItemID: "member"}}}
+	params := auditstore.CollectParams{SourceOutput: &first, Retained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "one", Artifact: first}, {Scope: "project", LogicalKey: "alias", Artifact: first}, {Scope: "project", LogicalKey: "next", Artifact: second}}, Items: []auditstore.CollectionItem{{ExecutionItemID: "member"}}}
 	prepared := prepareCollectionWrite(params)
 	if prepared.retainedBytes != 30 {
 		t.Fatalf("retained bytes=%d, want 30", prepared.retainedBytes)

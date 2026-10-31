@@ -35,7 +35,7 @@ func TestRowTriggerGuardsFireOnTheColumnsTheyCompare(t *testing.T) {
 		// The preparation guard selects the Audit's executions by audit_id.
 		{name: "audits", guards: 1, why: "the preparation guard",
 			qualifiers: explaintest.Qualifiers{"audits_protect_preparation_baseline": {"audit_id"}}},
-		{name: "artifact_bindings", guards: 1, why: "the identity guard; Project admission depends on other tables"},
+		{name: "artifact_bindings", guards: 1, why: "the identity guard; Project and Audit admission depend on other tables"},
 		// The preparation check reads the Run and the receipt's source only
 		// to validate the receipt being assigned.
 		{name: "audit_executions", guards: 2, why: "the collection guard and the preparation check",
@@ -82,6 +82,8 @@ var rowTriggerInventory = map[string]map[string]rowTrigger{
 			retained: "deleting an Audit removes the execution its Eval members project"},
 	},
 	"artifact_bindings": {
+		"artifact_bindings_audit_admission": {definition: "CREATE TRIGGER artifact_bindings_audit_admission BEFORE INSERT OR UPDATE ON artifact_bindings FOR EACH ROW WHEN ((new.scope_kind = 'audit'::text)) EXECUTE FUNCTION contractor_guard_audit_artifact_admission()",
+			retained: "every UPDATE of an Audit binding is fenced against Audit deletion; the decision reads the owning Audit and Project, not the binding's mutable columns"},
 		"artifact_bindings_project_admission": {definition: "CREATE TRIGGER artifact_bindings_project_admission BEFORE INSERT OR UPDATE ON artifact_bindings FOR EACH ROW WHEN ((new.scope_kind = 'project'::text)) EXECUTE FUNCTION contractor_guard_project_artifact_binding_admission()",
 			retained: "every UPDATE of a Project binding is an artifact write that a deleting Project rejects at the write (DEL-R40); the decision reads projects and audits, not the binding's columns"},
 		"artifact_bindings_protect_identity": {definition: "CREATE TRIGGER artifact_bindings_protect_identity BEFORE UPDATE OF scope_kind, scope_id, namespace, name, created_at, current_revision, frozen ON artifact_bindings FOR EACH ROW EXECUTE FUNCTION contractor_protect_artifact_binding()"},

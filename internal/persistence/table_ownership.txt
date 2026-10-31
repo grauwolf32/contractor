@@ -120,6 +120,10 @@ contractor_schema_migrations         internal/persistence/postgres    -
 internal/agentprincipal      stage_allocations              Principal deletion refuses a Runtime Agent with unreleased
     allocations.
 
+internal/artifacts           audits                         Ordinary Audit Artifact forks prove source/destination Project and
+    child membership inside the fork statement. Accepted upward read PER-UR-6.
+internal/artifacts           audit_executions               Ordinary Audit Artifact forks prove the immutable Run/Audit
+    association before creating input/output lineage. Accepted upward read PER-UR-6.
 internal/artifacts           workflow_runs                  Output freezing checks that the Run exists; Project input
     forks, context projections, output publication and Audit import check that the Run belongs to the Project.
     Accepted upward read PER-UR-1.

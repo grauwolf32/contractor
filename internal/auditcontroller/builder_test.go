@@ -149,7 +149,7 @@ func TestResolveRoleInputsPinsRetainedDependencyByRoundAndLogicalName(t *testing
 	baselineInput := builderExact("source", "source-r1")
 	retained := builderExact("inventory", "inventory-r1")
 	execution := builderExact("role-manifest", "manifest-r1")
-	lookup := &fakeRoleOutputLookup{link: auditstore.ArtifactLink{Artifact: retained}}
+	lookup := &fakeRoleOutputLookup{link: auditstore.ArtifactLink{Scope: "project", Artifact: retained}}
 	builder := &PinnedSubmissionBuilder{outputs: lookup}
 	binding := auditprofile.ResolvedAuditWorkflowBinding{
 		Inputs: map[string]auditprofile.AuditWorkflowInputMapping{
@@ -230,4 +230,8 @@ func builderExact(name, revision string) auditstore.ExactArtifact {
 		Digest:    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		MediaType: "application/json", SizeBytes: 1,
 	}
+}
+
+func (f *fakeBuilderArtifactAccess) ResolveAuditExact(ctx context.Context, id string, descriptor auditstore.ExactArtifact) (auditstore.ExactArtifact, error) {
+	return f.ResolveProjectExact(ctx, id, descriptor)
 }

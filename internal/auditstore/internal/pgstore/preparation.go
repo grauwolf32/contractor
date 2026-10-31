@@ -441,9 +441,8 @@ func withPreparationLinks(p auditstore.CollectParams) (auditstore.CollectParams,
 			ExecutionID string                       `json:"executionId"`
 			Output      auditstore.PreparationOutput `json:"output"`
 		}{"contractor.audit.preparation-output.v1", p.ExecutionID, output})
-		p.Retained = append(p.Retained, auditstore.ArtifactLink{
-			LogicalKey: "prepare:" + p.ExecutionID + ":" + output.LogicalName,
-			Artifact:   output.Retained, SourceProvenance: provenance,
+		p.Retained = append(p.Retained, auditstore.ArtifactLink{Scope: "audit", LogicalKey: "prepare:" + p.ExecutionID + ":" + output.LogicalName,
+			Artifact: output.Retained, SourceProvenance: provenance,
 		})
 	}
 	return p, nil

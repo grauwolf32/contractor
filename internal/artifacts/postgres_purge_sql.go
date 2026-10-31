@@ -44,6 +44,7 @@ WHERE target_scope_kind = $1 AND target_scope_id = $2
 var purgeSourceLineageSQL = `
 DELETE FROM artifact_lineage
 WHERE source_scope_kind = $1 AND source_scope_id = $2
+  AND lineage_kind NOT IN ('audit_output', 'audit_input', 'audit_publish')
   AND (source_namespace, source_name, source_revision) > ($3, $4, $5)
   AND (source_namespace, source_name, source_revision) <= ($6, $7, $8)`
 

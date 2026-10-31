@@ -350,6 +350,12 @@ profiles:
   facts: Preserve purpose, selected source/settings/rules, Workflow closure and tighter budgets; express
     initial/supporting/check work through the common program. Remove approval/stage-role/ZIP authoring.
 operations:
+- path: /v1/projects/{projectId}/audit-material-publications
+  method: post
+  operation_id: publishAuditMaterial
+  action: preserve
+  owner: V64-004
+  facts: Explicit exact selected material publication with Project-scoped receipt and independent ownership.
 - path: /v1/audits/{auditId}/findings/exports
   method: post
   operation_id: publishAuditFindingExport

@@ -353,6 +353,8 @@ export type PublicSchemaName =
   | "ArtifactStorageTimestamps"
   | "ArtifactMetadata"
   | "ArtifactPage"
+  | "AuditMaterialPublicationRequest"
+  | "AuditMaterialPublication"
   | "ArtifactLineageEdge"
   | "ArtifactLineagePage"
   | "WorkflowRunState"
@@ -566,6 +568,7 @@ export type PublicSchemaName =
   | "OriginHeader"
   | "CSRFTokenHeader"
   | "IfNoneMatchHeader"
+  | "publishAuditMaterialIfNoneMatchHeader"
   | "RequiredQueueControlIfMatchHeader"
   | "retryRunGatewayResponse202"
   | "resumeRunResponse202"
@@ -1360,6 +1363,18 @@ export const RESPONSE_SCHEMAS = {
     "401": "Error",
     "404": "Error",
     "409": "Error",
+    "500": "Error",
+    "503": "Error",
+  },
+  "POST /v1/projects/{projectId}/audit-material-publications": {
+    "200": "AuditMaterialPublication",
+    "201": "AuditMaterialPublication",
+    "400": "Error",
+    "401": "Error",
+    "404": "Error",
+    "409": "Error",
+    "412": "Error",
+    "413": "Error",
     "500": "Error",
     "503": "Error",
   },
@@ -2263,6 +2278,11 @@ export const REQUEST_HEADER_SCHEMAS = {
     "If-Match": "RequiredIfMatchHeader",
     Origin: "OptionalOriginHeader",
     "X-CSRF-Token": "OptionalCSRFTokenHeader",
+  },
+  "POST /v1/projects/{projectId}/audit-material-publications": {
+    "Idempotency-Key": "IdempotencyKeyHeader",
+    "If-Match": "ArtifactIfMatchHeader",
+    "If-None-Match": "publishAuditMaterialIfNoneMatchHeader",
   },
   "POST /v1/audits/{auditId}/finding-proposal-imports": {
     Origin: "OptionalOriginHeader",

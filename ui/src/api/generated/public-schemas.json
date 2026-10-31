@@ -8976,6 +8976,51 @@
         }
       }
     },
+    "AuditMaterialPublicationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["auditId", "source", "target"],
+      "properties": {
+        "auditId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "source": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
+        },
+        "target": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["namespace", "name"],
+          "properties": {
+            "namespace": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
+            },
+            "name": {
+              "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ArtifactName"
+            }
+          }
+        }
+      }
+    },
+    "AuditMaterialPublication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["auditId", "projectId", "source", "artifact"],
+      "properties": {
+        "auditId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "projectId": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ResourceId"
+        },
+        "source": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
+        },
+        "artifact": {
+          "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
+        }
+      }
+    },
     "ArtifactLineageEdge": {
       "type": "object",
       "additionalProperties": false,
@@ -8994,14 +9039,23 @@
             "input_fork",
             "output_bind",
             "project_output_publish",
-            "context_projection"
+            "context_projection",
+            "audit_output",
+            "audit_input",
+            "audit_publish"
           ]
         },
-        "sourceScope": { "type": "string", "enum": ["user", "project", "run"] },
+        "sourceScope": {
+          "type": "string",
+          "enum": ["user", "project", "run", "audit"]
+        },
         "source": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
         },
-        "targetScope": { "type": "string", "enum": ["user", "project", "run"] },
+        "targetScope": {
+          "type": "string",
+          "enum": ["user", "project", "run", "audit"]
+        },
         "target": {
           "$ref": "https://contractor.local/schemas/contractor-public-v1.json#/$defs/ExactArtifactRef"
         },
@@ -13966,6 +14020,7 @@
       "pattern": "^[A-Za-z0-9_-]+$"
     },
     "IfNoneMatchHeader": { "type": "string", "const": "*" },
+    "publishAuditMaterialIfNoneMatchHeader": { "type": "string", "const": "*" },
     "RequiredQueueControlIfMatchHeader": {
       "type": "string",
       "pattern": "^\"(0|[1-9][0-9]{0,19})\"$"

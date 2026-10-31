@@ -288,9 +288,9 @@ func (f *preparedListFixture) settle(projectID, auditID, role string, number int
 			f.t.Fatal(err)
 		}
 		source, _ := artifacts.RunScope(runID)
-		target, _ := artifacts.ProjectScope(projectID)
+		target, _ := artifacts.AuditScope(auditID)
 		for index := range outputs {
-			retained, err := f.artifacts.Fork(ctx, artifacts.Fork{Kind: artifacts.LineageAuditImport, Source: source,
+			retained, err := f.artifacts.Fork(ctx, artifacts.Fork{Kind: artifacts.LineageAuditOutput, Source: source,
 				SourceRef: outputs[index].Source.Ref, Target: target, Frozen: true,
 				TargetRef: contracts.ArtifactRef{Namespace: auditdomain.ArtifactNamespace(auditID), Name: executionID + "-" + outputs[index].LogicalName}})
 			if err != nil {

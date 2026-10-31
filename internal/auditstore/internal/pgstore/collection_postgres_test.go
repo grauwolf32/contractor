@@ -28,9 +28,9 @@ func TestPostgresCollectionReportsEvidenceBudgetExhaustion(t *testing.T) {
 		Claim: f.claim, ReceiptID: "receipt-budget", ExecutionID: f.execution.ExecutionID,
 		Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("5"),
 		Retained: []auditstore.ArtifactLink{
-			{LogicalKey: "result/" + f.memberID, Artifact: result, SourceProvenance: provenance},
-			{LogicalKey: "evidence/budget/one", Artifact: evidence, SourceProvenance: provenance},
-			{LogicalKey: "evidence/budget/two", Artifact: evidence, SourceProvenance: provenance},
+			{Scope: "project", LogicalKey: "result/" + f.memberID, Artifact: result, SourceProvenance: provenance},
+			{Scope: "project", LogicalKey: "evidence/budget/one", Artifact: evidence, SourceProvenance: provenance},
+			{Scope: "project", LogicalKey: "evidence/budget/two", Artifact: evidence, SourceProvenance: provenance},
 		},
 		Items: []auditstore.CollectionItem{{
 			ExecutionItemID: f.memberID, Disposition: auditstore.CollectionAccepted,
@@ -80,8 +80,7 @@ INSERT INTO audit_review_requests (
 	if _, inserted, err := f.store.Collect(f.ctx, auditstore.CollectParams{
 		Claim: f.claim, ReceiptID: "receipt-collection-triage", ExecutionID: f.execution.ExecutionID,
 		Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("9"),
-		Retained: []auditstore.ArtifactLink{{
-			LogicalKey: "result/" + f.memberID, Artifact: result,
+		Retained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "result/" + f.memberID, Artifact: result,
 			SourceProvenance: json.RawMessage(`{"runId":"run-triage"}`),
 		}},
 		Items: []auditstore.CollectionItem{{
@@ -260,8 +259,7 @@ func TestPostgresCollectionAcceptsBatchedChecksOfOneFindingProposal(t *testing.T
 	if _, inserted, err := store.Collect(ctx, auditstore.CollectParams{
 		Claim: claim, ReceiptID: "receipt-collection-two-checks", ExecutionID: execution.ExecutionID,
 		Disposition: auditstore.CollectionAccepted, SourceOutput: &result, RequestDigest: testDigest("6"),
-		Retained: []auditstore.ArtifactLink{{
-			LogicalKey: "result/two-checks", Artifact: result,
+		Retained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "result/two-checks", Artifact: result,
 			SourceProvenance: json.RawMessage(`{"runId":"run-two-checks"}`),
 		}},
 		Items: collected,

@@ -210,8 +210,7 @@ func proposeReportForTest(
 	requestID := "review-report-" + suffix
 	digest := serviceTestDigest("report-candidate")
 	link := func(key, name, media string) json.RawMessage {
-		encoded, err := json.Marshal(auditstore.ArtifactLink{
-			LogicalKey: key,
+		encoded, err := json.Marshal(auditstore.ArtifactLink{Scope: "project", LogicalKey: key,
 			Artifact: auditstore.ExactArtifact{
 				Ref: contracts.ArtifactRef{
 					Namespace: "audit-reports", Name: name, Revision: &revision,

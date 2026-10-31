@@ -92,7 +92,7 @@ Audit получает обычный scope в ArtifactStore. Handoff и пуб�
 существующие exact fork/read/CAS/retention операции. Несколько обычных inputs
 Workflow поддерживаются и дальше; универсального dependency manifest нет.
 
-Первый production caller уже существует: `auditimport.Importer.collectRoleSuccess`
+Первый production caller уже существует: `auditimport.Importer.collectSucceededRole`
 сохраняет объявленный output, `PinnedSubmissionBuilder.resolveRoleInputs`
 выбирает принятый exact output, а `RunService.CreateAudit` создаёт input fork
 следующего Run. V64-004 переводит эти операции на Audit scope и добавляет

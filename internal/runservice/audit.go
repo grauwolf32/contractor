@@ -139,12 +139,27 @@ func (s *Service) CreateAudit(ctx context.Context, params AuditCreateParams) (Cr
 					continue
 				}
 				descriptor := normalized.Inputs[slot]
-				if _, metadataErr := verifyExactProjectArtifact(
-					ctx, artifactService, intent.ProjectID, descriptor,
-				); metadataErr != nil {
+				sourceScope := projectScope
+				kind := artifacts.LineageInputFork
+				if normalized.AuditInputs[slot] {
+					sourceScope, _ = artifacts.AuditScope(intent.Execution.AuditID)
+					kind = artifacts.LineageAuditInput
+				}
+				store, scopeErr := artifactService.Scoped(sourceScope)
+				if scopeErr != nil {
+					return scopeErr
+				}
+				metadata, metadataErr := store.Metadata(ctx, descriptor.Ref)
+				if metadataErr != nil {
 					return metadataErr
 				}
-				fork, forkErr := forkInput(ctx, artifactService, projectScope, descriptor.Ref, runID, slot)
+				if descriptor.Verify(metadata.Exact()) != nil {
+					return ErrInvalid
+				}
+				targetScope, _ := artifacts.RunScope(runID)
+				fork, forkErr := artifactService.Fork(ctx, artifacts.Fork{Kind: kind,
+					Source: sourceScope, SourceRef: descriptor.Ref, Target: targetScope,
+					TargetRef: contracts.ArtifactRef{Namespace: "inputs", Name: slot}})
 				if forkErr != nil {
 					return forkErr
 				}
@@ -235,6 +250,12 @@ func normalizeAuditCreate(params AuditCreateParams) (AuditCreateParams, json.Raw
 	params.Workflow = workflow
 	refs := make(map[string]contracts.ArtifactRef, len(params.Inputs))
 	params.Inputs = contracts.CloneExactArtifacts(params.Inputs)
+	params.AuditInputs = maps.Clone(params.AuditInputs)
+	for slot, selected := range params.AuditInputs {
+		if !selected || params.Inputs[slot].Ref.Revision == nil || params.RoundResults[slot].Ref.Revision != nil {
+			return AuditCreateParams{}, nil, ErrInvalid
+		}
+	}
 	for slot, descriptor := range params.Inputs {
 		if descriptor.Ref.ValidateExact() != nil || !contentdigest.Valid(descriptor.Digest) ||
 			descriptor.MediaType == "" || descriptor.SizeBytes < 0 {

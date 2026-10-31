@@ -201,7 +201,11 @@ func purgeClaimedAudit(
 	if err != nil {
 		return err
 	}
-	complete, err := purger.PurgeAuditNamespace(ctx, projectID, namespace)
+	complete, err := purger.PurgeAudit(ctx, claim.AuditID)
+	if err != nil || !complete {
+		return err
+	}
+	complete, err = purger.PurgeAuditNamespace(ctx, projectID, namespace)
 	if err != nil {
 		return fmt.Errorf("purge Audit artifacts: %w", err)
 	}

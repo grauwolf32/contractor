@@ -251,9 +251,8 @@ func TestPostgresAuditLifecycleClaimsReceiptsAndProjectFence(t *testing.T) {
 		RoundID: "round-one", RoundOrdinal: 1, Manifest: manifest,
 		BaselineSnapshot: json.RawMessage(`{"inputs":[],"skills":[]}`),
 		DeadlineAt:       time.Now().Add(time.Hour), IdempotencyKey: "audit-start", RequestDigest: testDigest("4"),
-		InitialRetained: []auditstore.ArtifactLink{{
-			LogicalKey: "standard/example/1",
-			Artifact:   testExact("audit-one", "standard-example", "standard-r1"),
+		InitialRetained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "standard/example/1",
+			Artifact: testExact("audit-one", "standard-example", "standard-r1"),
 			SourceProvenance: json.RawMessage(
 				`{"schema":"contractor.audit-standard-provenance.v1"}`,
 			),
@@ -627,8 +626,7 @@ INSERT INTO finding_proposal_audit_holds (
 	acceptedReceipt, inserted, err := store.Collect(ctx, auditstore.CollectParams{
 		Claim: newClaim, ReceiptID: "receipt-three", ExecutionID: executionThree.ExecutionID,
 		Disposition: auditstore.CollectionAccepted, SourceOutput: &acceptedResult, RequestDigest: testDigest("f"),
-		Retained: []auditstore.ArtifactLink{{
-			LogicalKey: "rounds/1/items/check-two/result", Artifact: acceptedResult,
+		Retained: []auditstore.ArtifactLink{{Scope: "project", LogicalKey: "rounds/1/items/check-two/result", Artifact: acceptedResult,
 			SourceProvenance: json.RawMessage(`{"runId":"run-three"}`), DisplayRef: "Check two result",
 		}},
 		Items: []auditstore.CollectionItem{{

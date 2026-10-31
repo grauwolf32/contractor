@@ -918,6 +918,9 @@ func validateArtifactLinks(links []auditstore.ArtifactLink) (int64, error) {
 	var retainedBytes int64
 	retainedArtifacts := make(map[string]struct{}, len(links))
 	for _, link := range links {
+		if link.Scope != "project" && link.Scope != "audit" {
+			return 0, invalidf("artifact scope is invalid")
+		}
 		if err := validateText("artifact logical key", link.LogicalKey, auditstore.MaxArtifactLogicalKeyBytes, true); err != nil {
 			return 0, err
 		}

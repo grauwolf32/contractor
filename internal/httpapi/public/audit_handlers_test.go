@@ -983,3 +983,7 @@ func (f *fakeAuditManagement) CompareFindings(context.Context, auditservice.Find
 func (f *fakeAuditManagement) FindingGroupMembers(context.Context, auditservice.FindingMembersParams) (auditservice.FindingMembersPage, error) {
 	return auditservice.FindingMembersPage{}, f.err
 }
+
+func (f *fakeAuditManagement) PublishMaterial(context.Context, string, string, string, auditservice.MaterialPublicationRequest, *string) (auditservice.MaterialPublication, error) {
+	return auditservice.MaterialPublication{}, auditstore.ErrNotFound
+}

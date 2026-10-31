@@ -1173,6 +1173,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/projects/{projectId}/audit-material-publications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish one exact accepted Audit material into its owning Project
+         * @description Creates an independent binding of the same immutable version. Requires Idempotency-Key. Creation is create-only; replacement requires an explicit target If-Match revision. Project-scoped receipts replay after source Audit deletion. No embedded dependencies are followed.
+         */
+        post: operations["publishAuditMaterial"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/audits/{auditId}/artifacts": {
         parameters: {
             query?: never;
@@ -5154,14 +5176,28 @@ export interface components {
             items: components["schemas"]["ArtifactMetadata"][];
             page: components["schemas"]["PageInfo"];
         };
+        AuditMaterialPublicationRequest: {
+            auditId: components["schemas"]["ResourceId"];
+            source: components["schemas"]["ExactArtifactRef"];
+            target: {
+                namespace: components["schemas"]["ArtifactName"];
+                name: components["schemas"]["ArtifactName"];
+            };
+        };
+        AuditMaterialPublication: {
+            auditId: components["schemas"]["ResourceId"];
+            projectId: components["schemas"]["ResourceId"];
+            source: components["schemas"]["ExactArtifactRef"];
+            artifact: components["schemas"]["ExactArtifactRef"];
+        };
         ArtifactLineageEdge: {
             /** @enum {string} */
-            kind: "input_fork" | "output_bind" | "project_output_publish" | "context_projection";
+            kind: "input_fork" | "output_bind" | "project_output_publish" | "context_projection" | "audit_output" | "audit_input" | "audit_publish";
             /** @enum {string} */
-            sourceScope: "user" | "project" | "run";
+            sourceScope: "user" | "project" | "run" | "audit";
             source: components["schemas"]["ExactArtifactRef"];
             /** @enum {string} */
-            targetScope: "user" | "project" | "run";
+            targetScope: "user" | "project" | "run" | "audit";
             target: components["schemas"]["ExactArtifactRef"];
             runId?: components["schemas"]["ResourceId"];
             stageExecutionId?: components["schemas"]["ResourceId"];
@@ -10661,6 +10697,62 @@ export interface operations {
             409: components["responses"]["Conflict"];
             500: components["responses"]["InternalError"];
             503: components["responses"]["StorageTransactionConflict"];
+        };
+    };
+    publishAuditMaterial: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Binds this exact request. Repeating it with the same key replays the original result; sending a different request with the key is the permanent 409 `idempotency_conflict` (retryable false), and only a new key can carry the changed request. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description One strong quoted Artifact revision in the `Revision` grammar. A malformed revision is 400 `invalid_request`, never a CAS conflict. */
+                "If-Match"?: components["parameters"]["ArtifactIfMatch"];
+                "If-None-Match"?: "*";
+            };
+            path: {
+                projectId: components["parameters"]["ProjectId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuditMaterialPublicationRequest"];
+            };
+        };
+        responses: {
+            /** @description Explicit CAS replacement or replay of the original publication */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditMaterialPublication"];
+                };
+            };
+            /** @description Exact material published under independent Project ownership */
+            201: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    ETag: components["headers"]["ETag"];
+                    "Cache-Control": components["headers"]["NoStore"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditMaterialPublication"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
+            412: components["responses"]["PreconditionFailed"];
+            413: components["responses"]["PayloadTooLarge"];
+            500: components["responses"]["InternalError"];
+            503: components["responses"]["ArtifactWriteUnavailable"];
         };
     };
     getAuditArtifact: {
