@@ -5,7 +5,7 @@ Generated from the task files by `make tasks-backlog`; do not edit by hand.
 [templates/](templates/); the task policy is in [index.yml](index.yml) and
 the epics are in [epics.yml](epics.yml).
 
-84 open tasks: 11 in progress, 62 pending, 11 deferred. 1272 finished: 1257 completed, 15 archived.
+83 open tasks: 10 in progress, 62 pending, 11 deferred. 1273 finished: 1258 completed, 15 archived.
 
 ## In progress
 
@@ -21,7 +21,6 @@ the epics are in [epics.yml](epics.yml).
 | [V420-002](v420-002-planner-compaction-vertical-slice.yml) | planner-worker | feature | P1 | Implement opt-in bounded compaction for Streamline and Router Planners |
 | [V420-006](v420-006-shipped-planner-compaction.yml) | planner-worker | feature | P1 | Enable shared Planner compaction and reuse native YAML in shipped Workflows |
 | [V425-027](v425-027-postgres-test-harness.yml) | quality | chore | P3 | Consolidate schema-isolated PostgreSQL test pool setup |
-| [V425-028](v425-028-git-wire-limit-import-registry.yml) | quality | chore | P3 | Register the Git import consumer of the shared wire URL limit |
 
 ## Pending
 
@@ -209,4 +208,4 @@ tasks in `introduced_by`.
 | Operations, authentication, CLI and deployment (`operations`) | 0 | 18 | 45 | 7 | 20 |
 | Public API and wire contracts (`api-contracts`) | 3 | 2 | 38 | 25 | 15 |
 | PostgreSQL persistence and schema (`persistence`) | 3 | 0 | 27 | 45 | 14 |
-| Quality, CI and process (`quality`) | 13 | 1 | 28 | 110 | 26 |
+| Quality, CI and process (`quality`) | 12 | 1 | 28 | 110 | 26 |
