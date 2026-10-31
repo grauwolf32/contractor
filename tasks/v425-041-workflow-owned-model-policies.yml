@@ -19,6 +19,9 @@ context:
     Worker and another model for another consumer. The user accepted moving the
     main and summarizer model selections. Studio will be rewritten separately;
     its broader simplification is explicitly skipped for now.
+    User decision 2026-11-01 at delivery: skip the unrelated failing Runtime
+    checks and extra Linux test-environment work, close V425-041 and merge the
+    configuration changes into main. V425-001 and V425-002 remain separate.
   specification:
     - docs/spec/configuration/agent-templates.md
     - docs/spec/configuration/workflows.md
@@ -112,7 +115,7 @@ acceptance_criteria:
 tests:
   - command: go test -tags=integration ./internal/config/... ./internal/configload/... ./internal/contracts/... ./internal/controlplane ./internal/runtimeconfig ./internal/runservice ./internal/scheduler ./internal/evalservice ./internal/httpapi/public ./internal/publicclient/... ./internal/app
     covers: [A1, A2, A3, A4]
-  - command: make test-runtime
+  - command: cd runtime && uv run pytest -W error tests/test_contracts.py tests/test_digest_cases.py tests/test_allocation.py tests/test_allocation_contracts.py tests/test_worker_summarizer.py tests/test_adk_runtime.py tests/test_agent_skill_toolset.py tests/test_workspace_auto_export.py
     covers: [A1, A2, A3, A4]
   - command: make verify-public-api
     covers: [A1, A5]
