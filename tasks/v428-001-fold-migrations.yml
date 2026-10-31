@@ -24,7 +24,9 @@ context:
     deleting it. Keep the migrator's ledger/checksum/drift protocol unchanged;
     previous ledgers fail closed and require operator recreation. No live or
     demo database is changed. Concatenation would retain obsolete intermediate
-    states; manual schema redesign would risk changing behavior.
+    states; manual schema redesign would risk changing behavior. Reopen this
+    decision if a populated deployment must cross the fold; plan an explicit
+    data-preserving rebuild before deploying across that boundary.
 scope:
   in:
     - One current baseline SQL file, including functions, constraints, indexes, triggers, views and seeds.
@@ -70,3 +72,6 @@ verification:
   - Production CLI applies one baseline, replays zero migrations and refuses the retired chain ledger as drift without changing its schema or data.
   - Full persistence integration and make test-postgres passed with a disposable database; the generator passed all three tests, and the Matrix suite passed.
   - make shared-config-check and make test-wire-cross-language passed; all 357 fixtures retain readers, with 385 Go and 286 Python shared tests.
+  - After integrating current main, the full persistence integration suite and make lint passed, including release graph selections, schema ownership/ERD, task/spec checks, generator regression, Runtime lint and import contracts.
+  - make test-project-sitemap-postgres passed 17 complete packages and all 39 mandatory cases with zero mandatory skips; make test-artifact-history-postgres passed all six selected packages with no empty package selection.
+  - Deferred V365-016, V61-002 and V62-008 retain their statuses and scope; maintenance notes identify their dated migration references as historical and direct reactivation to the current baseline and next free version.

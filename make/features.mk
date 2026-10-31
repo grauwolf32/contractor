@@ -80,11 +80,10 @@ test-audit-iterative-e2e: require-database runtime-venv test-audit-iterative-har
 	$(call run-family-test,python3 scripts/test-audit-iterative.py --boundary process)
 
 # Automatic retained history of every Artifact binding: the store's admission,
-# eviction and holds, the migration, every writer adapter and the shared
-# fixture readers against PostgreSQL, then the Server and Runtime processes
+# eviction and holds, every writer adapter and the shared fixture readers against PostgreSQL, then the Server and Runtime processes
 # with a configured limit.
 test-artifact-history-postgres: require-database
-	$(call run-family-test,CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -tags=integration -count=1 ./internal/artifacts ./internal/persistence/postgres ./internal/memory ./internal/httpapi/public ./internal/httpapi/privateartifacts ./internal/findingintake ./internal/app -run '^(TestPostgresHistory.*|TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention|TestSharedArtifactHistory.*|TestPostgresPlannerMemoryCommitsHistoryMaintenanceAfterRollback|TestPostgresPublicArtifactHistoryOutcomes|TestPostgresGitImportCommitsHistoryMaintenanceAfterItsRollback|TestPostgresReceiptCitingARemovedRevisionIsAccessDenied|TestPostgresCollectionRejectsOnlyUnretainableProposals|TestArtifactHistoryConfig.*)$$')
+	$(call run-family-test,CONTRACTOR_TEST_DATABASE_URL="$$CONTRACTOR_TEST_DATABASE_URL" go test -tags=integration -count=1 ./internal/artifacts ./internal/memory ./internal/httpapi/public ./internal/httpapi/privateartifacts ./internal/findingintake ./internal/app -run '^(TestPostgresHistory.*|TestPostgresRunRevisionLimitIsNotRefundedByHistoryRetention|TestSharedArtifactHistory.*|TestPostgresPlannerMemoryCommitsHistoryMaintenanceAfterRollback|TestPostgresPublicArtifactHistoryOutcomes|TestPostgresGitImportCommitsHistoryMaintenanceAfterItsRollback|TestPostgresReceiptCitingARemovedRevisionIsAccessDenied|TestPostgresCollectionRejectsOnlyUnretainableProposals|TestArtifactHistoryConfig.*)$$')
 
 test-artifact-history-e2e: require-database runtime-venv
 	$(call run-family-test,go test -tags=e2e -count=1 -timeout=10m ./tests/e2e -run '^TestArtifactHistoryAcrossProductionProcesses$$')
