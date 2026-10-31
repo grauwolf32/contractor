@@ -9,6 +9,12 @@ project:
 
 execution_policy:
   current_delivery_focus: >-
+    User request 2026-11-01: record three implementation-review defects from completed V64-001 as
+    V64-020/021/022 (pending, P1, introduced_by V64-001). V64-020 accepts an explicitly empty
+    proposal from an optional generator; it does not require generation or allow blank hypothesis text.
+    V64-021 validates effective initial-task input requiredness; V64-022 bounds initial/generated seed
+    content. Their respective consumers V64-013, V64-002 and V64-012 depend on the fixes, bringing
+    them into the existing V64-011 base gate. This request creates tasks, not implementation.
     Audit task-formation request 2026-10-31: after accepting the common execution skeleton the user
     requested concrete tasks. Sixteen existing pending tasks form the base package (12 core, 3 HTTP,
     one report-bound regression); their scope/acceptance reflects the accepted result/finding distinction.
