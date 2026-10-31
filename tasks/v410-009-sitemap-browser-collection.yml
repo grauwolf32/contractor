@@ -23,6 +23,8 @@ context:
     this task records planned work, not implementation or verification evidence. The 2026-10-28 user decision makes
     sitemap metadata shared by every permitted reader, without source-mode classification. Original file retention
     belongs only to explicit snapshots through snapshotInputs; current operation and exact-file authority remain.
+    The user decision on 2026-10-31 splits the sitemap lane for parallel work with Audit; keep this optional
+    follow-up after independent V410-007 and V412-001, without V410-025 or V64 prerequisites.
   proposal: docs/proposals/0042-live-project-sitemap.md
   proposal_sections: 'Sections 3-5 and 9-12: optional browser collector, source correlation, explicit coverage gaps
     and allocation lifecycle.'
@@ -53,6 +55,11 @@ context:
     2026-10-30: use the current allocation authority from V422-002/V412-001.
     Archived browser/action recipes are not dependencies. Automatic map
     collection stays best effort and adds no Run/report completeness state.
+  parallel_delivery: >-
+    User decision 2026-10-31: the user requested sitemap work in parallel with Audit and a task
+    rewrite. Follow standalone V410-007 under ordinary task policy; Audit review, V410-025 and
+    V64 are not prerequisites. Preserve the other listed dependencies and existing source/snapshot
+    authority. This planning update starts no implementation.
 scope:
   in:
   - Subscribe at managed BrowserContext scope to request, response and failure events, including new tabs in the

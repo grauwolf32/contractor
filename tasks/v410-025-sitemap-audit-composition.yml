@@ -1,0 +1,210 @@
+schema_version: '1.0'
+id: V410-025
+title: Compose exact sitemap artifacts through ordinary Audit tasks
+milestone: autonomous-http-pentest-2026-10
+epic: workflows
+kind: feature
+priority: P1
+status: pending
+depends_on:
+- V410-007
+- V64-002
+languages:
+- go
+- python
+- yaml
+- markdown
+goal: An Audit invokes the released sitemap Workflows as ordinary exploratory tasks, retains exact selected
+  snapshots for consumers and publishes a useful derived artifact to Project through common Artifact operations,
+  without special preparation or round-specific routing.
+demonstration: Through actual Server/Scheduler/Runtime/PostgreSQL, run an Audit with discovery and a dependent
+  snapshot/reconciliation consumer from the V410-006 catalog. Consume the exact selected revision after
+  pause/restart while the live map advances. Publish one derived result to Project and prove its required
+  bytes survive source Audit deletion. No hypothesis or generator is needed (A1-A3).
+context:
+  authority: 'User decision on 2026-10-31: keep Audit complexity controlled, use ordinary Runs and exact
+    Audit/Project materials, and allow exploration without a hypothesis. The user then requested sitemap
+    work in parallel with Audit and explicitly asked to rewrite tasks. This feature takes only the Audit-dependent
+    scope split from V410-006/007; independent sitemap delivery does not wait for it.'
+  specification:
+  - docs/spec/artifacts/project-sitemap.md
+  - docs/spec/artifacts/artifact-store.md
+  - docs/spec/artifacts/retention-and-deletion.md
+  - docs/spec/configuration/workflows.md
+  - docs/spec/audits/audits.md
+  - docs/spec/audits/execution.md
+  - docs/spec/platform/limits.md
+  - docs/spec/platform/errors.md
+  design:
+  - docs/proposals/0050-audit-common-hypothesis-model.md
+  - docs/plans/2026-10-31-audit-redesign.md
+  proposal: docs/proposals/0042-live-project-sitemap.md
+  split_from:
+  - V410-006
+  - V410-007
+  boundary: SMT owns map/snapshot/reconciliation domain rules. ArtifactStore owns exact context and publication/
+    retention. V64-002 and its V64-004 prerequisite own task dependencies, Run submission, workspace and
+    recovery. Reuse those owners without a sitemap-specific execution lifecycle, collector or transfer
+    store.
+  implementation_gate: Keep pending until both prerequisites are completed and the user has authorized
+    the reviewed Audit redesign. This request authorizes replanning only, not code, migrations, live Runs
+    or deployment. This Audit review gate does not apply to standalone V410-006/007.
+  code:
+  - configs/audit-profiles
+  - internal/config
+  - internal/auditservice
+  - internal/auditcontroller
+  - tests/e2e
+  - docs/guides
+scope:
+  in:
+  - Bind released sitemap Workflows into common Audit tasks with explicit dependencies and exact inputs;
+    supporting/exploratory tasks need no dummy hypothesis.
+  - Retain selected context through the common Audit workspace/input APIs and publish one useful derived
+    artifact to Project with lineage and independently usable required dependencies.
+  - Replace pending sitemap prepare/same-round examples and fixtures with common task bindings; migrate
+    existing concrete callers if present and remove superseded bindings rather than retaining two paths.
+  - Register migrated/new cases in the existing Audit composition gate; let V411-014/V411-020 consume
+    their result and reuse V410-007 scale/lifecycle evidence.
+  out:
+  - Standalone catalog/release work in V410-006/007 and optional Caido/browser integrations.
+  - Redesigning Audit coordination, ArtifactStore scopes/retention, hypotheses, findings or approvals;
+    missing prerequisites require separate tasks.
+  - Per-route automatic hypotheses, sitemap-derived complete coverage, retained raw traffic, special admission
+    or a Workflow per observation.
+requirements:
+- id: R1
+  text: Use V64-002 trusted task creation/Run submission for initial and dependent work. Keep Workflows
+    standalone-capable; add no sitemap stage kind, admission phase or second controller.
+- id: R2
+  text: The live sitemap stays Project-owned shared context. Accepted consumers use exact snapshot revisions;
+    later writes never silently change their inputs, baseline or retained results. Exploration cannot
+    imply checklist coverage.
+- id: R3
+  text: Reuse V64-004 workspace/input/publication APIs and receipts. Project publication retains source
+    lineage and independently usable required originals without destructively moving material used by
+    accepted consumers. Metadata provenance alone grants no byte access or hold.
+- id: R4
+  text: Preserve SMT snapshotInputs gap versus storage-error semantics, current operation authority, exact
+    holds and best-effort collection. Failed publication/recovery never resends target traffic or restarts
+    discovery under a new logical identity.
+- id: R5
+  text: Update concrete bindings, owning specifications and fixtures with implementation. V410-025 remains
+    outside basic Audit V64-011; the composed HTTP milestone accepts it through V411-014/V411-020. Reuse
+    independent sitemap evidence and existing case selectors with zero-match detection.
+failure_outcomes:
+- operation: Create, depend and reconcile a sitemap Audit task and ordinary Run
+  permanent: Invalid binding/scope/revision fails through V64-001/002 classified errors; exact unavailable
+    inputs never fall back to latest and deterministic rejection never retries endlessly.
+  retryable: Use existing bounded Audit/Run storage-conflict and recovery policies with the original task/submission
+    identity and deadline.
+  ambiguous: Reconcile durable task-to-Run intent and output receipts before another creation; duplicate
+    delivery creates no additional discovery or accepted logical result.
+  cancelled: Common Audit scheduling/cancel/drain and ordinary allocation cleanup join sitemap publishers
+    before release.
+  timeout: Existing Audit/Run/operation deadlines apply; no preparation/research clock or lease is added.
+- operation: Retain exact context and publish a derived artifact to Project
+  permanent: Unauthorized, invalid, capacity-rejected or unavailable dependencies fail atomically through
+    existing Artifact/SMT errors; corrupt/missing resolved bytes roll back without partial publication
+    or copied authority.
+  retryable: Reuse bounded Artifact/SMT conflict/backpressure retries under the original key without replaying
+    target work.
+  ambiguous: Recover the same accepted publication and exact destination through existing receipts after
+    pause/restart or a lost reply.
+  cancelled: Common workspace/publication fencing joins writes before Audit purge or allocation cleanup.
+  timeout: Existing snapshot/publication deadlines apply; unresolved acknowledgements remain reconcilable
+    under the recorded identity.
+cardinality:
+- collection: Audit tasks, dependencies and selected sitemap inputs
+  expected: One discovery task, a dependent snapshot/reconciliation consumer and one Project publication
+  maximum: Existing common Audit task/iteration/dependency and Artifact/SMT byte, map/member/view limits;
+    this split reduces no published limit
+  bound: Use bounded common reconciliation and explicit selected refs/pages, without full Audit/Project
+    history scans or route/dependency traversal on every tick.
+- collection: Snapshot original inputs and required publication dependencies
+  expected: Selected map context plus optional permitted schema/report originals
+  maximum: Existing at-most-eight snapshotInputs names and common exact-publication dependency/byte bounds
+  bound: Retain only required originals through existing owners atomically with accepted snapshot/publication;
+    add no manifest store or independent dependency crawler.
+lifecycle:
+- entity: Audit sitemap tasks, retained context and Project-published derived artifacts
+  delete: Common drained Audit/Run/Project deletion and Artifact owners retain authority; no sitemap purge
+    controller.
+  cascade: Source Audit deletion removes its ordinary owned state; committed live Project metadata and
+    independently retained Project publications with required bytes remain usable.
+  retention: Exact accepted inputs/publications use legitimate existing holds; reads, metadata references
+    and receipts create none. Preserve immutable lineage after source purge.
+acceptance_criteria:
+- id: A1
+  given: Released standalone sitemap Workflows and the common Audit coordinator
+  when: A real Audit invokes discovery and a dependent exact snapshot/reconciliation consumer
+  then: Ordinary tasks/Runs execute without dummy hypotheses, special preparation/round routing or new
+    lifecycle; declared inputs/results retain exact source revisions and authority.
+- id: A2
+  given: An accepted snapshot, changing live map and pause/restart around submission or collection
+  when: The Audit continues with duplicate/lost acknowledgements
+  then: It resumes the same logical task/Run/result and exact inputs without another discovery send, latest
+    substitution or source-file authority bypass.
+- id: A3
+  given: A useful derived snapshot/result with required original-input dependencies
+  when: It is published to Project through the common mechanism and the drained source Audit is purged
+  then: The Project artifact, required bytes and immutable lineage remain usable; accepted consumers are
+    not broken by destructive movement.
+- id: A4
+  given: Missing/unauthorized/corrupt inputs, source/retention conflict, cancellation and publication
+    timeout
+  when: Faults cross the real integration boundaries
+  then: Existing SMT/Artifact classifications and atomicity hold, publishers join cleanup and recovery
+    does not repeat target activity.
+- id: A5
+  given: Migrated sitemap Audit bindings/testdata and independent sitemap gate evidence
+  when: The Audit composition gate and catalog validation run
+  then: Required integration cases execute without skips or zero-match selections, obsolete mappings are
+    removed and standalone V410-006/007 remain independently runnable.
+tests:
+- command: make test-config
+  covers:
+  - A1
+  - A5
+- command: make test-audit-composition-e2e
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+- command: make test-project-sitemap-tools-e2e
+  covers:
+  - A1
+  - A4
+  - A5
+- command: go test -count=1 ./internal/config/... ./internal/auditcontroller/... ./internal/auditservice/...
+    ./internal/projectsitemap/...
+  covers:
+  - A1
+  - A2
+  - A4
+  - A5
+- command: make lint
+  covers:
+  - A1
+  - A2
+  - A3
+  - A4
+  - A5
+deliverables:
+- path: configs/audit-profiles
+  description: Common-task sitemap bindings and exact material selections replacing superseded preparation/round
+    bindings.
+- path: tests/e2e
+  description: Existing-gate cases for exact inputs, pause/recovery, Project publication and source deletion.
+- path: docs/guides
+  description: Audit examples using the standalone sitemap Workflows and common exact input/publication
+    APIs.
+test_prerequisites:
+- Use actual Server/Scheduler/Runtime/disposable PostgreSQL and a local target or scripted model. Missing
+  infrastructure, configured unreachable database, mandatory skip or zero-match selector fails.
+- Consume V410-007 independent scale/retention/view evidence. Extend existing Audit composition cases
+  without a second registry or generic Artifact lifecycle matrix.
+- Run full touched-package suites on testdata and validate shipped catalog separately. Commands here are
+  implementation acceptance, not claimed execution during planning.
