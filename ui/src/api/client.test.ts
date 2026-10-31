@@ -8,6 +8,7 @@ import {
   publicAPIError,
 } from "./error";
 import { PublicAPI } from "./client";
+import { TEST_SHARED_CONFIG } from "../test/shared-config";
 
 const runtimeConfig: RuntimeConfig = {
   uiVersion: "0.1.0",
@@ -358,7 +359,11 @@ describe("authoritative domain authentication failures", () => {
     async (transport) => {
       const api = new PublicAPI(
         runtimeConfig,
-        vi.fn(async () => apiResponse({ code: "unauthorized" }, 401)),
+        vi.fn(async (input) =>
+          new URL((input as Request).url).pathname === "/v1/config"
+            ? apiResponse(TEST_SHARED_CONFIG)
+            : apiResponse({ code: "unauthorized" }, 401),
+        ),
       );
       const listener = vi.fn();
       api.csrf.replace(session.csrfToken);

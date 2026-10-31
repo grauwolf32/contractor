@@ -24,7 +24,7 @@ from contractor_runtime.contracts import (
 from contractor_runtime.core.input_errors import ToolInputError
 from contractor_runtime.core.tool_metrics import ToolMetrics
 from contractor_runtime.redaction import runtime_secrets
-from contractor_runtime.shared_config import artifact_payload_max_bytes
+from contractor_runtime.shared_config import artifact_list_max_items, artifact_payload_max_bytes
 from contractor_runtime.toolsets.common.artifact_media import is_binary_media_type
 from contractor_runtime.toolsets.common.artifact_read_cache import (
     ExactArtifactReadCache,
@@ -45,7 +45,7 @@ from contractor_runtime.workspace import AllocationWorkspace
 
 MAX_READ_CHUNK_BYTES = 256 * 1024
 # Refs per list_artifacts page: a page stays a few thousand tokens for small
-# models; the private API allows up to MAX_BINDING_LIST_LIMIT.
+# models; the fetched private API ceiling bounds this preferred size.
 LIST_PAGE_SIZE = 100
 
 
@@ -116,7 +116,7 @@ class ListArtifactsTool(ArtifactTool):
             if cursor is not None and not _matches(ARTIFACT_LIST_CURSOR_PATTERN, cursor):
                 raise ToolInputError("cursor must be the nextCursor of a previous page")
             page = await self._client.list_artifact_page(
-                namespace, limit=LIST_PAGE_SIZE, cursor=cursor
+                namespace, limit=min(LIST_PAGE_SIZE, artifact_list_max_items()), cursor=cursor
             )
             # The Server excludes hidden bindings before its limit; one here is
             # a contract violation, not something to filter into a short page.

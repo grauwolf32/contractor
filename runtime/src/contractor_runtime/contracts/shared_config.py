@@ -20,6 +20,8 @@ from contractor_runtime.shared_config import SharedConfigSnapshot
 class SharedLimits(WireModel):
     model_config = ConfigDict(frozen=True)
     artifact_payload_max_bytes: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    public_page_max_items: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
+    artifact_list_max_items: int = Field(strict=True, gt=0, le=MAX_EXACT_INTEGER)
 
 
 class SharedConfig(VersionedWireModel):
@@ -39,5 +41,8 @@ class SharedConfig(VersionedWireModel):
 
     def snapshot(self) -> SharedConfigSnapshot:
         return SharedConfigSnapshot(
-            self.version, self.digest, self.limits.artifact_payload_max_bytes
+            self.version,
+            self.digest,
+            self.limits.artifact_payload_max_bytes,
+            self.limits.artifact_list_max_items,
         )

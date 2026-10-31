@@ -9,7 +9,11 @@ import (
 )
 
 func main() {
-	if err := json.NewEncoder(os.Stdout).Encode(control.DefaultSharedConfig()); err != nil {
+	config, err := control.DefaultSharedConfig()
+	if err == nil {
+		err = json.NewEncoder(os.Stdout).Encode(config)
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

@@ -1260,7 +1260,8 @@ readiness or registration. Basic root ownership and TLS validation may precede
 the fetch. Runtime installs one immutable process snapshot and has no local
 fallback Artifact payload ceiling. All Artifact reads/writes, metadata size
 validation, sitemap descriptors, base64 prechecks, exports and derived exact-read
-cache budgets use that snapshot. A different snapshot requires process restart.
+cache budgets use that snapshot. Private Artifact list validation uses its
+Artifact page ceiling; model-facing preferred page sizes are capped by it. A different snapshot requires process restart.
 Malformed/oversized configuration documents, unsupported versions, digest mismatch and
 permanent HTTP rejection stop startup without registration. Network failures,
 per-request timeout and retryable HTTP responses repeat using the existing

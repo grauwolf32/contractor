@@ -32,7 +32,7 @@ from contractor_runtime.contracts import (
     validate_media_type,
 )
 from contractor_runtime.contracts.base import NAME_PATTERN, is_blank, trim_whitespace
-from contractor_runtime.shared_config import artifact_payload_max_bytes
+from contractor_runtime.shared_config import artifact_list_max_items, artifact_payload_max_bytes
 
 if TYPE_CHECKING:
     from contractor_runtime.archive_cache import ImmutableArchiveCache
@@ -40,7 +40,6 @@ if TYPE_CHECKING:
 MAX_ARTIFACT_JSON_BYTES = 1 << 20
 # artifacts.MaxBindingListLimit (LIM-ART-3), pinned by
 # api/testdata/v1alpha1/artifact-list-cases.json.
-MAX_BINDING_LIST_LIMIT = 256
 PATH_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 # The revision a strong entity tag carries verbatim between its double
 # quotes: visible ASCII other than a double quote, a backslash or a comma.
@@ -577,7 +576,7 @@ class MTLSArtifactTransport:
 
 
 def _validate_list_limit(limit: int) -> None:
-    if type(limit) is not int or not 1 <= limit <= MAX_BINDING_LIST_LIMIT:
+    if type(limit) is not int or not 1 <= limit <= artifact_list_max_items():
         raise ValueError("artifact list limit is invalid")
 
 

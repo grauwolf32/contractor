@@ -72,7 +72,9 @@ it(
       },
     });
     const observed = () =>
-      server.requests.map((request) => new URL(request.url));
+      server.requests
+        .map((request) => new URL(request.url))
+        .filter((url) => url.pathname !== "/v1/config");
     const { user } = renderWithAPI(null, {
       server,
       routes: [

@@ -2172,6 +2172,48 @@ export const RESPONSE_SCHEMAS = {
 
 export type ResponseOperation = keyof typeof RESPONSE_SCHEMAS;
 
+/** Operations declaring the common public page ceiling, excluding specialized limits. */
+export const PUBLIC_PAGED_OPERATIONS: readonly string[] = [
+  "GET /v1/workflows",
+  "GET /v1/projects",
+  "GET /v1/projects/{projectId}/artifacts",
+  "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/versions",
+  "GET /v1/projects/{projectId}/artifacts/{namespace}/{name}/lineage",
+  "GET /v1/projects/{projectId}/runs",
+  "GET /v1/audit-profiles",
+  "GET /v1/projects/{projectId}/audits",
+  "GET /v1/audits",
+  "GET /v1/findings",
+  "GET /v1/reviews",
+  "GET /v1/audits/{auditId}/items",
+  "GET /v1/audits/{auditId}/coverage",
+  "GET /v1/audits/{auditId}/finding-proposals",
+  "GET /v1/audits/{auditId}/events",
+  "GET /v1/audits/{auditId}/findings",
+  "GET /v1/audits/{auditId}/findings/{findingId}/provenance",
+  "GET /v1/audits/{auditId}/reviews",
+  "GET /v1/queue",
+  "GET /v1/runs",
+  "GET /v1/runs/{runId}/artifacts",
+  "GET /v1/runs/{runId}/finding-proposals",
+  "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/versions",
+  "GET /v1/runs/{runId}/artifacts/{namespace}/{name}/lineage",
+  "GET /v1/artifacts",
+  "GET /v1/artifacts/{namespace}/{name}/versions",
+  "GET /v1/artifacts/{namespace}/{name}/lineage",
+  "GET /v1/configurations/{kind}",
+  "GET /v1/configurations/agent-templates/{name}/versions/{version}/workflow-bindings",
+  "GET /v1/operations/runtime-configs",
+  "GET /v1/operations/runtime-labels",
+  "GET /v1/operations/runtime-credentials",
+  "GET /v1/operations/runtime-agent-principals",
+  "GET /v1/operations/credentials",
+  "GET /v1/operations/runtime-agents",
+  "GET /v1/operations/allocations",
+  "GET /v1/scan-sweeps",
+  "GET /v1/scan-sweeps/{sweepId}/members",
+];
+
 /** The PublicSchemaName of each request header an operation declares. */
 export const REQUEST_HEADER_SCHEMAS = {
   "POST /v1/projects/{projectId}/eval-datasets": {

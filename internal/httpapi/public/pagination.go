@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	defaultPageLimit = 50
+	defaultPageLimit = min(50, pagelimit.MaxRows)
 	pageCursorV1     = 1
 )
 

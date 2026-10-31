@@ -2625,6 +2625,8 @@ export interface components {
             digest: string;
             limits: {
                 artifactPayloadMaxBytes: number;
+                publicPageMaxItems: number;
+                artifactListMaxItems: number;
             };
         };
         SitemapDocument: {

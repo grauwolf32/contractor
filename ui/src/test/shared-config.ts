@@ -32,8 +32,19 @@ export class TestPublicAPI extends PublicAPI {
 /** A different valid Server policy for boundary tests, without changing production defaults. */
 export function testSharedConfig(
   artifactPayloadMaxBytes: number,
+  overrides: Partial<SharedConfig["limits"]> = {},
 ): SharedConfig {
-  const content = { limits: { artifactPayloadMaxBytes }, version: 1 as const };
+  const limits = {
+    ...TEST_SHARED_CONFIG.limits,
+    artifactPayloadMaxBytes,
+    ...overrides,
+  };
+  const content = {
+    limits: Object.fromEntries(
+      Object.entries(limits).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+    ) as SharedConfig["limits"],
+    version: 1 as const,
+  };
   const digest = createHash("sha256")
     .update(JSON.stringify(content))
     .digest("hex");
