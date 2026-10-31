@@ -1,0 +1,77 @@
+schema_version: '1.0'
+id: V425-026
+title: Load shared UI policy from the public API
+milestone: runtime-shared-config-2026-10
+epic: execution-core
+kind: feature
+priority: P1
+status: pending
+depends_on: [V425-025]
+languages: [go, typescript]
+goal: >-
+  The browser obtains shared non-secret limits from Server at application
+  startup, so its Artifact controls and API clients use the same policy
+  snapshot as the Runtime instead of their compiled schema's default value.
+demonstration: >-
+  Sign in, fetch GET /v1/config through the existing public API client, then
+  display and enforce its Artifact byte ceiling in ordinary material upload,
+  download and archive flows. A failed config read blocks protected content
+  with a truthful retry action until configuration is available.
+context:
+  authority: >-
+    User decision on 2026-10-31: add a public endpoint too, after clarifying
+    that V425-025 initially took the UI ceiling from a generated build-time
+    schema. Both endpoints must use one Server-owned source. Agent proposal:
+    ordinary authenticated GET /v1/config and an immutable per-API-client UI
+    snapshot, fetched once after sign-in without polling or a local fallback.
+scope:
+  in:
+    - Public read-only config endpoint with ordinary user authorization and existing errors/version headers.
+    - OpenAPI, both generated clients and config response contract tests.
+    - UI startup load/error/retry, API-client snapshot and all Artifact ceiling consumers.
+    - Fake-server and browser fixtures updated to serve the real config shape.
+  out:
+    - Secrets, Server-only settings, anonymous bootstrap config, polling or live reload.
+    - New storage, RuntimeSettings changes or migration of other limit families.
+requirements:
+  - id: R1
+    text: Public and private endpoints project the identical Server-owned version/limits/digest; no database access or per-user policy.
+  - id: R2
+    text: UI loads and validates shared config after sign-in before protected workflows; logout clears session state and a new browser application fetches again.
+  - id: R3
+    text: Missing, failed or invalid config has no numeric fallback; all Artifact UI controls and clients use the fetched ceiling.
+failure_outcomes:
+  - operation: GET /v1/config
+    permanent: Unknown query/body, unauthenticated call and invalid response use existing classified public errors; malformed config blocks protected content.
+    retryable: Existing bounded UI query retry policy and explicit Try again; no polling.
+    ambiguous: Read-only idempotent operation can be repeated.
+    cancelled: Follow ordinary public API/query cancellation and application lifecycle.
+    timeout: Existing public client request policy; startup remains visibly pending or failed until resolved.
+cardinality:
+  - collection: Shared policy
+    expected: One config document per browser API instance.
+    maximum: One version, one digest and one Artifact ceiling.
+    bound: No collection scan, database call or repeated per-operation config read after successful initialization.
+lifecycle:
+  - entity: Browser config snapshot
+    delete: Browser application/API-client disposal releases memory.
+    cascade: No persisted config or credentials.
+    retention: Application lifetime; no hot reload.
+acceptance_criteria:
+  - id: A1
+    text: Authenticated public config equals private config, anonymous calls fail, query/body/HEAD are rejected and the public route conforms to OpenAPI.
+  - id: A2
+    text: UI startup fetches config, shows a retryable error on failure and does not admit protected workflows before success.
+  - id: A3
+    text: A changed test ceiling appears in upload copy and controls download/upload/archive checks; no independent numeric Artifact cap remains in production UI.
+  - id: A4
+    text: All generated contracts and touched Go/UI suites and applicable end-to-end checks pass.
+tests:
+  - command: go test ./internal/httpapi/public/...
+    covers: [A1, A4]
+  - command: make verify-public-api
+    covers: [A1, A4]
+  - command: make ui-verify
+    covers: [A2, A3, A4]
+  - command: make lint
+    covers: [A1, A3, A4]

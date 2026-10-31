@@ -1,0 +1,96 @@
+schema_version: '1.0'
+id: V425-025
+title: Bootstrap Runtime shared limits from the Control Plane
+milestone: runtime-shared-config-2026-10
+epic: execution-core
+kind: feature
+priority: P1
+status: in_progress
+depends_on: []
+languages: [go, python]
+goal: >-
+  Change the shared Artifact payload ceiling in one Server-owned definition;
+  Runtime obtains it at startup and schemas, fixtures and database constraints
+  follow the same source instead of independently maintained magic numbers.
+demonstration: >-
+  An authenticated Runtime fetches GET /private/v1/config before preparation
+  and registration, validates its version and digest and enforces the returned
+  Artifact ceiling throughout its Artifact consumers.
+context:
+  authority: >-
+    User decisions on 2026-10-31: keep shared limits in one place, leave
+    Server-only limits with Server, and deliver shared parameters through a
+    Control Plane endpoint at Runtime startup. Accepted agent proposal:
+    GET /private/v1/config over existing mTLS, immutable process snapshot,
+    Server-owned constants with generated schema/SQL bindings. The first
+    concrete slice is Artifact payload size; other limit families are future work.
+scope:
+  in:
+    - Private config DTO, strict shared fixtures, mTLS endpoint and startup client.
+    - Runtime Artifact validation, upload/download, derived cache/base64 and export bounds.
+    - Generation and drift gate from the existing Go Artifact constant to schemas and test defaults; incremental SQL migration generation when that ceiling changes.
+    - UI Artifact ceiling from its generated owning schema, derived fixtures and operator/error wording.
+    - Normative startup and ownership contract.
+  out:
+    - Hot reload, allocation RuntimeSettings, new operator config files or unrelated equal-valued limits.
+    - Migrating all limit families or changing the Artifact ceiling in this task.
+requirements:
+  - id: R1
+    text: Config is versioned, digest-verified, strict, secret-free and available to verified Runtime mTLS identities before registration, without persistence writes.
+  - id: R2
+    text: Runtime has no production numeric copy of the Artifact ceiling. Its snapshot is immutable until process restart; absent or invalid config cannot admit work.
+  - id: R3
+    text: One Go definition drives the endpoint, derived Runtime bounds, generated schema/test artifacts and incremental SQL check migrations; historical migrations remain immutable.
+failure_outcomes:
+  - operation: Startup GET config
+    permanent: Malformed or unsupported response and permanent HTTP rejection stop startup without registration; no local fallback.
+    retryable: Transport, timeout and retryable HTTP failures use existing bounded exponential backoff until success or shutdown, with per-request timeout.
+    ambiguous: Read-only idempotent GET can be repeated without side effects.
+    cancelled: Startup cancels and joins in-flight fetch before closing private connections.
+    timeout: Existing private request timeout owns each attempt.
+cardinality:
+  - collection: Shared configuration
+    expected: One version, one digest and one Artifact limit.
+    maximum: One immutable document per process, bounded by existing private response budget.
+    bound: No list, database query or per-allocation fetch.
+lifecycle:
+  - entity: Shared config snapshot
+    delete: Process shutdown releases memory.
+    cascade: No persisted state.
+    retention: Process lifetime; restart fetches again.
+acceptance_criteria:
+  - id: A1
+    text: Go, Python and schema agree on valid and invalid config fixtures; endpoint requires Runtime mTLS and has no registration side effect.
+  - id: A2
+    text: Startup fetch precedes preparation/registration; malformed/permanent failures stop and retry/cancellation are bounded and joined.
+  - id: A3
+    text: A changed test ceiling governs all Runtime Artifact consumers and derived budgets; missing configuration fails closed and replacement is rejected.
+  - id: A4
+    text: Generator checks pass, and a source change updates schema/test outputs and emits a sequential SQL check migration without editing historical migrations.
+  - id: A5
+    text: The real Server and Runtime cross-language lifecycle completes with startup config enabled.
+tests:
+  - command: go test ./internal/contracts/... ./internal/controlplane/... ./internal/artifacts/... ./internal/app/... ./internal/apierror/... ./internal/httpapi/privateartifacts/...
+    covers: [A1, A3]
+  - command: make test-wire-cross-language
+    covers: [A1]
+  - command: make test-artifact-integration
+    covers: [A3]
+  - command: make test-control-integration
+    covers: [A2]
+  - command: go test -tags=e2e -count=1 ./tests/e2e -run ^TestLocalGoToPythonArtifactCopy$
+    covers: [A5]
+  - command: cd runtime && uv run pytest tests --deselect=tests/test_projectfs_local_io.py::test_limits_deadline_names_and_binary_classification --deselect=tests/test_code_analysis_graph.py::test_graph_collection_stops_at_encoded_result_ceiling_with_resumable_cursor
+    covers: [A2, A3]
+  - command: cd runtime && uv run python -m unittest discover -s ../scripts -p test_generate_shared_config.py
+    covers: [A4]
+  - command: make ui-verify
+    covers: [A3, A4]
+  - command: make verify-public-api
+    covers: [A3, A4]
+  - command: make lint
+    covers: [A1, A3, A4]
+verification_notes: >-
+  Runtime broad check deselects two tests owning already-tracked macOS APFS
+  and PATH_MAX failures (V425-001 and V425-002); relevant changed packages
+  receive separate full suites. PostgreSQL checks use a disposable database.
