@@ -5,7 +5,7 @@ milestone: audit-check-prioritization
 epic: audits
 kind: feature
 priority: P1
-status: in_progress
+status: completed
 depends_on:
 - V64-000
 - V62-001
@@ -226,7 +226,7 @@ deliverables:
   description: Owning contract, control/continuation guarantees and registered limits/failure/lifecycle entries.
 - path: docs/proposals/0050-audit-removal-map.yml
   description: Relation/profile/operation/wire/source dispositions assigned to dependent owners, checked against current relation and public operation inventories.
-implementation_commit: null
+implementation_commit: 36d93a45f021dca043126b5baeb487f4c2a046c2
 replanning:
   date: '2026-10-31'
   previous_title: Specify optional Audit research contracts and deterministic bypass
